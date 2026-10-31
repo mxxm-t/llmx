@@ -1,0 +1,4671 @@
+{
+  "archive_manifest": {
+    "all_file_hashes_verified": true,
+    "failed_files": [],
+    "file_count": 90
+  },
+  "archive_sha256": "afcb1c8e0f1c8981687cfe853d51383c4168a9901b96ae40b1e7e434fee9f571",
+  "archive_sha256_expected": "afcb1c8e0f1c8981687cfe853d51383c4168a9901b96ae40b1e7e434fee9f571",
+  "container": {
+    "cid": "f175b2060ef8ef46de28ee50e79c02a96ffadc7050665ee8e2edb97e9170a6e9",
+    "cleanup": {
+      "argv": [
+        "docker",
+        "rm",
+        "f175b2060ef8ef46de28ee50e79c02a96ffadc7050665ee8e2edb97e9170a6e9"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": "f175b2060ef8ef46de28ee50e79c02a96ffadc7050665ee8e2edb97e9170a6e9\n"
+    },
+    "exit_code": 0,
+    "oom_killed": false,
+    "seconds": 202.3249170780182
+  },
+  "date": "2026-10-27",
+  "goldens": {
+    "q1-0": {
+      "bundle_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "fixture_count": 3,
+      "matches_bundle": true,
+      "sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2"
+    },
+    "q2-0": {
+      "bundle_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "fixture_count": 3,
+      "matches_bundle": true,
+      "sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75"
+    }
+  },
+  "kind": "offline correctness replay; no inference or rebuild",
+  "model_file_hash_scope": "model SHA256 values are retained from runner report; GGUF files were not present in the local review package",
+  "models": [
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "84de0ffd90913ede1fdcae0c3fcada61b22b42e8b1c723aa4ae6d50ec855419d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "84de0ffd90913ede1fdcae0c3fcada61b22b42e8b1c723aa4ae6d50ec855419d"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "84de0ffd90913ede1fdcae0c3fcada61b22b42e8b1c723aa4ae6d50ec855419d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "84de0ffd90913ede1fdcae0c3fcada61b22b42e8b1c723aa4ae6d50ec855419d"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "ee85afd66a42fa470150fda262251b70d180050b423e1ee136f84967a3a46499",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "ee85afd66a42fa470150fda262251b70d180050b423e1ee136f84967a3a46499"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-untied cpu1 batched 'a'/HF logit error: 0.00002575\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.62396240234375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2411346435546875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefghijklm'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.62396240234375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2411346435546875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefghijklm'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 6.950262445570843e-07,
+            "passed": true,
+            "reference": 16.483033369271944,
+            "value": 16.4830326742457
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "469a3ff1d9da95b84f1d3bc43fd64845d341be04e865825c60e9a23f8efc6cba",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "469a3ff1d9da95b84f1d3bc43fd64845d341be04e865825c60e9a23f8efc6cba"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-untied gpu1 batched 'a'/HF logit error: 0.00002265\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2530555725097656e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2530555725097656e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 9.482641836200401e-07,
+            "passed": true,
+            "reference": 16.483033369271944,
+            "value": 16.483034317536127
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "7faa62ff26b7e92458d5e489238638ecb867f8ca59ecb65d3fba756937f807c9"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "469a3ff1d9da95b84f1d3bc43fd64845d341be04e865825c60e9a23f8efc6cba",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "469a3ff1d9da95b84f1d3bc43fd64845d341be04e865825c60e9a23f8efc6cba"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-untied layer2 batched 'a'/HF logit error: 0.00002265\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2530555725097656e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2530555725097656e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 9.482641836200401e-07,
+            "passed": true,
+            "reference": 16.483033369271944,
+            "value": 16.483034317536127
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "94e5d0d21bab161ff5917f6d4eb7d0d5e0b3384fb4d2ed2845a2c7afef8639fd",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "94e5d0d21bab161ff5917f6d4eb7d0d5e0b3384fb4d2ed2845a2c7afef8639fd"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "94e5d0d21bab161ff5917f6d4eb7d0d5e0b3384fb4d2ed2845a2c7afef8639fd",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "94e5d0d21bab161ff5917f6d4eb7d0d5e0b3384fb4d2ed2845a2c7afef8639fd"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "13d53e8673d02ddbc490523dd6d42239cc80bfe164affd8c25ff0c2ef520ea7d",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "13d53e8673d02ddbc490523dd6d42239cc80bfe164affd8c25ff0c2ef520ea7d"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-untied tp2 batched 'a'/HF logit error: 0.00002146\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'a'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2172927856445312e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abc'/HF logit error: 0.00002217\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.956390380859375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4318695068359375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied batched 'abcdefghijklm'/HF logit error: 0.00002432\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'a'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2172927856445312e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abc'/HF logit error: 0.00002217\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.956390380859375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4318695068359375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-untied decode 'abcdefghijklm'/HF logit error: 0.00002432\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 6.01897188090561e-07,
+            "passed": true,
+            "reference": 16.483033369271944,
+            "value": 16.48303397116913
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 2.9325485229492188e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.643290431729838e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 2.9325485229492188e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.643290431729838e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 47,
+                "first_divergence": null,
+                "first_near_tie": 47,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 2.9325485229492188e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.643290431729838e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 2.9325485229492188e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.643290431729838e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 47,
+                "first_divergence": null,
+                "first_near_tie": 47,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.48303397116913,
+                "max_logit_gap": 2.5987625122070312e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.296923436200359e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483032674245695,
+                "criteria_passed": true,
+                "device_nll": 16.48303397116913,
+                "max_logit_gap": 2.5987625122070312e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.296923436200359e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 47,
+                "first_divergence": null,
+                "first_near_tie": 47,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483034317536127,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483034317536127,
+                "criteria_passed": true,
+                "device_nll": 16.483034317536127,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 47,
+                "first_divergence": null,
+                "first_near_tie": 47,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483034317536127,
+                "criteria_passed": true,
+                "device_nll": 16.48303397116913,
+                "max_logit_gap": 8.58306884765625e-06,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.4636699552947903e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 16.483034317536127,
+                "criteria_passed": true,
+                "device_nll": 16.48303397116913,
+                "max_logit_gap": 8.58306884765625e-06,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.4636699552947903e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 47,
+                "first_divergence": null,
+                "first_near_tie": 47,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q1-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788",
+        "packed_hash_matches": true,
+        "type_id": 41
+      },
+      "name": "q1-0-dense-untied"
+    },
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "b6cce42ccb67d124a24e3c70cca75a888632c8a7d4bf9e99302b19c344fbae8e",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "b6cce42ccb67d124a24e3c70cca75a888632c8a7d4bf9e99302b19c344fbae8e"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "b6cce42ccb67d124a24e3c70cca75a888632c8a7d4bf9e99302b19c344fbae8e",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "b6cce42ccb67d124a24e3c70cca75a888632c8a7d4bf9e99302b19c344fbae8e"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "e0d2c6559f2ba23e51db473a8d3ce9179d2e3af92507ecb7e90e05bdfb211ea9",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "e0d2c6559f2ba23e51db473a8d3ce9179d2e3af92507ecb7e90e05bdfb211ea9"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-tied cpu1 batched 'a'/HF logit error: 0.00002193\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abc'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.2901763916015625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefg'/HF logit error: 0.00003290\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0517578125e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abc'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.2901763916015625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefg'/HF logit error: 0.00003290\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.670479839788186e-06,
+            "passed": true,
+            "reference": 18.672618265088335,
+            "value": 18.672619935568175
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "93c2c03a41d8cbf3279422bc88e1ea10d382bd3c212f98329b99e9a702c6bc33",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "93c2c03a41d8cbf3279422bc88e1ea10d382bd3c212f98329b99e9a702c6bc33"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-tied gpu1 batched 'a'/HF logit error: 0.00002193\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4557113647460938e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.147125244140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4557113647460938e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.147125244140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 2.572578772230827e-07,
+            "passed": true,
+            "reference": 18.672618265088335,
+            "value": 18.672618007830458
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "c9c86c819133eff7aa2894f6b92e8acafd0bb27f089b758df3de9c0a8ae6e6eb"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "93c2c03a41d8cbf3279422bc88e1ea10d382bd3c212f98329b99e9a702c6bc33",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "93c2c03a41d8cbf3279422bc88e1ea10d382bd3c212f98329b99e9a702c6bc33"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-tied layer2 batched 'a'/HF logit error: 0.00002193\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4557113647460938e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.147125244140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4557113647460938e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.147125244140625e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2649765014648438e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 2.572578772230827e-07,
+            "passed": true,
+            "reference": 18.672618265088335,
+            "value": 18.672618007830458
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "378cff83565412b8e02b6700111f062a07fa1f7dbbdfddb4603b53d100f5a7a1",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "378cff83565412b8e02b6700111f062a07fa1f7dbbdfddb4603b53d100f5a7a1"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "378cff83565412b8e02b6700111f062a07fa1f7dbbdfddb4603b53d100f5a7a1",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "378cff83565412b8e02b6700111f062a07fa1f7dbbdfddb4603b53d100f5a7a1"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "f55498210c23ad2e58259aa9808ce563dbd02bb5d2e214b479f00b4235b2cd61",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "f55498210c23ad2e58259aa9808ce563dbd02bb5d2e214b479f00b4235b2cd61"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-dense-tied tp2 batched 'a'/HF logit error: 0.00002193\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2411346435546875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'ab'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.8133392333984375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefg'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.2411346435546875e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'ab'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.5510787963867188e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.8133392333984375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefg'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q1-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 3.415343883261812e-07,
+            "passed": true,
+            "reference": 18.672618265088335,
+            "value": 18.672618606622724
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 2.777576446533203e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9277377205639823e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 2.777576446533203e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9277377205639823e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 53,
+                "first_divergence": null,
+                "first_near_tie": 53,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 2.777576446533203e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9277377205639823e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 2.777576446533203e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9277377205639823e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 53,
+                "first_divergence": null,
+                "first_near_tie": 53,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618606622724,
+                "max_logit_gap": 2.682209014892578e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.3289454514620047e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672619935568175,
+                "criteria_passed": true,
+                "device_nll": 18.672618606622724,
+                "max_logit_gap": 2.682209014892578e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.3289454514620047e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 53,
+                "first_divergence": null,
+                "first_near_tie": 53,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672618007830454,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672618007830454,
+                "criteria_passed": true,
+                "device_nll": 18.672618007830454,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 53,
+                "first_divergence": null,
+                "first_near_tie": 53,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672618007830454,
+                "criteria_passed": true,
+                "device_nll": 18.672618606622724,
+                "max_logit_gap": 9.5367431640625e-06,
+                "min_top5_overlap": 5,
+                "nll_delta": 5.987922691019776e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.672618007830454,
+                "criteria_passed": true,
+                "device_nll": 18.672618606622724,
+                "max_logit_gap": 9.5367431640625e-06,
+                "min_top5_overlap": 5,
+                "nll_delta": 5.987922691019776e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 12,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 53,
+                "first_divergence": null,
+                "first_near_tie": 53,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q1-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c",
+        "packed_hash_matches": true,
+        "type_id": 41
+      },
+      "name": "q1-0-dense-tied"
+    },
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "97633f57bef742c7a1d4a89d0a2c8c8fde75975a1cb27fa9f4ddcaea8660e6bd",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "97633f57bef742c7a1d4a89d0a2c8c8fde75975a1cb27fa9f4ddcaea8660e6bd"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1e391b7989dad3dbb04a90c319c62aaa99aab826795a9949dbee1d15e498900a",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1e391b7989dad3dbb04a90c319c62aaa99aab826795a9949dbee1d15e498900a"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "bc6bb1ba578448e69cc5fbdc861eba598c4ca82beb77b92f0e4a0f808ba83ec7",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "bc6bb1ba578448e69cc5fbdc861eba598c4ca82beb77b92f0e4a0f808ba83ec7"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-moe cpu1 batched 'a'/HF logit error: 0.00003147\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 3.147125244140625e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'a'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'ab'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.24249267578125e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abc'/HF logit error: 0.00003242\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.528594970703125e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefg'/HF logit error: 0.00003529\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0517578125e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'ab'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.24249267578125e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abc'/HF logit error: 0.00003242\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.3855438232421875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefg'/HF logit error: 0.00003386\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.47955322265625e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002480\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 6.27701379940504e-06,
+            "passed": true,
+            "reference": 18.574219666744234,
+            "value": 18.574213389730435
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-moe gpu1 batched 'a'/HF logit error: 0.00002289\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.719329833984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.719329833984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.0133473882234512e-05,
+            "passed": false,
+            "reference": 18.574219666744234,
+            "value": 18.574209533270352
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-moe layer2 batched 'a'/HF logit error: 0.00002289\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.719329833984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.719329833984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.0133473882234512e-05,
+            "passed": false,
+            "reference": 18.574219666744234,
+            "value": 18.574209533270352
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "e0e521912e574fcec5b2154dc0708b41ec005c4059562a7e582f4b5d61549539",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "e0e521912e574fcec5b2154dc0708b41ec005c4059562a7e582f4b5d61549539"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "e0e521912e574fcec5b2154dc0708b41ec005c4059562a7e582f4b5d61549539",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "e0e521912e574fcec5b2154dc0708b41ec005c4059562a7e582f4b5d61549539"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "13ba8f46597b563b9e404f9fa79dd1d9069bded5ee140eaada892be200b68f0e",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "13ba8f46597b563b9e404f9fa79dd1d9069bded5ee140eaada892be200b68f0e"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q1-0-moe tp2 batched 'a'/HF logit error: 0.00002861\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'ab'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abc'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.62396240234375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.8133392333984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'ab'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abc'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.62396240234375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.8133392333984375e-05,
+              "error_message": "AssertionError(\"q1-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 9.936534798526964e-06,
+            "passed": true,
+            "reference": 18.574219666744234,
+            "value": 18.574209730209436
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.574213389730435,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 4.291534423828125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.856460075724044e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57421327881088,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 4.100799560546875e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.745540521293833e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 15,
+                "first_divergence": null,
+                "first_near_tie": 15,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.574213389730435,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 4.291534423828125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.856460075724044e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57421327881088,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 4.100799560546875e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.745540521293833e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 15,
+                "first_divergence": null,
+                "first_near_tie": 15,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.574213389730435,
+                "criteria_passed": true,
+                "device_nll": 18.574209730209432,
+                "max_logit_gap": 3.719329833984375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.659521002674637e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57421327881088,
+                "criteria_passed": true,
+                "device_nll": 18.574209730209432,
+                "max_logit_gap": 3.1948089599609375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 3.548601448244426e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 15,
+                "first_divergence": null,
+                "first_near_tie": 15,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57420953327036,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57420953327036,
+                "criteria_passed": true,
+                "device_nll": 18.57420953327036,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 15,
+                "first_divergence": null,
+                "first_near_tie": 15,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57420953327036,
+                "criteria_passed": true,
+                "device_nll": 18.574209730209432,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9693907304940694e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.57420953327036,
+                "criteria_passed": true,
+                "device_nll": 18.574209730209432,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.9693907304940694e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 15,
+                "first_divergence": null,
+                "first_near_tie": 15,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q1-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c",
+        "packed_hash_matches": true,
+        "type_id": 41
+      },
+      "name": "q1-0-moe"
+    },
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "43a48effc9272c90677b86ea6e3a8880fd18b89fbb47bed4ccfa8439ba392948",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "43a48effc9272c90677b86ea6e3a8880fd18b89fbb47bed4ccfa8439ba392948"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "43a48effc9272c90677b86ea6e3a8880fd18b89fbb47bed4ccfa8439ba392948",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "43a48effc9272c90677b86ea6e3a8880fd18b89fbb47bed4ccfa8439ba392948"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "632ae0d91d0e8e36f7eea72448e252876597625f8e645f59854baf1d26cf66e9",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "632ae0d91d0e8e36f7eea72448e252876597625f8e645f59854baf1d26cf66e9"
+            }
+          },
+          "canonical_held_to_hf": {
+            "max_logit_error": 2.765655517578125e-05,
+            "nll_error": 1.5430198629928782e-07,
+            "passed": true
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3424625396728516e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.0265579223632812e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3424625396728516e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.0265579223632812e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.5430198629928782e-07,
+            "passed": true,
+            "reference": 18.560365397058177,
+            "value": 18.560365551360164
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "cead171e57307122135e7d142969430a267795721dafafe1bcba5a3a16fe6a43",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "cead171e57307122135e7d142969430a267795721dafafe1bcba5a3a16fe6a43"
+            }
+          },
+          "canonical_held_to_hf": {
+            "max_logit_error": 2.396106719970703e-05,
+            "nll_error": 1.4219181672103787e-06,
+            "passed": true
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.4219181672103787e-06,
+            "passed": true,
+            "reference": 18.560365397058177,
+            "value": 18.56036397514001
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "d582079f6f00bf95fac7fa57692aff28df979ecf5ddf8f33e7ccf76a55891c60"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "cead171e57307122135e7d142969430a267795721dafafe1bcba5a3a16fe6a43",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "cead171e57307122135e7d142969430a267795721dafafe1bcba5a3a16fe6a43"
+            }
+          },
+          "canonical_held_to_hf": {
+            "max_logit_error": 2.396106719970703e-05,
+            "nll_error": 1.4219181672103787e-06,
+            "passed": true
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 1.4219181672103787e-06,
+            "passed": true,
+            "reference": 18.560365397058177,
+            "value": 18.56036397514001
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "76dd00d604f05bca1867e2dcafd4d5029ce8937ab353117be156a214e3e9fc00",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "76dd00d604f05bca1867e2dcafd4d5029ce8937ab353117be156a214e3e9fc00"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "76dd00d604f05bca1867e2dcafd4d5029ce8937ab353117be156a214e3e9fc00",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "76dd00d604f05bca1867e2dcafd4d5029ce8937ab353117be156a214e3e9fc00"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "eb41d94f22ddefc8aeb29441e4a51b43f24feb815829250fd03278f7d9f8cb1a",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "eb41d94f22ddefc8aeb29441e4a51b43f24feb815829250fd03278f7d9f8cb1a"
+            }
+          },
+          "canonical_held_to_hf": {
+            "max_logit_error": 2.6464462280273438e-05,
+            "nll_error": 9.17923884458105e-07,
+            "passed": true
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.6464462280273438e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.2411346435546875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.0623207092285156e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.1576881408691406e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.6464462280273438e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.2411346435546875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.0623207092285156e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "error": 2.1576881408691406e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 9.17923884458105e-07,
+            "passed": true,
+            "reference": 18.560365397058177,
+            "value": 18.560364479134293
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 2.47955322265625e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.5762201570623802e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 2.47955322265625e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.5762201570623802e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 3,
+                "first_divergence": null,
+                "first_near_tie": 3,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 2.47955322265625e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.5762201570623802e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 2.47955322265625e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.5762201570623802e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 3,
+                "first_divergence": null,
+                "first_near_tie": 3,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.560364479134293,
+                "max_logit_gap": 2.86102294921875e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.0722258743101065e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.560365551360167,
+                "criteria_passed": true,
+                "device_nll": 18.560364479134293,
+                "max_logit_gap": 2.86102294921875e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.0722258743101065e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 3,
+                "first_divergence": null,
+                "first_near_tie": 3,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.56036397514001,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.56036397514001,
+                "criteria_passed": true,
+                "device_nll": 18.56036397514001,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 3,
+                "first_divergence": null,
+                "first_near_tie": 3,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 18.56036397514001,
+                "criteria_passed": true,
+                "device_nll": 18.560364479134293,
+                "max_logit_gap": 1.71661376953125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 5.039942827522736e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 18.56036397514001,
+                "criteria_passed": true,
+                "device_nll": 18.560364479134293,
+                "max_logit_gap": 1.71661376953125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 5.039942827522736e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 3,
+                "first_divergence": null,
+                "first_near_tie": 3,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q2-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+        "packed_hash_matches": true,
+        "type_id": 42
+      },
+      "name": "q2-0-dense-untied"
+    },
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "721cbbf20ff57bfdd4f2479b30ad089b41f57ea980fd281605be5c8b767cd906",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "721cbbf20ff57bfdd4f2479b30ad089b41f57ea980fd281605be5c8b767cd906"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "721cbbf20ff57bfdd4f2479b30ad089b41f57ea980fd281605be5c8b767cd906",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "721cbbf20ff57bfdd4f2479b30ad089b41f57ea980fd281605be5c8b767cd906"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "b1244b46b094cd6849609dab330dfc4d52f4be79057c28bc8a5cf33270544652",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "b1244b46b094cd6849609dab330dfc4d52f4be79057c28bc8a5cf33270544652"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-dense-tied cpu1 batched 'a'/HF logit error: 0.00002384\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'ab'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abc'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abcdefg'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'ab'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abc'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.193450927734375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abcdefg'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.09808349609375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 6.348165960901042e-06,
+            "passed": true,
+            "reference": 20.640379966254276,
+            "value": 20.640373618088315
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "f02f1ebf851cf95ed9a5f22bc49f752d7a490e598bcc0c39af302726c3d79bca",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "f02f1ebf851cf95ed9a5f22bc49f752d7a490e598bcc0c39af302726c3d79bca"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-dense-tied gpu1 batched 'a'/HF logit error: 0.00002384\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.389322481619274e-06,
+            "passed": true,
+            "reference": 20.640379966254276,
+            "value": 20.640374576931794
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "987f9a33f4f4c3c3cb17613326e46d720c6322457df34575b7485d92a4e77544"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "f02f1ebf851cf95ed9a5f22bc49f752d7a490e598bcc0c39af302726c3d79bca",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "f02f1ebf851cf95ed9a5f22bc49f752d7a490e598bcc0c39af302726c3d79bca"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-dense-tied layer2 batched 'a'/HF logit error: 0.00002384\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.1457672119140625e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.288818359375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.389322481619274e-06,
+            "passed": true,
+            "reference": 20.640379966254276,
+            "value": 20.640374576931794
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "bade4af6d52db837eba90afd997ed4fdd9c87fb80eceaaf5aa5bdadba760b35b",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "bade4af6d52db837eba90afd997ed4fdd9c87fb80eceaaf5aa5bdadba760b35b"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "bade4af6d52db837eba90afd997ed4fdd9c87fb80eceaaf5aa5bdadba760b35b",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "bade4af6d52db837eba90afd997ed4fdd9c87fb80eceaaf5aa5bdadba760b35b"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "0a0cdb4d5127e61d8afe5855cc218dbcd1fd5b439b870188f0a79da7f241b097",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "0a0cdb4d5127e61d8afe5855cc218dbcd1fd5b439b870188f0a79da7f241b097"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-dense-tied tp2 batched 'a'/HF logit error: 0.00002670\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied batched 'ab'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.7642974853515625e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.811981201171875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9073486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q2-0-dense-tied decode 'ab'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.7642974853515625e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.811981201171875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9073486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.6468930509367965e-06,
+            "passed": true,
+            "reference": 20.640379966254276,
+            "value": 20.640374319361225
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 9.588434757290543e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 9.588434757290543e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 22,
+                "first_divergence": null,
+                "first_near_tie": 22,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 9.588434757290543e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 2.193450927734375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 9.588434757290543e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 22,
+                "first_divergence": null,
+                "first_near_tie": 22,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037431936122,
+                "max_logit_gap": 2.1219253540039062e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 7.01272906411532e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.640373618088315,
+                "criteria_passed": true,
+                "device_nll": 20.64037431936122,
+                "max_logit_gap": 2.1219253540039062e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 7.01272906411532e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 22,
+                "first_divergence": null,
+                "first_near_tie": 22,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.64037457693179,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.64037457693179,
+                "criteria_passed": true,
+                "device_nll": 20.64037457693179,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 22,
+                "first_divergence": null,
+                "first_near_tie": 22,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.64037457693179,
+                "criteria_passed": true,
+                "device_nll": 20.64037431936122,
+                "max_logit_gap": 1.2874603271484375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 2.575705693175223e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.64037457693179,
+                "criteria_passed": true,
+                "device_nll": 20.64037431936122,
+                "max_logit_gap": 1.2874603271484375e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 2.575705693175223e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 22,
+                "first_divergence": null,
+                "first_near_tie": 22,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q2-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+        "packed_hash_matches": true,
+        "type_id": 42
+      },
+      "name": "q2-0-dense-tied"
+    },
+    {
+      "captures": {
+        "cpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1366101267e66166ee057e24d4f4efe2e07bd6b2cabbe8fb6e31f7be85434e33",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1366101267e66166ee057e24d4f4efe2e07bd6b2cabbe8fb6e31f7be85434e33"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "09362225c9639f1d534a88c94f6fb2360be1b877570ed1c76d295a320e3f1de1",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "09362225c9639f1d534a88c94f6fb2360be1b877570ed1c76d295a320e3f1de1"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "b365c4604da9cd3c0a560d1020ce14f830a44ea99e16aa37ef8cd3ee63263fb2",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "b365c4604da9cd3c0a560d1020ce14f830a44ea99e16aa37ef8cd3ee63263fb2"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-moe cpu1 batched 'a'/HF logit error: 0.00002575\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 5.233287811279297e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'ab'/HF logit error: 0.00005233\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.0742416381835938e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abc'/HF logit error: 0.00002074\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.4080276489257812e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abcdefg'/HF logit error: 0.00002408\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.62396240234375e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abcdefghijklm'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.6702880859375e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 7.748603820800781e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'ab'/HF logit error: 0.00007749\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abc'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.956390380859375e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.361701965332031e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abcdefghijklm'/HF logit error: 0.00003362\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.0610546615814656e-06,
+            "passed": true,
+            "reference": 20.08618449383901,
+            "value": 20.08618955489367
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "gpu1": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "be467f03abfe257528d5c77fb29bf379fcc9db9038427c4071e90bacd51a9894",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "be467f03abfe257528d5c77fb29bf379fcc9db9038427c4071e90bacd51a9894"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-moe gpu1 batched 'a'/HF logit error: 0.00002003\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0040740966796875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0040740966796875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.490118514472897e-06,
+            "passed": true,
+            "reference": 20.08618449383901,
+            "value": 20.086189983957524
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "layer2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "1f6859dbd4ce3c4132c3c8f653f9de6866e6da26a17832ead608658158533a33"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "be467f03abfe257528d5c77fb29bf379fcc9db9038427c4071e90bacd51a9894",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "be467f03abfe257528d5c77fb29bf379fcc9db9038427c4071e90bacd51a9894"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-moe layer2 batched 'a'/HF logit error: 0.00002003\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0040740966796875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.002716064453125e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 3.0040740966796875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.574920654296875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 5.490118514472897e-06,
+            "passed": true,
+            "reference": 20.08618449383901,
+            "value": 20.086189983957524
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        },
+        "tp2": {
+          "binary_hashes": {
+            "batched": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "64cdfa2c281d9520f18195e703c6fa76759c65c348896c37d3fd67d9cf38a106",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "64cdfa2c281d9520f18195e703c6fa76759c65c348896c37d3fd67d9cf38a106"
+            },
+            "decode": {
+              "bytes": 13520,
+              "matches": true,
+              "reconstructed_sha256": "64cdfa2c281d9520f18195e703c6fa76759c65c348896c37d3fd67d9cf38a106",
+              "recorded_bytes": 13520,
+              "recorded_sha256": "64cdfa2c281d9520f18195e703c6fa76759c65c348896c37d3fd67d9cf38a106"
+            },
+            "greedy": {
+              "bytes": 66560,
+              "matches": true,
+              "reconstructed_sha256": "3b6b39333924f9ae9e6b8cf379a4c839c259f07c8756ff149509538f619cc203",
+              "recorded_bytes": 66560,
+              "recorded_sha256": "3b6b39333924f9ae9e6b8cf379a4c839c259f07c8756ff149509538f619cc203"
+            }
+          },
+          "canonical_held_to_hf": {
+            "error": "AssertionError(\"q2-0-moe tp2 batched 'a'/HF logit error: 0.00002384\")",
+            "passed": false
+          },
+          "format_errors": [],
+          "hf_endpoint_checks": [
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 7.367134094238281e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'ab'/HF logit error: 0.00007367\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abc'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.919269561767578e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.384185791015625e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "error": 7.367134094238281e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'ab'/HF logit error: 0.00007367\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.765655517578125e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abc'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "error": 1.919269561767578e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "error": 2.86102294921875e-05,
+              "error_message": "AssertionError(\"q2-0-moe decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            }
+          ],
+          "hf_nll": {
+            "bound": 1e-05,
+            "error": 4.658237823917943e-06,
+            "passed": true,
+            "reference": 20.08618449383901,
+            "value": 20.086189152076834
+          },
+          "matrix_paths_f32": true,
+          "metadata_contract": true,
+          "returncode": 0,
+          "storage_type_present": true
+        }
+      },
+      "device_comparisons": [
+        {
+          "label": "cpu1-vs-gpu1",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618955489367,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 4.76837158203125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 4.2906385289143145e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618788265775,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 6.079673767089844e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 2.1012997741820527e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 9,
+                "first_divergence": null,
+                "first_near_tie": 9,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618955489367,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 4.76837158203125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 4.2906385289143145e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618788265775,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 6.079673767089844e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 2.1012997741820527e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 9,
+                "first_divergence": null,
+                "first_near_tie": 9,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "cpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618955489367,
+                "criteria_passed": true,
+                "device_nll": 20.08618915207683,
+                "max_logit_gap": 3.266334533691406e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 4.0281684121623584e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.08618788265775,
+                "criteria_passed": true,
+                "device_nll": 20.08618915207683,
+                "max_logit_gap": 2.765655517578125e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 1.2694190800743854e-06,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 9,
+                "first_divergence": null,
+                "first_near_tie": 9,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-layer2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.086189983957524,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.086189983957524,
+                "criteria_passed": true,
+                "device_nll": 20.086189983957524,
+                "max_logit_gap": 0.0,
+                "min_top5_overlap": 5,
+                "nll_delta": 0.0,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 9,
+                "first_divergence": null,
+                "first_near_tie": 9,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        },
+        {
+          "label": "gpu1-vs-tp2",
+          "phases": {
+            "batched": {
+              "calibration_metrics": {
+                "cpu_nll": 20.086189983957524,
+                "criteria_passed": true,
+                "device_nll": 20.08618915207683,
+                "max_logit_gap": 5.698204040527344e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 8.318806941076673e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "decode": {
+              "calibration_metrics": {
+                "cpu_nll": 20.086189983957524,
+                "criteria_passed": true,
+                "device_nll": 20.08618915207683,
+                "max_logit_gap": 5.698204040527344e-05,
+                "min_top5_overlap": 5,
+                "nll_delta": 8.318806941076673e-07,
+                "rows": 13,
+                "scored": 12,
+                "top1_checked": 13,
+                "top1_fail_positions": [],
+                "top5_fail_positions": []
+              },
+              "strict_pass": true
+            },
+            "greedy": {
+              "metrics": {
+                "agrees_until_tie": true,
+                "checked_steps": 9,
+                "first_divergence": null,
+                "first_near_tie": 9,
+                "matched_prefix": 64
+              },
+              "strict_pass": true
+            }
+          },
+          "same_architecture": true,
+          "same_vocab": true,
+          "strict_pass": true
+        }
+      ],
+      "family": "q2-0",
+      "golden_identity": {
+        "decoded_weight_hash_matches": true,
+        "golden_name_matches": true,
+        "model_sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91",
+        "packed_hash_matches": true,
+        "type_id": 42
+      },
+      "name": "q2-0-moe"
+    }
+  ],
+  "plan": {
+    "cache": "f32",
+    "captures_attempted": 24,
+    "captures_per_model": [
+      "cpu1",
+      "gpu1",
+      "layer2",
+      "tp2"
+    ],
+    "captures_planned": 24,
+    "layer_shares": "1,1",
+    "models": 6,
+    "phases_per_capture": {
+      "batched_rows": 13,
+      "decode_rows": 13,
+      "greedy_rows": 64
+    },
+    "requested_dtype": "f32",
+    "split_width": 2
+  },
+  "preflight_defects_fixed": "Root reports attempts 1 and 2 were preserved; fixes were Docker null Devices, NanoCPUs/HostConfig.Init handling, and rejection of software llvmpipe mapping.",
+  "preflight_mapping": {
+    "pci_bus_by_physical": {
+      "8": "0000:c9:00.0",
+      "9": "0000:cc:00.0"
+    },
+    "physical_gpus": [
+      8,
+      9
+    ],
+    "render_nodes": {
+      "8": "/dev/dri/renderD130",
+      "9": "/dev/dri/renderD131"
+    },
+    "tui_slot_confirmed": true,
+    "vulkan_index_by_physical": {
+      "8": 0,
+      "9": 1
+    }
+  },
+  "raw_rig_attempt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/attempt-v3",
+  "raw_rig_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/attempt-v3/out",
+  "report_source_worktree": "/opt/q1-q2/source",
+  "source_hash_check": {
+    "tests/block_fixture.py": {
+      "bundle_sha256": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+      "current_sha256": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+      "matches": true
+    },
+    "tests/common.py": {
+      "bundle_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "current_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "matches": true
+    },
+    "tests/data/baseline_q1_0_split.json": {
+      "bundle_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "current_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "matches": true
+    },
+    "tests/data/baseline_q2_0_split.json": {
+      "bundle_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "current_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "matches": true
+    },
+    "tests/data/dtype_budget.json": {
+      "bundle_sha256": "f1d93242df62084e6f985befd71b1748e801ad67d61991305fa285263600bddc",
+      "current_sha256": "f1d93242df62084e6f985befd71b1748e801ad67d61991305fa285263600bddc",
+      "matches": true
+    },
+    "tests/low_bits.py": {
+      "bundle_sha256": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+      "current_sha256": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+      "matches": true
+    },
+    "tests/tensor_split.py": {
+      "bundle_sha256": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+      "current_sha256": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+      "matches": true
+    },
+    "tools/check_device.py": {
+      "bundle_sha256": "31a9bca32aae1f0b7fb712fcaa6d935ef890d09afe363c4e0ce4b428bdd6be20",
+      "current_sha256": "31a9bca32aae1f0b7fb712fcaa6d935ef890d09afe363c4e0ce4b428bdd6be20",
+      "matches": true
+    }
+  },
+  "source_revision": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+  "summary": {
+    "all_capture_returncodes_zero": true,
+    "all_metadata_contracts_pass": true,
+    "binary_hash_mismatches": 0,
+    "binary_hashes": 72,
+    "captures": 24,
+    "device_group_consistency_passed": true,
+    "golden_fixture_identities_verified": 6,
+    "hf_endpoint_checks": 240,
+    "hf_endpoint_failures": 184,
+    "hf_endpoint_passes": 56,
+    "hf_nll_checks": 24,
+    "hf_nll_failures": 2,
+    "hf_nll_passes": 22,
+    "independent_hf_correctness_passed": false,
+    "overall_correctness_passed": false,
+    "q1_moe_nll_gpu1": {
+      "bound": 1e-05,
+      "error": 1.0133473882234512e-05,
+      "passed": false,
+      "reference": 18.574219666744234,
+      "value": 18.574209533270352
+    },
+    "q1_moe_nll_layer2": {
+      "bound": 1e-05,
+      "error": 1.0133473882234512e-05,
+      "passed": false,
+      "reference": 18.574219666744234,
+      "value": 18.574209533270352
+    },
+    "q1_moe_nll_tp2": {
+      "bound": 1e-05,
+      "error": 9.936534798526964e-06,
+      "passed": true,
+      "reference": 18.574219666744234,
+      "value": 18.574209730209436
+    },
+    "strict_device_failures": 0,
+    "strict_device_passes": 90,
+    "strict_device_subchecks": 90
+  },
+  "tool_path": "/opt/q1-q2/build/llmx-model-logits",
+  "tool_pin_check": {
+    "build_receipt_sha256": "78a3653fcf3aa76ea2985665882bcf4ea5d7a8b6eb2c0e7de90f80bdc93c7760",
+    "matches": true,
+    "metadata_versions": [
+      "0.1.0+unknown"
+    ],
+    "report_sha256": "78a3653fcf3aa76ea2985665882bcf4ea5d7a8b6eb2c0e7de90f80bdc93c7760"
+  },
+  "tool_sha256": "78a3653fcf3aa76ea2985665882bcf4ea5d7a8b6eb2c0e7de90f80bdc93c7760"
+}

@@ -1,0 +1,382 @@
+{
+  "scope": "Q1 split-MoE diagnostic checkpoint, not a qualification pass or allowance.",
+  "unchanged_limits": {
+    "f32_nll": 1e-05,
+    "unapproved_split_f32_logits": 2e-05
+  },
+  "original_failure": {
+    "candidate_nll": 18.574209533270352,
+    "golden_nll": 18.574219666744234,
+    "error": 1.0133473882234512e-05,
+    "passed": false
+  },
+  "observer": {
+    "binary_sha256": "dde89d01c47addd385db1d033c66b05bd2ba962d2af9763a1572ba6457275fa8",
+    "build_seconds": 45.35349893569946,
+    "library_and_shader_hashes_unchanged": true,
+    "identity": {
+      "capture_passed": true,
+      "build_passed": true,
+      "library_before_after_equal": true,
+      "artifact_hashes_verified": 172,
+      "arm_identity": {
+        "packed": {
+          "batched": {
+            "before": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+            "observer": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+            "equal": true
+          },
+          "decode": {
+            "before": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+            "observer": "336a19d0593af05992977f969eb7df6c9b657ca2309cf0f891681e5164947c4d",
+            "equal": true
+          },
+          "greedy": {
+            "before": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe",
+            "observer": "ba50d523444181d6edb94708ab5cb270fd8e604d6b610bee8643e231084aadbe",
+            "equal": true
+          }
+        },
+        "f32": {
+          "batched": {
+            "before": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+            "observer": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+            "equal": true
+          },
+          "decode": {
+            "before": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+            "observer": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+            "equal": true
+          },
+          "greedy": {
+            "before": "5dba3f88999257573c6240e7cfba93ada7ae54b29793a8a3f956c429d01aa8e1",
+            "observer": "5dba3f88999257573c6240e7cfba93ada7ae54b29793a8a3f956c429d01aa8e1",
+            "equal": true
+          }
+        }
+      }
+    },
+    "first_nonidentical_stage": {
+      "layer": 0,
+      "tag": "q",
+      "different_values": 2344,
+      "elements": 3072,
+      "first_flat_index": 0,
+      "max_abs": 3.814697265625e-06
+    },
+    "first_layer_stages": {
+      "attn-h": {
+        "different_values": 0,
+        "elements": 3072,
+        "first_flat_index": null,
+        "max_abs": 0.0
+      },
+      "q": {
+        "different_values": 2344,
+        "elements": 3072,
+        "first_flat_index": 0,
+        "max_abs": 3.814697265625e-06
+      },
+      "k": {
+        "different_values": 1184,
+        "elements": 1536,
+        "first_flat_index": 0,
+        "max_abs": 2.86102294921875e-06
+      },
+      "v": {
+        "different_values": 1210,
+        "elements": 1536,
+        "first_flat_index": 0,
+        "max_abs": 3.814697265625e-06
+      },
+      "attn": {
+        "different_values": 2562,
+        "elements": 3072,
+        "first_flat_index": 0,
+        "max_abs": 5.7220458984375e-06
+      },
+      "mixer-x": {
+        "different_values": 2647,
+        "elements": 3072,
+        "first_flat_index": 0,
+        "max_abs": 2.6702880859375e-05
+      },
+      "ffn-h": {
+        "different_values": 2645,
+        "elements": 3072,
+        "first_flat_index": 0,
+        "max_abs": 1.430511474609375e-06
+      },
+      "ffn-x": {
+        "different_values": 2863,
+        "elements": 3072,
+        "first_flat_index": 1,
+        "max_abs": 0.000255584716796875
+      }
+    },
+    "double_oracle": {
+      "q": {
+        "packed": {
+          "tensor": "blk.0.attn_q.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            1024
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 1024
+          },
+          "worst_abs_error": 2.794547711459927e-06,
+          "worst_error_over_sum_abs_products": 3.3510511147187394e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.1052204822826752,
+          "worst_bound_cell": {
+            "row": 2,
+            "output": 976,
+            "captured": -0.6532878875732422,
+            "double_fsum": -0.6532857831635965,
+            "abs_error": 2.1044096456535044e-06,
+            "error_over_sum_abs_products": 1.8493331336729284e-08
+          }
+        },
+        "f32": {
+          "tensor": "blk.0.attn_q.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            1024
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 1024
+          },
+          "worst_abs_error": 2.2498809642002016e-06,
+          "worst_error_over_sum_abs_products": 2.3932916414474562e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.07394656336146,
+          "worst_bound_cell": {
+            "row": 0,
+            "output": 436,
+            "captured": 0.8143255710601807,
+            "double_fsum": 0.8143270499914479,
+            "abs_error": 1.4789312672291999e-06,
+            "error_over_sum_abs_products": 1.0824460166502728e-08
+          }
+        }
+      },
+      "k": {
+        "packed": {
+          "tensor": "blk.0.attn_k.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            512
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 512
+          },
+          "worst_abs_error": 2.1463868051796453e-06,
+          "worst_error_over_sum_abs_products": 2.1225459958577502e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.06438162074573484,
+          "worst_bound_cell": {
+            "row": 2,
+            "output": 50,
+            "captured": 0.2566242218017578,
+            "double_fsum": 0.2566229341693429,
+            "abs_error": 1.2876324149146967e-06,
+            "error_over_sum_abs_products": 1.1211792546408947e-08
+          }
+        },
+        "f32": {
+          "tensor": "blk.0.attn_k.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            512
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 512
+          },
+          "worst_abs_error": 2.2981726033322047e-06,
+          "worst_error_over_sum_abs_products": 2.0224213422922205e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.09864011332183507,
+          "worst_bound_cell": {
+            "row": 1,
+            "output": 391,
+            "captured": 0.1855144500732422,
+            "double_fsum": 0.18551247727097575,
+            "abs_error": 1.9728022664367018e-06,
+            "error_over_sum_abs_products": 1.8229525960582464e-08
+          }
+        }
+      },
+      "v": {
+        "packed": {
+          "tensor": "blk.0.attn_v.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            512
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 512
+          },
+          "worst_abs_error": 3.9843290835506195e-06,
+          "worst_error_over_sum_abs_products": 2.0486050615063292e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.09428560682151813,
+          "worst_bound_cell": {
+            "row": 1,
+            "output": 404,
+            "captured": -1.1432099342346191,
+            "double_fsum": -1.1432077784738368,
+            "abs_error": 2.1557607823297076e-06,
+            "error_over_sum_abs_products": 1.0492682607392457e-08
+          }
+        },
+        "f32": {
+          "tensor": "blk.0.attn_v.weight",
+          "weight_type": 0,
+          "weight_shape": [
+            1024,
+            512
+          ],
+          "sample": {
+            "rows": 3,
+            "outputs": 512
+          },
+          "worst_abs_error": 4.319430445320904e-06,
+          "worst_error_over_sum_abs_products": 1.936325393480114e-08,
+          "comparison_only_existing_test_bound": "tests/low_bits.cpp:220, abs error <= 2e-5 * max(1, abs(double-dot))",
+          "worst_error_over_existing_test_bound": 0.09367408509598261,
+          "worst_bound_cell": {
+            "row": 1,
+            "output": 247,
+            "captured": 1.026831865310669,
+            "double_fsum": 1.0268299415635624,
+            "abs_error": 1.92374710650256e-06,
+            "error_over_sum_abs_products": 1.59070671852486e-08
+          }
+        }
+      }
+    },
+    "ordered_replay": {
+      "scope": "Reproduce the documented row sum order on captured inputs, separate from the double oracle.",
+      "cluster": 64,
+      "rows": 3,
+      "calls": [
+        {
+          "tag": "q",
+          "values": 3072,
+          "bit_mismatches": 0,
+          "first_mismatch": null,
+          "max_abs_difference": 0.0
+        },
+        {
+          "tag": "k",
+          "values": 1536,
+          "bit_mismatches": 0,
+          "first_mismatch": null,
+          "max_abs_difference": 0.0
+        },
+        {
+          "tag": "v",
+          "values": 1536,
+          "bit_mismatches": 0,
+          "first_mismatch": null,
+          "max_abs_difference": 0.0
+        }
+      ],
+      "producer_sha256": "41b30bef142d92cab9a4f75ec2276d90f5a3f0282e127e96b61af69a91cba7c8",
+      "meaning": "Ordered arithmetic reproduction is a diagnostic control, not an independent HF gate.",
+      "seconds": 5.6719999997876585
+    }
+  },
+  "hf": {
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+    "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654",
+    "canonical_final_logit_bit_equal": false,
+    "canonical_final_logit_max_difference": 1.52587890625e-05,
+    "canonical_nll_bit_equal": false,
+    "comparisons": [
+      {
+        "name": "full13",
+        "nll": 18.574223095717343,
+        "golden_nll": 18.574219666744234,
+        "nll_abs_difference": 3.428973109009803e-06,
+        "max_logit_difference": 0.0,
+        "shape": [
+          13,
+          260
+        ],
+        "sha256": "6214921efe0c86a9eaa9e109bbe9506055e6898a999330b58a72dea2a240f7c3",
+        "candidate_nll_abs_difference": 1.3562446991244315e-05
+      },
+      {
+        "name": "cached1",
+        "nll": 18.574202317506238,
+        "golden_nll": 18.574219666744234,
+        "nll_abs_difference": 1.7349237996455713e-05,
+        "max_logit_difference": 0.00026106834411621094,
+        "shape": [
+          13,
+          260
+        ],
+        "sha256": "ecb2029e481dec6be15dca83fea38552bbaf624ceca7f4970d819658f84d30e7",
+        "candidate_nll_abs_difference": 7.2157641142212015e-06
+      },
+      {
+        "name": "cached3",
+        "nll": 18.57421097673181,
+        "golden_nll": 18.574219666744234,
+        "nll_abs_difference": 8.690012425205396e-06,
+        "max_logit_difference": 0.00020575523376464844,
+        "shape": [
+          13,
+          260
+        ],
+        "sha256": "f9266d7b690e67f8b7d1e75776ef926e2cb4a16dedf42d5935f95b770539b181",
+        "candidate_nll_abs_difference": 1.443461457029116e-06
+      }
+    ],
+    "full_vs_cached1_nll_difference": 2.0778211105465516e-05,
+    "qualification": "Diagnostic only. Linux HF does not reproduce the Windows golden bitwise; no replacement golden or bound is accepted.",
+    "execution_seconds": 42.266212940216064,
+    "execution_exit": 0,
+    "container_removed": true
+  },
+  "retained_attempts": [
+    "Windows HF attempt stopped at its 2 GiB memory reserve.",
+    "Rig v1 failed the canonical Windows-golden byte-identity control before NLL analysis.",
+    "Rig v2 measures that difference explicitly. It changes no golden or acceptance bound.",
+    "Observer initial build preparation stopped on CRLF/LF hash mismatch. Whole normalized source verified before resuming."
+  ],
+  "interpretation": "The first Q1/F32 discrepancy is measured accumulation order on identical inputs and weights; every first-layer Q/K/V output is within the existing operator bound and Q1 matches ordered FMA replay exactly. Independent HF batching itself exceeds the strict NLL limit. Neither result proves every downstream operator or grants full-model qualification. The recorded NLL failure remains open pending policy review or a demonstrated fix.",
+  "artifacts": {
+    "build-low-bits-dev/gpu-split-v1/observer-v1/build-execution.json": "13152275b04717616374fe3c1ca6a60fe7e16185a38ba725d596c06fa21d75c3",
+    "build-low-bits-dev/gpu-split-v1/observer-v1/manifest.json": "6170ccbc7a3358e7a17f0c41f1d6d1052276f00f0fc5c0fe90d2596daff84c9e",
+    "build-low-bits-dev/gpu-split-v1/observer-v1/captures-v1.zip": "87f447e03d7f449d0f9a6780e4fed6a173c128b87c3080971377cbb5cfd20470",
+    "build-low-bits-dev/gpu-split-v1/observer-v1/captures-v1/execution.json": "02e8391040fd6c4a38b4d8e2664ec772afc4df0f403b69eb24260f57d83932a2",
+    "build-low-bits-dev/gpu-split-v1/observer-v1/captures-v1/analysis.json": "e2ac472be79f5849895804de6ee044c3b441fce800f5c27045822e8cb5d00b49",
+    "build-low-bits-dev/gpu-split-v1/observer-v1/captures-v1/ordered-replay.json": "5b43d0f687eddf9fe121e586898a06e0af0980e2def5a77a511bdd2975df5563",
+    "build-low-bits-dev/q1-nll-rig-v2-collected/execution.json": "781cf38fc1dc2b31f0375baa65214b182577ac8838a3c509af45e982c69e910e",
+    "build-low-bits-dev/q1-nll-rig-v2-collected/control/report.json": "a7493daad604d28f411af93f7ddb756e15b1937a1bba87a80c151b6b18e0a0d4",
+    "build-low-bits-dev/q1-nll-rig-v2-collected/payload.py": "e7f7e4f4384183ba763374ed0d99c4ba3fba851d6e6738c70d79612c3bd2986a",
+    "build-low-bits-dev/q1-nll-reference-control/execution-1940.json": "3aecab2811ee0f8ad4fd1e9e590d9b074bea9961b4dd35b600719cdef1daea82",
+    "build-low-bits-dev/gpu-split-v1/analyze-observer.py": "a453391af1e968d6b62d1cb3f1dbfdf2da5939cccbf07cbc5ef580429cadab89",
+    "build-low-bits-dev/gpu-split-v1/replay-q1-row.py": "41b30bef142d92cab9a4f75ec2276d90f5a3f0282e127e96b61af69a91cba7c8"
+  },
+  "rig_paths": [
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/observer-v1",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-nll-reference-control-v1",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-nll-reference-control-v2"
+  ]
+}

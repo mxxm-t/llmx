@@ -1,0 +1,709 @@
+{
+  "scope": "Current halfword MI50 BF16 direct/split refresh plus four-thread HF execution controls; inherited group failure is not waived.",
+  "summary": {
+    "complete": true,
+    "direct_calls": 216,
+    "direct_passed": true,
+    "raw_passed": false,
+    "raw_captures": 6,
+    "stages": [
+      {
+        "stage": "direct",
+        "argv": [
+          "python3",
+          "/runner/direct.py",
+          "--source-root",
+          "/source",
+          "--models",
+          "/models",
+          "--exe",
+          "/b/llmx",
+          "--out",
+          "/out/direct",
+          "--gpu-pair",
+          "vulkan:0,vulkan:1"
+        ],
+        "exit_code": 0
+      },
+      {
+        "stage": "raw",
+        "argv": [
+          "python3",
+          "/runner/raw.py",
+          "--gpu-pair",
+          "vulkan:0,vulkan:1"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "no_failure_waiver": true,
+    "numerical_passed": false
+  },
+  "runtime_sha256": "423d994acb0643e289ab587f56ee3f3a05a40320ff445b49db3184f506d99e15",
+  "direct_results": [
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q1-0-dense-untied",
+      "call_start": 0,
+      "calls_expected": 12,
+      "call_end": 12,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q1-0-dense-tied",
+      "call_start": 12,
+      "calls_expected": 12,
+      "call_end": 24,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q1-0-moe",
+      "call_start": 24,
+      "calls_expected": 12,
+      "call_end": 36,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q2-0-dense-untied",
+      "call_start": 36,
+      "calls_expected": 12,
+      "call_end": 48,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q2-0-dense-tied",
+      "call_start": 48,
+      "calls_expected": 12,
+      "call_end": 60,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-bf16",
+      "model": "q2-0-moe",
+      "call_start": 60,
+      "calls_expected": 12,
+      "call_end": 72,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q1-0-dense-untied",
+      "call_start": 72,
+      "calls_expected": 12,
+      "call_end": 84,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q1-0-dense-tied",
+      "call_start": 84,
+      "calls_expected": 12,
+      "call_end": 96,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q1-0-moe",
+      "call_start": 96,
+      "calls_expected": 12,
+      "call_end": 108,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q2-0-dense-untied",
+      "call_start": 108,
+      "calls_expected": 12,
+      "call_end": 120,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q2-0-dense-tied",
+      "call_start": 120,
+      "calls_expected": 12,
+      "call_end": 132,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-bf16",
+      "model": "q2-0-moe",
+      "call_start": 132,
+      "calls_expected": 12,
+      "call_end": 144,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q1-0-dense-untied",
+      "call_start": 144,
+      "calls_expected": 12,
+      "call_end": 156,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q1-0-dense-tied",
+      "call_start": 156,
+      "calls_expected": 12,
+      "call_end": 168,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q1-0-moe",
+      "call_start": 168,
+      "calls_expected": 12,
+      "call_end": 180,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q2-0-dense-untied",
+      "call_start": 180,
+      "calls_expected": 12,
+      "call_end": 192,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q2-0-dense-tied",
+      "call_start": 192,
+      "calls_expected": 12,
+      "call_end": 204,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-bf16",
+      "model": "q2-0-moe",
+      "call_start": 204,
+      "calls_expected": 12,
+      "call_end": 216,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    }
+  ],
+  "raw_comparisons": [
+    {
+      "model": "q1-0-dense-untied",
+      "passed": true,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411956787109375,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.478758542058173,
+          "nll_delta": 0.0003786656811968214,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411956787109375,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.478758542058173,
+          "nll_delta": 0.0003786656811968214,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "greedy": {
+          "matched_prefix": 64,
+          "checked_steps": 47,
+          "first_near_tie": 47,
+          "first_divergence": null,
+          "agrees_until_tie": true
+        },
+        "passed": true
+      },
+      "prior_failure_case": false
+    },
+    {
+      "model": "q1-0-dense-tied",
+      "passed": true,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07724428176879883,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.69463491772127,
+          "nll_delta": 0.0037907085267292473,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07724428176879883,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.69463491772127,
+          "nll_delta": 0.0037907085267292473,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "greedy": {
+          "matched_prefix": 4,
+          "checked_steps": 4,
+          "first_near_tie": 4,
+          "first_divergence": 4,
+          "agrees_until_tie": true
+        },
+        "passed": true
+      },
+      "prior_failure_case": false
+    },
+    {
+      "model": "q1-0-moe",
+      "passed": true,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07635879516601562,
+          "cpu_nll": 18.569142274088794,
+          "device_nll": 18.569614929153555,
+          "nll_delta": 0.00047265506476179553,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.08559632301330566,
+          "cpu_nll": 18.573350336606456,
+          "device_nll": 18.569614929153555,
+          "nll_delta": 0.0037354074529005743,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "greedy": {
+          "matched_prefix": 15,
+          "checked_steps": 15,
+          "first_near_tie": 15,
+          "first_divergence": 15,
+          "agrees_until_tie": true
+        },
+        "passed": true
+      },
+      "prior_failure_case": false
+    },
+    {
+      "model": "q2-0-dense-untied",
+      "passed": true,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.12600421905517578,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.544722320260146,
+          "nll_delta": 0.00804044353932909,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.12600421905517578,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.544722320260146,
+          "nll_delta": 0.00804044353932909,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "greedy": {
+          "matched_prefix": 14,
+          "checked_steps": 3,
+          "first_near_tie": 3,
+          "first_divergence": 14,
+          "agrees_until_tie": true
+        },
+        "passed": true
+      },
+      "prior_failure_case": false
+    },
+    {
+      "model": "q2-0-dense-tied",
+      "passed": false,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "criteria_passed": false,
+          "failure": "Traceback (most recent call last):\n  File \"/runner/raw.py\", line 35, in <module>\n    try:comparison[phase]=common.check_device_rows(cpu_rows[phase],rows[phase],tokens)\n                          ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/source/tests/common.py\", line 162, in check_device_rows\n    require(calibration or delta <= 0.01, \"device mean NLL differs from CPU by %.9g, bound 0.01\" % delta)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/source/tests/common.py\", line 534, in require\n    raise ValueError(message)\nValueError: device mean NLL differs from CPU by 0.0185273743, bound 0.01\n"
+        },
+        "decode": {
+          "criteria_passed": false,
+          "failure": "Traceback (most recent call last):\n  File \"/runner/raw.py\", line 35, in <module>\n    try:comparison[phase]=common.check_device_rows(cpu_rows[phase],rows[phase],tokens)\n                          ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/source/tests/common.py\", line 162, in check_device_rows\n    require(calibration or delta <= 0.01, \"device mean NLL differs from CPU by %.9g, bound 0.01\" % delta)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/source/tests/common.py\", line 534, in require\n    raise ValueError(message)\nValueError: device mean NLL differs from CPU by 0.0185273743, bound 0.01\n"
+        },
+        "greedy": {
+          "matched_prefix": 64,
+          "checked_steps": 64,
+          "first_near_tie": null,
+          "first_divergence": null,
+          "agrees_until_tie": true
+        },
+        "passed": false
+      },
+      "prior_failure_case": true
+    },
+    {
+      "model": "q2-0-moe",
+      "passed": true,
+      "HF_passed": true,
+      "group": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.1109619140625,
+          "cpu_nll": 20.07784839506533,
+          "device_nll": 20.07451243934945,
+          "nll_delta": 0.003335955715879635,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.1109619140625,
+          "cpu_nll": 20.07758896192559,
+          "device_nll": 20.07451243934945,
+          "nll_delta": 0.0030765225761371084,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "greedy": {
+          "matched_prefix": 64,
+          "checked_steps": 9,
+          "first_near_tie": 9,
+          "first_divergence": null,
+          "agrees_until_tie": true
+        },
+        "passed": true
+      },
+      "prior_failure_case": false
+    }
+  ],
+  "all_containers_removed": true,
+  "inputs_unchanged": true,
+  "seconds": 504.64759397506714,
+  "four_thread_controls": {
+    "threads": {
+      "torch": 4,
+      "OMP_NUM_THREADS": "4",
+      "MKL_NUM_THREADS": "4"
+    },
+    "comparisons": [
+      {
+        "policy": "F32-quality",
+        "baseline": "p64-d16",
+        "other": "p64-d1",
+        "max_abs_logit_difference": 3.0517578125e-05,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "F32-quality",
+        "baseline": "p64-d16",
+        "other": "p17-d16",
+        "max_abs_logit_difference": 0.0,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "F32-quality",
+        "baseline": "p64-d16",
+        "other": "p17-d1",
+        "max_abs_logit_difference": 3.0517578125e-05,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "CPU-default-cache",
+        "baseline": "p64-d16",
+        "other": "p64-d1",
+        "max_abs_logit_difference": 0.0006504058837890625,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "CPU-default-cache",
+        "baseline": "p64-d16",
+        "other": "p17-d16",
+        "max_abs_logit_difference": 0.0,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "CPU-default-cache",
+        "baseline": "p64-d16",
+        "other": "p17-d1",
+        "max_abs_logit_difference": 0.0006504058837890625,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "MI50-selected",
+        "baseline": "p64-d16",
+        "other": "p64-d1",
+        "max_abs_logit_difference": 0.001659393310546875,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "MI50-selected",
+        "baseline": "p64-d16",
+        "other": "p17-d16",
+        "max_abs_logit_difference": 0.0,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      },
+      {
+        "policy": "MI50-selected",
+        "baseline": "p64-d16",
+        "other": "p17-d1",
+        "max_abs_logit_difference": 0.001659393310546875,
+        "top1_equal": 17,
+        "positions": 17,
+        "disposition": "Numeric result pending review; no Q1-specific allowance or arbitrary pass threshold applied."
+      }
+    ],
+    "one_thread_diagnostics": [
+      {
+        "tag": "F32-quality-p64-d16",
+        "old_sha256": "60f9d80988a4a8c9814e4c29f18ab3312f33e706487224fbf75890af068a5301",
+        "new_sha256": "60f9d80988a4a8c9814e4c29f18ab3312f33e706487224fbf75890af068a5301",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "F32-quality-p64-d1",
+        "old_sha256": "d27caf3f1bc514dd7c100669d8314373532785694d5e2e794d7de54d56efc586",
+        "new_sha256": "d27caf3f1bc514dd7c100669d8314373532785694d5e2e794d7de54d56efc586",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "F32-quality-p17-d16",
+        "old_sha256": "60f9d80988a4a8c9814e4c29f18ab3312f33e706487224fbf75890af068a5301",
+        "new_sha256": "60f9d80988a4a8c9814e4c29f18ab3312f33e706487224fbf75890af068a5301",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "F32-quality-p17-d1",
+        "old_sha256": "d27caf3f1bc514dd7c100669d8314373532785694d5e2e794d7de54d56efc586",
+        "new_sha256": "d27caf3f1bc514dd7c100669d8314373532785694d5e2e794d7de54d56efc586",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "CPU-default-cache-p64-d16",
+        "old_sha256": "37313ac1a68807725cba7841478d57f6c8cc43020fbfda6ba2a81e7b6eb912b4",
+        "new_sha256": "37313ac1a68807725cba7841478d57f6c8cc43020fbfda6ba2a81e7b6eb912b4",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "CPU-default-cache-p64-d1",
+        "old_sha256": "b2dcc0feab5b6316d11e713ff22175be3cf2388a4d5f5d18f8046fac9d4bb704",
+        "new_sha256": "b2dcc0feab5b6316d11e713ff22175be3cf2388a4d5f5d18f8046fac9d4bb704",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "CPU-default-cache-p17-d16",
+        "old_sha256": "37313ac1a68807725cba7841478d57f6c8cc43020fbfda6ba2a81e7b6eb912b4",
+        "new_sha256": "37313ac1a68807725cba7841478d57f6c8cc43020fbfda6ba2a81e7b6eb912b4",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "CPU-default-cache-p17-d1",
+        "old_sha256": "b2dcc0feab5b6316d11e713ff22175be3cf2388a4d5f5d18f8046fac9d4bb704",
+        "new_sha256": "b2dcc0feab5b6316d11e713ff22175be3cf2388a4d5f5d18f8046fac9d4bb704",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "MI50-selected-p64-d16",
+        "old_sha256": "c674b51db23768472b36fe8f1527f7ff626911de3d3948857f7bd6dcac7ccc0e",
+        "new_sha256": "c674b51db23768472b36fe8f1527f7ff626911de3d3948857f7bd6dcac7ccc0e",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "MI50-selected-p64-d1",
+        "old_sha256": "daf66f41430f688c5a6d2f9a2b3733106011aee9f0b4b028ec5326752d424d3f",
+        "new_sha256": "daf66f41430f688c5a6d2f9a2b3733106011aee9f0b4b028ec5326752d424d3f",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "MI50-selected-p17-d16",
+        "old_sha256": "c674b51db23768472b36fe8f1527f7ff626911de3d3948857f7bd6dcac7ccc0e",
+        "new_sha256": "c674b51db23768472b36fe8f1527f7ff626911de3d3948857f7bd6dcac7ccc0e",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      },
+      {
+        "tag": "MI50-selected-p17-d1",
+        "old_sha256": "daf66f41430f688c5a6d2f9a2b3733106011aee9f0b4b028ec5326752d424d3f",
+        "new_sha256": "daf66f41430f688c5a6d2f9a2b3733106011aee9f0b4b028ec5326752d424d3f",
+        "byte_identical": true,
+        "bit_identical_rows": 17,
+        "top1_equal": 17,
+        "positions": 17,
+        "max_abs_logit_difference": 0.0,
+        "disposition": "Diagnostic execution-configuration comparison only; no new threshold. Old process parameter layout was not recorded, so differences cannot be attributed exclusively to thread count."
+      }
+    ],
+    "complete": true
+  },
+  "four_thread_memory": {
+    "passed": true,
+    "correctness_reference": false,
+    "peak_bytes": 13778497536,
+    "seconds": 101.47592163085938
+  },
+  "hashes": {
+    "build-low-bits-dev/q12-bf16-refresh-v1/out/supervisor.json": "f4a7c05db24e02bd890dad879d7423765f9f299583cb95b1b75af279e11de9ba",
+    "build-low-bits-dev/q12-bf16-refresh-v1/out/direct/execution.json": "639c7aaf72736dbfe90de9b5be3510dddee7ca724a55f1b3d3b90c5dc267d31f",
+    "build-low-bits-dev/q12-bf16-refresh-v1/out/raw/execution.json": "caa9850d855f327ab0a9685502d87672dd3891b0ac6b2551c1b28c7005716e8e",
+    "build-low-bits-dev/q1-depth-prereq-v1/controls-4t-v1/out/report.json": "7dc4405dfab938c1e02d452c8c80139a2e4fee0e32bedc480ae2301b835dc661",
+    "build-low-bits-dev/q1-depth-prereq-v1/controls-4t-v1/out/supervisor.json": "b77cdff28dc39a7af98ba21b3f27844eea2fbcf913852a79d29149f859e6feaf",
+    "build-low-bits-dev/q1-depth-prereq-v1/memory-probe-4t-v1/out/report.json": "a60cd0b73d0e4c4187ed4b11356d11d3c7b0590a37b5c7f9ec6cabcf58a231b1",
+    "build-low-bits-dev/q1-depth-prereq-v1/memory-probe-4t-v1/out/supervisor.json": "9e5e125b5fb140ea1af0bc4cdbf41881857500d5653fd6383685519b84bf4458",
+    "build-low-bits-dev/q1-depth-prereq-v1/full-depth-4t-v1/next-plan.json": "9493645773b1ac6d3f049b5e58cc8e99c650718397d3d251b4f08c702a38fef6"
+  },
+  "limits": [
+    "No runtime, precision budget, canonical reference or failure waiver changed.",
+    "Short cross-thread controls do not prove long-depth correctness. The new chat producer retains all 512 raw rows for independent comparison.",
+    "The synthetic-history memory probe is not correctness evidence."
+  ],
+  "markdown_review": {
+    "prior_catalog": "docs\\benchmarks\\q1-trace-checkpoint-review-20261028.json",
+    "prior_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+    "pages": 154,
+    "unchanged_carried": 153,
+    "changed_pages": {
+      "docs/STATUS.md": "fdd1ee0cc3edf286860554f57fad8d155fb88d0f2bc6fbfecfc7a1cc83dcede4"
+    },
+    "scope": "Evidence-only update: new STATUS section checked against direct/raw results and control/probe records. Unchanged Markdown retains prior semantic review, with unchanged runtime and public contracts."
+  },
+  "checkpoint_checks": {
+    "log": "build-low-bits-dev/q12-bf16-refresh-docs.log",
+    "sha256": "633fb9868c2685826142cbb3fb17263afd4f1601271e876da06d3bf06d452aad",
+    "dead_code": "PASS",
+    "docs": "PASS",
+    "scope": "Evidence-only checkpoint. Existing numerical failure remains recorded, not waived."
+  }
+}

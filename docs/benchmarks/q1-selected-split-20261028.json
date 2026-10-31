@@ -1,0 +1,139 @@
+{
+  "schema": "llmx.q1-selected-split-evidence.v1",
+  "scope": "Frozen Q1_0 tiny-HF fixtures under selected automatic F16 arithmetic with F32 KV. This is focused two-GPU split evidence, not released-file, F16-KV, performance, or full-support qualification.",
+  "result": "pass",
+  "candidate": {
+    "runtime": "q1-two-row-cluster32-v1",
+    "build_receipt_sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6",
+    "cli_sha256": "c0a668057928cca2646baa337c94ec1b84cdad397ef431a501bacf9676741006",
+    "vulkan_library_sha256": "608e2afde63e90f7f7966a5d2bb904177a3c645d482badd96caa9fe5fa2e8278",
+    "q1_shader_sha256": "5237d0e07f6d63054887dedc2bb9dd0830dc9ae9dfecff48ebadb5353f80972f"
+  },
+  "policy": {
+    "dtype_request": "auto",
+    "effective_dtype": "f16",
+    "observed_q1_matrix_paths": ["block-int16", "f32"],
+    "q1_integer_matrix_path_observed": true,
+    "cache_k": "f32",
+    "cache_v": "f32",
+    "load_mode": "auto",
+    "calibration": "unchanged Q1 F16 family calibration; no limit changes"
+  },
+  "frozen_inputs": {
+    "seed": 12345,
+    "fixture_source_manifest_sha256": "198bc7bb1d54b277cc766a4dd9fdb25bc54f20a258788cdc1434083c30ab991b",
+    "ordinary_reference": {
+      "path": "tests/data/baseline_q1_0.json",
+      "sha256": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e"
+    },
+    "tensor_split_reference": {
+      "path": "tests/data/baseline_q1_0_split.json",
+      "sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2"
+    },
+    "q1_f16_calibration": {
+      "path": "tests/data/dtype_budget.json",
+      "sha256": "3980418c806032e9f3e44b54d4d9be2f03c75480cae800420ca660b3ab4c146f"
+    },
+    "reference_generation": false,
+    "limits_changed": false
+  },
+  "execution": {
+    "plan_sha256": "2672037d0b259839a3b58f0d6c40b7ccc3eb367a36402ebbac67006520289edf",
+    "execution_json": "build-low-bits-dev/q1-selected-split-v2/out/execution.json",
+    "execution_sha256": "9fff1eb3dd3730c23ab5615fcf68bbb1d637f4d5e80746dc9972aa112699f15f",
+    "supervisor_json": "build-low-bits-dev/q1-selected-split-v2/out/supervisor.json",
+    "supervisor_sha256": "439c1bc943fea333e2fb6672cf061b8808b8d75e3814f57e42b7d0a54fa9a151",
+    "container_stdout_sha256": "ee7a89a41a99d91b0f4fcf000d2ac2db03e52bbefde76994ddf2f2da3ae6e664",
+    "calls": 326,
+    "successful_exit_codes": 326,
+    "retained_call_stdout_stderr": 652,
+    "all_call_hashes_and_matrix_witnesses_checked": true,
+    "candidate_inputs_unchanged": true,
+    "container_cleanup_exit_code": 0,
+    "host_available_memory_floor_bytes": 34479865856,
+    "device_map_sha256": "0ce11031d6f6b84fdfe4d4f3d3b4c7ae10d975c1ae898717058b565f8ed7901a",
+    "physical_gpus": [4, 5],
+    "gpu_use_percent_at_preflight": 0,
+    "gpu_vram_used_bytes_at_preflight_each": 10932224
+  },
+  "placements": [
+    {
+      "name": "layer2",
+      "physical_gpus": [4, 5],
+      "layer_shares": "1,1",
+      "tensor_width": 1,
+      "reference": "ordinary Q1 tiny fixture",
+      "reference_sha256": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e",
+      "full_logit_comparisons": 150,
+      "nll_checks": 12,
+      "maximum_logit_error": 0.00427149,
+      "logit_bound": 0.1456279754638672,
+      "maximum_nll_error": 0.00050568,
+      "nll_bound": 0.008072607608994531,
+      "fixtures": {
+        "dense-untied": {
+          "maximum_logit_error": 0.00184759,
+          "maximum_nll_error": 0.00011491,
+          "weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+          "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0"
+        },
+        "dense-tied": {
+          "maximum_logit_error": 0.00150757,
+          "maximum_nll_error": 0.00036334,
+          "weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+          "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d"
+        },
+        "moe": {
+          "maximum_logit_error": 0.00427149,
+          "maximum_nll_error": 0.00050568,
+          "weights_sha256": "5f303b88fc298b5eaf8fdc10467b6527688ef4d5e1a2b07469fad7c43566dce3",
+          "packed_sha256": "3ba7bf5dc7f91f78235841c7f39cdaf342f2cee1dc6c11778acf8c75966f7966"
+        }
+      }
+    },
+    {
+      "name": "tp2",
+      "physical_gpus": [4, 5],
+      "layer_shares": null,
+      "tensor_width": 2,
+      "reference": "tensor-split Q1 tiny fixture",
+      "reference_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "full_logit_comparisons": 150,
+      "nll_checks": 12,
+      "maximum_logit_error": 0.00271631,
+      "logit_bound": 0.1456279754638672,
+      "maximum_nll_error": 0.00035266,
+      "nll_bound": 0.008072607608994531,
+      "fixtures": {
+        "dense-untied": {
+          "maximum_logit_error": 0.00271631,
+          "maximum_nll_error": 0.00011057,
+          "weights_sha256": "abf76c4bc24e4f542085bdceda2f4d618bcb6594616b5e3443c6b49f8c479540",
+          "packed_sha256": "9ea2d7b0b62ef71d8ba1aaeefb1fddeb9be29bb7c88e4db0f0032292acff7e07"
+        },
+        "dense-tied": {
+          "maximum_logit_error": 0.00164562,
+          "maximum_nll_error": 0.00035266,
+          "weights_sha256": "2b926e365c04f407537b2876661e3eeadee1727a30bfd1233f940713c40a0491",
+          "packed_sha256": "3a357f60c3225847a123a151115e1c004db05dc87630eb275ea69b88633fcadc"
+        },
+        "moe": {
+          "maximum_logit_error": 0.00253986,
+          "maximum_nll_error": 0.00014504,
+          "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+          "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654"
+        }
+      }
+    }
+  ],
+  "prior_attempt": {
+    "bundle": "q1-selected-split-v1",
+    "outcome": "Direct-mode load refused the tmpfs fixture before HF comparison; no numerical outcome. The v2 retry changed only load mode to auto.",
+    "record": "build-low-bits-dev/q1-selected-split-v2/plan.json"
+  },
+  "not_established": [
+    "Q1 split with F16 KV",
+    "Released Boole file split inference",
+    "Broader dtype, architecture, backend, or landing qualification"
+  ]
+}

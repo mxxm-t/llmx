@@ -1,0 +1,310 @@
+{
+  "scope": "Q1/Q2 current integer-path diagnostic, not speed qualification",
+  "results": [
+    {
+      "family": "q1-0",
+      "phases": {
+        "pp": {
+          "device_ms": 59.5693,
+          "dispatches": 340,
+          "kernels": [
+            {
+              "kernel": "matmul_tile_q1_0_dot",
+              "ms": 53.1088,
+              "percent": 89.1547
+            },
+            {
+              "kernel": "attention_tile_kv16",
+              "ms": 1.68192,
+              "percent": 2.82347
+            },
+            {
+              "kernel": "matmul_reduce",
+              "ms": 1.66192,
+              "percent": 2.78989
+            },
+            {
+              "kernel": "norm_rope_kv_kv16",
+              "ms": 1.01072,
+              "percent": 1.69671
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 0.82704,
+              "percent": 1.38837
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 0.74096,
+              "percent": 1.24386
+            },
+            {
+              "kernel": "matmul_row_q1_0_dot_1col head",
+              "ms": 0.5064,
+              "percent": 0.850103
+            },
+            {
+              "kernel": "embed",
+              "ms": 0.0256,
+              "percent": 0.0429752
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.00592,
+              "percent": 0.00993801
+            }
+          ]
+        },
+        "tg": {
+          "device_ms": 1375.13,
+          "dispatches": 71808,
+          "kernels": [
+            {
+              "kernel": "matmul_row_q1_0_dot_1col",
+              "ms": 857.109,
+              "percent": 62.3292
+            },
+            {
+              "kernel": "matmul_row_q1_0_dot_1col head",
+              "ms": 130.923,
+              "percent": 9.52076
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 120.012,
+              "percent": 8.72728
+            },
+            {
+              "kernel": "attention_vec_kv16",
+              "ms": 85.0277,
+              "percent": 6.18323
+            },
+            {
+              "kernel": "norm_rope_kv_kv16",
+              "ms": 71.9899,
+              "percent": 5.23512
+            },
+            {
+              "kernel": "attention_merge",
+              "ms": 62.1283,
+              "percent": 4.51798
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 43.6438,
+              "percent": 3.17379
+            },
+            {
+              "kernel": "embed",
+              "ms": 2.74432,
+              "percent": 0.199567
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 1.55536,
+              "percent": 0.113106
+            }
+          ]
+        }
+      },
+      "compiler_statistics": [
+        "profile: kernel matmul_reduce: Driver pipeline hash=10556862320818546441 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "profile: kernel matmul_tile_q1_0_dot: Driver pipeline hash=7407840614578025092 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=15084 LDS size=17920 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=2462851958 Instructions=2584 Copies=208 Branches=64 Latency=371400 Inverse Throughput=261292 VMEM Clause=30 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=62 VALU=1775 SALU=482 VMEM=55 SMEM=22 VOPD=0",
+        "profile: kernel matmul_row_q1_0_dot_1col: Driver pipeline hash=6904173139658845198 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5200 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=120765702 Instructions=1014 Copies=51 Branches=25 Latency=167732 Inverse Throughput=117512 VMEM Clause=28 SMEM Clause=15 Pre-Sched SGPRs=42 Pre-Sched VGPRs=29 VALU=733 SALU=126 VMEM=48 SMEM=20 VOPD=0"
+      ]
+    },
+    {
+      "family": "q2-0",
+      "phases": {
+        "pp": {
+          "device_ms": 29.8658,
+          "dispatches": 368,
+          "kernels": [
+            {
+              "kernel": "matmul_tile_q2_0_dot",
+              "ms": 13.7883,
+              "percent": 46.1677
+            },
+            {
+              "kernel": "matmul_tile_q2_0_dot_small",
+              "ms": 9.77616,
+              "percent": 32.7337
+            },
+            {
+              "kernel": "attention_tile_kv16",
+              "ms": 1.88416,
+              "percent": 6.30876
+            },
+            {
+              "kernel": "matmul_reduce",
+              "ms": 1.8232,
+              "percent": 6.10465
+            },
+            {
+              "kernel": "norm_rope_kv_kv16",
+              "ms": 1.10432,
+              "percent": 3.69761
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 0.70576,
+              "percent": 2.36311
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 0.4512,
+              "percent": 1.51076
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 0.30208,
+              "percent": 1.01146
+            },
+            {
+              "kernel": "embed",
+              "ms": 0.0248,
+              "percent": 0.0830382
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 0.00576,
+              "percent": 0.0192863
+            }
+          ]
+        },
+        "tg": {
+          "device_ms": 921.587,
+          "dispatches": 71808,
+          "kernels": [
+            {
+              "kernel": "matmul_row_q2_0_dot_1col",
+              "ms": 468.93,
+              "percent": 50.8828
+            },
+            {
+              "kernel": "rms_norm_rows",
+              "ms": 114.576,
+              "percent": 12.4324
+            },
+            {
+              "kernel": "attention_vec_kv16",
+              "ms": 82.4811,
+              "percent": 8.9499
+            },
+            {
+              "kernel": "matmul_row_k_dot_1col head",
+              "ms": 77.692,
+              "percent": 8.43024
+            },
+            {
+              "kernel": "norm_rope_kv_kv16",
+              "ms": 69.8397,
+              "percent": 7.57819
+            },
+            {
+              "kernel": "attention_merge",
+              "ms": 60.8163,
+              "percent": 6.59908
+            },
+            {
+              "kernel": "silu_mul",
+              "ms": 42.6424,
+              "percent": 4.62706
+            },
+            {
+              "kernel": "embed",
+              "ms": 3.10608,
+              "percent": 0.337036
+            },
+            {
+              "kernel": "gather_rows",
+              "ms": 1.50448,
+              "percent": 0.163249
+            }
+          ]
+        }
+      },
+      "compiler_statistics": [
+        "profile: kernel matmul_row_k_dot_1col: Driver pipeline hash=2658250289481433593 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=2448 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1021303924 Instructions=471 Copies=65 Branches=28 Latency=76748 Inverse Throughput=19144 VMEM Clause=14 SMEM Clause=21 Pre-Sched SGPRs=23 Pre-Sched VGPRs=40 VALU=229 SALU=137 VMEM=18 SMEM=23 VOPD=0",
+        "profile: kernel matmul_reduce: Driver pipeline hash=10556862320818546441 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0",
+        "profile: kernel matmul_tile_q2_0_dot: Driver pipeline hash=9845465128118678111 SGPRs=64 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=15988 LDS size=17920 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3222012072 Instructions=2722 Copies=210 Branches=64 Latency=404040 Inverse Throughput=293252 VMEM Clause=20 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=62 VALU=1914 SALU=483 VMEM=55 SMEM=22 VOPD=0",
+        "profile: kernel matmul_tile_q2_0_dot_small: Driver pipeline hash=16830031630717867976 SGPRs=64 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=11436 LDS size=13824 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=434434045 Instructions=1994 Copies=145 Branches=44 Latency=344854 Inverse Throughput=234204 VMEM Clause=29 SMEM Clause=15 Pre-Sched SGPRs=56 Pre-Sched VGPRs=46 VALU=1416 SALU=318 VMEM=53 SMEM=22 VOPD=0",
+        "profile: kernel matmul_row_q2_0_dot_1col: Driver pipeline hash=10685730327059792615 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5976 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1091466718 Instructions=1171 Copies=53 Branches=25 Latency=194708 Inverse Throughput=147464 VMEM Clause=22 SMEM Clause=15 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=884 SALU=127 VMEM=51 SMEM=20 VOPD=0"
+      ]
+    }
+  ],
+  "device": {
+    "physical": 8,
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-int16-v2/build/llmx": "8c5bd0c1c6f597acf0c703b6d1db982b1e0eee30251845c400d08fe249d0e994",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/llama-bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0.6.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0.26.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0.26.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0.26.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0.26.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0.6.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-bench-impl.so": "debea6a1da948375ce974bbf6f0b3161e69c2d15b17de3668a2393002f051724",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b"
+  },
+  "source_matches_build": 201,
+  "profile_artifacts": {
+    "00-q1-0-llmx.stderr": "83ce211c0b44316a3b7ed7ff00d4afe6e0bb65f4a4a5a07efd51630766afa191",
+    "00-q1-0-llmx.stdout": "28fc40d75d6f8390414bf5d9ecfd03f1b56dfc7c54aa51692005e0824c7d46ab",
+    "01-q2-0-llmx.stderr": "5edd9fed3272237cc1db36a35cc476cff7e695794feb5bf99a2b3e61aad05925",
+    "01-q2-0-llmx.stdout": "cac008945fa0ef033a6ff92c2b0220089d12f3c08f51022d7eebcaed5a2159ba",
+    "activity.jsonl": "a453eb3fff073bedc32cc9c351dd5572264f1971e580ebd0e22ac77ae327cb00",
+    "compiler.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compiler.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b",
+    "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "execution.json": "3303c41330bc7cc9be866ce6c3ae4a090b2fe8399d25ffcec912e1ea056617b7",
+    "llmx-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "llmx-version.stdout": "dfc96bf6966665c7bd1b32a3540df55d48965dfb28219ca9f9ec72e2f0c074e6",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "mx-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mx-ldd.stdout": "a600dcb50448e8a099ba4c294122a7c6185047446fef37d6926ebb7fc357b929",
+    "mx-version.stderr": "9d14b1456729dfea87fd0034212d9c6fa5b8ce765ea44be6290e16e9e33be86f",
+    "mx-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "isa_receipt_sha256": "54cd221ee8959e74de01b15640b8503fb686bd9c046a102d5b256aed109a8ddf",
+  "isa_artifacts": {
+    "build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "matmul_row_q1_0_dot_grouped.txt": "ac92007f604c28f025269a72460c984416e743b203c9697fc5570040c8f6b611",
+    "matmul_row_q1_0_dot.txt": "656e520f1a5700b40463b002797eccc3ec8f2583d197a461a12a49dda8239233",
+    "capture.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "matmul_row_q2_0_dot.txt": "45e611d57673d2bf665292eb195484ed31c3d1dcab9acbc2bda58b6733c3364e",
+    "matmul_row_q2_0_dot_1col.txt": "ef95ee5f587c1738fecbca20bbb61a0da4aa126ab782661205ad6bd348c5d1a5",
+    "cpu.stdout": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61",
+    "build.stdout": "cf3d811aea967d6f42bf0ee0f54e3b75890a1d879ce592fe2c5bc7afa39ef2d5",
+    "cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "matmul_row_q1_0_dot_1col.txt": "cc8b8275dbe221264c13adfe260b7c8c17be67e93b78e54afcadcfbbeb7fe7db",
+    "matmul_row_q2_0_dot_grouped.txt": "fcc9312417954a424cdb8be7a3633ac2ed93c87c01e2a9009b78724ecd2e7c3f",
+    "capture.stdout": "6a9cbc85d5b427bd2243a8d1f213cf31929e25f62c9a468eada3eca29898957e"
+  },
+  "isa_summary_print_failure": "After passed tests, saved receipt and cleanup, final print raised KeyError for an obsolete native_witness_lines key. Verified the receipt and every captured hash separately; no test rerun.",
+  "limits": [
+    "GPU timestamps include profiling overhead.",
+    "Zero scratch and spills do not prove memory behavior or actual occupancy.",
+    "Q1 compiled ACO shows sixteen dependent dot2 accumulations for each 32-value group. Independent integer partial sums are a proposed latency experiment, not a proven cause."
+  ],
+  "raw_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027"
+}

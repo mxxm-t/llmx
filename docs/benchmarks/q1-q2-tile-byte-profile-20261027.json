@@ -1,0 +1,1187 @@
+{
+  "title": "Q1_0/Q2_0 packed-byte tile screen profile",
+  "classification": "four-call single before/after diagnostic; not a speed gate",
+  "purpose": "Packed byte reuse ABBA diagnostic, not final identity/layout/mx qualification",
+  "source_commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+  "binary_hashes_from_capture_report": {
+    "before": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+    "after": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26"
+  },
+  "retained_after_binary": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-byte-reuse.exe",
+    "sha256": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+    "matches_report_after_hash": true
+  },
+  "activity_flags": "Retain all calls. Report unrelated process CPU above 0.02 cores, all active GPU engines above 0.1%, disk totals, unknown counters and read misses. Profiled and plain calls use the same observer.",
+  "monitor_pids": [
+    21596,
+    54644
+  ],
+  "monitor_availability": {
+    "host_ndjson_present": true,
+    "gpu_ndjson_present": true,
+    "monitor_stdout_bytes": 0,
+    "monitor_stderr_bytes": 0,
+    "host_samples": 12,
+    "gpu_samples": 12,
+    "gpu_known_samples": 10,
+    "gpu_unknown_samples": 2
+  },
+  "model_artifacts": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf": {
+      "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+      "bytes": 292142912
+    },
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf": {
+      "sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "bytes": 345218560
+    }
+  },
+  "source_artifacts": {
+    "build-low-bits-dev/tile-byte-screen/profile/q1-0-before.stdout": {
+      "sha256": "06b4768142182c0a9a3e72194275365971a736eee34002a2021a70360ddebc12",
+      "bytes": 2926
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q1-0-before.stderr": {
+      "sha256": "f1a476d9eccb4bc685812b47088d85f2ed56718d16ffda51c3bf2d363d22b22c",
+      "bytes": 588
+    },
+    "build-low-bits-dev/tile-byte-screen/llmx-byte-reuse.exe": {
+      "sha256": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+      "bytes": 12097024
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q1-1-after.stdout": {
+      "sha256": "d111f3b2653b43aae2b4fd2f705a2367a195b7c35c3a340a5d8fc059a4af164c",
+      "bytes": 2922
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q1-1-after.stderr": {
+      "sha256": "291fd1187e470540b4ffe2cfc1122e55de2ba623018e83c2ee438adf4e93e1f2",
+      "bytes": 588
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q2-0-before.stdout": {
+      "sha256": "eae1a4cafc017ab3ea2197697abef3566bc1c1773e0e3504cb2590297d828d3b",
+      "bytes": 2866
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q2-0-before.stderr": {
+      "sha256": "98b061b094f0af694b8c10ccdafe0da1fc9b313876e8e7f493f4dbcb9c558f4f",
+      "bytes": 602
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q2-1-after.stdout": {
+      "sha256": "077cdb03943bdb4ab9b4d1433ee2f5e9da0601108c769e5480a5817311c5a32c",
+      "bytes": 2863
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/q2-1-after.stderr": {
+      "sha256": "61316c3bb6db63d34f19bab507a46e001f8e7f5383f11ab8955f8be66c6f7a8c",
+      "bytes": 602
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/report.json": {
+      "sha256": "a4ae24c7923d032d28b8a83137b50c1507c8a7755587a7c75ec8b8d47d38e4c4",
+      "bytes": 4110
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/host.ndjson": {
+      "sha256": "312a5293b3c3fd10e4e4c3f6ae6da46b0267d7eb498e937c298ebaa15be3932c",
+      "bytes": 17122
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/gpu.ndjson": {
+      "sha256": "065e596906fcc8d34096f2093fc9f08436005a572eb86a56b1991a1a23a1ffc5",
+      "bytes": 5692
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/monitor.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/monitor.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/stop": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "build-low-bits-dev/tile-byte-screen/profile/export_profile.py": {
+      "sha256": "fa3386b246aaf87e306dd7cdc668cef2f252ffd806f56e4c178fc64577fb3f72",
+      "bytes": 9562
+    }
+  },
+  "runs": [
+    {
+      "label": "q1-0-before",
+      "arm": "before",
+      "family": "Q1_0",
+      "source_commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+      "version": "llmx 0.1.0+gddca152e3de9.dirty numerics 8e7ccc76b7fb6a36",
+      "binary_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-before.exe",
+      "binary_sha256_from_capture_report": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+      "retained_binary_copy": null,
+      "retained_binary_copy_sha256": null,
+      "model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--profile"
+      ],
+      "pid": 34388,
+      "started_unix": 1793117680.9044504,
+      "ended_unix": 1793117693.9679978,
+      "elapsed_seconds": 13.063547372817993,
+      "exit_code": 0,
+      "pp128": {
+        "tokens_per_second": 296.58,
+        "reported_error": 0.0
+      },
+      "tg64": {
+        "tokens_per_second": 23.52,
+        "reported_error": 0.0
+      },
+      "phase_kernel_times": [
+        {
+          "phase": "pp",
+          "device_time_ms": 428.043,
+          "dispatches_sampled": 340,
+          "kernels": [
+            {
+              "name": "matmul_tile",
+              "device_time_ms": 200.211,
+              "share_percent": 46.7737
+            },
+            {
+              "name": "matmul_tile_tall",
+              "device_time_ms": 148.959,
+              "share_percent": 34.8001
+            },
+            {
+              "name": "matmul_tile_small",
+              "device_time_ms": 58.0299,
+              "share_percent": 13.557
+            },
+            {
+              "name": "attention_tile_kv16",
+              "device_time_ms": 7.4608,
+              "share_percent": 1.743
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 3.06688,
+              "share_percent": 0.71649
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 2.5064,
+              "share_percent": 0.585549
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 1.75808,
+              "share_percent": 0.410726
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 0.03376,
+              "share_percent": 0.00788707
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.01312,
+              "share_percent": 0.00306512
+            }
+          ]
+        },
+        {
+          "phase": "tg",
+          "device_time_ms": 2667.96,
+          "dispatches_sampled": 17280,
+          "kernels": [
+            {
+              "name": "matmul_row_q1_0_1col",
+              "device_time_ms": 2045.33,
+              "share_percent": 76.6625
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 83.0408,
+              "share_percent": 3.11252
+            },
+            {
+              "name": "attention_vec_kv16",
+              "device_time_ms": 60.0189,
+              "share_percent": 2.24962
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 40.8498,
+              "share_percent": 1.53112
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 25.8181,
+              "share_percent": 0.967708
+            },
+            {
+              "name": "attention_merge",
+              "device_time_ms": 19.6131,
+              "share_percent": 0.735135
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 1.89232,
+              "share_percent": 0.0709275
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.81696,
+              "share_percent": 0.0306211
+            }
+          ]
+        }
+      ],
+      "shader_stats": [
+        {
+          "kernel": "silu_mul",
+          "vgprs": 17,
+          "sgprs": 26,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "gather_rows",
+          "vgprs": 4,
+          "sgprs": 18,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "rms_norm_rows",
+          "vgprs": 35,
+          "sgprs": 40,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "embed",
+          "vgprs": 14,
+          "sgprs": 38,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_merge",
+          "vgprs": 23,
+          "sgprs": 35,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 3072,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile",
+          "vgprs": 93,
+          "sgprs": 68,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 16384,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_small",
+          "vgprs": 79,
+          "sgprs": 54,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 12288,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_tile_kv16",
+          "vgprs": 91,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 18432,
+          "scratch_bytes": 288
+        },
+        {
+          "kernel": "norm_rope_kv_kv16",
+          "vgprs": 14,
+          "sgprs": 50,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_tall",
+          "vgprs": 98,
+          "sgprs": 96,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 24576,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_vec_kv16",
+          "vgprs": 38,
+          "sgprs": 44,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 9728,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_q1_0_1col",
+          "vgprs": 14,
+          "sgprs": 31,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        }
+      ],
+      "stdout": "bench: pp128    296.58 +- 0.00 tok/s  (1 runs)\nbench: tg64     23.52 +- 0.00 tok/s  (1 runs)\nprofile pp: 428.043 ms of device time over 340 dispatches sampled\nprofile:   matmul_tile 200.211 ms (46.7737%)\nprofile:   matmul_tile_tall 148.959 ms (34.8001%)\nprofile:   matmul_tile_small 58.0299 ms (13.557%)\nprofile:   attention_tile_kv16 7.4608 ms (1.743%)\nprofile:   matmul_row_q1_0_1col head 6.00304 ms (1.40244%)\nprofile:   rms_norm_rows 3.06688 ms (0.71649%)\nprofile:   norm_rope_kv_kv16 2.5064 ms (0.585549%)\nprofile:   silu_mul 1.75808 ms (0.410726%)\nprofile:   embed 0.03376 ms (0.00788707%)\nprofile:   gather_rows 0.01312 ms (0.00306512%)\nprofile tg: 2667.96 ms of device time over 17280 dispatches sampled\nprofile:   matmul_row_q1_0_1col 2045.33 ms (76.6625%)\nprofile:   matmul_row_q1_0_1col head 390.585 ms (14.6398%)\nprofile:   rms_norm_rows 83.0408 ms (3.11252%)\nprofile:   attention_vec_kv16 60.0189 ms (2.24962%)\nprofile:   norm_rope_kv_kv16 40.8498 ms (1.53112%)\nprofile:   silu_mul 25.8181 ms (0.967708%)\nprofile:   attention_merge 19.6131 ms (0.735135%)\nprofile:   embed 1.89232 ms (0.0709275%)\nprofile:   gather_rows 0.81696 ms (0.0306211%)\nprofile: kernel silu_mul: numUsedVgprs=17 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel gather_rows: numUsedVgprs=4 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel rms_norm_rows: numUsedVgprs=35 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel embed: numUsedVgprs=14 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_merge: numUsedVgprs=23 numUsedSgprs=35 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=3072 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile: numUsedVgprs=93 numUsedSgprs=68 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16384 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_small: numUsedVgprs=79 numUsedSgprs=54 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12288 scratchMemUsageInBytes=0\nprofile: kernel attention_tile_kv16: numUsedVgprs=91 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=288\nprofile: kernel norm_rope_kv_kv16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_tall: numUsedVgprs=98 numUsedSgprs=96 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=24576 scratchMemUsageInBytes=0\nprofile: kernel attention_vec_kv16: numUsedVgprs=38 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_q1_0_1col: numUsedVgprs=14 numUsedSgprs=31 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\n",
+      "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\nload: auto, 0.27 GiB read from 1 file buffered; construct 0.19 s, read 0.08 s, upload 0.05 s (0.27 GiB copied from the reads), waiting for reads 0.06 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\"]]}\n",
+      "stdout_sha256": "06b4768142182c0a9a3e72194275365971a736eee34002a2021a70360ddebc12",
+      "stderr_sha256": "f1a476d9eccb4bc685812b47088d85f2ed56718d16ffda51c3bf2d363d22b22c",
+      "monitor": {
+        "host_samples": 4,
+        "gpu_samples": 3,
+        "gpu_known_samples": 3,
+        "gpu_unknown_samples": 0,
+        "own_process_cpu_max_cores": 0.06445250278690003,
+        "external_process_cpu_max": {
+          "name": "cpptools.exe",
+          "pid": 80364,
+          "cores": 2.8376605228279845
+        },
+        "external_process_samples_over_0.02_cores": 61,
+        "own_gpu_engine_max_percent": 100.31062629794745,
+        "external_gpu_engine_max": {
+          "engine": "pid_1152_luid_0x00000000_0x0000b616_phys_0_eng_0_engtype_3d",
+          "percent": 2.361941236812615
+        },
+        "host_sample_read_misses": 0,
+        "disk_counter_window": {
+          "read_bytes": 344790016,
+          "write_bytes": 22671360,
+          "read_count": 2939,
+          "write_count": 1108
+        }
+      }
+    },
+    {
+      "label": "q1-1-after",
+      "arm": "after",
+      "family": "Q1_0",
+      "source_commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics 23d93060db19b183",
+      "binary_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+      "binary_sha256_from_capture_report": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+      "retained_binary_copy": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-byte-reuse.exe",
+      "retained_binary_copy_sha256": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+      "model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--profile"
+      ],
+      "pid": 17100,
+      "started_unix": 1793117694.2332785,
+      "ended_unix": 1793117706.360037,
+      "elapsed_seconds": 12.126758575439453,
+      "exit_code": 0,
+      "pp128": {
+        "tokens_per_second": 310.27,
+        "reported_error": 0.0
+      },
+      "tg64": {
+        "tokens_per_second": 23.5,
+        "reported_error": 0.0
+      },
+      "phase_kernel_times": [
+        {
+          "phase": "pp",
+          "device_time_ms": 410.938,
+          "dispatches_sampled": 340,
+          "kernels": [
+            {
+              "name": "matmul_tile",
+              "device_time_ms": 204.737,
+              "share_percent": 49.822
+            },
+            {
+              "name": "matmul_tile_tall",
+              "device_time_ms": 128.146,
+              "share_percent": 31.1838
+            },
+            {
+              "name": "matmul_tile_small",
+              "device_time_ms": 57.1288,
+              "share_percent": 13.9021
+            },
+            {
+              "name": "attention_tile_kv16",
+              "device_time_ms": 7.4848,
+              "share_percent": 1.82139
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 2.73408,
+              "share_percent": 0.665327
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 2.72,
+              "share_percent": 0.6619
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 1.76912,
+              "share_percent": 0.430508
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 0.03472,
+              "share_percent": 0.00844896
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.0128,
+              "share_percent": 0.00311483
+            }
+          ]
+        },
+        {
+          "phase": "tg",
+          "device_time_ms": 2666.84,
+          "dispatches_sampled": 17280,
+          "kernels": [
+            {
+              "name": "matmul_row_q1_0_1col",
+              "device_time_ms": 2043.91,
+              "share_percent": 76.6417
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 82.5235,
+              "share_percent": 3.09443
+            },
+            {
+              "name": "attention_vec_kv16",
+              "device_time_ms": 59.4862,
+              "share_percent": 2.23059
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 41.3451,
+              "share_percent": 1.55034
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 26.0909,
+              "share_percent": 0.978343
+            },
+            {
+              "name": "attention_merge",
+              "device_time_ms": 19.6906,
+              "share_percent": 0.738347
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 2.01968,
+              "share_percent": 0.075733
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.81216,
+              "share_percent": 0.030454
+            }
+          ]
+        }
+      ],
+      "shader_stats": [
+        {
+          "kernel": "silu_mul",
+          "vgprs": 17,
+          "sgprs": 26,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "gather_rows",
+          "vgprs": 4,
+          "sgprs": 18,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "rms_norm_rows",
+          "vgprs": 35,
+          "sgprs": 40,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "embed",
+          "vgprs": 14,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_merge",
+          "vgprs": 23,
+          "sgprs": 35,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 3072,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile",
+          "vgprs": 94,
+          "sgprs": 72,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 16384,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_small",
+          "vgprs": 66,
+          "sgprs": 58,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 12288,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_tile_kv16",
+          "vgprs": 91,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 18432,
+          "scratch_bytes": 288
+        },
+        {
+          "kernel": "norm_rope_kv_kv16",
+          "vgprs": 14,
+          "sgprs": 50,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_tall",
+          "vgprs": 99,
+          "sgprs": 96,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 24576,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_vec_kv16",
+          "vgprs": 38,
+          "sgprs": 44,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 9728,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_q1_0_1col",
+          "vgprs": 14,
+          "sgprs": 31,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        }
+      ],
+      "stdout": "bench: pp128    310.27 +- 0.00 tok/s  (1 runs)\nbench: tg64     23.50 +- 0.00 tok/s  (1 runs)\nprofile pp: 410.938 ms of device time over 340 dispatches sampled\nprofile:   matmul_tile 204.737 ms (49.822%)\nprofile:   matmul_tile_tall 128.146 ms (31.1838%)\nprofile:   matmul_tile_small 57.1288 ms (13.9021%)\nprofile:   attention_tile_kv16 7.4848 ms (1.82139%)\nprofile:   matmul_row_q1_0_1col head 6.17008 ms (1.50146%)\nprofile:   norm_rope_kv_kv16 2.73408 ms (0.665327%)\nprofile:   rms_norm_rows 2.72 ms (0.6619%)\nprofile:   silu_mul 1.76912 ms (0.430508%)\nprofile:   embed 0.03472 ms (0.00844896%)\nprofile:   gather_rows 0.0128 ms (0.00311483%)\nprofile tg: 2666.84 ms of device time over 17280 dispatches sampled\nprofile:   matmul_row_q1_0_1col 2043.91 ms (76.6417%)\nprofile:   matmul_row_q1_0_1col head 390.961 ms (14.6601%)\nprofile:   rms_norm_rows 82.5235 ms (3.09443%)\nprofile:   attention_vec_kv16 59.4862 ms (2.23059%)\nprofile:   norm_rope_kv_kv16 41.3451 ms (1.55034%)\nprofile:   silu_mul 26.0909 ms (0.978343%)\nprofile:   attention_merge 19.6906 ms (0.738347%)\nprofile:   embed 2.01968 ms (0.075733%)\nprofile:   gather_rows 0.81216 ms (0.030454%)\nprofile: kernel silu_mul: numUsedVgprs=17 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel gather_rows: numUsedVgprs=4 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel rms_norm_rows: numUsedVgprs=35 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel embed: numUsedVgprs=14 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_merge: numUsedVgprs=23 numUsedSgprs=35 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=3072 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile: numUsedVgprs=94 numUsedSgprs=72 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16384 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_small: numUsedVgprs=66 numUsedSgprs=58 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12288 scratchMemUsageInBytes=0\nprofile: kernel attention_tile_kv16: numUsedVgprs=91 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=288\nprofile: kernel norm_rope_kv_kv16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_tall: numUsedVgprs=99 numUsedSgprs=96 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=24576 scratchMemUsageInBytes=0\nprofile: kernel attention_vec_kv16: numUsedVgprs=38 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_q1_0_1col: numUsedVgprs=14 numUsedSgprs=31 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\n",
+      "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\nload: auto, 0.27 GiB read from 1 file buffered; construct 0.19 s, read 0.07 s, upload 0.04 s (0.27 GiB copied from the reads), waiting for reads 0.05 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\"]]}\n",
+      "stdout_sha256": "d111f3b2653b43aae2b4fd2f705a2367a195b7c35c3a340a5d8fc059a4af164c",
+      "stderr_sha256": "291fd1187e470540b4ffe2cfc1122e55de2ba623018e83c2ee438adf4e93e1f2",
+      "monitor": {
+        "host_samples": 3,
+        "gpu_samples": 4,
+        "gpu_known_samples": 3,
+        "gpu_unknown_samples": 1,
+        "own_process_cpu_max_cores": 0.05797613498331082,
+        "external_process_cpu_max": {
+          "name": "cpptools.exe",
+          "pid": 80364,
+          "cores": 1.5118392122571052
+        },
+        "external_process_samples_over_0.02_cores": 48,
+        "own_gpu_engine_max_percent": 99.63117028485756,
+        "external_gpu_engine_max": {
+          "engine": "pid_1152_luid_0x00000000_0x0000b616_phys_0_eng_0_engtype_3d",
+          "percent": 2.4559558603942997
+        },
+        "host_sample_read_misses": 0,
+        "disk_counter_window": {
+          "read_bytes": 9783296,
+          "write_bytes": 30281728,
+          "read_count": 1241,
+          "write_count": 3414
+        }
+      }
+    },
+    {
+      "label": "q2-0-before",
+      "arm": "before",
+      "family": "Q2_0",
+      "source_commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+      "version": "llmx 0.1.0+gddca152e3de9.dirty numerics 8e7ccc76b7fb6a36",
+      "binary_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-before.exe",
+      "binary_sha256_from_capture_report": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+      "retained_binary_copy": null,
+      "retained_binary_copy_sha256": null,
+      "model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--profile"
+      ],
+      "pid": 69076,
+      "started_unix": 1793117706.6507053,
+      "ended_unix": 1793117713.835685,
+      "elapsed_seconds": 7.184979677200317,
+      "exit_code": 0,
+      "pp128": {
+        "tokens_per_second": 582.73,
+        "reported_error": 0.0
+      },
+      "tg64": {
+        "tokens_per_second": 54.9,
+        "reported_error": 0.0
+      },
+      "phase_kernel_times": [
+        {
+          "phase": "pp",
+          "device_time_ms": 218.471,
+          "dispatches_sampled": 340,
+          "kernels": [
+            {
+              "name": "matmul_tile_small",
+              "device_time_ms": 103.996,
+              "share_percent": 47.6018
+            },
+            {
+              "name": "matmul_tile",
+              "device_time_ms": 99.6699,
+              "share_percent": 45.6216
+            },
+            {
+              "name": "attention_tile_kv16",
+              "device_time_ms": 7.47904,
+              "share_percent": 3.42336
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 2.78272,
+              "share_percent": 1.27372
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 2.00608,
+              "share_percent": 0.918236
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 1.0896,
+              "share_percent": 0.498739
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 0.03408,
+              "share_percent": 0.0155993
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.01312,
+              "share_percent": 0.00600537
+            }
+          ]
+        },
+        {
+          "phase": "tg",
+          "device_time_ms": 1113.97,
+          "dispatches_sampled": 17280,
+          "kernels": [
+            {
+              "name": "matmul_row_q2_0_1col",
+              "device_time_ms": 789.443,
+              "share_percent": 70.8677
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 82.4462,
+              "share_percent": 7.40114
+            },
+            {
+              "name": "attention_vec_kv16",
+              "device_time_ms": 59.5333,
+              "share_percent": 5.34426
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 42.1864,
+              "share_percent": 3.78704
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 26.6144,
+              "share_percent": 2.38915
+            },
+            {
+              "name": "attention_merge",
+              "device_time_ms": 19.0496,
+              "share_percent": 1.71007
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 1.79072,
+              "share_percent": 0.160752
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.8128,
+              "share_percent": 0.0729644
+            }
+          ]
+        }
+      ],
+      "shader_stats": [
+        {
+          "kernel": "silu_mul",
+          "vgprs": 17,
+          "sgprs": 26,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "gather_rows",
+          "vgprs": 4,
+          "sgprs": 18,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "rms_norm_rows",
+          "vgprs": 35,
+          "sgprs": 40,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "embed",
+          "vgprs": 14,
+          "sgprs": 38,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_merge",
+          "vgprs": 23,
+          "sgprs": 35,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 3072,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile",
+          "vgprs": 93,
+          "sgprs": 68,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 16384,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_small",
+          "vgprs": 79,
+          "sgprs": 54,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 12288,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_k_1col",
+          "vgprs": 72,
+          "sgprs": 37,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_tile_kv16",
+          "vgprs": 91,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 18432,
+          "scratch_bytes": 288
+        },
+        {
+          "kernel": "norm_rope_kv_kv16",
+          "vgprs": 14,
+          "sgprs": 50,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_vec_kv16",
+          "vgprs": 38,
+          "sgprs": 44,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 9728,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_q2_0_1col",
+          "vgprs": 15,
+          "sgprs": 31,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        }
+      ],
+      "stdout": "bench: pp128    582.73 +- 0.00 tok/s  (1 runs)\nbench: tg64     54.90 +- 0.00 tok/s  (1 runs)\nprofile pp: 218.471 ms of device time over 340 dispatches sampled\nprofile:   matmul_tile_small 103.996 ms (47.6018%)\nprofile:   matmul_tile 99.6699 ms (45.6216%)\nprofile:   attention_tile_kv16 7.47904 ms (3.42336%)\nprofile:   norm_rope_kv_kv16 2.78272 ms (1.27372%)\nprofile:   rms_norm_rows 2.00608 ms (0.918236%)\nprofile:   matmul_row_k_1col head 1.40032 ms (0.640964%)\nprofile:   silu_mul 1.0896 ms (0.498739%)\nprofile:   embed 0.03408 ms (0.0155993%)\nprofile:   gather_rows 0.01312 ms (0.00600537%)\nprofile tg: 1113.97 ms of device time over 17280 dispatches sampled\nprofile:   matmul_row_q2_0_1col 789.443 ms (70.8677%)\nprofile:   matmul_row_k_1col head 92.0909 ms (8.26693%)\nprofile:   rms_norm_rows 82.4462 ms (7.40114%)\nprofile:   attention_vec_kv16 59.5333 ms (5.34426%)\nprofile:   norm_rope_kv_kv16 42.1864 ms (3.78704%)\nprofile:   silu_mul 26.6144 ms (2.38915%)\nprofile:   attention_merge 19.0496 ms (1.71007%)\nprofile:   embed 1.79072 ms (0.160752%)\nprofile:   gather_rows 0.8128 ms (0.0729644%)\nprofile: kernel silu_mul: numUsedVgprs=17 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel gather_rows: numUsedVgprs=4 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel rms_norm_rows: numUsedVgprs=35 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel embed: numUsedVgprs=14 numUsedSgprs=38 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_merge: numUsedVgprs=23 numUsedSgprs=35 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=3072 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile: numUsedVgprs=93 numUsedSgprs=68 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16384 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_small: numUsedVgprs=79 numUsedSgprs=54 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12288 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_k_1col: numUsedVgprs=72 numUsedSgprs=37 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_tile_kv16: numUsedVgprs=91 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=288\nprofile: kernel norm_rope_kv_kv16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel attention_vec_kv16: numUsedVgprs=38 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_q2_0_1col: numUsedVgprs=15 numUsedSgprs=31 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\n",
+      "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\nload: auto, 0.32 GiB read from 1 file buffered; construct 0.17 s, read 0.10 s, upload 0.05 s (0.32 GiB copied from the reads), waiting for reads 0.06 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\n",
+      "stdout_sha256": "eae1a4cafc017ab3ea2197697abef3566bc1c1773e0e3504cb2590297d828d3b",
+      "stderr_sha256": "98b061b094f0af694b8c10ccdafe0da1fc9b313876e8e7f493f4dbcb9c558f4f",
+      "monitor": {
+        "host_samples": 2,
+        "gpu_samples": 2,
+        "gpu_known_samples": 2,
+        "gpu_unknown_samples": 0,
+        "own_process_cpu_max_cores": 0.0,
+        "external_process_cpu_max": {
+          "name": "cpptools.exe",
+          "pid": 80364,
+          "cores": 2.368723933206149
+        },
+        "external_process_samples_over_0.02_cores": 33,
+        "own_gpu_engine_max_percent": 92.31796329570007,
+        "external_gpu_engine_max": {
+          "engine": "pid_1152_luid_0x00000000_0x0000b616_phys_0_eng_0_engtype_3d",
+          "percent": 2.235868419712573
+        },
+        "host_sample_read_misses": 0,
+        "disk_counter_window": {
+          "read_bytes": 23040000,
+          "write_bytes": 33464320,
+          "read_count": 1954,
+          "write_count": 4108
+        }
+      }
+    },
+    {
+      "label": "q2-1-after",
+      "arm": "after",
+      "family": "Q2_0",
+      "source_commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics 23d93060db19b183",
+      "binary_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+      "binary_sha256_from_capture_report": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+      "retained_binary_copy": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\tile-byte-screen\\llmx-byte-reuse.exe",
+      "retained_binary_copy_sha256": "1290b37c71b226dbe68b0f5db17c9e72dedb0a0432a47ec01ec6d5eb5dc95f26",
+      "model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--profile"
+      ],
+      "pid": 63068,
+      "started_unix": 1793117714.0958889,
+      "ended_unix": 1793117720.2430375,
+      "elapsed_seconds": 6.147148609161377,
+      "exit_code": 0,
+      "pp128": {
+        "tokens_per_second": 544.23,
+        "reported_error": 0.0
+      },
+      "tg64": {
+        "tokens_per_second": 54.85,
+        "reported_error": 0.0
+      },
+      "phase_kernel_times": [
+        {
+          "phase": "pp",
+          "device_time_ms": 236.105,
+          "dispatches_sampled": 340,
+          "kernels": [
+            {
+              "name": "matmul_tile_small",
+              "device_time_ms": 122.116,
+              "share_percent": 51.7212
+            },
+            {
+              "name": "matmul_tile",
+              "device_time_ms": 98.4584,
+              "share_percent": 41.7011
+            },
+            {
+              "name": "attention_tile_kv16",
+              "device_time_ms": 7.95328,
+              "share_percent": 3.36853
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 2.77744,
+              "share_percent": 1.17636
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 2.00432,
+              "share_percent": 0.84891
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 1.09264,
+              "share_percent": 0.462777
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 0.03392,
+              "share_percent": 0.0143665
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.01296,
+              "share_percent": 0.00548908
+            }
+          ]
+        },
+        {
+          "phase": "tg",
+          "device_time_ms": 1113.36,
+          "dispatches_sampled": 17280,
+          "kernels": [
+            {
+              "name": "matmul_row_q2_0_1col",
+              "device_time_ms": 790.521,
+              "share_percent": 71.003
+            },
+            {
+              "name": "rms_norm_rows",
+              "device_time_ms": 82.0547,
+              "share_percent": 7.36999
+            },
+            {
+              "name": "attention_vec_kv16",
+              "device_time_ms": 59.2346,
+              "share_percent": 5.32033
+            },
+            {
+              "name": "norm_rope_kv_kv16",
+              "device_time_ms": 41.2602,
+              "share_percent": 3.7059
+            },
+            {
+              "name": "silu_mul",
+              "device_time_ms": 26.0722,
+              "share_percent": 2.34175
+            },
+            {
+              "name": "attention_merge",
+              "device_time_ms": 19.1259,
+              "share_percent": 1.71785
+            },
+            {
+              "name": "embed",
+              "device_time_ms": 1.97632,
+              "share_percent": 0.177509
+            },
+            {
+              "name": "gather_rows",
+              "device_time_ms": 0.8096,
+              "share_percent": 0.0727166
+            }
+          ]
+        }
+      ],
+      "shader_stats": [
+        {
+          "kernel": "silu_mul",
+          "vgprs": 17,
+          "sgprs": 26,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "gather_rows",
+          "vgprs": 4,
+          "sgprs": 18,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "rms_norm_rows",
+          "vgprs": 35,
+          "sgprs": 40,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "embed",
+          "vgprs": 14,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_merge",
+          "vgprs": 23,
+          "sgprs": 35,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 3072,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile",
+          "vgprs": 94,
+          "sgprs": 72,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 16384,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_tile_small",
+          "vgprs": 66,
+          "sgprs": 58,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 12288,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_k_1col",
+          "vgprs": 72,
+          "sgprs": 37,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_tile_kv16",
+          "vgprs": 91,
+          "sgprs": 42,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 18432,
+          "scratch_bytes": 288
+        },
+        {
+          "kernel": "norm_rope_kv_kv16",
+          "vgprs": 14,
+          "sgprs": 50,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 1024,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "attention_vec_kv16",
+          "vgprs": 38,
+          "sgprs": 44,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 9728,
+          "scratch_bytes": 0
+        },
+        {
+          "kernel": "matmul_row_q2_0_1col",
+          "vgprs": 15,
+          "sgprs": 31,
+          "lds_size_per_workgroup_bytes": 65536,
+          "lds_usage_bytes": 0,
+          "scratch_bytes": 0
+        }
+      ],
+      "stdout": "bench: pp128    544.23 +- 0.00 tok/s  (1 runs)\nbench: tg64     54.85 +- 0.00 tok/s  (1 runs)\nprofile pp: 236.105 ms of device time over 340 dispatches sampled\nprofile:   matmul_tile_small 122.116 ms (51.7212%)\nprofile:   matmul_tile 98.4584 ms (41.7011%)\nprofile:   attention_tile_kv16 7.95328 ms (3.36853%)\nprofile:   norm_rope_kv_kv16 2.77744 ms (1.17636%)\nprofile:   rms_norm_rows 2.00432 ms (0.84891%)\nprofile:   matmul_row_k_1col head 1.65568 ms (0.701247%)\nprofile:   silu_mul 1.09264 ms (0.462777%)\nprofile:   embed 0.03392 ms (0.0143665%)\nprofile:   gather_rows 0.01296 ms (0.00548908%)\nprofile tg: 1113.36 ms of device time over 17280 dispatches sampled\nprofile:   matmul_row_q2_0_1col 790.521 ms (71.003%)\nprofile:   matmul_row_k_1col head 92.308 ms (8.29092%)\nprofile:   rms_norm_rows 82.0547 ms (7.36999%)\nprofile:   attention_vec_kv16 59.2346 ms (5.32033%)\nprofile:   norm_rope_kv_kv16 41.2602 ms (3.7059%)\nprofile:   silu_mul 26.0722 ms (2.34175%)\nprofile:   attention_merge 19.1259 ms (1.71785%)\nprofile:   embed 1.97632 ms (0.177509%)\nprofile:   gather_rows 0.8096 ms (0.0727166%)\nprofile: kernel silu_mul: numUsedVgprs=17 numUsedSgprs=26 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel gather_rows: numUsedVgprs=4 numUsedSgprs=18 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel rms_norm_rows: numUsedVgprs=35 numUsedSgprs=40 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel embed: numUsedVgprs=14 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_merge: numUsedVgprs=23 numUsedSgprs=35 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=3072 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile: numUsedVgprs=94 numUsedSgprs=72 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16384 scratchMemUsageInBytes=0\nprofile: kernel matmul_tile_small: numUsedVgprs=66 numUsedSgprs=58 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12288 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_k_1col: numUsedVgprs=72 numUsedSgprs=37 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\nprofile: kernel attention_tile_kv16: numUsedVgprs=91 numUsedSgprs=42 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=18432 scratchMemUsageInBytes=288\nprofile: kernel norm_rope_kv_kv16: numUsedVgprs=14 numUsedSgprs=50 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=1024 scratchMemUsageInBytes=0\nprofile: kernel attention_vec_kv16: numUsedVgprs=38 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=9728 scratchMemUsageInBytes=0\nprofile: kernel matmul_row_q2_0_1col: numUsedVgprs=15 numUsedSgprs=31 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0\n",
+      "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\nload: auto, 0.32 GiB read from 1 file buffered; construct 0.18 s, read 0.05 s, upload 0.05 s (0.32 GiB copied from the reads), waiting for reads 0.03 s\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\n",
+      "stdout_sha256": "077cdb03943bdb4ab9b4d1433ee2f5e9da0601108c769e5480a5817311c5a32c",
+      "stderr_sha256": "61316c3bb6db63d34f19bab507a46e001f8e7f5383f11ab8955f8be66c6f7a8c",
+      "monitor": {
+        "host_samples": 2,
+        "gpu_samples": 1,
+        "gpu_known_samples": 1,
+        "gpu_unknown_samples": 0,
+        "own_process_cpu_max_cores": 0.0,
+        "external_process_cpu_max": {
+          "name": "cpptools.exe",
+          "pid": 80364,
+          "cores": 1.7323508697918157
+        },
+        "external_process_samples_over_0.02_cores": 29,
+        "own_gpu_engine_max_percent": 98.46993786527342,
+        "external_gpu_engine_max": {
+          "engine": "pid_1152_luid_0x00000000_0x0000b616_phys_0_eng_0_engtype_3d",
+          "percent": 2.2064705683665564
+        },
+        "host_sample_read_misses": 0,
+        "disk_counter_window": {
+          "read_bytes": 1372160,
+          "write_bytes": 9015296,
+          "read_count": 32,
+          "write_count": 409
+        }
+      }
+    }
+  ],
+  "interpretation": "Keep both PP/TG and phase profiles. Q1 tall-tile time fell in this single pair; Q2 small-tile time rose. All four tile kernels reported zero scratch bytes. Shader register counts are recorded as compiler statistics only and do not establish causality or speed. GPU monitor includes one unknown sample; unrelated CPU/GPU activity is retained per run."
+}

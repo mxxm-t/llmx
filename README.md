@@ -28,6 +28,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `F32`, `F16`, `BF16` | Supported | Supported | No |
 | `MXFP4` | Supported | Supported | No |
 | `NVFP4` | Supported | Supported | No |
+| `Q1_0` | Implemented; final qualification pending | Implemented; final qualification pending | No |
 | `Q2_K` | Supported | Supported | No |
 | `Q3_K` | Supported | Supported | No |
 | `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_0` |

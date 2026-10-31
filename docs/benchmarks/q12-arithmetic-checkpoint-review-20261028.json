@@ -1,0 +1,26 @@
+{
+  "scope": "Full Markdown catalog applicability review after Q1 cluster32 rejection and Q2 independent arithmetic diagnosis",
+  "prior_catalog": "docs\\benchmarks\\q12-halfword-markdown-review-20261028.json",
+  "prior_sha256": "7adbf7de9bd0ff79c68c5ab2ecd75c7306f105a30288b5f43b1c2bd522ec4459",
+  "pages": 154,
+  "unchanged_carried": 153,
+  "changed_pages": {
+    "docs/STATUS.md": "20783484b590a16d58d9a4b5181be536bf59d0ba032eaafa990dfe10a3dd387a"
+  },
+  "source": "The one-line geometry trial was removed; all201 runtime/config files match the retained halfword build423d994a. No flag, owner, support, format or precision-policy change.",
+  "findings": [
+    "STATUS now records Q1 released-short pass and both Q2 ranking failures explicitly.",
+    "Independent HF input rounding reproduces the colors ranking flip; numeric full/singleton spreads remain explicit, with no waiver or changed short/depth rule.",
+    "Native-passing geometry trial showed no clear gain beyond unchanged-Q2 variation, and was reverted without a broad HF rerun.",
+    "All-six fixed-policy diagnostic and bidirectional HF self-ranking are complete. STATUS names both diagnostic outcomes and unchanged canonical failures, without choosing an alternate reference or granting a gate exception."
+  ],
+  "limitations": [
+    "Unchanged pages retain prior semantic review with current-delta applicability, not a fresh full line-by-line reread.",
+    "External URLs not fetched. Numerical and performance qualification remains open."
+  ],
+  "previous_checkpoint_review_sha256": "2198fb17436023d7e56db4c1e49207ed16e13c9d5d7259ccaa0dae813238d884",
+  "followup_evidence": {
+    "q2-six-short-policy-20261028.json": "82f2981057fa8c2061a44f31ba1f38346219c1383e3acdce0cdce407a387f825",
+    "q2-short-self-review-20261028.json": "aabbc0a9042ea322cbe29c76b16f8400f6b482777d52e1251f3a7c14e768a52c"
+  }
+}

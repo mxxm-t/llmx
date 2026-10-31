@@ -239,6 +239,7 @@ def check_output_failures(d):
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
 TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q2_k": sd.Q2_K, "q3_k": sd.Q3_K, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4, "nvfp4": sd.NVFP4, "tq1_0": sd.TQ1_0, "tq2_0": sd.TQ2_0}
+TYPES.update(q1_0=sd.Q1_0)
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -406,7 +407,9 @@ def check_raw_decode(d):
     iq4 = b"".join(struct.pack("<H", h) + nibble_bytes(shift, 16)
                    for h in HALVES + (0, 0x8000) for shift in range(16))
     xs = b"".join(iq4_xs_block(*case) for case in iq4_xs_cases(random.Random(731)))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("nvfp4", nvfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64))):
+    low_bits = b"".join(struct.pack("<H", scale) + bytes((shift + 73 * j) % 256 for j in range(16))
+                        for scale in HALVES + (0, 0x8000) for shift in range(256))
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("nvfp4", nvfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64)), ("q1_0", low_bits)):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block

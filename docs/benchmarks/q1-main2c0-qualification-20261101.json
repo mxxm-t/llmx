@@ -1,0 +1,1303 @@
+{
+  "scope": "Q1 integration on published main af658. Qualification checkpoint, not a merge claim.",
+  "candidate_commit": "09bad9e5090bd4d9b71c1a0159cd76d6e0f9b09a",
+  "linux_tested_commit": "658cb08ef1eeb04b9b400d304317e8ba47ef671c",
+  "carry_delta": "658 to 09bad changes dashboard test harness and documentation only; src, tests, cmake and CMakeLists.txt are identical.",
+  "prior_build_identity_record": "q1-main2c0-integration-20261101.json",
+  "existing_model_identity": {
+    "cpu_models": 7,
+    "mi50_models": 7,
+    "byte_identical_phase_captures_per_backend": 21,
+    "cpu_evidence_sha256": "e55874e05ca439c193dc3d6f3f6e26172aac6dc09a84db61675a049c06305457",
+    "mi50_evidence_sha256": "c7204c82cd6778edfa7ecae0cbe010e4b61f55529af932235e9e36a5615a20f6"
+  },
+  "remaining_device_components": {
+    "passed": [
+      "qwen35",
+      "vision",
+      "image",
+      "split",
+      "tensor-split",
+      "decode-probe",
+      "drafters",
+      "server",
+      "server-load",
+      "chat",
+      "baseline"
+    ],
+    "execution_sha256": "cfdd2c2c275b91c7acc4eab8bc6d6bc0a3e0c0ab119306e8bf9f2087cd96dc1d",
+    "log_sha256": "277a503c724ae955ba021d7b4c9cea366c9009c9cd4e672a8a57355850897ea1",
+    "rig_artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-main2c0-20261101/remaining"
+  },
+  "timing": {
+    "rig_artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-main2c0-20261101/timing",
+    "execution_sha256": "722d92483b4f6b5efef17183f59e50ee512a2b1cc13088286c02c7114beb8383",
+    "activity_sha256": "48a253313632a461af1103eda5487b8f0660acde388991d67944e21f4cc513cd",
+    "plan_sha256": "5c1cf02f7d67a7aaa493ef6ff6c1500c8902a874a09c29c945cd8b1f7f3bce54",
+    "matrix": [
+      {
+        "cell": "cpu-q8",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "main": [
+            134.46,
+            131.98
+          ],
+          "selected": [
+            126.1,
+            144.38
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 133.22,
+          "selected": 135.24
+        },
+        "change_percent": 1.5162888455187096,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 960.8999438905516,
+          "selected": 950.808395195558
+        }
+      },
+      {
+        "cell": "cpu-q8",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "phase": "tg128",
+        "samples_tok_s": {
+          "main": [
+            19.22,
+            18.56
+          ],
+          "selected": [
+            18.2,
+            19.81
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 18.89,
+          "selected": 19.005
+        },
+        "change_percent": 0.6087877183694967,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 6778.140586314543,
+          "selected": 6747.175086397701
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "main": [
+            6557.3,
+            6534.63
+          ],
+          "selected": [
+            6557.01,
+            6535.27
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 6545.965,
+          "selected": 6546.14
+        },
+        "change_percent": 0.0026734026228325547,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 19.554089244559194,
+          "selected": 19.553561784352492
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "phase": "tg128",
+        "samples_tok_s": {
+          "main": [
+            398.52,
+            396.09
+          ],
+          "selected": [
+            394.12,
+            393.92
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 397.30499999999995,
+          "selected": 394.02
+        },
+        "change_percent": -0.8268207044965337,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 322.1736375509631,
+          "selected": 324.8566271881466
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "main": [
+            5786.37,
+            5813.57
+          ],
+          "selected": [
+            5839.45,
+            5811.8
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 5799.969999999999,
+          "selected": 5825.625
+        },
+        "change_percent": 0.442329874120051,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 22.069201010151847,
+          "selected": 21.972015169385216
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "phase": "tg128",
+        "samples_tok_s": {
+          "main": [
+            348.1,
+            351.0
+          ],
+          "selected": [
+            351.32,
+            350.18
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 349.55,
+          "selected": 350.75
+        },
+        "change_percent": 0.34329852667716043,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 366.1913963551424,
+          "selected": 364.9332517119235
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "main": [
+            5889.64,
+            5894.64
+          ],
+          "selected": [
+            5932.46,
+            5882.63
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 5892.14,
+          "selected": 5907.545
+        },
+        "change_percent": 0.26144999949084813,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 21.72385975948664,
+          "selected": 21.667592342117572
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "phase": "tg128",
+        "samples_tok_s": {
+          "main": [
+            348.22,
+            347.53
+          ],
+          "selected": [
+            354.28,
+            352.56
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 347.875,
+          "selected": 353.41999999999996
+        },
+        "change_percent": 1.5939633489040483,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 367.94861916827574,
+          "selected": 362.1774600381592
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "main": [
+            5465.76,
+            5449.99
+          ],
+          "selected": [
+            5465.08,
+            5453.45
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 5457.875,
+          "selected": 5459.264999999999
+        },
+        "change_percent": 0.02546778737144706,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 23.452399909733067,
+          "selected": 23.44640628821913
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "phase": "tg128",
+        "samples_tok_s": {
+          "main": [
+            351.09,
+            353.72
+          ],
+          "selected": [
+            352.03,
+            355.4
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "main": 352.405,
+          "selected": 353.715
+        },
+        "change_percent": 0.37173138860118193,
+        "change_percent_vs_mx": null,
+        "mean_phase_ms": {
+          "main": 363.22351360121957,
+          "selected": 361.88147173917605
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "file": "Boole-1.7B-Q1_0.gguf",
+        "phase": "pp128",
+        "samples_tok_s": {
+          "selected": [
+            2505.96,
+            2504.12,
+            2504.78
+          ],
+          "mx": [
+            1112.877379,
+            1122.245462,
+            1117.548384
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "selected": 2504.9533333333334,
+          "mx": 1117.557075
+        },
+        "change_percent": null,
+        "change_percent_vs_mx": 124.14544987184061,
+        "mean_phase_ms": {
+          "selected": 51.0987610477564,
+          "mx": 114.53687864552157
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "file": "Boole-1.7B-Q1_0.gguf",
+        "phase": "tg256",
+        "samples_tok_s": {
+          "selected": [
+            257.41,
+            256.91,
+            254.98
+          ],
+          "mx": [
+            252.102748,
+            252.360278,
+            252.742208
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "selected": 256.43333333333334,
+          "mx": 252.40174466666667
+        },
+        "change_percent": null,
+        "change_percent_vs_mx": 1.597290332517698,
+        "mean_phase_ms": {
+          "selected": 998.3268582082873,
+          "mx": 1014.2571620790756
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "file": "Boole-1.7B-Q1_0.gguf",
+        "phase": "pp4096",
+        "samples_tok_s": {
+          "selected": [
+            2225.02,
+            2218.92,
+            2219.01
+          ],
+          "mx": [
+            1312.927475,
+            1314.259141,
+            1314.220067
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "selected": 2220.9833333333336,
+          "mx": 1313.8022276666666
+        },
+        "change_percent": null,
+        "change_percent_vs_mx": 69.05005080390485,
+        "mean_phase_ms": {
+          "selected": 1844.2312010128014,
+          "mx": 3117.669328423638
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "file": "Boole-1.7B-Q1_0.gguf",
+        "phase": "tg256",
+        "samples_tok_s": {
+          "selected": [
+            257.1,
+            256.66,
+            255.66
+          ],
+          "mx": [
+            251.759453,
+            252.118388,
+            252.585588
+          ]
+        },
+        "all_calls_valid": true,
+        "mean_tok_s": {
+          "selected": 256.47333333333336,
+          "mx": 252.15447633333335
+        },
+        "change_percent": null,
+        "change_percent_vs_mx": 1.7127822050998276,
+        "mean_phase_ms": {
+          "selected": 998.1599683462427,
+          "mx": 1015.2524921985945
+        }
+      }
+    ],
+    "monitoring": {
+      "samples": 114,
+      "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "covered_calls": 32,
+      "flagged_calls": {
+        "other_gpu": 32,
+        "unrelated_cpu": 27,
+        "disk": 21,
+        "gap": 0
+      },
+      "unknown_process_cpu_observations": 931,
+      "missed_process_observations": 64
+    },
+    "calls": [
+      {
+        "cell": "cpu-q8",
+        "arm": "main",
+        "start": 1793486837.1346133,
+        "end": 1793486855.1405418,
+        "rates": {
+          "pp128": 134.46,
+          "tg128": 19.22
+        },
+        "activity": {
+          "intervals": 10,
+          "covered": true,
+          "unknown_process_cpu_intervals": 10,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 10,
+            "disk": 3,
+            "gap": 0,
+            "other_gpu": 10
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "cpu-q8",
+        "arm": "selected",
+        "start": 1793486855.1414514,
+        "end": 1793486874.1477284,
+        "rates": {
+          "pp128": 126.1,
+          "tg128": 18.2
+        },
+        "activity": {
+          "intervals": 10,
+          "covered": true,
+          "unknown_process_cpu_intervals": 9,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 10,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 10
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "cpu-q8",
+        "arm": "selected",
+        "start": 1793486874.14843,
+        "end": 1793486892.1543853,
+        "rates": {
+          "pp128": 144.38,
+          "tg128": 19.81
+        },
+        "activity": {
+          "intervals": 10,
+          "covered": true,
+          "unknown_process_cpu_intervals": 10,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 5,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 10
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "cpu-q8",
+        "arm": "main",
+        "start": 1793486892.1551032,
+        "end": 1793486911.1612895,
+        "rates": {
+          "pp128": 131.98,
+          "tg128": 18.56
+        },
+        "activity": {
+          "intervals": 11,
+          "covered": true,
+          "unknown_process_cpu_intervals": 11,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 9,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 11
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "arm": "main",
+        "start": 1793486911.1621637,
+        "end": 1793486916.1646502,
+        "rates": {
+          "pp128": 6557.3,
+          "tg128": 398.52
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "arm": "selected",
+        "start": 1793486916.1652396,
+        "end": 1793486921.167677,
+        "rates": {
+          "pp128": 6557.01,
+          "tg128": 394.12
+        },
+        "activity": {
+          "intervals": 4,
+          "covered": true,
+          "unknown_process_cpu_intervals": 4,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 4,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 4
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "arm": "selected",
+        "start": 1793486921.1684194,
+        "end": 1793486926.1708705,
+        "rates": {
+          "pp128": 6535.27,
+          "tg128": 393.92
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-0",
+        "arm": "main",
+        "start": 1793486926.17184,
+        "end": 1793486930.1739383,
+        "rates": {
+          "pp128": 6534.63,
+          "tg128": 396.09
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "arm": "main",
+        "start": 1793486930.1747146,
+        "end": 1793486934.1766884,
+        "rates": {
+          "pp128": 5786.37,
+          "tg128": 348.1
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "arm": "selected",
+        "start": 1793486934.1773508,
+        "end": 1793486938.1795866,
+        "rates": {
+          "pp128": 5839.45,
+          "tg128": 351.32
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "arm": "selected",
+        "start": 1793486938.1803064,
+        "end": 1793486942.1824458,
+        "rates": {
+          "pp128": 5811.8,
+          "tg128": 350.18
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-1",
+        "arm": "main",
+        "start": 1793486942.1832733,
+        "end": 1793486946.185163,
+        "rates": {
+          "pp128": 5813.57,
+          "tg128": 351.0
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "arm": "main",
+        "start": 1793486946.1861444,
+        "end": 1793486950.1884181,
+        "rates": {
+          "pp128": 5889.64,
+          "tg128": 348.22
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "arm": "selected",
+        "start": 1793486950.1892688,
+        "end": 1793486954.1917732,
+        "rates": {
+          "pp128": 5932.46,
+          "tg128": 354.28
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "arm": "selected",
+        "start": 1793486954.1925938,
+        "end": 1793486958.1946537,
+        "rates": {
+          "pp128": 5882.63,
+          "tg128": 352.56
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-2",
+        "arm": "main",
+        "start": 1793486958.1955185,
+        "end": 1793486962.1977193,
+        "rates": {
+          "pp128": 5894.64,
+          "tg128": 347.53
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "arm": "main",
+        "start": 1793486962.198612,
+        "end": 1793486965.2003736,
+        "rates": {
+          "pp128": 5465.76,
+          "tg128": 351.09
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "arm": "selected",
+        "start": 1793486965.2012944,
+        "end": 1793486967.2028518,
+        "rates": {
+          "pp128": 5465.08,
+          "tg128": 352.03
+        },
+        "activity": {
+          "intervals": 2,
+          "covered": true,
+          "unknown_process_cpu_intervals": 2,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 2
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "arm": "selected",
+        "start": 1793486967.203661,
+        "end": 1793486969.2052138,
+        "rates": {
+          "pp128": 5453.45,
+          "tg128": 355.4
+        },
+        "activity": {
+          "intervals": 2,
+          "covered": true,
+          "unknown_process_cpu_intervals": 2,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 0,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 2
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "mi50-3",
+        "arm": "main",
+        "start": 1793486969.2061632,
+        "end": 1793486971.2078028,
+        "rates": {
+          "pp128": 5449.99,
+          "tg128": 353.72
+        },
+        "activity": {
+          "intervals": 2,
+          "covered": true,
+          "unknown_process_cpu_intervals": 2,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 0,
+            "disk": 2,
+            "gap": 0,
+            "other_gpu": 2
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "selected",
+        "start": 1793486971.208564,
+        "end": 1793486974.2103672,
+        "rates": {
+          "pp128": 2505.96,
+          "tg256": 257.41
+        },
+        "activity": {
+          "intervals": 2,
+          "covered": true,
+          "unknown_process_cpu_intervals": 2,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 0,
+            "disk": 1,
+            "gap": 0,
+            "other_gpu": 2
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "mx",
+        "start": 1793486974.2113678,
+        "end": 1793486979.2139494,
+        "rates": {
+          "pp128": 1112.877379,
+          "tg256": 252.102748
+        },
+        "activity": {
+          "intervals": 4,
+          "covered": true,
+          "unknown_process_cpu_intervals": 4,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 2,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 4
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "mx",
+        "start": 1793486979.214899,
+        "end": 1793486984.2173064,
+        "rates": {
+          "pp128": 1122.245462,
+          "tg256": 252.360278
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "selected",
+        "start": 1793486984.2184117,
+        "end": 1793486987.2207363,
+        "rates": {
+          "pp128": 2504.12,
+          "tg256": 256.91
+        },
+        "activity": {
+          "intervals": 3,
+          "covered": true,
+          "unknown_process_cpu_intervals": 3,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 3
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "selected",
+        "start": 1793486987.221655,
+        "end": 1793486990.2232876,
+        "rates": {
+          "pp128": 2504.78,
+          "tg256": 254.98
+        },
+        "activity": {
+          "intervals": 2,
+          "covered": true,
+          "unknown_process_cpu_intervals": 2,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 2
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p128",
+        "arm": "mx",
+        "start": 1793486990.2242634,
+        "end": 1793486995.2269263,
+        "rates": {
+          "pp128": 1117.548384,
+          "tg256": 252.742208
+        },
+        "activity": {
+          "intervals": 4,
+          "covered": true,
+          "unknown_process_cpu_intervals": 4,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 3,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 4
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "selected",
+        "start": 1793486995.2278996,
+        "end": 1793487002.2304974,
+        "rates": {
+          "pp4096": 2225.02,
+          "tg256": 257.1
+        },
+        "activity": {
+          "intervals": 4,
+          "covered": true,
+          "unknown_process_cpu_intervals": 4,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 2,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 4
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "mx",
+        "start": 1793487002.231517,
+        "end": 1793487016.2365105,
+        "rates": {
+          "pp4096": 1312.927475,
+          "tg256": 251.759453
+        },
+        "activity": {
+          "intervals": 8,
+          "covered": true,
+          "unknown_process_cpu_intervals": 8,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 5,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 8
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "mx",
+        "start": 1793487016.237631,
+        "end": 1793487030.242432,
+        "rates": {
+          "pp4096": 1314.259141,
+          "tg256": 252.118388
+        },
+        "activity": {
+          "intervals": 8,
+          "covered": true,
+          "unknown_process_cpu_intervals": 8,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 8
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "selected",
+        "start": 1793487030.243416,
+        "end": 1793487037.2464685,
+        "rates": {
+          "pp4096": 2218.92,
+          "tg256": 256.66
+        },
+        "activity": {
+          "intervals": 5,
+          "covered": true,
+          "unknown_process_cpu_intervals": 5,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 5
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "selected",
+        "start": 1793487037.2478414,
+        "end": 1793487044.2510018,
+        "rates": {
+          "pp4096": 2219.01,
+          "tg256": 255.66
+        },
+        "activity": {
+          "intervals": 4,
+          "covered": true,
+          "unknown_process_cpu_intervals": 4,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 4
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      },
+      {
+        "cell": "q1-p4096",
+        "arm": "mx",
+        "start": 1793487044.2521582,
+        "end": 1793487058.2569509,
+        "rates": {
+          "pp4096": 1314.220067,
+          "tg256": 252.585588
+        },
+        "activity": {
+          "intervals": 8,
+          "covered": true,
+          "unknown_process_cpu_intervals": 8,
+          "unknown_gpu_intervals": 0,
+          "flags": {
+            "unrelated_cpu": 1,
+            "disk": 0,
+            "gap": 0,
+            "other_gpu": 8
+          },
+          "other_gpu_unknown_intervals": 0
+        }
+      }
+    ],
+    "interpretation": "One complete matched timing round. Existing paths use ABBA; Q1 uses three retained samples per arm. Main is published2c0, candidate658 with identical source/tests to09bad. Small changes are descriptive, not causal claims without a matching layout control. Physical aggregate disk includes own model loading. Activity flags never remove/replace calls. Unknown counters remain unknown."
+  },
+  "radeon_isa": {
+    "started": 1793486836.9548392,
+    "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-main961-20261031\\build-q1-resume\\Release\\llmx-backend-vulkan-test.exe",
+    "sha256": "cea070e04eba48aa138fec35f872fc8419fe1fed718a0df3073951753c50e5de",
+    "argv": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q1-main2c0-20261101\\radeon-isa-v1\\llmx-backend-vulkan-test.exe",
+      "--isa",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q1-main2c0-20261101\\radeon-isa-v1\\isa"
+    ],
+    "completed": true,
+    "scope": "Required fresh-path Radeon ISA and native diagnostics; not a performance comparison",
+    "revision": "09bad9e5090bd4d9b71c1a0159cd76d6e0f9b09a",
+    "exit": 0,
+    "seconds": 154.3994505405426,
+    "isa_files": 204,
+    "log_sha256": "c1604ac705e271893e7b26146cdda6686907b385e63b9a5647610d971c0a3e55"
+  },
+  "pending": [
+    "Hosted validation of final integration",
+    "Final applicable merge audit"
+  ],
+  "precision_changes": false,
+  "production_changes": false,
+  "radeon_depth": {
+    "completed": true,
+    "passed": true,
+    "execution_sha256": "f5e0052bedc2f437fa7d8f3de7b05f177e5de9e28fb1c39e25ac4167deee8d2d",
+    "captures": [
+      {
+        "variant": "raw",
+        "seconds": 104.44910430908203,
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "passed": true
+      },
+      {
+        "variant": "chat",
+        "seconds": 94.86174368858337,
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "passed": true
+      }
+    ]
+  },
+  "mi50_depth": {
+    "started": 1793487796.517424,
+    "completed": true,
+    "source_helper_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "frozen_helper_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "normalized_bytes_identical": true,
+    "delta": "Compare with exact frozen helper, whose only difference from current Linux source is CRLF line endings. Preserve original failed comparator logs.",
+    "helper_sha256": "bd0222d86356d72c565d67003915a67f255747341df195c2d61ac620ce6319b5",
+    "stages": [
+      {
+        "stage": "raw-compare",
+        "seconds": 5.035153327975422,
+        "removed": true,
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "passed": true
+      },
+      {
+        "stage": "chat-capture",
+        "seconds": 20.035497128032148,
+        "removed": true,
+        "passed": true
+      },
+      {
+        "stage": "chat-compare",
+        "seconds": 5.039746958995238,
+        "removed": true,
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "passed": true
+      }
+    ],
+    "seconds": 31.850467681884766,
+    "execution_sha256": "7b0d6c43550a11cc31482423bca615f11b5f8e3dd67d4f136dc00fc84dc3e1a0",
+    "raw_comparison_sha256": "fd3127722f642dde7c3b4271622454eaaaabf6aae8ecf0bfeb6a5df5363b23cb",
+    "chat_comparison_sha256": "65ae5330f2065b9f6871e196d4a95a1bae3dbf2c8e4aa55315643c96fa3c0354",
+    "rig_artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-main2c0-20261101/depth-mi50-v2"
+  },
+  "mi50_isa": {
+    "passed": true,
+    "log_sha256": "11b70e031f22ef22c8ac656a736d73b64fe2c71ee801a1af6dfe3b6f65a1ca9a",
+    "rig_artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-main2c0-20261101/depth-mi50-v2/isa"
+  },
+  "splits": {
+    "layer2": {
+      "passed": true,
+      "tiny_logit_cases": 150,
+      "tiny_nll": 12,
+      "released_rankings": 6,
+      "released_nll": 8,
+      "calls": 178,
+      "result_sha256": "0b5cdd176c4d6571e62bef362fbe928138a88447efb68d158742031234ef257d"
+    },
+    "tp2": {
+      "passed": true,
+      "tiny_logit_cases": 150,
+      "tiny_nll": 12,
+      "released_rankings": 6,
+      "released_nll": 8,
+      "calls": 178,
+      "result_sha256": "0b5cdd176c4d6571e62bef362fbe928138a88447efb68d158742031234ef257d"
+    },
+    "tp2_execution_sha256": "1d3b4a7b7b68505628dff068a75a14997010bc8ad9f87947639c1758c394ec67",
+    "retained_interruption_sha256": "7a000afd26e3d2d3afe36ad24be8132ed1837714418e8c1ce5f3087a0088e60f",
+    "note": "Original TP2 stopped during repeated automatic-placement settle waits. Only TP2 repeated with explicit one-group layer shares. All completed earlier calls retained."
+  },
+  "final_integration": {
+    "base": "65744909c288980d522df92a0bd318b0411dcad5",
+    "code_equivalent_to": "09bad9e5090bd4d9b71c1a0159cd76d6e0f9b09a",
+    "delta_from_checkpoint": [
+      "docs/STATUS.md",
+      "tools/health_dashboard/README.md",
+      "tools/health_dashboard/index.html",
+      "tools/health_dashboard/server.py",
+      "tools/health_dashboard/test_server.py",
+      "tools/health_dashboard/test_ui_rates.py"
+    ],
+    "conflicts": [
+      "docs/STATUS.md"
+    ],
+    "numerical_rerun_required": false,
+    "hosted_build_and_ctest": "pending for final integration"
+  }
+}

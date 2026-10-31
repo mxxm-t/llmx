@@ -1,0 +1,369 @@
+{
+  "purpose": "Row specialization ABBA diagnostic, not final identity/layout/mx qualification",
+  "source_commit": "ddca152e3de94bb93c5298ee933b83331d3a66d6",
+  "version": "llmx 0.1.0+gddca152e3de9.dirty numerics 8e7ccc76b7fb6a36",
+  "binary_sha256": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+  "before_sha256": "36bf1dcebc7b7f4a5e317bf6bd3f987bf48c6cd0a11268cafe81833746f02a0d",
+  "before_version": "llmx 0.1.0+gc601fc31e57d.dirty numerics 84ccf38f6e554a09",
+  "activity_flags": "Retain all calls. Report unrelated process CPU above 0.02 cores, all active GPU engines above 0.1%, disk totals, unknown counters and read misses. Profiled and plain calls use the same observer.",
+  "monitor_pids": [
+    21376,
+    45916
+  ],
+  "runs": [
+    {
+      "label": "q1-0-before",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\profile-first\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 77204,
+      "started": 1793112482.00528,
+      "ended": 1793112496.2573116,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 294.96,
+        "tg64": 12.88
+      },
+      "activity": {
+        "host_samples": 6,
+        "gpu_samples": 3,
+        "gpu_unknown_samples": 0,
+        "unrelated_cpu_cores_mean": 6.643455192177572,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.429460354354773,
+        "disk_read_bytes": 155024896
+      }
+    },
+    {
+      "label": "q1-1-after",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 24128,
+      "started": 1793112496.3705354,
+      "ended": 1793112503.4934459,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 298.77,
+        "tg64": 23.89
+      },
+      "activity": {
+        "host_samples": 2,
+        "gpu_samples": 2,
+        "gpu_unknown_samples": 1,
+        "unrelated_cpu_cores_mean": 7.0285926153711475,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.324020014743983,
+        "disk_read_bytes": 29915648
+      }
+    },
+    {
+      "label": "q1-2-after",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 80500,
+      "started": 1793112503.4934459,
+      "ended": 1793112510.5979307,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 298.75,
+        "tg64": 23.92
+      },
+      "activity": {
+        "host_samples": 3,
+        "gpu_samples": 2,
+        "gpu_unknown_samples": 1,
+        "unrelated_cpu_cores_mean": 5.754419764801034,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.3934208676794193,
+        "disk_read_bytes": 28989952
+      }
+    },
+    {
+      "label": "q1-3-before",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\profile-first\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 43136,
+      "started": 1793112510.5979307,
+      "ended": 1793112522.3619888,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 294.66,
+        "tg64": 12.87
+      },
+      "activity": {
+        "host_samples": 5,
+        "gpu_samples": 3,
+        "gpu_unknown_samples": 1,
+        "unrelated_cpu_cores_mean": 6.420369005582803,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.5606344530683547,
+        "disk_read_bytes": 68825088
+      }
+    },
+    {
+      "label": "q2-0-before",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\profile-first\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 39844,
+      "started": 1793112522.5088167,
+      "ended": 1793112527.5242088,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 583.16,
+        "tg64": 34.37
+      },
+      "activity": {
+        "host_samples": 2,
+        "gpu_samples": 2,
+        "gpu_unknown_samples": 1,
+        "unrelated_cpu_cores_mean": 6.969035994887866,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.1471372312771524,
+        "disk_read_bytes": 16150528
+      }
+    },
+    {
+      "label": "q2-1-after",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 43824,
+      "started": 1793112527.5242088,
+      "ended": 1793112531.2306316,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 586.13,
+        "tg64": 57.56
+      },
+      "activity": {
+        "host_samples": 2,
+        "gpu_samples": 1,
+        "gpu_unknown_samples": 0,
+        "unrelated_cpu_cores_mean": 7.617176756718628,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.0922858863183973,
+        "disk_read_bytes": 180445696
+      }
+    },
+    {
+      "label": "q2-2-after",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 44244,
+      "started": 1793112531.3607733,
+      "ended": 1793112535.1898267,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 583.35,
+        "tg64": 57.12
+      },
+      "activity": {
+        "host_samples": 1,
+        "gpu_samples": 1,
+        "gpu_unknown_samples": 0,
+        "unrelated_cpu_cores_mean": 5.663945582706457,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.2148098110737418,
+        "disk_read_bytes": null
+      }
+    },
+    {
+      "label": "q2-3-before",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\profile-first\\llmx-before.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "64",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512"
+      ],
+      "pid": 17516,
+      "started": 1793112535.1908274,
+      "ended": 1793112540.2384994,
+      "exit_code": 0,
+      "tokens_per_second": {
+        "pp128": 583.48,
+        "tg64": 34.37
+      },
+      "activity": {
+        "host_samples": 2,
+        "gpu_samples": 1,
+        "gpu_unknown_samples": 0,
+        "unrelated_cpu_cores_mean": 6.115789675762903,
+        "process_read_misses": 0,
+        "max_unrelated_gpu_engine_percent": 2.231517473663645,
+        "disk_read_bytes": 62661632
+      }
+    }
+  ],
+  "monitor_interpretation": "PID 0 is the Windows idle counter, not competing work, and is excluded from process CPU totals. GPU counter errors remain unknown, not zero. Per-run disk deltas include model loading and unrelated work.",
+  "summary": {
+    "q1": {
+      "pp128": {
+        "before": 294.81,
+        "after": 298.76,
+        "change_percent": 1.3398460025100922
+      },
+      "tg64": {
+        "before": 12.875,
+        "after": 23.905,
+        "change_percent": 85.66990291262138
+      }
+    },
+    "q2": {
+      "pp128": {
+        "before": 583.3199999999999,
+        "after": 584.74,
+        "change_percent": 0.24343413563738814
+      },
+      "tg64": {
+        "before": 34.37,
+        "after": 57.34,
+        "change_percent": 66.83153913296482
+      }
+    }
+  },
+  "interpretation": "The large decode gain motivates retaining the specialized row builds. Small prefill changes are not claimed as independent wins. All calls retained. Not final qualification: binary build identifiers differ and no layout-control or mx comparison has run.",
+  "artifacts": {
+    "gpu.ndjson": "f0b69659f3507a1795bdf5da79b80461a112010031d366a2b8030f70ee327f70",
+    "host.ndjson": "74ac5662bc684608606dce0b2d90a152f4d4c8d3b709ed72ac14a8f8e167223b",
+    "q1-0-before.stderr": "0325c5705ef0b06a9edf61227a5a7fcbd6decdd3aa5c5e0381a9cb5f0cb06d05",
+    "q1-0-before.stdout": "cb101f6cf0def3105207bc0e17f71a3648fdaacd2c9f0bcb905a1294f197adb3",
+    "q1-1-after.stderr": "44e56b625fcd3eb5f63a5fba566333bf7ffdfab8ba40608e2a0da1ff8e547a61",
+    "q1-1-after.stdout": "39a7d598d05bcd141bd6e8964ffece051c9f2786337966d5a6535f7fdc6ad60e",
+    "q1-2-after.stderr": "44e56b625fcd3eb5f63a5fba566333bf7ffdfab8ba40608e2a0da1ff8e547a61",
+    "q1-2-after.stdout": "4706296ec6157bb07155abd1ca50f09919c6fe96db6c22367b17c0f2fc0ef3a9",
+    "q1-3-before.stderr": "0d9fddb189ecb4de75fe5cab785413ac504a6ba9448ada62733de6f1e66403d2",
+    "q1-3-before.stdout": "8d31ccb5927d2e6545430e1ce6200787156f9e606ab577836eb4ea80186573df",
+    "q2-0-before.stderr": "034b6a985bc6c024a170088fa57890615ed3e7ff52c9eb8098e2dfb713b4b2d5",
+    "q2-0-before.stdout": "b9e626037d2845a1b3b1c4b5b023eee914d05316a0ff2660ab1f383c4e394618",
+    "q2-1-after.stderr": "74890500f82dee13291bd1c8420defd9a0901968092c8267bd23c9e055925805",
+    "q2-1-after.stdout": "10c0cf7c6867bbe4ea5834382d53152b18821d2f27a2ffdd77bb73189a75642c",
+    "q2-2-after.stderr": "c0f9444b22c265104bcacb61506073e7eacbc58d24704ee8a93876032211a882",
+    "q2-2-after.stdout": "e232367e463bb64e5e4192e9014685643417412e695974e35fb70e22b5da51b2",
+    "q2-3-before.stderr": "fc0508f01a57d6cbf59994c1366a95e833ce6beffc78e67357fc2ac7a009f030",
+    "q2-3-before.stdout": "ec4b55fd36fff1ee16d05d3f40d2458dd34043f3518f1030f271232c4f585693",
+    "report.json": "d9d37c251447f1e115b6a6ad3dbf0137ef50cac23f5c6d8651e494c42a0ef102",
+    "stop": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

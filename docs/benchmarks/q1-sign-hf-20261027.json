@@ -1,0 +1,293 @@
+{
+  "title": "Q1 sign-bit decode focused F32 HF screen",
+  "date": "2026-10-27",
+  "scope": "Single-GPU development screen; not full qualification. No reference, tolerance or policy changes.",
+  "result": {
+    "completed": 102,
+    "passed": 102,
+    "failed": 0,
+    "models": 6,
+    "threads": [
+      4
+    ],
+    "logit_ubatches": [
+      1,
+      3,
+      16
+    ],
+    "endpoint_cases_per_ubatch": 5,
+    "nll_contexts": [
+      4,
+      16
+    ],
+    "effective_dtype": "f32",
+    "every_call_witness": [
+      [
+        "f32"
+      ]
+    ],
+    "seconds": 9.315444719046354,
+    "matrix": [
+      {
+        "model": "q1-0-dense-untied",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 2.5399169921946907e-05,
+        "max_nll_error": 1.7486091756779842e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q1-0-dense-tied",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 2.95291748049209e-05,
+        "max_nll_error": 4.4603405342513724e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q1-0-moe",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 3.43294372555647e-05,
+        "max_nll_error": 7.218744233483676e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-dense-untied",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 2.0097625732518054e-05,
+        "max_nll_error": 2.678085706975253e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-dense-tied",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 2.6569763184269846e-05,
+        "max_nll_error": 7.74325427599365e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-moe",
+        "passed": 17,
+        "logit_calls": 15,
+        "nll_calls": 2,
+        "max_logit_error": 5.60233001709598e-05,
+        "max_nll_error": 7.137985313931949e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      }
+    ]
+  },
+  "binary": {
+    "sha256": "cb2b9540e08ec15d178168a961d362b5301926b5a9cb06964b985dc996c2ce97",
+    "version": "llmx 0.1.0+unknown numerics 1691cc04424f2507"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "input_pins": {
+    "models": {
+      "q1-0-dense-untied": {
+        "path": "/source/models/q1-0-dense-untied.gguf",
+        "sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788"
+      },
+      "q1-0-dense-tied": {
+        "path": "/source/models/q1-0-dense-tied.gguf",
+        "sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c"
+      },
+      "q1-0-moe": {
+        "path": "/source/models/q1-0-moe.gguf",
+        "sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c"
+      },
+      "q2-0-dense-untied": {
+        "path": "/source/models/q2-0-dense-untied.gguf",
+        "sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df"
+      },
+      "q2-0-dense-tied": {
+        "path": "/source/models/q2-0-dense-tied.gguf",
+        "sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d"
+      },
+      "q2-0-moe": {
+        "path": "/source/models/q2-0-moe.gguf",
+        "sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+      }
+    },
+    "sources": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+      "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "tests/data/dtype_budget.json": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+      "tests/data/baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "build-low-bits-dev/gpu-split-v1/results-v3/report.json": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a"
+    },
+    "budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+    "binary_unchanged": true,
+    "sources_unchanged": true,
+    "models_unchanged": true
+  },
+  "artifacts": {
+    "execution": "build-low-bits-dev/q1-sign-hf-v2/out/results/execution.json",
+    "execution_sha256": "060b9eedf4cb745b089d97b9c087cf55ea474dc1f0f804a5f70fae59a6b8a6a2",
+    "supervisor": "build-low-bits-dev/q1-sign-hf-v2/out/supervisor.json",
+    "supervisor_sha256": "20ef829956d69f425bd44c2ad951d4b835c92b6836087011296369ab388e38ea",
+    "runner_sha256": "b81379c76b1716f98f7ac1b9cf49e9e50b383e540324de69bf23cadfe3e59078",
+    "supervisor_script_sha256": "13d50c169e619ecc1d2f366571cd88b90943f531667fd8ad92eda5fe2fb31f3a",
+    "all_supervisor_output_hashes_verified": 212,
+    "container_removed": true
+  },
+  "preserved_refusal_v1": {
+    "path": "build-low-bits-dev/q1-sign-hf-v1",
+    "stderr": "candidate binary hash mismatch",
+    "exit_code": 1,
+    "reason": "EXPECTED_EXE_SHA256 retained the row-four-v2 binary hash; refused before output directory creation, --version, or any inference call.",
+    "stale_expected_sha256": "dedef34a6714b2a1e60289a4335195aa47736c79da6c16e4438b5743562b77bf",
+    "inference_calls": 0,
+    "results_directory_absent": true,
+    "container_removed": true,
+    "runner_sha256": "5dc2e98147c5b82c5ee7f8687ff1c996164bac4082c1d6dee663ef54f4cfe82b",
+    "supervisor_receipt_sha256": "0ad6492e3c3859f43a7edaa14b53a0e39f07601aa65918ff23bc190dbf95a4b4",
+    "stderr_sha256": "d81f35ebf5f657b4b4b4e511836ddfb03c66289502ae4a722d84f7e3a58f1bb8",
+    "repair": "v2 updates the expected binary hash and scope docstring only; no predicate or bound changes."
+  },
+  "row_four_comparison": {
+    "original_execution": "build-low-bits-dev/row-four-hf-v1/execution.json",
+    "original_execution_sha256": "9accccc768b55de86048cb753162d08eda22058fce3ecc601583d5c13896e9ef",
+    "original_binary_sha256": "dedef34a6714b2a1e60289a4335195aa47736c79da6c16e4438b5743562b77bf",
+    "matched_calls": 102,
+    "same_commands": true,
+    "same_model_and_reference_hashes": true,
+    "same_bounds_and_f32_witnesses": true,
+    "stdout_hash_matches": 102,
+    "claim": "All102 captured stdout files are byte-identical to the original receipt hashes, including full printed260-logit outputs and printed NLL outputs. This establishes exact captured CLI numerical-output identity; no claim about unprinted F32 values or wider workloads.",
+    "excluded_from_identity": "stderr kernel names and numerics fingerprints; no equality claim based on those fields.",
+    "stdout_sha256_in_call_index_order": [
+      "c0bf748a0463a7631d94a5497d3a4e4d5df8c37ce36d8e6633b6cb0e00bf5c7d",
+      "477853da1652ef11dd25f0f421823acb4ef2aa9e6b7dc0fb015a5d662b63e6b0",
+      "386edbb827b65b71c0aa0b9cecee284c0b9eb3816de39e27c3bcf94a939bfe54",
+      "817e6aeeda4ca253303045413418326d050d24c0bf8abe1f9641af0e85235348",
+      "45aa5ec785ae56adbf3d99bbb1d9d4177de5f630f6e22ec496ccbb9b661066c9",
+      "c0bf748a0463a7631d94a5497d3a4e4d5df8c37ce36d8e6633b6cb0e00bf5c7d",
+      "477853da1652ef11dd25f0f421823acb4ef2aa9e6b7dc0fb015a5d662b63e6b0",
+      "386edbb827b65b71c0aa0b9cecee284c0b9eb3816de39e27c3bcf94a939bfe54",
+      "817e6aeeda4ca253303045413418326d050d24c0bf8abe1f9641af0e85235348",
+      "45aa5ec785ae56adbf3d99bbb1d9d4177de5f630f6e22ec496ccbb9b661066c9",
+      "c0bf748a0463a7631d94a5497d3a4e4d5df8c37ce36d8e6633b6cb0e00bf5c7d",
+      "477853da1652ef11dd25f0f421823acb4ef2aa9e6b7dc0fb015a5d662b63e6b0",
+      "386edbb827b65b71c0aa0b9cecee284c0b9eb3816de39e27c3bcf94a939bfe54",
+      "817e6aeeda4ca253303045413418326d050d24c0bf8abe1f9641af0e85235348",
+      "45aa5ec785ae56adbf3d99bbb1d9d4177de5f630f6e22ec496ccbb9b661066c9",
+      "bba4fe7bc682f429ee72dc64a76da8f2e6bf5254c6a7d477a05a86be46293e36",
+      "824570340cdfe9dda0c71dae413bd2c424fb9aebeb195fe83450951fe81cb99f",
+      "65fc442605373c88817fe2d49f1b3310a4b209f53646ce00dd11d536dd7452f5",
+      "6c06884f5aac5b55283e994e8106a5f129e3ab4b0d170c9f42410376e5e74cf4",
+      "774cc53a8c719ae151650ea457ca3a2791ac25ecf742ca235860d2f2af2134d8",
+      "e1452ec745269a1a1e5106370d9ef3083ca877087c5800954314f4e2c7dc2697",
+      "7f6ae9c2094652ceb97b63b5fcc1197f357bf6645a73864fec7d3cd700a54ed8",
+      "65fc442605373c88817fe2d49f1b3310a4b209f53646ce00dd11d536dd7452f5",
+      "6c06884f5aac5b55283e994e8106a5f129e3ab4b0d170c9f42410376e5e74cf4",
+      "774cc53a8c719ae151650ea457ca3a2791ac25ecf742ca235860d2f2af2134d8",
+      "e1452ec745269a1a1e5106370d9ef3083ca877087c5800954314f4e2c7dc2697",
+      "7f6ae9c2094652ceb97b63b5fcc1197f357bf6645a73864fec7d3cd700a54ed8",
+      "65fc442605373c88817fe2d49f1b3310a4b209f53646ce00dd11d536dd7452f5",
+      "6c06884f5aac5b55283e994e8106a5f129e3ab4b0d170c9f42410376e5e74cf4",
+      "774cc53a8c719ae151650ea457ca3a2791ac25ecf742ca235860d2f2af2134d8",
+      "e1452ec745269a1a1e5106370d9ef3083ca877087c5800954314f4e2c7dc2697",
+      "7f6ae9c2094652ceb97b63b5fcc1197f357bf6645a73864fec7d3cd700a54ed8",
+      "f6ffd773ec64c3d4ebd470d5b39402cbe3b1bc61fc334401a6e64ef8748ee495",
+      "40551697530cda07884fcfb96afca6de73e0edb2488f12e6c1df8028ad5ecd22",
+      "77bcf498680f0fdfcc0edb696c686f2dfe73e377c1eeb6f45fe89901b6113e33",
+      "7af1c598e1211e0bbf226b9297eb588fa987aaadce7a86b4f036b7f1e72516b0",
+      "bc145afb6f311c8fe976e5711e2748418f8e58a3350b7b72354962fafcc6b588",
+      "36e8651d366aa6a037fd5daaedb8014c37db152e55ee7fd07a4067a30c7ce199",
+      "911d4d63be1cfd558446022b327a1b90fea88abb412564f76359785b07535f02",
+      "77bcf498680f0fdfcc0edb696c686f2dfe73e377c1eeb6f45fe89901b6113e33",
+      "7af1c598e1211e0bbf226b9297eb588fa987aaadce7a86b4f036b7f1e72516b0",
+      "bc145afb6f311c8fe976e5711e2748418f8e58a3350b7b72354962fafcc6b588",
+      "36e8651d366aa6a037fd5daaedb8014c37db152e55ee7fd07a4067a30c7ce199",
+      "911d4d63be1cfd558446022b327a1b90fea88abb412564f76359785b07535f02",
+      "77bcf498680f0fdfcc0edb696c686f2dfe73e377c1eeb6f45fe89901b6113e33",
+      "7af1c598e1211e0bbf226b9297eb588fa987aaadce7a86b4f036b7f1e72516b0",
+      "bc145afb6f311c8fe976e5711e2748418f8e58a3350b7b72354962fafcc6b588",
+      "36e8651d366aa6a037fd5daaedb8014c37db152e55ee7fd07a4067a30c7ce199",
+      "911d4d63be1cfd558446022b327a1b90fea88abb412564f76359785b07535f02",
+      "30d47a81086c08b03f5e6afe7ec96aa25d1bd04a6f1c511b5a2708879c9c23cb",
+      "58d91cece4c81aaaf8a47ef2d18fba6f60727efc39680e190cb0acd44027e937",
+      "840b7d8fca993c3b3bd9684476008df320d183cb445e9d893352402ed9d3ea11",
+      "87f1b338aaeead74943c805cbf8b6ea3c2d6d021a5e4d713b147cb8eec9462e5",
+      "0f33401af654c9252016566c7f6467488c8b8aaaa6b8d1aaf32649312878365e",
+      "c653c89566593d201080989a98761abe2b7ecb2104e9812f8901d69f093ec4ee",
+      "71fbc21540747fba2480dbbdeef83f712e395a9edb32ae19be4e4a59b0ba5648",
+      "840b7d8fca993c3b3bd9684476008df320d183cb445e9d893352402ed9d3ea11",
+      "87f1b338aaeead74943c805cbf8b6ea3c2d6d021a5e4d713b147cb8eec9462e5",
+      "0f33401af654c9252016566c7f6467488c8b8aaaa6b8d1aaf32649312878365e",
+      "c653c89566593d201080989a98761abe2b7ecb2104e9812f8901d69f093ec4ee",
+      "71fbc21540747fba2480dbbdeef83f712e395a9edb32ae19be4e4a59b0ba5648",
+      "840b7d8fca993c3b3bd9684476008df320d183cb445e9d893352402ed9d3ea11",
+      "87f1b338aaeead74943c805cbf8b6ea3c2d6d021a5e4d713b147cb8eec9462e5",
+      "0f33401af654c9252016566c7f6467488c8b8aaaa6b8d1aaf32649312878365e",
+      "c653c89566593d201080989a98761abe2b7ecb2104e9812f8901d69f093ec4ee",
+      "71fbc21540747fba2480dbbdeef83f712e395a9edb32ae19be4e4a59b0ba5648",
+      "62b787b5c36e23c33f4a38ca09d1ffbcb92e7a542f689bf41307844ccb38d70c",
+      "18fcea931b0a1ad25e29fb59998dfbf3193ed5ec06201962b70ed167dd9802de",
+      "8add1f3618088f75c40a159aa81fb2b69d8de6e95bc2eb908f712a5594fcb525",
+      "3b27c307752b31fe6b8da5435a5d6d45d7cbc5a20026c6d512b4e6eddbbf65e4",
+      "2b4cd583b99cec22e5ccb814d5a5a6fca63c5042bf5a3c7173983f6336001df2",
+      "57faba9a0acdf69ea8a0274694876034582a21820638fcf56fdcc1365978068e",
+      "7028ba79cd4bde4e96703ff503c5dbcb82763a3082b73542d70ef6e5790a47c2",
+      "8add1f3618088f75c40a159aa81fb2b69d8de6e95bc2eb908f712a5594fcb525",
+      "3b27c307752b31fe6b8da5435a5d6d45d7cbc5a20026c6d512b4e6eddbbf65e4",
+      "2b4cd583b99cec22e5ccb814d5a5a6fca63c5042bf5a3c7173983f6336001df2",
+      "57faba9a0acdf69ea8a0274694876034582a21820638fcf56fdcc1365978068e",
+      "7028ba79cd4bde4e96703ff503c5dbcb82763a3082b73542d70ef6e5790a47c2",
+      "8add1f3618088f75c40a159aa81fb2b69d8de6e95bc2eb908f712a5594fcb525",
+      "3b27c307752b31fe6b8da5435a5d6d45d7cbc5a20026c6d512b4e6eddbbf65e4",
+      "2b4cd583b99cec22e5ccb814d5a5a6fca63c5042bf5a3c7173983f6336001df2",
+      "57faba9a0acdf69ea8a0274694876034582a21820638fcf56fdcc1365978068e",
+      "7028ba79cd4bde4e96703ff503c5dbcb82763a3082b73542d70ef6e5790a47c2",
+      "ba9d8b2da3ee952eaff61f8cd7e9a6aa20a0175c2f92eb721ff7cf0cc4eff3ee",
+      "b7736b47f39d24b66eac9fa0bb95d8666e78505a6b9698dc2524d9216948e64a",
+      "a4b4fd5f0ebb7193ff42963c6844114b609639284cf10197436a503e095ca2dc",
+      "8a8089f79c8a8ff731ffe54ec8b1533e182d9419fdd448e61314de8bedf8fc43",
+      "be1ee5fb28a1d561f79e413cdb9f99409a773b3ac726c4f8a57f53a5e475389d",
+      "c74c01e394e90a721d1bc0b08f62310adc2cc4d19a425ecfa465ac20237d9001",
+      "d70924ab39026356d2a879bcbfa2fde01139170a344edc272fac7ae1ab500fa4",
+      "a4b4fd5f0ebb7193ff42963c6844114b609639284cf10197436a503e095ca2dc",
+      "8a8089f79c8a8ff731ffe54ec8b1533e182d9419fdd448e61314de8bedf8fc43",
+      "be1ee5fb28a1d561f79e413cdb9f99409a773b3ac726c4f8a57f53a5e475389d",
+      "c74c01e394e90a721d1bc0b08f62310adc2cc4d19a425ecfa465ac20237d9001",
+      "d70924ab39026356d2a879bcbfa2fde01139170a344edc272fac7ae1ab500fa4",
+      "a4b4fd5f0ebb7193ff42963c6844114b609639284cf10197436a503e095ca2dc",
+      "8a8089f79c8a8ff731ffe54ec8b1533e182d9419fdd448e61314de8bedf8fc43",
+      "be1ee5fb28a1d561f79e413cdb9f99409a773b3ac726c4f8a57f53a5e475389d",
+      "c74c01e394e90a721d1bc0b08f62310adc2cc4d19a425ecfa465ac20237d9001",
+      "d70924ab39026356d2a879bcbfa2fde01139170a344edc272fac7ae1ab500fa4",
+      "9aa5f78978cac5a0da1020152acf155197c07ec7874bd80eeb4a1c534a5eb5d8",
+      "abf4fd16fb4eb97ba1d00ff887a073efab46cd14b7cfaf397269fa0d62c531b1"
+    ]
+  },
+  "remaining": "Precision/split, operator, released-file/depth and performance evidence remain separate; this focused screen alone does not qualify the optimization."
+}

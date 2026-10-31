@@ -1,0 +1,23 @@
+{
+  "scope": "Full Markdown delta applicability after isolated Q1 scheduling preparation",
+  "previous_catalog": "docs\\benchmarks\\q1-trace-checkpoint-review-20261028.json",
+  "previous_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+  "pages": 154,
+  "unchanged_carried": 153,
+  "changed_pages": {
+    "docs/STATUS.md": "b66238afb3f064764d33fcae1ceb8f78cea236ab78a00f0783c7494a6db366d4"
+  },
+  "review": [
+    "Unchanged pages carry their prior semantic review; this diagnostic-only delta changes no runtime, flag, support or precision contract.",
+    "STATUS distinguishes static instruction counts and SPIR-V identity from runtime performance and complete correctness.",
+    "Current HF run and retained runtime remain unchanged. New scratch experiment is not adopted."
+  ],
+  "checks": {
+    "docs": "PASS:0 findings,21 planted faults",
+    "dead-code": "PASS:7 listed findings,19 planted faults",
+    "log_sha256": "a42f50af8fa4eb1f4892ab6a24765a90d23fec25f5b576434d45728a200a8b49"
+  },
+  "evidence_sha256": "8925e8db1213ba050ae883dc0742c8c680561e9e40d050b3979a95344ca5d294",
+  "helper_review_sha256": "523ae465590559ad70751570738db366096501e42c9a10265860c6f51f4317b3",
+  "prepared_builder_sha256": "39f3a34d82420f47513766fc4a49d877f52c7aed2e8b4b1b5aef244d6352efe5"
+}

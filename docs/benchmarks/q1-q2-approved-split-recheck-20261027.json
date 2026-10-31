@@ -1,0 +1,5494 @@
+{
+  "scope": "Reevaluate unchanged retained GPU/CPU split captures under the five newly approved exact logit identities. No inference repeated, NLL limit unchanged.",
+  "original_capture_report_sha256": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a",
+  "budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+  "consumer_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "source_payload_sha256": "ed86f91d2f50625a4baf49d8cefa34ece3f5e911f060d260a6e1723a5830a1cc",
+  "models": [
+    {
+      "name": "q1-0-dense-untied",
+      "family": "q1-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefghijklm'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefghijklm'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 6.950262445570843e-07,
+              "passed": true,
+              "reference": 16.483033369271944,
+              "value": 16.4830326742457
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.62396240234375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.62396240234375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 16.4830326742457,
+              "reference": 16.483033369271944,
+              "error": 6.950262445570843e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 9.482641836200401e-07,
+              "passed": true,
+              "reference": 16.483033369271944,
+              "value": 16.483034317536127
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2530555725097656e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2530555725097656e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 16.483034317536127,
+              "reference": 16.483033369271944,
+              "error": 9.482641836200401e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'a'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefg'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefghijklm'/HF logit error: 0.00002253\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 9.482641836200401e-07,
+              "passed": true,
+              "reference": 16.483033369271944,
+              "value": 16.483034317536127
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002265\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2530555725097656e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2530555725097656e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 16.483034317536127,
+              "reference": 16.483033369271944,
+              "error": 9.482641836200401e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abc'/HF logit error: 0.00002217\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefghijklm'/HF logit error: 0.00002432\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'a'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abc'/HF logit error: 0.00002217\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefghijklm'/HF logit error: 0.00002432\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 6.01897188090561e-07,
+              "passed": true,
+              "reference": 16.483033369271944,
+              "value": 16.48303397116913
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002146\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.2172927856445312e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.956390380859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.4318695068359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.2172927856445312e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.956390380859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.4318695068359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 16.48303397116913,
+              "reference": 16.483033369271944,
+              "error": 6.01897188090561e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "q1-0-dense-tied",
+      "family": "q1-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abc'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefg'/HF logit error: 0.00003290\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abc'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefg'/HF logit error: 0.00003290\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.670479839788186e-06,
+              "passed": true,
+              "reference": 18.672618265088335,
+              "value": 18.672619935568175
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 3.0517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.2901763916015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 3.0517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.2901763916015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.672619935568175,
+              "reference": 18.672618265088335,
+              "error": 1.670479839788186e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 2.572578772230827e-07,
+              "passed": true,
+              "reference": 18.672618265088335,
+              "value": 18.672618007830458
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.4557113647460938e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.147125244140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.4557113647460938e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.147125244140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.672618007830458,
+              "reference": 18.672618265088335,
+              "error": 2.572578772230827e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'ab'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abc'/HF logit error: 0.00002456\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefg'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefghijklm'/HF logit error: 0.00002265\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 2.572578772230827e-07,
+              "passed": true,
+              "reference": 18.672618265088335,
+              "value": 18.672618007830458
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.4557113647460938e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.147125244140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.4557113647460938e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.147125244140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.2649765014648438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.672618007830458,
+              "reference": 18.672618265088335,
+              "error": 2.572578772230827e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'ab'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefg'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'a'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'ab'/HF logit error: 0.00002241\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abc'/HF logit error: 0.00002551\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefg'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 3.415343883261812e-07,
+              "passed": true,
+              "reference": 18.672618265088335,
+              "value": 18.672618606622724
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002193\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.8133392333984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.5510787963867188e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 2.8133392333984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.672618606622724,
+              "reference": 18.672618265088335,
+              "error": 3.415343883261812e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "q1-0-moe",
+      "family": "q1-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00003147\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'ab'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abc'/HF logit error: 0.00003242\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefg'/HF logit error: 0.00003529\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'ab'/HF logit error: 0.00003052\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abc'/HF logit error: 0.00003242\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefg'/HF logit error: 0.00003386\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefghijklm'/HF logit error: 0.00002480\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 6.27701379940504e-06,
+              "passed": true,
+              "reference": 18.574219666744234,
+              "value": 18.574213389730435
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00003147\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 3.147125244140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 3.24249267578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.528594970703125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 3.0517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 3.24249267578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.3855438232421875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.47955322265625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.574213389730435,
+              "reference": 18.574219666744234,
+              "error": 6.27701379940504e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.0133473882234512e-05,
+              "passed": false,
+              "reference": 18.574219666744234,
+              "value": 18.574209533270352
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.719329833984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.719329833984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.574209533270352,
+              "reference": 18.574219666744234,
+              "error": 1.0133473882234512e-05,
+              "bound": 1e-05,
+              "passed": false
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": false,
+              "error": "AssertionError('gpu1: NLL 18.57420953 against HF 18.57421967, bound 1e-05')"
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'a'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'ab'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abc'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefg'/HF logit error: 0.00003719\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefghijklm'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.0133473882234512e-05,
+              "passed": false,
+              "reference": 18.574219666744234,
+              "value": 18.574209533270352
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002289\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.719329833984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.719329833984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.574209533270352,
+              "reference": 18.574219666744234,
+              "error": 1.0133473882234512e-05,
+              "bound": 1e-05,
+              "passed": false
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": false,
+              "error": "AssertionError('layer2: NLL 18.57420953 against HF 18.57421967, bound 1e-05')"
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'ab'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abc'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefghijklm'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'a'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'ab'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abc'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefg'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefghijklm'/HF logit error: 0.00002813\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 9.936534798526964e-06,
+              "passed": true,
+              "reference": 18.574219666744234,
+              "value": 18.574209730209436
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002861\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.62396240234375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.8133392333984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 0.0001020159912109375,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 0.0001020159912109375,
+              "error": 3.62396240234375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 0.0001020159912109375,
+              "error": 2.8133392333984375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.574209730209436,
+              "reference": 18.574219666744234,
+              "error": 9.936534798526964e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "q2-0-dense-untied",
+      "family": "q2-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.765655517578125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3424625396728516e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.0265579223632812e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.765655517578125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.002716064453125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3424625396728516e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.0265579223632812e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.5430198629928782e-07,
+              "passed": true,
+              "reference": 18.560365397058177,
+              "value": 18.560365551360164
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3424625396728516e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.0265579223632812e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3424625396728516e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.0265579223632812e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.560365551360164,
+              "reference": 18.560365397058177,
+              "error": 1.5430198629928782e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.4219181672103787e-06,
+              "passed": true,
+              "reference": 18.560365397058177,
+              "value": 18.56036397514001
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.56036397514001,
+              "reference": 18.560365397058177,
+              "error": 1.4219181672103787e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3603439331054688e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.3365020751953125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.372264862060547e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.396106719970703e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 1.4219181672103787e-06,
+              "passed": true,
+              "reference": 18.560365397058177,
+              "value": 18.56036397514001
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3603439331054688e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.3365020751953125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.372264862060547e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.396106719970703e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.56036397514001,
+              "reference": 18.560365397058177,
+              "error": 1.4219181672103787e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.6464462280273438e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.2411346435546875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.1457672119140625e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.0623207092285156e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.1576881408691406e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.6464462280273438e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.2411346435546875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.1457672119140625e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.0623207092285156e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 9.82012939453125e-05,
+              "check": "HF-logits",
+              "error": 2.1576881408691406e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 9.17923884458105e-07,
+              "passed": true,
+              "reference": 18.560365397058177,
+              "value": 18.560364479134293
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.6464462280273438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.0623207092285156e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1576881408691406e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.6464462280273438e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.2411346435546875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.0623207092285156e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1576881408691406e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 18.560364479134293,
+              "reference": 18.560365397058177,
+              "error": 9.17923884458105e-07,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "q2-0-dense-tied",
+      "family": "q2-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'ab'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abc'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefg'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'ab'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abc'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefg'/HF logit error: 0.00002193\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefghijklm'/HF logit error: 0.00002098\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 6.348165960901042e-06,
+              "passed": true,
+              "reference": 20.640379966254276,
+              "value": 20.640373618088315
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.193450927734375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.09808349609375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.640373618088315,
+              "reference": 20.640379966254276,
+              "error": 6.348165960901042e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.389322481619274e-06,
+              "passed": true,
+              "reference": 20.640379966254276,
+              "value": 20.640374576931794
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.640374576931794,
+              "reference": 20.640379966254276,
+              "error": 5.389322481619274e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'ab'/HF logit error: 0.00002146\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abc'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.8596649169921875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefghijklm'/HF logit error: 0.00002289\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.389322481619274e-06,
+              "passed": true,
+              "reference": 20.640379966254276,
+              "value": 20.640374576931794
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.1457672119140625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.8596649169921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.288818359375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.640374576931794,
+              "reference": 20.640379966254276,
+              "error": 5.389322481619274e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'ab'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.7642974853515625e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.811981201171875e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9073486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'ab'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.7642974853515625e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.811981201171875e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9073486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.6468930509367965e-06,
+              "passed": true,
+              "reference": 20.640379966254276,
+              "value": 20.640374319361225
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002670\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.7642974853515625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.811981201171875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9073486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 1.7642974853515625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.811981201171875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9073486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.640374319361225,
+              "reference": 20.640379966254276,
+              "error": 5.6468930509367965e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "q2-0-moe",
+      "family": "q2-0",
+      "captures": {
+        "cpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'ab'/HF logit error: 0.00005233\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abc'/HF logit error: 0.00002074\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefg'/HF logit error: 0.00002408\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 batched 'abcdefghijklm'/HF logit error: 0.00003624\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'a'/HF logit error: 0.00002670\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'ab'/HF logit error: 0.00007749\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abc'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefg'/HF logit error: 0.00002956\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"cpu1 decode 'abcdefghijklm'/HF logit error: 0.00003362\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.0610546615814656e-06,
+              "passed": true,
+              "reference": 20.08618449383901,
+              "value": 20.08618955489367
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"cpu1 batched 'a'/HF logit error: 0.00002575\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 5.233287811279297e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.0742416381835938e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.4080276489257812e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 3.62396240234375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.6702880859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 7.748603820800781e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 2.956390380859375e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 3.361701965332031e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.08618955489367,
+              "reference": 20.08618449383901,
+              "error": 5.0610546615814656e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "gpu1": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"gpu1 decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.490118514472897e-06,
+              "passed": true,
+              "reference": 20.08618449383901,
+              "value": 20.086189983957524
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"gpu1 batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 3.0040740966796875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 3.0040740966796875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.086189983957524,
+              "reference": 20.08618449383901,
+              "error": 5.490118514472897e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "layer2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'a'/HF logit error: 0.00002003\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'ab'/HF logit error: 0.00003004\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abc'/HF logit error: 0.00002575\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.9550323486328125e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"layer2 decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 5.490118514472897e-06,
+              "passed": true,
+              "reference": 20.08618449383901,
+              "value": 20.086189983957524
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"layer2 batched 'a'/HF logit error: 0.00002003\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 3.0040740966796875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.002716064453125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 3.0040740966796875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.574920654296875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.9550323486328125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.086189983957524,
+              "reference": 20.08618449383901,
+              "error": 5.490118514472897e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        },
+        "tp2": {
+          "metadata_checks": [
+            {
+              "check": "metadata-contract",
+              "passed": true
+            },
+            {
+              "check": "metadata-identity",
+              "passed": true
+            },
+            {
+              "check": "f32-matrix-path-witness",
+              "passed": true,
+              "matrix_paths": {
+                "batched": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "decode": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ],
+                "greedy": [
+                  [
+                    "f32"
+                  ],
+                  [
+                    "f32"
+                  ]
+                ]
+              }
+            }
+          ],
+          "original_hf_checks": [
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'ab'/HF logit error: 0.00007367\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abc'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.919269561767578e-05,
+              "passed": true,
+              "phase": "batched",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 batched 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "batched",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'a'/HF logit error: 0.00002384\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "a"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'ab'/HF logit error: 0.00007367\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "ab"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abc'/HF logit error: 0.00002766\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abc"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error": 1.919269561767578e-05,
+              "passed": true,
+              "phase": "decode",
+              "text": "abcdefg"
+            },
+            {
+              "bound": 2e-05,
+              "check": "HF-logits",
+              "error_message": "AssertionError(\"tp2 decode 'abcdefghijklm'/HF logit error: 0.00002861\")",
+              "passed": false,
+              "phase": "decode",
+              "text": "abcdefghijklm"
+            },
+            {
+              "bound": 1e-05,
+              "check": "HF-NLL",
+              "error": 4.658237823917943e-06,
+              "passed": true,
+              "reference": 20.08618449383901,
+              "value": 20.086189152076834
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "error": "AssertionError(\"tp2 batched 'a'/HF logit error: 0.00002384\")",
+              "passed": false
+            }
+          ],
+          "approved_hf_checks": [
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 7.367134094238281e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.919269561767578e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "batched",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "a",
+              "bound": 9.82012939453125e-05,
+              "error": 2.384185791015625e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "ab",
+              "bound": 9.82012939453125e-05,
+              "error": 7.367134094238281e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abc",
+              "bound": 9.82012939453125e-05,
+              "error": 2.765655517578125e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefg",
+              "bound": 9.82012939453125e-05,
+              "error": 1.919269561767578e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-logits",
+              "phase": "decode",
+              "text": "abcdefghijklm",
+              "bound": 9.82012939453125e-05,
+              "error": 2.86102294921875e-05,
+              "passed": true
+            },
+            {
+              "check": "HF-NLL",
+              "value": 20.086189152076834,
+              "reference": 20.08618449383901,
+              "error": 4.658237823917943e-06,
+              "bound": 1e-05,
+              "passed": true
+            },
+            {
+              "check": "tensor_split.held_to_hf",
+              "passed": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "phase_hashes_verified": 72,
+  "counts": {
+    "HF-logits": {
+      "passed": 240,
+      "failed": 0
+    },
+    "HF-NLL": {
+      "passed": 22,
+      "failed": 2
+    },
+    "tensor_split.held_to_hf": {
+      "passed": 22,
+      "failed": 2
+    }
+  }
+}

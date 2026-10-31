@@ -1,0 +1,203 @@
+{
+  "status": "passed",
+  "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+  "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+  "source_sha256": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+    "tests/data/dtype_budget.json": "f1d93242df62084e6f985befd71b1748e801ad67d61991305fa285263600bddc",
+    "tests/data/baseline_q1_0.json": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e",
+    "tests/data/baseline_q2_0.json": "51e0e6c86f18dbdf20bcf7bbc2d20ac75cd1ed16769e96ad88cc1d5b807c6b6f"
+  },
+  "calls": [
+    {
+      "family": "q1-0",
+      "device": "cpu",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\bf16-consumers.py",
+        "--worker",
+        "--family",
+        "q1-0",
+        "--device",
+        "cpu"
+      ],
+      "started": 1793122413.5595276,
+      "pid": 13116,
+      "exit_code": 0,
+      "seconds": 10.286223888397217,
+      "log_sha256": "fe7c48d464ec05310fb407cfc2e51ace899789cf391c1d55e22c233e90750525",
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.14706927,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.00763288,
+          "nll_bound": 0.08592281915593958
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.16842131,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.00700294,
+          "nll_bound": 0.08592281915593958
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.16647749,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.01950084,
+          "nll_bound": 0.08592281915593958
+        }
+      ],
+      "max_logit_error_printed": 0.16842131,
+      "max_nll_error_printed": 0.01950084
+    },
+    {
+      "family": "q1-0",
+      "device": "vulkan:0",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\bf16-consumers.py",
+        "--worker",
+        "--family",
+        "q1-0",
+        "--device",
+        "vulkan:0"
+      ],
+      "started": 1793122423.8807929,
+      "pid": 15684,
+      "exit_code": 0,
+      "seconds": 76.17854356765747,
+      "log_sha256": "c1d06217e8f7941a43fc6b634a45d02acb8222fde1b31b3556bba06775556875",
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.14302027,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.00534655,
+          "nll_bound": 0.08592281915593958
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.16842031,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.00683947,
+          "nll_bound": 0.08592281915593958
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.16647749,
+          "logit_bound": 0.6454906463623047,
+          "max_nll_error_printed": 0.01942302,
+          "nll_bound": 0.08592281915593958
+        }
+      ],
+      "max_logit_error_printed": 0.16842031,
+      "max_nll_error_printed": 0.01942302
+    },
+    {
+      "family": "q2-0",
+      "device": "cpu",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\bf16-consumers.py",
+        "--worker",
+        "--family",
+        "q2-0",
+        "--device",
+        "cpu"
+      ],
+      "started": 1793122500.0833344,
+      "pid": 14428,
+      "exit_code": 0,
+      "seconds": 10.239538192749023,
+      "log_sha256": "805fa96294c3d5848cba149e63e4eded82a8d0a0f61dcb01bb789a68cb8d03be",
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.0796245,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.00360416,
+          "nll_bound": 0.14389011978391864
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.08165104,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.00379912,
+          "nll_bound": 0.14389011978391864
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.11658404,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.01022743,
+          "nll_bound": 0.14389011978391864
+        }
+      ],
+      "max_logit_error_printed": 0.11658404,
+      "max_nll_error_printed": 0.01022743
+    },
+    {
+      "family": "q2-0",
+      "device": "vulkan:0",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\bf16-consumers.py",
+        "--worker",
+        "--family",
+        "q2-0",
+        "--device",
+        "vulkan:0"
+      ],
+      "started": 1793122510.3528721,
+      "pid": 22160,
+      "exit_code": 0,
+      "seconds": 76.08158493041992,
+      "log_sha256": "168755040866fc9f5088c146b064489b5bb4dfc3d57856de33237cc2642488eb",
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.0796245,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.0039793,
+          "nll_bound": 0.14389011978391864
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.08165004,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.00411335,
+          "nll_bound": 0.14389011978391864
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.12627404,
+          "logit_bound": 0.5837039947509766,
+          "max_nll_error_printed": 0.01065253,
+          "nll_bound": 0.14389011978391864
+        }
+      ],
+      "max_logit_error_printed": 0.12627404,
+      "max_nll_error_printed": 0.01065253
+    }
+  ],
+  "planned_calls": 4,
+  "scope": "Ordinary tiny fixtures only, explicit BF16, CPU and Windows Radeon VII. Actual completed matrix witnesses select the frozen family bounds via common.py. No split, released-file, depth or speed claim.",
+  "full_logit_comparisons": 600,
+  "nll_checks": 48
+}

@@ -127,14 +127,15 @@ def capture(tool, model, ids, prefix, devices, width):
     return meta, rows
 
 
-def held_to_hf(label, meta, rows, fixture):
+def held_to_hf(label, meta, rows, fixture, family=None):
     """Each captured row at a golden text's last position within the bound of its path's precision, and the batched rows' NLL of the longest text, one window, within the HF NLL bound; the largest logit and NLL errors."""
     worst = 0.0
     for phase in ("batched", "decode"):
+        bounds = common.hf_bounds(meta["dtype"], meta["matrix_paths"][phase], family, fixture)
         for case in fixture["cases"]:
             row = rows[phase][len(case["text"]) - 1]
             worst = max(worst, common.hf_logit_error("%s %s %r" % (label, phase, case["text"]), dict(enumerate(row)), case["logits"],
-                                                     meta["dtype"], meta["matrix_paths"][phase]))
+                                                     bound=bounds["logit"]))
     text = f32.TEXTS[-1].encode("ascii")
     total = 0.0
     for pos in range(len(text) - 1):
@@ -143,7 +144,7 @@ def held_to_hf(label, meta, rows, fixture):
         total += shift + math.log(math.fsum(math.exp(v - shift) for v in row)) - row[text[pos + 1]]
     nll = total / (len(text) - 1)
     want = next(p["mean_nll"] for p in fixture["perplexity"] if p["context"] == 16)
-    bound = common.hf_bounds(meta["dtype"], meta["matrix_paths"]["batched"])["nll"]
+    bound = common.hf_bounds(meta["dtype"], meta["matrix_paths"]["batched"], family, fixture)["nll"]
     assert abs(nll - want) < bound, "%s: NLL %.8f against HF %.8f, bound %g" % (label, nll, want, bound)
     return worst, abs(nll - want)
 

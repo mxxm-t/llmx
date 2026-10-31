@@ -1,0 +1,902 @@
+{
+  "scope": "Q1 two-row integer candidate focused native qualification and original-F32 raw quality companion. No measured speed result or merge claim.",
+  "parent": "0527f3154",
+  "build": {
+    "seconds": 157.61512541770935,
+    "outputs": {
+      "llmx": "bc2d1d969bbacdc5210f80bbaa317241b1c6add0392bba68cbb0b3f3c83a1656",
+      "llmx-low-bits-test": "e0b33e2b5c624473af06eb8355e4d7489067ddafc89c43b2937fb80b7ebaeb56",
+      "libllmx-vulkan.a": "f4edeaab16f2178fb553269f121c8ce70d324241399a2f6abdeaa65dc4923ba6"
+    },
+    "generated_shader_changes": {
+      "generated/vulkan/matmul_row_q1_0_dot.inc": {
+        "before": "52cb8d2bb54131881f676f80c6ae142b4140d89b16fa27f02d0f52fd9d140e29",
+        "after": "2f2cab13a85a00a343abbe45333ddea99b0b0a7a8a721072291ccd818761f4bc"
+      }
+    },
+    "frozen_unchanged": true,
+    "receipt_sha256": "b52ac095b05249a278764b6e92685dc5b4f7474a5e0eb4808b40474e0d07442d",
+    "log_sha256": "ca0ebcc961e1d5851d38778d5a60b758826cbe26121b8d2899717cd0779bf3d3"
+  },
+  "native": {
+    "cpu": {
+      "passed": true,
+      "seconds": 1.3922538757324219,
+      "removed": true,
+      "no_oom": true,
+      "receipt_sha256": "6b906910bca105bd6aba7ca20fc8b5d12ad097c7d6619d0c238d8303839e6ab4"
+    },
+    "vulkan": {
+      "passed": true,
+      "seconds": 2.7748498916625977,
+      "removed": true,
+      "no_oom": true,
+      "receipt_sha256": "fffe14d03b1355ce92fc740787dc24580f713d87bf968ba3c66fbfef4f8bbb01"
+    }
+  },
+  "witnesses": [
+    "matmul_row_q1_0_dot_1col",
+    "matmul_row_q1_0_dot_1col_2row"
+  ],
+  "artifact_hashes": {
+    "stdout.log": "04a8de6ff3d6652cc4d81e1350647b02241878c1ba2aa0c3ec7a7f7f2ec1b6b5",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "matmul_row_q1_0_dot_1col_2row.isa": "c56d4131ff8ed306354a1413636306137235cae55a96e35a56bc740f51430554",
+    "process.exit": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "attach.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "vulkan-kernel-statistics.txt": "e1ab5e7b2d392bbd3ba3b6d6449067863b66346ea78300dc013e1db0daeb7b99",
+    "matmul_row_q1_0_dot_1col.isa": "14b8fdaddf6e7c8102f548b03299a46d45818a8edaa42b48329f4a0038b7448a"
+  },
+  "driver_statistics": [
+    "matmul_row_q1_0_dot_1col: Driver pipeline hash=11511144720042331533 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=5028 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=171133098 Instructions=977 Copies=51 Branches=25 Latency=165140 Inverse Throughput=113864 VMEM Clause=28 SMEM Clause=15 Pre-Sched SGPRs=42 Pre-Sched VGPRs=29 VALU=703 SALU=126 VMEM=44 SMEM=21 VOPD=0",
+    "matmul_row_q1_0_dot_1col_2row: Driver pipeline hash=2904905547107761096 SGPRs=64 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=9240 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=3788528214 Instructions=1792 Copies=68 Branches=35 Latency=246932 Inverse Throughput=177552 VMEM Clause=36 SMEM Clause=22 Pre-Sched SGPRs=46 Pre-Sched VGPRs=62 VALU=1369 SALU=171 VMEM=83 SMEM=30 VOPD=0"
+  ],
+  "native_scope": {
+    "input_widths": [
+      384,
+      2048,
+      6144
+    ],
+    "output_rows": [
+      1,
+      2,
+      3,
+      5
+    ],
+    "operators": [
+      "dense",
+      "logits",
+      "additive"
+    ],
+    "control": "Same packed row alone versus combined candidate row, bitwise, plus existing independent oracle and guards. Q1 paired range-repair fixtures and existing Q1/Q2 grouped/routed/tile checks also pass."
+  },
+  "quality_raw": {
+    "scope": "Completed raw F32 quality companion; descriptive quality comparison, no changed bound or merge decision",
+    "comparison_sha256": "e576ab0d3c11adeb504faab39a6c38accd584da34f4b83d053ede8d40a6fc698",
+    "receipt_sha256": "eb222c605cc270abc7a40c4a6aad79fc24ae5ee5c52d7bffbd4872373b55b658",
+    "seconds": 3428.730486392975,
+    "peak_bytes": 13906612224,
+    "no_oom": true,
+    "passed": true,
+    "removed": true,
+    "unchanged": true,
+    "arms": {
+      "original_F32_HF": {
+        "mean_nll": 2.6306265926290635,
+        "mean_nll_delta_from_original_F32_HF": 0.0
+      },
+      "selected_policy_HF": {
+        "mean_nll": 2.6307256237321206,
+        "descriptive_top1_counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "mean_nll_delta_from_original_F32_HF": 9.903110305709006e-05
+      },
+      "runtime_selected_policy": {
+        "mean_nll": 2.630633882072184,
+        "descriptive_top1_counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "mean_nll_delta_from_original_F32_HF": 7.289443120672701e-06
+      }
+    }
+  },
+  "limitations": [
+    "New two-row candidate speed and end-to-end identity still pending.",
+    "Quality comparison is for the frozen halfword runtime, not the unmeasured two-row candidate.",
+    "Q2 default precision failures, remaining depth/split and landing checks stay open.",
+    "No bounds, reference selection or support claims changed."
+  ],
+  "source_review_sha256": "f88897b63ebc7f9fceefe582595a086d4b362c6e48547b5c3543869e49c6d0fe",
+  "review_sha256": "3e8a0302874ef46f28331c03add4b2f4509dfb442296b7130b6ad31bb369ce25",
+  "markdown_review": {
+    "pages": 154,
+    "catalog": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "5f62a419bd1a88e75e35a941c590f390a85e7bd6d74adfa9e29701f9d2966bb8",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "README.md",
+        "sha256": "41f32d3db0ef55c3fb0355f853938e5bd6d7389397048409b953c40871add854",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "sha256": "746fa8c771c4ce0a06d887fcc9d08835645d0588bc2308693a6795ae8897102f",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "sha256": "a258c41f664a544c7d9887cb8166df34daec7597e798bc67a53a47f7b1a2a16d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "sha256": "648b646e3a777b558c7c6541f104ec8d095137c7a607d4aa963b1f7314a0d688",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "sha256": "e71aeb88669b01948c301d960099714f44e5a4e398d541620231e66bb6c7cd62",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "sha256": "0a48b157480f4ab3f0ad2cd8fd0c233c4d649b5996e4dfa1eee1c32a91258f9b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/CI.md",
+        "sha256": "a19603029c7b414f9c49e616b56cbcd15973a9da51d09ef042502b6c2dac577e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "sha256": "3cbb585c7ae6dfb29cc63f447864dfd0417cea49eb684e0b6ae0101a7f402cad",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "sha256": "4bc7368ab66aa82e0ba68d06cc1832b216a49d796259a18ee244b18d5c2ea689",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "sha256": "78266141901e666ffc53d69555403dece4a409ee885055c82c21239f87b0fb18",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "sha256": "86a18fcd496f4b82c262911018ce4b4f34de37bd5a0d65cb9cff9f0e7d1f7c28",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "sha256": "91e136fc4756a96423d62956bacc909e1f458301d2ecf39591dc3b7ceb4a9fad",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "sha256": "bc7052592e855099b90d8a7141771da33548b27a45248c2b989eb8418344fb5b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "sha256": "871389ded8878947f40e2cba43f61275e210eed93637674e72f5fd37c5172cbd",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/Q1-Q2.md",
+        "sha256": "2e50c644e83ba3cad80cdbba955aab9d1ae12436e88976e4bddb8eb373dc16e0",
+        "disposition": "reviewed against completed raw quality and isolated native evidence"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "sha256": "b6cd41d9644bacf6724b1e138857340d575e31a095927aeb8a922ec4a08746b1",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/QWEN38-FLASH.md",
+        "sha256": "7856dd6b897a9008d27b679aafa156d499459ee7fbae77c77fe96baef83c29ec",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "sha256": "fcf22a1bc0a393c230ff3e66a7ca9599868fb0e02259d6b95e9067118f8c62e9",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/ROCM.md",
+        "sha256": "5b6ce6fb7c93fa15cbee89dc4c677a4baf582c3446f2b8bd34b218770066cc0f",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "sha256": "f607f79b991f8ef9f02dfd6edf5d52b6f218c9dfa58796eee05671f6af53e17b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "sha256": "6375f3c10a7e0bf13626406f3e5557e230824814a045fe98466392bb819cdc4c",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "sha256": "d664f54b3ec1b3717a5b5f77c4884073317fb71df83ce9d84309be3146bd9bc0",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/STATUS.md",
+        "sha256": "8048b2c3475f870602b48d04fc647e91903ee75328e818d385fde59f05fbbcd0",
+        "disposition": "reviewed against completed raw quality and isolated native evidence"
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "sha256": "34ac46cfd7c34d4a98b12f689e237cba6902175d8358c8ddcdaa453e5713b7f6",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "sha256": "4c9b069c643b2c42240f14c300ce8fc2d6550edaebd500629107b9db6a7d340a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/VISION.md",
+        "sha256": "a73a9a1b1ce2563f88c26f2b503ae1f0fbfc751447b84e27135f033e1e36006e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "sha256": "29d0270ef9d28f7239eca69fcf7135b7e7605e35f16fef46cf9eabf6a55b84c7",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "sha256": "3bd8d8bae1e3dc6d6768761354ef864e5a421602f9febb35c7ae55dc87ae9a26",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "sha256": "161f6a46c87e552bcbc2f7589bcde50d053986215740a6610fc29d5b91273c84",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "sha256": "96cf9f0a6f19e5ccf8e697c5559dd983887950d0420ea1b792209dd074370de4",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "sha256": "4e16f34c535fe463000d59fdf365a2d6c4356ca5dbff2832c39e1f569f04fc63",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "sha256": "f4921d5e7df6659a85f8f5d2d0c20ff816f60420038a32195c2e5cf8e4d80ce1",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "sha256": "9b8dc6df58ec701f2afbd79232c469abe2c7ac829b5de580f36d4481bbc8612e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "sha256": "66e60ef98656aa22664b3756bb6089877d46f2739d653ba39025f78f016a8971",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "sha256": "4f780de740f50f297049bc009a71d7561fc553adff5f5c04e3f22f08d9bef0af",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "sha256": "fc06f79dad3768b91087859cc0e5c5a9a8711f4823f23f52f77081121e79a5e5",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "sha256": "cc0e32a378460e284f608e54835228cdfdb44bd7690e0143f1e6d8b61efb1d5a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "sha256": "de170ccf155ff205e9f74bcf07020a0f5978b80a0aaff7cffc71fc042c6db0e6",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+        "sha256": "ac5423ce4d8fd97a9f9442f13a62234b20d91d6185982dc8136034e068e7c334",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+        "sha256": "491f594206a9044ca495269871a1f4a8b43a7d4e3f05195f9b4101695f99c1e2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "sha256": "550268c3e13845f84c53771ed70d0150e0e3956364d41957b78f4117c757464f",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "sha256": "88a553138cdbdb73af5866c431628e38c6d9308563f62bb45d910d73a724261d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "sha256": "a53510ee23c93677a75b901d81b729722e150b4ee4509304c621f96dd88227b3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "sha256": "a386d1bd1748ec8331bd238ffc683739a8f42d5553e87a84c11efdc9dc76c273",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/nvfp4-default-reference-proposal-20261025.md",
+        "sha256": "1dc690620f05e104191002ead2191f038a1122c846c9c5ca34762375fe9cf063",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/nvfp4-mx-dispatch-witness-20261025.md",
+        "sha256": "fe8a28989024b0bbe2f19a5cc7c687daddf96cab1218a15e45fec0c0b98668f5",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/q1-q2-f32-proposal-20261027.md",
+        "sha256": "32d5f51d3460d84b94dd75cfd3bae5e64b5a0acd834f60aa7ed55b422a64676e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/q1-q2-split-f32-proposal-20261027.md",
+        "sha256": "a8def20087d87a48239afb5af90201896f8eeab4784809a74144f7c16ec79cd5",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+        "sha256": "78039406ce0bc4dfbeba7dc453228ecd7e7de9954c60051409a03847bcafad69",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+        "sha256": "ab4834f75c68457a55313164c609a85a4bb34c455840b437f67156428afde597",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "sha256": "c1a60b1a46ed30f6eb6f0b59eeab53d664effc058035c4201e62d439e483539d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "sha256": "0bcc0a178d067698442e21234182a89777d41f65485eaf10ac4f3a46bae364fe",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "sha256": "850eaa223a8ea33a907a3c4f47778c8376055b919a4975fafdc8cfce5634602d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "sha256": "85b15d1fa98e35c323317946a85ec18549486948fa6a9014add282559eb87bce",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "sha256": "7f82b4c0ed253fdb91e253809d725f482c6a39b77bca457a724dbe8d945c3fbf",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "sha256": "b8f0c2da4779fc3407fa4314f8717cbec4b8ae8b327ef06c61daaae12685d6e3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "sha256": "2cec363b36ea8dd267699340090408c4d82bb29f4fbdcf917a86227fa0ad82ac",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "sha256": "7906df31cb980e6de65bb94096bfabf4804c544ea558bb93db7f127959f05d40",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/tq-block16-reference-proposal-20261024.md",
+        "sha256": "434298001561077d140c01c779e0dfa2f266698d02f5c60c3a51d02800cee5f3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/tq-existing-main-exception-proposal-20261025.md",
+        "sha256": "3463a146372bed0db3ea1fbeb9ab141dd566d8f5214636570495a897eaa6cd0d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "sha256": "ed4fa293c4fd75ba2e3df6fba34cdd4c8f528672af287216b0814d7c85b5faf6",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+        "sha256": "f51a63c2d0390211a47d6c20852149ff3c177e85985d5234c8ed79825768ea5b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "sha256": "1f29e9d62cddd941bcd17db2515eba819b240bd0bdf7873bfe0c3d99976ef863",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "sha256": "a1e13d6d06e2c6c875eabb9003aa6566d8a353b95f26ee9caf126d1034422173",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "sha256": "9bfe6807882392da236f72acfad95eaaa63c819a936c0b15fe51e3c734510d29",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "sha256": "e0be2cace7fcb1508d027bd22b33687cdac80cef873dcccf1788c5d763fcb0dc",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "sha256": "04f55b7fc19c6bdce42138cc78f5b775887d66003364d9cac8e131a3f0d60686",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "sha256": "c6ffcd744c0267d865c6391b30fb1336bb2ec8192d644350b623d31780620cba",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "sha256": "75371f7a26f046c5a2b15ed9ed0ab0c9ea74215de75c4bdb5bcc9c6b849a62c4",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "sha256": "b5c4cedd9ffb1074cdedbacdfb5b7e40e8c9cde496f8d2dca9e72581a2a7e99d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "sha256": "ce9901b9bb5f123c4dc4b03273a31e167fef7fa07c61e235d154076a31a72923",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "sha256": "12add2b5ee35f8599d54a783c85122de68488b12f61e62e7921963e5ce031526",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/config.md",
+        "sha256": "e25843d6b3ccf30e7579c35d0fb9406ac0eb4a4c5e11f62005976d1aabadee38",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "sha256": "e18bf51e1c251e8d54f047eba9f8f501fe91dec2767cdf36fb9a58f8c1480f61",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "sha256": "04bd7a3fb23416403dc81a16064222431a2cea4fbd7cf2d5643657124fa2bea0",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "sha256": "27959a23135b4d550480ec07ff109b5858736f074365328539c3ddd70b2683a1",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "sha256": "b9e4298eae079ba8e04b96267d5e165d16aeda8eac3ac8ea67b515ffdf4441e7",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-file_sync.md",
+        "sha256": "183ad093685c7a12be2515e5571fbbe2266eec7ed8837830e508601abd1f2bf9",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "sha256": "c25ebc2b9ba244ad9bec6abe1737eca0395529c37581ba81dc1b11258aeb92fe",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "sha256": "91939da85d49d1a4cea633d569cb46124405313686f22f38f27277f321805eea",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "sha256": "f8c1e5bc2096c2d869933e2a2fe83e7deed0192f73a24217a0dd40a7e8a5b131",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "sha256": "e31096667ecd62dccce87cd1c09ec4cc8a77219af4aab3a0e36ab2f9d96e405e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "sha256": "f5036561a1640859ccb89e3ddc13b4fe87b109e38bfc7ddac2e3fb7cb0d7d23e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "sha256": "3af754db2d7b47fc5951c8800d316ade6af61f25a1417cfb54f596648cc8074d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "sha256": "e82fa34ee302baa440ccac7e039ad56e45bffa575b9c19577c7809a9092be2f8",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "sha256": "2e88ecea2d140c4094ccf692eb63091c6ca84478b03dd10f46eb578283d24c1b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "sha256": "646a9324e879b8af7cf60fcb5ddf889a196219a4a12f5c95fb75dd0c69c0fec8",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "sha256": "2f36d7a4cba3db86248b35102f51dbc6ac9672ecb9344163a1ed240348eac7dc",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "sha256": "4633b7298f093c6353c36b221b51782ede978fb99215390f22271b7afb0c90d3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "sha256": "fd7f0dcdca4e067e13f6510cb6a2f2d1f190b7f76b24f9af6e3b4685706e4b8b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "sha256": "ca12725fa05fb25174b09740f51291ab3d5b5c48dece7661b3a74d7cdcb1a21a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "sha256": "5ba952fc92329050af23f5436a053d3ee34a3fd13af9c1e6abe30015ced5672b",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "sha256": "97f58859ed030afa82127d1c534b1f168bce1e425bdc643848b3035ddd4a9cd4",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/format-weight_scales.md",
+        "sha256": "8706e29c8aacfceabb74952ec57ba461e6518af6bb3f2b4442b8afc2c7b02006",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "sha256": "753bfd1e4b0299dd0df2f6ff26c9261805dc325a730d1d9684a3ad9ee2051a1e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/image-image.md",
+        "sha256": "637bc14457bdae17a107db338d6772c89d39148fcfdc15f56c4530c168ef7998",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/image-inflate.md",
+        "sha256": "b6853fba9ec4576e8e52b543c54f51b77fead4363681d07713cb4ae8609dbf76",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/image-jpeg.md",
+        "sha256": "b777b51e33b8196d96f0ad35c411ae79db20870d0114de3205d5cecf951c9b73",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/image-png.md",
+        "sha256": "fb77e18e9335bf584faef15f1f9542e346c464011d4ad84f77f631fbccef6bc3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/image-raster.md",
+        "sha256": "5544426d0cc6147db2e029bb6a2610cba918791b1e32504297ad2b9b0dba265e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "sha256": "ef68a34a76530114592acf2963c8e67759ab35475b85895452185bb0f3af4a51",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "sha256": "d5f7faa650af8b53e97e13e86159f6cb425f383991fd1a32195b5a503114ef3e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "sha256": "d720b7e43befae37fe69d0c8bcc5f9c7596b4b4039e7186ff22154a4a01c8604",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "sha256": "504aea68fb427f2a7f3a2a6349f0067cf81c7e4142f40c9286b06d4cecf3092e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-media.md",
+        "sha256": "f94be9ddf872284dcd1560361f2854ae9d8ecc79f58c32c26796681fdd85bbf2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "sha256": "141557606b8794af17dd6deb91d3036263f8f5838130b0bc0f7ef2bb95a850d2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "sha256": "75eff128998c0be93b2aab8522a20f347d45e17556a04640c3e8d50f45fa0f48",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-read_ring.md",
+        "sha256": "be5d8b10aa358f2450099875e73f25dd58f14b3d57fb3284ce76f491032490cf",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "sha256": "79176620e5393f20bbd99fcec864adc888a46794df2d9b51f5ed704fafe671fa",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "sha256": "492e7d4a6753954eaa04053bc8c8acc5194f8b1cc1bd053acb29a9d50026c070",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "sha256": "60d1ea1f6c217a71cb425b1fa62898c65602e473fddc937d87fc0985060fa0ff",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "sha256": "65b485113a6d2bb4ebc0034b87a2d0cc6acad7f33c59964cb21b770c8f9cab8a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "sha256": "f23b6df044e789d8f12ef926dc57d79471c41600089462f2d749ef96212cfed6",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "sha256": "871a6820a1d190e589953bccb319fe7b133e97a800843fed76e7fa05d01daad6",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3vl_vision.md",
+        "sha256": "bb859f4433d0dc56047e1d03c41419ad987d0fe460d8c27b91c61c8e1fb491c3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-qwen4exp.md",
+        "sha256": "67d97a66e98cad139c55e82e45d66218aa72bd708620a5b7ba0269d00d466faf",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "sha256": "04252879ca5a6328f5d86c1e659ad7a6fae4e0afd0d4cb79e0ad5683fb6bc777",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "sha256": "c1603b49c4bd4c4e283cec39502ad063e0ff1d322947bd5e4697f92869e3a6f2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-encoder.md",
+        "sha256": "9a338d761ff3511501d151f533064d812fd2e5217d3124754722dc15d71c8e0a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "sha256": "05fc3c9e9a9326fd611a5cea5dc739ee9367a4df2c4bbe0e05ea6627b8371075",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "sha256": "26ddf81de5e5172fa89b4f8cb77b56dcfe1e30364658eb3e3ea6b7f74250f0cc",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "sha256": "5f7886e4176e824e25122687b97a7b998bef285ec89cdeadece4e0efe1fddddf",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "sha256": "6c2a227b1acab0d01b34de655a5f9b753da6adc69b68b13b1b09608db0194be2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "sha256": "b51e4743ed0f45283fe7134e807f10e991b8aeee66b63f4757c2b305e57bbb5a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "sha256": "0ea6091960d6d5b5f91016c2c684e822ca747792084378e7d2598af557da7baf",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "sha256": "04bf6a3072fdda05f4307eb0484407d09bc56f434a9677086650f9651d8d7ff7",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-stage_lanes.md",
+        "sha256": "4c1d9a07e0229f7fce88ae5b594eb685763a1ae1dcff6a7767b5ba81f37c090e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-weight_rows.md",
+        "sha256": "f3e8d567818341fd442eeb1a9fa0cbe94217e68f05e7cde225434a77774aa04a",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "sha256": "2147196cad2ecb4e853e7d6f07cd201675b4605e0daa5b38e21560449b9f4dca",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-fp4.md",
+        "sha256": "8d3de9e03cfc7420f7a16db14ab4c46fe3d57f88516929713c1609bd072d6e74",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq-signs.md",
+        "sha256": "3ae7db641209616b5a5873cd9f730faf160f2e30a1c71e8c3271b814645ec659",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq1-grid.md",
+        "sha256": "d880093b7e2236a2021ce672a3fb82f28299608095150b28f97039ca41a80742",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq1.md",
+        "sha256": "49dc0f015969a86ea8c89dd6a670b5b52e7938dd5b1b7e81704bc2f232a5a0d7",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-s-grid.md",
+        "sha256": "03f0a1e7426b853e218839af8a8fbb24d98f2ef3aaeb32e0e7c5f90e009f98cb",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-s.md",
+        "sha256": "630f1c982de322d2658e189fb7abbf818478a53fce31351d7077ead6ec07e884",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs-grid.md",
+        "sha256": "294df3cb0692fe5a57a653cc4cf2a165e9dfd1153e191e55ee743cad0a74a18d",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs.md",
+        "sha256": "256c887214c047028cf9f1332cf097c2aa967c2dd4233e94b0765a032c247797",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs-grid.md",
+        "sha256": "b7c4e45eadb5cd5a5bafa37b90465b86b369a778dde466e9811765b1889dea74",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs.md",
+        "sha256": "b129281d87c694858762335ca539d2e049903eb920291b8912d072976d95f1dd",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq3-s-grid.md",
+        "sha256": "39c49fe2cddffad5cde4737c9578d39f1e2bf3d48aecbbdc4b7edab971858007",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq3-s.md",
+        "sha256": "798395991ec586e73f8edf0fbc2f68dc17c2c29af3d1e73940a66efb7549b2a2",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs-grid.md",
+        "sha256": "f351143a21e98f53b9b69f13dcc60ce6d565ae43ca4176e3641f494348f3f665",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs.md",
+        "sha256": "9767a0b1be22296598ee71cfd3bac2746f3f954b6ebe96308cb1d5cc24c2eb2f",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "sha256": "43a61c843532b544eb55260876765d82213c7de204530cc72bf0ac99b672ec98",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-low_bits.md",
+        "sha256": "122f4b2babec40879e965e3265fe0123347a042a458d0cf3b07646e89b1745bb",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "sha256": "d820705a9015ce35d5cb702c2e96d87aac5515ac6d1487b0c0a6834c16b41426",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-nvfp4.md",
+        "sha256": "2230341002e5ff0db499b4966dab1bb976af6c7fe49dfeb41afd0d671ed01e12",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "sha256": "3e48cdee9ae70fc8e9c604c5989eb702fc67b973e210a23a352b34dd2ff7aab3",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-tq.md",
+        "sha256": "859c1bb17df35f9cc70cc11ac8f33fb86372d58f89bc4d8d6ac55216fa874b8e",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "sha256": "2c330534882ffcdfa098afcbc44a6862535e8f3099f2bcef025f9ccf3bd20ae8",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/server.md",
+        "sha256": "ee8822caa3422c42b661f9c3dfe37e6b01dde76dc39cff320b6dc4cadb2965d9",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "sha256": "3388aafcfe77ddc5b90e383d54c1c8af85f7f187c3519a5ea097c76305caa7ff",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "sha256": "6d29b83d458b89549b4d1b0b9f0a63b43f8f43f965c6e68594c4e22c16f8e464",
+        "disposition": "unchanged; prior review applies to result-only checkpoint"
+      }
+    ],
+    "prior": "docs/benchmarks/q1-chat-q2-f32-control-20261028.json",
+    "prior_sha256": "40d7b681ccdad1ecbc4903c75fb82161c4e1baf124124b65b922b4e239deaf4c",
+    "unchanged_carried": 152,
+    "review": "Reviewed STATUS and Q1/Q2 plan, unchanged precision and architecture requirements, and reconciled the entire Markdown inventory. No format, supported type, CLI, runtime owner or landing requirement changed."
+  },
+  "checkpoint_checks": {
+    "log": "build-low-bits-dev/q1-two-row-native-docs.log",
+    "sha256": "0d7c91611983af0fdde948f0a4bc44030a03a915e165ba2bbb80cf18aeff8445",
+    "docs": "PASS, 0 findings and 21 planted controls",
+    "dead_code": "PASS, 7 listed findings and 19 planted controls",
+    "scope": "Result-only tracked documentation update. New two-row code remains isolated scratch; no expanded correctness claim."
+  }
+}

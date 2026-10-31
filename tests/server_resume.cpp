@@ -811,6 +811,94 @@ void edit_after_regenerate(const Make& make, const bpe::Tokenizer& tok, uint32_t
     require(stats.boundaries == 1, what + ": " + std::to_string(stats.boundaries) + " boundaries kept where the message starts, against 1");
 }
 
+// A long message whose question changes (docs/SERVER.md, the host tier): one user message of a 1640-token text and a 60-token question, then the same text with another question.
+// The first keeps a boundary kTailTokens before its prompt's end, as its message starts at the conversation's start and its own checkpoint sits inside the question, so the second forks it and gives its reply on a fresh model.
+void edit_tail_of_message(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::vector<uint32_t> text = prompt_of(8, 1640, vocab), first_q = prompt_of(9, 60, vocab), second_q = prompt_of(10, 60, vocab);
+    std::vector<uint32_t> first = text, second = text;
+    first.insert(first.end(), first_q.begin(), first_q.end());
+    second.insert(second.end(), second_q.begin(), second_q.end());
+    const std::string what = "a long message whose question changes";
+    auto model = make(2048, 0);
+    Reply reply;
+    size_t reused = 0;
+    server::Scheduler::Stats stats;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(first, params_of(Req{first, 32}), first.size(), 0));
+            const auto e = sched.submit(second, params_of(Req{second, 32}), second.size(), 0);
+            reply = drain(*e);
+            reused = e->reused();
+            stats = sched.stats();
+            ledger(stats, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const size_t want = (first.size() - server::kTailTokens) / kBlock * kBlock;
+    require(reused == want, what + ": the second question reused " + std::to_string(reused) + " tokens, against " + std::to_string(want));
+    require(stats.boundary_hits == 1, what + ": " + std::to_string(stats.boundary_hits) + " requests forked a boundary, against 1");
+    auto fresh = make(2048, 0);
+    same(serve(*fresh, tok, 3, {{Req{second, 32}}})[0], reply, what + ", the second question");
+}
+
+// A tail boundary goes first until a request forks it: another conversation's message boundary takes the follow-up's own tail, not the boundary it forked.
+void tail_boundary_goes_first(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::vector<uint32_t> text = prompt_of(8, 1640, vocab), first_q = prompt_of(9, 60, vocab), second_q = prompt_of(10, 188, vocab), third_q = prompt_of(12, 60, vocab);
+    std::vector<uint32_t> first = text, second = text, third = text;
+    first.insert(first.end(), first_q.begin(), first_q.end());
+    second.insert(second.end(), second_q.begin(), second_q.end());
+    third.insert(third.end(), third_q.begin(), third_q.end());
+    const std::vector<uint32_t> other = prompt_of(11, 600, vocab);
+    std::vector<uint32_t> other_edit(other.begin(), other.begin() + 300);
+    const std::vector<uint32_t> edit_tail = prompt_of(13, 300, vocab);
+    other_edit.insert(other_edit.end(), edit_tail.begin(), edit_tail.end());
+    const std::string what = "a reused request's tail boundary beside a message boundary needing its room";
+    auto model = make(2048, 0);
+    size_t reused_second = 0, reused_third = 0, reused_edit = 0;
+    server::Scheduler::Stats before, after;
+    {
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 3 * model->host_bytes(640, false));
+        std::thread runner([&] { sched.run(); });
+        try {
+            drain(*sched.submit(first, params_of(Req{first, 8}), first.size(), 0));
+            within_a_minute([&] { return sched.stats().boundaries == 1; }, what + ": the first tail boundary kept");
+            const auto h2 = sched.submit(second, params_of(Req{second, 8}), second.size(), 0);
+            drain(*h2);
+            reused_second = h2->reused();
+            within_a_minute([&] { return sched.stats().boundaries == 2; }, what + ": the follow-up's tail boundary kept");
+            before = sched.stats();
+            drain(*sched.submit(other, params_of(Req{other, 8}), other.size(), 300));
+            const auto settled = [&](const server::Scheduler::Stats& st) { return st.moves[(size_t)server::Move::boundary_kept] + st.moves[(size_t)server::Move::boundary_not_kept]; };
+            within_a_minute([&] { return settled(sched.stats()) > settled(before); }, what + ": the message boundary kept or refused");
+            const auto he = sched.submit(other_edit, params_of(Req{other_edit, 8}), other_edit.size(), 300);
+            drain(*he);
+            reused_edit = he->reused();
+            const auto h3 = sched.submit(third, params_of(Req{third, 8}), third.size(), 0);
+            drain(*h3);
+            reused_third = h3->reused();
+            after = sched.stats();
+            ledger(after, *model, what);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    const size_t tail1 = (first.size() - server::kTailTokens) / kBlock * kBlock;
+    require(reused_second == tail1, what + ": the follow-up reused " + std::to_string(reused_second) + " tokens, against " + std::to_string(tail1));
+    require(reused_edit == 256, what + ": the other conversation's edit reused " + std::to_string(reused_edit) + " tokens, against its message boundary's 256");
+    require(reused_third == tail1, what + ": the third question reused " + std::to_string(reused_third) + " tokens, against the forked tail boundary's " + std::to_string(tail1));
+}
+
 // Message boundaries whose copies fail: three turns on a hybrid model with three checkpoint slots and a host tier, each reply read again, an unrelated request, and an edit of turn 2 while the last job's donor is on the devices.
 // Copies to host memory failing keep no boundary and no host copy, copies from it failing keep the boundaries and the edit reads its prompt from the start, and either way every reply is its reply alone and the ledger adds up.
 void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool reads) {
@@ -5468,6 +5556,8 @@ int main(int argc, char** argv) {
                                    "message boundaries on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             for (const bool reads : {true, false}) boundary_faults(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, reads);
             edit_after_regenerate(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            edit_tail_of_message(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
+            tail_boundary_goes_first(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             for (size_t devices = 1; devices <= 2; ++devices) disk_demotion(on(weights, [devices] { return cpus(devices); }), tok, vocab, devices);
             disk_superseded(one, tok, vocab);
             for (const size_t copies : {size_t(4), size_t(1)}) disk_never_blocks(one, tok, vocab, copies);

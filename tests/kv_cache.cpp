@@ -20,29 +20,6 @@
 #include "model/kv_cache.hpp"
 #include "tiny_qwen.hpp"
 
-// Fails the Nth allocation of at least `min_bytes` after arming, once.
-// Used to fail the prefill activation arena, which is one allocation large enough that no other allocation on the path reaches the threshold.
-static thread_local size_t fail_large_after = 0, fail_min_bytes = 0;
-
-void* operator new(std::size_t n) {
-    if (fail_min_bytes && n >= fail_min_bytes && fail_large_after && --fail_large_after == 0) {
-        fail_min_bytes = 0;
-        throw std::bad_alloc();
-    }
-    if (void* p = std::malloc(n ? n : 1)) return p;
-    throw std::bad_alloc();
-}
-#if defined(__GNUC__) && !defined(__clang__)
-// GCC takes the free below for a mismatch with operator new, though the replaced new above allocates with malloc.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
-#endif
-void operator delete(void* p) noexcept { std::free(p); }
-void operator delete(void* p, std::size_t) noexcept { std::free(p); }
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
 namespace {
 
 void require(bool value, const char* message) {
@@ -1183,15 +1160,25 @@ void model_transaction() {
     model.set_ubatch(3);
     control.set_ubatch(3);
     {
-        infer::Model fresh(infer::gguf_weights(weights), plain, f32);
+        // Fails the first buffer of at least `fail_min` bytes once armed: the arena for ubatch 3 on this fixture is 1216 bytes and the first buffer a prefill allocates that large, so this selects it alone.
+        struct ArenaFailing : backend::CpuBackend {
+            size_t fail_min = 0;
+            backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+                if (fail_min && bytes >= fail_min) {
+                    fail_min = 0;
+                    throw std::bad_alloc();
+                }
+                return backend::CpuBackend::alloc(bytes, where);
+            }
+        };
+        auto arena_failing = std::make_shared<ArenaFailing>();
+        arena_failing->set_threads(1);
+        infer::Model fresh(infer::gguf_weights(weights), arena_failing, f32);
         fresh.set_ubatch(3);
-        // The arena for ubatch 3 on this fixture is 1216 bytes; nothing else allocated during prefill comes close, so this selects it alone.
-        fail_min_bytes = 1024;
-        fail_large_after = 1;
+        arena_failing->fail_min = 1024;
         bool failed = false;
         try { fresh.prefill({1, 2, 3}); } catch (const std::bad_alloc&) { failed = true; }
-        fail_min_bytes = 0;
-        require(failed && fresh.n_tokens() == 0, "partial scratch failure did not propagate cleanly");
+        require(failed && arena_failing->fail_min == 0 && fresh.n_tokens() == 0, "partial scratch failure did not propagate cleanly");
         require(fresh.prefill({1, 2, 3}) == control.prefill({1, 2, 3}), "retry after partial scratch differs");
         require(fresh.step(4) == control.step(4), "step after partial scratch retry differs");
     }

@@ -12,6 +12,32 @@
   Where not one block fits beside the hot rows of a table read from its file, the table holds none, as the lookup choice gave before.
   Only an automatic budget or a split without shares waits for the free memory to stay level (`level_first`); a budget the devices hold is taken at once, and one they cut waits as before.
 - **Tests:** `placement`'s `kv_fitted` holds a request naming only its device to the server's cut and backed budget (fails on main); the lookup cases follow the one rule (an explicit device table on a device it does not fit is refused by the fit); the test backend of `load-progress` and `model-validation` keeps its cache in host blocks the CPU's attention reads, since the cache is now backed as the model is made.
+- **CPU buffers on zero pages (F2DEV's ruling of 07:11):** backing whole cost the CPU time and memory, since `CpuBuffer`'s value-initialized vector touched every page of the cache: Qwen3-0.6B Q8_0 `generate -n 8 --device cpu --threads 4` took 0.57 to 1.72 s on main and 3.83 to 5.23 s with the cache backed (construct 0.07 s against 2.90 s), at a peak RSS of 0.74 GB against 5.31 GB for the 40,960-token f16 cache of 4.70 GB.
+  Every owned `CpuBuffer` now holds `core::HostPages`, the operating system's zero pages, so the backed cache takes address space until passes write it; a count of owned buffers found none below a page (59 on that generate, 33 on Qwen3.5-0.8B Q4_K_M, 62 on `bench --seqs 2`, page rounding adding 2.5 to 6 KB), so the rule holds for every one.
+  `kv-cache`'s arena failure is now injected through a backend's `alloc`, since CPU buffers no longer pass through `operator new`.
+- **Startup at the head (rig, CPUs 12-15, rig load 9.5 to 9.6, interleaved, 6 runs an arm):** the same generate took 0.559 to 0.586 s on main and 0.550 to 0.603 s here, peak RSS 0.736 GB against 0.724 GB.
+  Byte identity on the CPU against main: 128 greedy ids, `logits` on a prompt and perplexity over 4 windows of 512 (29.1352) are the same bytes.
+- **Speed on the CPU (rig, CPUs 12-15, load 9 to 11 from other work, 40 monitor samples, main, a layout control of main with an unused function appended to `cpu_backend.hpp`, and this tree, six rounds in rotating order, Qwen3-0.6B Q8_0 `bench --p 512 --n 128 --r 3 --threads 4`, medians):**
+  | | main | control | this tree |
+  |---|---|---|---|
+  | pp512 (tok/s) | 215.8 | 214.8 | 218.6 |
+  | tg128 (tok/s) | 43.3 | 44.0 | 44.0 |
+  The tree sits within the layout band (+1.3 % prompt and +1.7 % decode against main, +1.8 % and +0.1 % against the control); slow samples kept: main's round 3 prompt 160.6 +- 59.4 and round 2 decode 37.2, the control's round 6 decode 29.9. `tests/perf.py` (synthetic): matmul 34.19 / 34.38 / 33.19 GFLOPS, prefill 5666 / 5699 / 5619, decode 5269 / 4907 / 5254 tok/s.
+- **Settle wait:** a budget the fit cuts first waits for the devices' free memory to settle, about 5 s on a card and up to 30 s on the CPU, whose host reading moves between reads; a budget that fits is taken at once (docs/USAGE.md). F2DEV accepted it as serve's rule.
+- **Checks:** CTest on the rig 76 of 77 at -j4 at the first head, `server-spec` failing once under load with "unequal requests never drafted together" (SDEV's recorded flake), then 6 of 6 alone; at the zero-page head 76 of 77 with `kv-cache` holding the old injection, which passes after its fix; on Windows (VirtualAlloc) 77 of 78 with the same `kv-cache` case, which passes after the fix. The CPU suite passes at the head, baseline skipping without its fixture.
+- **Startup on a device (one MI50, renderD131, CPUs 8,9, default clocks, rig load 10 to 17 from other work, both arms built alike with Vulkan, interleaved, `generate -n 8 --device vulkan:0`):**
+  | Model | main (s) | this tree (s) |
+  |---|---|---|
+  | Qwen3-0.6B Q8_0, 40,960-token cache (6 runs) | 0.830-0.968, first 1.447 | 0.822-0.941 |
+  | Qwen3-30B-A3B Q4_K_M at its 40,960-token context, fits (4 runs) | 6.67-7.45, median 6.84 | 6.74-7.80, median 7.12 |
+  | the same at 163,840 tokens, cut by the fit (3 runs) | 7.38-8.35 | 12.50-14.67 |
+  A budget the card holds costs about 0.3 s of start on the 30B, the 4 GiB cache backed at load; a budget the fit cuts adds the settle wait, about 5 s, as above.
+- **Device legs for landing (F2DEV's approval of 08:23; one MI50, renderD131, CPUs 8,9, default clocks; main fe2ccacae and this head e412c18af each built with Vulkan from an archive of its commit):**
+  Qwen3-0.6B Q8_0 on vulkan:0 is byte-identical to main: 256 greedy ids and their text, `logits` on a prompt, perplexity over 8 windows of 512 batched (29.6012) and over 2 windows per token.
+  The suite with `--device vulkan:0` and the 0.6B fixture as `LLMX_BASELINE_GGUF` passes, 46 components, `baseline` within its HF bounds (top-1 6/6, NLL delta 0.0011 to 0.0067), the rest of its fixtures and numpy's checks skipping as not on disk.
+  `bench --p 512 --n 128 --r 3` on the same card, interleaved over 4 rounds (rig load 8 to 11): pp512 8908 to 8927 tok/s on main and 8915 to 8926 here, tg128 399.1 to 400.2 against 399.3 to 400.2.
+  The Radeon VII leg is not run, as ruled: no device code changed.
+- **Left:** the hosted run on the coordinator's gate branch.
 - **Startup cost (rig, CPUs 12-15, rig load 16 to 19 from other work, both arms built alike from archives of main and of this tree, interleaved):** Qwen3-0.6B Q8_0 `generate -n 8 --device cpu --threads 4` took 0.57 to 1.72 s on main (11 runs) and 3.83 to 5.23 s here, peak RSS 0.74 GB against 5.31 GB: the 40,960-token f16 cache, 4.70 GB, is now backed, and the CPU backend's buffer zero-fills it by touching every page (construct 0.07 s against 2.90 s).
   A measurement-only arm whose CPU buffers take the OS's zero pages (`core::HostPages`) instead of a value-initialized vector took 0.56 to 1.42 s at 0.73 GB, main's figures: backing whole then costs address space, not time or memory, until a pass writes it.
   Text and ids are identical in all three arms. The device figures (Qwen3-0.6B and the 30B at its 40,960-token context on one MI50) are owed once a card is free.

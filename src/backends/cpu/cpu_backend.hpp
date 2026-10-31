@@ -29,6 +29,7 @@
 namespace backend {
 
 // Host storage: adopt borrows the caller's pointer to avoid duplicating weights; alloc owns its bytes.
+// Owned bytes are the operating system's zero pages, so a buffer costs memory only where it is written: a KV cache backed whole at load takes address space until passes fill it.
 class CpuBuffer final : public Buffer {
 public:
     explicit CpuBuffer(size_t bytes) : owned_(bytes), size_(bytes) { ptr_ = owned_.data(); }
@@ -40,7 +41,7 @@ public:
     void* host_address() const { return ptr_; }
 
 private:
-    std::vector<uint8_t> owned_;
+    core::HostPages owned_;
     size_t size_ = 0;
     void* ptr_ = nullptr;
 };

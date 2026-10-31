@@ -769,6 +769,8 @@ The server fits the budget as it loads: where the devices cannot hold a given
 it backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server serves.
 Every other model command fits its budget the same way, the model's context or the sequences `bench --model` holds, and backs it whole at load, so no pass grows the cache past what the devices hold.
+A budget the devices hold is taken at once; one the fit cuts first waits for their free memory to settle, about 5 s on a device and up to 30 s on the CPU, whose free memory moves between reads.
+On the CPU the backed cache is the operating system's zero pages, so it takes memory only as passes fill it.
 A request holds at most the smallest of `--ctx-size`, the model's context and
 the pool, which `/v1/health` gives as `server.request_tokens`.
 `--ctx-size` reads differently for `perplexity`, where it is the scoring window,

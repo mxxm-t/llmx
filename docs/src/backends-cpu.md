@@ -32,6 +32,7 @@ A compile without them stops at one `#error` at the top of the header.
 - `set_threads(0)` leaves the current pool unchanged, including inside a prefill scope.
   The constructor takes the initial automatic count from `core::automatic_threads()` ([cpus](core-cpus.md)).
   The CLI resolves its automatic thread flags before requesting a change.
+- `alloc` owns its bytes as `core::HostPages` ([host_memory](core-host_memory.md)), the operating system's zero pages, so a buffer costs memory only where it is written: the KV cache every placement backs whole at load takes address space, not time or resident memory, until passes fill it.
 - `read`, `write` and `copy` accept valid zero-byte ranges, including empty
   buffers and an offset exactly at the end. Range checks still reject offsets
   past the end, and a nonempty write still requires a non-null source.

@@ -816,7 +816,7 @@ struct Sim {
                 replies_ms = replies;
             }
         }
-        const size_t limit = server::passes_in_flight(P, S, overlap);
+        const size_t limit = server::passes_in_flight(P, S, overlap, packed);
         const auto live = [&] { return (size_t)std::count_if(slots.begin(), slots.end(), [](const Pass& q) { return q.live; }); };
         for (size_t k = free_slot(); k != npos && live() < limit; k = free_slot()) {
             // No pass is formed behind one that waits for the first stage's recorder.
@@ -1467,8 +1467,8 @@ void service_by_hand() {
                 server::lone_slice(100, 2, 64) == 64,
             "a lone prompt's slice was not cut so every stage reads");
     // A round keeps a pass a stage in flight, and the one more only while prompt rows and replies overlap.
-    require(server::passes_in_flight(3, 2, false) == 2 && server::passes_in_flight(3, 2, true) == 3 && server::passes_in_flight(1, 1, false) == 1 && server::passes_in_flight(5, 4, false) == 4 &&
-                server::passes_in_flight(2, 4, false) == 2,
+    require(server::passes_in_flight(3, 2, false, 1) == 2 && server::passes_in_flight(3, 2, true, 1) == 3 && server::passes_in_flight(1, 1, false, 0) == 1 && server::passes_in_flight(5, 4, false, 0) == 4 &&
+                server::passes_in_flight(2, 4, false, 0) == 2 && server::passes_in_flight(4, 2, true, 1) == 3 && server::passes_in_flight(2, 2, true, 1) == 2 && server::passes_in_flight(6, 2, true, 2) == 4,
             "the passes kept in flight were not a stage's each, with one more only beside replies");
     require(server::packed_passes(0, 16, 4) == 0 && server::packed_passes(1, 16, 4) == 1 && server::packed_passes(16, 16, 4) == 1 && server::packed_passes(17, 16, 4) == 2, "replies were not packed by the columns");
     require(server::packed_passes(4, 1, 2) == 1 && server::packed_passes(4, 1, 3) == 2 && server::packed_passes(40, 16, 1) == 1 && server::packed_share(4, 1) == 4 && server::packed_share(5, 2) == 3,

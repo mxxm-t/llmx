@@ -592,8 +592,12 @@ inline size_t lone_slice(size_t waiting, size_t stages, size_t ubatch) {
 // Whether a prompt is quick while the reply objective is unmet: its whole remaining cost and the replies-only pass fit within the step gap's cap by the measured prices.
 // A quick prompt runs whole in a pass shared with the replies, at most every other replies' pass, shortest first, so a newcomer never waits the wait bound and no reply step lies further apart than the cap.
 inline bool quick_prompt(double remaining_ms, double replies_ms) { return remaining_ms > 0 && remaining_ms + replies_ms <= kMaxStepGapMs; }
-// The passes a round keeps in flight of the `slots` reserved: one a stage, and the one more only while prompt rows and replies overlap, when a prompt's chunk continues beside a pass of replies.
-inline size_t passes_in_flight(size_t slots, size_t stages, bool overlap) { return overlap ? slots : std::min(slots, std::max<size_t>(1, stages)); }
+// The passes a round keeps in flight of the `slots` reserved: one a stage, and while prompt rows and replies overlap the replies' `replies` passes beside one chunk pass a stage.
+// So a reply's step meets one chunk at every stage whatever the slots, which chunk_budget plans by: more chunk passes would each take the whole budget, fewer would leave a stage idle.
+inline size_t passes_in_flight(size_t slots, size_t stages, bool overlap, size_t replies) {
+    const size_t S = std::max<size_t>(1, stages);
+    return std::min(slots, overlap ? S + replies : S);
+}
 // Replies while prompt work waits go in as few passes as the decode kernels' columns hold them, leaving prompt work a slot of `slots`, and in the one pass where there is one.
 inline size_t packed_passes(size_t decoders, size_t columns, size_t slots) {
     if (!decoders) return 0;

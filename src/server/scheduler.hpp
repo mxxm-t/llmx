@@ -908,8 +908,8 @@ private:
         if (prompts.empty() && !decoders) prompts = jobs;
         p.overlap = decoders && !prompts.empty();
         const size_t S = model_.stage_count();
-        p.limit = passes_in_flight(slots_.size(), S, p.overlap);
         p.packed = packed_passes(decoders, model_.decode_columns(), slots_.size());
+        p.limit = passes_in_flight(slots_.size(), S, p.overlap, p.packed);
         p.share = packed_share(decoders, p.packed);
         if (p.overlap) {
             // The replies' pass packed, the slowest stage's; before it is measured no budget binds.

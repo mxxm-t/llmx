@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## A reply beside a prompt meets one chunk a stage at every pass count (2026-10-31, RDEV, branch fix/chunk-pass-cap on main c92d2d353, F2DEV's ruling of 13:49 on serving fault 1, lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** `--passes` follows one rule at every value: while replies and a prompt both wait, a reply's step meets one chunk at every stage, which `chunk_budget` plans by.
+- **Found:** the round formed a chunk pass in every free slot, so at P = 2S a reply's step met 2S - 1 chunk passes a stage, each taking the whole budget. Replay (server-passes at the Flash-Next 2x2 prices, one reply planned at two tokens a step beside a 140k-token prompt, two stages, budget 110 ms, objective 250 ms a step) on main: P = 3 two chunk passes, 208 ms of prompt work a step, step 223 ms, prompt 206 s; P = 4 three, 311 ms, step 327 ms (the objective missed), prompt 201 s. Production runs the default P = S + 1, which already met one a stage; its extra 0.73 chunk a step is the reply's host turnaround (RDEV's posts of 13:44 and 14:09), not this rule.
+- **Done:** the failing test, then `passes_in_flight` keeps the replies' passes and one chunk pass a stage in flight while both wait (`Scheduler::plan` computes the packed passes first); the replay mirrors it.
+- **Figures (replay, after):** P = 3 and P = 4 the same passes and times, 2 chunk passes and 208 ms a step, step 223 ms, prompt 206 s; P = 2 unchanged, one chunk pass, prompt 383 s: at P = S nothing can feed the idle stage with one prompt, which continues only in passes holding it alone (`Model::begin_pass`), so no second chunk of it rides the replies.
+- **Tests:** `server-passes` `replay_long_prompt` (fails on main at P = 4 with 3 chunk passes a step) and `passes_in_flight` by hand under overlap; the 2000 random schedules pass; `server-passes-cpu` at P = 1, S, S + 1 and 2S.
+- **Left:** the merge gates for server code (CTest, the CPU suite, Qwen3-0.6B byte identity against main, the hosted run); production's P = S + 1 forms the same passes, so no card leg is claimed.
+
 ## ROCm decode attention (2026-10-31, DDEV, branch feat/rocm-decode-attn on feat/rocm-decode-rows 1701ac2ed, which it needs and lands after; the plan of 2026-10-31 04:12 approved by F2DEV at 04:15, the probe, change 1 and change 2 in that order; change 1 kept, change 2 not)
 
 **Goal:** the per-row decode attention of Qwen3-8B Q8_0 int8 on one MI50 from 19.6 us a call in the model to the kernel's own time, bit for bit: run alone with its block table, firsts and ends in device memory it takes 9.2 us over a 128-token reply (Vulkan's attention 11.9), and reading them from the pinned argument ring over PCIe adds about 4.5 us a call.

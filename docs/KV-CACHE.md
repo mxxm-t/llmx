@@ -94,8 +94,9 @@ the backend maps those to bytes however it likes.
 
 ```
 BlockPool     free list (O(1) alloc/release), refcount per block,
-              block budget as the constructor limit; physical storage grows
-              on demand up to it, so a short chat does not allocate the budget
+              block budget as the constructor limit; a placed model backs the
+              whole budget at load (fitted_kv), a model made directly grows
+              its storage on demand up to it
 KVSequence    ordered physical block ids, valid length;
               append allocates a block when length % block_tokens == 0;
               fork at a whole-block length shares the blocks below it

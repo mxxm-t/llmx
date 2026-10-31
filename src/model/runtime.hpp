@@ -85,7 +85,7 @@ struct ModelOptions {
     size_t mark_slots = 0, mark_rows = 0;
     backend::Dtype dtype = backend::Dtype::f16;
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
-    // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (a server's fitted budget, PlacementRequest::fit_kv).
+    // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (the budget every placement fits, fitted_kv in model/place.hpp).
     bool kv_backed = false;
     // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure.
     std::function<std::optional<size_t>()> host_memory;

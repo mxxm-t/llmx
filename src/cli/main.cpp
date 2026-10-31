@@ -621,7 +621,6 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.draft_rows = server::Scheduler::draft_rows(decode_rows, draft_max);
         request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, draft_max)).size;
     }
-    request.fit_kv = slots > 0;
     request.kv_auto = slots > 0 && exec.kv_tokens <= 0;
     if (history_tokens) {
         request.histories = decode_rows;

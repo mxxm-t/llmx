@@ -966,7 +966,6 @@ void lookup_storage_planned() {
     require(reads == -1, "lookup candidates did not share one device budget reading");
 
     device->room = size_t(8) << 20;
-    request.fit_kv = true;
     const auto hosted = infer::plan_placement(weights, {device}, request, options, candidates);
     require(hosted.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file} && hosted.options.kv_tokens == resident.architecture.context_length,
             "automatic lookup storage cut KV rather than reading a table that does not fit from its file");
@@ -976,12 +975,11 @@ void lookup_storage_planned() {
                 from_file.options.kv_tokens == hosted.options.kv_tokens,
             "explicit file lookup storage changed the fitted KV budget");
     request.lookup_storage = infer::LookupStorage::device;
-    request.fit_kv = false;
     bool device_short = false;
     try { infer::plan_placement(weights, {device}, request, options, candidates); }
-    catch (const std::runtime_error& e) { device_short = std::string(e.what()).find("lookup storage device does not fit beside the KV budget") != std::string::npos; }
+    catch (const std::runtime_error& e) { device_short = std::string(e.what()).find("does not fit the devices' free memory even without its KV") != std::string::npos; }
     require(device_short && device->allocations == 0 && device->adoptions == 0,
-            "explicit device lookup storage was not refused before allocation at the bounded fit's KV budget");
+            "explicit device lookup storage on a device it does not fit was not refused by the fit before allocation");
 
     // Beside an unused host device, automatic storage still reads a table that fits no device from its file.
     auto host = std::make_shared<SizedDevice>();
@@ -989,7 +987,6 @@ void lookup_storage_planned() {
     host->set_threads(1);
     request.names = {"host", "device"};
     request.shares = {0, 1};
-    request.fit_kv = false;
     request.lookup_storage = infer::LookupStorage::automatic;
     const auto bounded = infer::plan_placement(weights, {host, device}, request, options, candidates);
     require(bounded.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file},
@@ -1037,7 +1034,6 @@ void lookup_storage_planned() {
     require(tiny_auto.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device},
             "automatic lookup planning required packed staging for a smaller resident table");
     request.lookup_storage = infer::LookupStorage::device;
-    request.fit_kv = true;
     const auto tiny_device = infer::plan_placement(tiny, {device}, request, options, tiny_candidate);
     require(tiny_device.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} &&
                 tiny_device.options.kv_tokens == tiny_plan.context_length && device->allocations == 0 && device->adoptions == 0,
@@ -1047,7 +1043,6 @@ void lookup_storage_planned() {
     request.names = {"host", "device"};
     request.shares = {0, 1};
     request.ubatch = 2;
-    request.fit_kv = false;
     request.lookup_storage = infer::LookupStorage::automatic;
     device->room = size_t(64) << 20;
     host->room = size_t(1) << 20;
@@ -1056,13 +1051,8 @@ void lookup_storage_planned() {
                                               request.ubatch, request.shares, core::host_memory_available());
     host->room = host_fit.host;
     const auto no_staging = infer::plan_placement(weights, {host, device}, request, options, candidates);
-    require(no_staging.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device},
-            "automatic lookup fitting rejected residency when only bounded host staging exceeded its budget");
-    request.fit_kv = true;
-    const auto no_staging_kv = infer::plan_placement(weights, {host, device}, request, options, candidates);
-    require(no_staging_kv.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} &&
-                no_staging_kv.options.kv_tokens == full_plan.context_length,
-            "automatic KV fitting rejected a resident lookup that avoids bounded host staging");
+    require(no_staging.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::device} && no_staging.options.kv_tokens == full_plan.context_length,
+            "automatic lookup fitting rejected residency when only bounded host staging exceeded its budget, or cut the KV budget");
 
     // A table read from its file holds its hot rows, its share of the one host budget (infer::host_shares) by its bytes a token: every row where the share holds them, at most the share otherwise, and none for 0 or on the devices.
     {
@@ -1071,7 +1061,6 @@ void lookup_storage_planned() {
         request.names = {"device"};
         request.shares.clear();
         request.lookup_storage = infer::LookupStorage::file;
-        request.fit_kv = false;
         request.host_budget = 4 * whole;
         infer::plan_placement(weights, {device}, request, options, candidates);
         weights.tensors[tensor].row_source = source;
@@ -1178,11 +1167,11 @@ void host_budget_shared() {
     checked += 2;
 }
 
-// A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
+// The KV budget every placement fits (fitted_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
 // Beside experts on the CPU the device is not charged for those layers' feed-forward weights.
 void kv_fitted() {
     const auto weights = fixture();
-    auto place = [&](size_t room, size_t budget, bool fit, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
+    auto place = [&](size_t room, size_t budget, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
         auto device = std::make_shared<SizedDevice>();
         device->room = room;
         device->copying = copying;
@@ -1190,28 +1179,41 @@ void kv_fitted() {
         device->set_threads(1);
         infer::PlacementRequest request;
         request.names = {"device"};
-        request.fit_kv = fit;
         request.cpu_moe = cpu_moe;
         infer::ModelOptions options;
         options.kv_tokens = budget;
         return infer::place_model(infer::gguf_weights(m), {device}, request, options).model;
     };
     const size_t roomy = size_t(1) << 30;
-    auto grown = place(roomy, 0, false, weights);
-    require(grown->kv_tokens_total() == 256 && grown->kv_allocated_bytes() == 0, "a budget not fitted was backed before a pass");
-    grown->prefill(std::vector<uint32_t>(256, 3));
-    auto kept = place(roomy, 0, true, weights);
-    require(kept->kv_tokens_total() == 256 && kept->kv_allocated_bytes() == grown->kv_allocated_bytes(),
+    auto kept = place(roomy, 0, weights);
+    const size_t backed = kept->kv_allocated_bytes();
+    kept->prefill(std::vector<uint32_t>(256, 3));
+    require(kept->kv_tokens_total() == 256 && backed > 0 && kept->kv_allocated_bytes() == backed,
             "a fitted budget that fits was cut, or not backed whole as the model was made");
     // A budget of 2^20 tokens on a device with 8 MiB free is cut to whole blocks, which fit, and one more block does not.
-    const size_t cut = place(8 << 20, size_t(1) << 20, true, weights)->kv_tokens_total();
+    const size_t cut = place(8 << 20, size_t(1) << 20, weights)->kv_tokens_total();
     require(cut > 0 && cut < (size_t(1) << 20) && cut % 128 == 0, "a budget past the device's memory was not cut to whole blocks");
-    require(place(8 << 20, cut, true, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, true, weights)->kv_tokens_total() == cut,
+    require(place(8 << 20, cut, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, weights)->kv_tokens_total() == cut,
             "the cut budget is not the most whole blocks that fit");
+    // A request naming only its device, as every command's is, gets the same cut budget, backed whole before a pass.
+    {
+        auto device = std::make_shared<SizedDevice>();
+        device->room = 8 << 20;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        infer::ModelOptions options;
+        options.kv_tokens = size_t(1) << 20;
+        auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model;
+        require(model->kv_tokens_total() == cut && model->kv_allocated_bytes() > 0 &&
+                    model->kv_allocated_bytes() == place(8 << 20, cut, weights)->kv_allocated_bytes(),
+                "a command's budget past the device was not fitted to whole blocks and backed whole as a server's is");
+        ++checked;
+    }
     // Free memory that rises while the fit reads it, as a device reclaims an ended process's memory, is read again until it settles, so the load takes what the device holds once it has.
-    require(place(8 << 20, cut, true, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    require(place(8 << 20, cut, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
     // A device may hold an ended process's memory for a while between frees: free memory that stays level for four seconds and then rises is waited for too.
-    require(place(8 << 20, cut, true, weights, 0, false, 16)->kv_tokens_total() == cut, "a fit gave up before a device began to give memory back");
+    require(place(8 << 20, cut, weights, 0, false, 16)->kv_tokens_total() == cut, "a fit gave up before a device began to give memory back");
     // A split's placement, which every command fits, waits for it the same way: two devices reporting a byte free for two reads each are placed once their memory has come back.
     {
         std::vector<backend::BackendPtr> two;
@@ -1231,7 +1233,7 @@ void kv_fitted() {
     // A budget the device holds is taken at once, while one it cuts waits for its free memory to settle, so a load meant to succeed asks only for what it holds.
     const auto refusal_of = [&](size_t room, size_t budget = 0) {
         try {
-            place(room, budget, true, weights);
+            place(room, budget, weights);
         } catch (const std::runtime_error& e) {
             return std::string(e.what());
         }
@@ -1262,8 +1264,8 @@ void kv_fitted() {
     require(refusal_of(lo).find("no room for one KV block") != std::string::npos, "a device with no room for one KV block was not refused as such");
     // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);
-    const size_t with_experts = place(8 << 20, size_t(1) << 20, true, moe, 0, true)->kv_tokens_total();
-    const size_t without = place(8 << 20, size_t(1) << 20, true, moe, -1, true)->kv_tokens_total();
+    const size_t with_experts = place(8 << 20, size_t(1) << 20, moe, 0, true)->kv_tokens_total();
+    const size_t without = place(8 << 20, size_t(1) << 20, moe, -1, true)->kv_tokens_total();
     require(without > with_experts, "a device beside experts on the CPU was charged for their weights");
     checked += 6;
 
@@ -1276,7 +1278,7 @@ void kv_fitted() {
         device->set_threads(1);
         infer::PlacementRequest request;
         request.names = {"device"};
-        request.fit_kv = request.kv_auto = true;
+        request.kv_auto = true;
         return infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{}).model->kv_tokens_total();
     };
     const size_t filled = automatic(8 << 20, false);
@@ -1288,7 +1290,7 @@ void kv_fitted() {
         cpu->set_threads(1);
         infer::PlacementRequest request;
         request.names = {"cpu"};
-        request.fit_kv = request.kv_auto = true;
+        request.kv_auto = true;
         const infer::PlacedModel on_cpu = infer::place_model(infer::gguf_weights(weights), {cpu}, request, infer::ModelOptions{});
         require(on_cpu.model->kv_tokens_total() == 256 && on_cpu.kv_kept_context.find("the host's") != std::string::npos,
                 "the automatic budget on the CPU took the host's memory past the model's context, or did not say why it kept the context");

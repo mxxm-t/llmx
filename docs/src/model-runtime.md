@@ -71,7 +71,7 @@ delegated to a `backend::Backend`.
   each device of its split, two at least, for `llmx-split-check`; and
   `kv_backed`, which backs every storage's whole budget as the model is made
   (`KVStorage::back_all`) rather than as passes write it, so no pass grows
-  the cache, as a server's fitted budget asks (`fitted_kv` in
+  the cache, as every placed model's fitted budget asks (`fitted_kv` in
   [place](model-place.md)). Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.

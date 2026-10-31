@@ -237,7 +237,6 @@ void resolution() {
     auto forced = infer::place_model(weights, {brain}, request, bf16);
     exact(forced.model->prefill(prompt), different);
     request.dtype = D::bf16; request.names = {"emulated", "full"}; request.shares = {1, 1};
-    request.fit_kv = true;
     auto mixed = infer::place_model(weights, {emulated, full}, request, f32);
     require(mixed.model->kv_allocated_bytes() > 0, "dtype placement discarded the fitted KV backing");
     infer::ModelOptions per_device = f32;

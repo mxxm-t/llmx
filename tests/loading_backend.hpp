@@ -28,6 +28,7 @@ struct LoadingBackend : backend::CpuBackend {
     std::shared_ptr<LoadingState> state = std::make_shared<LoadingState>();
     int fail_adopt = 0, fail_alloc = 0, fail_write = 0;
     bool fail_cache = false;
+    backend::CpuBackend kv_owner;
     // It plays a device, whose buffers hide their host bytes, so it copies what it adopts and is not the CPU.
     bool reads_in_place() const override { return false; }
     bool is_cpu() const override { return false; }
@@ -70,6 +71,7 @@ struct LoadingBackend : backend::CpuBackend {
                                                backend::KVType k, backend::KVType v,
                                                const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override {
         if (fail_cache) throw std::runtime_error("injected cache allocation failure");
-        return backend::CpuBackend::kv_alloc(layers, heads, dim, tokens, k, v, auxiliary_widths, auxiliary_pools);
+        // The cache is backed whole as the model is made, in host blocks the CPU's attention reads, which this backend's own buffers wrap.
+        return kv_owner.kv_alloc(layers, heads, dim, tokens, k, v, auxiliary_widths, auxiliary_pools);
     }
 };

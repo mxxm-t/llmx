@@ -114,6 +114,20 @@ struct LayerSplit {
     }
 };
 
+// The request's part of a split's refusals, which no reading of free memory changes: at most 16 devices, and shares, where given, one a device, none negative and not all zero.
+// place_model asks it before fitting the KV budget, so a malformed request is refused as such rather than as a budget that does not fit.
+inline void check_split(size_t devices, const std::vector<int>& shares) {
+    if (devices > 16) throw std::runtime_error("split: more than 16 devices");
+    if (shares.empty()) return;
+    if (shares.size() != devices) throw std::runtime_error("split: " + std::to_string(shares.size()) + " layer shares for " + std::to_string(devices) + " devices");
+    size_t sum = 0;
+    for (int s : shares) {
+        if (s < 0) throw std::runtime_error("split: a negative layer share");
+        sum += (size_t)s;
+    }
+    if (!sum) throw std::runtime_error("split: every layer share is zero");
+}
+
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
@@ -121,7 +135,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
-    if (N > 16) throw std::runtime_error("split: more than 16 devices");
+    check_split(N, shares);
     if (!fp.cache.empty() && fp.cache.size() != L) throw std::logic_error("split: a cache for some layers and not others");
     if (!fp.lookups.empty() && fp.lookups.size() != L) throw std::logic_error("split: a lookup footprint for some layers and not others");
     auto page_bytes = [](size_t bytes) {
@@ -212,14 +226,9 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
 
     std::vector<int> count(N, 0);
     if (!shares.empty()) {
-        if (shares.size() != N) throw std::runtime_error("split: " + std::to_string(shares.size()) + " layer shares for " + std::to_string(N) + " devices");
         // Shares are proportions: each device's layers are its share of the total, rounded so the counts add to the model's layers, the remainders going to the largest fractions first.
         size_t sum = 0;
-        for (int s : shares) {
-            if (s < 0) throw std::runtime_error("split: a negative layer share");
-            sum += (size_t)s;
-        }
-        if (!sum) throw std::runtime_error("split: every layer share is zero");
+        for (int s : shares) sum += (size_t)s;
         std::vector<std::pair<size_t, size_t>> fraction;   // remainder numerator, device
         size_t given = 0;
         for (size_t d = 0; d < N; ++d) {

@@ -1228,7 +1228,7 @@ void checkpoint_fit() {
     infer::PlacementRequest request;
     request.names = {"device 0", "device 1"};
     request.shares = {1, 3};
-    request.fit_kv = request.fit_checkpoints = true;
+    request.fit_checkpoints = true;
     infer::ModelOptions options;
     options.state_slots = 2;
     options.checkpoint_slots = 4;
@@ -1623,7 +1623,7 @@ void drafting_fit() {
     const infer::ModelWeights w = infer::gguf_weights(m);
     infer::PlacementRequest request;
     request.names = {"device 0"};
-    request.fit_kv = request.fit_marks = request.drafter = true;
+    request.fit_marks = request.drafter = true;
     infer::ModelOptions options;
     options.state_slots = 2;
     options.mark_slots = 4;

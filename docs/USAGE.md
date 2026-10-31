@@ -768,6 +768,7 @@ The server fits the budget as it loads: where the devices cannot hold a given
 `--kv-tokens` beside all that, it takes the most whole blocks they hold, and
 it backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server serves.
+Every other model command fits its budget the same way, the model's context or the sequences `bench --model` holds, and backs it whole at load, so no pass grows the cache past what the devices hold.
 A request holds at most the smallest of `--ctx-size`, the model's context and
 the pool, which `/v1/health` gives as `server.request_tokens`.
 `--ctx-size` reads differently for `perplexity`, where it is the scoring window,
@@ -1149,7 +1150,7 @@ The ids are drawn from a fixed seed over the whole vocabulary, as a text's sprea
 `--seqs N` measures decode the way a server runs it: `N` sequences each
 prefilled with the `--p` prompt, then `--n` passes of one token from every
 sequence, reported as `xN tg` in tokens per second over all of them.
-The KV pool is the model context, as for `generate`, and grows to hold the `N` sequences' prompts and tokens at once, each in whole KV blocks, when they need more.
+The KV pool is the model context, as for `generate`, or what the `N` sequences' prompts and tokens take at once, each in whole KV blocks, where that is more; as for every command it is fitted to what the devices hold and backed whole at load.
 
 `--depth N` measures a long context: before every repeat, and outside the
 timer, the history is filled with `N` tokens, and `pp` and `tg` then run on

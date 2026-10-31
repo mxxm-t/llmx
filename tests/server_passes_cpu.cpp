@@ -826,7 +826,6 @@ std::pair<size_t, size_t> fitted_server(const gguf::GGUFModel& weights, const bp
     const size_t seqs = 16, slots = 1;
     infer::PlacementRequest request;
     request.names = {"device"};
-    request.fit_kv = true;
     request.slots = slots;
     request.decode_rows = seqs;
     // Four drafts a request for 16 requests give the 64 draft rows a pass reserves at most.

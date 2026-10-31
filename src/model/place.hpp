@@ -315,13 +315,12 @@ struct PlacementRequest {
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
     // Each history takes whole blocks, up to the model's context, so the budget grows to hold them all where it would not.
     size_t histories = 0, history_tokens = 0;
-    // The KV budget fitted to what the devices hold beside everything else, at most the options' budget, and backed whole at load (fitted_kv); a server's.
-    bool fit_kv = false;
-    // With fit_kv, the budget is every whole block the devices' free memory holds, the drafter and its first mark in the fit, rather than the options' (a server without --kv-tokens).
+    // Every placement fits the KV budget to what the devices hold beside everything else, at most the options' budget, and backs it whole at load (fitted_kv).
+    // With kv_auto the budget is every whole block the devices' free memory holds, the drafter and its first mark in the fit, rather than the options' (a server without --kv-tokens).
     bool kv_auto = false;
-    // With fit_kv, the options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
+    // The options' checkpoint slots are the most the fit gives rather than a number it must hold (fitted_kv).
     bool fit_checkpoints = false;
-    // With fit_kv, the options' mark slots past the first are the most the fit gives, only in the room the KV budget and the checkpoint slots leave (fitted_kv).
+    // The options' mark slots past the first are the most the fit gives, only in the room the KV budget and the checkpoint slots leave (fitted_kv).
     bool fit_marks = false;
     // The file's embedded drafter planned and loaded beside the model (Architecture::plan_drafter, docs/SPECULATIVE.md, section 7).
     bool drafter = false;
@@ -448,10 +447,10 @@ inline constexpr std::chrono::milliseconds kSettleWait{250};
 inline constexpr int kSettleQuiet = 20;
 inline constexpr int kSettleReads = 120;
 
-// Whether a fit of `request` over `backends` waits for their free memory to stay level before reading it: several backends, one reporting free memory, whose layers or KV budget follow it (no shares given, or a fitted budget).
+// Whether a fit of `request` over `backends` waits for their free memory to stay level before reading it: several backends, one reporting free memory, whose layers or automatic KV budget follow it (no shares given, or kv_auto).
 // A fit that holds there does not show a card has given back an ended process's memory, another taking the layers it would hold.
 inline bool level_first(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    if (backends.size() < 2 || (!request.shares.empty() && !request.fit_kv)) return false;
+    if (backends.size() < 2 || (!request.shares.empty() && !request.kv_auto)) return false;
     return std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && !b->is_cpu() && b->memory_available(); });
 }
 
@@ -481,7 +480,7 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
     return std::max(context, blocks * block);
 }
 
-// The options with the KV budget fitted (PlacementRequest::fit_kv): the most whole blocks of the largest size, at most the options' budget, at which the fit of model/layer_split.hpp places the model, refused when not one block fits.
+// The options with the KV budget fitted, as every placement fits it: the most whole blocks of the largest size, at most the options' budget, at which the fit of model/layer_split.hpp places the model, refused when not one block fits.
 // Drafting never lowers it: the drafter, the marks (fit_marks) and then the checkpoint slots (fit_checkpoints, `given_up`, `read`) are fitted beside that budget as docs/SPECULATIVE.md, sections 2 and 3 give.
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
@@ -504,7 +503,10 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     // The no-drafter fit reads the plan without the embedded drafter, whose roles, cache and arena slots only drafting takes.
     const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
     const ModelPlan* fitting = &bare_plan;
-    std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
+    // A request over one device may leave it unnamed; a split names every device (budgets_for).
+    std::vector<std::string> names = request.names;
+    if (names.empty() && backends.size() == 1) names.push_back("device");
+    std::vector<DeviceBudget> budgets = budgets_for(backends, names);
     const size_t rows = fitted_rows(request);
     const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
@@ -570,7 +572,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         options.mark_slots = was_marks;
         return ok;
     };
-    settle(budgets, backends, request.names, whole, level_first(backends, request));
+    settle(budgets, backends, names, whole, level_first(backends, request));
     // The automatic budget: searched up to what the settled free memory holds at a token's KV bytes, with the drafter and its first mark in the fit (docs/CACHE-PLAN.md, section 7), so it never leaves the drafter no room.
     if (fills) {
         if (drafter || most_marks) {
@@ -593,6 +595,16 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         if (kept_context && !per_token) *kept_context = "the model keeps no KV that grows with the pool";
     }
     size_t tokens = most();
+    // Where not one block fits beside the hot rows of tables read from their files, those tables hold none and read every row from the file, as the lookup choice in place_model would leave them.
+    if (!tokens) {
+        bool held_rows = false;
+        for (const TensorView& t : weights.tensors)
+            if (t.row_source && t.row_source->store_bytes()) {
+                t.row_source->hold(0);
+                held_rows = true;
+            }
+        if (held_rows) tokens = most();
+    }
     // Then the checkpoint slots, by bisection, since each more slot only adds to what a device holds: the most at which the placement holds three quarters of the blocks it holds without them, none where even one does not fit.
     const size_t bare = tokens;
     if (choose && tokens) {
@@ -727,8 +739,9 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     }
     // A table the request puts on the devices reads nothing from its file, so only the others hold rows.
     if (request.lookup_storage != LookupStorage::device) hold_rows(plan, candidates, request.host_budget);
-    // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards.
+    // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards, and so is a malformed split.
     shard::check_plan(plan, weights.tensors, request.width);
+    check_split(backends.size() / request.width, request.shares);
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))
@@ -775,11 +788,10 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
                     }
         host_experts = backend::size_mul(backend::blocks_for(host_experts, core::page_size()), core::page_size());
     }
-    // A fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
+    // The fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
-    if (request.fit_kv)
-        options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
-                            &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr);
+    options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
+                        &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr);
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
     std::vector<std::string> names = request.names;
@@ -847,13 +859,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             }
             return without_rows();
         };
-        if (!request.fit_kv) {
-            std::vector<std::string> fit_names = request.names;
-            if (fit_names.empty())
-                for (size_t i = 0; i < backends.size(); ++i) fit_names.push_back("device " + std::to_string(i));
-            budgets = budgets_for(backends, fit_names);
-            settle(budgets, backends, fit_names, initial_fit, level_first(backends, request));
-        } else initial_fit();
+        initial_fit();
         if (!selected)
             throw std::runtime_error("placement: lookup storage " + std::string(lookup_storage_name(request.lookup_storage)) +
                                      " does not fit beside the KV budget of " + std::to_string(kv_tokens(plan, options)) + " tokens (" + why + ")");
@@ -891,14 +897,8 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
                 return false;
             }
         };
-        if (selected) {
-            split = selected;
-        } else if (request.fit_kv) {
-            fit();
-        } else {
-            budgets = budgets_for(backends, request.names);
-            settle(budgets, backends, request.names, fit, level_first(backends, request));
-        }
+        if (selected) split = selected;
+        else fit();
         if (!split) std::rethrow_exception(refused);
         placed.placement = placement_for(*split, request.width);
         placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)));

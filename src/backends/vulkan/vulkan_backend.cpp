@@ -1765,6 +1765,23 @@ private:
     uint32_t chunk_limit_ = kFirstChunk;
     Ticket dispatched_ = 0;
     bool unordered_ = false;   // barriers left out (unordered)
+    // While unordered an op still orders its own steps, and every step what it reads or writes of the scratch the backend keeps across calls (order_step).
+    int op_depth_ = 0;                  // op calls recording, one inside another
+    size_t op_steps_ = 0;               // steps the outermost op call has recorded
+    std::vector<VkBuffer> scratch_read_, scratch_written_;   // scratch used since the last barrier
+    // One op call: while unordered, each step after its first waits for the steps before it.
+    struct OpSteps {
+        VulkanBackend& b;
+        explicit OpSteps(VulkanBackend& owner) : b(owner) {
+            if (b.op_depth_++ == 0) b.op_steps_ = 0;
+        }
+        ~OpSteps() { --b.op_depth_; }
+        OpSteps(const OpSteps&) = delete;
+        OpSteps& operator=(const OpSteps&) = delete;
+    };
+    static constexpr size_t kMaxBuffers = 32;   // the most buffers a kernel binds, which order_step's uses hold
+    bool is_scratch(VkBuffer h) const;
+    void order_step(VkCommandBuffer cmd, const std::pair<VkBuffer, bool>* uses, size_t n);
     static constexpr size_t kStagingBytes = size_t(64) << 20;
     static constexpr size_t kArenaBytes = size_t(1) << 20;
     static constexpr uint32_t kPushBytes = 128;
@@ -1851,6 +1868,8 @@ private:
                            VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         const VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         dev_->fn.vkCmdPipelineBarrier(cmd, stages, stages, 0, 1, &mb, 0, nullptr, 0, nullptr);
+        scratch_read_.clear();
+        scratch_written_.clear();
     }
 
     VulkanBuffer& staging();

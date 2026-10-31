@@ -163,6 +163,10 @@ inline void VulkanBackend::copy(Buffer& dst_b, size_t dst_off, const Buffer& src
     if (!bytes) return;
     VkCommandBuffer cmd = open();
     if (!unordered_) barrier(cmd);
+    else {
+        const std::pair<VkBuffer, bool> uses[2] = {{src.handle(), false}, {dst.handle(), true}};
+        order_step(cmd, uses, 2);
+    }
     VkBufferCopy region{src_off, dst_off, bytes};
     dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
     if (!unordered_) barrier(cmd);

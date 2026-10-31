@@ -66,6 +66,7 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
 }
 
 inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+    const OpSteps steps(*this);
     const MoeBuild* build = moe_build(m, nin, rows, runs, dtype);
     if (!build) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
     const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows, entries = rows * k, E = nin;

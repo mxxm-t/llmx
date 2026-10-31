@@ -110,6 +110,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
     // The kernels' limit; no caller passes more.
     if (count > 3) throw std::logic_error("vulkan: a matmul call of more than three projections");
     if (!nbatch) return;
+    const OpSteps steps(*this);
     std::vector<const Projection*> live;
     for (size_t i = 0; i < count; ++i)
         if (projections[i].rows) live.push_back(&projections[i]);
@@ -494,6 +495,7 @@ inline void VulkanBackend::matmul_experts(std::initializer_list<Projection> proj
                                           const Routing& routing, RowRuns runs, Dtype dtype) {
     const size_t k = routing.k, entries = nrows * k;
     if (!entries || !projections.size()) return;
+    const OpSteps steps(*this);
     if (projections.size() > 3) throw std::logic_error("vulkan: more than three routed projections");
     for (const Projection& pr : projections) {
         check_matrix(pr.weight.type, pr.weight.data, nin, size_mul(routing.n_expert, pr.rows));
@@ -517,6 +519,7 @@ inline void VulkanBackend::matmul_experts_add(WeightView weight, CSlice X, Slice
     const uint32_t type = weight.type;
     const size_t k = routing.k, entries = nrows * k;
     if (!entries) return;
+    const OpSteps steps(*this);
     check_matrix(type, weight.data, nin, size_mul(routing.n_expert, nout));
     check_weight_scales(weight, routing.n_expert);
     if (floats_from(X) < entries * nin || floats_from(Y) < nrows * nout || floats_from(routing.ids) < entries ||

@@ -2149,7 +2149,8 @@ int unordered_checks() {
         for (size_t blk = 0; blk < rows * (nin / 32); ++blk) { w[blk * quant::Q8_0_TYPESIZE] = 0x00; w[blk * quant::Q8_0_TYPESIZE + 1] = 0x20; }
         return b.adopt(w.data(), w.size());
     };
-    struct Case { const char* name; std::function<void(OrderCalls&, std::vector<VkBuffer>&)> run; };
+    // `barriers`, where not -1, the barriers the case's commands must have between them, so ordering costs no more overlap than it needs.
+    struct Case { const char* name; std::function<void(OrderCalls&, std::vector<VkBuffer>&)> run; int barriers = -1; };
     const size_t nin = 1024, nout = 512, rows = 96, experts = 16, k = 2;
     const backend::RowRun prompt{rows, rows};
     const std::vector<Case> cases = {
@@ -2219,6 +2220,10 @@ int unordered_checks() {
              auto u = b.alloc(layers * n * C * sizeof(float), backend::Memory::device), out = b.alloc(layers * n * Hv * Dv * sizeof(float), backend::Memory::device);
              callers = {handle(raw), handle(w), handle(ab), handle(a), handle(dt), handle(u), handle(out)};
              for (size_t l = 0; l < layers; ++l) callers.push_back(backend::as_vulkan(st->layer(l)).handle());
+             b.unordered(false);
+             b.sync();
+             o.restart();
+             b.unordered(true);
              for (size_t l = 0; l < layers; ++l) {
                  o.call = int(1 + l);
                  b.causal_conv_silu({u.get(), l * n * C}, {raw.get(), l * n * C}, {w.get(), 0}, l, views, 2);
@@ -2231,7 +2236,23 @@ int unordered_checks() {
                                     {a.get(), 0}, {dt.get(), 0}, l, views, 2);
              }
              b.sync();
-         }},
+         }, 1},
+        {"two decode products of one X whose twin its producer made before the region", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             auto w1 = q8(nin, nout), w2 = q8(nin, nout), src = filled(nin, 31), nw = filled(nin, 32);
+             auto x = b.alloc(nin * sizeof(float), backend::Memory::device), y1 = b.alloc(nout * sizeof(float), backend::Memory::device), y2 = b.alloc(nout * sizeof(float), backend::Memory::device);
+             const backend::RowRun one{1, 1};
+             b.unordered(false);
+             b.rms_norm_rows({x.get(), 0}, {src.get(), 0}, {nw.get(), 0}, 1, nin, nin, 1e-6f, {&one, 1});
+             b.sync();
+             o.restart();
+             b.unordered(true);
+             callers = {handle(w1), handle(w2), handle(src), handle(nw), handle(x), handle(y1), handle(y2)};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w1.get(), 0}}, {x.get(), 0}, {y1.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::f16);
+             o.call = 2;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w2.get(), 0}}, {x.get(), 0}, {y2.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::f16);
+             b.sync();
+         }, 0},
         {"the state rerun of a layer with a dilated conv beside its causal one", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
              const backend::StateShape sh{2, 4, 64, 64};
              const size_t C = sh.channels(), n = 7, channels = 128, taps = 4, dilation = 2;
@@ -2338,6 +2359,7 @@ int unordered_checks() {
     for (const Case& c : cases) {
         std::vector<VkBuffer> callers;
         std::vector<std::string> found;
+        int barriers = 0;
         {
             OrderCalls o(b);
             b.unordered(true);
@@ -2345,7 +2367,10 @@ int unordered_checks() {
             o.call = 0;
             b.unordered(false);
             found = o.hazards(b, callers);
+            for (size_t i = 1; i < o.commands.size(); ++i) barriers += o.commands[i].barrier_before;
         }
+        if (c.barriers >= 0 && barriers != c.barriers)
+            found.push_back(std::to_string(barriers) + " barriers between its commands, not " + std::to_string(c.barriers));
         for (const std::string& h : found) std::cout << "  " << h << "\n";
         std::cout << "unordered: " << c.name << (found.empty() ? " PASS\n" : " FAIL\n");
         if (!found.empty()) ++failures;

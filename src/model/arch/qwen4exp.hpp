@@ -76,22 +76,27 @@ struct MixScratch {
 };
 
 // Learned mixing of the normalized streams, shared by the attention, expert and final-head inputs.
-inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Slice out, const MixScratch& tmp) {
+// A part's inject gates, read from the same normed streams, are made beside the down product into their own slot (inject).
+inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Slice out, const MixScratch& tmp,
+                const Weight* inject = nullptr, backend::Slice inject_gates = {}) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count), L = size_t(c.hc_low_rank);
     s.b.group_rms_norm(tmp.normed, s.x, w.norm.slice(), s.rows, H, E, c.rms_eps, s.runs);
+    // The two products read the normed streams and write slots of their own (Backend::unordered).
+    if (inject) s.b.unordered(true);
     s.b.matmul(w.down.operand(), tmp.normed, tmp.low, H * E, L, s.rows, s.runs, s.dtype);
+    if (inject) {
+        s.b.matmul(inject->operand(), tmp.normed, inject_gates, H * E, H, s.rows, s.runs, s.dtype);
+        s.b.unordered(false);
+    }
     s.b.silu_scaled(tmp.low, tmp.low, s.rows, L, 1.0f / float(H), s.runs);
     s.b.matmul(w.up.operand(), tmp.low, tmp.gates, L, H * E, s.rows, s.runs, s.dtype);
     s.b.mix_streams(out, tmp.normed, tmp.gates, s.rows, H, E, s.runs);
 }
 
-// A part's block added into the residual streams, weighted by gates from the normed streams.
-// On a group the block is the member's partial rows: the gates are made here, and the inject waits for the group's sum (Qwen4Exp::join).
-inline void inject(const Config& c, const Step& s, const Weight& w, backend::CSlice normed,
-                   backend::CSlice block, backend::Slice gates) {
-    const size_t E = size_t(c.n_embd), H = size_t(c.hc_count);
-    s.b.matmul(w.operand(), normed, gates, H * E, H, s.rows, s.runs, s.dtype);
-    if (s.width == 1) s.b.inject_streams(s.x, block, gates, s.rows, H, E);
+// A part's block added into the residual streams, weighted by the gates its mix made from the normed streams.
+// On a group the block is the member's partial rows, and the inject waits for the group's sum (Qwen4Exp::join).
+inline void inject(const Config& c, const Step& s, backend::CSlice block, backend::CSlice gates) {
+    if (s.width == 1) s.b.inject_streams(s.x, block, gates, s.rows, size_t(c.hc_count), size_t(c.n_embd));
 }
 
 inline std::vector<uint64_t> uint64_array(const gguf::GGUFModel& m, const std::string& key, size_t expected) {
@@ -569,7 +574,7 @@ enum Slot : size_t {
     residual, mixed, raw, conv, value_gate, alpha_beta, recurrent,
     expert_gate, expert_up, expert_act, scores, expert_ids, expert_weights, shared_gate,
     hc_normed, hc_low, hc_gates, block_output, query, index_query, index_key, selected,
-    ple_embeddings, ple_keys, ple_values, ple_queries, ple_gated, ple_normed, ple_output
+    ple_embeddings, ple_keys, ple_values, ple_queries, ple_gated, ple_normed, ple_output, hc_inject
 };
 
 inline std::vector<size_t> slot_widths(const Config& c) {
@@ -583,7 +588,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
             std::max(size_t(1), size_t(c.indexer_n_heads) * size_t(c.indexer_head_dim)),
             std::max(size_t(1), size_t(c.indexer_head_dim)),
             std::max(size_t(1), size_t(c.indexer_budget) + size_t(std::max({c.indexer_compress_ratio, c.nextn_compress_ratio, 1}) - 1)),
-            std::max(size_t(1), size_t(c.ple_embedding_dim)), R, E, R, R, R, R};
+            std::max(size_t(1), size_t(c.ple_embedding_dim)), R, E, R, R, R, R, size_t(c.hc_count)};
 }
 
 class Qwen4Exp final : public Architecture {
@@ -691,16 +696,16 @@ public:
 
     void mixer(const Step& s) const override {
         if (s.kind == ple_kind) apply_ple(s);
-        mix(cfg_, s, {s.w[hc_attn_norm], s.w[hc_attn_down], s.w[hc_attn_up]}, s.slot(mixed), mix_scratch(s));
+        mix(cfg_, s, {s.w[hc_attn_norm], s.w[hc_attn_down], s.w[hc_attn_up]}, s.slot(mixed), mix_scratch(s), &s.w[hc_attn_inject], s.slot(hc_inject));
         Step block = s;
         block.x = s.width > 1 ? s.partial : s.slot(block_output);
         if (s.kind == qsa_kind || s.kind == mtp_qsa_kind || s.kind == dense_kind) sparse_attention(block);
         else linear_attention(block);
-        inject(cfg_, s, s.w[hc_attn_inject], s.slot(hc_normed), block.x, s.slot(hc_gates));
+        inject(cfg_, s, block.x, s.slot(hc_inject));
     }
 
     void ffn(const Step& s) const override {
-        mix(cfg_, s, {s.w[hc_ffn_norm], s.w[hc_ffn_down], s.w[hc_ffn_up]}, s.slot(mixed), mix_scratch(s));
+        mix(cfg_, s, {s.w[hc_ffn_norm], s.w[hc_ffn_down], s.w[hc_ffn_up]}, s.slot(mixed), mix_scratch(s), &s.w[hc_ffn_inject], s.slot(hc_inject));
         Step block = s;
         block.x = s.width > 1 ? s.partial : s.slot(block_output);
         // The expert products accumulate from zero into the block, a member's partial rows on a group.
@@ -710,12 +715,12 @@ public:
         blocks::moe_step(block, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used), cfg_.expert_norm,
                          s.slot(mixed), s.slot(expert_gate), s.slot(expert_up), s.slot(expert_act), s.slot(scores), s.slot(expert_ids), s.slot(expert_weights),
                          &shared, s.slot(shared_gate), s.tables[2].get());
-        inject(cfg_, s, w[hc_ffn_inject], s.slot(hc_normed), block.x, s.slot(hc_gates));
+        inject(cfg_, s, block.x, s.slot(hc_inject));
     }
 
-    // On a group, the summed block of the part just run, injected with the gates that part left in hc_gates.
+    // On a group, the summed block of the part just run, injected with the gates that part left in hc_inject.
     void join(const Step& s) const override {
-        s.b.inject_streams(s.x, s.partial, s.slot(hc_gates), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+        s.b.inject_streams(s.x, s.partial, s.slot(hc_inject), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
 
     void head(const HeadStep& s) const override {
@@ -830,7 +835,7 @@ private:
     Config cfg_;
     uint32_t vocab_;
 
-    static constexpr size_t draft_slot() { return ple_output + 1; }
+    static constexpr size_t draft_slot() { return hc_inject + 1; }
 
     // Normalize the token once and each raw hidden stream separately, then project each [token; hidden] pair with one shared weight.
     void draft_input(const Step& s) const {
@@ -1017,9 +1022,12 @@ private:
         const Weight* w = s.w;
         const size_t E = size_t(cfg_.n_embd), Hv = w[ssm_alpha].nout;
         const backend::Slice alpha = s.slot(alpha_beta), beta{alpha.buffer, alpha.offset + s.rows * Hv};
+        // The input products read the mixed rows and write slots of their own (Backend::unordered).
+        s.b.unordered(true);
         s.b.matmul(w[attn_qkv].operand(), s.slot(mixed), s.slot(raw), E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
         s.b.matmul_group({blocks::projection(w[attn_gate], s.slot(value_gate)), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
                          s.slot(mixed), E, s.rows, s.runs, s.dtype);
+        s.b.unordered(false);
         // PLE has already updated its separate tail.
         // Calling only the GDN phases here avoids advancing that convolution twice in a forward.
         s.b.causal_conv_silu(s.slot(conv), s.slot(raw), w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
@@ -1058,11 +1066,14 @@ private:
         const size_t E = size_t(cfg_.n_embd), D = size_t(cfg_.head_dim), H = w[attn_q].nout / (2 * D), HK = w[attn_k].nout / D;
         const size_t I = size_t(cfg_.indexer_head_dim), IH = size_t(cfg_.indexer_n_heads), R = size_t(cfg_.rope_dim);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
+        // The input products read the mixed rows and write slots of their own (Backend::unordered).
+        s.b.unordered(true);
         s.b.matmul_group({blocks::projection(w[attn_q], s.slot(raw)), blocks::projection(w[attn_k], s.slot(conv)),
                           blocks::projection(w[attn_v], s.slot(value_gate))}, s.slot(mixed), E, s.rows, s.runs, s.dtype);
         if (s.kind != dense_kind)
             s.b.matmul_group({blocks::projection(w[index_q], s.slot(index_query)),
                               blocks::projection(w[index_k], s.slot(index_key))}, s.slot(mixed), E, s.rows, s.runs, s.dtype);
+        s.b.unordered(false);
         s.b.norm_rope_partial(s.slot(query), s.slot(raw), s.rows, 2 * H * D, 2 * D, H, D, R,
                               w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, R,

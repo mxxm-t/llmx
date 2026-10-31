@@ -1,5 +1,6 @@
 #pragma once
 // VulkanBackend's dispatch: storage bindings, kernel pipelines made on first use, and one recorded dispatch; vulkan_backend.cpp includes it after the class.
+#include <array>
 #include <initializer_list>
 #include <stdexcept>
 #include <vector>
@@ -20,6 +21,25 @@ inline VkDescriptorBufferInfo VulkanBackend::bind(CSlice s) {
 }
 
 inline VkDescriptorBufferInfo VulkanBackend::bind(Slice s) { return bind(CSlice(s)); }
+
+// The buffers the backend keeps across calls: twins, partial sums, groupings and split states.
+inline bool VulkanBackend::is_scratch(VkBuffer h) const {
+    auto is = [h](const std::shared_ptr<VulkanBuffer>& b) { return b && b->handle() == h; };
+    for (const Twin& t : twins_)
+        if (is(t.buffer)) return true;
+    return is(parts_) || is(scratch_) || is(moe_out_) || is(moe_tab_) || is(moe_count_) || is(argmax_parts_) || is(select_state_) || is(mx_copy_);
+}
+
+// While unordered, a barrier before a step that follows another of its op call, or that uses scratch written, or writes scratch used, since the last barrier; a caller's buffers across calls are its own promise (Backend::unordered).
+inline void VulkanBackend::order_step(VkCommandBuffer cmd, const std::pair<VkBuffer, bool>* uses, size_t n) {
+    auto has = [](const std::vector<VkBuffer>& v, VkBuffer h) { return std::find(v.begin(), v.end(), h) != v.end(); };
+    bool wait = op_depth_ > 0 && op_steps_++ > 0;
+    for (size_t i = 0; !wait && i < n; ++i)
+        wait = has(scratch_written_, uses[i].first) || (uses[i].second && has(scratch_read_, uses[i].first));
+    if (wait) barrier(cmd);
+    for (size_t i = 0; i < n; ++i)
+        if (is_scratch(uses[i].first)) (uses[i].second ? scratch_written_ : scratch_read_).push_back(uses[i].first);
+}
 
 inline void VulkanBackend::destroy_kernel(Kernel& k) noexcept {
     Device& d = *dev_;
@@ -148,6 +168,14 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
                 forget_written(b.buffer, b.offset, floats ? b.offset + floats * sizeof(float) : VK_WHOLE_SIZE);
             }
     VkCommandBuffer cmd = open();
+    if (unordered_) {
+        std::array<std::pair<VkBuffer, bool>, kMaxBuffers> uses;
+        if (buffers.size() > uses.size()) throw std::logic_error("vulkan: a kernel of more buffers than order_step holds");
+        size_t e = 0;
+        for (uint32_t i = 0; i < src.bindings; ++i)
+            for (uint32_t j = 0; j < (src.counts ? src.counts[i] : 1); ++j, ++e) uses[e] = {buffers.begin()[e].buffer, (written >> i & 1) != 0};
+        order_step(cmd, uses.data(), e);
+    }
     std::vector<VkWriteDescriptorSet> writes(k.bindings);
     const VkDescriptorBufferInfo* next = buffers.begin();
     for (uint32_t i = 0; i < k.bindings; ++i) {

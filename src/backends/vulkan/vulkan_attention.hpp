@@ -126,6 +126,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         throw std::runtime_error("vulkan: invalid attention dimensions");
     std::vector<Placed> placed = place_views(views, n_views);
     if (placed.empty()) return;
+    const OpSteps steps(*this);
     // A call's views are causal or not alike; non-causal ones, a vision encoder's, take the per-row kernel's full build over f32 caches.
     const bool full = !placed.front().view->causal;
     for (const Placed& pv : placed) {

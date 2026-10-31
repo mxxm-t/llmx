@@ -294,7 +294,7 @@ MixRun run_mix(Backend& b, const infer::qwen4exp::Config& c, const Json& state, 
     const backend::RowRun run{rows, rows};
     Step s = step(b, x, rows, run, 1);
     MixScratch scratch{{normed.get(), 0}, {low.get(), 0}, {gates.get(), 0}};
-    mix(c, s, MixWeights{norm, down, up}, Slice{out.get(), 1}, scratch);
+    mix(c, s, MixWeights{norm, down, up}, Slice{out.get(), 1}, scratch, &inject_weight, Slice{inj_gates.get(), 0});
     MixRun result;
     result.mixed = download(b, *out, rows * E, 1);
     check_guards(b, *out, rows * E, guard, "HC mix");
@@ -308,7 +308,7 @@ MixRun run_mix(Backend& b, const infer::qwen4exp::Config& c, const Json& state, 
     for (size_t i = 0; i < block.size(); ++i)
         block[i] = 0.025f * std::sin(float(i) * 0.17f) + 0.009f * std::cos(float(i) * 0.071f);
     BufferPtr block_buf = upload(b, block);
-    inject(c, s, inject_weight, CSlice{normed.get(), 0}, CSlice{block_buf.get(), 0}, Slice{inj_gates.get(), 0});
+    inject(c, s, CSlice{block_buf.get(), 0}, CSlice{inj_gates.get(), 0});
     result.injected = download(b, *x, test.streams.size() + 2);
     return result;
 }

@@ -91,12 +91,15 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
 - Draft-position acceptance uses kept / reached when the server reports source
   counters. A position is reached only when the earlier drafts were kept.
   The source selector shows the MTP head and lookup match-length groups, or
-  their combined counts. A star and striped bar mark fewer than 20 reached
-  drafts, without changing the denominator. Zero reached drafts show `--`.
+  their combined counts. Striped bars mark fewer than 20 reached
+  drafts, without changing the denominator. Zero reached drafts are unavailable.
   Older servers without source counters show explicitly labeled kept / drafted.
-  Blue bars show relative draft counts on a logarithmic scale. Select a position
-  to pin its counts across updates. Escape dismisses it. Focus and chart scroll
-  position survive refreshes, and changing source clears the pinned position.
+  Positions share a continuous chart with a fixed height and a 0-100% scale.
+  Select a bar or use the position slider to pin exact counts across updates.
+  Arrow keys move between bars, Home and End select the endpoints, and Escape
+  dismisses inspection. Focus survives refreshes, and changing source clears
+  the pinned position. Small samples keep striped bars, with their counts in
+  the inspection tooltip.
 - Missing metrics remain unavailable. Upstream failure keeps the last good
   snapshot with a stale indication. Server resets and counter decreases break
   derived rates instead of creating negative spikes.

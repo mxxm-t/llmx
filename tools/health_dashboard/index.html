@@ -755,23 +755,44 @@ p {
 .position-wrap {
   position: relative
 }
-.position-pct {
-  display: block;
-  height: 17px;
-  white-space: nowrap;
-  color: var(--text);
-  font-variant-numeric: tabular-nums
-}
 .position-chart {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--col, 38px), 1fr));
-  gap: 12px 4px
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 180px;
+  margin: 14px 0 0 34px;
+  background: linear-gradient(to top, transparent 23px, var(--line) 23px 24px,
+    transparent 24px 99px, var(--line) 99px 100px, transparent 100px 175px,
+    var(--line) 175px 176px, transparent 176px)
 }
-.position-chart.capped {
-  max-height: 540px;
-  overflow-y: auto
+.position-axis {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 164px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px
+}
+.position-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px
+}
+.position-selector input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  accent-color: var(--cyan)
 }
 .position {
+  flex: 1;
+  max-width: 64px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -784,10 +805,10 @@ p {
   cursor: pointer
 }
 .position-track {
-  height: 30px;
+  height: 152px;
   border-bottom: 1px solid var(--line);
   position: relative;
-  margin-bottom: 2px
+  margin-bottom: 8px
 }
 .position.on .position-track i {
   background: var(--cyan)
@@ -799,19 +820,6 @@ p {
   right: 0;
   background: #5bc5ba;
   border-radius: 2px 2px 0 0
-}
-.position-depth {
-  height: 3px;
-  background: var(--line);
-  position: relative;
-  margin-bottom: 3px
-}
-.position-depth i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  background: var(--blue)
 }
 .position-sources {
   display: inline-flex;
@@ -855,7 +863,7 @@ p {
   display: block;
   height: 16px;
   white-space: nowrap;
-  overflow: hidden
+  overflow: visible
 }
 .own-history-chart {
   padding: 8px 0 2px
@@ -3649,7 +3657,6 @@ function drawPositions(raw) {
   const target = $('positions');
   const focused = target.contains(document.activeElement) ? document.activeElement.dataset.position: null;
   const visible = target.querySelector('.tooltip')?.style.display === 'block';
-  const scrollTop = target.querySelector('.position-chart')?.scrollTop || 0;
   target.replaceChildren();
   if (positionsFit) positionsFit.disconnect();
   positionsFit = null;
@@ -3680,10 +3687,21 @@ function drawPositions(raw) {
     return
   }
   const cells = [];
-  const most = Math.max(1, ...columns.map(b => b.drafted));
   const wrap = element('div', 'position-wrap');
   const chart = element('div', 'position-chart');
   const tooltip = element('div', 'tooltip');
+  const axis = element('div', 'position-axis');
+  axis.setAttribute('aria-hidden', 'true');
+  for (const value of ['100%', '50%', '0%']) axis.append(element('span', '', value));
+  const selectorLabel = element('label', 'position-selector');
+  selectorLabel.append(document.createTextNode('Inspect position'));
+  const selector = element('input');
+  selector.type = 'range';
+  selector.min = '1';
+  selector.max = String(columns.length);
+  selector.value = '1';
+  selector.dataset.position = 'selector';
+  selectorLabel.append(selector);
   let pinned = null, shown = null;
   const hide = () => {
     tooltip.style.display = 'none';
@@ -3693,6 +3711,8 @@ function drawPositions(raw) {
   const show = (b, cell) => {
     if (shown) shown.cell.classList.remove('on');
     shown = {b, cell};
+    selector.value = String(cells.indexOf(cell) + 1);
+    selector.setAttribute('aria-valuetext', 'Position ' + b.label);
     cell.classList.add('on');
     const r = ratio(b.kept, b.base);
     tooltip.replaceChildren(element('strong', '', 'Position ' + b.label));
@@ -3708,9 +3728,8 @@ function drawPositions(raw) {
     tooltip.style.display = 'block';
     const w = wrap.getBoundingClientRect(), c = cell.getBoundingClientRect();
     tooltip.style.left = Math.max(2, Math.min(w.width - tooltip.offsetWidth - 2, c.left - w.left + c.width / 2 - tooltip.offsetWidth / 2)) + 'px';
-    tooltip.style.top = Math.max(2, Math.min(w.height - tooltip.offsetHeight - 2, c.bottom - w.top + 6)) + 'px'
+    tooltip.style.top = '4px'
   };
-  const pctText = b => ratio(b.kept, b.base) === null ? '--': percentage(b.kept, b.base) + (b.thin ? '*' : '');
   for (const b of columns) {
     const r = ratio(b.kept, b.base);
     const item = element('button', r === null ? 'position empty': b.thin ? 'position thin': 'position');
@@ -3721,11 +3740,7 @@ function drawPositions(raw) {
     const bar = element('i');
     bar.style.height = (r === null ? 0: Math.max(0, Math.min(100, r * 100))) + '%';
     track.append(bar);
-    const depth = element('div', 'position-depth');
-    const depthBar = element('i');
-    depthBar.style.width = (b.drafted > 0 ? Math.max(3, Math.log1p(b.drafted) / Math.log1p(most) * 100): 0) + '%';
-    depth.append(depthBar);
-    item.append(element('span', 'position-pct', pctText(b)), track, depth, element('span', 'position-label', ''));
+    item.append(track, element('span', 'position-label', ''));
     item.addEventListener('mouseenter', () => { if (pinned === null) show(b, item) });
     item.addEventListener('focus', () => { if (pinned === null) show(b, item) });
     item.addEventListener('mouseleave', () => { if (pinned === null) hide() });
@@ -3739,48 +3754,44 @@ function drawPositions(raw) {
     cells.push(item);
     chart.append(item)
   }
-  chart.addEventListener('keydown', event => { if (event.key === 'Escape') { pinned = null; delete target.dataset.pinned; hide() } });
-  wrap.append(chart, tooltip);
-  // Keep percentages readable and wrap long draft histories into rows.
-  const minimum = 52;
-  const gap = 4;
+  wrap.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { pinned = null; delete target.dataset.pinned; hide() }
+    const index = cells.indexOf(event.target);
+    if (index >= 0 && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? cells.length - 1 :
+        Math.max(0, Math.min(cells.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1)));
+      pinned = cells[next];
+      target.dataset.pinned = columns[next].label;
+      cells[next].focus({preventScroll: true});
+      show(columns[next], cells[next])
+    }
+  });
+  selector.addEventListener('input', () => {
+    const index = Number(selector.value) - 1;
+    pinned = cells[index];
+    target.dataset.pinned = columns[index].label;
+    show(columns[index], cells[index])
+  });
+  wrap.append(axis, chart, tooltip, selectorLabel);
   const fit = () => {
-    const room = wrap.clientWidth;
-    let width = 60, perRow = columns.length;
-    if (room > 0) {
-      const rows = Math.ceil(columns.length / Math.max(1, Math.floor((room + gap) / (minimum + gap))));
-      perRow = Math.ceil(columns.length / rows);
-      width = rows === 1 ? Math.min(60, (room - gap * (perRow - 1)) / perRow): (room - gap * (perRow - 1)) / perRow;
-      chart.style.gridTemplateColumns = 'repeat(' + perRow + ', ' + (rows === 1 ? Math.floor(width) + 'px': 'minmax(0, 1fr)') + ')'
-    }
-    // Long histories scroll in whole rows.
-    chart.classList.remove('capped');
-    chart.style.maxHeight = '';
-    if (chart.scrollHeight > 540) {
-      const rowHeight = cells[0].getBoundingClientRect().height;
-      const rowGap = parseFloat(getComputedStyle(chart).rowGap);
-      chart.style.maxHeight = (Math.floor((540 + rowGap) / (rowHeight + rowGap)) * (rowHeight + rowGap) - rowGap) + 'px';
-      chart.classList.add('capped')
-    }
-    scrollHint.hidden = !chart.classList.contains('capped');
-    // Every column has its position label.
+    chart.style.gap = Math.min(2, chart.clientWidth / (columns.length * 3)) + 'px';
+    const step = Math.max(1, Math.ceil(columns.length / Math.max(1, chart.clientWidth / 40)));
     columns.forEach((b, i) => {
-      cells[i].lastChild.textContent = b.label
+      cells[i].lastChild.textContent = i === 0 || i === columns.length - 1 ||
+        ((i + 1) % step === 0 && i >= step / 2 && columns.length - 1 - i >= step / 2) ? b.label : ''
     })
   };
-  const scrollHint = element('p', 'position-legend', 'Scroll inside the chart to see all ' + columns.length + ' positions.');
-  scrollHint.hidden = true;
-  target.append(wrap, scrollHint, element('p', 'position-legend', bySource ?
-    'Acceptance = kept / reached at each position. * Fewer than ' + POSITION_THIN + ' reached. Blue bars show draft counts on a log scale. Select a position for counts.':
-    'Acceptance = kept / drafted at each position (legacy counters). Blue bars show draft counts on a log scale. Select a position for counts.'));
+  target.append(wrap, element('p', 'position-legend', bySource ?
+    'Acceptance = kept / reached. Striped bars have fewer than ' + POSITION_THIN + ' reached. Select a bar or use the slider for exact counts.':
+    'Acceptance = kept / drafted (legacy counters). Select a bar or use the slider for exact counts.'));
   fit();
-  chart.scrollTop = scrollTop;
   const selected = cells.find(c => c.dataset.position === target.dataset.pinned);
   if (selected) {
     pinned = selected;
     show(columns[cells.indexOf(selected)], selected)
   } else delete target.dataset.pinned;
-  const restoreFocus = cells.find(c => c.dataset.position === focused);
+  const restoreFocus = focused === 'selector' ? selector : cells.find(c => c.dataset.position === focused);
   if (restoreFocus) {
     restoreFocus.focus({preventScroll: true});
     if (!visible && !selected) hide()

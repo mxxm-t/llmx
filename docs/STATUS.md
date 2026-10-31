@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Compact draft-position chart (2026-10-31, XDEV)
+
+- **Goal:** replace the tall wrapped position grid with one compact chart, as BOSS requested after the first UI revision. Other panels stay unchanged.
+- **Done:** one 180-pixel-high chart replaces the wrapped grid, with a percentage axis and sparse position labels. Exact counts are available from bars or the touch slider. Keyboard arrows and Home/End select positions. Source filtering, pinned details and focus survive refresh. Seven focused UI tests pass on rig Chromium, including 20 drafting checks at each desktop/phone width and a 256-position fixture. Live-data checks at 1440, 1024 and 390 pixels retain inspection across polling with no overflow or browser errors. The unused grid, depth bars and hidden percentage labels are removed. The dashboard README describes the new interaction.
+- **Landing:** syntax, docs (zero findings, 21 planted faults) and dead-code (eight listed findings, 19 planted faults) pass. Static HTML deployed at 21:59 UTC with the collector and inference processes kept running. Production inspection retains pin and focus across polling. The tested presentation change lands by fast-forward from d1212c14a. No runtime or collector changes and no inference tests apply.
+- **Gotchas:** keep the source selector, consistent reached denominator and pinned inspection across refreshes. This changes only static dashboard presentation.
+
+
 ## Dashboard drafting interaction and readability (2026-10-31, XDEV)
 
 - **Goal:** preserve the emergency source selector while making draft-position inspection stable and readable.

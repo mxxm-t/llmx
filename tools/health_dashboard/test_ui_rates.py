@@ -322,7 +322,7 @@ for (const [name, drafted, kept, expected] of [
   check(name + ' lifetime basis', !!$('acceptance-basis') && $('acceptance-basis').textContent ===
     (drafted > 0 ? kept + ' kept / ' + drafted + ' drafted since start' : 'Lifetime acceptance since start'));
   check(name + ' position state', drafted > 0 ?
-    $('positions').querySelector('.position-pct').textContent === (kept === 0 ? '0%' : '33.3%') :
+    $('positions').querySelector('.position').getAttribute('aria-label').includes(kept + ' of ' + drafted + ' drafted kept') :
     $('positions').textContent.includes('No position data available'));
   check(name + ' own-history state', drafted > 0 ?
     $('own-history-chart').textContent.includes(kept === 0 ? '0%' : '33.3%') :
@@ -362,8 +362,8 @@ try {
   const cells = () => [...$('positions').querySelectorAll('.position')];
   check('ordinary denominator is reached', cells()[0].getAttribute('aria-label').includes('40 of 50 reached'));
   check('small sample keeps reached denominator', cells()[1].getAttribute('aria-label').includes('2 of 4 reached'));
-  check('unreached is unavailable', cells()[2].textContent.includes('--'));
-  check('low sample has visible marker', cells()[1].textContent.includes('*'));
+  check('unreached is unavailable', cells()[2].getAttribute('aria-label').includes('unavailable'));
+  check('low sample has visible marker', getComputedStyle(cells()[1].querySelector('.position-track i')).backgroundImage.includes('gradient'));
   cells()[1].focus();
   cells()[1].click();
   raw.drafting.since_start.by_source[0].by_position[1] = [55, 3, 5];
@@ -381,6 +381,23 @@ try {
   positionSource = 'all';
   drawPositions(raw);
   check('all source uses summed reached', cells()[0].getAttribute('aria-label').includes('50 of 70 reached'));
+  raw.drafting.since_start.by_source[0].by_position = Array.from({length:256}, () => [100,40,50]);
+  positionSource = 'proposer';
+  drawPositions(raw);
+  const boxes = cells().map(c => c.getBoundingClientRect());
+  check('long history stays on one row', boxes.every(b => b.y === boxes[0].y));
+  check('long history stays compact', $('positions').querySelector('.position-chart').getBoundingClientRect().height <= 190);
+  const slider = $('positions').querySelector('input[type=range]');
+  slider.focus();
+  slider.value = '256';
+  slider.dispatchEvent(new Event('input'));
+  drawPositions(raw);
+  check('slider focus survives refresh', document.activeElement.matches('input[type=range]'));
+  check('last position stays selected', $('positions').dataset.pinned === '256' && $('positions').querySelector('.tooltip').textContent.includes('Position 256'));
+  cells()[255].focus();
+  cells()[255].dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowLeft', bubbles:true}));
+  check('arrow key selects adjacent position', document.activeElement === cells()[254] && $('positions').dataset.pinned === '255');
+  check('long chart has no overflow', document.documentElement.scrollWidth <= innerWidth);
   drawPositions({drafting:{since_start:{by_position:[{position:1,drafted:10,kept:2}]}}});
   check('legacy basis is explicit', $('positions').textContent.includes('kept / drafted'));
   check('no horizontal overflow', document.documentElement.scrollWidth <= innerWidth);
@@ -390,7 +407,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         for width in (1440, 390):
             with self.subTest(width=width):
                 document = source.replace("</body>", "<pre hidden id='rate-test-results'></pre><script>" + cases + "</script></body>")
-                self.assertEqual(len(self.run_browser(document, width)), 14)
+                self.assertEqual(len(self.run_browser(document, width)), 20)
 
     def run_browser(self, document, width=1440):
         browser = next((str(path) for path in CHROME_PATHS if path.is_file()), None)

@@ -319,39 +319,48 @@ inline int VulkanBackend::one_column_build(size_t nin, size_t rows, bool x8) con
     return rows < dev_->profile.q8_decode_two_rows_from ? kVecOneRow : kVecTwoSteps;
 }
 
-// The Q8_0 decode build of a chunk of 2 to 8 columns over `rows` rows: the first of `variant` and kVecFewerRows giving enough busy workgroups a compute unit, else the last.
-// Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds); the factors were measured on an MI50 (docs/STATUS.md).
-inline int VulkanBackend::filling_build(KernelId id, int variant, size_t ncols, size_t rows) const {
-    // Two over 8-bit activations; over the 16-bit twin's twice the bytes a build of fewer rows gains only below one.
-    const size_t per_unit = reads_x8(id) ? 2 : 1;
+// The build and chunk count of a decode dispatch of `ncols` columns over `rows` rows, `variant` its own build, chosen for enough busy workgroups a compute unit (docs/src/backends-vulkan.md, Decode builds).
+// Each column keeps its bits in every choice; the factors were measured on an MI50 (docs/STATUS.md).
+inline VulkanBackend::Fill VulkanBackend::filling_build(KernelId id, int variant, size_t ncols, size_t rows, uint32_t cluster) const {
+    const size_t want = (reads_x8(id) || id == K_MATMUL_ROW_F32 ? 2 : 1) * dev_->caps.compute_units;
+    if (id == K_MATMUL_ROW_F32) {
+        const size_t busy = std::max<size_t>(1, (rows + 256 / cluster - 1) / (256 / cluster));
+        const size_t chunks = std::clamp((want + busy - 1) / busy, (ncols + kRowColsWide - 1) / kRowColsWide, ncols);
+        return {chunks == ncols ? 1 : 0, chunks};
+    }
     const int last = kVecFewerRows[std::size(kVecFewerRows) - 1];
-    if (!is_vec_kernel(id) || ncols < 2 || ncols > kVecBuilds[last].capacity() || kVecBuilds[last].capacity() > dev_->profile.q8_decode_cols) return variant;
+    if (!is_vec_kernel(id) || ncols < 2 || ncols > kVecBuilds[last].capacity() || kVecBuilds[last].capacity() > dev_->profile.q8_decode_cols) return {variant, 1};
     // The workgroups that hold columns: a column group past the chunk's returns at once.
     auto busy = [&](int v) {
         const VecBuild& b = kVecBuilds[v];
         const size_t per_group = (256 / dev_->caps.subgroup_size) * b.rows * b.halves;
         return (rows + per_group - 1) / per_group * std::min<size_t>(b.span, (ncols + b.cols - 1) / b.cols);
     };
-    const size_t want = per_unit * dev_->caps.compute_units;
-    if (busy(variant) >= want) return variant;
+    if (busy(variant) >= want) return {variant, 1};
     for (int v : kVecFewerRows)
-        if (busy(v) >= want) return v;
-    return last;
+        if (busy(v) >= want) return {v, 1};
+    return {last, 1};
 }
 
-// Call each(col0, ncols, variant, chunks): the widest build's whole chunks in one call, `chunks` side by side, then the rest in the narrowest build that holds it.
-// `rows` are the output rows a dispatch computes, each `nin` wide; every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
+// Call each(col0, ncols, variant, chunks) for each dispatch, its `ncols` columns cut evenly into `chunks` side by side; `rows` are the output rows, each `nin` wide.
+// F32 rows take the whole call in one dispatch, other kernels the widest build's whole chunks in one and the rest in the narrowest build that holds it.
 template <typename Fn>
 inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const {
     int builds[kVariants] = {};
     const size_t n = column_builds(id, nin, rows, cluster, builds);
+    if (id == K_MATMUL_ROW_F32) {
+        const Fill f = filling_build(id, builds[n - 1], nbatch, rows, cluster);
+        each(size_t(0), nbatch, f.variant, f.chunks);
+        return;
+    }
     const size_t wide = build_cols(id, builds[n - 1]);
     const size_t whole = (nbatch - 1) / wide;
-    if (whole) each(0, wide, builds[n - 1], whole);
+    if (whole) each(size_t(0), whole * wide, builds[n - 1], whole);
     const size_t col0 = whole * wide;
     size_t i = 0;
     while (build_cols(id, builds[i]) < nbatch - col0) ++i;
-    each(col0, nbatch - col0, filling_build(id, builds[i], nbatch - col0, rows), size_t(1));
+    const Fill f = filling_build(id, builds[i], nbatch - col0, rows, cluster);
+    each(col0, nbatch - col0, f.variant, f.chunks);
 }
 
 inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin, Dtype dtype) const {
@@ -431,11 +440,13 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
     // The call's outputs are the projections' whole columns, a routed call's its entries'.
     const size_t columns = routed ? routed : per ? entries : nbatch;
     // matmul_row.comp counts its rows by cluster, the Q8_0 decode kernel reads neither.
-    const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
+    // A plain call's `ncols` columns go to its `entries` chunks as evenly as can be, the first ones a column longer; a routed or grouped call's chunk is `ncols`.
+    const size_t chunk = per ? ncols : ncols / entries, longer = per ? 0 : ncols % entries;
+    const uint32_t pc[23] = {u32(nin), u32(nbatch), u32(col0), u32(chunk), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
                              (uint32_t)live.size(),
                              nout[0], t, w, start[0],
                              nout[1], t, w, start[1],
-                             nout[2], t, w, start[2], accumulate ? 1u : 0u, per, order0};
+                             nout[2], t, w, start[2], accumulate ? 1u : 0u, per, order0, u32(longer)};
     dispatch(plan.kernel,
              {bind(a.out), bind(b.out), bind(c.out),
               bind(a.weight.data), bind(b.weight.data), bind(c.weight.data),

@@ -32,6 +32,7 @@ layout(push_constant) uniform P {
     uint accum;
     uint per;
     uint order0;
+    uint longer;   // as in matmul_row.comp
 } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; } ys[3];
 layout(set = 0, binding = 2) readonly buffer W32 { uint w32[]; } w32s[3];
@@ -66,8 +67,9 @@ void main() {
         local_wg /= SPAN;
     }
     uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS * HALVES + (HALVES > 1u ? (lane >> 5u) * ROWS : 0u);
-    // A plain call's workgroups in y take its whole chunks side by side, as in matmul_row.comp.
-    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
+    // A plain call's workgroups in y take its chunks side by side, as in matmul_row.comp.
+    const uint chunk = p.ncols + (gl_WorkGroupID.y < p.longer ? 1u : 0u);
+    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols + min(gl_WorkGroupID.y, p.longer) + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];
@@ -84,8 +86,8 @@ void main() {
     }
     // A subgroup past the last row returns whole, with HALVES a half, whose lanes pair with no others; one that holds a row reads the rows past the end as the last row and writes none of them.
     if (row0 >= nout) return;
-    if (SPAN > 1u && p.ncols <= part * MAX_COLS) return;
-    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : SPAN > 1u ? min(p.ncols - part * MAX_COLS, MAX_COLS) : p.ncols;
+    if (SPAN > 1u && chunk <= part * MAX_COLS) return;
+    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : SPAN > 1u ? min(chunk - part * MAX_COLS, MAX_COLS) : chunk;
 // Column c's X column and output row, as in matmul_row.comp.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))

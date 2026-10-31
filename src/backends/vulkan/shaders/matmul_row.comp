@@ -1,4 +1,6 @@
 #version 450
+// How many of a plain dispatch's chunks take one column more than p.ncols, the first ones (for_each_column_chunk).
+#define LLMX_ROW_PUSH uint longer;
 #include "matmul_row.glsl"
 void main() {
 #if defined(LLMX_IQ1) || defined(LLMX_IQ3_S) || ((defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)) && !defined(LLMX_DOT))
@@ -38,8 +40,8 @@ void main() {
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
 #endif
-    // A plain call's workgroups in y take its whole chunks side by side, each its own columns (for_each_column_chunk).
-    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols, out0 = col0, wrow = row, g_first = 0u, g_cnt = 0u;
+    // A plain call's workgroups in y take its chunks side by side, the first p.longer of them a column more than p.ncols.
+    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols + min(gl_WorkGroupID.y, p.longer), out0 = col0, wrow = row, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];
@@ -55,7 +57,7 @@ void main() {
         wrow = ids[e] * nout + row;
     }
     // One in the one-column build, so the column loops collapse.
-    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols;
+    const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : p.ncols + (gl_WorkGroupID.y < p.longer ? 1u : 0u);
 // Column c's X column and output row: consecutive from col0, or a grouped chunk's entries.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))

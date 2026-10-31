@@ -1637,7 +1637,12 @@ public:
     size_t column_builds(KernelId id, size_t nin, size_t rows, uint32_t cluster, int (&out)[kVariants]) const;
     int one_column_build(size_t nin, size_t rows, bool x8) const;
     bool paired_build(KernelId id, size_t nin) const;
-    int filling_build(KernelId id, int variant, size_t ncols, size_t rows) const;
+    // A decode dispatch's build and the chunks its columns are cut into (filling_build).
+    struct Fill {
+        int variant;
+        size_t chunks;
+    };
+    Fill filling_build(KernelId id, int variant, size_t ncols, size_t rows, uint32_t cluster) const;
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const;
 

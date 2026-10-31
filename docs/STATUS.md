@@ -1,5 +1,48 @@
 # llmx - Development Status
 
+## F32 decode dispatches by workgroup count (2026-10-31, VDEV, branch feat/f32-decode-occupancy, step 2 of VDEV's plan of 2026-10-31 00:55, approved by F2DEV at 03:09; on step 1, feat/q8-decode-occupancy aa8165776 on main fe2ccacae, since it extends step 1's `filling_build` and needs wide-decode's chunks in one dispatch; it rebases when step 1 lands)
+
+**Goal:** an F32 decode call of a few columns over few rows fills the device: Qwen3.8-Flash-Next's ssm_alpha and ssm_beta (2560 x 48 each) give 12 workgroups of 4 rows on 60 compute units, and its hc inject rows (10240 x 4) one, so a verify of 6 to 8 rows waited on the 8-column build's serial columns. Every column keeps the one-column build's bits.
+**Done:** `VulkanBackend::filling_build` now gives a decode dispatch its build and chunk count (`Fill`); an F32 call is one dispatch cut into as few chunks of at most the wide build's 8 columns as give two busy workgroups a compute unit, else a chunk a column in the one-column build, so a call that fills the device in one chunk, such as the 512-row router, keeps the wide build.
+`row_dispatch` gives a plain dispatch's columns to its chunks as evenly as can be, a push constant `longer` naming how many of the first chunks take a column more than `ncols`, so 7 columns go as 4 and 3 in one dispatch with no second dispatch for the leftover; routed and grouped calls are unchanged, and the other kernels' whole chunks are cut exactly as before.
+A first version divided the columns by `gl_NumWorkGroups.y` in the shaders; RADV lowers that integer division to float multiplies, which failed the MI50's `--isa` screen on the grouped Q4 dot build, so the host now does the division.
+The factor, the bound and the fallback live in that one function beside step 1's; the inputs are the call's rows and columns and `caps.compute_units`.
+`backend-vulkan` witnesses F32 calls of 2, 6, 7 and 8 columns over rows halving from 65536 to 4 (one dispatch, the wide build at the largest and the one-column build at the smallest, never back, every column against the same column alone), where 7 columns are cut into 4 and 3 at some height on any device, and adds decode-column cells of F32 rows 2560 wide, 48, 96, 256 and 512 tall.
+**The factor.** Device time a call after 100 warm and 100 timed runs, the best of three interleaved rounds, us, the rule against forced chunk counts (c1 is the base's one chunk in the wide build, cn a chunk a column); scratch bench, never landing.
+One MI50 under RADV at the final head, 8 columns (6 and 7 columns in brackets, rule against c1):
+| matrix (K x rows) | workgroups | rule | c1 | c2 | c4 | c8 |
+|---|---|---|---|---|---|---|
+| ssm_alpha 2560 x 48 | 12 | 7.49 | 22.37 | 13.77 | 9.14 | 7.56 |
+| alpha and beta, one group | 24 | 10.30 | 22.61 | 13.57 | 9.76 | 11.25 |
+| hc inject 10240 x 4 | 1 | 13.02 | 64.11 | 35.80 | 21.31 | 13.27 |
+| 4096 x 64 | 16 | 11.84 | 24.38 | 14.96 | 10.71 | 11.83 |
+| 2560 x 256 | 64 | 16.98 | 25.40 | 17.02 | 17.94 | 22.83 |
+| router 2560 x 512 | 128 | 27.19 | 27.30 | 26.77 | 29.88 | 43.32 |
+| 2560 x 1024 | 256 | 40.43 | 40.31 | 44.70 | 61.64 | 111.49 |
+At 6 and 7 columns: ssm_alpha 7.11 and 7.16 against 18.03 and 20.10; 2560 x 256, cut 3 and 3 and then 4 and 3, 14.65 and 15.58 against 20.45 and 22.86; the router 22.74 and 24.87 against 22.73 and 24.91, and 2560 x 1024 33.63 and 36.97 against 33.59 and 36.97, both keeping their own build.
+A factor of 1 would leave 2560 x 256 in its own build (64 workgroups) at 25.40 against 16.98; a factor of 4 would cut the router (128) into two chunks, 26.77 against 27.30 at 8 columns but 14.94 against 13.77 at 2, so 2 takes the large gains and loses nowhere outside noise.
+The rule's count is within 10 percent of the best count measured but on alpha and beta at 8 columns (five chunks, 10.30 against 9.76 at c4) and 4096 x 64 (eight, 11.84 against 10.71 at c4).
+Radeon VII (AMD proprietary driver, Windows) at the final head, 8 columns, rule against c1: ssm_alpha 24.30 against 64.78; alpha and beta 33.71 against 68.75 (c4 31.71); hc inject 27.87 against 138.28; 4096 x 64 39.56 against 71.91 (c4 34.27); 2560 x 256 49.52 against 71.39; router 75.82 against 73.71 and 2560 x 1024 139.90 against 139.80, the same build, so the 3 percent on the router is noise.
+At 6 and 7 columns the same order holds: ssm_alpha 22.97 and 23.68 against 54.52 and 58.42, 2560 x 256 45.62 and 45.78 against 56.75 and 63.83.
+**The wall gain**, Qwen3.8-Flash-Next UD-Q4_K_XL over four MI50s (tensor width 2, layer shares 1,1, int8, f16 caches, production's flags), `bench --p 512 --n 16 --r 3 --drafter <MTP head> --draft-max 7`, ten runs an arm in five ABBA rounds back to back, the base f4fcfefb0 against this change, both built the same way from git archives (`llmx 0.1.0+unknown`, numerics 88563fa22da71a78 and 139bf1a2df854dae), mean of the runs' medians and a 95 percent interval on the difference, ms:
+| verify rows | base | branch | difference |
+|---|---|---|---|
+| 1 (a step) | 30.30 | 30.49 | +0.20 +- 0.86 |
+| 2 | 34.89 | 34.07 | -0.81 +- 0.57 |
+| 4 | 40.79 | 38.89 | -1.90 +- 0.46 |
+| 5 | 45.08 | 43.16 | -1.91 +- 1.02 |
+| 6 | 47.17 | 44.99 | -2.17 +- 0.41 (-4.6%) |
+| 7 | 50.34 | 46.52 | -3.82 +- 0.50 (-7.6%) |
+| 8 | 52.90 | 49.24 | -3.66 +- 0.32 (-6.9%) |
+At 7 and 8 rows every run of the branch is faster than every run of the base; pp512 719.3 against 717.5 tok/s and tg16 47.7 against 47.8, level.
+One base run (06:29) was paused for 2 minutes at its start, during model loading, while the step-1 identity ran on one of its cards; its verify times sit inside the base's range. No CPU or GPU activity monitor ran beside these arms, so other developers' work on the shared machine is unknown rather than absent; the arms were interleaved within it.
+- Byte identity on Flash-Next 2x2 at production's flags against the base: three greedy generations of 160, 200 and 160 tokens with lookup and MTP drafts and with lookup alone, the same.
+**Left:** the hosted run; lands by fast-forward as one commit after step 1.
+**Gates so far:** `backend-vulkan --isa` on an MI50 exits 0 with the base's screen counts (12 row kernel builds the same as their one-column build, 26 those and whole columns, 72 pairs of two-row builds, 23 Q8_0 decode builds by shape and forms, 16 grouped builds as their wide build), 2045824 decode columns in f16 and in int8 equal to the same columns alone and 60 F32 calls in one dispatch of their chunks.
+`backend-vulkan --isa` on the Radeon VII exits 0 at the final head: 2045824 decode columns equal to the same columns alone, 60 F32 calls in one dispatch of their chunks, 505052 Q8_0 decode columns on the integer dot in each dtype, 29 row kernel builds the same as their one-column build's counts and 13 grouped builds as their wide build's. Docs and dead-code pass.
+- Byte identity against the base (f4fcfefb0, both built the same way from git archives) on one MI50: Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, greedy raw, chat and seeded generation, lookup drafts at 32 and at 7 (f16 and int8), logits, perplexity, a two-turn chat and `tools/server_mix_check.py` ids, 12 of 12 files the same; neither model has an F32 matrix, so this holds the other row kernels under the new push constant, and Flash-Next holds the F32 path.
+- `run_tests.py --device vulkan:0 --require-tools` on an MI50 at the head, built whole from its git archive: 44 components PASS; `baseline` SKIP (no real-model fixture on that tree); `raw-blocks` FAIL only on its numpy form, the Vulkan image having no numpy (it runs no llmx binary).
+
 ## Every command fits its KV budget and backs it whole (2026-10-31, MDEV, branch fix/kv-fit-all on main fe2ccacae, F2DEV's ruling of 2026-10-31 05:59 on D1 part one, lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Seen:** `bench --model` on Qwen3-30B-A3B Q4_K_M at 128k on one MI50 measured decode attention at 0.90 ms per 1k tokens of history, twice its 0.45 at 64k.

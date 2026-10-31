@@ -232,6 +232,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
   A build takes the transposed reduction where it asks for it and the profile's `q8_decode_forms` allows it, and the half-block order (`kQ8Half`) wherever the profile allows it, in every build alike, since that order sums a column's products in another order than the quarter layout (`vec_forms`); `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, all in one dispatch whose workgroups in y each take one chunk (`gl_WorkGroupID.y` in `matmul_row.comp` and `matmul_vec_q8.comp`), then the rest in the narrowest build that holds them; a matrix of few rows, such as a router, so fills the device with its columns rather than running one chunk after another.
+  `row_dispatch` gives a plain dispatch's columns to its chunks as evenly as can be: each takes the `ncols` push constant's columns and the first `longer` of them one more, so the shaders cut a dispatch without dividing (RADV lowers an integer division to float operations, which the `--isa` screen would count); F32 rows take the whole call in one such dispatch, cut into the chunks `filling_build` gives.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
   The Q4 and K-quant families (`row_kernel_builds_two_rows`) also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
@@ -379,6 +380,13 @@ activations and one over 16-bit ones, else variant 12; a column group past
 the chunk's columns returns at once and is not counted. The factors and the
 fallback live in that one function, and the measurement that chose them is in
 [STATUS](../STATUS.md).
+The same function cuts an F32 decode call: its columns go in one dispatch, in
+as few chunks of at most the wide build's 8 columns as give two busy
+workgroups a compute unit, else a chunk a column in the one-column build; the
+chunks need not hold the same count, the first ones holding a column more, and
+each column keeps the one-column build's bits in either build. A call that
+fills the device in one chunk keeps the wide build, so a router of 512 rows
+does.
 No other kernel has a variant 7 to 12 pipeline; their slots stay empty, since
 a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
 properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
@@ -399,7 +407,8 @@ shared specialization entries; a module ignores those it does not declare.
 
 `for_each_column_chunk` fills the widest supported build while more columns remain
 than it holds, then chooses the narrowest build that holds the remainder,
-each Q8_0 chunk of 2 to 8 columns passing through `filling_build`.
+each Q8_0 chunk of 2 to 8 columns passing through `filling_build`; an F32
+call is one dispatch cut by `filling_build`.
 Successive Q8_0 capacities double, so a final chunk fills more than half its
 build. A single-group build checks columns beyond that first half; a
 two-group build checks each group's count. Two-row Q4 and K-quant builds

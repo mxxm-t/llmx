@@ -2288,6 +2288,58 @@ size_t check_q8_filling_builds(backend::Backend& vk) {
     return checks;
 }
 
+// F32 decode calls of 2, 6, 7 and 8 columns over rows halving from 65536 to 4 move from the wide build in one chunk to a chunk a column in the one-column build, in one dispatch (VulkanBackend::filling_build).
+// Between them the chunks double as the rows halve, so 7 columns are cut into chunks of 4 and 3 at some height on any device; every column must equal the same column alone.
+size_t check_f32_filling_builds(backend::Backend& vk) {
+    const uint32_t f32 = quant::GGML_TYPE_F32;
+    const size_t nin = 256;
+    const auto x = uniform(8 * nin, 540);
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+    size_t checks = 0;
+    for (size_t n : {size_t(2), size_t(6), size_t(7), size_t(8)}) {
+        bool one = false;
+        for (size_t rows = 65536; rows >= 4; rows /= 2) {
+            const auto wb = matrix(f32, nin, rows, 541);
+            const auto w = vk.adopt(wb.data(), wb.size());
+            const auto y = vk.alloc(n * rows * sizeof(float));
+            const auto y1 = vk.alloc(rows * sizeof(float));
+            const backend::RowRun decode{n, 1};
+            (void)backend::vulkan_kernel_times(vk);
+            vk.matmul({f32, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1});
+            const auto times = backend::vulkan_kernel_times(vk);
+            if (times.empty() && !checks) {
+                vk.sync();
+                std::cout << "backend-vulkan: F32 decode chunks unwitnessed without device timestamps\n";
+                return 0;
+            }
+            size_t products = 0;
+            bool wide = false;
+            for (const auto& entry : times) {
+                if (entry.first.rfind("matmul_", 0) != 0) continue;
+                wide = entry.first == "matmul_row_f32";
+                require(wide || entry.first == "matmul_row_f32_1col", ("an F32 decode call took " + entry.first).c_str());
+                ++products;
+            }
+            require(products == 1, "an F32 decode call did not run in exactly one dispatch");
+            require(rows != 65536 || wide, "the largest F32 decode call left the wide build");
+            require(rows != 4 || !wide, "the smallest F32 decode call did not take the one-column build");
+            require(!one || !wide, "a smaller F32 decode call went back to the wide build");
+            one = !wide;
+            std::vector<float> got(n * rows), alone(rows);
+            vk.read(*y, 0, got.data(), got.size() * sizeof(float));
+            const backend::RowRun step{1, 1};
+            for (size_t col = 0; col < n; ++col) {
+                vk.matmul({f32, {w.get(), 0}}, {xb.get(), col * nin}, {y1.get(), 0}, nin, rows, 1, {&step, 1});
+                vk.read(*y1, 0, alone.data(), rows * sizeof(float));
+                require(std::memcmp(got.data() + col * rows, alone.data(), rows * sizeof(float)) == 0, "an F32 decode column differs from the same column alone");
+            }
+            ++checks;
+        }
+        require(one, "the F32 sweep never reached the one-column build");
+    }
+    return checks;
+}
+
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
 // AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
 size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
@@ -2317,8 +2369,8 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
     const size_t two_rows = backend::vulkan_device_profile(vk).q8_decode_two_rows_from;
     struct Case { uint32_t type; size_t nin; size_t nout = 300; };
     // Q8_0 rows 320, 448 and 512 wide take the paired build alone where the profile has the half-block order and the tree, and every wider build beside it.
-    // Q8_0 rows 320, 640, 1280 and 5120 tall reach, on a device of 60 compute units, every build a call of 2 to 8 columns takes (VulkanBackend::filling_build).
-    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
+    // Q8_0 rows 320 to 5120 and F32 rows 48 to 512 tall reach, on 60 compute units, every build and cut a call of 2 to 8 columns takes (VulkanBackend::filling_build).
+    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{f32, 2560, 48}, Case{f32, 2560, 96}, Case{f32, 2560, 256}, Case{f32, 2560, 512}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
                           Case{q8, 2560, 320}, Case{q8, 2560, 640}, Case{q8, 2560, 1280}, Case{q8, 2560, 5120},
                           Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
@@ -5261,6 +5313,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
         const size_t columns = check_decode_columns(*b, backend::Dtype::f16);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
+        std::cout << "backend-vulkan: " << check_f32_filling_builds(*b) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8) << " int8 decode columns equal to the same columns alone\n";

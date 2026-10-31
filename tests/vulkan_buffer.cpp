@@ -1,5 +1,6 @@
 // Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
 #include "backends/vulkan/vulkan_backend.cpp"
+#include "model/kv_cache.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -69,6 +70,22 @@ struct VulkanLifetimeTest {
         return owner;
     }
     static VkPipeline kernel(VulkanBackend& b, KernelId id = K_ADD) { return b.kernel(id).pipeline; }
+    // The kernel a pipeline was made for, K_COUNT for a pipeline of none.
+    static int kernel_of(VulkanBackend& b, VkPipeline p) {
+        for (int id = 0; id < K_COUNT; ++id)
+            for (int v = 0; v < kVariants; ++v)
+                if (p && b.kernels_[id][v].pipeline == p) return id;
+        return K_COUNT;
+    }
+    // Its bindings written, every one for a pipeline of no kernel.
+    static uint32_t writes(VulkanBackend& b, VkPipeline p) {
+        const int id = kernel_of(b, p);
+        return id == K_COUNT ? ~0u : kernel_writes()[id];
+    }
+    static std::string name(VulkanBackend& b, VkPipeline p) {
+        const int id = kernel_of(b, p);
+        return !p ? "a copy or fill" : id == K_COUNT ? "a pipeline of no kernel" : kKernelNames[id];
+    }
     static bool query_empty(VulkanBackend& b) { return b.queries_.empty(); }
     static void clear_query(VulkanBackend& b) { b.queries_.clear(); }
     static void prepare_drop(VulkanBackend& b) {
@@ -1991,6 +2008,351 @@ int attention_piece_checks() {
     return failures;
 }
 
+// Each recorded command while unordered: the kernel's buffers it reads and writes, whether a barrier came before it, and the op call it belongs to.
+struct OrderCalls;
+OrderCalls* order_calls = nullptr;
+struct OrderCalls {
+    // A use's bytes of its buffer, VK_WHOLE_SIZE reaching to its end.
+    struct Use {
+        VkBuffer buffer;
+        bool written;
+        VkDeviceSize offset = 0, range = VK_WHOLE_SIZE;
+        bool meets(const Use& o) const {
+            const VkDeviceSize end = range == VK_WHOLE_SIZE ? ~VkDeviceSize(0) : offset + range, o_end = o.range == VK_WHOLE_SIZE ? ~VkDeviceSize(0) : o.offset + o.range;
+            return buffer == o.buffer && offset < o_end && o.offset < end;
+        }
+    };
+    struct Command { std::vector<Use> uses; bool barrier_before; int call; VkPipeline pipeline; };
+    backend::Fn original;
+    std::shared_ptr<backend::Device> device;
+    std::vector<Command> commands;
+    std::vector<Use> pushed;
+    VkPipeline bound = VK_NULL_HANDLE;
+    bool barrier = true;
+    int call = 0;
+    explicit OrderCalls(backend::VulkanBackend& b) : device(backend::VulkanLifetimeTest::device(b)) {
+        original = device->fn;
+        order_calls = this;
+        device->fn.vkCmdBindPipeline = bind;
+        device->fn.vkCmdPushDescriptorSetKHR = push;
+        device->fn.vkCmdDispatch = run;
+        device->fn.vkCmdPipelineBarrier = fence;
+        device->fn.vkCmdCopyBuffer = copy;
+        device->fn.vkCmdFillBuffer = fill;
+    }
+    ~OrderCalls() {
+        original.vkDeviceWaitIdle(device->device);
+        device->fn = original;
+        order_calls = nullptr;
+    }
+    // Forget what was recorded so far, as after a barrier: a case's setup runs ordered before the calls it checks.
+    void restart() {
+        commands.clear();
+        bindings.clear();
+        barrier = true;
+    }
+    void record(std::vector<Use> uses) {
+        commands.push_back({std::move(uses), barrier, call, bound});
+        barrier = false;
+    }
+    static VKAPI_ATTR void VKAPI_CALL bind(VkCommandBuffer c, VkPipelineBindPoint p, VkPipeline pipeline) {
+        order_calls->bound = pipeline;
+        order_calls->original.vkCmdBindPipeline(c, p, pipeline);
+    }
+    // A use's written flag comes from the bound kernel's write set by its binding, taken when the commands are checked.
+    static VKAPI_ATTR void VKAPI_CALL push(VkCommandBuffer c, VkPipelineBindPoint p, VkPipelineLayout l, uint32_t set, uint32_t n, const VkWriteDescriptorSet* w) {
+        auto& o = *order_calls;
+        o.pushed.clear();
+        o.binding_of.clear();
+        for (uint32_t i = 0; i < n; ++i)
+            for (uint32_t d = 0; w[i].pBufferInfo && d < w[i].descriptorCount; ++d) {
+                o.pushed.push_back({w[i].pBufferInfo[d].buffer, false, w[i].pBufferInfo[d].offset, w[i].pBufferInfo[d].range});
+                o.binding_of.push_back(w[i].dstBinding);
+            }
+        o.original.vkCmdPushDescriptorSetKHR(c, p, l, set, n, w);
+    }
+    std::vector<uint32_t> binding_of;
+    std::vector<std::vector<uint32_t>> bindings;
+    static VKAPI_ATTR void VKAPI_CALL run(VkCommandBuffer c, uint32_t x, uint32_t y, uint32_t z) {
+        auto& o = *order_calls;
+        o.record(o.pushed);
+        o.bindings.resize(o.commands.size());
+        o.bindings.back() = o.binding_of;
+        o.original.vkCmdDispatch(c, x, y, z);
+    }
+    static VKAPI_ATTR void VKAPI_CALL fence(VkCommandBuffer c, VkPipelineStageFlags s, VkPipelineStageFlags d, VkDependencyFlags f, uint32_t m, const VkMemoryBarrier* mb,
+                                           uint32_t bn, const VkBufferMemoryBarrier* bb, uint32_t in, const VkImageMemoryBarrier* ib) {
+        order_calls->barrier = true;
+        order_calls->original.vkCmdPipelineBarrier(c, s, d, f, m, mb, bn, bb, in, ib);
+    }
+    static VKAPI_ATTR void VKAPI_CALL copy(VkCommandBuffer c, VkBuffer src, VkBuffer dst, uint32_t n, const VkBufferCopy* r) {
+        auto& o = *order_calls;
+        o.bound = VK_NULL_HANDLE;
+        std::vector<Use> uses;
+        for (uint32_t i = 0; i < n; ++i) {
+            uses.push_back({src, false, r[i].srcOffset, r[i].size});
+            uses.push_back({dst, true, r[i].dstOffset, r[i].size});
+        }
+        o.record(std::move(uses));
+        o.bindings.resize(o.commands.size());
+        o.original.vkCmdCopyBuffer(c, src, dst, n, r);
+    }
+    static VKAPI_ATTR void VKAPI_CALL fill(VkCommandBuffer c, VkBuffer b, VkDeviceSize off, VkDeviceSize size, uint32_t v) {
+        auto& o = *order_calls;
+        o.bound = VK_NULL_HANDLE;
+        o.record({{b, true, off, size}});
+        o.bindings.resize(o.commands.size());
+        o.original.vkCmdFillBuffer(c, b, off, size, v);
+    }
+    // The pairs of commands with no barrier between them where the later uses a buffer the earlier wrote, counted where the backend owes the order:
+    // within one op call, or on a buffer the caller did not give it (its twins, partial sums and groupings), whichever call recorded them.
+    std::vector<std::string> hazards(backend::VulkanBackend& b, const std::vector<VkBuffer>& callers) {
+        for (size_t i = 0; i < commands.size(); ++i) {
+            if (commands[i].pipeline == VK_NULL_HANDLE) continue;
+            const uint32_t writes = backend::VulkanLifetimeTest::writes(b, commands[i].pipeline);
+            for (size_t u = 0; u < commands[i].uses.size(); ++u) commands[i].uses[u].written = writes >> bindings[i][u] & 1;
+        }
+        std::vector<std::string> out;
+        for (size_t j = 0; j < commands.size(); ++j) {
+            for (size_t i = j; i-- > 0;) {
+                if (commands[i + 1].barrier_before) break;
+                for (const Use& w : commands[i].uses) {
+                    if (!w.written) continue;
+                    const bool caller = std::find(callers.begin(), callers.end(), w.buffer) != callers.end();
+                    if (caller && commands[i].call != commands[j].call) continue;
+                    for (const Use& u : commands[j].uses)
+                        if (u.meets(w))
+                            out.push_back(backend::VulkanLifetimeTest::name(b, commands[j].pipeline) + " (call " + std::to_string(commands[j].call) + ") uses what " +
+                                          backend::VulkanLifetimeTest::name(b, commands[i].pipeline) + " (call " + std::to_string(commands[i].call) + ") wrote, with no barrier between");
+                }
+            }
+        }
+        return out;
+    }
+};
+
+// While unordered, each op still orders its own steps, and what the backend keeps for later calls, a twin among them, is ordered before another call reads it (Backend::unordered).
+int unordered_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(b);
+    int failures = 0;
+    auto handle = [](const backend::BufferPtr& p) { return backend::as_vulkan(*p).handle(); };
+    auto filled = [&](size_t floats, uint32_t seed) {
+        std::vector<float> v(floats);
+        for (size_t i = 0; i < floats; ++i) v[i] = float(int((i * 2654435761u + seed) >> 24) % 33 - 16) / 16.0f;
+        return b.adopt(v.data(), v.size() * sizeof(float));
+    };
+    auto q8 = [&](size_t nin, size_t rows) {
+        std::vector<uint8_t> w(rows * (nin / 32) * quant::Q8_0_TYPESIZE);
+        for (size_t i = 0; i < w.size(); ++i) w[i] = uint8_t(i * 131 + 7);
+        for (size_t blk = 0; blk < rows * (nin / 32); ++blk) { w[blk * quant::Q8_0_TYPESIZE] = 0x00; w[blk * quant::Q8_0_TYPESIZE + 1] = 0x20; }
+        return b.adopt(w.data(), w.size());
+    };
+    struct Case { const char* name; std::function<void(OrderCalls&, std::vector<VkBuffer>&)> run; };
+    const size_t nin = 1024, nout = 512, rows = 96, experts = 16, k = 2;
+    const backend::RowRun prompt{rows, rows};
+    const std::vector<Case> cases = {
+        {"a product reading a twin it makes", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             auto w = q8(nin, nout); auto x = filled(rows * nin, 1); auto y = b.alloc(rows * nout * sizeof(float), backend::Memory::device);
+             callers = {handle(w), handle(x), handle(y)};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, nin, nout, rows, {&prompt, 1}, backend::Dtype::int8);
+             b.sync();
+         }},
+        {"two products of one X, the second reading the twin the first made", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             auto w = q8(nin, nout); auto x = filled(rows * nin, 2); auto y1 = b.alloc(rows * nout * sizeof(float), backend::Memory::device), y2 = b.alloc(rows * nout * sizeof(float), backend::Memory::device);
+             callers = {handle(w), handle(x), handle(y1), handle(y2)};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y1.get(), 0}, nin, nout, rows, {&prompt, 1}, backend::Dtype::int8);
+             o.call = 2;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y2.get(), 0}, nin, nout, rows, {&prompt, 1}, backend::Dtype::int8);
+             b.sync();
+         }},
+        {"a decode product on the row kernel and its twin", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             auto w = q8(nin, nout); auto x = filled(nin, 3); auto y = b.alloc(nout * sizeof(float), backend::Memory::device);
+             callers = {handle(w), handle(x), handle(y)};
+             const backend::RowRun one{1, 1};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::int8);
+             b.sync();
+         }},
+        {"a split integer tile and its reduction", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const size_t wide = 8192, few = 64;
+             auto w = q8(wide, few); auto x = filled(rows * wide, 4); auto y = b.alloc(rows * few * sizeof(float), backend::Memory::device);
+             callers = {handle(w), handle(x), handle(y)};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, wide, few, rows, {&prompt, 1}, backend::Dtype::int8);
+             b.sync();
+         }},
+        {"a split float tile and its reduction", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const size_t few = 48;
+             auto w = filled(few * 2560, 5); auto x = filled(rows * 2560, 6); auto y = b.alloc(rows * few * sizeof(float), backend::Memory::device);
+             callers = {handle(w), handle(x), handle(y)};
+             o.call = 1;
+             b.matmul({quant::GGML_TYPE_F32, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 2560, few, rows, {&prompt, 1}, backend::Dtype::f32);
+             b.sync();
+         }},
+        {"routed products: grouping, tile and the weighted sum", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             auto w = q8(nin, experts * nout); auto x = filled(rows * nin, 7), x2 = filled(rows * k * nin, 8);
+             std::vector<uint32_t> ids(rows * k);
+             for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 7 + i / k) % experts);
+             std::vector<float> wts(rows * k, 0.5f);
+             auto ib = b.adopt(ids.data(), ids.size() * sizeof(uint32_t)), wb = b.adopt(wts.data(), wts.size() * sizeof(float));
+             auto g = b.alloc(rows * k * nout * sizeof(float), backend::Memory::device), y = b.alloc(rows * nin * sizeof(float), backend::Memory::device);
+             auto wd = q8(nout, experts * nin);
+             callers = {handle(w), handle(x), handle(x2), handle(ib), handle(wb), handle(g), handle(y), handle(wd)};
+             const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, experts};
+             o.call = 1;
+             b.matmul_experts({{{quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {g.get(), 0}, nout}}, {x.get(), 0}, nin, rows, routing, {&prompt, 1}, backend::Dtype::int8);
+             o.call = 2;
+             b.matmul_experts_add({quant::GGML_TYPE_Q8_0, {wd.get(), 0}}, {g.get(), 0}, {y.get(), 0}, nout, nin, rows, routing, {&prompt, 1}, backend::Dtype::int8);
+             b.sync();
+         }},
+        {"the state rerun: each layer's conv, then each layer's delta rule, over two views", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             // As Model::rerun_on records them: one unordered region a phase, every state layer's call in it, a view continuing from another slot and one in its own.
+             const backend::StateShape sh{2, 4, 64, 64};
+             const size_t C = sh.channels(), Hv = sh.v_heads, Dv = sh.v_dim, n = 7, layers = 2;
+             auto st = b.state_alloc(layers, 4, sh);
+             const backend::StateView views[2] = {{st.get(), 0, 1, 5, 3}, {st.get(), 2, 2, 9, 4}};
+             auto raw = filled(layers * n * C, 9), w = filled(C * backend::kConvTaps, 10), ab = filled(layers * 2 * n * Hv, 11), a = filled(Hv, 12), dt = filled(Hv, 13);
+             auto u = b.alloc(layers * n * C * sizeof(float), backend::Memory::device), out = b.alloc(layers * n * Hv * Dv * sizeof(float), backend::Memory::device);
+             callers = {handle(raw), handle(w), handle(ab), handle(a), handle(dt), handle(u), handle(out)};
+             for (size_t l = 0; l < layers; ++l) callers.push_back(backend::as_vulkan(st->layer(l)).handle());
+             for (size_t l = 0; l < layers; ++l) {
+                 o.call = int(1 + l);
+                 b.causal_conv_silu({u.get(), l * n * C}, {raw.get(), l * n * C}, {w.get(), 0}, l, views, 2);
+             }
+             b.unordered(false);
+             b.unordered(true);
+             for (size_t l = 0; l < layers; ++l) {
+                 o.call = int(1 + layers + l);
+                 b.gated_delta_rule({out.get(), l * n * Hv * Dv}, {u.get(), l * n * C}, {ab.get(), l * 2 * n * Hv}, {ab.get(), l * 2 * n * Hv + n * Hv},
+                                    {a.get(), 0}, {dt.get(), 0}, l, views, 2);
+             }
+             b.sync();
+         }},
+        {"the state rerun of a layer with a dilated conv beside its causal one", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const backend::StateShape sh{2, 4, 64, 64};
+             const size_t C = sh.channels(), n = 7, channels = 128, taps = 4, dilation = 2;
+             auto st = b.state_alloc(1, 4, sh, {(taps - 1) * dilation * channels});
+             const backend::StateView views[2] = {{st.get(), 0, 1, 5, 3}, {st.get(), 2, 2, 9, 4}};
+             auto raw = filled(n * C, 14), w = filled(C * backend::kConvTaps, 15), x = filled(n * channels, 16), res = filled(n * channels, 17), dw = filled(channels * taps, 18);
+             auto u = b.alloc(n * C * sizeof(float), backend::Memory::device), out = b.alloc(n * channels * sizeof(float), backend::Memory::device);
+             callers = {handle(raw), handle(w), handle(x), handle(res), handle(dw), handle(u), handle(out), backend::as_vulkan(st->layer(0)).handle()};
+             o.call = 1;
+             b.causal_conv_silu({u.get(), 0}, {raw.get(), 0}, {w.get(), 0}, 0, views, 2);
+             o.call = 2;
+             b.dilated_conv_silu_add({out.get(), 0}, {x.get(), 0}, {res.get(), 0}, {dw.get(), 0}, channels, taps, dilation, 0, views, 2);
+             b.sync();
+         }},
+        {"attention: a decode row after a long history beside a prompt's rows, then the decode row alone", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const int n_head = 8, n_head_kv = 2, head_dim = 128;
+             const size_t kvw = size_t(n_head_kv) * head_dim, qw = size_t(n_head) * head_dim, hist = 600, phist = 70, nq = 64;
+             auto kv = b.kv_alloc(1, size_t(n_head_kv), size_t(head_dim), 2048);
+             infer::BlockPool pool;
+             pool.configure(kv->max_blocks());
+             const size_t bt = b.kv_layout().block_tokens;
+             infer::KVSequence s1(&pool, bt), s2(&pool, bt);
+             auto K = filled(hist * kvw, 19), V = filled(hist * kvw, 20);
+             b.unordered(false);
+             s1.prepare(hist);
+             {
+                 const backend::KVView h = s1.view(kv.get());
+                 b.kv_write(0, &h, 1, {K.get(), 0}, {V.get(), 0});
+             }
+             s1.commit();
+             s2.prepare(phist);
+             {
+                 const backend::KVView h = s2.view(kv.get());
+                 b.kv_write(0, &h, 1, {K.get(), 0}, {V.get(), 0});
+             }
+             s2.commit();
+             b.sync();
+             o.restart();
+             b.unordered(true);
+             s1.prepare(1);
+             s2.prepare(nq);
+             backend::KVView views[2] = {s1.view(kv.get()), s2.view(kv.get())};
+             views[1].extent = phist + nq;
+             auto q = filled((1 + nq) * qw, 21);
+             auto y = b.alloc((1 + nq) * qw * sizeof(float), backend::Memory::device), y1 = b.alloc(qw * sizeof(float), backend::Memory::device);
+             auto& blocks = dynamic_cast<backend::BlockKVStorage&>(*kv);
+             callers = {handle(q), handle(y), handle(y1), handle(K), handle(V), handle(blocks.k_buffer(0)), handle(blocks.v_buffer(0))};
+             o.call = 1;
+             b.attention({q.get(), 0}, 0, views, 2, {y.get(), 0}, n_head, n_head_kv, head_dim);
+             o.call = 2;
+             b.attention({q.get(), 0}, 0, views, 1, {y1.get(), 0}, n_head, n_head_kv, head_dim);
+             b.sync();
+         }},
+        {"a row mix and a stream injection", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const size_t width = 256, table_rows = 32, taps = 3, streams = 4;
+             auto table = filled(table_rows * width, 22), dst = filled(rows * width, 23), block = filled(rows * width, 24), gate = filled(rows * streams, 25);
+             auto res = filled(rows * streams * width, 26);
+             std::vector<uint32_t> idx(rows * taps);
+             for (size_t i = 0; i < idx.size(); ++i) idx[i] = uint32_t(i * 5 % table_rows);
+             const std::vector<float> wt(rows * taps, 0.25f);
+             callers = {handle(table), handle(dst), handle(block), handle(gate), handle(res)};
+             o.call = 1;
+             b.mix_rows({dst.get(), 0}, {table.get(), 0}, width, table_rows, idx.data(), wt.data(), rows, taps);
+             o.call = 2;
+             b.inject_streams({res.get(), 0}, {block.get(), 0}, {gate.get(), 0}, rows, streams, width);
+             b.sync();
+         }},
+        {"a routed step with a shared expert, a decode row fused and a prompt's rows unfused, each clearing its output first", [&](OrderCalls& o, std::vector<VkBuffer>& callers) {
+             const size_t E = 256, n_expert = 60, kk = 8, ff = 64, n = 6;
+             auto raw = [&](uint32_t type, size_t in, size_t out_rows, uint32_t seed) {
+                 std::vector<uint8_t> v(quant::row_bytes(type, in, out_rows));
+                 for (size_t i = 0; i < v.size(); ++i) v[i] = uint8_t((i * 131 + seed) & 0x3f);
+                 return b.adopt(v.data(), v.size());
+             };
+             auto router = filled(n_expert * E, 27), gw = raw(quant::GGML_TYPE_Q4_K, E, n_expert * ff, 1), uw = raw(quant::GGML_TYPE_Q4_K, E, n_expert * ff, 2);
+             auto dw = raw(quant::GGML_TYPE_Q5_1, ff, n_expert * E, 3), sgw = raw(quant::GGML_TYPE_Q8_0, E, ff, 4), suw = raw(quant::GGML_TYPE_Q8_0, E, ff, 5);
+             auto sdw = raw(quant::GGML_TYPE_Q8_0, ff, E, 6), rgw = filled(E, 28);
+             const std::vector<float> zeros(E, 0.0f);
+             auto zero = b.adopt(zeros.data(), zeros.size() * sizeof(float));
+             auto h = filled(n * E, 29), y = filled(n * E, 30);
+             const size_t slot = n * (kk * ff + ff);
+             auto dev = [&](size_t floats) { return b.alloc(floats * sizeof(float), backend::Memory::device); };
+             auto scores = dev(n * n_expert), ids = dev(n * kk), wts = dev(n * kk), sg = dev(n), g = dev(slot), u = dev(slot), act = dev(slot);
+             callers = {handle(router), handle(gw), handle(uw), handle(dw), handle(sgw), handle(suw), handle(sdw), handle(rgw), handle(zero), handle(h), handle(y),
+                        handle(scores), handle(ids), handle(wts), handle(sg), handle(g), handle(u), handle(act)};
+             std::vector<backend::RowRun> scratch;
+             auto run = [&](size_t r, int call) {
+                 const size_t sr = r * kk * ff;
+                 const backend::MoeShared sh{{{quant::GGML_TYPE_Q8_0, {sgw.get(), 0}}, {g.get(), sr}, ff}, {{quant::GGML_TYPE_Q8_0, {suw.get(), 0}}, {u.get(), sr}, ff},
+                                             {quant::GGML_TYPE_Q8_0, {sdw.get(), 0}}, {act.get(), sr}, {{quant::GGML_TYPE_F32, {rgw.get(), 0}}, {sg.get(), 0}, 1}};
+                 const backend::MoeStep m{{{quant::GGML_TYPE_F32, {router.get(), 0}}, {scores.get(), 0}, n_expert}, kk, true, {ids.get(), 0}, {wts.get(), 0},
+                                          {{quant::GGML_TYPE_Q4_K, {gw.get(), 0}}, {g.get(), 0}, ff}, {{quant::GGML_TYPE_Q4_K, {uw.get(), 0}}, {u.get(), 0}, ff},
+                                          {quant::GGML_TYPE_Q5_1, {dw.get(), 0}}, {act.get(), 0}, &sh, zero.get(), &scratch};
+                 const backend::RowRun run{r, r};
+                 o.call = call;
+                 b.moe_step(m, {h.get(), 0}, {y.get(), 0}, E, r, {&run, 1}, backend::Dtype::int8);
+             };
+             run(1, 1);
+             run(n, 2);
+             b.sync();
+         }},
+    };
+    (void)prof;
+    for (const Case& c : cases) {
+        std::vector<VkBuffer> callers;
+        std::vector<std::string> found;
+        {
+            OrderCalls o(b);
+            b.unordered(true);
+            try { c.run(o, callers); } catch (...) { b.unordered(false); throw; }
+            o.call = 0;
+            b.unordered(false);
+            found = o.hazards(b, callers);
+        }
+        for (const std::string& h : found) std::cout << "  " << h << "\n";
+        std::cout << "unordered: " << c.name << (found.empty() ? " PASS\n" : " FAIL\n");
+        if (!found.empty()) ++failures;
+    }
+    return failures;
+}
+
 int main(int argc, char** argv) {
     try {
         if ((argc == 2 || argc == 3) && std::string(argv[1]) == "--float-controls") return float_control_checks(argc == 3 ? argv[2] : nullptr) ? 1 : 0;
@@ -1998,7 +2360,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

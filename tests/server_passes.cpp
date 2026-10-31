@@ -1334,9 +1334,11 @@ void service_by_hand() {
     decode.decode(1, 5000);
     require(decode.decode_rows == 2 && decode.decode_band == 1, "decode rows took another band than their deepest's");
     require(t.predict(decode) == 0, "a table that measured nothing predicted");
-    require(t.observe(decode, 10) && t.predict(decode) == 10, "a decode pass alone was not priced as measured");
+    // A decode cell's first measure pays its width's one-time costs, so the cell prices from its second.
+    require(t.observe(decode, 30) && t.predict(decode) == 0 && t.decode.at({1, 2}).last_ms == 30, "a decode cell's first measure priced it");
+    require(t.observe(decode, 10) && t.predict(decode) == 10, "a decode pass alone was not priced as measured from its second measure");
     t.observe(decode, 14);
-    require(std::fabs(t.decode.at({1, 2}).ms - (0.75 * 10 + 0.25 * 14)) < 1e-9 && t.decode.at({1, 2}).last_ms == 14 && t.decode.at({1, 2}).samples == 2, "a cell did not keep the forgetting mean and the last measure");
+    require(std::fabs(t.decode.at({1, 2}).ms - (0.75 * 10 + 0.25 * 14)) < 1e-9 && t.decode.at({1, 2}).last_ms == 14 && t.decode.at({1, 2}).samples == 3, "a cell did not keep the forgetting mean and the last measure");
     server::PassWork three;
     three.decode(3, 5000);
     require(t.predict(three) == t.decode.at({1, 2}).ms, "three decode rows did not take the nearest measured rows of their band");

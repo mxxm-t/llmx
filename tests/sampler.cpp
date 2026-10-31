@@ -1,6 +1,7 @@
 // infer::sample against expectations taken from the definitions rather than from the code: greedy is the argmax, the penalty divides a seen nonnegative score and multiplies a negative one, top-k keeps the k best.
 // Frequencies are held to three binomial standard deviations from fixed seeds, and every draw, with the generator's state after it, to a slow reference that sorts all scores but a masked one and sums the softmax in id order.
 #include <algorithm>
+#include <functional>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -14,6 +15,7 @@
 
 #include "inference/sampler.hpp"
 #include "inference/spec.hpp"
+#include "server/policy.hpp"
 
 namespace {
 
@@ -464,6 +466,113 @@ void pass_price() {
     require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
 }
 
+// The pass cost as the scheduler gives it to the depth rule (Scheduler::propose): passes of each of `widths`, `rounds` times, taking `ms` of stage time at band 0 and `host_ms` more of the server's.
+// The table prices its band's widths through PassTimes::server_ms and the line the rest; `band` is the band read.
+infer::spec::PassCost table_cost(const std::function<double(size_t)>& ms, const std::vector<size_t>& widths, size_t most, double host_ms = 0, size_t band = 0, int rounds = 10) {
+    server::PriceTable table;
+    infer::spec::PassTimes t;
+    for (int round = 0; round < rounds; ++round)
+        for (size_t rows : widths) {
+            server::PassWork w;
+            w.decode(rows, 0);
+            const double cell = table.decode_cell_ms(0, rows);
+            table.observe(w, ms(rows));
+            t.pass(rows, ms(rows) + host_ms);
+            if (cell > 0) t.reconcile(cell, ms(rows) + host_ms);
+        }
+    infer::spec::PassCost c = t.cost();
+    c.rows_ms = table.decode_curve(band, most);
+    for (double& x : c.rows_ms) x = t.server_ms(x);
+    return c;
+}
+
+std::vector<size_t> widths_from(size_t first, size_t last, size_t skip_from = 0, size_t skip_to = 0) {
+    std::vector<size_t> w;
+    for (size_t r = first; r <= last; ++r)
+        if (r < skip_from || r > skip_to) w.push_back(r);
+    return w;
+}
+
+// A pass cost with a step, as production's Qwen3.8-Flash-Next 2x2 measured it at 128k tokens: 2.4 ms a row to 7 rows, then 10 ms more from 8 (docs/STATUS.md).
+// A line through those passes prices 7 rows too dear and 9 too cheap; the price table's cells put the depth before the step, where it gives the most tokens a millisecond.
+void stepped_price() {
+    const double host = 1.5;
+    const auto ms = [](size_t rows) { return 12.0 + 2.4 * (double)rows + (rows >= 8 ? 10.0 : 0.0); };
+    const infer::spec::PassCost c = table_cost(ms, widths_from(1, 20), 20, host);
+    require(c.known, "passes of 1 to 20 rows did not give a price");
+    require(close_to(c.rows_ms[5], ms(5) + host, 1e-6) && close_to(c.rows_ms[9], ms(9) + host, 1e-6), "the table's stage times were not brought to the server's time");
+    // Kept given the ones before at 0.95 to the 8th draft and 0.9 after: six drafts (7 rows) give the most tokens a millisecond at the stepped cost, nine at the line.
+    std::vector<double> keeps(16);
+    double chance = 1;
+    for (size_t j = 0; j < keeps.size(); ++j) chance *= j < 8 ? 0.95 : 0.9, keeps[j] = chance;
+    size_t best = 0;
+    double rate = 1 / (ms(1) + host);
+    for (size_t k = 1; k <= keeps.size(); ++k) {
+        double tokens = 1;
+        for (size_t j = 0; j < k; ++j) tokens += keeps[j];
+        if (tokens / (ms(k + 1) + host) > rate) rate = tokens / (ms(k + 1) + host), best = k;
+    }
+    require(best == 6, "the stepped cost's best depth is not six");
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(c, 1, {keeps}, takes);
+    require(takes[0] == best, "the depth was " + std::to_string(takes[0]) + " where the measured passes give the most tokens a millisecond at six");
+    infer::spec::PassCost line = c;
+    line.rows_ms.clear();
+    std::vector<size_t> on_line;
+    infer::spec::draft_depths(line, 1, {keeps}, on_line);
+    require(on_line[0] == 9, "the line's depth was " + std::to_string(on_line[0]) + ", not nine");
+    // A band the table has not measured is priced by the line, so a reply crossing into a deeper band is not priced at a shallower band's cells.
+    const infer::spec::PassCost deeper = table_cost(ms, widths_from(1, 20), 20, host, 1);
+    infer::spec::draft_depths(deeper, 1, {keeps}, takes);
+    require(takes == on_line, "an unmeasured band gave depth " + std::to_string(takes[0]) + " against " + std::to_string(on_line[0]) + " on the line");
+    // Widths the table has not measured: between measured cells the line through them, never the nearest cell's price, and past the last measured the line.
+    const infer::spec::PassCost gap = table_cost(ms, widths_from(1, 12, 7, 9), 16, host);
+    const double between = ms(6) + host + (ms(10) - ms(6)) * 2.0 / 4.0;
+    require(close_to(gap.rows_ms[8], between, 1e-6) && !close_to(infer::spec::pass_ms(gap, 8), ms(6) + host, 0.5) && !close_to(infer::spec::pass_ms(gap, 8), ms(10) + host, 0.5),
+            "8 rows between measured 6 and 10 were priced " + std::to_string(infer::spec::pass_ms(gap, 8)) + ", not " + std::to_string(between));
+    require(gap.rows_ms[14] == 0 && close_to(infer::spec::pass_ms(gap, 14), gap.rows_ms[12] + gap.row_ms * 2, 1e-9), "14 rows past the measured cells were not priced from 12 rows' price on the line's slope");
+    // A line below the table's last width: past it a pass costs that width's price and the line's slope more, never less, so a draft there never looks free.
+    infer::spec::PassCost low;
+    low.known = true;
+    low.base_ms = 1;
+    low.row_ms = 0.5;
+    low.rows_ms = {0, 0, 0, 30, 32, 40};
+    require(close_to(infer::spec::pass_ms(low, 7), 41, 1e-12) && infer::spec::pass_ms(low, 6) > infer::spec::pass_ms(low, 5), "past the last measured width the price fell to the line");
+    require(close_to(infer::spec::pass_ms(low, 2), 29.5, 1e-12) && close_to(infer::spec::pass_ms(low, 4), 32, 1e-12), "before the first measured width the price was not continued from it");
+}
+
+// A decode cell's first measure pays its width's one-time costs, as a kernel build made on first use did for 2 rows on an MI50 (docs/STATUS.md): 1 to 4 rows cost 49, 55, 92 and 97 ms, the first 2-row pass 96.
+// That pass alone must not price 2 rows, which would move a request kept at 0.6 and 0.3 from one draft to two and keep it from ever measuring 2 rows again; a second 2-row pass prices them.
+void first_measure() {
+    const auto ms = [](size_t rows) { return rows == 1 ? 49.0 : rows == 2 ? 55.0 : rows == 3 ? 92.0 : 97.0; };
+    const std::vector<std::vector<double>> keeps = {{0.6, 0.3, 0.15}};
+    server::PriceTable table;
+    infer::spec::PassTimes t;
+    const auto run = [&](size_t rows, double took) {
+        server::PassWork w;
+        w.decode(rows, 0);
+        const double cell = table.decode_cell_ms(0, rows);
+        table.observe(w, took);
+        t.pass(rows, took);
+        if (cell > 0) t.reconcile(cell, took);
+    };
+    const auto cost = [&] {
+        infer::spec::PassCost c = t.cost();
+        c.rows_ms = table.decode_curve(0, 4);
+        for (double& x : c.rows_ms) x = t.server_ms(x);
+        return c;
+    };
+    for (int round = 0; round < 10; ++round)
+        for (size_t rows : {1, 3, 4}) run(rows, ms(rows));
+    run(2, 96.0);
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(cost(), 1, keeps, takes);
+    require(takes[0] == 1, "one dear first 2-row pass moved the depth to " + std::to_string(takes[0]) + " drafts, where 1 to 4 rows at 49, 55, 92 and 97 ms give one");
+    run(2, ms(2));
+    const infer::spec::PassCost c = cost();
+    require(close_to(c.rows_ms[2], ms(2), 1e-6), "a second 2-row pass priced 2 rows at " + std::to_string(c.rows_ms[2]) + ", not its 55 ms");
+}
+
 // A draft position's chance follows the verifies that reached it, a draft's depth censoring what it says of later positions (docs/SPECULATIVE.md, section 3).
 // As production met it at --draft-max 63: the first verifies fed 63 drafts and missed within three, and later ones fed eight and kept them; the deep misses say nothing of position 9, so a request keeping its eight drafts is priced deeper.
 void censored_depth() {
@@ -659,6 +768,8 @@ int main() {
         acceptance_rest();
         pass_price();
         censored_depth();
+        stepped_price();
+        first_measure();
         frontier_relaxes();
         frontier_loop();
         std::cout << "sampler: " << checks << " checks pass\n";

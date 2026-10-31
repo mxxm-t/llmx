@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Dashboard hidden browser results (2026-11-01, branch fix/dashboard-hidden-test-results-20261101)
+
+- **Goal:** let the command-line browser runner read the drafting regression test's hidden results element.
+- **Done:** the result matcher accepts attributes around its exact element id. The existing drafting test fails on main at both widths before the change because `hidden` precedes `id`; the Playwright preview adapter bypassed this matcher and concealed the defect. The change is confined to test output parsing, with no dashboard, collector or runtime change.
+- **Checks:** all 12 tests pass through the actual Windows command-line browser runner. The focused Linux test passes both widths through the same reader using the image's headless-shell executable (1.413 seconds). Full Chrome in that Playwright image times out even on static tiny HTML; that environment failure is retained. Docs reports zero findings with 21 planted faults; dead-code passes its eight listed findings and 19 planted faults. CI run 41247805547 preserves the inherited Ubuntu and Windows reader failures before Q1 compilation.
+- **Landing:** this test-only correction lands separately by fast-forward from 2c0ffba5f after the affected checks. The original compact grid remains live, with no deployment or inference restart. Runtime and numerical gates do not apply to this output-reader change.
+
 ## Restore original compact drafting grid (2026-11-01, XDEV)
 
 - **Goal:** BOSS selected the original compact grid from before the UI revisions. Other panels stay unchanged.

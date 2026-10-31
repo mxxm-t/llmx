@@ -1,5 +1,7 @@
 #pragma once
 #include <algorithm>
+#include <iterator>
+#include <limits>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -104,17 +106,19 @@ public:
     // The match that stands in for a model's draft, in tokens; docs/SPECULATIVE.md, section 8, has the measurement it comes from.
     static constexpr size_t kConvincing = 8;
     // The longest match a draft's acceptance is told apart by (match_bucket).
-    static constexpr size_t kLongestMatch = 32;
-    // Up to `k` tokens in `out` after the earlier occurrence of the last kConvincing tokens whose match runs back furthest, the latest of equal ones.
+    static constexpr size_t kLongestMatch = 128;
+    // A match long enough that the search for a longer one stops: a copy is being followed.
+    static constexpr size_t kFarEnough = 32;
+    // Up to `k` tokens in `out` after the earlier occurrence of the last kConvincing tokens whose match runs back furthest, the latest of equal ones, the search stopping at the first that reaches kFarEnough.
     // Returns that match's length, at most kLongestMatch, or 0 for none; an occurrence overlapping the history's end goes on into its own draft.
     static size_t convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& images = {}) {
         out.clear();
         const size_t size = h.size(), n = kConvincing;
         if (size <= n || !k || !text_rows(images, size - n, size)) return 0;
         const uint32_t last = h[size - 1];
-        // In a long file a later repeat of the last kConvincing tokens often continues elsewhere than the passage being copied; kLongestMatch also bounds this search.
+        // In a long file a later repeat of the last kConvincing tokens often continues elsewhere than the passage being copied; kFarEnough bounds this search.
         size_t best = SIZE_MAX, best_run = 0;
-        for (size_t i = size - n; i-- > 0 && best_run < kLongestMatch;) {
+        for (size_t i = size - n; i-- > 0 && best_run < kFarEnough;) {
             if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n) ||
                 !text_rows(images, i, i + n))
                 continue;
@@ -265,10 +269,10 @@ private:
 // Where a draft comes from: the request's own history ahead of a model proposer (lookup_first), or its proposer.
 enum class Source : uint8_t { lookup, proposer };
 
-// The ranges of a history draft's match length at its start that keep their acceptance apart: 8 to 15, 16 to 31, and 32 or more tokens.
-// Measured on the match profile (docs/SPECULATIVE.md, section 8): a match of 32 kept its 16th draft 0.82 of the time, one of 8 to 11 0.25.
-inline constexpr size_t kMatchBuckets = 3;
-inline size_t match_bucket(size_t match) { return match >= 32 ? 2 : match >= 16 ? 1 : 0; }
+// The ranges of a history draft's match length at its start that keep their acceptance apart: 8 to 15, 16 to 31, 32 to 127, and 128 or more tokens.
+// A long match is a verbatim copy and a short one often a coincidence, so they are priced apart (docs/SPECULATIVE.md, section 8, has the profiles).
+inline constexpr size_t kMatchBuckets = 4;
+inline size_t match_bucket(size_t match) { return match >= 128 ? 3 : match >= 32 ? 2 : match >= 16 ? 1 : 0; }
 
 // A request's drafting record: an acceptance for the proposer and one for each match bucket of the history's own drafts, so none's misses rest another, and the source and bucket of the draft its verify in flight feeds.
 struct Record {
@@ -281,7 +285,7 @@ struct Record {
     // The acceptance of the draft in flight.
     Acceptance& drafting() { return at(drafted, bucket); }
     // Whether every match bucket of the history's own drafts rests, so no walk of the history can give a draft.
-    bool lookup_resting() const { return lookup[0].resting() && lookup[1].resting() && lookup[2].resting(); }
+    bool lookup_resting() const { return std::all_of(std::begin(lookup), std::end(lookup), [](const Acceptance& a) { return a.resting(); }); }
     // A verify that fed `fed` drafts of the draft in flight and kept the first `kept`, the tokens it generated counted against every other acceptance's rest.
     void verified(size_t kept, size_t fed) {
         Acceptance& d = drafting();
@@ -292,6 +296,16 @@ struct Record {
     // A token generated without drafts.
     void stepped() {
         for (Acceptance* a : all()) a->stepped();
+    }
+    // History bucket b about to price a draft: with no verify of its own yet it starts from the next shorter bucket that has one, not resting, so a longer match is not priced as a fresh record.
+    void seed(size_t b) {
+        if (!lookup[b].drafted().empty()) return;
+        for (size_t s = b; s-- > 0;)
+            if (!lookup[s].drafted().empty()) {
+                lookup[b] = lookup[s];
+                lookup[b].stepped(std::numeric_limits<size_t>::max());
+                return;
+            }
     }
     // The drafts fed and kept by position over source `s`, its buckets summed.
     void tally(Source s, std::vector<size_t>& drafted_at, std::vector<size_t>& kept_at) const {
@@ -305,7 +319,7 @@ struct Record {
     }
 
 private:
-    std::array<Acceptance*, kMatchBuckets + 1> all() { return {&lookup[0], &lookup[1], &lookup[2], &proposer}; }
+    std::array<Acceptance*, kMatchBuckets + 1> all() { return {&lookup[0], &lookup[1], &lookup[2], &lookup[3], &proposer}; }
 };
 
 // How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, and none while it rests (Acceptance).
@@ -326,6 +340,7 @@ inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size
     const size_t k = draft_length(draft_max, tokens_left, context_left, columns, fresh);
     const size_t match = k ? Lookup::convincing(history, k, out, images) : 0;
     if (out.empty()) return 0;
+    r.seed(match_bucket(match));
     if (r.lookup[match_bucket(match)].resting()) {
         out.clear();
         return 0;

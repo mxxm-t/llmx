@@ -661,7 +661,8 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
                "by_position": [{"position": 1, "drafted": 1024, "kept": 901}],
                "own_history": {"drafted": 512, "kept": 480},
                "by_source": [{"source": "proposer", "by_position": [[512, 421, 512]]}, {"source": "history 8-15", "by_position": [[120, 101, 120]]},
-                             {"source": "history 16-31", "by_position": []}, {"source": "history 32+", "by_position": [[392, 379, 392]]}]}},
+                             {"source": "history 16-31", "by_position": []}, {"source": "history 32-127", "by_position": []},
+                             {"source": "history 128+", "by_position": [[392, 379, 392]]}]}},
   "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
 }
 ```

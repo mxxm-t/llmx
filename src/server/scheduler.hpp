@@ -613,7 +613,7 @@ public:
         // Every source's by position, and the requests' own histories' apart.
         tally_.tally(infer::spec::Source::lookup, s.own_drafted, s.own_kept);
         tally_.tally(infer::spec::Source::proposer, s.drafted, s.kept);
-        s.by_source.assign({tally_.proposer, tally_.lookup[0], tally_.lookup[1], tally_.lookup[2]});
+        s.by_source.assign({tally_.proposer, tally_.lookup[0], tally_.lookup[1], tally_.lookup[2], tally_.lookup[3]});
         if (s.drafted.size() < s.own_drafted.size()) s.drafted.resize(s.own_drafted.size()), s.kept.resize(s.own_drafted.size());
         for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
         s.live = live_;
@@ -1532,6 +1532,11 @@ private:
             }
             if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record.proposer);
             if (!k) continue;
+            // The server's record of a history bucket starts from a shorter one's as the request's does (spec::Record::seed).
+            if (record.drafted == Source::lookup) {
+                std::lock_guard<std::mutex> lk(m_);
+                tally_.seed(record.bucket);
+            }
             keeps_.emplace_back(k);
             // A draft is priced by its source's acceptance, a history draft's by its match bucket's, each weighed with the server's of the same.
             for (size_t j = 0; j < k; ++j) keeps_.back()[j] = record.drafting().keeps(j, tally_.at(record.drafted, record.bucket));

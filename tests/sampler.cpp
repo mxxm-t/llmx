@@ -638,15 +638,16 @@ void frontier_relaxes() {
     require(at21 >= 0.95 * at20 * (at20 / at19), "position 21 stayed at " + std::to_string(at21 / at20) + " of position 20 after 400 verifies kept every draft up to it");
 }
 
-// Verifies in a loop at censored_depth's price: each feeds the depth draft_depths takes and keeps each draft by `truth`, its chance given the ones before.
-// It starts after five verifies that kept 20 drafts and missed the 21st, and gives the depth each verify fed.
-std::vector<size_t> closed_loop(const std::vector<double>& truth, size_t verifies, uint64_t seed) {
+// Verifies in a loop at a price of `base_ms` and `row_ms` a row: each feeds the depth draft_depths takes and keeps each draft by `truth`, its chance given the ones before.
+// It starts after the verifies `before` gives as (kept, fed), and gives the depth each verify fed.
+std::vector<size_t> closed_loop(const std::vector<double>& truth, size_t verifies, uint64_t seed, const std::vector<std::pair<size_t, size_t>>& before,
+                                double base_ms = 16.7, double row_ms = 3.3) {
     infer::spec::Acceptance own, server;
-    for (int i = 0; i < 5; ++i) own.verified(20, 21), server.verified(20, 21);
+    for (const auto& b : before) own.verified(b.first, b.second), server.verified(b.first, b.second);
     infer::spec::PassCost c;
     c.known = true;
-    c.base_ms = 16.7;
-    c.row_ms = 3.3;
+    c.base_ms = base_ms;
+    c.row_ms = row_ms;
     infer::RNG rng = seeded(seed);
     std::vector<std::vector<double>> keeps(1, std::vector<double>(truth.size()));
     std::vector<size_t> takes, fed;
@@ -665,16 +666,60 @@ std::vector<size_t> closed_loop(const std::vector<double>& truth, size_t verifie
 // The frontier over eight seeds: kept at 0.99 everywhere, the depth passes 21 within 400 verifies (301 to 343 measured).
 // With position 21 truly kept at 0.2, at most 40 of 2000 verifies feed it (12 to 17 measured).
 void frontier_loop() {
+    const std::vector<std::pair<size_t, size_t>> early(5, {20, 21});
     std::vector<double> truth(infer::spec::kMaxDrafts, 0.99);
     for (uint64_t seed = 1; seed <= 8; ++seed) {
-        const std::vector<size_t> fed = closed_loop(truth, 400, seed);
+        const std::vector<size_t> fed = closed_loop(truth, 400, seed, early);
         require(std::any_of(fed.begin(), fed.end(), [](size_t k) { return k > 21; }), "a depth kept at 0.99 everywhere stayed within 21 for 400 verifies after five early misses at 21");
     }
     truth[20] = 0.2;
     for (uint64_t seed = 1; seed <= 8; ++seed) {
-        const std::vector<size_t> fed = closed_loop(truth, 2000, seed);
+        const std::vector<size_t> fed = closed_loop(truth, 2000, seed, early);
         const size_t feeding = (size_t)std::count_if(fed.begin(), fed.end(), [](size_t k) { return k > 20; });
         require(feeding <= 40, std::to_string(feeding) + " of 2000 verifies fed position 21, which is kept at 0.2");
+    }
+}
+
+// The depth that gives the most tokens a millisecond at the price, where position j is kept with the product of truth up to j.
+size_t best_depth(const std::vector<double>& truth, double base_ms, double row_ms) {
+    double chance = 1, tokens = 1, best = 1 / (base_ms + row_ms);
+    size_t depth = 0;
+    for (size_t k = 1; k <= truth.size(); ++k) {
+        chance *= truth[k - 1];
+        tokens += chance;
+        const double rate = tokens / (base_ms + row_ms * (double)(k + 1));
+        if (rate > best) best = rate, depth = k;
+    }
+    return depth;
+}
+
+// On code edits a draft that survived to a position is usually inside a long copy, so the chance of keeping it given the ones before rises with depth: 0.8 at the first, 0.99 from the 20th.
+// At a price where 63 drafts give the most tokens a millisecond, the depth opens to 63 from a fresh start and, after 300 verifies that missed within three, within 200 verifies (60 to 128 measured), and stays there.
+void rising_loop() {
+    std::vector<double> truth(infer::spec::kMaxDrafts);
+    for (size_t j = 0; j < truth.size(); ++j) truth[j] = 0.8 + 0.19 * (double)std::min<size_t>(j, 19) / 19.0;
+    const double base = 30, row = 0.1;
+    require(best_depth(truth, base, row) == 63, "the rising profile's best depth at its price is not 63");
+    std::vector<std::pair<size_t, size_t>> shorts;
+    for (int i = 0; i < 300; ++i) shorts.push_back({(size_t)(i % 3), 3});
+    for (int start = 0; start < 2; ++start)
+        for (uint64_t seed = 1; seed <= 4; ++seed) {
+            const std::vector<size_t> fed = closed_loop(truth, 1000, seed, start ? shorts : std::vector<std::pair<size_t, size_t>>{}, base, row);
+            const size_t first = (size_t)(std::find_if(fed.begin(), fed.end(), [](size_t k) { return k >= 63; }) - fed.begin());
+            const size_t deep = (size_t)std::count_if(fed.begin() + 500, fed.end(), [](size_t k) { return k >= 63; });
+            require(first <= (start ? 200u : 0u) && deep >= 475, "a rising profile opened to 63 at verify " + std::to_string(first) + " and held it in " + std::to_string(deep) + " of the last 500");
+        }
+}
+
+// Each bucket prices from its own verifies, at censored_depth's price: 0.97 a position (32+ on production's reruns) stays within 26 in 9 of 10 verifies.
+// 0.998 a position (its verbatim copies) takes 60 or more in two of three (225 of 300 on the worst seed measured).
+void bucket_depths() {
+    const std::vector<double> mixed(infer::spec::kMaxDrafts, 0.97), copies(infer::spec::kMaxDrafts, 0.998);
+    for (uint64_t seed = 1; seed <= 4; ++seed) {
+        const std::vector<size_t> a = closed_loop(mixed, 600, seed, {}), b = closed_loop(copies, 600, seed, {});
+        const size_t a_shallow = (size_t)std::count_if(a.begin() + 300, a.end(), [](size_t k) { return k <= 26; });
+        const size_t b_deep = (size_t)std::count_if(b.begin() + 300, b.end(), [](size_t k) { return k >= 60; });
+        require(a_shallow >= 270 && b_deep >= 200, "of the last 300 verifies, " + std::to_string(a_shallow) + " at 0.97 a position stayed within 26 and " + std::to_string(b_deep) + " at 0.998 took 60 or more");
     }
 }
 
@@ -780,6 +825,35 @@ void min_p() {
     for (int i = 0; i < 20; i++) require(infer::sample(logits.data(), logits.size(), s, 3, no_history, rng) == 1, "min_p ranked the masked token");
 }
 
+// A history draft whose match opens a bucket no verify has reached starts from the next shorter bucket's record (spec::Record::seed, through spec::lookup_first), so a verbatim copy drafts at that bucket's depth from its first verify.
+// A bucket with verifies of its own keeps them.
+void seeded_bucket() {
+    infer::spec::Record own, server;
+    for (int i = 0; i < 300; ++i) {
+        own.lookup[2].verified(i % 50 ? 63 : 62, 63);
+        server.lookup[2].verified(i % 50 ? 63 : 62, 63);
+    }
+    own.lookup[1].verified(0, 3);
+    std::vector<uint32_t> history(200);
+    for (size_t i = 0; i < history.size(); ++i) history[i] = (uint32_t)(1000 + i);
+    history.insert(history.end(), history.begin(), history.begin() + 150);
+    std::vector<uint32_t> out;
+    const size_t k = infer::spec::lookup_first(own, 63, 1000, 1000, 63, history, out);
+    require(k == 63 && own.drafted == infer::spec::Source::lookup && own.bucket == 3, "a copy of 150 tokens drafted " + std::to_string(k) + " in bucket " + std::to_string(own.bucket));
+    server.seed(3);
+    std::vector<double> keeps(63);
+    for (size_t j = 0; j < keeps.size(); ++j) keeps[j] = own.lookup[3].keeps(j, server.lookup[3]);
+    infer::spec::PassCost c;
+    c.known = true;
+    c.base_ms = 16.7;
+    c.row_ms = 3.3;
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(c, 1, {keeps}, takes);
+    require(takes[0] == 63, "a copy's first verify in a fresh bucket took " + std::to_string(takes[0]) + " drafts beside a shorter bucket's 63");
+    own.seed(1);
+    require(own.lookup[1].drafted().size() == 3 && own.lookup[1].kept()[0] == 0, "a bucket with a verify of its own was seeded over");
+}
+
 int main() {
     try {
         temperature_zero();
@@ -801,6 +875,9 @@ int main() {
         cheaper_not_shallower();
         frontier_relaxes();
         frontier_loop();
+        rising_loop();
+        bucket_depths();
+        seeded_bucket();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

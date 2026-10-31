@@ -294,12 +294,14 @@ struct TileCall {
     float* partials;
 };
 // Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
-template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; };
+// A step loads while the previous one computes, but in the tall build over the 16-bit twin, which loads its step after the barrier: holding the next step's loads took it 124 VGPRs and after the barrier it takes 99 (docs/STATUS.md, ROCm tall tile staging).
+template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; static constexpr bool ahead = RO == 4 || sizeof(QT) == 1; };
 
 // The prompt tile (the Vulkan tile's design, matmul_tile_q.comp): a block of 256 threads 64 outputs by 64 rows, each thread 4 adjacent outputs by 4 adjacent rows, the blocks of a step staged k-major in shared memory, word w of every output and then of every row, the weights widened to the twin's integer type.
 // A thread reads its four outputs' word and its four rows' word as two 16-byte reads and feeds 16 integer sums; each output sums its blocks in order, acc = fma(dw * dx, isum, acc), so a row gives the same bits wherever the tile falls.
 template <typename QT, int RO>
 __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
+    constexpr bool AHEAD = TileStep<QT, RO>::ahead;
     constexpr int STEP = TileStep<QT, RO>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = RO * 16, LOADS = RO / 4;
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
     const unsigned char* W = c.w[pi];
@@ -385,11 +387,12 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
             if (seg == 0) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
         }
     };
-    load(kbeg);
+    if (AHEAD) load(kbeg);
     for (unsigned long long k0 = kbeg; k0 < kend; k0 += STEP) {
+        if (!AHEAD) load(k0);
         store();
         __syncthreads();
-        if (k0 + STEP < kend) load(k0 + STEP);
+        if (AHEAD && k0 + STEP < kend) load(k0 + STEP);
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             if (k0 + s >= kend) break;

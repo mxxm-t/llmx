@@ -346,6 +346,52 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                            "<div hidden><pre id='rate-test-results'></pre></div></body></html>")
                 self.assertEqual(len(self.run_browser(wrapper)), 28)
 
+    def test_draft_position_inspection_survives_refresh(self):
+        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+try {
+  const raw = {drafting: {since_start: {by_source: [
+    {source: 'proposer', by_position: [[100, 40, 50], [50, 2, 4], [20, 0, 0]]},
+    {source: 'history 8-15', by_position: [[100, 10, 20]]}
+  ]}}};
+  $('draft-details').open = true;
+  positionSource = 'proposer';
+  drawPositions(raw);
+  const cells = () => [...$('positions').querySelectorAll('.position')];
+  check('ordinary denominator is reached', cells()[0].getAttribute('aria-label').includes('40 of 50 reached'));
+  check('small sample keeps reached denominator', cells()[1].getAttribute('aria-label').includes('2 of 4 reached'));
+  check('unreached is unavailable', cells()[2].textContent.includes('--'));
+  check('low sample has visible marker', cells()[1].textContent.includes('*'));
+  cells()[1].focus();
+  cells()[1].click();
+  raw.drafting.since_start.by_source[0].by_position[1] = [55, 3, 5];
+  drawPositions(raw);
+  check('focused position survives refresh', document.activeElement === cells()[1]);
+  check('pinned tooltip survives refresh', $('positions').querySelector('.tooltip').style.display === 'block');
+  check('pinned tooltip gets fresh counters', $('positions').querySelector('.tooltip').textContent.includes('60%'));
+  cells()[1].dispatchEvent(new KeyboardEvent('keydown', {key:'Escape', bubbles:true}));
+  check('escape dismisses inspection', $('positions').querySelector('.tooltip').style.display === 'none');
+  drawPositions(raw);
+  check('escape stays dismissed on refresh', $('positions').querySelector('.tooltip').style.display !== 'block');
+  const switcher = $('position-sources').querySelector('[data-source="all"]');
+  check('source target height', switcher.getBoundingClientRect().height >= 32);
+  check('position label readable', parseFloat(getComputedStyle(cells()[0].querySelector('.position-label')).fontSize) >= 11);
+  positionSource = 'all';
+  drawPositions(raw);
+  check('all source uses summed reached', cells()[0].getAttribute('aria-label').includes('50 of 70 reached'));
+  drawPositions({drafting:{since_start:{by_position:[{position:1,drafted:10,kept:2}]}}});
+  check('legacy basis is explicit', $('positions').textContent.includes('kept / drafted'));
+  check('no horizontal overflow', document.documentElement.scrollWidth <= innerWidth);
+} catch (error) { check('unexpected JavaScript error: ' + error.message, false); }
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                document = source.replace("</body>", "<pre hidden id='rate-test-results'></pre><script>" + cases + "</script></body>")
+                self.assertEqual(len(self.run_browser(document, width)), 15)
+
     def run_browser(self, document, width=1440):
         browser = next((str(path) for path in CHROME_PATHS if path.is_file()), None)
         if browser is None:

@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Dashboard drafting interaction and readability (2026-10-31, XDEV)
+
+- **Goal:** preserve the emergency source selector while making draft-position inspection stable and readable.
+- **Done:** reproduced lost pinned tooltip and keyboard focus on production refresh. The deployed HTML matches emergency commit e96bf1bdf. Work starts from published main9612b8b7a and carries that static UI dependency forward.
+- **Left:** failing browser regression, implementation, responsive browser checks, syntax and docs/dead-code checks, then deploy the static file.
+- **Gotchas:** no collector, API or inference changes. The position chart uses kept/reached whenever source counters exist, including small samples. Legacy counters remain explicitly kept/drafted. No numerical or inference performance gates apply to this static presentation change.
+
+
 ## ROCm prompt tile staging (2026-10-31, DDEV, branch perf/rocm-tile-staging on main 031c7d38b; the plan of 2026-10-31 16:06 approved by F2DEV at 16:11, steps 1, 2 and 3 in that order, each measured on its own; step 1 done)
 
 **Goal:** the int8 prompt tile of Qwen3-8B Q8_0 on one MI50 toward Vulkan's: 440 ms of device time a pp512 pass against Vulkan's 352 (94 percent of the prompt gap), bit for bit.

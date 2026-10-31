@@ -105,23 +105,26 @@ public:
     static constexpr size_t kConvincing = 8;
     // The longest match a draft's acceptance is told apart by (match_bucket).
     static constexpr size_t kLongestMatch = 32;
-    // Up to `k` tokens that followed the latest earlier occurrence of the history's last kConvincing tokens, in `out`, an occurrence that overlaps the history's end going on into the tokens drafted.
-    // Returns the match's length, the occurrence extended backwards while it still matches the history's end, at most kLongestMatch, or 0 for none.
+    // Up to `k` tokens in `out` after the earlier occurrence of the last kConvincing tokens whose match runs back furthest, the latest of equal ones.
+    // Returns that match's length, at most kLongestMatch, or 0 for none; an occurrence overlapping the history's end goes on into its own draft.
     static size_t convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& images = {}) {
         out.clear();
         const size_t size = h.size(), n = kConvincing;
         if (size <= n || !k || !text_rows(images, size - n, size)) return 0;
         const uint32_t last = h[size - 1];
-        for (size_t i = size - n; i-- > 0;) {
+        // In a long file a later repeat of the last kConvincing tokens often continues elsewhere than the passage being copied; kLongestMatch also bounds this search.
+        size_t best = SIZE_MAX, best_run = 0;
+        for (size_t i = size - n; i-- > 0 && best_run < kLongestMatch;) {
             if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n) ||
                 !text_rows(images, i, i + n))
                 continue;
-            for (size_t j = i + n; out.size() < k && !image_row(images, j); ++j) out.push_back(j < size ? h[j] : out[j - size]);
             size_t run = n;
             while (run < kLongestMatch && i + n > run && h[i + n - 1 - run] == h[size - 1 - run] && !image_row(images, i + n - 1 - run)) ++run;
-            return run;
+            if (run > best_run) best = i, best_run = run;
         }
-        return 0;
+        if (best == SIZE_MAX) return 0;
+        for (size_t j = best + n; out.size() < k && !image_row(images, j); ++j) out.push_back(j < size ? h[j] : out[j - size]);
+        return best_run;
     }
     bool on_device() const override { return false; }
 };

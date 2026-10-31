@@ -335,15 +335,28 @@ void convincing_rule() {
                 rested.drafted == Source::proposer,
             "every bucket resting, a history draft was still taken");
 
-    // The walk gives the match's length, the occurrence extended backwards while it matches, at most 32, and that names the bucket a verify records into.
+    // The walk gives the match's length, the occurrence extended backwards while it matches, at most 128, and that names the bucket a verify records into.
     std::vector<uint32_t> mid(20);
     for (size_t i = 0; i < mid.size(); ++i) mid[i] = 200 + (uint32_t)i;
     require(Lookup::convincing(history({run, {20, 21, 22}, run}), 2, out) == 8 && Lookup::convincing(history({mid, {20, 21, 22}, mid}), 2, out) == 20 &&
-                Lookup::convincing(history({{7}, long_run, {20, 21, 22}, {7}, long_run}), 2, out) == 32 && Lookup::convincing(history({run, {20}}), 2, out) == 0,
+                Lookup::convincing(history({{7}, long_run, {20, 21, 22}, {7}, long_run}), 2, out) == 33 && Lookup::convincing(history({run, {20}}), 2, out) == 0,
             "the walk gave a match's length wrong");
     require(infer::spec::match_bucket(8) == 0 && infer::spec::match_bucket(15) == 0 && infer::spec::match_bucket(16) == 1 && infer::spec::match_bucket(31) == 1 &&
-                infer::spec::match_bucket(32) == 2,
-            "the match buckets are not 8 to 15, 16 to 31 and 32 or more");
+                infer::spec::match_bucket(32) == 2 && infer::spec::match_bucket(127) == 2 && infer::spec::match_bucket(128) == 3 &&
+                infer::spec::match_bucket(5000) == 3 && infer::spec::kMatchBuckets == 4,
+            "the match buckets are not 8 to 15, 16 to 31, 32 to 127 and 128 or more");
+    // A verbatim copy is told apart from a short coincidence: the walk goes back to 128 tokens.
+    std::vector<uint32_t> copy(600), coincidence(40);
+    for (size_t i = 0; i < copy.size(); ++i) copy[i] = 1000 + (uint32_t)i;
+    for (size_t i = 0; i < coincidence.size(); ++i) coincidence[i] = 3000 + (uint32_t)i;
+    require(Lookup::convincing(history({copy, {20, 21, 22}, copy}), 2, out) == 128 && Lookup::convincing(history({coincidence, {20, 21, 22}, coincidence}), 2, out) == 40,
+            "the walk did not tell a copy of 600 tokens from a match of 40");
+    // The match's length names only the bucket: the copy drafts the tokens a match of eight before the same continuation drafts.
+    std::vector<uint32_t> from_copy, from_eight;
+    const std::vector<uint32_t> eight(copy.end() - 8, copy.end());
+    require(Lookup::convincing(history({copy, {20, 21, 22}, copy}), 5, from_copy) == 128 && Lookup::convincing(history({eight, {20, 21, 22}, copy}), 5, from_eight) == 8 &&
+                from_copy == from_eight && from_copy == std::vector<uint32_t>{20, 21, 22, 1000, 1001},
+            "the match's length changed the tokens drafted");
     infer::spec::Record b;
     require(infer::spec::lookup_first(b, 3, 100, 100, 3, history({mid, {20, 21, 22}, mid}), out) == 3 && b.drafted == Source::lookup && b.bucket == 1,
             "a match of 20 tokens drafted in another bucket");

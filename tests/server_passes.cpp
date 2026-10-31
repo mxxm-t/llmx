@@ -65,6 +65,12 @@ struct Service {
     std::map<uint64_t, double> credit;
     std::vector<double> gaps;   // every gap between two tokens of a request
     size_t chunk_passes = 0, chunk_rows = 0;
+    double step_tokens = 1;   // the replies' tokens a step the rule plans by, a drafting reply's mean (StepTokens)
+    // At the first stage, between two passes carrying replies while a prompt also reads: the passes with prompt rows met and their prompt rows' stage time.
+    std::vector<size_t> met_passes;
+    std::vector<double> met_ms, met_steps;   // met_steps: the time from one of those passes to the next at the first stage, a reply's step while a prompt reads
+    size_t met_now = 0;
+    double met_ms_now = 0, budget_ms = 0, step_at = 0;
 };
 
 // The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s for a random time, the host waiting for a handoff before recording the next stage and for a last stage before it samples.
@@ -196,6 +202,35 @@ struct Sim {
         return false;
     }
 
+    // The prompt work the first stage runs between two passes carrying replies: a replies' pass closes a step, a pass with prompt rows adds their part of its time.
+    void meet(const Pass& p, double start, double ms) {
+        Service& v = *service;
+        size_t prompt_rows = 0;
+        for (size_t e = 0; e < p.ids.size(); ++e) prompt_rows += p.extent[e] != 1 ? p.rows[e] : 0;
+        double chunk = ms;
+        if (p.decoders) {
+            Pass alone = p;
+            alone.ids.resize(p.decoders);
+            alone.rows.resize(p.decoders);
+            alone.from.resize(p.decoders);
+            alone.extent.resize(p.decoders);
+            chunk = prompt_rows ? ms - stage_ms(alone) : 0;
+        }
+        if (prompt_rows) {
+            ++v.met_now;
+            v.met_ms_now += chunk;
+        }
+        if (!p.decoders) return;
+        if (v.met_now) {
+            v.met_passes.push_back(v.met_now);
+            v.met_ms.push_back(v.met_ms_now);
+            v.met_steps.push_back(start - v.step_at);
+        }
+        v.step_at = start;
+        v.met_now = 0;
+        v.met_ms_now = 0;
+    }
+
     // What a stage's device or thread does with the pass once it is recorded.
     void recorded_stage(Pass& p, size_t s) {
         if (service) {
@@ -203,6 +238,7 @@ struct Sim {
             const double start = std::max({clock, device_free[s], s ? p.ready : 0.0});
             p.ready = device_free[s] = start + ms;
             service->tables[s].observe(work_of(p), ms);
+            if (!s) meet(p, start, ms);
             clock = host[s] ? p.ready : clock + service->record_ms;
             ++p.ran;
             return;
@@ -772,8 +808,9 @@ struct Sim {
             double replies = 0;
             for (size_t s = 0; s < S; ++s) replies = std::max(replies, v.tables[s].decode_ms(band, packed_share));
             if (replies > 0) {
-                const server::ChunkPlan c = server::chunk_plan(1.0, replies, S, v.rate);
+                const server::ChunkPlan c = server::chunk_plan(v.step_tokens, replies, S, v.rate);
                 target = c.budget_ms;
+                v.budget_ms = c.budget_ms;
                 met = c.met;
                 priced = true;
                 replies_ms = replies;
@@ -1496,6 +1533,9 @@ struct Outcome {
     std::vector<double> gaps;
     double span_ms = 0;
     size_t chunk_passes = 0, chunk_rows = 0, skipped = 0, met = 0, unmet = 0;
+    std::vector<size_t> met_passes;
+    std::vector<double> met_ms, met_steps;
+    double budget_ms = 0;
 };
 Outcome replay(const Load& load, const Bench& b, const Service& rule) {
     Sim sim(1, b.stages, b.passes);
@@ -1569,6 +1609,10 @@ Outcome replay(const Load& load, const Bench& b, const Service& rule) {
     out.met = v.met;
     out.unmet = v.unmet;
     out.chunk_rows = v.chunk_rows;
+    out.met_passes = std::move(v.met_passes);
+    out.met_ms = std::move(v.met_ms);
+    out.met_steps = std::move(v.met_steps);
+    out.budget_ms = v.budget_ms;
     return out;
 }
 
@@ -1936,6 +1980,42 @@ void replay_smoke() {
     std::printf("server-passes: replay of the owner's case at 20k tokens, the later prompts' first token at %.0f ms today, %.0f ms oldest first and %.0f ms least remaining\n", ttft[0], ttft[1], ttft[2]);
 }
 
+// A reply beside a long prompt on two stages (docs/SERVER.md, The service rule): one drafting reply, planned at two tokens a step, decodes while a 140k-token prompt reads, at production's prices.
+// From P = S + 1 a reply's step meets one chunk a stage, each within the budget, and the reply holds the objective.
+void replay_long_prompt() {
+    for (size_t passes : {2, 3, 4}) {
+        Bench b;
+        b.passes = passes;
+        b.max_seqs = 4;
+        b.ubatch = 1024;
+        Service rule;
+        rule.step_tokens = 2;
+        const Load load{"long prompt", {{0, 64, 0, 30000}, {1000, 140000, 0, 1}}};
+        const Outcome o = replay(load, b, rule);
+        require(o.done.size() == load.requests.size(), "a reply beside a long prompt left requests that never ended");
+        require(o.met_ms.size() > 100 && o.budget_ms > 0, "a reply beside a long prompt met no prompt work under a budget");
+        std::vector<double> ms = o.met_ms, gaps = o.met_steps;
+        std::vector<size_t> n = o.met_passes;
+        std::sort(ms.begin(), ms.end());
+        std::sort(n.begin(), n.end());
+        std::sort(gaps.begin(), gaps.end());
+        double prompt = 0;
+        for (const Sim::Req& q : o.done)
+            if (q.prompt == 140000) prompt = q.first_at - q.arrived;
+        std::printf("server-passes: a reply beside a 140k prompt at P = %zu: prompt work a step %.0f ms in %zu passes against a budget of %.0f ms, the prompt's first token at %.1f s, the reply's median gap %.0f ms\n",
+                    passes, ms[ms.size() / 2], n[n.size() / 2], o.budget_ms, prompt / 1000, gaps[gaps.size() / 2]);
+        // Every stage holds one chunk at a time, so a step meets one chunk pass a stage, each within the budget.
+        // At P = S the slot beside the replies' pass leaves one chunk pass, a stage idle half the step: one prompt in flight continues only in passes holding it alone (Model::begin_pass), so no second chunk of it can ride the replies.
+        const size_t want = std::min(b.stages, passes - 1);
+        const double step = 1000.0 * rule.step_tokens / rule.rate, work = ms[ms.size() / 2];
+        const std::string at = "at P = " + std::to_string(passes) + " ";
+        require(n[n.size() / 2] == want, at + "the first stage met " + std::to_string(n[n.size() / 2]) + " chunk passes between two of the reply's steps, against " + std::to_string(want));
+        require(work <= 1.1 * (double)want * o.budget_ms && work >= 0.8 * (double)want * o.budget_ms,
+                at + "the first stage ran " + std::to_string(work) + " ms of prompt work between two of the reply's steps, against the stages times a budget of " + std::to_string(o.budget_ms));
+        require(gaps[gaps.size() / 2] <= 1.15 * step, at + "the reply's median gap was " + std::to_string(gaps[gaps.size() / 2]) + " ms against the objective's " + std::to_string(step));
+    }
+}
+
 } // namespace
 
 // Why a turn reused little (reuse_miss): the closest held history by tokens, the message the difference falls in, and what limited the reuse below the agreement.
@@ -1990,6 +2070,7 @@ int main(int argc, char** argv) {
         replay_smoke();
         replay_unmet();
         replay_quick();
+        replay_long_prompt();
         reuse_miss_by_hand();
         random_schedules(schedules);
         std::cout << "server-passes: " << checks << " checks pass\n";

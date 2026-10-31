@@ -123,6 +123,7 @@ public:
         for (size_t s = 0; s < kRingSlots; ++s) {
             args_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, true, graves_);
             stage_.slots[s] = std::make_shared<RocmBuffer>(kStageBytes, true, graves_);
+            pass_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, false, graves_);
         }
     }
     ~RocmBackend() override {
@@ -141,6 +142,8 @@ public:
         partials_ = {};
         args_ = {};
         stage_ = {};
+        pass_ = {};
+        uploads_ = {};
         if (module_) (void)f.hipModuleUnload(module_);
         if (int16_module_) (void)f.hipModuleUnload(int16_module_);
         if (dot_module_) (void)f.hipModuleUnload(dot_module_);
@@ -199,7 +202,7 @@ public:
         hip_check(hip().hipEventRecord(events_[i], stream_), "hipEventRecord");
         tickets_.take();
         opened_ = false;
-        for (Ring* r : {&args_, &stage_}) r->tag(t);
+        for (Ring* r : {&args_, &stage_, &pass_}) r->tag(t);
         return t;
     }
     void wait(Ticket t) noexcept override {
@@ -381,7 +384,7 @@ public:
         const float* s = f32(src);
         if ((const float*)d == s && (src_stride != width || src_head_stride != head_dim))
             throw std::runtime_error("rocm: partial rope in place over heads that are not contiguous");
-        const unsigned* p = (const unsigned*)arg(pos, rows * sizeof(uint32_t));
+        const unsigned* p = (const unsigned*)pass_arg(pos, rows * sizeof(uint32_t));
         unsigned long long dst_stride = width, ss = src_stride, shs = src_head_stride;
         int hd = (int)head_dim, hf = (int)half;
         const float* wp = w.buffer ? f32(w) : nullptr;
@@ -469,7 +472,7 @@ public:
         const float* kw = k_w.buffer ? f32(k_w) : nullptr;
         const float* c = f32(rope.cos);
         const float* sn = f32(rope.sin);
-        const unsigned* p = (const unsigned*)arg(rope.pos, rows * sizeof(uint32_t));
+        const unsigned* p = (const unsigned*)pass_arg(rope.pos, rows * sizeof(uint32_t));
         unsigned long long qs = q_stride;
         int nh = (int)n_head, nkv = (int)n_head_kv, hf = (int)rope.half, bt = (int)kBlockTokens, kh = t.k_half, vh = t.v_half;
         float eps = rope.eps;
@@ -520,14 +523,19 @@ public:
         float* o = f32(out);
         const void* kc = as_rocm(*s.k_buffer(layer)).data();
         const void* vc = as_rocm(*s.v_buffer(layer)).data();
-        const int* tp = (const int*)arg(table.data(), table.size() * sizeof(int32_t));
-        const int* fp = (const int*)arg(firsts.data(), rows * sizeof(int32_t));
-        const int* ep = (const int*)arg(ends.data(), rows * sizeof(int32_t));
+        // The table, firsts, ends and tile views in one set, which every layer of the pass reads alike.
+        const size_t nt = table.size();
+        table.insert(table.end(), firsts.begin(), firsts.end());
+        table.insert(table.end(), ends.begin(), ends.end());
+        table.insert(table.end(), wide.begin(), wide.end());
+        const int* tp = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
+        const int* fp = tp + nt;
+        const int* ep = fp + rows;
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens;
         int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
         float scale = 1.0f / std::sqrt((float)head_dim);
         if (!wide.empty()) {
-            const int* wv = (const int*)arg(wide.data(), wide.size() * sizeof(int32_t));
+            const int* wv = ep + rows;
             int nviews = (int)(wide.size() / 5);
             void* args[] = {&q, &o, &kc, &vc, &tp, &wv, &nviews, &n_head, &n_head_kv, &bt, &kh, &vh, &scale};
             launch(kAttentionTile, (unsigned)(tiles * n_head), 1, args);
@@ -598,33 +606,43 @@ private:
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
     static constexpr size_t kTileOut = 64, kTileRows = 64;   // the prompt tile's outputs and rows (kernels/int16.hip)
 
-    // Pinned host memory in slots the device reads in place or copies from: a slot is taken again once the ticket that last read it retires.
+    // Memory in slots, pinned host memory the device reads in place or copies from, or device memory: a slot is taken again once the ticket that last read it retires.
     struct Ring {
         std::array<BufferPtr, kRingSlots> slots{};
         std::array<Ticket, kRingSlots> tags{};
+        std::array<bool, kRingSlots> dirty{};   // read by work launched since the last submission
+        std::array<size_t, kRingSlots> laps{};   // times each slot was taken again, so what it held before is known gone
         size_t slot = 0, used = 0;
-        bool dirty = false;
         void* take(RocmBackend& b, size_t bytes) {
             const size_t cap = slots[0]->size();
             if (bytes > cap) throw std::logic_error("rocm: a ring take wider than a slot");
             bytes = (bytes + 255) & ~size_t(255);
             if (used + bytes > cap) {
-                // The slot moved off is tagged by a ticket covering every launch that read it, and the next slot waits for its own.
-                if (dirty) b.submit();
+                // The slots read since the last submission are tagged by a ticket covering every launch that read them, and the next slot waits for its own.
+                if (std::find(dirty.begin(), dirty.end(), true) != dirty.end()) b.submit();
                 slot = (slot + 1) % kRingSlots;
                 b.wait(tags[slot]);
+                ++laps[slot];
                 used = 0;
             }
-            void* p = (uint8_t*)const_cast<void*>(slots[slot]->host_ptr()) + used;
+            void* p = (uint8_t*)as_rocm(*slots[slot]).data() + used;
             used += bytes;
-            dirty = true;
+            dirty[slot] = true;
             return p;
         }
         void tag(Ticket t) {
-            if (dirty) tags[slot] = t;
-            dirty = false;
+            for (size_t i = 0; i < kRingSlots; ++i)
+                if (dirty[i]) tags[i] = t;
+            dirty = {};
         }
     };
+    // A pass's values in device memory (pass_arg): their bytes, and where they sit while their slot's lap lasts.
+    struct Upload {
+        std::vector<uint8_t> bytes;
+        const void* at = nullptr;
+        size_t slot = 0, lap = 0;
+    };
+    static constexpr size_t kUploads = 8;   // sets kept for a later layer to find: attention's, the KV write's and the positions, of a pass and the one before
 
     // Where a write's rows land: each row's KV block and token slot, read by the kernels from the argument ring.
     struct KvTargets {
@@ -646,18 +664,19 @@ private:
         }
         t.s = &s;
         if (!t.rows) return t;
-        std::vector<int32_t> blocks(t.rows), slots(t.rows);
+        // Each row's block, then each row's slot.
+        std::vector<int32_t> targets(2 * t.rows);
         size_t r = 0;
         for (size_t vi = 0; vi < n_views; ++vi)
             for (size_t b = 0; b < views[vi].nq; ++b, ++r) {
                 const size_t at = views[vi].length + b;
-                blocks[r] = views[vi].blocks[at / kBlockTokens];
-                slots[r] = (int32_t)(at % kBlockTokens);
+                targets[r] = views[vi].blocks[at / kBlockTokens];
+                targets[t.rows + r] = (int32_t)(at % kBlockTokens);
             }
         t.kc = as_rocm(*s.k_buffer(layer)).data();
         t.vc = as_rocm(*s.v_buffer(layer)).data();
-        t.blocks = (const int*)arg(blocks.data(), t.rows * sizeof(int32_t));
-        t.slots = (const int*)arg(slots.data(), t.rows * sizeof(int32_t));
+        t.blocks = (const int*)pass_arg(targets.data(), targets.size() * sizeof(int32_t));
+        t.slots = t.blocks + t.rows;
         t.k_half = s.k_type() == KVType::f16;
         t.v_half = s.v_type() == KVType::f16;
         return t;
@@ -667,6 +686,23 @@ private:
         void* p = args_.take(*this, std::max<size_t>(bytes, 1));
         std::memcpy(p, src, bytes);
         return p;
+    }
+    // Values every layer of a pass reads alike, copied once into device memory on the stream and found again by their bytes, so kernels do not read them over PCIe (docs/src/backends-rocm.md).
+    const void* pass_arg(const void* src, size_t bytes) {
+        bytes = std::max<size_t>(bytes, 1);
+        for (Upload& u : uploads_)
+            if (u.at && u.lap == pass_.laps[u.slot] && u.bytes.size() == bytes && !std::memcmp(u.bytes.data(), src, bytes)) {
+                pass_.dirty[u.slot] = true;
+                return u.at;
+            }
+        void* d = pass_.take(*this, bytes);
+        launch_check(hip().hipMemcpyAsync(d, arg(src, bytes), bytes, hipMemcpyHostToDevice, stream_), "hipMemcpyAsync");
+        Upload& u = uploads_[next_upload_++ % kUploads];
+        u.bytes.assign((const uint8_t*)src, (const uint8_t*)src + bytes);
+        u.at = d;
+        u.slot = pass_.slot;
+        u.lap = pass_.laps[pass_.slot];
+        return d;
     }
     static float* f32(Slice s) { return (float*)as_rocm(*s.buffer).data() + s.offset; }
     static const float* f32(CSlice s) { return (const float*)as_rocm(*s.buffer).data() + s.offset; }
@@ -933,7 +969,9 @@ private:
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};
-    Ring args_, stage_;
+    Ring args_, stage_, pass_;   // the argument ring, the staging ring, and pass_arg's ring in device memory
+    std::array<Upload, kUploads> uploads_{};
+    size_t next_upload_ = 0;
     TicketLedger tickets_;
     bool opened_ = false;
     std::mutex failed_mu_;

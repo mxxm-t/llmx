@@ -792,6 +792,45 @@ void classes(Backend& g) {
     require(pairs > 0, "the row-class check compared pairs");
 }
 
+// pass_arg: 9000 decode steps of two layers take the device ring round, and the last step gives a fresh backend's bits.
+void pass_args(Backend& g) {
+    const int n_head = 4, n_head_kv = 2, head_dim = 128;
+    const size_t steps = 9000, qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+    const std::vector<float> keys = row_classes::values(steps * kvw, 91), vals = row_classes::values(steps * kvw, 92), q = row_classes::values(qw, 93, 4.0f);
+    std::vector<std::vector<float>> out;
+    for (int fresh = 0; fresh < 2; ++fresh) {
+        BackendPtr own = fresh ? make_rocm_backend(0) : nullptr;
+        Backend& b = fresh ? *own : g;
+        auto kb = b.adopt(keys.data(), keys.size() * 4), vb = b.adopt(vals.data(), vals.size() * 4), qb = b.adopt(q.data(), q.size() * 4);
+        auto ob = b.alloc(2 * qw * 4);
+        auto st = b.kv_alloc(2, n_head_kv, head_dim, steps, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence s(&pool, b.kv_layout().block_tokens);
+        if (!fresh) {
+            for (size_t t = 0; t < steps; ++t) {
+                s.prepare(1);
+                const KVView v = s.view(st.get());
+                for (size_t l = 0; l < 2; ++l) {
+                    b.kv_write(l, &v, 1, {kb.get(), t * kvw}, {vb.get(), t * kvw});
+                    b.attention({qb.get(), 0}, l, &v, 1, {ob.get(), l * qw}, n_head, n_head_kv, head_dim);
+                }
+                s.commit();
+                (void)b.submit();
+            }
+        } else {
+            s.prepare(steps);
+            KVView v = s.view(st.get());
+            for (size_t l = 0; l < 2; ++l) b.kv_write(l, &v, 1, {kb.get(), 0}, {vb.get(), 0});
+            v.length = steps - 1;
+            v.nq = 1;
+            for (size_t l = 0; l < 2; ++l) b.attention({qb.get(), 0}, l, &v, 1, {ob.get(), l * qw}, n_head, n_head_kv, head_dim);
+        }
+        out.push_back(read(b, *ob, 2 * qw));
+    }
+    require(same(out[0], out[1]), "attention after 9000 decode steps of two layers, its pass values round the device ring, gives a fresh backend's bits");
+}
+
 // A failure the device reports at a ticket's event is kept as the first cause: raise(t) before results are read in place, a read and the next launch throw it.
 void failure() {
     BackendPtr g = make_rocm_backend(0);
@@ -835,6 +874,7 @@ int main() {
         attention_twins(*g, Dtype::int8);
         host_output(*g);
         attention_chunks(*g);
+        pass_args(*g);
         failure();
     } catch (const std::exception& e) {
         std::cout << "FAIL threw: " << e.what() << "\n";

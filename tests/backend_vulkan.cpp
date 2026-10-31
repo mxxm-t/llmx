@@ -2236,6 +2236,58 @@ size_t check_q8_one_column_builds(backend::Backend& vk) {
     return checks;
 }
 
+// Q8_0 decode calls of 2 to 8 columns over rows halving from 65536 to 32 move to builds of fewer rows a workgroup, from the call's own build to the last (VulkanBackend::filling_build).
+// The builds' busy workgroups are a factor of two apart, as the rows are, so the sweep reaches each build of fewer rows than the call's own on any device.
+size_t check_q8_filling_builds(backend::Backend& vk) {
+    const uint32_t q8 = quant::GGML_TYPE_Q8_0;
+    const size_t nin = 256;
+    const auto x = uniform(8 * nin, 530);
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+    size_t checks = 0;
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8}) {
+        const std::string kernel = dtype == backend::Dtype::int8 ? "matmul_vec_q8_i8" : "matmul_vec_q8";
+        // The builds by name, most rows a workgroup first, the call's own first.
+        const std::vector<std::string> order = {"", "_8col_2row", "_8col_2row_span2", "_8col_1row_span2"};
+        for (size_t n : {size_t(2), size_t(5), size_t(8)}) {
+            const std::string own = n == 2 ? "_2col" : "";
+            size_t prev = order.size();
+            std::vector<bool> seen(order.size());
+            for (size_t rows = 65536; rows >= 32; rows /= 2) {
+                const auto wb = matrix(q8, nin, rows, 531);
+                const auto w = vk.adopt(wb.data(), wb.size());
+                const auto y = vk.alloc(n * rows * sizeof(float));
+                const backend::RowRun decode{n, 1};
+                (void)backend::vulkan_kernel_times(vk);
+                vk.matmul({q8, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1}, dtype);
+                const auto times = backend::vulkan_kernel_times(vk);
+                if (times.empty() && !checks) {
+                    vk.sync();
+                    std::cout << "backend-vulkan: Q8_0 builds of fewer rows unwitnessed without device timestamps\n";
+                    return 0;
+                }
+                size_t at = order.size(), products = 0;
+                for (const auto& entry : times) {
+                    if (entry.first.rfind("matmul_", 0) != 0) continue;
+                    for (size_t i = 0; i < order.size(); ++i)
+                        if (entry.first == kernel + (i ? order[i] : own)) at = i;
+                    require(at < order.size(), ("a Q8_0 call of " + std::to_string(n) + " columns took " + entry.first).c_str());
+                    ++products;
+                }
+                require(products == 1, "a Q8_0 decode call did not witness exactly one product kernel");
+                require(prev == order.size() || at >= prev, "a smaller Q8_0 decode call took a build of more rows a workgroup");
+                require(rows != 65536 || at == 0, "the largest Q8_0 decode call left its own build");
+                require(rows != 32 || at == order.size() - 1, "the smallest Q8_0 decode call did not take the build of fewest rows");
+                seen[at] = true;
+                prev = at;
+                ++checks;
+            }
+            // Two columns keep 8 rows a busy workgroup in their own build, in the build of 8 columns and 2 rows and in the first of two groups, so they reach only the last.
+            for (size_t i = n == 2 ? 3 : 1; i < order.size(); ++i) require(seen[i], ("the sweep missed the Q8_0 build " + kernel + order[i]).c_str());
+        }
+    }
+    return checks;
+}
+
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
 // AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
 size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
@@ -2265,7 +2317,9 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
     const size_t two_rows = backend::vulkan_device_profile(vk).q8_decode_two_rows_from;
     struct Case { uint32_t type; size_t nin; size_t nout = 300; };
     // Q8_0 rows 320, 448 and 512 wide take the paired build alone where the profile has the half-block order and the tree, and every wider build beside it.
+    // Q8_0 rows 320, 640, 1280 and 5120 tall reach, on a device of 60 compute units, every build a call of 2 to 8 columns takes (VulkanBackend::filling_build).
     for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
+                          Case{q8, 2560, 320}, Case{q8, 2560, 640}, Case{q8, 2560, 1280}, Case{q8, 2560, 5120},
                           Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
                           Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280},
@@ -2649,6 +2703,13 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 const std::string digits = b.substr(kernel.size() + 1, b.size() - kernel.size() - 4);
                 if (!digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos) cols = std::stoul(digits);
             }
+            // The Q8_0 decode kernel's builds of fewer rows a workgroup are named by their columns, rows and column groups.
+            if (!cols && (kernel == vec || kernel == vec8) && b.compare(0, kernel.size() + 1, kernel + "_") == 0) {
+                unsigned c = 0, r = 0, s = 0;
+                char tail[2];
+                const std::string rest = b.substr(kernel.size() + 1);
+                if (std::sscanf(rest.c_str(), "%ucol_%urow_span%u%1s", &c, &r, &s, tail) == 3 || std::sscanf(rest.c_str(), "%ucol_%urow%1s", &c, &r, tail) == 2) cols = c;
+            }
             // The Q8_0 decode kernel's other one-column builds are held to their shapes like the wider builds.
             const bool two_row_one = (kernel == vec || kernel == vec8) && (b == one.first + "_1row" || b == one.first + "_2step" || b == one.first + "_paired");
             if (cols < 2 && !two_row_one) continue;
@@ -2778,9 +2839,17 @@ void check_decode_contraction() {
     const std::string two = code("cols=2 rows=2 steps=1 tree=1 half=1", 16, 11, 5);
     // The paired build: two rows a lane as the one-column build, half-block order, and the tree's five levels within a half.
     const std::string paired = code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 6, 4);
+    // A build of fewer rows a workgroup, held by the name of its columns, rows and column groups.
+    const std::string fewer = code("cols=4 rows=1 steps=1 tree=1 half=1", 16, 11, 5);
     require(check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_1row", one1}, {"matmul_vec_q8_1col_2step", one2}, {"matmul_vec_q8_2col", two},
-                               {"matmul_vec_q8_1col_paired", paired}}).decode == 4,
+                               {"matmul_vec_q8_1col_paired", paired}, {"matmul_vec_q8_8col_1row_span2", fewer}}).decode == 5,
             "Q8 separate products fail their captured shape counts");
+    {
+        bool refused = false;
+        try { check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_8col_1row_span2", code("cols=4 rows=1 steps=1 tree=1 half=1", 15, 11, 5)}}); }
+        catch (const std::runtime_error&) { refused = true; }
+        require(refused, "a Q8 build of fewer rows a workgroup escaped its shape counts");
+    }
     // The same build reduced through all six levels, as if its halves were joined, is refused.
     for (const std::string& wrong : {code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 6, 5), code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 7, 4)}) {
         bool refused = false;
@@ -5203,6 +5272,7 @@ int main(int argc, char** argv) {
             q8b.reset();
         } else {
             std::cout << "backend-vulkan: " << check_q8_one_column_builds(*q8b) << " one-column Q8_0 decode calls in the build their shape gives\n";
+            std::cout << "backend-vulkan: " << check_q8_filling_builds(*q8b) << " Q8_0 decode calls of 2 to 8 columns in the build their workgroups give\n";
             std::cout << "backend-vulkan: " << check_moe_step_dispatches(*q8b) << " fused routed decode steps in four dispatches, prompts' steps unfused\n";
             std::cout << "backend-vulkan: " << check_moe_step(*q8b) << " fused routed step outputs equal to its unfused calls'\n";
             std::cout << "backend-vulkan: " << check_moe_step_columns(*q8b) << " fused routed step tokens equal to the same tokens alone, after any step\n";

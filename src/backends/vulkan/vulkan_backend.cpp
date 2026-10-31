@@ -496,6 +496,10 @@ public:
         if (is_vec_kernel((KernelId)id) && variant == kVecOneRow) return std::string(kKernelNames[id]) + "_1col_1row";
         if (is_vec_kernel((KernelId)id) && variant == kVecTwoSteps) return std::string(kKernelNames[id]) + "_1col_2step";
         if (is_vec_kernel((KernelId)id) && variant == kVecPaired) return std::string(kKernelNames[id]) + "_1col_paired";
+        if (is_vec_kernel((KernelId)id) && std::find(std::begin(kVecFewerRows), std::end(kVecFewerRows), variant) != std::end(kVecFewerRows)) {
+            const VecBuild& b = kVecBuilds[variant];
+            return std::string(kKernelNames[id]) + "_" + std::to_string(b.capacity()) + "col_" + std::to_string(b.rows) + "row" + (b.span > 1 ? "_span" + std::to_string(b.span) : "");
+        }
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
         if (moe_step_kernel((KernelId)id)) return std::string(kKernelNames[id]) + (variant == kVecOneRow ? "_1row" : variant == kVecTwoSteps ? "_2step" : variant == 1 ? "_1col" : "");
         return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
@@ -1633,6 +1637,7 @@ public:
     size_t column_builds(KernelId id, size_t nin, size_t rows, uint32_t cluster, int (&out)[kVariants]) const;
     int one_column_build(size_t nin, size_t rows, bool x8) const;
     bool paired_build(KernelId id, size_t nin) const;
+    int filling_build(KernelId id, int variant, size_t ncols, size_t rows) const;
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const;
 

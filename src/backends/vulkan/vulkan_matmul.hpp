@@ -319,6 +319,26 @@ inline int VulkanBackend::one_column_build(size_t nin, size_t rows, bool x8) con
     return rows < dev_->profile.q8_decode_two_rows_from ? kVecOneRow : kVecTwoSteps;
 }
 
+// The Q8_0 decode build of a chunk of 2 to 8 columns over `rows` rows: the first of `variant` and kVecFewerRows giving enough busy workgroups a compute unit, else the last.
+// Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds); the factors were measured on an MI50 (docs/STATUS.md).
+inline int VulkanBackend::filling_build(KernelId id, int variant, size_t ncols, size_t rows) const {
+    // Two over 8-bit activations; over the 16-bit twin's twice the bytes a build of fewer rows gains only below one.
+    const size_t per_unit = reads_x8(id) ? 2 : 1;
+    const int last = kVecFewerRows[std::size(kVecFewerRows) - 1];
+    if (!is_vec_kernel(id) || ncols < 2 || ncols > kVecBuilds[last].capacity() || kVecBuilds[last].capacity() > dev_->profile.q8_decode_cols) return variant;
+    // The workgroups that hold columns: a column group past the chunk's returns at once.
+    auto busy = [&](int v) {
+        const VecBuild& b = kVecBuilds[v];
+        const size_t per_group = (256 / dev_->caps.subgroup_size) * b.rows * b.halves;
+        return (rows + per_group - 1) / per_group * std::min<size_t>(b.span, (ncols + b.cols - 1) / b.cols);
+    };
+    const size_t want = per_unit * dev_->caps.compute_units;
+    if (busy(variant) >= want) return variant;
+    for (int v : kVecFewerRows)
+        if (busy(v) >= want) return v;
+    return last;
+}
+
 // Call each(col0, ncols, variant, chunks): the widest build's whole chunks in one call, `chunks` side by side, then the rest in the narrowest build that holds it.
 // `rows` are the output rows a dispatch computes, each `nin` wide; every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
 template <typename Fn>
@@ -331,7 +351,7 @@ inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, siz
     const size_t col0 = whole * wide;
     size_t i = 0;
     while (build_cols(id, builds[i]) < nbatch - col0) ++i;
-    each(col0, nbatch - col0, builds[i], size_t(1));
+    each(col0, nbatch - col0, filling_build(id, builds[i], nbatch - col0, rows), size_t(1));
 }
 
 inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin, Dtype dtype) const {

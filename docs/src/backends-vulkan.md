@@ -370,7 +370,16 @@ reduction's first five levels pair lanes inside a half as theirs do; their
 sixth level adds the other half's +0, since those lanes have no block, so the
 paired build skips it and keeps every bit (a lane's partial starts at +0 and
 is never -0, so no sum is -0 either).
-No other kernel has a variant 7, 8 or 9 pipeline; their slots stay empty, since
+Variants 10, 11 and 12 (`kVecFewerRows`) hold 8 columns with fewer rows a
+workgroup: 8 columns and 2 rows; 4 columns and 2 rows in two column groups on
+adjacent workgroups; 4 columns and 1 row in two groups. `filling_build` gives
+a chunk of 2 to 8 columns the first of its own build and these three whose
+workgroups holding columns number at least two a compute unit over 8-bit
+activations and one over 16-bit ones, else variant 12; a column group past
+the chunk's columns returns at once and is not counted. The factors and the
+fallback live in that one function, and the measurement that chose them is in
+[STATUS](../STATUS.md).
+No other kernel has a variant 7 to 12 pipeline; their slots stay empty, since
 a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
 properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
 for every build; the transposed reduction is allowed only where the subgroup
@@ -389,7 +398,8 @@ another width takes the one-row builds. All pipelines receive the
 shared specialization entries; a module ignores those it does not declare.
 
 `for_each_column_chunk` fills the widest supported build while more columns remain
-than it holds, then chooses the narrowest build that holds the remainder.
+than it holds, then chooses the narrowest build that holds the remainder,
+each Q8_0 chunk of 2 to 8 columns passing through `filling_build`.
 Successive Q8_0 capacities double, so a final chunk fills more than half its
 build. A single-group build checks columns beyond that first half; a
 two-group build checks each group's count. Two-row Q4 and K-quant builds

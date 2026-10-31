@@ -1,5 +1,45 @@
 # llmx - Development Status
 
+## Q8_0 decode builds by workgroup count (2026-10-31, VDEV, branch feat/q8-decode-occupancy, built on main 0e7060da8 and rebased onto main fe2ccacae after wide-decode, where the remainder chunk of a call goes through `filling_build` and the whole chunks side by side keep their build, being wider than 8 columns, step 1 of VDEV's plan of 2026-10-31 00:55 for Flash-Next's verifies of 6 to 8 rows, approved by F2DEV at 00:55; step 2, the same rule for the F32 row builds, is approved as its own branch after this one)
+
+**Goal:** a Q8_0 decode chunk of 2 to 8 columns over few rows fills the device: Qwen3.8-Flash-Next's 320-row hc_down and shared-expert matrices gave 20 workgroups on an MI50's 60 compute units at the 8-column build's 16 rows a workgroup. Every column keeps the one-column build's bits.
+**Done:** three builds of 8 columns with fewer rows a workgroup (`kVecFewerRows`: 8 columns and 2 rows, 8 rows a workgroup; 4 columns and 2 rows in two column groups, 4; 4 columns and 1 row in two groups, 2) and `VulkanBackend::filling_build`, which gives a chunk of 2 to 8 columns the first of its own build and those three whose busy workgroups number at least two a compute unit over 8-bit activations and one over 16-bit ones, else the last; a column group past the chunk's columns is not counted.
+The factors and the fallback live in that one function; no profile number and no model rule, only `caps.compute_units` and the activations' width, as the one-column builds already take it.
+`backend-vulkan` checks the new builds in the decode-column cells (Q8_0 rows 2560 wide 320, 640, 1280 and 5120 tall, beside the existing ones) and witnesses the choice over rows halving from 65536 to 32 at 2, 5 and 8 columns; the `--isa` screen reads the new builds' names (`_8col_2row`, `_8col_2row_span2`, `_8col_1row_span2`) and holds them to their shapes.
+**The factors.** At sustained clocks on one MI50, int8, us a call at 8 columns (the scratch bench of 2026-10-31, rig holds/q8/bench9.txt; the forced builds bit-identical to each column alone at every shape and 2 to 8 columns):
+| matrix (K x rows) | own build, workgroups | own | 8x2 | 4x2 two groups | 4x1 two groups |
+| 10240 x 320 hc_down | 20 | 28.0 | 19.2 | 17.0 | 17.0 |
+| 2560 x 320 shexp/2 | 20 | 10.7 | 11.9 | 7.2 | 8.0 |
+| 2560 x 1280 ple_value/2 | 80 | 25.3 (13.1 to 25.3) | 13.1 | 13.9 | 16.0 |
+| 3072 x 2560 out/2 | 160 | 21.2 | 22.6 | 25.2 | 32.2 |
+| 2560 x 3072 gate/2 | 192 | 25.4 | 23.9 | 26.3 | 34.2 |
+| 2560 x 5120 qkv/2 | 320 | 34.2 | 35.8 | 40.6 | 54.0 |
+| 320 x 10240 hc_up | 640 | 21.0 | 22.8 | 28.5 | 32.9 |
+Below 1.4 workgroups a compute unit the own build takes up to 1.6 times the best; from 2.7 it holds or wins but for gate/2 at 3.2, where 8x2 is 6 percent faster. A factor of 4 would take that 6 percent and lose 7 percent on out/2 at 2.7, so 2 sits between the losses and the holds.
+Over the 16-bit twin (f16, rig holds/q8/f16bench.txt), us at 8 columns, own / 8x2 / 4x2 two groups / 4x1 two groups: hc_down (20 workgroups) 32.9 / 23.1 / 24.2 / 30.3, shexp/2 (20) 11.9 / 8.8 / 9.5 / 10.9, Qwen3-0.6B's o_proj 1024 x 1024 (64) 9.0 / 9.0 / 9.2 / 10.9, its down 3072 x 1024 (64) 19.1 / 20.5 / 18.7 / 25.8, ple_value/2 (80) 18.0 / 19.3 / 20.5 / 28.6. A first build at factor 2 for both widths cost Qwen3-0.6B Q8_0 f16 4.2 percent at six sequences (1365 to 1308 tok/s, medians of six), so the 16-bit factor is 1; the same 0.6B shapes in int8 gain (o_proj 7.5 to 6.5 us, down 16.0 to 13.4).
+**Gates** (MI50s under RADV in the rig's Vulkan image, main 0e7060da8 and this branch built the same way from git archives; Radeon VII under the AMD proprietary driver on Windows):
+- `backend-vulkan --isa` on an MI50 exits 0: 207104 decode columns in f16 and in int8 equal to the same columns alone, 72 calls of 2 to 8 columns in the build their workgroups give, 23 Q8_0 decode builds held to the counts their shapes give, the six new ones among them; rerun without `--isa` after the 16-bit factor, exit 0.
+- `backend-vulkan --isa` on the Radeon VII exits 0 at the final selection: 207104 decode columns, 52392 Q8_0 decode columns on the integer dot in each dtype, 72 calls in their builds; on this driver its 17 Q8_0 decode builds, the six new ones among them, are held to their one-column build's kinds of operation, as before.
+- Byte identity against main on one MI50: Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, greedy raw, chat and seeded generation, lookup drafts at 32 and at 7 (f16 and int8), logits, perplexity, a two-turn chat and `tools/server_mix_check.py` ids, 12 of 12 files the same at the first head and again at the final one; `bench --seqs 6 --profile` shows the 8x2 build taking 0.6B's o_proj and down in int8.
+- Byte identity on Qwen3.8-Flash-Next UD-Q4_K_XL over four MI50s (tensor width 2, layer shares 1,1, int8, production's flags): three greedy generations of 160, 200 and 160 tokens with lookup and MTP drafts and with lookup alone, the same.
+- `run_tests.py --device vulkan:0 --require-tools` on an MI50 (renderD137) at 74e6a893d, built whole from its git archive: 44 components PASS; `baseline` SKIP (no real-model fixture on that tree); `raw-blocks` FAIL only on its numpy form, the Vulkan image having no numpy, after every pure-form check passed (it runs no llmx binary).
+- CTest on Windows with the Radeon VII: 94 of 95 under `-j4`; `vulkan-lifetime` failed its hold-release timing (p99 1.09 ms, max 8.9 ms) beside the other tests and passes alone 3 of 3. Docs and dead-code pass.
+**The wall gain**, Flash-Next 2x2 at production's flags, `bench --p 512 --n 16 --r 3 --drafter <MTP head> --draft-max 7`, ten runs an arm in five ABBA rounds back to back, mean of the runs' medians and a 95 percent interval on the difference, ms:
+| verify rows | main | branch | difference |
+| 1 (a step) | 32.87 | 31.92 | -0.95 +- 2.57 |
+| 4 | 42.48 | 41.79 | -0.69 +- 0.98 |
+| 5 | 47.07 | 45.50 | -1.57 +- 1.16 |
+| 6 | 50.44 | 48.59 | -1.85 +- 1.63 (-3.7%) |
+| 7 | 53.13 | 51.26 | -1.87 +- 1.67 |
+| 8 | 56.17 | 54.08 | -2.10 +- 1.65 (-3.7%) |
+Medians of the ten: 6 rows 49.66 to 48.01, 8 rows 56.64 to 53.18. pp512 734.5 against 735.2 tok/s and tg16 44.8 against 45.7, level. These ran with the first build, factor 2 at both widths; Flash-Next runs int8, whose selection the 16-bit factor leaves unchanged.
+The rig was loaded throughout by other developers' builds and runs (load average 15 to 123, rig holds/flq-mon.txt, every 5 s); the arms were interleaved within it.
+Qwen3-0.6B Q8_0 on one MI50, `bench --seqs 6 --p 64 --n 256 --r 5`, three ABBA rounds, medians of six tok/s: int8 1480 to 1521 (+2.8%), f16 1366 to 1369 (level) at the final selection.
+**After the rebase onto fe2ccacae** (only STATUS conflicted; the Vulkan code and tests are those of the resolution on wide-decode dcf580111, f4fcfefb0): `backend-vulkan --isa` on an MI50 at f4fcfefb0 exits 0 (decode columns in f16 and int8 equal to the same columns alone, 72 calls of 2 to 8 columns in their build, the screen's counts held), and on the Radeon VII at 72d8768f7 exits 0 (1892048 decode columns, 505052 Q8_0 decode columns on the integer dot in each dtype, 72 calls in their build); byte identity against main fe2ccacae on one MI50, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, the same 12 files as above, 12 of 12 the same.
+**Left:** F2DEV review; hosted run; lands by fast-forward as one commit; then step 2 (the F32 row builds' starvation: ssm_alpha/beta 2560 x 48 at 12 workgroups take 29 us at 8 columns against 6.5 at 1).
+**Gotchas:** the MI50's memory clock drops to 350 MHz between short bursts at automatic power levels, so a short kernel bench or a single profiled run flips by up to 1.6x: time kernels after 100 warm and 100 timed runs on device time and models back to back.
+`pp_dpm_mclk` read every 5 s showed 350 MHz in most samples even on cards at 100 percent busy, so a sampled reading does not show the clock a kernel ran at.
+On two columns the own build, 8x2 and the first two-group build all keep 8 rows a busy workgroup, so such a chunk takes its own build or the last.
 ## A tensor group sums a hyper-connection block, not its four streams (2026-10-30, RDEV, branch perf/ts-block-sum on main e8d413a84, the 2x2 prefill task, plan A approved by F2DEV at 17:36 with four conditions; approved by F2DEV at 23:25 and landing by fast-forward on a green hosted run)
 
 **Goal:** on a tensor group, qwen4exp's members sum the part's 2560-wide block and then each injects the summed block into the four residual streams, as one device does, instead of summing four injected 10240-wide streams, so a sum moves a quarter of the bytes.

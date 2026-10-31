@@ -323,6 +323,45 @@ With drafts (sidecar MTP and lookup, at most 7) at production's flags, interleav
 **Left:** the hosted run in the coordinator's queue; then plan B (the sum copies left beside a micro-batch's compute on a second queue, and the submission path), a branch of its own.
 **Gotchas:** a group's bits change (x + w*(b0 + b1) in place of x + (w*b0 + w*b1)); one device and the layer split keep main's bytes.
 
+## Decode attention takes exact head-group builds, chosen by a view's own history (2026-10-31, MDEV, branch perf/decode-head-groups on main c92d2d353, D1(a) step 1 of the depth plan, F2DEV's approval of 08:23 with two conditions, in progress)
+- **Goal:** decode attention at long histories (16k to 128k) without the cost the four-head build's arrays put on the three-head and two-head groupings, the choice of grouping depending only on a view's own history.
+- **Done:** `attention_vec.comp` has a build per group size (`_g2`, `_g3`, `_g4`, with the one-head build), its group a compile-time constant, so no build carries a larger group's registers; a batch's narrow views split into those below the profile's `attention_group_from` (2048 tokens), one head a workgroup, and those at or past it, the largest of four, three or two heads dividing the group, each set a dispatch of its own (`narrow_attention`), so a row's grouping no longer follows the longest row of its batch. The two sets write one twin, so attention.comp, attention_vec.comp and attention_merge.comp lay it out for the call's rows (`xrows`), not the dispatch's; F2DEV's mixed-call case (a 40-token row and a 3000-token row in one call, both split, read through a Q8_0 projection against each row alone) caught the first version writing each set's twin sized by its own rows.
+- **What a user runs:** Qwen3-30B-A3B Q4_K_M on one MI50, tg from the two interleaved rounds above, main -> branch: 57.1 -> 58.0 tok/s at 16k, 26.0 -> 27.5 at 64k, 14.7 -> 15.8 at 128k. Qwen3-0.6B Q8_0 tg128 with no history, 4 interleaved rounds, main / branch: 329.0 / 325.2, 343.6 / 338.2, 333.9 / 357.1, 352.0 / 374.7 tok/s, level within the runs' spread (10 to 46 tok/s).
+- **Measured, the crossover (one MI50, renderD131, CPUs 8,9, default clocks, f16 caches, int8, a measurement-only probe patch forcing the group size, a history grown through the depths and 32 decode steps an arm interleaved over three reps, medians of attention ms a token):**
+  | Qwen3-30B-A3B Q4_K_M (32 heads of 128 over 4) | 512 | 1024 | 2048 | 3072 | 4096 | 8192 | 16k | 32k | 64k | 128k |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | one head | 2.26 | 2.62 | 3.29 | 3.92 | 4.40 | 6.84 | 12.72 | 28.34 | | |
+  | two heads | | | | | | | | | 38.49 | 79.42 |
+  | four heads | 2.73 | 2.96 | 3.45 | 3.73 | 4.31 | 5.80 | 9.07 | 16.15 | 29.02 | 56.92 |
+  | eight heads, the whole group | 3.49 | 3.77 | 4.34 | 4.48 | 5.45 | 7.64 | 12.01 | 21.08 | 38.74 | 73.08 |
+  | Qwen3.6-27B Q4_K_M (24 heads of 256 over 4) | 512 | 1024 | 2048 | 3072 | 4096 | 8192 | 16k | 32k | 64k | 128k |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | one head | 0.78 | 1.09 | 1.58 | 2.01 | 2.38 | 4.66 | 10.06 | 20.70 | | |
+  | two heads | | | | | | | | | 21.91 | 43.66 |
+  | three heads | 0.82 | 1.10 | 1.46 | 1.76 | 1.91 | 2.97 | 5.00 | 9.05 | 16.85 | 32.93 |
+  | six heads, the whole group | 1.01 | 1.41 | 1.95 | 2.25 | 2.54 | 3.64 | 5.81 | 10.03 | 18.20 | 34.47 |
+  The whole group loses at every depth on both models, so the plan's premise, that reading the history once for a whole group pays, does not hold with these splits: the six- and eight-head builds give a workgroup twice the work and half the workgroups, and were dropped rather than kept unreached.
+  The grouping beats one head from about 2.5k tokens on the 30B and 1.5k on the 27B; one rule, 2048 tokens of a view's own history, costs at most 0.16 ms on the 30B between 2048 and 2.5k and keeps the 27B's gain from 2048 (F2DEV's condition 1).
+- **Bits:** every grouping gives the one-head build's bytes, decode rows and greedy rows over a 600-token history grouped from its first token (`llmx-model-logits`, the probe forcing the group): 30B at two, four and eight heads, 27B at two, three and six.
+- **Timing against main (one MI50, renderD131, CPUs 8,9, default clocks, f16 caches, int8, a pool of 135,168 tokens backed up front, main fe2ccacae and this tree each with the measurement-only probe patch, built alike, one process an arm growing one history through 16k, 64k and 128k, 32 decode steps a depth over three reps, two rounds in the order main, branch for the 30B and branch, main for the 27B; rig load 15 to 80 from other work, a 10-second monitor log beside it; attention ms a token, round 1 / round 2):**
+  | | main | this tree | change |
+  |---|---|---|---|
+  | 30B at 16k | 9.51 / 9.43 | 9.24 / 9.24 | -2.4 % |
+  | 30B at 64k | 30.45 / 30.45 | 28.47 / 28.31 | -6.8 % |
+  | 30B at 128k | 60.04 / 59.70 | 55.68 / 54.33 | -8.1 % |
+  | 27B at 16k | 5.04 / 5.19 | 4.83 / 4.71 | -6.7 % |
+  | 27B at 64k | 16.95 / 17.71 | 16.73 / 16.97 | -2.6 % |
+  | 27B at 128k | 35.18 / 35.67 | 31.30 / 32.07 | -10.6 % |
+  The attention figure is the step's wall time times attention's share of the device's kernel time, so host noise moves both arms' figures alike; the 27B's whole-step times moved by up to 10 % between cells either way with the rig's load.
+  Against the reference's 0.174 ms per 1k on the 30B this is 0.42 ms per 1k from 64k to 128k (0.458 on main), so the gap left is step 2's.
+- **Registers (`llmx-backend-vulkan-test --isa`, the decode `_x8` builds of an f16 cache, VGPRs and subgroups a SIMD):** on the MI50 under RADV, one head 40 and 6 as on main; two heads 64 and 4; three heads 84 and 3, against 80 and 3 for main's four-head build taking three; four heads 128 and 2 against main's 80 and 3. On the Radeon VII under the AMD driver, one head 37 against 38, two heads 83, three 110, four 98 against main's 76. The four-head build grew because its loop no longer skips heads past a run-time count, which lets the driver interleave the four heads' updates; it is the faster build on the 30B above despite the lower occupancy.
+- **Out of step 1, recorded (F2DEV):** 64 splits on the 30B were 2 to 5 percent faster than 32 at 32k to 128k with the four-head build, 128 and 256 slower; a block table that returns the block index directly was 2 to 4 percent at 32k and 64k (15.9 / 29.9 against 16.5 / 30.5 ms). More splits may also change where a larger group pays; that is for a later step.
+- **Radeon VII (Windows, AMD driver, main and this tree built alike with MSVC):** `backend-vulkan` with `--isa` passes; Qwen3-0.6B Q8_0 (2300 greedy tokens, past the switch), `logits` and perplexity over 4 windows, and Qwen3.5-0.8B Q4_K_M the same, are the bytes of main. Its timing was not taken: first another job ran on the card, then the desktop held 6.7 GB of its memory and a fill of 16k tokens on Qwen3-4B Q4_0 had not finished in 5 minutes; it is owed when the card is free.
+- **Gates on the MI50 at this head, after the twin fix (renderD131, main c92d2d353 built alike):** `backend-vulkan` with the mixed-call twin case passes; Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M identity as below, 12 of 12 the bytes of main; CTest 94 of 94; the suite with `--device vulkan:0` 45 PASS, `baseline` skipping without a fixture named; `docs` and `dead-code` pass.
+- **Gates on the MI50 before the twin fix (renderD131, main fe2ccacae built alike):** Qwen3-0.6B Q8_0 (2300 greedy tokens on the device, past the switch; 300 on the CPU), `logits` and perplexity over 4 windows, and Qwen3.5-0.8B Q4_K_M the same, are the bytes of main on vulkan:0 and on the CPU, 12 of 12; CTest 94 of 94; the suite with `--device vulkan:0` passes, 45 components, `baseline` skipping without a fixture named; `docs` and `dead-code` pass.
+- **Left:** the Radeon VII timing when the card is free; the hosted run; then step 2 (a block of tokens per online-softmax update) as its own branch.
+- **Gotchas:** the probe patch (forced group size and switch point, the up-front pool, the depth sweep) is measurement-only and never committed.
+
 ## A background job yields to a decoding reply (2026-10-30, MDEV, branch fix/reread-yields on main 06936f48e, the owner's production report through the coordinator, F2DEV's ruling of 19:55, lands by fast-forward as two commits, the failing test and then the fix)
 - **Seen on production:** a job reading a conversation's next turn ahead took two 16-row chunk passes of about 65 ms for every decode pass of a live reply at 156k tokens of context, and the reply ran at about 6 tokens a second (`rule_replies` 1545 against `rule_chunks` 3273); later a 64-row chunk pass of 131 ms between decode passes of 27 to 33 ms.
 - **Cause:** `Scheduler::plan` took the jobs as the prompt work whenever no client prompt waited, so the service rule gave a job the share it gives a waiting user's prompt: on a split every slot past the replies' took a chunk, and a job always passed the wait bound.

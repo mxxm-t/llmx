@@ -235,6 +235,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_full=attention=LLMX_FULL norm_rope_partial_streams=norm_rope_partial=LLMX_STREAMS
         attention_full_tile_d64=attention_flash=LLMX_D64 attention_full_tile_d72=attention_flash=LLMX_D72
         attention_vec_k16=attention_vec=LLMX_K16 attention_vec_v16=attention_vec=LLMX_V16 attention_vec_kv16=attention_vec=LLMX_K16+LLMX_V16
+        attention_vec_g2=attention_vec=LLMX_G2 attention_vec_k16_g2=attention_vec=LLMX_K16+LLMX_G2
+        attention_vec_v16_g2=attention_vec=LLMX_V16+LLMX_G2 attention_vec_kv16_g2=attention_vec=LLMX_K16+LLMX_V16+LLMX_G2
+        attention_vec_g3=attention_vec=LLMX_G3 attention_vec_k16_g3=attention_vec=LLMX_K16+LLMX_G3
+        attention_vec_v16_g3=attention_vec=LLMX_V16+LLMX_G3 attention_vec_kv16_g3=attention_vec=LLMX_K16+LLMX_V16+LLMX_G3
         attention_vec_g4=attention_vec=LLMX_G4 attention_vec_k16_g4=attention_vec=LLMX_K16+LLMX_G4
         attention_vec_v16_g4=attention_vec=LLMX_V16+LLMX_G4 attention_vec_kv16_g4=attention_vec=LLMX_K16+LLMX_V16+LLMX_G4
         attention_tile_k16=attention_tile=LLMX_K16 attention_tile_v16=attention_tile=LLMX_V16
@@ -243,6 +247,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_tile_d256_v16=attention_tile=LLMX_D256+LLMX_V16 attention_tile_d256_kv16=attention_tile=LLMX_D256+LLMX_K16+LLMX_V16
         attention_vec_d256=attention_vec=LLMX_D256 attention_vec_d256_k16=attention_vec=LLMX_D256+LLMX_K16
         attention_vec_d256_v16=attention_vec=LLMX_D256+LLMX_V16 attention_vec_d256_kv16=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16
+        attention_vec_d256_g2=attention_vec=LLMX_D256+LLMX_G2 attention_vec_d256_k16_g2=attention_vec=LLMX_D256+LLMX_K16+LLMX_G2
+        attention_vec_d256_v16_g2=attention_vec=LLMX_D256+LLMX_V16+LLMX_G2 attention_vec_d256_kv16_g2=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G2
+        attention_vec_d256_g3=attention_vec=LLMX_D256+LLMX_G3 attention_vec_d256_k16_g3=attention_vec=LLMX_D256+LLMX_K16+LLMX_G3
+        attention_vec_d256_v16_g3=attention_vec=LLMX_D256+LLMX_V16+LLMX_G3 attention_vec_d256_kv16_g3=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G3
         attention_vec_d256_g4=attention_vec=LLMX_D256+LLMX_G4 attention_vec_d256_k16_g4=attention_vec=LLMX_D256+LLMX_K16+LLMX_G4
         attention_vec_d256_v16_g4=attention_vec=LLMX_D256+LLMX_V16+LLMX_G4 attention_vec_d256_kv16_g4=attention_vec=LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G4
         norm_rope_kv_k16=norm_rope_kv=LLMX_K16 norm_rope_kv_v16=norm_rope_kv=LLMX_V16

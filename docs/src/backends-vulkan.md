@@ -310,7 +310,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
-  It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
+  It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once a view's own history reaches the profile's `attention_group_from`, its rows go through a dispatch of their own in which a workgroup takes four, three or two query heads of one KV head, the largest dividing the group, loading the history once for them with each head's arithmetic unchanged: the 128- and 256-wide kernels have a build per group size (`_g2`, `_g3`, `_g4`), so no build carries a larger group's registers, and other widths keep `attention.comp`'s `_g4` build of up to four heads (`narrow_attention`, `vec_attention_kernel`).
   The merge reads each part's maximum and sum once into shared memory, forms its weight once, and loads eight parts' column values before summing them in part order. The profile keeps the number of parts at most 256, the merge's workgroup width.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
@@ -478,7 +478,7 @@ From the comment at line 2:
 - Merge the split attention states of one (row, head): the maximum and sum across splits, then the accumulation rescaled to them; a split with no tokens carries -inf and zero.
 - Each split's maximum and sum are read once into shared memory and its weight formed once, so a lane's column sum reads only independent loads; the sums run in split order, as one lane reading every split would take them.
 - The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
-- With `quant` set the output's 16-bit twin is written beside it.
+- With `quant` set the output's 16-bit twin is written beside it, laid out for the call's rows (`xrows`), since one call's narrow rows may take two dispatches and merges, one for each grouping; attention.comp and attention_vec.comp write theirs the same way.
 
 ### `src/backends/vulkan/shaders/attention_flash.comp`
 
@@ -509,7 +509,7 @@ From the comment at line 2:
 From the comment at line 2:
 
 - Causal GQA for rows that attend one at a time (decode and short prompts), as attention.comp computes it, for heads 128 wide, or 256 wide in the LLMX_D256 build.
-- One workgroup per (batch row, block of heads, split), a block being up to four query heads that read one KV head (LLMX_G4) or one head.
+- One workgroup per (batch row, block of heads, split), a block being the HG query heads of one build (LLMX_G2, LLMX_G3, LLMX_G4) or one head, all reading one KV head.
 - A token's key and value are read by 16 lanes, or 32 at width 256, eight values each in one load, so a subgroup reads several tokens at once; each such group of lanes keeps its own online softmax over the tokens it takes, and the groups merge in a fixed order at the end.
 - The parts a row's history splits into follow from its length alone, as in attention.comp, so a row computes the same whatever else is in the dispatch.
 

@@ -117,6 +117,30 @@ const uint32_t kSpvAttentionVecV16[] = {
 const uint32_t kSpvAttentionVecKV16[] = {
 #include "vulkan/attention_vec_kv16.inc"
 };
+const uint32_t kSpvAttentionVecG2[] = {
+#include "vulkan/attention_vec_g2.inc"
+};
+const uint32_t kSpvAttentionVecK16G2[] = {
+#include "vulkan/attention_vec_k16_g2.inc"
+};
+const uint32_t kSpvAttentionVecV16G2[] = {
+#include "vulkan/attention_vec_v16_g2.inc"
+};
+const uint32_t kSpvAttentionVecKV16G2[] = {
+#include "vulkan/attention_vec_kv16_g2.inc"
+};
+const uint32_t kSpvAttentionVecG3[] = {
+#include "vulkan/attention_vec_g3.inc"
+};
+const uint32_t kSpvAttentionVecK16G3[] = {
+#include "vulkan/attention_vec_k16_g3.inc"
+};
+const uint32_t kSpvAttentionVecV16G3[] = {
+#include "vulkan/attention_vec_v16_g3.inc"
+};
+const uint32_t kSpvAttentionVecKV16G3[] = {
+#include "vulkan/attention_vec_kv16_g3.inc"
+};
 const uint32_t kSpvAttentionVecG4[] = {
 #include "vulkan/attention_vec_g4.inc"
 };
@@ -754,6 +778,30 @@ const uint32_t kSpvAttentionVecD256V16[] = {
 const uint32_t kSpvAttentionVecD256KV16[] = {
 #include "vulkan/attention_vec_d256_kv16.inc"
 };
+const uint32_t kSpvAttentionVecD256G2[] = {
+#include "vulkan/attention_vec_d256_g2.inc"
+};
+const uint32_t kSpvAttentionVecD256K16G2[] = {
+#include "vulkan/attention_vec_d256_k16_g2.inc"
+};
+const uint32_t kSpvAttentionVecD256V16G2[] = {
+#include "vulkan/attention_vec_d256_v16_g2.inc"
+};
+const uint32_t kSpvAttentionVecD256KV16G2[] = {
+#include "vulkan/attention_vec_d256_kv16_g2.inc"
+};
+const uint32_t kSpvAttentionVecD256G3[] = {
+#include "vulkan/attention_vec_d256_g3.inc"
+};
+const uint32_t kSpvAttentionVecD256K16G3[] = {
+#include "vulkan/attention_vec_d256_k16_g3.inc"
+};
+const uint32_t kSpvAttentionVecD256V16G3[] = {
+#include "vulkan/attention_vec_d256_v16_g3.inc"
+};
+const uint32_t kSpvAttentionVecD256KV16G3[] = {
+#include "vulkan/attention_vec_d256_kv16_g3.inc"
+};
 const uint32_t kSpvAttentionVecD256G4[] = {
 #include "vulkan/attention_vec_d256_g4.inc"
 };
@@ -1137,6 +1185,14 @@ const uint32_t kSpvHold[] = {
     X(K_ATTENTION_VEC_K16, "attention_vec_k16", kSpvAttentionVecK16, sizeof(kSpvAttentionVecK16), 7, nullptr) \
     X(K_ATTENTION_VEC_V16, "attention_vec_v16", kSpvAttentionVecV16, sizeof(kSpvAttentionVecV16), 7, nullptr) \
     X(K_ATTENTION_VEC_KV16, "attention_vec_kv16", kSpvAttentionVecKV16, sizeof(kSpvAttentionVecKV16), 7, nullptr) \
+    X(K_ATTENTION_VEC_G2, "attention_vec_g2", kSpvAttentionVecG2, sizeof(kSpvAttentionVecG2), 7, nullptr) \
+    X(K_ATTENTION_VEC_K16_G2, "attention_vec_k16_g2", kSpvAttentionVecK16G2, sizeof(kSpvAttentionVecK16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_V16_G2, "attention_vec_v16_g2", kSpvAttentionVecV16G2, sizeof(kSpvAttentionVecV16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_KV16_G2, "attention_vec_kv16_g2", kSpvAttentionVecKV16G2, sizeof(kSpvAttentionVecKV16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_G3, "attention_vec_g3", kSpvAttentionVecG3, sizeof(kSpvAttentionVecG3), 7, nullptr) \
+    X(K_ATTENTION_VEC_K16_G3, "attention_vec_k16_g3", kSpvAttentionVecK16G3, sizeof(kSpvAttentionVecK16G3), 7, nullptr) \
+    X(K_ATTENTION_VEC_V16_G3, "attention_vec_v16_g3", kSpvAttentionVecV16G3, sizeof(kSpvAttentionVecV16G3), 7, nullptr) \
+    X(K_ATTENTION_VEC_KV16_G3, "attention_vec_kv16_g3", kSpvAttentionVecKV16G3, sizeof(kSpvAttentionVecKV16G3), 7, nullptr) \
     X(K_ATTENTION_VEC_G4, "attention_vec_g4", kSpvAttentionVecG4, sizeof(kSpvAttentionVecG4), 7, nullptr) \
     X(K_ATTENTION_VEC_K16_G4, "attention_vec_k16_g4", kSpvAttentionVecK16G4, sizeof(kSpvAttentionVecK16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_V16_G4, "attention_vec_v16_g4", kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr) \
@@ -1155,6 +1211,14 @@ const uint32_t kSpvHold[] = {
     X(K_ATTENTION_VEC_D256_K16, "attention_vec_d256_k16", kSpvAttentionVecD256K16, sizeof(kSpvAttentionVecD256K16), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_V16, "attention_vec_d256_v16", kSpvAttentionVecD256V16, sizeof(kSpvAttentionVecD256V16), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_KV16, "attention_vec_d256_kv16", kSpvAttentionVecD256KV16, sizeof(kSpvAttentionVecD256KV16), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_G2, "attention_vec_d256_g2", kSpvAttentionVecD256G2, sizeof(kSpvAttentionVecD256G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_K16_G2, "attention_vec_d256_k16_g2", kSpvAttentionVecD256K16G2, sizeof(kSpvAttentionVecD256K16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_V16_G2, "attention_vec_d256_v16_g2", kSpvAttentionVecD256V16G2, sizeof(kSpvAttentionVecD256V16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_KV16_G2, "attention_vec_d256_kv16_g2", kSpvAttentionVecD256KV16G2, sizeof(kSpvAttentionVecD256KV16G2), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_G3, "attention_vec_d256_g3", kSpvAttentionVecD256G3, sizeof(kSpvAttentionVecD256G3), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_K16_G3, "attention_vec_d256_k16_g3", kSpvAttentionVecD256K16G3, sizeof(kSpvAttentionVecD256K16G3), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_V16_G3, "attention_vec_d256_v16_g3", kSpvAttentionVecD256V16G3, sizeof(kSpvAttentionVecD256V16G3), 7, nullptr) \
+    X(K_ATTENTION_VEC_D256_KV16_G3, "attention_vec_d256_kv16_g3", kSpvAttentionVecD256KV16G3, sizeof(kSpvAttentionVecD256KV16G3), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_G4, "attention_vec_d256_g4", kSpvAttentionVecD256G4, sizeof(kSpvAttentionVecD256G4), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_K16_G4, "attention_vec_d256_k16_g4", kSpvAttentionVecD256K16G4, sizeof(kSpvAttentionVecD256K16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_V16_G4, "attention_vec_d256_v16_g4", kSpvAttentionVecD256V16G4, sizeof(kSpvAttentionVecD256V16G4), 7, nullptr) \

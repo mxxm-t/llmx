@@ -50,6 +50,8 @@ inline std::vector<TableView> table_views(VkDeviceSize base, size_t rows, size_t
 // The variant of a cache kernel for a storage's K and V types.
 class VulkanKVStorage;
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s);
+// The per-row attention build of 128- or 256-wide heads taken `hg` a workgroup, for a storage's K and V types.
+inline KernelId vec_attention_kernel(int head_dim, uint32_t hg, const VulkanKVStorage& s);
 
 // 64 tokens per KV block, half the CPU's: the attention workgroup reads a block per iteration, and a smaller block wastes less tail per sequence.
 const size_t kVkBlockTokens = 64;

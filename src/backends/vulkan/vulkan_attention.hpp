@@ -190,66 +190,73 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         if (tile) keep_twin(slot, bind(out), n, major);
     }
     if (!narrow.empty()) {
-        ViewTable t = view_table(layer, narrow, false);
-        VulkanKVStorage& s = *t.storage;
+        const VulkanKVStorage& s = storage_of(narrow.front().view->storage);
         check_storage(s, n_head_kv, head_dim);
-        // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this dispatch and a head is whole blocks.
+        if (full && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32)) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
+        // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this call and a head is whole blocks.
         const bool quant = wide.empty() && head_dim % 32 == 0;
         const size_t slot = quant ? take_twin(rows * qstride) : 0, n = rows * qstride;
         const VkDescriptorBufferInfo xq = quant ? twin_binding(slot) : bind(out);
-        // Choose attention splits from each row's history length, doubling the chunk until the profile's split limit fits.
-        // A row computes identically beside longer rows, whose extra splits are empty for it.
-        size_t longest = 0;
-        for (const Placed& pv : narrow)
-            longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
-        const size_t pairs = t.rows * (size_t)n_head;
-        const DeviceProfile& prof = dev_->profile;
-        const size_t chunk = prof.attention_split_chunk;
-        const size_t split_max = head_dim == 256 ? prof.attention_split_max_wide : prof.attention_split_max;
-        const size_t nsplit = std::min(split_max, std::max<size_t>(1, (longest + chunk - 1) / chunk));
-        const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
-        if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
-            grow(scratch_, scratch_floats * sizeof(float));
-        // Group query heads sharing a KV head only once the history fills every split, avoiding too few workgroups on short histories.
-        // Each head's arithmetic is unchanged (shaders/attention.comp).
+        // A KV head's query heads share a workgroup once a view's own history reaches `from`, each head's arithmetic unchanged (shaders/attention_vec.comp).
+        // A non-causal view takes one head a workgroup: attention_full has no grouped form.
         const size_t group = (size_t)(n_head / n_head_kv);
-        const bool long_history = longest >= chunk * split_max;
-        // A non-causal view, a vision encoder's, takes one head a workgroup: its attention_full build has no grouped form.
-        const uint32_t hg = full || !long_history ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
-        // The full build's `wg0`, past the other builds' constants, which they do not read.
-        struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg, wg0; }
-            pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-               scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg, 0u};
-        const VkDescriptorBufferInfo scratch = scratch_
-            ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
-        // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
-        if (full && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32)) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
-        const KernelId kernel = full ? K_ATTENTION_FULL
-                              : head_dim == 128 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
-                              : head_dim == 256 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, s)
-                                                          : kv_variant(K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, s))
-                              : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
-        // A non-causal call is cut into dispatches of bounded work by its (row, head) pairs, each pair's splits in one dispatch.
-        std::vector<size_t> cuts{0, pairs / hg};
-        if (full) {
-            std::vector<std::pair<size_t, size_t>> runs;
-            for (const Placed& pv : narrow) runs.push_back({pv.view->nq * (size_t)n_head, size_mul(2 * (size_t)head_dim, size_add(pv.view->length, pv.view->nq))});
-            cuts = attention_pieces(runs, kFullRowProducts);
-        }
-        for (size_t i = 0; i + 1 < cuts.size(); ++i) {
-            if (cuts.size() > 2) isolate();
-            pc.wg0 = u32(cuts[i] * nsplit);
-            dispatch(kernel,
-                     {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},
-                     &pc, sizeof(pc), groups((cuts[i + 1] - cuts[i]) * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
-        }
-        if (cuts.size() > 2) isolate();
-        if (nsplit > 1) {
-            const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
-            dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
-        }
+        const uint32_t hg = full ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
+        const size_t from = dev_->profile.attention_group_from;
+        std::vector<Placed> sets[2];
+        for (const Placed& pv : narrow) sets[hg > 1 && size_add(pv.view->length, pv.view->nq) >= from ? 1 : 0].push_back(pv);
+        for (int grouped = 0; grouped < 2; ++grouped)
+            if (!sets[grouped].empty()) narrow_attention(Q, layer, sets[grouped], out, n_head, n_head_kv, head_dim, grouped ? hg : 1u, quant, xq, n);
         if (quant) keep_twin(slot, bind(out), n, 0);
+    }
+}
+
+// The per-row kernel over views of one grouping: splits chosen from each row's history length, doubling the chunk until the profile's split limit fits, and a merge when a row splits.
+// A row computes identically beside longer rows, whose extra splits are empty for it.
+inline void VulkanBackend::narrow_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim, uint32_t hg,
+                                            bool quant, VkDescriptorBufferInfo xq, size_t n) {
+    ViewTable t = view_table(layer, views, false);
+    VulkanKVStorage& s = *t.storage;
+    const bool full = !views.front().view->causal;
+    size_t longest = 0;
+    for (const Placed& pv : views)
+        longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
+    const size_t pairs = t.rows * (size_t)n_head;
+    const DeviceProfile& prof = dev_->profile;
+    const size_t chunk = prof.attention_split_chunk;
+    const size_t split_max = head_dim == 256 ? prof.attention_split_max_wide : prof.attention_split_max;
+    const size_t nsplit = std::min(split_max, std::max<size_t>(1, (longest + chunk - 1) / chunk));
+    const size_t scratch_floats = nsplit > 1 ? pairs * nsplit * ((size_t)head_dim + 2) : 0;
+    if (scratch_floats && (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)))
+        grow(scratch_, scratch_floats * sizeof(float));
+    // The full build's `wg0`, past the other builds' constants, which they do not read.
+    struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg, wg0, xrows; }
+        pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
+           1.0f / std::sqrt((float)head_dim), u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg, 0u, u32(n / ((size_t)n_head * head_dim))};
+    const VkDescriptorBufferInfo scratch = scratch_
+        ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
+    // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
+    const KernelId kernel = full ? K_ATTENTION_FULL
+                          : head_dim == 128 || head_dim == 256 ? vec_attention_kernel(head_dim, hg, s)
+                          : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
+    // A non-causal call is cut into dispatches of bounded work by its (row, head) pairs, each pair's splits in one dispatch.
+    std::vector<size_t> cuts{0, pairs / hg};
+    if (full) {
+        std::vector<std::pair<size_t, size_t>> runs;
+        for (const Placed& pv : views) runs.push_back({pv.view->nq * (size_t)n_head, size_mul(2 * (size_t)head_dim, size_add(pv.view->length, pv.view->nq))});
+        cuts = attention_pieces(runs, kFullRowProducts);
+    }
+    for (size_t i = 0; i + 1 < cuts.size(); ++i) {
+        if (cuts.size() > 2) isolate();
+        pc.wg0 = u32(cuts[i] * nsplit);
+        dispatch(kernel,
+                 {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
+                  args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},
+                 &pc, sizeof(pc), groups((cuts[i + 1] - cuts[i]) * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
+    }
+    if (cuts.size() > 2) isolate();
+    if (nsplit > 1) {
+        const uint32_t mc[6] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u, u32(n / ((size_t)n_head * head_dim))};
+        dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
     }
 }
 
@@ -510,6 +517,16 @@ inline VulkanKVStorage& VulkanBackend::storage_of(KVStorage* storage) {
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s) {
     const int i = (s.k_type() == KVType::f16 ? 1 : 0) + (s.v_type() == KVType::f16 ? 2 : 0);
     return i == 0 ? f32 : (KernelId)((int)k16 + i - 1);
+}
+
+inline KernelId vec_attention_kernel(int head_dim, uint32_t hg, const VulkanKVStorage& s) {
+    const bool w = head_dim == 256;
+    switch (hg) {
+    case 2: return w ? kv_variant(K_ATTENTION_VEC_D256_G2, K_ATTENTION_VEC_D256_K16_G2, s) : kv_variant(K_ATTENTION_VEC_G2, K_ATTENTION_VEC_K16_G2, s);
+    case 3: return w ? kv_variant(K_ATTENTION_VEC_D256_G3, K_ATTENTION_VEC_D256_K16_G3, s) : kv_variant(K_ATTENTION_VEC_G3, K_ATTENTION_VEC_K16_G3, s);
+    case 4: return w ? kv_variant(K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, s) : kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s);
+    default: return w ? kv_variant(K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s);
+    }
 }
 
 VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,

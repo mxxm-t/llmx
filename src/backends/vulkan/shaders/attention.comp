@@ -13,12 +13,19 @@ layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
     uint selected_stride;
-#endif
-// The non-causal build: every row attends its view's whole hist + nq, as a vision encoder's rows see their image (docs/VISION.md, section 3).
-#ifdef LLMX_FULL
+#else
+    // The non-causal build's first workgroup of the call (docs/VISION.md, section 3); the causal builds do not read it.
     uint wg0;
+    // The rows of the whole call, whose twin this dispatch's rows are written into; a call of several dispatches has more rows than one dispatch's `rows`.
+    uint xrows;
 #endif
 } p;
+// A sparse build writes no twin, so its call's rows are its own.
+#ifdef LLMX_SPARSE
+#define XROWS p.rows
+#else
+#define XROWS p.xrows
+#endif
 // Query heads a workgroup takes at most; `hg` divides the heads that share a KV head and is at most this.
 // The build for one head (the default) keeps the registers a short history's many workgroups want; LLMX_G4 is the long-history build.
 #ifdef LLMX_G4
@@ -165,7 +172,7 @@ void main() {
                 float v = A / L;
 #endif
                 o[qbase + lid] = v;
-                if (p.quant != 0u) xquant_block(qbase + lid, v, p.rows * qstride);
+                if (p.quant != 0u) xquant_block(qbase + lid, v, XROWS * qstride);
             } else {
                 // Unnormalized: m, l and the accumulation, dim + 2 floats.
                 uint sbase = (rh * p.nsplit + split) * (p.dim + 2u);

@@ -647,11 +647,14 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   any device, and a head of another width takes this kernel, whose lanes
   read four of its values each, so on a 32-lane device it is at most 128
   wide (`attention_head_fits`).
-  Once the dispatch's longest row fills every split (2048 tokens at the
-  defaults), a workgroup takes up to four query heads of one KV head and
-  loads each token's key and value once for them, in the `_g4` builds;
+  Once a view's own history reaches the profile's `attention_group_from`
+  (2048 tokens), its rows go through a dispatch of their own in which a
+  workgroup takes the largest of four, three or two query heads that
+  divides a KV head's group and loads each token's key and value once for
+  them, in the `_g4`, `_g3` and `_g2` builds of the per-row kernels;
   each head's arithmetic is unchanged, so the output is bit-identical to
-  one head a workgroup. On a long history the cache outweighs the
+  one head a workgroup, and the choice follows the view alone, so a row
+  takes the same grouping beside any batch. On a long history the cache outweighs the
   weights a decode step reads, and one head a workgroup read it
   `n_head / n_head_kv` times: Qwen3-8B Q8_0 at a 16384-token history
   decoded at 20.8 tok/s on an MI50 against the reference's 44.5, and 27.1
@@ -773,7 +776,7 @@ that truncates makes the device cache differ from the CPU's by an f16
 ulp; read back it is exact, so the two backends hold identical bytes and
 their attention differs only by reduction order. Every kernel that
 touches the cache (`kv_write`, `norm_rope_kv`, `attention`, `attention_vec`,
-`attention_tile`, and the `_g4` builds of the two per-row kernels) is built in four variants, one per combination of the
+`attention_tile`, and the grouped builds of the two per-row kernels) is built in four variants, one per combination of the
 two sides' types, and the storage picks the variant, so a kernel carries
 no type branch. Halving the cache is what lets Qwen3-8B run a 16k
 context on the 16 GB card.

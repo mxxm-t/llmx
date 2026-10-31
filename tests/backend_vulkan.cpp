@@ -1221,8 +1221,17 @@ size_t check_kernels(backend::Backend& vk) {
             const size_t longs[2] = {2100, 3000}, shorts = 40;
             const auto hk = uniform(3001 * kvw, 80 + (uint32_t)group), hv = uniform(3001 * kvw, 81 + (uint32_t)group);
             const auto qq = uniform(2 * qw, 82 + (uint32_t)group, -6.0f, 6.0f);
-            // Rows of `hists` histories (each followed by one new token) in one call, or each alone; returns every row's output.
-            auto run = [&](backend::Backend& b, const std::vector<size_t>& hists, bool together) {
+            // A Q8_0 projection of the rows, which reads the output's twin where the call wrote one.
+            const size_t pout = 32;
+            std::vector<uint8_t> pw8;
+            if (qw % 32 == 0) {
+                const auto pwf = uniform(pout * qw, 83 + (uint32_t)group);
+                pw8.resize(pout * (qw / 32) * quant::Q8_0_TYPESIZE);
+                for (size_t r = 0; r < pout; ++r)
+                    quant::quantize_row_q8_0(pwf.data() + r * qw, pw8.data() + r * (qw / 32) * quant::Q8_0_TYPESIZE, qw / 32);
+            }
+            // Rows of `hists` histories (each followed by one new token) in one call, or each alone; returns every row's output, then with `project` its projection.
+            auto run = [&](backend::Backend& b, const std::vector<size_t>& hists, bool together, bool project = false) {
                 const size_t bt = b.kv_layout().block_tokens;
                 auto st = b.kv_alloc(1, n_head_kv, head_dim, 8192, kt, vt);
                 infer::BlockPool pool; pool.configure(st->max_blocks());
@@ -1240,6 +1249,9 @@ size_t check_kernels(backend::Backend& vk) {
                 }
                 std::vector<float> out(hists.size() * qw);
                 const auto ob = b.alloc(out.size() * sizeof(float), backend::Memory::device);
+                // Allocated before the attention, since a new buffer drops every twin.
+                const auto pwb = project ? b.adopt(pw8.data(), pw8.size()) : nullptr;
+                const auto pyb = project ? b.alloc(hists.size() * pout * sizeof(float), backend::Memory::device) : nullptr;
                 auto view_of = [&](size_t i) {
                     // The row attends as the last of its history: a view of one query row over hist + 1 tokens.
                     backend::KVView v = seqs[i].view(st.get());
@@ -1257,6 +1269,15 @@ size_t check_kernels(backend::Backend& vk) {
                     }
                 }
                 b.read(*ob, 0, out.data(), out.size() * sizeof(float));
+                if (project) {
+                    std::vector<backend::RowRun> decode(hists.size());
+                    for (size_t r = 0; r < hists.size(); ++r) decode[r] = backend::RowRun{r + 1, 1};
+                    b.matmul({quant::GGML_TYPE_Q8_0, {pwb.get(), 0}}, {ob.get(), 0}, {pyb.get(), 0}, qw, pout, hists.size(),
+                             backend::RowRuns{decode.data(), decode.size()});
+                    std::vector<float> y(hists.size() * pout);
+                    b.read(*pyb, 0, y.data(), y.size() * sizeof(float));
+                    out.insert(out.end(), y.begin(), y.end());
+                }
                 return out;
             };
             try {
@@ -1268,6 +1289,13 @@ size_t check_kernels(backend::Backend& vk) {
                 const auto mixed = run(p.vk, {shorts, longs[1]}, true), alone = run(p.vk, {shorts, longs[1]}, false);
                 values += close(reference, alone, 1e-4, "mixed-history attention differs beyond 1e-4");
                 values += exact(mixed, alone, "attention rows differ alone and beside another history");
+                // The short row and the long one take their own groupings, both split, one dispatch and merge after the other into one output; each row's twin, read by a projection, must be the twin of that row alone.
+                if (!pw8.empty()) {
+                    const size_t from = backend::vulkan_device_profile(p.vk).attention_group_from;
+                    require(shorts + 1 < from && longs[1] + 1 >= from, "the mixed-history rows do not sit on both sides of the grouping switch");
+                    values += exact(run(p.vk, {shorts, longs[1]}, true, true), run(p.vk, {shorts, longs[1]}, false, true),
+                                    "an attention row's output twin differs alone and beside a row of the other grouping");
+                }
             } catch (const std::runtime_error&) {
                 std::fprintf(stderr, "  attention width %d group %d cache K %s V %s\n", head_dim, group,
                              backend::kv_type_name(kt), backend::kv_type_name(vt));

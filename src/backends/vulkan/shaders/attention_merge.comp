@@ -5,7 +5,8 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; uint quant; } p;
+// `xrows` is the rows of the whole call, whose twin this dispatch's rows are written into.
+layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; uint quant; uint xrows; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 1) readonly buffer S { float scratch[]; };
 layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
@@ -55,5 +56,5 @@ void main() {
     uint i = (view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid;
     float r = A / L;
     o[i] = r;
-    if (p.quant != 0u) xquant_block(i, r, p.rows * p.n_head * p.dim);
+    if (p.quant != 0u) xquant_block(i, r, p.xrows * p.n_head * p.dim);
 }

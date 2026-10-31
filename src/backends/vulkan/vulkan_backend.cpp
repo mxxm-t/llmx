@@ -1754,6 +1754,9 @@ public:
         VulkanKVStorage* storage = nullptr;
     };
     ViewTable view_table(size_t layer, const std::vector<Placed>& placed, bool writing);
+    // The per-row attention kernel over views taken `hg` query heads a workgroup, with its merge; `xq` is the output's twin where `quant`, `n` the output's floats.
+    void narrow_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim, uint32_t hg,
+                          bool quant, VkDescriptorBufferInfo xq, size_t n);
     static void check_storage(const VulkanKVStorage& s, int n_head_kv, int head_dim);
     void keep_until_retired(BufferPtr b);
 

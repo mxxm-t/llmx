@@ -274,6 +274,11 @@ void convincing_rule() {
     require(out == history({{20, 21, 22}, run, {20, 21, 22}, {1, 2}}), "a continuation that reaches the history's end did not go on into its own draft");
     Lookup::convincing(history({run, {20}, run, {30}, run}), 1, out);
     require(out == std::vector<uint32_t>({30}), "the earlier of two occurrences was drafted from, not the latest");
+    // A copy of a long file: a later repeat of the last eight tokens continues elsewhere, and the occurrence whose match runs back furthest is the passage being copied.
+    std::vector<uint32_t> lead(12);
+    for (size_t i = 0; i < lead.size(); ++i) lead[i] = 300 + (uint32_t)i;
+    require(Lookup::convincing(history({lead, run, {20, 21}, {99}, run, {30, 31}, lead, run}), 2, out) == 20 && out == std::vector<uint32_t>({20, 21}),
+            "the latest repeat of the last eight tokens was drafted from, not the occurrence whose match runs back twenty");
     Lookup::convincing(history({{2, 3, 4, 5, 6, 7, 8}, {20}, run}), 4, out);
     require(out.empty(), "a match of seven tokens was taken as convincing");
     Lookup::convincing(history({run, {20}, {9, 2, 3, 4, 5, 6, 7, 8}}), 4, out);

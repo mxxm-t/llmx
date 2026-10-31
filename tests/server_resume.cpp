@@ -733,7 +733,8 @@ void message_boundaries(const Make& make, const bpe::Tokenizer& tok, uint32_t vo
         sched.stop();
         runner.join();
     }
-    require(disk.bytes || after_long.boundaries == 6, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 6");
+    // The 2000-token request is one message, so it keeps a boundary of its own kTailTokens before its end beside the turns' six.
+    require(disk.bytes || after_long.boundaries == 7, what + ": " + std::to_string(after_long.boundaries) + " boundaries in host memory, against 7");
     require(!whole || after_turns.boundaries == whole,
             what + ": the turns left " + std::to_string(after_turns.boundaries) + " boundaries in host memory, against " + std::to_string(whole));
     require(!disk.bytes || whole || (stats.disk_hits >= 1 && stats.disk_errors == 0), what + ": " + std::to_string(stats.disk_hits) + " entries read back from disk");

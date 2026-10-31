@@ -24,6 +24,10 @@ inline std::vector<uint32_t> history(const Request& r) {
     return h;
 }
 
+// Where a long message's boundary sits before its prompt's end, a reader's property: a rewritten question of up to about this many tokens forks it (docs/SERVER.md, the host tier).
+// Such a follow-up reads this and a block again, about 1.5 s at a 140k-token history on the 2x2 split of docs/STATUS.md.
+inline constexpr size_t kTailTokens = 1024;
+
 inline double ms_since(std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count(); }
 
 // Each read and promotion once, where Request::Restore attributes them to requests: counts, and each part's sum and largest (docs/SERVER.md, What a restore cost).
@@ -362,7 +366,11 @@ public:
         }
         Boundary* bound = pinned_bound_ ? find_bound(pinned_bound_) : nullptr;
         admit(*r, d, shared, take, from, bound ? &bound->state : nullptr);
-        if (bound) bound->used = std::filesystem::file_time_type::clock::now();
+        if (bound) {
+            bound->used = std::filesystem::file_time_type::clock::now();
+            // A tail boundary a request forks ranks as any boundary from now on.
+            bound->tail = false;
+        }
         // A cut's uncut history (step 9 of docs/CACHE-PLAN.md): every holder of the first row it dropped is superseded, so it ranks first to go; the turn says the re-read it pays (P5).
         if (!r->cut_.empty()) {
             const size_t again = history_tokens(*r) - shared;
@@ -404,6 +412,7 @@ public:
         bool operator<(const Rank& o) const { return cls != o.cls ? cls < o.cls : used < o.used; }
     };
     void asked_boundary(Request& r);
+    void boundary_out(Request& r, bool keep);
     std::vector<size_t> ranked() const;
     // What write_back would do with a copy of `n` tokens of a donor that came back (`back`) or not: keep it after releasing `drops` ((a boundary, id), in order), or why not.
     struct HostRoom {
@@ -431,6 +440,7 @@ public:
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
         drop_encode(*r);
+        boundary_out(*r, !r->cancel_.load());
         if (r->proof_) unprove(lines, *r);
         size_t held = r->seq_.length();
         if (model_.keeps_state() && held && !(least && model_.keep(r->seq_))) {
@@ -761,6 +771,7 @@ public:
     }
     // reset waits for the last pass that touched the sequence, so its blocks return to the pool only once the device is done with them.
     void release(Request& r, const std::vector<std::shared_ptr<Request>>& active) {
+        boundary_out(r, false);
         try { model_.reset(r.seq_); } catch (const std::exception&) {}
         std::lock_guard<std::mutex> lk(m_);
         r.need_.clear();
@@ -916,10 +927,12 @@ private:
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // as HostDonor::used
         bool back = false;         // as HostDonor::back, the conversation's whose state it is
         bool superseded = false;   // as HostDonor::superseded, a cut having orphaned it
+        bool tail = false;         // a prompt's tail rather than a message's start (Request::boundary_tail_): it loses nothing by going until a request forks it
     };
     // Defined below, out of the class.
     void keep_boundary(Donor& d);
-    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back);
+    void keep_boundary_of(Request& r, infer::Sequence& seq, std::optional<size_t> kept);
+    void keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back, bool spare);
     Boundary* find_bound(uint64_t id);
     void drop_bound(size_t i);
     Rank rank(const Donor& d) const;
@@ -1081,8 +1094,13 @@ private:
         const size_t bt = model_.kv_block_tokens(), at = std::min(r.stable_, p - 1) / bt * bt;
         if (model_.checkpoint_slots() && at > shared) r.keep_at_ = at;
         // And a message boundary where its last user message starts, whole blocks, past what it forked, so an edit or a regenerate of that message leaves the boundary the next one forks.
-        const size_t message = std::min(r.message_, p - 1) / bt * bt;
-        if (model_.checkpoint_slots() && host_cap_ && message > shared) r.boundary_at_ = message;
+        // Where that start is no further than what it forked, kTailTokens before its end instead, before its checkpoint, so a follow-up that changes only a long message's question forks it.
+        const size_t message = std::min(r.message_, p - 1) / bt * bt, tail = p > kTailTokens ? (p - kTailTokens) / bt * bt : 0;
+        const size_t boundary = message > shared ? message : tail > shared && tail < r.keep_at_ ? tail : 0;
+        if (model_.checkpoint_slots() && host_cap_ && boundary) {
+            r.boundary_at_ = boundary;
+            r.boundary_tail_ = boundary != message;
+        }
     }
     // The stretches of a prompt read at its extent from `from` on, cut at each of its images' first and end rows, the image's rows carrying its digest, appended to `out`.
     static void prompt_classes(const Request& r, size_t from, std::vector<RowClass>& out) {
@@ -1572,22 +1590,47 @@ inline size_t Cache::shareable(const Request& r, const std::vector<uint32_t>& t,
 }
 
 // Job donor d's state kept as a boundary as its job completes (keep_boundary below).
-inline void Cache::keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes, d.back); }
+inline void Cache::keep_boundary(Donor& d) { keep_boundary(d.seq, d.tokens, d.classes, d.back, false); }
 
-// The boundary request r asked for, its pass retired: kept, or said not kept with what keep_boundary found; under the lock.
+// The boundary request r asked for, its pass retired: held in its checkpoint slot by a fork until the first token (boundary_out), or kept now, or said not kept; under the lock.
 inline void Cache::asked_boundary(Request& r) {
     const std::optional<size_t> kept = model_.keeps_state() ? model_.checkpoint(r.seq_) : std::nullopt;
+    const size_t bt = model_.kv_block_tokens();
+    if (host_cap_ && kept && *kept && *kept % bt == 0 && *kept <= r.prompt_.size() && !r.job_ && r.first_at_ == Clock::time_point{} && !r.seq_.in_flight() &&
+        model_.checkpoints_free() > 0 && !model_.checkpoint(r.boundary_seq_)) {
+        try {
+            r.boundary_seq_ = model_.fork(r.seq_, *kept);
+            return;
+        } catch (const std::exception&) {}
+    }
+    keep_boundary_of(r, r.seq_, kept);
+}
+
+// r's boundary held in its checkpoint slot (asked_boundary) kept in host memory where `keep`, else dropped, and the slot given back; takes the lock.
+inline void Cache::boundary_out(Request& r, bool keep) {
+    const std::optional<size_t> kept = model_.checkpoint(r.boundary_seq_);
+    if (!kept) return;
+    if (keep) {
+        std::lock_guard<std::mutex> lk(m_);
+        keep_boundary_of(r, r.boundary_seq_, kept);
+    }
+    try { model_.reset(r.boundary_seq_); } catch (const std::exception&) {}
+    r.boundary_seq_ = infer::Sequence{};
+}
+
+// The boundary of r held by `seq`, its checkpoint at `kept`, kept in host memory, or said not kept with why; under the lock.
+inline void Cache::keep_boundary_of(Request& r, infer::Sequence& seq, std::optional<size_t> kept) {
     const size_t before = bounds_.size(), bt = model_.kv_block_tokens();
     const uint64_t was = moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load();
-    keep_boundary(r.seq_, r.prompt_, r.classes_, r.reused() > 0);
+    keep_boundary(seq, r.prompt_, r.classes_, r.reused() > 0, r.boundary_tail_);
     if (!host_cap_ || !model_.keeps_state() || bounds_.size() > before || moves_[(size_t)Move::boundary_kept].load() + moves_[(size_t)Move::boundary_not_kept].load() != was) return;
     const char* why = !kept ? "its history has no state kept once its pass retired" : !*kept || *kept % bt ? "the state kept is not at a whole block" : *kept > r.prompt_.size() ? "the state kept is past its prompt" : nullptr;
     if (why) moved(Move::boundary_not_kept, "server: cache: the message boundary a request asked for was not kept (%s, at %zu)\n", why, kept.value_or(0));
 }
 
 // The checkpoint of `seq`, holding `tokens` computed as `classes` record, kept as a boundary, the copy enqueued behind the passes that wrote it, within the room the host tier and the host's free memory leave; one already kept is renewed.
-// Its room is the ranking's (host_room_for), the conversation's boundaries taking its use, so the state survives the history's fate; under the lock.
-inline void Cache::keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back) {
+// Its room is the ranking's (host_room_for); a `spare` one, a prompt's tail, takes only free room and ranks first to go until forked; under the lock.
+inline void Cache::keep_boundary(infer::Sequence& seq, const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, bool back, bool spare) {
     if (!host_cap_ || !model_.keeps_state()) return;
     const std::optional<size_t> kept = model_.checkpoint(seq);
     const size_t bt = model_.kv_block_tokens();
@@ -1606,7 +1649,7 @@ inline void Cache::keep_boundary(infer::Sequence& seq, const std::vector<uint32_
         }
     }
     const size_t bytes = model_.host_bytes(n, false);
-    if (!host_room_for(bytes, Rank{back ? 2 : 1, now})) {
+    if (spare ? host_held_ + bytes > host_cap_ : !host_room_for(bytes, Rank{back ? 2 : 1, now})) {
         moved(Move::boundary_not_kept, "server: a message boundary at %zu tokens was not kept in host memory (the host tier has no room it may give)\n", n);
         return;
     }
@@ -1616,6 +1659,7 @@ inline void Cache::keep_boundary(infer::Sequence& seq, const std::vector<uint32_
     try {
         b.id = ++donor_ids_;
         b.back = back;
+        b.tail = spare;
         b.tokens.assign(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n);
         b.classes = clip(classes, n);
         model_.save_host(seq, n, b.state, copy_limit(), false, defer_);
@@ -1657,7 +1701,7 @@ inline Cache::Rank Cache::rank(const HostDonor& h) const {
 inline Cache::Rank Cache::rank(const Boundary& b) const {
     const bool rows = std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return holds(b, d.tokens, d.classes, d.seq.length()); }) ||
                       std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return holds(b, h.tokens, h.classes, h.history.length); });
-    return {b.superseded || b.disk || !rows ? 0 : b.back ? 2 : 1, b.used};
+    return {b.superseded || b.disk || !rows || b.tail ? 0 : b.back ? 2 : 1, b.used};
 }
 
 // Whether donor d's write to disk is in flight, which pins it: the donor count and room take it last (A19).

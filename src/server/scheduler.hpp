@@ -274,6 +274,8 @@ private:
     Clock::time_point first_before_{};   // first_ as that promotion found it: unset where the pass gives the first token, so the pass is in prompt_ms
     size_t boundary_at_ = 0;       // on a model that keeps a state, where the slice that reaches it keeps the state as a message boundary; 0 once kept or skipped
     size_t boundary_kept_ = 0;     // where its pass in flight keeps that state, the end of that pass's slice, which goes to host memory once that pass retires; 0 for none
+    bool boundary_tail_ = false;   // that boundary is kTailTokens before its prompt's end rather than at its last user message's start, so it takes only room that loses nothing
+    infer::Sequence boundary_seq_; // a fork holding that boundary's checkpoint slot until its first token, when it goes to host memory (Cache::boundary_out)
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
     Clock::time_point rows_at_{};  // when a pass last took or gave back its prompt rows, from which the share rule counts its wait for rows
     bool finished_ = false;        // it has left the active set for good
@@ -1447,6 +1449,8 @@ private:
                 std::lock_guard<std::mutex> lk(m_);
                 if (!r.cancel_.load() && !r.unproved_) cache_.asked_boundary(r);
             }
+            // A boundary held in a checkpoint slot goes to host memory once the first token is out.
+            if (r.first_at_ != Clock::time_point{}) cache_.boundary_out(r, !r.cancel_.load());
         }
         if (again || job_rows) {
             std::lock_guard<std::mutex> lk(m_);
@@ -2125,7 +2129,7 @@ private:
     // Not while a request could not grow, nor a cancelled request, nor a job while a request waits for its seat or room; the slot beyond the stages takes the replies meanwhile (docs/SERVER.md, The service rule).
     bool continues(const Request& r) const {
         if (!r.seq_.in_flight() || stalled_now_ || r.cancel_.load() || decoding(r) || (r.job_ && jobs_yield_)) return false;
-        // A boundary's pass retires before the next slice is formed, since its copy to host memory needs the sequence at rest (Cache::keep_boundary).
+        // A boundary's pass retires before the next slice is formed, since its copy to host memory, or the fork that holds it until the first token, needs the sequence at rest (Cache::asked_boundary).
         if (r.boundary_kept_) return false;
         for (size_t k = 0; k < slots_.size(); ++k) {
             const Slot& s = slots_[k];

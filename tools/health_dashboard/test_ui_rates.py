@@ -432,6 +432,77 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 19)
 
+    def test_chart_motion_uses_only_collected_samples_and_keeps_inspection_in_motion(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+function sample(t, generated) { return {t, reset: false, metrics: {
+  'requests.since_start.generated_tokens': generated,
+  'requests.live.work.generated_tokens': generated,
+  'requests.live.work.prefilled_tokens': generated,
+  'requests.live.sample_elapsed_ms': (t + 30) * 1000
+}}; }
+previousChartSeq = 7;
+previousChartEnd = 100;
+state.collector = 'test-collector';
+previousChartCollector = 'test-collector';
+state.seq = 8;
+state.paused = false;
+inspection.time = null;
+document.hidden = false;
+check('fresh samples animate only between observed collection times', chartMotionFor({lastSuccess: 102, events: []}).seconds === 2);
+const sameSampleMotion = chartMotionFor({lastSuccess: 102, events: []});
+check('same-sequence render carries the current motion without a jump', sameSampleMotion.seconds > 0 && sameSampleMotion.seconds <= 2);
+state.seq = 9;
+inspection.time = 100;
+check('timeline inspection leaves motion on the measured clock', chartMotionFor({lastSuccess: 104, events: []}).seconds > 0);
+inspection.time = null;
+state.paused = true;
+check('paused view suppresses motion', chartMotionFor({lastSuccess: 106, events: []}).seconds === 0);
+state.paused = false;
+state.seq = 10;
+previousChartSeq = 9;
+previousChartEnd = 106;
+const preference = window.matchMedia;
+window.matchMedia = () => ({matches: true});
+check('reduced motion preference suppresses motion', chartMotionFor({lastSuccess: 108, events: []}).seconds === 0);
+window.matchMedia = preference;
+state.seq = 11;
+Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+check('hidden tab suppresses motion', chartMotionFor({lastSuccess: 110, events: []}).seconds === 0);
+delete document.hidden;
+state.seq = 12;
+check('long collection gaps do not animate catch-up', chartMotionFor({lastSuccess: 120, events: []}).seconds === 0);
+previousMotion = {seconds: 2, duration: 2000, started: performance.now()};
+previousChartEnd = 120;
+previousChartSeq = 12;
+previousChartCollector = 'test-collector';
+state.seq = 1;
+state.collector = 'restarted-collector';
+check('collector reset does not carry old motion at an equal timestamp', chartMotionFor({lastSuccess: 120, events: []}).seconds === 0);
+state.samples = [sample(2, 0), sample(12, 10), sample(22, 20), sample(32, 30)];
+state.interval = 2;
+const config = chartConfigurations.find(c => c.id === 'throughput');
+config.fields = ['requests.since_start.generated_tokens'];
+config.clockField = null;
+config.mode = 'completed';
+renderChart(state.samples, 32, config, [], {seconds: 2, duration: 2000});
+const motionNodes = [...$('throughput-chart').querySelectorAll('[data-chart-motion]')];
+const motion = motionNodes[0], plotMotion = motionNodes[1];
+check('chart motion is a short linear transform', motion.style.transition.includes('transform 2000ms linear'));
+check('plot clipping stays fixed while its contents move', plotMotion.parentElement.getAttribute('clip-path').includes('plot-clip'));
+const vertices = (plotMotion.querySelector('path').getAttribute('d').match(/[ML]/g) || []).length;
+check('chart keeps exact sampled path vertices', vertices === 3);
+check('chart retains exact sample count while motion runs', state.samples.length === 4);
+globalThis.rateTestResults = outcomes;
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + cases + "</script></body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                self.assertEqual(len(self.run_browser(document, width)), 12)
+
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""

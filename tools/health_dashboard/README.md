@@ -6,6 +6,11 @@ keeps up to one hour in memory. Browsers receive updates over a one-way
 EventSource stream; opening another tab does not add another upstream sampler.
 No inference request is sent. Browser updates are coalesced to at most once per
 second, while the collector keeps its existing two-second default interval.
+Between collected samples, chart traces and their time labels move linearly
+across the observed interval; the dashboard does not add or smooth data points.
+Pinned and hover inspection stay tied to their selected sample as the timeline
+moves. Motion stops while pausing, in hidden tabs, and when reduced motion is
+requested; long collection gaps and collector resets do not animate catch-up.
 Headline and per-request rates keep a reserved numeric width and two decimal
 places to avoid shifting neighboring labels as values change.
 

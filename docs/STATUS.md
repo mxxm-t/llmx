@@ -3,8 +3,8 @@
 ## Dashboard drafting interaction and readability (2026-10-31, XDEV)
 
 - **Goal:** preserve the emergency source selector while making draft-position inspection stable and readable.
-- **Done:** reproduced lost pinned tooltip and keyboard focus on production refresh. The deployed HTML matches emergency commit e96bf1bdf. Work starts from published main9612b8b7a and carries that static UI dependency forward.
-- **Left:** failing browser regression, implementation, responsive browser checks, syntax and docs/dead-code checks, then deploy the static file.
+- **Done:** preserved the emergency source selector from e96bf1bdf on published main9612b8b7a. The regression failed on the old production HTML at both desktop and mobile widths. All seven focused UI tests pass in Chromium on the rig, including 14 drafting assertions at each width. Live-data previews at 1440, 1024 and 390 pixels have no horizontal overflow or browser errors and retain pinned details and keyboard focus through polling. JavaScript syntax, docs (zero findings, 21 planted faults) and dead-code (eight listed findings, 19 planted faults) pass. Updated the dashboard README and checked project Markdown references to the changed presentation. Static HTML deployed on the rig on October 31 at 21:39 UTC, with matching served SHA256 fd1c6fb802075297a1fa11fcb85756c9f92169f6fe058544519014786e65956f. Live production inspection confirms pin and focus survive refresh. The collector and inference server were not restarted, and rollback HTML is retained.
+- **Landing:** the isolated failing-test/fix pair lands by fast-forward from main9612b8b7a with the applicable static UI checks passed. No hosted inference jobs are required for this scope.
 - **Gotchas:** no collector, API or inference changes. The position chart uses kept/reached whenever source counters exist, including small samples. Legacy counters remain explicitly kept/drafted. No numerical or inference performance gates apply to this static presentation change.
 
 

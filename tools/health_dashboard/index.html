@@ -750,25 +750,47 @@ p {
   margin: 17px 0 8px
 }
 .positions {
-  display: flex;
-  gap: 5px;
-  min-height: 57px;
-  align-items: flex-end
+  min-height: 57px
+}
+.position-wrap {
+  position: relative
+}
+.position-pct {
+  display: block;
+  height: 17px;
+  white-space: nowrap;
+  color: var(--text);
+  font-variant-numeric: tabular-nums
+}
+.position-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--col, 38px), 1fr));
+  gap: 12px 4px
+}
+.position-chart.capped {
+  max-height: 540px;
+  overflow-y: auto
 }
 .position {
-  flex: 1;
-  min-width: 17px;
-  max-width: 64px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   text-align: center;
   color: var(--muted);
-  font-size: 11px
+  font-size: 12px;
+  line-height: 17px;
+  cursor: pointer
 }
 .position-track {
-  height: 34px;
-  background: #202e3b;
-  border-radius: 3px;
+  height: 30px;
+  border-bottom: 1px solid var(--line);
   position: relative;
-  margin-bottom: 5px
+  margin-bottom: 2px
+}
+.position.on .position-track i {
+  background: var(--cyan)
 }
 .position-track i {
   position: absolute;
@@ -776,7 +798,64 @@ p {
   left: 0;
   right: 0;
   background: #5bc5ba;
-  border-radius: 3px
+  border-radius: 2px 2px 0 0
+}
+.position-depth {
+  height: 3px;
+  background: var(--line);
+  position: relative;
+  margin-bottom: 3px
+}
+.position-depth i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--blue)
+}
+.position-sources {
+  display: inline-flex;
+  flex-wrap: wrap;
+  padding: 3px;
+  gap: 2px;
+  margin: 0 0 10px
+}
+.position-sources[hidden] {
+  display: none
+}
+.position-sources button {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 12px
+}
+@media (max-width: 760px) {
+  .position-sources {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr))
+  }
+  .position-sources button {
+    min-width: 0;
+    min-height: 40px;
+    padding: 6px;
+    white-space: nowrap
+  }
+}
+.position.thin .position-track i {
+  background: repeating-linear-gradient(135deg, #5bc5ba 0 4px, #315b5a 4px 8px)
+}
+.position-legend {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 12px
+}
+.position-label {
+  color: var(--muted);
+  font-size: 11px;
+  display: block;
+  height: 16px;
+  white-space: nowrap;
+  overflow: hidden
 }
 .own-history-chart {
   padding: 8px 0 2px
@@ -1020,9 +1099,20 @@ p {
   margin-bottom: 10px
 }
 .meta-events {
+  align-items: start;
   grid-template-columns: 1.35fr 1fr;
   margin-top: 18px
 }
+.technical-details {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere
+}
+.technical-details summary { padding: 6px 0 }
+#draft-sources { font-size: 12px }
+.service-stage { margin-top: 14px }
+.service-stage h3 { font-size: 12px; margin-bottom: 4px }
 .metadata {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -1339,7 +1429,17 @@ td:last-child {
   .header-right .live {
     font-size: 11px
   }
-  .metadata {
+  .technical-details {
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere
+}
+.technical-details summary { padding: 6px 0 }
+#draft-sources { font-size: 12px }
+.service-stage { margin-top: 14px }
+.service-stage h3 { font-size: 12px; margin-bottom: 4px }
+.metadata {
     grid-template-columns: 95px 1fr
   }
   .footer {
@@ -2512,10 +2612,11 @@ button[hidden] {
        <h2>
         Drafting acceptance
        </h2>
-       <span class="muted" id="draft-sources" style="font-size:10px">
+       <span class="muted" id="draft-sources">
         --
        </span>
       </div>
+      <details class="technical-details"><summary>Draft source details</summary><div id="draft-source-details"></div></details>
       <div class="acceptance">
        <div>
         <div class="acceptance-number">
@@ -2570,6 +2671,8 @@ button[hidden] {
        <div>
         <div class="position-title">
          Acceptance by draft position
+        </div>
+        <div aria-label="Draft source" class="segmented position-sources" hidden="" id="position-sources" role="group">
         </div>
         <div class="positions" id="positions">
          <p class="no-data">
@@ -2635,12 +2738,15 @@ button[hidden] {
        </span>
       </span>
      </div>
+     <details class="technical-details">
+      <summary>Stage timings</summary>
      <p class="tier-note">
-      Each stage's mean time a pass since start: recording on the host (of it lookup and sum waits), then the devices after recording.
+      Average per pass since server start. Recording includes lookup and reduction waits. Completion is the time remaining after recording.
      </p>
      <div id="service-stages">
       <p class="no-data">No stage measured</p>
      </div>
+     </details>
     </section>
     <section class="card pad">
      <h2>
@@ -2762,6 +2868,7 @@ button[hidden] {
      </h2>
      <dl class="metadata" id="metadata">
      </dl>
+     <details class="technical-details"><summary>Device precision details</summary><dl class="metadata" id="precision-details"></dl></details>
     </section>
     <section class="card pad">
      <div class="card-label">
@@ -2933,10 +3040,15 @@ function renderServiceStages(raw) {
     const s = st && st.since_start || {},
     n = s.passes,
     per = v => number(v) && number(n) && n > 0 ? fmt(v / n) + ' ms': '--';
-    const line = element('div', 'detail-line');
-    line.append(element('span', '', 'Stage ' + i + ' (' + fmt(n) + ' passes)'),
-      element('span', '', per(s.recording_ms) + ' rec (' + per(s.lookup_wait_ms) + ' lookup, ' + per(s.sum_wait_ms) + ' sum) + ' + per(s.after_recording_ms) + ' after'));
-    box.append(line)
+    const stage = element('div', 'service-stage');
+    stage.append(element('h3', '', 'Stage ' + (i + 1) + ' / ' + fmt(n) + ' passes'));
+    for (const [label, value] of [['Host recording', s.recording_ms], ['Lookup wait (included)', s.lookup_wait_ms],
+      ['Reduction wait (included)', s.sum_wait_ms], ['Completion after recording', s.after_recording_ms]]) {
+      const line = element('div', 'detail-line');
+      line.append(element('span', '', label), element('span', '', per(value)));
+      stage.append(line)
+    }
+    box.append(stage)
   })
 }
 function element(tag, cls, text) {
@@ -3507,25 +3619,175 @@ function drawOwnHistory(raw) {
   legend.append(keptLabel, missedLabel);
   target.append(legend)
 }
+let positionsFit = null;
+let positionSource = 'all';
+// Small samples keep the same denominator and carry an explicit marker.
+const POSITION_THIN = 20;
+// Source counters use kept / reached. Legacy counters use kept / drafted.
+function positionColumns(raw) {
+  const sources = get(raw, 'drafting.since_start.by_source');
+  if (Array.isArray(sources) && sources.length) {
+    const sums = [];
+    for (const src of sources) {
+      if (!src || !Array.isArray(src.by_position) || (positionSource !== 'all' && src.source !== positionSource)) continue;
+      src.by_position.forEach((c, i) => {
+        if (!Array.isArray(c)) return;
+        const at = sums[i] || (sums[i] = {drafted: 0, kept: 0, reached: 0});
+        at.drafted += number(c[0]) ? c[0]: 0;
+        at.kept += number(c[1]) ? c[1]: 0;
+        at.reached += number(c[2]) ? c[2]: 0
+      })
+    }
+    return {bySource: true, columns: Array.from(sums, (c, i) => ({...(c || {drafted: 0, kept: 0, reached: 0}), label: String(i + 1)})).map(c => ({...c, base: c.reached, thin: c.reached < POSITION_THIN}))}
+  }
+  const positions = get(raw, 'drafting.since_start.by_position');
+  if (!Array.isArray(positions)) return {bySource: false, columns: []};
+  return {bySource: false, columns: positions.filter(p => p && Number.isInteger(p.position) && p.position >= 1).sort((x, y) => x.position - y.position)
+    .map(p => ({drafted: number(p.drafted) ? p.drafted: 0, kept: number(p.kept) ? p.kept: 0, base: number(p.drafted) ? p.drafted: 0, thin: false, label: String(p.position)}))}
+}
 function drawPositions(raw) {
   const target = $('positions');
+  const focused = target.contains(document.activeElement) ? document.activeElement.dataset.position: null;
+  const visible = target.querySelector('.tooltip')?.style.display === 'block';
+  const scrollTop = target.querySelector('.position-chart')?.scrollTop || 0;
   target.replaceChildren();
-  const positions = get(raw, 'drafting.since_start.by_position');
-  if (!Array.isArray(positions) || !positions.some(p => ratio(p.kept, p.drafted) !== null)) {
-    target.append(element('p', 'no-data', 'No position data available'));
+  if (positionsFit) positionsFit.disconnect();
+  positionsFit = null;
+  // The switch lists the server's sources in its order, those with drafts only, after All.
+  const listed = get(raw, 'drafting.since_start.by_source');
+  const names = Array.isArray(listed) ? listed.filter(src => src && typeof src.source === 'string' && Array.isArray(src.by_position) &&
+    src.by_position.some(c => Array.isArray(c) && number(c[0]) && c[0] > 0)).map(src => src.source): [];
+  if (positionSource !== 'all' && !names.includes(positionSource)) positionSource = 'all';
+  const switcher = $('position-sources');
+  const key = names.join('|');
+  if (switcher.dataset.key !== key) {
+    switcher.dataset.key = key;
+    switcher.replaceChildren(...['all', ...names].map(name => {
+      const button = element('button', '', name === 'all' ? 'All': name === 'proposer' ? 'MTP head': name.replace(/^history /, 'Lookup '));
+      button.type = 'button';
+      button.dataset.source = name;
+      return button
+    }))
+  }
+  switcher.hidden = !names.length;
+  if (target.dataset.source !== positionSource) delete target.dataset.pinned;
+  target.dataset.source = positionSource;
+  switcher.querySelectorAll('[data-source]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.source === positionSource)));
+  const {bySource, columns} = positionColumns(raw);
+  if (!columns.some(b => b.drafted > 0)) {
+    delete target.dataset.pinned;
+    target.append(element('p', 'no-data', bySource && positionSource !== 'all' ? 'No drafts from this source yet': 'No position data available'));
     return
   }
-  for (const p of positions) {
-    const item = element('div', 'position');
-    const r = ratio(p.kept, p.drafted);
-    item.title = 'Position ' + fmt(p.position) + ': ' + fmt(p.kept) + ' / ' + fmt(p.drafted) + ' kept';
-    item.append(element('strong', '', r === null ? 'No data': percentage(p.kept, p.drafted)));
+  const cells = [];
+  const most = Math.max(1, ...columns.map(b => b.drafted));
+  const wrap = element('div', 'position-wrap');
+  const chart = element('div', 'position-chart');
+  const tooltip = element('div', 'tooltip');
+  let pinned = null, shown = null;
+  const hide = () => {
+    tooltip.style.display = 'none';
+    if (shown) shown.cell.classList.remove('on');
+    shown = null
+  };
+  const show = (b, cell) => {
+    if (shown) shown.cell.classList.remove('on');
+    shown = {b, cell};
+    cell.classList.add('on');
+    const r = ratio(b.kept, b.base);
+    tooltip.replaceChildren(element('strong', '', 'Position ' + b.label));
+    const rows = [['Kept', r === null ? 'No data': percentage(b.kept, b.base)], ['Kept tokens', fmt(b.kept)]];
+    if (bySource) rows.push(['Reached', fmt(b.reached)]);
+    rows.push(['Drafted', fmt(b.drafted)]);
+    if (r !== null && b.thin) rows.push(['Sample', 'Fewer than ' + POSITION_THIN + ' reached']);
+    for (const [k, v] of rows) {
+      const row = element('div');
+      row.append(element('span', '', k), element('span', '', v));
+      tooltip.append(row)
+    }
+    tooltip.style.display = 'block';
+    const w = wrap.getBoundingClientRect(), c = cell.getBoundingClientRect();
+    tooltip.style.left = Math.max(2, Math.min(w.width - tooltip.offsetWidth - 2, c.left - w.left + c.width / 2 - tooltip.offsetWidth / 2)) + 'px';
+    tooltip.style.top = Math.max(2, Math.min(w.height - tooltip.offsetHeight - 2, c.bottom - w.top + 6)) + 'px'
+  };
+  const pctText = b => ratio(b.kept, b.base) === null ? '--': percentage(b.kept, b.base) + (b.thin ? '*' : '');
+  for (const b of columns) {
+    const r = ratio(b.kept, b.base);
+    const item = element('button', r === null ? 'position empty': b.thin ? 'position thin': 'position');
+    item.type = 'button';
+    item.dataset.position = b.label;
+    item.setAttribute('aria-label', 'Position ' + b.label + ': ' + (r === null ? 'unavailable': fmt(b.kept) + ' of ' + fmt(b.base) + (bySource ? ' reached': ' drafted') + ' kept'));
     const track = element('div', 'position-track');
     const bar = element('i');
     bar.style.height = (r === null ? 0: Math.max(0, Math.min(100, r * 100))) + '%';
     track.append(bar);
-    item.append(track, document.createTextNode(fmt(p.position)));
-    target.append(item)
+    const depth = element('div', 'position-depth');
+    const depthBar = element('i');
+    depthBar.style.width = (b.drafted > 0 ? Math.max(3, Math.log1p(b.drafted) / Math.log1p(most) * 100): 0) + '%';
+    depth.append(depthBar);
+    item.append(element('span', 'position-pct', pctText(b)), track, depth, element('span', 'position-label', ''));
+    item.addEventListener('mouseenter', () => { if (pinned === null) show(b, item) });
+    item.addEventListener('focus', () => { if (pinned === null) show(b, item) });
+    item.addEventListener('mouseleave', () => { if (pinned === null) hide() });
+    item.addEventListener('blur', () => { if (pinned === null) hide() });
+    item.addEventListener('click', () => {
+      if (pinned === item) { pinned = null; delete target.dataset.pinned; hide(); return }
+      target.dataset.pinned = b.label;
+      pinned = item;
+      show(b, item)
+    });
+    cells.push(item);
+    chart.append(item)
+  }
+  chart.addEventListener('keydown', event => { if (event.key === 'Escape') { pinned = null; delete target.dataset.pinned; hide() } });
+  wrap.append(chart, tooltip);
+  // Keep percentages readable and wrap long draft histories into rows.
+  const minimum = 52;
+  const gap = 4;
+  const fit = () => {
+    const room = wrap.clientWidth;
+    let width = 60, perRow = columns.length;
+    if (room > 0) {
+      const rows = Math.ceil(columns.length / Math.max(1, Math.floor((room + gap) / (minimum + gap))));
+      perRow = Math.ceil(columns.length / rows);
+      width = rows === 1 ? Math.min(60, (room - gap * (perRow - 1)) / perRow): (room - gap * (perRow - 1)) / perRow;
+      chart.style.gridTemplateColumns = 'repeat(' + perRow + ', ' + (rows === 1 ? Math.floor(width) + 'px': 'minmax(0, 1fr)') + ')'
+    }
+    // Long histories scroll in whole rows.
+    chart.classList.remove('capped');
+    chart.style.maxHeight = '';
+    if (chart.scrollHeight > 540) {
+      const rowHeight = cells[0].getBoundingClientRect().height;
+      const rowGap = parseFloat(getComputedStyle(chart).rowGap);
+      chart.style.maxHeight = (Math.floor((540 + rowGap) / (rowHeight + rowGap)) * (rowHeight + rowGap) - rowGap) + 'px';
+      chart.classList.add('capped')
+    }
+    scrollHint.hidden = !chart.classList.contains('capped');
+    // Every column has its position label.
+    columns.forEach((b, i) => {
+      cells[i].lastChild.textContent = b.label
+    })
+  };
+  const scrollHint = element('p', 'position-legend', 'Scroll inside the chart to see all ' + columns.length + ' positions.');
+  scrollHint.hidden = true;
+  target.append(wrap, scrollHint, element('p', 'position-legend', bySource ?
+    'Acceptance = kept / reached at each position. * Fewer than ' + POSITION_THIN + ' reached. Blue bars show draft counts on a log scale. Select a position for counts.':
+    'Acceptance = kept / drafted at each position (legacy counters). Blue bars show draft counts on a log scale. Select a position for counts.'));
+  fit();
+  chart.scrollTop = scrollTop;
+  const selected = cells.find(c => c.dataset.position === target.dataset.pinned);
+  if (selected) {
+    pinned = selected;
+    show(columns[cells.indexOf(selected)], selected)
+  } else delete target.dataset.pinned;
+  const restoreFocus = cells.find(c => c.dataset.position === focused);
+  if (restoreFocus) {
+    restoreFocus.focus({preventScroll: true});
+    if (!visible && !selected) hide()
+  }
+  if (typeof ResizeObserver === 'function') {
+    positionsFit = new ResizeObserver(fit);
+    positionsFit.observe(wrap)
   }
 }
 function displayValue(v) {
@@ -3547,14 +3809,21 @@ function renderMetadata(raw) {
   ['Precision requested', get(raw, 'precision.requested')],
   ['Precision declared', get(raw, 'precision.declared')],
   ['Precision effective', get(raw, 'precision.effective')]];
-  const devices = get(raw, 'precision.devices');
-  if (Array.isArray(devices)) for (const d of devices) {
-    fields.push(['Device ' + displayValue(d.device),
-    ['Effective: ' + displayValue(d.effective), 'How: ' + displayValue(d.how), 'Paths: ' + displayValue(d.paths)].join(' / ')])
-  }
   for (const[label, value] of fields) {
     host.append(element('dt', '', label), element('dd', '', displayValue(value)))
   }
+  const details = $('precision-details');
+  details.replaceChildren();
+  const devices = get(raw, 'precision.devices');
+  const groups = new Map();
+  if (Array.isArray(devices)) for (const d of devices) {
+    const text = ['Effective: ' + displayValue(d.effective), 'Execution: ' + displayValue(d.how),
+      'Paths: ' + displayValue(d.paths)].join(' / ');
+    if (!groups.has(text)) groups.set(text, []);
+    groups.get(text).push(displayValue(d.device))
+  }
+  for (const [text, names] of groups) details.append(element('dt', '', names.join(', ')), element('dd', '', text));
+  if (!groups.size) details.append(element('dt', '', 'Devices'), element('dd', '', 'Unavailable'));
 }
 function renderTopology(raw) {
   const host = $('topology-view');
@@ -4144,7 +4413,8 @@ function render() {
     fmt(kept) + ' kept / ' + fmt(draft) + ' drafted since start');
   $('accept-ring').style.strokeDasharray = (r === null ? 0: Math.max(0, Math.min(1, r)) * 176) + ' 176';
   const sources = m('drafting.sources');
-  txt('draft-sources', Array.isArray(sources) ? sources.join(' + '): 'Unavailable');
+  txt('draft-sources', Array.isArray(sources) ? sources.map(s => typeof s === 'string' && /[/\\]/.test(s) ? 'MTP head': displayValue(s)).join(' + '): 'Unavailable');
+  txt('draft-source-details', Array.isArray(sources) ? sources.map(displayValue).join(' + '): 'Unavailable');
   drawOwnHistory(raw);
   renderServiceStages(raw);
   drawPositions(raw);
@@ -4262,6 +4532,12 @@ async function poll() {
     setTimeout(poll, Math.max(500, state.interval * 1000));
   }
 }
+$('position-sources').addEventListener('click', event => {
+  const button = event.target.closest('[data-source]');
+  if (!button) return;
+  positionSource = button.dataset.source;
+  render()
+});
 document.querySelectorAll('[data-range]').forEach(button => button.addEventListener('click', () => {
   state.range = Number(button.dataset.range);
   preferences.range = state.range;

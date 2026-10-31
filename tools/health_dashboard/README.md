@@ -88,6 +88,15 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   is currently active. Zero observations show `No data`, missing counters show
   `Unavailable`, and zero kept tokens with a positive drafted count show `0%`.
   A selected chart range does not turn lifetime counters into interval totals.
+- Draft-position acceptance uses kept / reached when the server reports source
+  counters. A position is reached only when the earlier drafts were kept.
+  The source selector shows the MTP head and lookup match-length groups, or
+  their combined counts. A star and striped bar mark fewer than 20 reached
+  drafts, without changing the denominator. Zero reached drafts show `--`.
+  Older servers without source counters show explicitly labeled kept / drafted.
+  Blue bars show relative draft counts on a logarithmic scale. Select a position
+  to pin its counts across updates. Escape dismisses it. Focus and chart scroll
+  position survive refreshes, and changing source clears the pinned position.
 - Missing metrics remain unavailable. Upstream failure keeps the last good
   snapshot with a stale indication. Server resets and counter decreases break
   derived rates instead of creating negative spikes.
@@ -146,6 +155,11 @@ as timeline markers.
 Detailed cache, drafting and scheduling counters expand separately. The browser
 remembers the range, panel choices and compact spacing when local storage is
 available; storage restrictions do not prevent telemetry from working.
+The drafting summary names the source types, with full paths in Draft source
+details. Device precision details group devices with identical reported paths.
+Stage timings show per-pass recording and completion times separately, with
+lookup and reduction waits labeled as parts of recording time. These technical
+details are collapsed initially and remain open across live updates when expanded.
 
 ## Verify
 

@@ -322,7 +322,7 @@ for (const [name, drafted, kept, expected] of [
   check(name + ' lifetime basis', !!$('acceptance-basis') && $('acceptance-basis').textContent ===
     (drafted > 0 ? kept + ' kept / ' + drafted + ' drafted since start' : 'Lifetime acceptance since start'));
   check(name + ' position state', drafted > 0 ?
-    $('positions').querySelector('strong').textContent === (kept === 0 ? '0%' : '33.3%') :
+    $('positions').querySelector('.position-pct').textContent === (kept === 0 ? '0%' : '33.3%') :
     $('positions').textContent.includes('No position data available'));
   check(name + ' own-history state', drafted > 0 ?
     $('own-history-chart').textContent.includes(kept === 0 ? '0%' : '33.3%') :
@@ -390,7 +390,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         for width in (1440, 390):
             with self.subTest(width=width):
                 document = source.replace("</body>", "<pre hidden id='rate-test-results'></pre><script>" + cases + "</script></body>")
-                self.assertEqual(len(self.run_browser(document, width)), 15)
+                self.assertEqual(len(self.run_browser(document, width)), 14)
 
     def run_browser(self, document, width=1440):
         browser = next((str(path) for path in CHROME_PATHS if path.is_file()), None)

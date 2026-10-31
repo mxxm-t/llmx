@@ -412,8 +412,8 @@ private:
         }
         // Each source's drafts by position, fed, kept and reached (fed with every draft before kept), the counts its chances are priced from.
         std::string by_source;
-        static const char* const kSources[] = {"proposer", "history 8-15", "history 16-31", "history 32+"};
-        for (size_t i = 0; i < s.by_source.size() && i < 4; ++i) {
+        static const char* const kSources[] = {"proposer", "history 8-15", "history 16-31", "history 32-127", "history 128+"};
+        for (size_t i = 0; i < s.by_source.size() && i < 5; ++i) {
             const infer::spec::Acceptance& a = s.by_source[i];
             std::string at;
             for (size_t j = 0; j < a.drafted().size(); ++j)

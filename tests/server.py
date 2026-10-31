@@ -2606,7 +2606,7 @@ def check_flash_mtp_http(tool=None):
                 count = finished["drafting"]["since_start"]
                 # Each source's counts by position add up to the whole, and a position reached was fed, and kept only where reached.
                 sources = count["by_source"]
-                assert [x["source"] for x in sources] == ["proposer", "history 8-15", "history 16-31", "history 32+"], sources
+                assert [x["source"] for x in sources] == ["proposer", "history 8-15", "history 16-31", "history 32-127", "history 128+"], sources
                 for i, row in enumerate(count["by_position"]):
                     at = [x["by_position"][i] for x in sources if i < len(x["by_position"])]
                     assert sum(a[0] for a in at) == row["drafted"] and sum(a[1] for a in at) == row["kept"], (i, row, at)

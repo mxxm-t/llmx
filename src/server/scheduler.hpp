@@ -852,7 +852,8 @@ private:
         std::vector<std::shared_ptr<Request>> members, wanting;
         std::vector<size_t> from, rows, first_row;   // first_row: per wanting entry, its first logits row in the pass
         size_t base = 0, want = 0, decoders = 0;
-        size_t generated = 0;        // its rows where every one is a generated token's, which the pass cost is measured on, else 0
+        size_t generated = 0;        // its rows where it is decode rows alone, which the pass cost is measured on, else 0
+        double decode_ms = 0;        // then its slowest stage's price in its measured cell, which its server time is reconciled with (PassTimes::reconcile), else 0
         bool continues = false;      // formed while its request's pass before it was in flight (Scheduler::continues)
         uint64_t job = 0;            // its hand-over to a recorder, which the recorder's result names
         Clock::time_point begun;
@@ -1195,9 +1196,9 @@ private:
         f.live = true;
         f.formed = ++formed_;
         f.ran = 0;
-        f.generated = 0;
-        if (std::all_of(entries_.begin(), entries_.end(), [](const infer::BatchEntry& e) { return e.extent == 1 || e.n == 1; }))
-            for (const infer::BatchEntry& e : entries_) f.generated += e.n;
+        // Measured as the price table keys it, so a one-row prompt slice is not taken for a decode row.
+        f.generated = f.work.chunks.empty() ? f.work.decode_rows : 0;
+        f.decode_ms = f.generated ? record_.decode_cell_ms(f.work.decode_band, f.generated) : 0;
         f.begun = Clock::now();
         if (model_.stage_on_host(0)) host.push_back({k, 0});
         else advance(active, k, 0);
@@ -1415,8 +1416,12 @@ private:
             const double ms = std::max(own > 0 && took > own ? took - own : 0.0, f.pieces_host_ms);
             if (ms > 0) piece_ms_ = piece_ms_ > 0 ? 0.75 * piece_ms_ + 0.25 * ms / (double)f.pieces : ms / (double)f.pieces;
         }
-        if (f.generated) times_.pass(f.generated, took);
-        else measure_prompt(f, since_retired);
+        if (f.generated) {
+            times_.pass(f.generated, took);
+            if (f.decode_ms > 0) times_.reconcile(f.decode_ms, took);
+        } else {
+            measure_prompt(f, since_retired);
+        }
         last = Retirement{Clock::now(), true, 0};
         // Rows a resume computed again are those below the longest history the cache has held, a verify's those its retract kept.
         size_t again = 0, job_rows = 0;
@@ -1533,8 +1538,16 @@ private:
             chained_.push_back(record.drafted == Source::proposer);
             askers_.push_back(r.get());
         }
-        // A chain runs on the head's devices before the passes posted there after it, so every pass in flight waits on it as the one being formed does.
+        // The pass is priced by the price table at the deepest decoder's band, in server time, for every width the drafts may reach, and by the line where the table has no cell.
         infer::spec::PassCost cost = priced_ ? times_.cost() : infer::spec::PassCost{};
+        if (priced_ && !keeps_.empty()) {
+            size_t deepest = 0, most = rs.size();
+            for (const auto& r : rs) deepest = std::max(deepest, r->seq_.length());
+            for (const auto& k : keeps_) most += k.size();
+            cost.rows_ms = record_.decode_curve(depth_band(deepest), most);
+            for (double& ms : cost.rows_ms) ms = times_.server_ms(ms);
+        }
+        // A chain runs on the head's devices before the passes posted there after it, so every pass in flight waits on it as the one being formed does.
         const double stall = 1.0 + (double)flights_live();
         cost.step_ms *= stall;
         cost.step_row_ms *= stall;

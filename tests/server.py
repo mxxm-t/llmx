@@ -438,9 +438,12 @@ def check_service(srv, requests, n):
         for p in stage["recent"]:
             assert p["measured_ms"] >= 0 and p["predicted_ms"] >= 0 and (p["decode_rows"] or p["chunks"]), p
         assert stage["prices"]["decode"] and stage["prices"]["chunks"], stage
-        for run in stage["prices"]["decode"] + stage["prices"]["chunks"]:
-            assert len(run["rows"]) == len(run["ms"]) == len(run["last_ms"]) == len(run["samples"]) > 0, run
-            assert all(ms > 0 for ms in run["ms"]) and all(k > 0 for k in run["samples"]), run
+        for kind in ("decode", "chunks"):
+            for run in stage["prices"][kind]:
+                assert len(run["rows"]) == len(run["ms"]) == len(run["last_ms"]) == len(run["samples"]) > 0, run
+                assert all(k > 0 for k in run["samples"]) and all(ms >= 0 for ms in run["last_ms"]), run
+                # A decode cell prices from its second measure, its first paying the width's one-time costs; a slice cell from its first.
+                assert all((ms > 0) == (kind == "chunks" or k > 1) for ms, k in zip(run["ms"], run["samples"])), run
     rows = service["rows"]["since_start"]
     assert rows["decode"] > 0 and rows["prompt"] > 0 and sum(rows["prompt_by_band"]) >= rows["prompt"], rows
     times = service["requests"]

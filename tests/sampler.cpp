@@ -573,6 +573,34 @@ void first_measure() {
     require(close_to(c.rows_ms[2], ms(2), 1e-6), "a second 2-row pass priced 2 rows at " + std::to_string(c.rows_ms[2]) + ", not its 55 ms");
 }
 
+// Cheaper passes never draft shallower at equal chances: every width cheaper by one factor keeps the depth, and a cheaper row at the same fixed cost never lowers it.
+// A cheaper fixed cost alone may lower it, since the drafts then pay back less of it; that is the price's point, not a fault.
+void cheaper_not_shallower() {
+    infer::RNG rng;
+    rng.seed(7);
+    const auto unit = [&]() { return (double)(rng.next() >> 11) / 9007199254740992.0; };
+    const auto depth = [](const std::function<double(size_t)>& ms, const std::vector<double>& keeps) {
+        std::vector<size_t> takes;
+        infer::spec::draft_depths(table_cost(ms, widths_from(1, 24), 24), 1, {keeps}, takes);
+        return takes[0];
+    };
+    for (int trial = 0; trial < 200; ++trial) {
+        const double base = 5 + 30 * unit(), row = 0.5 + 4 * unit(), jump = 15 * unit();
+        const size_t at = 2 + (size_t)(unit() * 20);
+        const double scale = 0.5 + 0.45 * unit(), cheaper_row = row * unit();
+        const auto ms = [&](size_t r) { return base + row * (double)r + (r >= at ? jump : 0.0); };
+        std::vector<double> keeps(23);
+        double chance = 1;
+        const double a = 0.5 + 0.5 * unit(), b = 0.5 + 0.5 * unit();
+        for (size_t j = 0; j < keeps.size(); ++j) chance *= j < 8 ? a : b, keeps[j] = chance;
+        const size_t before = depth(ms, keeps), scaled = depth([&](size_t r) { return scale * ms(r); }, keeps);
+        const size_t line = depth([&](size_t r) { return base + row * (double)r; }, keeps), cheaper = depth([&](size_t r) { return base + cheaper_row * (double)r; }, keeps);
+        require(scaled == before && cheaper >= line, "cheaper passes drafted shallower: depth " + std::to_string(before) + " and " + std::to_string(scaled) + " with every width " +
+                                                         std::to_string(scale) + " as dear, " + std::to_string(line) + " and " + std::to_string(cheaper) + " with a row " +
+                                                         std::to_string(cheaper_row) + " ms in place of " + std::to_string(row));
+    }
+}
+
 // A draft position's chance follows the verifies that reached it, a draft's depth censoring what it says of later positions (docs/SPECULATIVE.md, section 3).
 // As production met it at --draft-max 63: the first verifies fed 63 drafts and missed within three, and later ones fed eight and kept them; the deep misses say nothing of position 9, so a request keeping its eight drafts is priced deeper.
 void censored_depth() {
@@ -770,6 +798,7 @@ int main() {
         censored_depth();
         stepped_price();
         first_measure();
+        cheaper_not_shallower();
         frontier_relaxes();
         frontier_loop();
         std::cout << "sampler: " << checks << " checks pass\n";

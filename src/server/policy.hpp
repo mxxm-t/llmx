@@ -406,7 +406,8 @@ struct PriceTable {
     bool observe(const PassWork& w, double ms) {
         if (!(ms >= 0)) return false;
         Cell* c = nullptr;
-        if (w.chunks.empty() && w.decode_rows) c = &decode[{w.decode_band, w.decode_rows}];
+        const bool rows_alone = w.chunks.empty() && w.decode_rows;
+        if (rows_alone) c = &decode[{w.decode_band, w.decode_rows}];
         else if (w.chunks.size() == 1) {
             // A slice beside decode rows already priced takes what remains, so a prompt riding the replies' pass learns its price.
             const double d = w.decode_rows ? decode_ms(w.decode_band, w.decode_rows) : 0;
@@ -415,20 +416,48 @@ struct PriceTable {
             c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
         }
         if (!c) return false;
-        c->ms = forget(c->ms, ms);
+        // A decode cell's first measure pays its width's one-time costs, such as kernel builds made on first use (vulkan_dispatch.hpp), so its price starts at the second.
+        if (c->samples || !rows_alone) c->ms = forget(c->ms, ms);
         c->last_ms = ms;
         ++c->samples;
         return true;
     }
-    // Decode rows' price: their cell, else the nearest measured rows above in their band, else below; 0 where none is.
-    // A band not yet measured takes the nearest band below, so a reply crossing into a deeper band is still priced.
+    // Decode rows' price: their cell, else the nearest priced rows above in their band, else below; 0 where none is.
+    // A band not yet priced takes the nearest band below, so a reply crossing into a deeper band is still priced.
     double decode_ms(size_t band, size_t rows) const {
         for (size_t b = band + 1; b-- > 0;) {
-            const auto it = decode.lower_bound({b, rows});
-            if (it != decode.end() && it->first.first == b) return it->second.ms;
-            if (it != decode.begin() && std::prev(it)->first.first == b) return std::prev(it)->second.ms;
+            const auto first = decode.lower_bound({b, 0}), end = decode.lower_bound({b + 1, 0});
+            const auto at = decode.lower_bound({b, rows});
+            for (auto it = at; it != end; ++it)
+                if (it->second.ms > 0) return it->second.ms;
+            for (auto it = at; it != first;)
+                if ((--it)->second.ms > 0) return it->second.ms;
         }
         return 0;
+    }
+    // Decode rows' price measured at exactly `rows` in band `band`, 0 where that cell is not priced yet.
+    double decode_cell_ms(size_t band, size_t rows) const {
+        const auto it = decode.find({band, rows});
+        return it != decode.end() ? it->second.ms : 0.0;
+    }
+    // Decode rows' prices in band `band` for 0 to `most` rows, for the depth rule (Scheduler::propose): each measured cell, between two measured cells the line through them, 0 outside the measured rows.
+    // No nearest cell stands in for a width, so a step between measured widths is not priced at the width before it.
+    std::vector<double> decode_curve(size_t band, size_t most) const {
+        std::vector<double> out(most + 1, 0.0);
+        std::vector<std::pair<size_t, double>> priced;
+        for (auto it = decode.lower_bound({band, 1}); it != decode.end() && it->first.first == band; ++it)
+            if (it->second.ms > 0) priced.push_back({it->first.second, it->second.ms});
+        size_t hi = 0;
+        for (size_t r = 1; r <= most; ++r) {
+            while (hi < priced.size() && priced[hi].first < r) ++hi;
+            if (hi == priced.size()) break;
+            if (priced[hi].first == r) out[r] = priced[hi].second;
+            else if (hi > 0) {
+                const auto& [l, lo_ms] = priced[hi - 1];
+                out[r] = lo_ms + (priced[hi].second - lo_ms) * double(r - l) / double(priced[hi].first - l);
+            }
+        }
+        return out;
     }
     // A slice's price for the quick rule (quick_prompt): its cell or the nearest measured above, else a line through the two largest measured below.
     // 0 where neither is measured, with `step` then the rows to read next to learn it: twice the largest measured below, at least kPieceStep.

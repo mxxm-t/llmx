@@ -113,6 +113,29 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return stages_[s].prices.decode_ms(band, rows);
     }
+    // The slowest stage's price of exactly `rows` decode rows at band `band`, 0 where a stage has not measured that cell.
+    double decode_cell_ms(size_t band, size_t rows) const {
+        std::lock_guard<std::mutex> lk(m_);
+        double ms = 0;
+        for (const auto& st : stages_) {
+            const double x = st.prices.decode_cell_ms(band, rows);
+            if (!(x > 0)) return 0;
+            ms = std::max(ms, x);
+        }
+        return ms;
+    }
+    // The slowest stage's decode prices at band `band` for 0 to `most` rows (PriceTable::decode_curve), 0 at a width some stage does not price.
+    std::vector<double> decode_curve(size_t band, size_t most) const {
+        std::lock_guard<std::mutex> lk(m_);
+        std::vector<double> out;
+        for (size_t s = 0; s < stages_.size(); ++s) {
+            const std::vector<double> c = stages_[s].prices.decode_curve(band, most);
+            if (!s) out = c;
+            else
+                for (size_t r = 0; r < out.size(); ++r) out[r] = out[r] > 0 && c[r] > 0 ? std::max(out[r], c[r]) : 0.0;
+        }
+        return out;
+    }
     // Stage s's price of a prompt row in a slice of `rows` rows of class `cls` at band `band`, 0 before one is measured.
     double row_ms(size_t s, size_t cls, size_t band, size_t rows) const {
         std::lock_guard<std::mutex> lk(m_);

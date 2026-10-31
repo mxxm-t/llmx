@@ -5,16 +5,19 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 #extension GL_EXT_control_flow_attributes : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; uint quant; } p;
+// `xrows` is the rows of the whole call, whose twin this dispatch's rows are written into.
+layout(push_constant) uniform P { uint rows; uint n_head; uint dim; uint nsplit; uint quant; uint xrows; uint major; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float o[]; };
 layout(set = 0, binding = 1) readonly buffer S { float scratch[]; };
 layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 3) writeonly buffer XQ { uint xq[]; };
 #include "views.glsl"
 #include "xquant.glsl"
-// A split's weight and sum, at most one split a lane (the dispatch keeps nsplit within the workgroup), and each subgroup's largest maximum.
-shared float sw[256];
-shared float sl[256];
+// A chunk of splits' weights and sums, a lane taking splits lid, lid + 256 and so on, and each subgroup's largest maximum.
+// Splits past one chunk are weighed chunk after chunk, so any number merges and the sums keep split order.
+const uint CHUNK = 1024u;
+shared float sw[CHUNK];
+shared float sl[CHUNK];
 shared float sg[256];
 void main() {
     uint rh = gl_WorkGroupID.x;
@@ -25,35 +28,45 @@ void main() {
     view_of_row(g, v, b);
     uint stride = p.dim + 2u;
     uint base = rh * p.nsplit * stride;
-    float mi = lid < p.nsplit ? scratch[base + lid * stride] : -1.0 / 0.0;
-    if (lid < p.nsplit) sl[lid] = scratch[base + lid * stride + 1u];
+    float m = -1.0 / 0.0;
+    for (uint i = lid; i < p.nsplit; i += 256u) m = max(m, scratch[base + i * stride]);
     // The maximum is exact in any order: across each subgroup, then across the subgroups.
-    float m = mi;
     for (uint o = gl_SubgroupSize / 2u; o > 0u; o /= 2u) m = max(m, subgroupShuffleXor(m, o));
     if (gl_SubgroupInvocationID == 0u) sg[gl_SubgroupID] = m;
     barrier();
     float M = sg[0];
     for (uint i = 1u; i < gl_NumSubgroups; ++i) M = max(M, sg[i]);
-    // A split with no tokens weighs nothing; exp(-inf - -inf) must never be formed.
-    if (lid < p.nsplit) sw[lid] = isinf(mi) ? 0.0 : exp(mi - M);
-    barrier();
-    if (lid >= p.dim) return;
-    // Eight splits' values are loaded before any is summed, so their reads overlap.
     float L = 0.0, A = 0.0;
-    for (uint i0 = 0u; i0 < p.nsplit; i0 += 8u) {
-        float a[8];
-        [[unroll]] for (uint k = 0u; k < 8u; ++k) a[k] = scratch[base + min(i0 + k, p.nsplit - 1u) * stride + 2u + lid];
-        [[unroll]] for (uint k = 0u; k < 8u; ++k) {
-            uint i = i0 + k;
-            if (i >= p.nsplit) break;
-            float c = sw[i];
-            if (c == 0.0) continue;
-            L += sl[i] * c;
-            A += a[k] * c;
+    for (uint c0 = 0u; c0 < p.nsplit; c0 += CHUNK) {
+        uint cn = min(CHUNK, p.nsplit - c0);
+        // The last chunk's weights are read by every lane before they are replaced.
+        barrier();
+        // A split with no tokens weighs nothing; exp(-inf - -inf) must never be formed.
+        for (uint i = lid; i < cn; i += 256u) {
+            float mi = scratch[base + (c0 + i) * stride];
+            sw[i] = isinf(mi) ? 0.0 : exp(mi - M);
+            sl[i] = scratch[base + (c0 + i) * stride + 1u];
+        }
+        barrier();
+        if (lid < p.dim) {
+            // Eight splits' values are loaded before any is summed, so their reads overlap.
+            for (uint i0 = 0u; i0 < cn; i0 += 8u) {
+                float a[8];
+                [[unroll]] for (uint k = 0u; k < 8u; ++k) a[k] = scratch[base + (c0 + min(i0 + k, cn - 1u)) * stride + 2u + lid];
+                [[unroll]] for (uint k = 0u; k < 8u; ++k) {
+                    uint i = i0 + k;
+                    if (i >= cn) break;
+                    float c = sw[i];
+                    if (c == 0.0) continue;
+                    L += sl[i] * c;
+                    A += a[k] * c;
+                }
+            }
         }
     }
+    if (lid >= p.dim) return;
     uint i = (view_row0(v) + b) * p.n_head * p.dim + h * p.dim + lid;
     float r = A / L;
     o[i] = r;
-    if (p.quant != 0u) xquant_block(i, r, p.rows * p.n_head * p.dim);
+    if (p.quant != 0u) xquant_block(i, r, p.xrows * p.n_head * p.dim, p.major);
 }

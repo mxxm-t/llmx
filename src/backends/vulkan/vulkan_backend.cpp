@@ -1760,6 +1760,12 @@ public:
         VulkanKVStorage* storage = nullptr;
     };
     ViewTable view_table(size_t layer, const std::vector<Placed>& placed, bool writing);
+    // The tiled prompt attention over the wide views, split over history at depth (shaders/attention_tile.comp).
+    void wide_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim,
+                        VkDescriptorBufferInfo xq, bool quant, uint32_t major, size_t rows);
+    // Bytes the split tiled attention's parts may take at once; a call needing more is cut over whole tiles, which changes no bit.
+    // 64 MiB holds 1024 rows of 32 heads 128 wide in 4 parts, so only very deep or very wide passes are cut, and it stays small beside the cache.
+    size_t attention_scratch_cap_ = size_t(64) << 20;
     static void check_storage(const VulkanKVStorage& s, int n_head_kv, int head_dim);
     void keep_until_retired(BufferPtr b);
 

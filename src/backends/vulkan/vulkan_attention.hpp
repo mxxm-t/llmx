@@ -170,23 +170,13 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         (!full && extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
     }
     if (!wide.empty()) {
-        ViewTable t = view_table(layer, wide, false);
-        VulkanKVStorage& s = *t.storage;
-        check_storage(s, n_head_kv, head_dim);
-        size_t tiles = 0;
-        for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
         // With every view here and the integer-dot tile reading the output next, the output's twin written beside it (shaders/attention_tile.comp).
         std::vector<RowRun> vruns;
         for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});
         const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
         const uint32_t major = tile ? x8_major(qstride, rows) : 0;
-        struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major; }
-            tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows), major};
         const size_t slot = tile ? take_twin(rows * qstride) : 0, n = rows * qstride;
-        dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
-                 {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                  args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? twin_binding(slot) : bind(out)},
-                 &tc, sizeof(tc), u32(tiles * (size_t)n_head), 1, tile ? twin_variant() : 0, {0, n, 0, 0, 0, n});
+        wide_attention(Q, layer, wide, out, n_head, n_head_kv, head_dim, tile ? twin_binding(slot) : bind(out), tile, major, rows);
         if (tile) keep_twin(slot, bind(out), n, major);
     }
     if (!narrow.empty()) {
@@ -246,10 +236,80 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         }
         if (cuts.size() > 2) isolate();
         if (nsplit > 1) {
-            const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
+            const uint32_t mc[7] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u, u32(t.rows), 0u};
             dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
         }
         if (quant) keep_twin(slot, bind(out), n, 0);
+    }
+}
+
+// The tiled kernel over the wide views, its history split into parts of attention_tile_part tokens and merged once a row passes one part.
+// Parts start at absolute positions, so a row's parts follow its own history (docs/src/backends-vulkan.md).
+inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim,
+                                          VkDescriptorBufferInfo xq, bool quant, uint32_t major, size_t rows) {
+    const size_t qstride = (size_t)n_head * head_dim, n = rows * qstride, stride = (size_t)head_dim + 2;
+    const float scale = 1.0f / std::sqrt((float)head_dim);
+    const size_t part = dev_->profile.attention_tile_part;
+    if (part == 0 || part % 16 != 0) throw std::logic_error("vulkan: attention_tile_part is not a whole number of key tiles");
+    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
+    size_t longest = 0;
+    for (const Placed& pv : views) longest = std::max(longest, size_add(pv.view->length, pv.view->nq));
+    const size_t nsplit = (longest + part - 1) / part;
+    const VulkanKVStorage& s = storage_of(views.front().view->storage);
+    const KernelId kernel = head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s);
+    struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major, chunk, nsplit, wg0; }
+        tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, quant ? 1u : 0u, u32(rows), major, u32(part), 1u, 0u};
+    // The tiles of `pieces`, whole or in `parts` parts each, in dispatches within the device's workgroup count.
+    auto tiles_of = [&](const std::vector<Placed>& pieces, const ViewTable& t, VkDescriptorBufferInfo scratch, size_t scratch_floats, uint32_t parts) {
+        size_t tiles = 0;
+        for (const Placed& pv : pieces) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+        const size_t total = size_mul(tiles * (size_t)n_head, parts);
+        tc.nsplit = parts;
+        for (size_t g0 = 0; g0 < total; g0 += limit) {
+            tc.wg0 = u32(g0);
+            dispatch(kernel,
+                     {bind(Q), bind(out), bind(CSlice{t.storage->k_buffer(layer).get(), 0}), bind(CSlice{t.storage->v_buffer(layer).get(), 0}),
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq, scratch},
+                     &tc, sizeof(tc), u32(std::min(limit, total - g0)), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, n, scratch_floats});
+        }
+    };
+    if (nsplit <= 1) {
+        ViewTable t = view_table(layer, views, false);
+        check_storage(*t.storage, n_head_kv, head_dim);
+        tiles_of(views, t, bind(out), n, 1);
+        return;
+    }
+    // Pieces of whole tiles whose parts fit the cap; a view cut at a tile boundary goes on as a view whose history holds the rows before the cut.
+    const size_t per_row = size_mul(size_mul((size_t)n_head, nsplit), stride * sizeof(float));
+    const size_t cap_rows = std::max(kAttentionTileRows, attention_scratch_cap_ / per_row / kAttentionTileRows * kAttentionTileRows);
+    std::vector<KVView> cut;
+    size_t cuts = 0;
+    for (const Placed& pv : views) cuts += pv.view->nq / kAttentionTileRows + 1;
+    cut.reserve(cuts);
+    std::vector<std::vector<Placed>> pieces(1);
+    size_t held = 0;
+    for (const Placed& pv : views)
+        for (size_t b0 = 0; b0 < pv.view->nq;) {
+            if (held == cap_rows) { pieces.emplace_back(); held = 0; }
+            const size_t take = std::min(pv.view->nq - b0, cap_rows - held);
+            KVView v = *pv.view;
+            v.length += b0;
+            v.nq = take;
+            cut.push_back(v);
+            pieces.back().push_back(Placed{&cut.back(), pv.row0 + b0});
+            held += (take + kAttentionTileRows - 1) / kAttentionTileRows * kAttentionTileRows;
+            b0 += take;
+        }
+    for (const std::vector<Placed>& piece : pieces) {
+        ViewTable t = view_table(layer, piece, false);
+        check_storage(*t.storage, n_head_kv, head_dim);
+        const size_t scratch_floats = size_mul(size_mul(t.rows, (size_t)n_head), nsplit * stride);
+        if (!scratch_ || scratch_->size() < scratch_floats * sizeof(float)) grow(scratch_, scratch_floats * sizeof(float));
+        const VkDescriptorBufferInfo scratch{scratch_->handle(), 0, VK_WHOLE_SIZE};
+        tiles_of(piece, t, scratch, 0, u32(nsplit));
+        const uint32_t mc[7] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u, u32(rows), major};
+        dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc),
+                 groups(t.rows * (size_t)n_head, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
     }
 }
 

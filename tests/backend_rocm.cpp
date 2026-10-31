@@ -582,6 +582,26 @@ void twin_products(Backend& g, Dtype dt) {
         edge = edge && std::memcmp(read(g, *ysn, so * sn).data(), y.data(), so * sn * 4) == 0;
         require(edge, form + ": a prompt row of a matrix whose last block ends inside a word gives the bits of that row alone and of the matrix with room after it");
     }
+    // The tall build gives the 64-output build's bits: a whole matrix against slices of the same inner split, at 70 rows (both split) and at 520 rows 4096 wide, where the MI50's HIP row takes the tall build (docs/STATUS.md, ROCm tall tile).
+    for (const size_t tr : {size_t(70), size_t(520)}) {
+        const size_t tw = tr == 70 ? 512 : 4096, tn = tr == 70 ? 3940 : 5860, slice = tr == 70 ? 100 : 3840;
+        const std::vector<uint8_t> mt = q8_matrix(tw, tn, 91);
+        const std::vector<float> xt = row_classes::values(tw * tr, 92);
+        const size_t row_bytes = tw / 32 * 34;
+        auto mtb = g.adopt(mt.data(), mt.size()), xtb = g.adopt(xt.data(), xt.size() * 4), yt = g.alloc(tn * tr * 4), ys = g.alloc(slice * tr * 4);
+        const RowRun run[1] = {{tr, tr}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {mtb.get(), 0}}, {xtb.get(), 0}, {yt.get(), 0}, tw, tn, tr, {run, 1}, dt);
+        const std::vector<float> whole = read(g, *yt, tn * tr);
+        bool same = true;
+        for (size_t first : {size_t(0), tn - slice}) {
+            const std::vector<uint8_t> part(mt.begin() + first * row_bytes, mt.begin() + (first + slice) * row_bytes);
+            auto pb = g.adopt(part.data(), part.size());
+            g.matmul({quant::GGML_TYPE_Q8_0, {pb.get(), 0}}, {xtb.get(), 0}, {ys.get(), 0}, tw, slice, tr, {run, 1}, dt);
+            const std::vector<float> y = read(g, *ys, slice * tr);
+            for (size_t r = 0; r < tr; ++r) same = same && std::memcmp(y.data() + r * slice, whole.data() + r * tn + first, slice * 4) == 0;
+        }
+        require(same, form + ": the tall tile's outputs are the 64-output tile's bits, at the matrix's start and at its end inside a partial tile");
+    }
     // Every pair of extents of one class: the same bits through a Q8_0 product in this class.
     std::vector<std::vector<float>> out;
     const size_t four = 4;

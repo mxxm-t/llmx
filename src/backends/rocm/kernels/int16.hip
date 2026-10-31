@@ -294,32 +294,32 @@ struct TileCall {
     float* partials;
 };
 // Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
-template <typename QT> struct TileStep { static constexpr int n = sizeof(QT) == 1 ? 4 : 2; };
+template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; };
 
 // The prompt tile (the Vulkan tile's design, matmul_tile_q.comp): a block of 256 threads 64 outputs by 64 rows, each thread 4 adjacent outputs by 4 adjacent rows, the blocks of a step staged k-major in shared memory, word w of every output and then of every row, the weights widened to the twin's integer type.
 // A thread reads its four outputs' word and its four rows' word as two 16-byte reads and feeds 16 integer sums; each output sums its blocks in order, acc = fma(dw * dx, isum, acc), so a row gives the same bits wherever the tile falls.
-template <typename QT>
+template <typename QT, int RO>
 __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
-    constexpr int STEP = TileStep<QT>::n, WORDS = 32 * (int)sizeof(QT) / 4;
+    constexpr int STEP = TileStep<QT, RO>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = RO * 16, LOADS = RO / 4;
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
     const unsigned char* W = c.w[pi];
     const unsigned long long nout = c.nout[pi], nrows = c.nrows, nin = c.nin;
-    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][kTileOut];
+    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
     __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][kTileRows];
-    __shared__ float wd[STEP][kTileOut], xd[STEP][kTileRows];
+    __shared__ float wd[STEP][OUTS], xd[STEP][kTileRows];
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;   // outputs tr * 4.., rows tc * 4..
-    const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * kTileOut, b0 = (unsigned long long)blockIdx.y * kTileRows;
+    const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = (unsigned long long)blockIdx.y * kTileRows;
     const unsigned long long blocks = nin / 32, kbeg = (unsigned long long)blockIdx.z * c.kper;
     const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
-    float acc[4][4];
-    for (int i = 0; i < 4; ++i)
+    float acc[RO][4];
+    for (int i = 0; i < RO; ++i)
         for (int j = 0; j < 4; ++j) acc[i][j] = 0.0f;
     // Four threads a row, each a quarter of a block's 32 values (the Vulkan tile's staging): thread t / 4 of the outputs and t / 4 of the rows.
     // A stage's blocks are loaded into registers while the previous stage computes, and stored to shared memory after it.
     const int r = t / 4, seg = t % 4;
     const unsigned long long o = o0 + r, b = b0 + r;
-    unsigned wv[STEP][3];          // the quarter's eight quants and the scale: two words where they start aligned, three where not, plus the word before
-    bool wok[STEP], al[STEP], xok[STEP];
+    unsigned wv[LOADS][STEP][3];          // the quarter's eight quants and the scale: two words where they start aligned, three where not, plus the word before
+    bool wok[LOADS][STEP], al[LOADS][STEP], xok[STEP];
     int xv[STEP][WORDS / 4];       // a quarter of the twin block
     float xs_[STEP];
     // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit and its loads take the base from scalar registers.
@@ -335,12 +335,15 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
         for (int s = 0; s < STEP; ++s) {
             const unsigned long long k = k0 + s;
             xok[s] = k < kend && b < nrows;
-            wok[s] = k < kend && o < nout;
-            const unsigned a = mis + (wok[s] ? ((unsigned)r * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + seg * 8u, w = a >> 2;
-            al[s] = (a & 3) == 0;
-            wv[s][0] = W4[w];
-            wv[s][1] = W4[w + 1];
-            wv[s][2] = W4[al[s] ? w - 1 : w + 2];
+#pragma unroll
+            for (int l = 0; l < LOADS; ++l) {
+            wok[l][s] = k < kend && o + 64 * l < nout;
+            const unsigned a = mis + (wok[l][s] ? ((unsigned)(r + 64 * l) * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + seg * 8u, w = a >> 2;
+            al[l][s] = (a & 3) == 0;
+            wv[l][s][0] = W4[w];
+            wv[l][s][1] = W4[w + 1];
+            wv[l][s][2] = W4[al[l][s] ? w - 1 : w + 2];
+            }
             const unsigned xb = xok[s] ? (unsigned)r * (unsigned)blocks + (unsigned)k : 0u;
             if constexpr (sizeof(QT) == 2) {
                 const int4 v = ((const int4*)(qt + xb * 32u))[seg];
@@ -356,9 +359,11 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     const auto store = [&]() {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
-            const unsigned q0 = wok[s] ? (al[s] ? wv[s][0] : __builtin_amdgcn_alignbit(wv[s][1], wv[s][0], 16)) : 0;
-            const unsigned q1 = wok[s] ? (al[s] ? wv[s][1] : __builtin_amdgcn_alignbit(wv[s][2], wv[s][1], 16)) : 0;
-            const unsigned short sc = wok[s] ? (unsigned short)(al[s] ? wv[s][2] >> 16 : wv[s][0] & 0xffff) : 0;
+#pragma unroll
+            for (int l = 0; l < LOADS; ++l) {
+            const unsigned q0 = wok[l][s] ? (al[l][s] ? wv[l][s][0] : __builtin_amdgcn_alignbit(wv[l][s][1], wv[l][s][0], 16)) : 0;
+            const unsigned q1 = wok[l][s] ? (al[l][s] ? wv[l][s][1] : __builtin_amdgcn_alignbit(wv[l][s][2], wv[l][s][1], 16)) : 0;
+            const unsigned short sc = wok[l][s] ? (unsigned short)(al[l][s] ? wv[l][s][2] >> 16 : wv[l][s][0] & 0xffff) : 0;
             const unsigned qw[2] = {q0, q1};
             if constexpr (sizeof(QT) == 2) {
 #pragma unroll
@@ -366,14 +371,15 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 #pragma unroll
                     for (int w = 0; w < 2; ++w) {
                         const unsigned pair = (qw[h] >> (16 * w)) & 0xffff;
-                        wq[s * WORDS + seg * 4 + 2 * h + w][r] = (int)((unsigned)(unsigned short)(short)(signed char)(pair & 0xff) |
+                        wq[s * WORDS + seg * 4 + 2 * h + w][r + 64 * l] = (int)((unsigned)(unsigned short)(short)(signed char)(pair & 0xff) |
                                                                        ((unsigned)(unsigned short)(short)(signed char)(pair >> 8) << 16));
                     }
             } else {
-                wq[s * WORDS + seg * 2][r] = (int)q0;
-                wq[s * WORDS + seg * 2 + 1][r] = (int)q1;
+                wq[s * WORDS + seg * 2][r + 64 * l] = (int)q0;
+                wq[s * WORDS + seg * 2 + 1][r + 64 * l] = (int)q1;
             }
-            if (seg == 0) wd[s][r] = __half2float(__ushort_as_half(sc));
+            if (seg == 0) wd[s][r + 64 * l] = __half2float(__ushort_as_half(sc));
+            }
 #pragma unroll
             for (int w = 0; w < WORDS / 4; ++w) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xok[s] ? xv[s][w] : 0;
             if (seg == 0) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
@@ -387,33 +393,38 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             if (k0 + s >= kend) break;
-            int is[4][4];
+            int is[RO][4];
 #pragma unroll
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < RO; ++i)
 #pragma unroll
                 for (int j = 0; j < 4; ++j) is[i][j] = 0;
 #pragma unroll
             for (int w = 0; w < WORDS; ++w) {
-                const int4 a = *(const int4*)&wq[s * WORDS + w][tr * 4];
-                const int4 b = *(const int4*)&xw[s * WORDS + w][tc * 4];
-                const int av[4] = {a.x, a.y, a.z, a.w}, bv[4] = {b.x, b.y, b.z, b.w};
+                int av[RO];
 #pragma unroll
-                for (int i = 0; i < 4; ++i)
+                for (int h = 0; h < RO / 4; ++h) {
+                    const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
+                    av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
+                }
+                const int4 b = *(const int4*)&xw[s * WORDS + w][tc * 4];
+                const int bv[4] = {b.x, b.y, b.z, b.w};
+#pragma unroll
+                for (int i = 0; i < RO; ++i)
 #pragma unroll
                     for (int j = 0; j < 4; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
             }
 #pragma unroll
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < RO; ++i)
 #pragma unroll
-                for (int j = 0; j < 4; ++j) acc[i][j] = fmaf(wd[s][tr * 4 + i] * xd[s][tc * 4 + j], (float)is[i][j], acc[i][j]);
+                for (int j = 0; j < 4; ++j) acc[i][j] = fmaf(wd[s][tr * RO + i] * xd[s][tc * 4 + j], (float)is[i][j], acc[i][j]);
         }
         __syncthreads();
     }
     unsigned long long before = 0;
     for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
     for (int j = 0; j < 4; ++j)
-        for (int i = 0; i < 4; ++i) {
-            const unsigned long long o = o0 + tr * 4 + i, b = b0 + tc * 4 + j;
+        for (int i = 0; i < RO; ++i) {
+            const unsigned long long o = o0 + tr * RO + i, b = b0 + tc * 4 + j;
             if (o >= nout || b >= nrows) continue;
             if (c.parts > 1) {
                 c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + b * nout + o] = acc[i][j];
@@ -455,8 +466,8 @@ LLMX_HALF(llmx_q8_0_half8_4, 4)
 LLMX_HALF(llmx_q8_0_half8_8, 8)
 LLMX_HALF(llmx_q8_0_half8_16, 16)
 
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short>(c, q, dx); }
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char>(c, q, dx); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }
 
 // The parts of a split tile call added in part order, plus y when adding (the Vulkan reduce's order, matmul_reduce.comp): a thread an output, projection p's outputs from workgroup c.start[p] on.
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_tile_reduce(TileCall c) {
@@ -470,3 +481,6 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_tile_reduce(TileCall
     for (unsigned z = 0; z < c.parts; ++z) s += part[z * n];
     c.y[pi][local] = s;
 }
+
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8_tall(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 8>(c, q, dx); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16_tall(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 8>(c, q, dx); }

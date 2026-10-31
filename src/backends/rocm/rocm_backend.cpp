@@ -116,7 +116,7 @@ public:
         dev_.caps.integer_dot = f.hipModuleLoadData(&dot_module_, kInt16DotModule) == hipSuccess;
         if (!dev_.caps.integer_dot) dot_module_ = nullptr;
         dev_.profile = profile_for(dev_.caps);
-        // The prompt tile and the int8 half-block row kernels take the dot where there is one; the quarter-layout row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
+        // The prompt tiles and the int8 half-block row kernels take the dot where there is one; the quarter-layout row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
         for (size_t k = 0; k < kKernels; ++k) {
             const bool dot = k == kTile16 || k == kTile8 || k >= kHalf8x1;
             const hipModule_t m = k < kRows16x1 ? module_ : dot && dot_module_ ? dot_module_ : int16_module_;
@@ -592,7 +592,7 @@ private:
                   kAttentionVecMerge, kTwin16, kTwin8,
                   kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kKernels };
+                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -602,11 +602,11 @@ private:
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
                                                            "llmx_q8_0_tile16", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
                                                            "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce",
-                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_half8_16"};
+                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
-    static constexpr size_t kTileOut = 64, kTileRows = 64;   // the prompt tile's outputs and rows (kernels/int16.hip)
+    static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64;   // the prompt tile's outputs, its tall build's, and its rows (kernels/int16.hip)
 
     // Memory in slots, pinned host memory the device reads in place or copies from, or device memory: a slot is taken again once the ticket that last read it retires.
     struct Ring {
@@ -860,23 +860,31 @@ private:
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, size_t at, size_t rows, size_t tiles, size_t nin, int add, bool int8) {
-        // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, which hold 64 rows of blocks.
-        if ((nin / 32) * kTileOut * 34 + 64 > 0xffffffffull) throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
+        // The tall build where the profile's tile_rows_for takes the tallest height; the split stays the 64-output build's, so both builds give the same bits.
+        size_t outputs = 0, gx64 = 0;
+        for (size_t pi = 0; pi < nproj; ++pi) {
+            outputs += proj[pi].nout;
+            gx64 += (proj[pi].nout + kTileOut - 1) / kTileOut;
+        }
+        const size_t tall_from = int8 ? dev_.profile.qtile_tall_from_8bit : dev_.profile.qtile_tall_from;
+        const bool tall = tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from) == kTileOutTall;
+        const size_t per = tall ? kTileOutTall : kTileOut;
+        // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row.
+        if ((nin / 32) * per * 34 + 64 > 0xffffffffull) throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
         TileCall c{};
-        size_t gx = 0, outputs = 0;
+        size_t gx = 0;
         for (size_t pi = 0; pi < nproj; ++pi) {
             c.w[pi] = proj[pi].w;
             c.y[pi] = proj[pi].y + at * proj[pi].nout;
             c.nout[pi] = proj[pi].nout;
             c.start[pi] = (unsigned)gx;
-            gx += (proj[pi].nout + kTileOut - 1) / kTileOut;
-            outputs += proj[pi].nout;
+            gx += (proj[pi].nout + per - 1) / per;
         }
         c.nproj = (unsigned)nproj;
         c.nin = nin;
         c.nrows = rows;
         c.add = add;
-        const size_t nblk = nin / 32, kper = split_blocks(gx * tiles, nblk);
+        const size_t nblk = nin / 32, kper = split_blocks(gx64 * tiles, nblk);
         c.kper = (unsigned)kper;
         c.parts = (unsigned)((nblk + kper - 1) / kper);
         if (c.parts > 1) {
@@ -885,7 +893,7 @@ private:
             c.partials = (float*)as_rocm(*partials_).data();
         }
         void* args[] = {&c, &q, &d};
-        launch(int8 ? kTile8 : kTile16, (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
+        launch(tall ? (int8 ? kTile8Tall : kTile16Tall) : int8 ? kTile8 : kTile16, (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
         if (c.parts > 1) {
             size_t g = 0;
             for (size_t pi = 0; pi < nproj; ++pi) {

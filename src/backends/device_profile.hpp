@@ -121,6 +121,11 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.q8_decode_two_rows_from = 2560;
              p.q8_decode_one_row_below_16bit = 1280;
          }},
+        {"MI60 / MI50", "HIP", [](DeviceProfile& p) {
+             p.tile_tall_per_cu = 6;
+             p.qtile_tall_from = 4096;
+             p.qtile_tall_from_8bit = 4096;
+         }},
         {"MI60 / MI50", "radv", [](DeviceProfile& p) {
              p.tile_from_8bit = 16;
              p.tile_from_8bit_narrow = 32;

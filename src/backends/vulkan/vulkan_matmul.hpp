@@ -221,7 +221,8 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             const QTile t = qtile(group, gy, nin, i8);
             // The split is the one the rows' whole prompt would take (matmul_runs).
             const size_t st = split_tiles ? split_tiles : gy;
-            const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin);
+            const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, st, nin,
+                                              i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from);
             size_t gxs = 0;
             for (const Projection* pr : group) gxs += groups(pr->rows, hs);
             const size_t kper = split_blocks(gxs * st, nblk);
@@ -552,11 +553,14 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         return;
     }
     // Grouped by expert: the tiles in runs of 64, the row kernels in runs of their column count, so an expert's rows are read once per run rather than once per entry; at most one partial run per expert that has any.
-    // Where the entries average 16 an expert or fewer the integer tile takes its narrow build, in runs of 16, whose columns give the 64-column build's bits.
+    // Where the entries average the profile's count an expert or fewer the integer tile takes its narrow build, in runs of 16, whose columns give the 64-column build's bits.
     const bool integer = tile && (dtype == Dtype::f16 || dtype == Dtype::int8) && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4;
-    const bool narrow = integer && entries <= kNarrowCols * std::min(n_expert, entries);
+    const bool i8 = integer && dtype == Dtype::int8 && weight_kernels(type)->int8_tile != K_COUNT;
+    const size_t per_expert = i8 ? dev_->profile.qtile_narrow_per_expert_8bit : dev_->profile.qtile_narrow_per_expert;
+    const size_t touched = std::min(n_expert, entries);
+    const bool narrow = integer && (per_expert == SIZE_MAX || entries <= per_expert * touched);
     const size_t chunk = narrow ? kNarrowCols : tile ? 64 : kRowColsWide;
-    const size_t max_tiles = (entries + chunk - 1) / chunk + std::min(n_expert, entries);
+    const size_t max_tiles = (entries + chunk - 1) / chunk + touched;
     const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
     if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
         grow(moe_tab_, tab_bytes);
@@ -583,7 +587,6 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         return;
     }
     if (integer) {
-        const bool i8 = dtype == Dtype::int8 && weight_kernels(type)->int8_tile != K_COUNT;
         uint32_t xpad = 0;
         const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin, nin, i8, xpad);
         const QTile t = qtile(live, max_tiles, nin, i8, narrow);
@@ -623,7 +626,8 @@ inline bool VulkanBackend::integer_dot_tile(uint32_t type) const {
 inline VulkanBackend::QTile VulkanBackend::qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8, bool narrow) const {
     QTile t;
     for (const Projection* pr : ps) t.rows += pr->rows;
-    t.height = narrow ? kTileRowsTall : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
+    t.height = narrow ? kTileRowsTall : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin,
+                                                      i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from);
     const WeightKernels& format = *weight_kernels(ps[0]->weight.type);
     const KernelId tile = i8 ? format.int8_tile : format.integer_tile, tall = i8 ? format.int8_tall_tile : format.integer_tall_tile;
     // Types with one integer module keep the short height to bound live half sums.

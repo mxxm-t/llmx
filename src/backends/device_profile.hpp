@@ -79,6 +79,10 @@ struct DeviceProfile {
     uint32_t float_tile_split_per_cu = 4;
     // Workgroups per compute unit the tallest tile must yield before a call takes it, for rows at least tile_narrow_nin wide and narrower: fewer leave too few waves per SIMD to hide the loads.
     uint32_t tile_tall_per_cu = 1, tile_tall_per_cu_narrow = 1;
+    // Row width from which the integer-dot tile may take the tallest height, over 16-bit and over 8-bit activations: a narrower row gives its workgroups too few blocks to pay for the taller tile (docs/VULKAN.md).
+    size_t qtile_tall_from = 0, qtile_tall_from_8bit = 0;
+    // Entries an expert, on average, up to which a routed integer-dot tile takes its narrow build rather than the 64-column one, over 16-bit and over 8-bit activations, SIZE_MAX for every count; both give the same bits (docs/VULKAN.md).
+    size_t qtile_narrow_per_expert = 16, qtile_narrow_per_expert_8bit = 16;
     // Complete groups from which the indexer's selection takes its wide form, where the two forms cross; both give the same ids (docs/VULKAN.md).
     size_t select_wide_from = 4096;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
@@ -130,6 +134,10 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.moe_tile_from_q5k = 48;
              p.tile_tall_per_cu = 4;
              p.tile_tall_per_cu_narrow = 8;
+             p.qtile_tall_from = 768;
+             p.qtile_tall_from_8bit = 2560;
+             p.qtile_narrow_per_expert = 32;
+             p.qtile_narrow_per_expert_8bit = SIZE_MAX;
              p.q8_decode_cols = 32;
              p.q8_decode_forms = 3;
              p.row_decode_cols = 16;
@@ -167,13 +175,13 @@ inline size_t tile_from_for(const DeviceProfile& profile, bool every_projection_
     return nin < profile.tile_narrow_nin ? profile.tile_from_8bit_narrow : profile.tile_from_8bit;
 }
 
-// Rows of a matmul tile given the call's shape: the tallest height that still yields the profile's workgroups per compute unit, then the middle one, then the smallest.
+// Rows of a matmul tile given the call's shape: the tallest height, for rows at least `tall_from` wide, that still yields the profile's workgroups per compute unit, then the middle one, then the smallest.
 // A wide projection drops to the smallest only below half fill, since the small tile does half the arithmetic per barrier (docs/VULKAN.md).
 inline uint32_t tile_rows_for(const DeviceCaps& caps, const DeviceProfile& profile, uint32_t rows_small, uint32_t rows_short,
-                              uint32_t rows_tall, size_t out_rows, size_t column_groups, size_t nin) {
+                              uint32_t rows_tall, size_t out_rows, size_t column_groups, size_t nin, size_t tall_from = 0) {
     auto groups = [&](uint32_t h) { return ((out_rows + h - 1) / h) * column_groups; };
     const size_t tall_per_cu = nin < profile.tile_narrow_nin ? profile.tile_tall_per_cu_narrow : profile.tile_tall_per_cu;
-    if (groups(rows_tall) >= tall_per_cu * caps.compute_units) return rows_tall;
+    if (nin >= tall_from && groups(rows_tall) >= tall_per_cu * caps.compute_units) return rows_tall;
     const size_t fill = nin < profile.tile_narrow_nin ? caps.compute_units : (caps.compute_units + 1) / 2;
     return groups(rows_short) >= fill ? rows_short : rows_small;
 }

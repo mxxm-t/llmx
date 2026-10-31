@@ -4651,19 +4651,25 @@ size_t check_collective(const backend::BackendPtr& first) {
     return checks + 3;
 }
 
-// A routed integer tile of few entries an expert takes the narrow build of 16 columns, and each entry gives the bits the 64-column build gives it (kNarrowCols).
-// Call A routes 200 rows over 64 experts, one of them 40 entries so its runs cross 16; call B adds 400 rows repeating them, which takes the 64-column build, and its first 200 rows must equal A's.
+// A routed integer tile takes its narrow build exactly up to the profile's cut for the activations it reads, and every entry keeps the 64-column build's bits (DeviceProfile::qtile_narrow_per_expert).
+// Calls of 200 rows over 64 experts, then at each cut and one row past it (160 an expert for a cut of every count), repeat the first call's rows.
 size_t check_routed_narrow() {
     const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
     backend::Backend& vk = *timed;
-    const size_t nin = 256, nout = 160, experts = 64, k = 2, few = 200, many = 600;
-    size_t checks = 0;
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
+    const size_t nin = 256, nout = 160, experts = 64, k = 2, few = 200;
     // The narrow build is the integer tile's: a device whose profile takes the float tile has none.
-    if (!backend::vulkan_device_profile(vk).prefer_integer_dot) {
+    if (!prof.prefer_integer_dot) {
         std::cout << "backend-vulkan: this device takes the float tile, so it has no narrow routed build\n";
         return 0;
     }
-    for (const uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
+    const size_t per16 = prof.qtile_narrow_per_expert, per8 = prof.qtile_narrow_per_expert_8bit;
+    const size_t at16 = std::min<size_t>(per16, 160) * experts / k, at8 = std::min<size_t>(per8, 160) * experts / k;
+    require(at16 > few && at8 > few, "a narrow cut of the profile is below the routed check's first call");
+    const size_t many = std::max(at16, at8) + 1;
+    size_t checks = 0;
+    for (const uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
+                                quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
         if (!vk.supports_type(type)) continue;
         std::vector<uint8_t> packed(experts * nout * quant::row_bytes(type, nin));
         uint32_t seed = 21 + type;
@@ -4682,9 +4688,8 @@ size_t check_routed_narrow() {
         const auto w = vk.adopt(packed.data(), packed.size()), xb = vk.adopt(x.data(), x.size() * sizeof(float));
         const auto ib = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t));
         for (const auto dtype : {backend::Dtype::int8, backend::Dtype::f16}) {
-            std::vector<std::vector<float>> out;
-            std::vector<std::string> builds;
-            for (const size_t rows : {few, many}) {
+            std::vector<float> first;
+            for (const size_t rows : {few, at16, at16 + 1, at8, at8 + 1}) {
                 const auto y = vk.alloc(rows * k * nout * sizeof(float));
                 const backend::RowRun run{rows, rows};
                 const backend::Backend::Routing routing{{ib.get(), 0}, {}, k, experts};
@@ -4693,16 +4698,77 @@ size_t check_routed_narrow() {
                 std::string build;
                 for (const auto& t : backend::vulkan_kernel_times(vk))
                     if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
-                builds.push_back(build);
-                out.emplace_back(rows * k * nout);
-                vk.read(*y, 0, out.back().data(), out.back().size() * sizeof(float));
+                // A build named for 8-bit activations reads them, and the cut of the activations it reads decides.
+                const size_t cut = build.find("i8") != std::string::npos ? per8 : per16, per = (rows * k + experts - 1) / experts;
+                require(build.empty() || (build.find("_narrow") != std::string::npos) == (per <= cut),
+                        ("routed build " + build + " at " + std::to_string(per) + " entries an expert against a cut at " + std::to_string(cut)).c_str());
+                std::vector<float> out(few * k * nout);
+                vk.read(*y, 0, out.data(), out.size() * sizeof(float));
+                if (first.empty()) first = out;
+                else require(std::memcmp(first.data(), out.data(), out.size() * sizeof(float)) == 0, "a routed tile's entries differ on the two sides of the narrow cut");
+                ++checks;
             }
-            const bool timed_names = !builds[0].empty();
-            require(!timed_names || (builds[0].find("_narrow") != std::string::npos && builds[1].find("_narrow") == std::string::npos),
-                    ("routed builds " + builds[0] + " and " + builds[1] + " are not the narrow and the 64-column one").c_str());
-            require(std::memcmp(out[0].data(), out[1].data(), out[0].size() * sizeof(float)) == 0, "a narrow routed tile's entries differ from the 64-column build's");
-            ++checks;
         }
+    }
+    return checks;
+}
+
+// The integer tile takes its tallest height only from the profile's row width for its activations, and a row keeps its bits at either height (DeviceProfile::qtile_tall_from).
+// Per type and dtype, on each side of each cut, 1024 columns over 4096 rows and their first 64 columns alone must give those columns the same bits.
+size_t check_tile_heights() {
+    const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *timed;
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
+    if (!prof.prefer_integer_dot) {
+        std::cout << "backend-vulkan: this device takes the float tile, whose heights follow no row width\n";
+        return 0;
+    }
+    const size_t nout = 4096, many = 1024, few = 64;
+    std::vector<backend::Dtype> dtypes = {backend::Dtype::f16};
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) dtypes.push_back(backend::Dtype::int8);
+    size_t checks = 0;
+    for (const auto dtype : dtypes) {
+        bool timed_names = false, both_seen = false;
+        for (const uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_1,
+                                    quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
+            if (!vk.supports_type(type)) continue;
+            const size_t block = type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q6_K ? 256 : 32;
+            std::vector<size_t> widths;
+            for (const size_t cut : {prof.qtile_tall_from, prof.qtile_tall_from_8bit}) {
+                const size_t above = std::max(block, (cut + block - 1) / block * block);
+                for (const size_t nin : {above - block, above})
+                    if (nin && std::find(widths.begin(), widths.end(), nin) == widths.end()) widths.push_back(nin);
+            }
+            for (const size_t nin : widths) {
+                const auto w = matrix(type, nin, nout, 31);
+                const auto x = uniform(many * nin, 32);
+                const auto wb = vk.adopt(w.data(), w.size()), xb = vk.adopt(x.data(), x.size() * sizeof(float));
+                std::vector<std::vector<float>> out;
+                std::vector<std::string> builds;
+                for (const size_t n : {many, few}) {
+                    const auto y = vk.alloc(n * nout * sizeof(float));
+                    const backend::RowRun run{n, many};
+                    (void)backend::vulkan_kernel_times(vk);
+                    vk.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, nout, n, {&run, 1}, dtype);
+                    std::string build;
+                    for (const auto& t : backend::vulkan_kernel_times(vk))
+                        if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
+                    builds.push_back(build);
+                    out.emplace_back(few * nout);
+                    vk.read(*y, 0, out.back().data(), out.back().size() * sizeof(float));
+                }
+                const size_t cut = builds[0].find("i8") != std::string::npos ? prof.qtile_tall_from_8bit : prof.qtile_tall_from;
+                const bool tall = builds[0].find("_tall") != std::string::npos;
+                require(!(tall && nin < cut), ("a tile over rows " + std::to_string(nin) + " wide, below its cut, took " + builds[0]).c_str());
+                timed_names = timed_names || !builds[0].empty();
+                both_seen = both_seen || (tall && builds[1].find("_tall") == std::string::npos);
+                require(std::memcmp(out[0].data(), out[1].data(), out[0].size() * sizeof(float)) == 0,
+                        ("columns differ at two tile heights, type " + std::to_string(type) + ", rows " + std::to_string(nin) + " wide").c_str());
+                ++checks;
+            }
+        }
+        require(!timed_names || both_seen, "no tile at or above its cut took the tallest height for one call and a shorter one for its first columns");
     }
     return checks;
 }
@@ -5308,6 +5374,8 @@ int main(int argc, char** argv) {
         report_routed_occupancy();
         const size_t narrow_tiles = check_routed_narrow();
         std::cout << "backend-vulkan: " << narrow_tiles << " routed narrow tiles equal to the 64-column build\n";
+        const size_t heights = check_tile_heights();
+        std::cout << "backend-vulkan: " << heights << " tile calls on each side of the tallest tile's row width equal at both heights\n";
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         print_argmax_after_head();
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";

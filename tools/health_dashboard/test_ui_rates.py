@@ -470,7 +470,7 @@ check('1,000 render-time cursor refreshes preserve the original monotonic anchor
   close(chartVisualEnd, 117) && chartTimeline.startedAt === 0 && close(chartTimeline.end, 100));
 state.seq = 1;
 let jumped = chartMotionFor({lastSuccess: 120, samples: [], events: []}, 2000);
-check('large forward timestamp jumps snap forward without long catch-up', close(jumped.end, 120));
+check('large forward timestamp jumps snap to the delayed cursor without long catch-up', close(jumped.end, 118));
 stopChartMotion();
 state.collector = 'cursor-test';
 state.seq = 1;
@@ -500,7 +500,7 @@ check('reduced motion disables frame scrolling', !motion.animate);
 window.matchMedia = () => ({matches: false});
 state.collector = 'restarted-collector';
 motion = chartMotionFor({lastSuccess: 50, samples: [], events: []}, 7000);
-check('collector restart resets to its own observed timeline', close(motion.end, 50) && motion.animate);
+check('collector restart resets to its own delayed timeline', close(motion.end, 48) && motion.animate);
 Object.defineProperty(document, 'hidden', {configurable: true, value: true});
 motion = chartMotionFor({lastSuccess: 51, samples: [], events: []}, 8000);
 check('hidden tab disables frame scrolling', !motion.animate);
@@ -657,7 +657,7 @@ result.textContent = JSON.stringify(outcomes);
                 print('dashboard axis pixels ' + json.dumps(diagnostics, sort_keys=True))
                 self.assertEqual(len(outcomes), 9)
 
-    def test_new_sample_reveal_keeps_values_and_redraw_continuity(self):
+    def test_delayed_chart_cursor_reveals_measured_samples_continuously(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
@@ -666,120 +666,138 @@ function sample(seq, t, value, reset = false) { return {seq, t, value, reset, me
 const result = document.createElement('pre');
 result.id = 'rate-test-results';
 document.body.prepend(result);
-  const originalMatchMedia = window.matchMedia;
-  const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
-  const originalRaf = window.requestAnimationFrame;
-  const originalCancelRaf = window.cancelAnimationFrame;
-  const originalNow = performance.now;
-  let fakeNow = performance.now();
-  Object.defineProperty(performance, 'now', {configurable:true, value:() => fakeNow});
-  window.requestAnimationFrame = () => 0;
-  window.cancelAnimationFrame = () => {};
-  window.matchMedia = () => ({matches:false});
-  Object.defineProperty(document, 'hidden', {configurable:true, value:false});
-  state.paused = false;
-  state.collector = 'arrival-test';
-  state.range = 60;
-  state.interval = 2;
-  state.seq = 1;
-  state.samples = [sample(1, 100, 10)];
-  chartTimeline = {collector:'arrival-test', end:100, startedAt:performance.now(), seq:1};
-  const host = document.createElement('div');
-  host.id = 'arrival-test-chart';
-  host.style.cssText = 'width:min(720px,calc(100vw - 40px));height:215px';
-  document.body.append(host);
-  for (const suffix of ['summary','value','at']) {
-    const node = document.createElement('div');
-    node.id = 'arrival-test-' + suffix;
-    document.body.append(node);
+const originalMatchMedia = window.matchMedia;
+const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+const originalRaf = window.requestAnimationFrame;
+const originalCancelRaf = window.cancelAnimationFrame;
+const originalNow = performance.now;
+let fakeNow = 1000;
+Object.defineProperty(performance, 'now', {configurable:true, value:() => fakeNow});
+window.requestAnimationFrame = () => 0;
+window.cancelAnimationFrame = () => {};
+window.matchMedia = () => ({matches:false});
+Object.defineProperty(document, 'hidden', {configurable:true, value:false});
+state.paused = false;
+state.collector = 'arrival-test';
+state.range = 60;
+state.interval = 3;
+state.seq = 3;
+state.samples = [sample(1,94,10), sample(2,97,10), sample(3,100,12)];
+chartTimeline = {collector:null, end:null, startedAt:0, seq:0};
+chartVisualEnd = null;
+const host = document.createElement('div');
+host.id = 'arrival-test-chart';
+host.style.cssText = 'width:min(720px,calc(100vw - 40px));height:215px';
+document.body.append(host);
+for (const suffix of ['summary','value','at']) {
+  const node = document.createElement('div');
+  node.id = 'arrival-test-' + suffix;
+  document.body.append(node);
+}
+const config = {id:'arrival-test', title:'Arrival test', labels:['rate'], colors:['#7ed6cf'], unit:'tok/s', format:fmt,
+  values:(samples, i) => [samples[i].value], note:'Arrival test'};
+const view = () => ({lastSuccess:state.samples.at(-1).t, samples:state.samples, events:[]});
+let motion = chartMotionFor(view(), fakeNow);
+let renderedEnd = motion.end;
+renderChart(state.samples, renderedEnd, config, [], motion);
+const width = Number(host.querySelector('svg').getAttribute('viewBox').split(/\s+/)[2]);
+const right = width - 14;
+const edge = () => {
+  const svg = host.querySelector('svg');
+  const plot = host.querySelectorAll('[data-chart-motion]')[1];
+  const dx = Number((plot.getAttribute('transform') || '').match(/translate\((-?[0-9.]+)/)?.[1] || 0);
+  const targetX = right - dx;
+  const series = host.querySelector('[data-chart-y-scale]');
+  const path = series.querySelector('path').getAttribute('d');
+  const coords = [...path.matchAll(/[ML]([0-9.]+),([0-9.]+)/g)].map(match => match.slice(1).map(Number));
+  const bottom = Number(svg.getAttribute('viewBox').split(/\s+/)[3]) - 30;
+  const ratio = Number((series.getAttribute('transform') || '').match(/scale\(1 ([^)]+)\)/)?.[1] || 1);
+  for (let i = 1; i < coords.length; i++) {
+    const [x0,y0] = coords[i - 1], [x1,y1] = coords[i];
+    if (targetX < Math.min(x0,x1) - 0.02 || targetX > Math.max(x0,x1) + 0.02) continue;
+    const fraction = x1 === x0 ? 0 : Math.max(0,Math.min(1,(targetX-x0)/(x1-x0)));
+    const rawY = y0 + (y1-y0) * fraction;
+    return {x:right, y:bottom + (rawY-bottom)*ratio, time:renderedEnd +
+      ((targetX - 49) / (width - 63) * state.range) - state.range};
   }
-  const config = {id:'arrival-test', labels:['rate'], colors:['#7ed6cf'], unit:'tok/s', format:fmt,
-    values:(samples, i) => [samples[i].value]};
-  renderChart(state.samples, 100, config, [], {end:100, animate:true, revealSample:false, sampleTime:100});
-  const boundsBefore = host.getBoundingClientRect();
-  stopChartMotion();
-  const next = sample(2, 102, 10);
-  state.seq = 2;
-  state.samples = [state.samples[0], next];
-  const arrivalView = {lastSuccess:102, samples:state.samples, events:[]};
-  chartTimeline = {collector:'arrival-test', end:100, startedAt:fakeNow - 2000, seq:1};
-  let motion = chartMotionFor(arrivalView, fakeNow);
-  check('only a fresh visible sample starts a reveal', motion.revealSample && motion.sampleTime === 102);
-  renderChart(state.samples, 102, config, [], motion);
-  startChartMotion();
-  let segment = host.querySelector('[data-fresh-segment]');
-  const initialOpacity = segment?.getAttribute('opacity');
-  const segmentData = segment?.getAttribute('d');
-  const segmentEnd = motion.end;
-  check('new measured segment starts transparent with exactly two observed endpoints', initialOpacity === '0' &&
-    (segmentData?.match(/[ML]/g) || []).length === 2 && state.samples.length === 2 &&
-    state.samples[0].value === 10 && state.samples[1].value === 10);
-  const firstReveal = [...chartMotionNodes].find(entry => entry.revealStartedAt !== undefined);
-  const revealStart = firstReveal?.revealStartedAt;
-  check('fresh segment is registered with the shared frame owner (' + revealStart + ')', !!firstReveal && Number.isFinite(revealStart));
-  updateChartMotion(revealStart + 16);
-  fakeNow = revealStart + 90;
-  updateChartMotion(fakeNow);
-  const opacityMid = Number(getComputedStyle(segment).opacity);
-  check('segment opacity progresses without changing its sample coordinates (' + opacityMid + ')', opacityMid > 0.05 && opacityMid < 1 &&
-    segment.getAttribute('d') === segmentData);
-  const opacityBeforeRedraw = Number(getComputedStyle(segment).opacity);
-  motion = chartMotionFor(arrivalView, fakeNow);
-  renderChart(state.samples, 102, config, [], motion);
-  startChartMotion();
-  segment = host.querySelector('[data-fresh-segment]');
-  const opacityAfterRedraw = Number(segment?.getAttribute('opacity'));
-  const pointsAfterRedraw = [...(segment?.getAttribute('d') || '').matchAll(/[ML]([0-9.]+),([0-9.]+)/g)];
-  const pointsBeforeRedraw = [...segmentData.matchAll(/[ML]([0-9.]+),([0-9.]+)/g)];
-  const expectedShift = -(motion.end - segmentEnd) / state.range * (host.clientWidth - 63);
-  const actualShift = Number(pointsAfterRedraw.at(-1)?.[1]) - Number(pointsBeforeRedraw.at(-1)?.[1]);
-  check('same-sequence redraw resumes from current reveal progress (' + opacityBeforeRedraw + ' / ' + opacityAfterRedraw + ')', !!segment &&
-    Math.abs(opacityAfterRedraw - opacityBeforeRedraw) < 0.1 && pointsAfterRedraw.length === 2 &&
-    Math.abs(actualShift - expectedShift) < 0.02);
-  const revealAnchor = chartRevealStates['arrival-test'].startedAt;
-  fakeNow = revealStart + 100;
-  state.seq = 3;
-  motion = chartMotionFor(arrivalView, fakeNow);
-  renderChart(state.samples, 102, config, [], motion);
-  segment = host.querySelector('[data-fresh-segment]');
-  check('event-only sequence change does not replay the same measured sample', motion.revealSample &&
-    chartRevealStates['arrival-test'].startedAt === revealAnchor && Math.abs(Number(segment?.getAttribute('opacity')) - 0.4) < 0.01);
-  updateChartMotion(revealStart + 100);
-  fakeNow = revealStart + 150;
-  updateChartMotion(fakeNow);
-  fakeNow = revealStart + 250;
-  updateChartMotion(fakeNow);
-  const opacityFinal = Number(getComputedStyle(segment).opacity);
-  check('measured segment reaches full visibility (' + opacityFinal + ')', segment.isConnected && opacityFinal > 0.99);
-  const boundsAfter = host.getBoundingClientRect();
-  check('segment reveal does not change chart geometry', boundsBefore.width === boundsAfter.width && boundsBefore.height === boundsAfter.height);
+  return null;
+};
+const close = (a,b,tolerance=.03) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a-b) <= tolerance;
+const beforeProgress = edge();
+check('chart starts exactly one collection interval behind the measured samples',
+  motion.end === 97 && chartDisplayLag() === 3 && host.querySelector('[data-chart-delay]')?.textContent === '3s behind');
+check('next measured point is retained but clipped beyond the visible cursor',
+  state.samples.length === 3 && beforeProgress && close(beforeProgress.x,right) && !chartViews['arrival-test'].show(100));
+host.onkeydown({key:'End', preventDefault(){}});
+check('keyboard End cannot select a future clipped sample', inspection.time === 97);
+clearInspection();
+fakeNow += 1500;
+updateChartMotion(fakeNow);
+const firstHalf = edge();
+fakeNow += 1500;
+updateChartMotion(fakeNow);
+const firstEnd = edge();
+check('visible endpoint advances through the known segment at the real timeline rate', !!firstHalf && !!firstEnd &&
+  firstHalf.y < beforeProgress.y && firstEnd.y < firstHalf.y &&
+  close(firstHalf.y,(beforeProgress.y+firstEnd.y)/2) && close(firstEnd.time,100) &&
+  close(firstHalf.x,right) && close(firstEnd.x,right));
+check('no synthetic samples or opacity fade are added', state.samples.length === 3 &&
+  !host.querySelector('[data-fresh-segment],[data-fresh-sample-marker]') &&
+  !host.querySelector('[data-chart-y-scale] path').hasAttribute('opacity'));
 
-  state.seq = 4;
-  state.samples = [sample(1, 100, 10), sample(2, 102, null), sample(3, 104, 10, true)];
-  chartTimeline = {collector:'arrival-test', end:102, startedAt:fakeNow - 2000, seq:3};
-  motion = chartMotionFor({lastSuccess:104, samples:state.samples, events:[]}, fakeNow);
-  renderChart(state.samples, 104, config, [], motion);
-  check('a reset after a missing point does not reveal a connecting segment',
-    !host.querySelector('[data-fresh-segment]') && !!host.querySelector('[data-fresh-sample-marker]'));
+state.samples.push(sample(4,103,10));
+state.seq = 4;
+motion = chartMotionFor(view(), fakeNow);
+const preArrival = firstEnd;
+renderedEnd = motion.end;
+renderChart(state.samples, renderedEnd, config, [], motion);
+const atArrival = edge();
+check('a three-second sample arrival keeps the crossing endpoint continuous',
+  close(motion.end,100) && !!atArrival && close(preArrival.y,atArrival.y));
+check('the next known point is not selectable until the delayed cursor reaches it',
+  !chartViews['arrival-test'].show(103) && state.samples.length === 4);
+host.onkeydown({key:'End', preventDefault(){}});
+check('keyboard End advances only to the latest timestamp already on screen', inspection.time === 100);
+clearInspection();
+fakeNow += 1500;
+updateChartMotion(fakeNow);
+const secondHalf = edge();
+fakeNow += 1500;
+updateChartMotion(fakeNow);
+const secondEnd = edge();
+check('the next three-second segment enters continuously without altering its endpoints', !!secondHalf && !!secondEnd &&
+  secondHalf.y > atArrival.y && secondEnd.y > secondHalf.y &&
+  close(secondHalf.y,(atArrival.y+secondEnd.y)/2) && close(secondEnd.time,103) &&
+  close(secondHalf.x,right) && close(secondEnd.x,right));
 
-  state.seq = 5;
-  state.samples.push(sample(4, 106, 12));
-  chartTimeline = {collector:'arrival-test', end:104, startedAt:fakeNow - 2000, seq:4};
-  window.matchMedia = () => ({matches:true});
-  motion = chartMotionFor({lastSuccess:106, samples:state.samples, events:[]}, fakeNow);
-  renderChart(state.samples, 106, config, [], motion);
-  check('reduced motion displays new samples immediately without a reveal',
-    !motion.revealSample && !host.querySelector('[data-fresh-segment]') && !host.querySelector('[data-fresh-sample-marker]'));
-  if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden); else delete document.hidden;
-  window.matchMedia = originalMatchMedia;
-  window.requestAnimationFrame = originalRaf;
-  window.cancelAnimationFrame = originalCancelRaf;
-  Object.defineProperty(performance, 'now', {configurable:true, value:originalNow});
-  chartMotionNodes.clear();
-  chartScaleNodes.clear();
-  chartMotionFrame = null;
-  outcomes.push({name:'motion-reveal-diagnostics', ok:true, metrics:{viewport:innerWidth, chartWidth:host.clientWidth,
-    opacityStart:Number(initialOpacity), opacityAt90ms:+opacityMid.toFixed(3), opacityAt250ms:+opacityFinal.toFixed(3)}});
+state.samples.push(sample(5,106,12));
+state.seq = 5;
+motion = chartMotionFor(view(), fakeNow);
+renderedEnd = motion.end;
+renderChart(state.samples, renderedEnd, config, [], motion);
+const nextArrival = edge();
+check('second sample boundary also has no endpoint jump', !!nextArrival && close(nextArrival.y,secondEnd.y));
+check('the latest numeric value remains the exact measured value', $('arrival-test-value').textContent === fmt(12) &&
+  state.samples.at(-1).value === 12);
+const bounds = host.getBoundingClientRect();
+const delayLabel = host.querySelector('[data-chart-delay]')?.textContent;
+check('explicit chart lag does not alter the compact chart box', delayLabel === '3s behind' &&
+  bounds.width > 0 && bounds.height === 215);
+
+if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden); else delete document.hidden;
+window.matchMedia = originalMatchMedia;
+window.requestAnimationFrame = originalRaf;
+window.cancelAnimationFrame = originalCancelRaf;
+Object.defineProperty(performance, 'now', {configurable:true, value:originalNow});
+chartMotionNodes.clear();
+chartScaleNodes.clear();
+chartMotionFrame = null;
+outcomes.push({name:'delayed-cursor-pixel-diagnostics', ok:true, metrics:{viewport:innerWidth, chartWidth:host.clientWidth,
+  delay_seconds:3, initial_edge_y:+beforeProgress.y.toFixed(3), first_mid_y:+firstHalf.y.toFixed(3),
+  first_end_y:+firstEnd.y.toFixed(3), second_mid_y:+secondHalf.y.toFixed(3), second_end_y:+secondEnd.y.toFixed(3),
+  first_boundary_delta_px:+(atArrival.y-preArrival.y).toFixed(4),
+  second_boundary_delta_px:+(nextArrival.y-secondEnd.y).toFixed(4),
+  rates:[10,12], sample_times:[94,97,100,103,106]}});
   result.textContent = JSON.stringify(outcomes);
 """
         document = source.replace("</body>", "<script>" + cases + "</script></body>")
@@ -790,9 +808,9 @@ document.body.prepend(result);
                            "\" onload=\"document.querySelector('pre').textContent=this.contentDocument.querySelector('pre').textContent\"></iframe>"
                            "<pre id='rate-test-results'></pre></body></html>")
                 outcomes = self.run_browser(wrapper)
-                diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'motion-reveal-diagnostics')
-                print('dashboard segment reveal ' + json.dumps(diagnostics, sort_keys=True))
-                self.assertEqual(len(outcomes), 11)
+                diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'delayed-cursor-pixel-diagnostics')
+                print('dashboard delayed cursor ' + json.dumps(diagnostics, sort_keys=True))
+                self.assertEqual(len(outcomes), 13)
 
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

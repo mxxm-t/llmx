@@ -43,7 +43,14 @@ Identity: Qwen3-8B Q8_0 greedy 256 tokens in int8 and F16 and Qwen3-0.6B Q8_0 16
 **Gotchas:** the tile rule's column groups are the extent's column tiles, at most eight (`split_tiles_of`), so a check of the tall build needs a matrix of at least 45 tall tiles on a 60-unit device, and a slice compared against it must keep the whole call's inner split.
 A 0.6B int8 pp512 cell is bimodal on this card in every arm (runs near 9600 and near 9870 tok/s, some at 7400); compare it over more rounds before reading a few percent.
 
-## Dashboard chart flow (2026-11-01, branch fix/dashboard-flow-maine72-20261101)
+## Dashboard measured-segment flow follow-up (2026-11-01, branch fix/dashboard-sample-motion-20261101)
+
+- **Problem:** The prior live capture showed each new measured segment fully drawn, then fading over about 250 ms, once per roughly 2.013-second collector update. That periodic pulse remained visible even though the old timeline points moved continuously.
+- **Change:** The chart cursor now trails the current readout by one configured collection interval and advances continuously. The next already-collected point stays clipped beyond the chart edge until its real timestamp reaches the cursor, revealing the actual segment progressively. Hover and keyboard selection use the moving cursor and exclude future points. Rates, timestamps and headline values remain sample-backed; gaps and reset boundaries remain gaps. The old whole-segment fade is removed.
+- **Checks:** Three focused Chromium checks pass, including retained exact geometry/zero gaps and cursor continuity. In a three-second synthetic collection sequence, desktop (1440px) and mobile (390px) measured the segment crossing the clip edge over three seconds; its endpoint moved continuously between samples, with a 0.0000px position discontinuity at both sample arrivals. The display caption and numeric readout stayed stable. This verifies the synthetic chart presentation, not physical inference workload or live collector cadence. Focused output: `scratch/dashboard-sample-motion-20261101/focused-browser.log`.
+- **Landing:** lands by fast-forward after focused browser, syntax, docs and dead-code checks. Collector/API/runtime code is unchanged, so inference gates do not apply; rollout evidence is recorded separately.
+
+## Dashboard chart flow (2026-11-01, branch fix/dashboard-flow-maine72-20261101; superseded by the measured-segment follow-up above)
 
 - **Problem:** New samples appeared abruptly and axis rescaling moved the whole history at once. A fixed point jumped 73.69 pixels on contraction and 36.85 on expansion in the reproduced cases.
 - **Change:** Both scale directions ease over 250 ms, with tick labels and plotted samples using the same scale. The newest measured segment or isolated marker fades in through the existing elapsed-time animation loop. Redraws preserve progress; event-only sequence updates do not replay it. Collector changes, reset/missing points, clock jumps, pause, hidden tabs and reduced motion preserve their existing discontinuity rules. Values, timestamps, tooltips and collector cadence are unchanged.

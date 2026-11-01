@@ -7,17 +7,19 @@ EventSource stream; opening another tab does not add another upstream sampler.
 No inference request is sent. Browser updates are coalesced to at most once per
 second, while the collector keeps its existing two-second default interval.
 Fresh visits default to a five-minute chart range; a saved range remains in
-effect. The chart timeline advances continuously from the latest observed
-timestamp using elapsed browser time. Samples keep their measured timestamps;
-known points just ahead of the cursor enter the chart when the timeline reaches
-them. A large timestamp gap or collector reset moves the cursor forward to the
-latest observation instead of animating through a long stale interval. The chart
-does not add or smooth data points. New measured line segments and vertical
-scale changes ease over 250ms; this changes presentation only, not sample values
-or timestamps, and respects reduced-motion preferences. A new high may briefly
-reach beyond the plot edge while the scale opens to include it.
-Pinned and hover inspection stay tied to their selected sample as the timeline
-moves. Motion stops while pausing, in hidden tabs, and when reduced motion is
+effect. The chart timeline advances continuously using elapsed browser time and
+stays one configured collection interval behind the live readout; each chart
+labels that delay. Samples retain their measured timestamps. A known next point
+is clipped beyond the chart edge until the timeline reaches its timestamp, so
+the existing measured segment enters progressively without adding sample
+values or changing rates. Hover and keyboard inspection cannot select a point
+until it reaches the displayed timeline. Missing data and reset boundaries
+remain gaps. A large timestamp gap or collector reset re-anchors the delayed
+cursor near the latest observation instead of animating through a long stale
+interval. Vertical scale changes ease over 250ms; this changes presentation only,
+not sample values or timestamps, and respects reduced-motion preferences.
+Pinned inspection stays tied to its selected sample as the timeline moves.
+Motion stops while pausing, in hidden tabs, and when reduced motion is
 requested; collector resets re-anchor to the new collector's timestamp.
 Headline and per-request rates keep a reserved numeric width and two decimal
 places to avoid shifting neighboring labels as values change.

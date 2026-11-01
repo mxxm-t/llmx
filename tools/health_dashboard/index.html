@@ -4135,10 +4135,11 @@ let chartVisualEnd = null;
 const chartMotionNodes = new Set();
 const chartScaleStates = {};
 const chartScaleNodes = new Set();
-const chartRevealStates = {};
 let chartMotionFrame = null;
 const chartScaleDuration = 250;
-const chartRevealDuration = 250;
+function chartDisplayLag() {
+  return Math.max(0, number(state.interval) ? state.interval : 2);
+}
 function chartCursorEnd(anchor, startedAt, now) {
   return anchor + Math.max(0, now - startedAt) / 1000;
 }
@@ -4151,23 +4152,22 @@ function observedChartEnd(view) {
 }
 function chartMotionFor(view, now = performance.now()) {
   const observedEnd = observedChartEnd(view);
+  const observedCursor = observedEnd - chartDisplayLag();
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const collectorChanged = chartTimeline.collector !== state.collector;
   const runningEnd = chartTimeline.end === null ? observedEnd :
     chartCursorEnd(chartTimeline.end, chartTimeline.startedAt, now);
   const stopped = state.paused || document.hidden || reduced;
   const newSample = state.seq > chartTimeline.seq;
-  const clockJump = newSample && observedEnd - runningEnd > Math.max(15, state.interval * 3);
-  const end = collectorChanged || chartTimeline.end === null ? observedEnd :
+  const clockJump = newSample && observedCursor - runningEnd > Math.max(15, state.interval * 3);
+  const end = collectorChanged || chartTimeline.end === null ? observedCursor :
     state.paused && number(state.chartPausedEnd) ? state.chartPausedEnd :
-      stopped || clockJump ? Math.max(runningEnd, observedEnd) : runningEnd;
+      stopped || clockJump ? Math.max(runningEnd, observedCursor) : runningEnd;
   chartTimeline = stopped || collectorChanged || chartTimeline.end === null || clockJump ?
     {collector: state.collector, end, startedAt: now, seq: state.seq} :
     {...chartTimeline, collector: state.collector, seq: state.seq};
   chartVisualEnd = end;
-  return {end, animate: !stopped,
-    revealSample: newSample && !collectorChanged && !clockJump && !stopped,
-    sampleTime: view.samples.at(-1)?.t ?? null};
+  return {end, animate: !stopped};
 }
 function stopChartMotion() {
   if (chartMotionFrame !== null) cancelAnimationFrame(chartMotionFrame);
@@ -4199,33 +4199,6 @@ function chartScaleFor(config, targetCap, motion, now) {
   }
   return chartScaleStates[config.id];
 }
-function chartRevealFor(config, sampleTime, motion, now) {
-  const previous = chartRevealStates[config.id];
-  const mode = String(config.mode || '') + ':' + String(config.floor || '');
-  const sameContext = previous && previous.collector === state.collector && previous.range === state.range && previous.mode === mode;
-  const sameSample = sameContext && previous.sampleTime === sampleTime;
-  if (!number(sampleTime)) {
-    delete chartRevealStates[config.id];
-    return null;
-  }
-  if (!motion?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode, sampleTime, completed: true};
-    return null;
-  }
-  if (motion.revealSample && sameContext && sampleTime !== previous.sampleTime) {
-    if (sampleTime <= previous.sampleTime) return null;
-    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode,
-      sampleTime, startedAt: now};
-  } else if (!sameSample) {
-    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode, sampleTime, completed: true};
-    return null;
-  }
-  const reveal = chartRevealStates[config.id];
-  if (reveal.completed) return null;
-  const elapsed = Math.max(0, now - reveal.startedAt);
-  if (elapsed >= chartRevealDuration) return null;
-  return {opacity: elapsed / chartRevealDuration, startedAt: reveal.startedAt};
-}
 function updateChartScaleNode(entry, now) {
   const scale = entry.scale;
   const cap = chartScaleValue(scale, now);
@@ -4255,12 +4228,6 @@ function updateChartMotion(now) {
       chartMotionNodes.delete(motion);
       continue;
     }
-    if (motion.revealStartedAt !== undefined) {
-      const opacity = Math.max(0, Math.min(1, (now - motion.revealStartedAt) / chartRevealDuration));
-      motion.node.setAttribute('opacity', opacity.toFixed(3));
-      if (opacity >= 1) chartMotionNodes.delete(motion);
-      continue;
-    }
     const elapsed = Math.max(0, chartVisualEnd - motion.end);
     const dx = -elapsed / motion.range * motion.width;
     motion.node.setAttribute('transform', 'translate(' + dx.toFixed(3) + ' 0)');
@@ -4276,9 +4243,6 @@ function startChartMotion() {
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     chartMotionFrame = requestAnimationFrame(updateChartMotion);
   }
-}
-function registerChartReveal(node, reveal) {
-  if (reveal) chartMotionNodes.add({node, revealStartedAt: reveal.startedAt});
 }
 function settleChartMotion() {
   const now = performance.now();
@@ -4315,6 +4279,8 @@ function renderChart(samples, stamp, config, events, motion = null) {
   const format = config.format || fmt;
   host.replaceChildren();
   const end = motion && number(motion.end) ? motion.end : Math.max(stamp || Date.now() / 1000, events.length ? events.at(-1).t : 0);
+  const displayLag = motion && number(motion.end) ? chartDisplayLag() : 0;
+  const inspectionEnd = () => motion?.animate && number(chartVisualEnd) ? chartVisualEnd : end;
   const start = end - state.range;
   const W = Math.max(240, host.clientWidth || 400),
   H = Math.max(160, host.clientHeight || 215),
@@ -4353,6 +4319,8 @@ function renderChart(samples, stamp, config, events, motion = null) {
     'aria-hidden': 'true'
   });
   svg.append(svgNode('text', { x: L, y: 9 }, config.unit));
+  if (displayLag > 0) svg.append(svgNode('text', {x: W - R, y: 9, 'text-anchor': 'end', 'font-size': '9',
+    'data-chart-delay': 'true'}, Math.round(displayLag) + 's behind'));
   const scaleLabels = [];
   for (let i = 0; i < 4; i++) {
     const yy = T + i * (H - T - B) / 3;
@@ -4419,28 +4387,18 @@ function renderChart(samples, stamp, config, events, motion = null) {
   }
   plotMotion.append(seriesScale);
   const scaleCircles = [];
-  const freshSegments = [];
-  const reveal = chartRevealFor(config, motion?.sampleTime, motion, performance.now());
   for (let series = config.labels.length - 1; series >= 0; series--) {
     let path = '',
     connected = false;
-    let previousPoint = null;
-    let freshPath = '';
     for (let index = 0; index < points.length; index++) {
       const point = points[index];
       if (!number(point.values[series])) {
         connected = false;
-        previousPoint = null;
         continue;
       }
       const coords = x(point.t).toFixed(2) + ',' + y(point.values[series]).toFixed(2);
-      if (connected && reveal && index === points.length - 1 && point.t === motion.sampleTime) {
-        freshPath = 'M' + x(previousPoint.t).toFixed(2) + ',' + y(previousPoint.values[series]).toFixed(2) + ' L' + coords;
-      } else {
-        path += (connected ? 'L': 'M') + coords + ' ';
-      }
+      path += (connected ? 'L': 'M') + coords + ' ';
       connected = true;
-      previousPoint = point;
     }
     const stroke = {
       d: path,
@@ -4452,22 +4410,11 @@ function renderChart(samples, stamp, config, events, motion = null) {
       'vector-effect': 'non-scaling-stroke'
     };
     seriesScale.append(svgNode('path', stroke));
-    if (freshPath) {
-      const segment = svgNode('path', {...stroke, d: freshPath, opacity: reveal?.opacity ?? 1,
-        'data-fresh-segment': 'true'});
-      seriesScale.append(segment);
-      if (reveal) freshSegments.push(segment);
-    }
     points.forEach((point, index) => {
       if (!number(point.values[series])) return;
       if (number(points[index - 1]?.values[series]) || number(points[index + 1]?.values[series])) return;
       const circle = svgNode('circle', {cx: x(point.t), cy: y(point.values[series]), r: 2.5,
         fill: config.colors[series], 'data-sample-value': point.values[series]});
-      if (reveal && index === points.length - 1 && point.t === motion.sampleTime) {
-        circle.setAttribute('opacity', String(reveal.opacity));
-        circle.setAttribute('data-fresh-sample-marker', 'true');
-        freshSegments.push(circle);
-      }
       plotMotion.append(circle);
       scaleCircles.push(circle);
     });
@@ -4495,7 +4442,6 @@ function renderChart(samples, stamp, config, events, motion = null) {
   });
   plotMotion.append(cross);
   host.append(svg);
-  freshSegments.forEach(node => registerChartReveal(node, reveal));
   const tooltip = element('div', 'tooltip');
   host.append(tooltip);
   if (!finite.length) {
@@ -4522,11 +4468,11 @@ function renderChart(samples, stamp, config, events, motion = null) {
     return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m41;
   };
   updateReadout(newest ? newest.values[0] : null, null, newest?.reasons?.[0]);
-  const selectable = points.filter(point => !point.gap);
-  const nearestIndex = time => {
+  const selectable = () => points.filter(point => !point.gap && point.t <= inspectionEnd());
+  const nearestIndex = (time, visible = selectable()) => {
     let best = 0;
-    for (let i = 1; i < selectable.length; i++) {
-      if (Math.abs(selectable[i].t - time) < Math.abs(selectable[best].t - time)) best = i;
+    for (let i = 1; i < visible.length; i++) {
+      if (Math.abs(visible[i].t - time) < Math.abs(visible[best].t - time)) best = i;
     }
     return best;
   };
@@ -4538,8 +4484,9 @@ function renderChart(samples, stamp, config, events, motion = null) {
   chartViews[config.id] = {
     hide,
     show: time => {
-      if (!selectable.length) { hide(); return ''; }
-      const point = selectable[nearestIndex(time)];
+      const visible = selectable();
+      if (!visible.length) { hide(); return ''; }
+      const point = visible[nearestIndex(time, visible)];
       if (Math.abs(point.t - time) > .01) { hide(); return ''; }
       const xx = x(point.t);
       updateReadout(point.values[0], point.t, point.reasons?.[0]);
@@ -4563,24 +4510,29 @@ function renderChart(samples, stamp, config, events, motion = null) {
     return start + ((event.clientX - rect.left) / rect.width * W - motionX() - L) / (W - L - R) * state.range;
   };
   host.onpointermove = event => {
-    if (selectable.length && !inspection.pinned) inspectTime(selectable[nearestIndex(pointerTime(event))].t);
+    const visible = selectable();
+    if (visible.length && !inspection.pinned) inspectTime(visible[nearestIndex(pointerTime(event), visible)].t);
   };
   host.onclick = event => {
-    if (selectable.length) inspectTime(selectable[nearestIndex(pointerTime(event))].t, true);
+    const visible = selectable();
+    if (visible.length) inspectTime(visible[nearestIndex(pointerTime(event), visible)].t, true);
   };
   host.onpointerleave = () => { if (!inspection.pinned) clearInspection(); };
   host.onkeydown = event => {
     if (!['ArrowLeft', 'ArrowRight', 'Escape', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
     if (event.key === 'Escape') { clearInspection(); return; }
-    if (!selectable.length) return;
-    const initial = inspection.time === null ? selectable.length - 1 : nearestIndex(inspection.time);
-    const index = event.key === 'Home' ? 0 : event.key === 'End' ? selectable.length - 1 :
-      Math.max(0, Math.min(selectable.length - 1, initial + (event.key === 'ArrowLeft' ? -1 : 1)));
-    inspectTime(selectable[index].t, true);
+    const visible = selectable();
+    if (!visible.length) return;
+    const initial = inspection.time === null ? visible.length - 1 : nearestIndex(inspection.time, visible);
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? visible.length - 1 :
+      Math.max(0, Math.min(visible.length - 1, initial + (event.key === 'ArrowLeft' ? -1 : 1)));
+    inspectTime(visible[index].t, true);
   };
   host.onblur = () => { if (!inspection.pinned) clearInspection(); };
-  host.setAttribute('aria-label', config.title + ', ' + Math.round(state.range / 60) + ' minute range. ' + latest + ' Left and right arrows inspect samples.');
+  host.setAttribute('aria-label', config.title + ', ' + Math.round(state.range / 60) + ' minute range. ' +
+    (displayLag > 0 ? 'Chart is ' + Math.round(displayLag) + ' seconds behind the live readout. ' : '') +
+    latest + ' Left and right arrows inspect visible samples.');
 }
 function render() {
   const view = state.paused && state.view ? state.view: snapshot();
@@ -4786,12 +4738,12 @@ $('pause').addEventListener('click', () => {
   if (!state.paused) {
     state.view = snapshot();
     settleChartMotion();
-    state.chartPausedEnd = chartVisualEnd === null ? observedChartEnd(state.view) : chartVisualEnd;
+    state.chartPausedEnd = chartVisualEnd === null ? observedChartEnd(state.view) - chartDisplayLag() : chartVisualEnd;
     state.paused = true;
   } else {
     state.paused = false;
     state.chartPausedEnd = null;
-    chartVisualEnd = observedChartEnd(snapshot());
+    chartVisualEnd = observedChartEnd(snapshot()) - chartDisplayLag();
     chartTimeline = {collector: state.collector, end: chartVisualEnd, startedAt: performance.now(), seq: state.seq};
   }
   $('pause').setAttribute('aria-pressed', String(state.paused));
@@ -4826,7 +4778,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) settleChartMotion();
   else {
     const view = state.paused && state.view ? state.view : snapshot();
-    const observedEnd = observedChartEnd(view);
+    const observedEnd = observedChartEnd(view) - chartDisplayLag();
     const changed = state.collector !== chartTimeline.collector || state.seq > chartTimeline.seq;
     const end = state.paused && number(state.chartPausedEnd) ? state.chartPausedEnd :
       changed ? Math.max(chartVisualEnd || 0, observedEnd) : chartVisualEnd ?? observedEnd;

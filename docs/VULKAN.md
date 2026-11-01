@@ -696,7 +696,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   row with 32 lanes, 8 streams a workgroup, with the arithmetic of each
   lane unchanged.
 - **attention_tile**, for a wide pass of 128-wide heads: a workgroup
-  per 32 query rows and head, the head's K and V streamed through shared
+  per 32 query rows and head, or two tiles of them, the head's K and V streamed through shared
   memory in 16-token tiles so a tile is read once per 32 rows rather
   than once per row. It took a 16384-token prompt on Qwen3-0.6B from
   155 to 513 tok/s, level with the reference's 514. Its `_d256` builds
@@ -707,6 +707,8 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   passes take the per-row kernel.
 
   Eight lanes share a query row. Lane l owns dimensions 32k + 4l to 32k + 4l + 3, so a row's lanes read a staged token as one contiguous 128-byte run per k, and K and V are staged eight values per load.
+
+  The 128-wide builds give each lane two query rows, rows i and i + 16 of one 32-row tile, so a workgroup covers two tiles and every K and V value read from shared memory serves both rows. Each row takes the operations of a lane of its own in the same order and stops at its own tile's last token, so the logits are the same bits as one row a lane. The builds hold 128 VGPRs and two subgroups a SIMD where one row a lane held 84 and three on an MI50 under RADV, and the shared reads saved outweigh the lost subgroup: on Qwen3-30B-A3B Q4_K_M, pp512 after 16k, 64k and 128k tokens rose 14 to 19 percent, the tile's time down 14 to 18 percent. A workgroup whose second tile would hold no row takes one row a lane, as before: with two rows a lane, a 32-row view at depth left half the workgroup's subgroups idle and ran its tile 50 percent longer. A call pairs rows only once its paired workgroups give every compute unit one (`pair`); below that the device is not full, a workgroup's time is its latency, and halving the workgroups doubled it: Qwen3-0.6B Q8_0, whose 16 heads give a 48-row prompt 16 paired workgroups, read it 31 percent slower on an MI50 after 8192 tokens, and 64 to 96 rows lost 15 to 30 percent, while 128 to 256 rows, 32 to 64 paired workgroups, were level and 384 rows 25 percent faster. The butterfly over a row's partial dots is written out with constant indices: the AMD proprietary compiler on Windows kept its inner loop rolled and the partial dots in scratch memory, 176 bytes a lane with one row and 848 with two, which made two rows a lane 19 to 46 percent slower than one on a Radeon VII; without the scratch, the one-row and the paired kernel both run 1.4 to 1.8 times main's rate there. The `_d256` builds keep one row a lane, since a 256-wide head's two rows would not fit the registers.
 
   A tile of 16 keys goes through the online softmax as a unit. The scores come eight tokens at a time: every lane forms its partial dots, then a butterfly over the row's lanes finishes the sums and deals them out one to a lane, which is 7 shuffles per 8 tokens. Then comes one maximum, one exponential per score, and one rescale of the accumulator per tile. The probabilities reach the row's lanes through shared memory for the weighted sum of V.
 

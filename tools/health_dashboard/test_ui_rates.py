@@ -812,6 +812,89 @@ outcomes.push({name:'delayed-cursor-pixel-diagnostics', ok:true, metrics:{viewpo
                 print('dashboard delayed cursor ' + json.dumps(diagnostics, sort_keys=True))
                 self.assertEqual(len(outcomes), 13)
 
+    def test_time_tick_keeps_its_position_for_the_same_timestamp_on_redraw(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+const originalMatchMedia = window.matchMedia;
+const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+const originalRaf = window.requestAnimationFrame;
+const originalCancelRaf = window.cancelAnimationFrame;
+const originalNow = performance.now;
+window.matchMedia = () => ({matches:false});
+Object.defineProperty(document, 'hidden', {configurable:true, value:false});
+let fakeNow = 1000;
+Object.defineProperty(performance, 'now', {configurable:true, value:() => fakeNow});
+window.requestAnimationFrame = () => 0;
+window.cancelAnimationFrame = () => {};
+state.paused = false;
+state.collector = 'tick-flow-test';
+state.interval = 2;
+state.range = 300;
+state.seq = 1;
+state.samples = [
+  {t:99600, reset:false, metrics:{}}, {t:99700, reset:false, metrics:{}},
+  {t:99800, reset:false, metrics:{}}, {t:99902, reset:false, metrics:{}}
+];
+chartTimeline = {collector:'tick-flow-test', end:99900, startedAt:fakeNow, seq:1};
+chartVisualEnd = 99900;
+const host = document.createElement('div');
+host.id = 'tick-flow-chart';
+host.style.cssText = 'width:min(720px,calc(100vw - 40px));height:215px';
+document.body.append(host);
+for (const suffix of ['summary','value','at']) { const n=document.createElement('div');n.id='tick-flow-'+suffix;document.body.append(n); }
+const config = {id:'tick-flow',title:'Tick flow',labels:['rate'],colors:['#7ed6cf'],unit:'tok/s',format:fmt,
+  values:(samples,i)=>[i*2],note:'Tick flow'};
+const view = () => ({lastSuccess:state.samples.at(-1).t,samples:state.samples,events:[]});
+let motion=chartMotionFor(view(),fakeNow);
+renderChart(state.samples,motion.end,config,[],motion);
+const intervals=Number(host.clientWidth < 420 ? 3 : 4);
+const targetTime=99900-state.range/intervals*Math.floor(intervals/2);
+const firstGroup=host.querySelector('[data-chart-motion]');
+const firstTick=[...firstGroup.querySelectorAll('text')].find((node,i)=>i===Math.floor(intervals/2));
+const firstX=Number(firstTick?.getAttribute('x'));
+const label=firstTick?.textContent;
+fakeNow+=2000;
+updateChartMotion(fakeNow);
+const movedGroup=host.querySelector('[data-chart-motion]');
+const dx=Number((movedGroup.getAttribute('transform')||'').match(/translate\((-?[0-9.]+)/)?.[1]||0);
+const beforeX=firstX+dx;
+state.samples.push({t:99904,reset:false,metrics:{}});
+state.seq=2;
+motion=chartMotionFor(view(),fakeNow);
+renderChart(state.samples,motion.end,config,[],motion);
+const afterGroup=host.querySelector('[data-chart-motion]');
+const afterTick=[...afterGroup.querySelectorAll('text')].find(node=>node.textContent===label);
+const afterX=Number(afterTick?.getAttribute('x'))+Number((afterGroup.getAttribute('transform')||'').match(/translate\((-?[0-9.]+)/)?.[1]||0);
+check('fixture advances exactly one measured two-second sample', motion.end===99902 && state.samples.at(-1).t===99904);
+check('the same time label survives the redraw', !!afterTick && Number.isFinite(targetTime));
+check('the same time tick has no horizontal redraw jump ('+(afterX-beforeX).toFixed(3)+'px)',
+  Number.isFinite(beforeX) && Number.isFinite(afterX) && Math.abs(afterX-beforeX)<0.03);
+check('time ticks stay ordered and chart dimensions stay compact',
+  [...afterGroup.querySelectorAll('text')].every((n,i,a)=>!i||Number(a[i-1].getAttribute('x'))<Number(n.getAttribute('x')))&&
+  host.getBoundingClientRect().height===215);
+if(originalHidden)Object.defineProperty(document,'hidden',originalHidden);else delete document.hidden;
+window.matchMedia=originalMatchMedia;window.requestAnimationFrame=originalRaf;window.cancelAnimationFrame=originalCancelRaf;
+Object.defineProperty(performance,'now',{configurable:true,value:originalNow});
+chartMotionNodes.clear();chartScaleNodes.clear();chartMotionFrame=null;
+outcomes.push({name:'time-tick-pixel-diagnostic',ok:true,metrics:{viewport:innerWidth,chartWidth:host.clientWidth,
+  tick_time:targetTime,before_x:+beforeX.toFixed(4),after_x:+afterX.toFixed(4),
+  redraw_delta_px:+(afterX-beforeX).toFixed(4)}});
+document.querySelector('#rate-test-results').textContent=JSON.stringify(outcomes);
+"""
+        document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + cases + "</script></body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                wrapper = ("<!doctype html><html><body style='margin:0'><iframe style='border:0;width:" + str(width) +
+                           "px;height:1100px' srcdoc=\"" + html.escape(document, quote=True) +
+                           "\" onload=\"document.querySelector('pre').textContent=this.contentDocument.querySelector('pre').textContent\"></iframe>"
+                           "<pre id='rate-test-results'></pre></body></html>")
+                outcomes = self.run_browser(wrapper)
+                diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'time-tick-pixel-diagnostic')
+                print('dashboard stable ticks ' + json.dumps(diagnostics, sort_keys=True))
+                self.assertEqual(len(outcomes), 5)
+
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""

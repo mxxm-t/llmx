@@ -1183,12 +1183,12 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // Tiled attention covers full and partial query tiles, both head widths and cache types, and several histories against the CPU (docs/TESTS.md).
+        // Tiled attention covers full and partial query tiles, a dispatch whose workgroups take two rows a lane and one (96 rows), both head widths and cache types, and several histories against the CPU (docs/TESTS.md).
         // Scaled queries produce peaked scores rather than nearly uniform softmax.
         for (int head_dim : {128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
         for (size_t hist : {size_t(0), size_t(70), size_t(600)}) {
-            for (size_t nq : {size_t(32), size_t(45), size_t(100)}) {
+            for (size_t nq : {size_t(32), size_t(45), size_t(96), size_t(100)}) {
                 const int n_head = head_dim == 128 ? 4 : 12, n_head_kv = 2;
                 const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
                 const auto hk = uniform((hist + nq) * kvw, 50 + (uint32_t)nq), hv = uniform((hist + nq) * kvw, 51 + (uint32_t)nq);
@@ -1225,6 +1225,43 @@ size_t check_kernels(backend::Backend& vk) {
                     throw;
                 }
             }
+        }
+        // 64 heads over 160 rows take two rows a lane on any device up to 192 compute units, their first 4 heads alone one row a lane, and both must give the same bits (docs/TESTS.md).
+        for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16}) {
+            const int head_dim = 128;
+            const size_t hist = 70, nq = 160, kvw = head_dim;
+            const auto hk = uniform((hist + nq) * kvw, 61), hv = uniform((hist + nq) * kvw, 62);
+            const auto qq = uniform(nq * 64 * head_dim, 63, -6.0f, 6.0f);
+            auto run = [&](backend::Backend& b, int n_head, std::vector<float>& att) {
+                const size_t qw = (size_t)n_head * head_dim;
+                std::vector<float> qs(nq * qw);
+                for (size_t r = 0; r < nq; ++r) std::memcpy(qs.data() + r * qw, qq.data() + r * 64 * head_dim, qw * sizeof(float));
+                auto st = b.kv_alloc(1, 1, head_dim, 1024, kt, kt);
+                infer::BlockPool pool; pool.configure(st->max_blocks());
+                infer::KVSequence seq(&pool, b.kv_layout().block_tokens);
+                const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+                const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+                const auto Qb = b.adopt(qs.data(), qs.size() * sizeof(float));
+                seq.prepare(hist);
+                const backend::KVView h = seq.view(st.get());
+                b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                seq.commit();
+                seq.prepare(nq);
+                const backend::KVView view = seq.view(st.get());
+                b.kv_write(0, &view, 1, {Kb.get(), hist * kvw}, {Vb.get(), hist * kvw});
+                const auto ob = b.alloc(nq * qw * sizeof(float), backend::Memory::device);
+                b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, n_head, 1, head_dim);
+                att.resize(nq * qw);
+                b.read(*ob, 0, att.data(), att.size() * sizeof(float));
+            };
+            std::vector<float> ac, av, a4;
+            run(p.cpu, 64, ac);
+            run(p.vk, 64, av);
+            values += close(ac, av, 1e-4, "paired tiled attention differs beyond 1e-4");
+            run(p.vk, 4, a4);
+            for (size_t r = 0; r < nq; ++r)
+                require(std::memcmp(av.data() + r * 64 * head_dim, a4.data() + r * 4 * head_dim, 4 * head_dim * sizeof(float)) == 0,
+                        "paired tiled attention rows differ from the same rows taken one a lane");
         }
         // Nonzero attention across vector widths and a non-vector width, including mixed cache sides and grouped heads after a long history.
         // Both rows must compute identically alone and together, even when the longer history selects grouped heads for the short row.

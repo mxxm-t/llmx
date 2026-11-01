@@ -173,15 +173,20 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         ViewTable t = view_table(layer, wide, false);
         VulkanKVStorage& s = *t.storage;
         check_storage(s, n_head_kv, head_dim);
-        size_t tiles = 0;
-        for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+        // Two rows a lane, a workgroup of two 32-row tiles, once the paired workgroups still give every compute unit one; below that the call is too small to fill the device and halving its workgroups slows it.
+        // A row's bits are the same either way (shaders/attention_tile.comp).
+        size_t pairs = 0, tiles = 0;
+        for (const Placed& pv : wide) pairs += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+        const bool pair = head_dim == 128 && pairs * (size_t)n_head >= dev_->caps.compute_units;
+        const size_t tile_rows = pair ? kAttentionTileRows : kAttentionTileRowsOne;
+        for (const Placed& pv : wide) tiles += (pv.view->nq + tile_rows - 1) / tile_rows;
         // With every view here and the integer-dot tile reading the output next, the output's twin written beside it (shaders/attention_tile.comp).
         std::vector<RowRun> vruns;
         for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});
         const bool tile = narrow.empty() && tile_reads(qstride, rows, RowRuns{vruns.data(), vruns.size()});
         const uint32_t major = tile ? x8_major(qstride, rows) : 0;
-        struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major; }
-            tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows), major};
+        struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major, pair; }
+            tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows), major, pair ? 1u : 0u};
         const size_t slot = tile ? take_twin(rows * qstride) : 0, n = rows * qstride;
         dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                  {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),

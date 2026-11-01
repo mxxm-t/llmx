@@ -1,5 +1,46 @@
 # llmx - Development Status
 
+## ROCm block-major twin (2026-11-01, DDEV, branch perf/rocm-twin-major on perf/rocm-tall-stage b0af9f978, which it lands after; step 1 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
+
+**Goal:** the int8 tall tile within reach of Vulkan's call time with the same bits: the 8-bit twin's rows lay 4096 bytes apart on the 8B, so a tile stage's 64 rows of block k fell on the same memory channels (knockouts: one X row for every row took the 8B gate,up from 5.62 to 5.02 ms a call, Vulkan 4.99).
+**Done:** one layout (`TwinMap` in `rocm_backend.cpp`, its kernel copy in `kernels/f32.hip`) chosen from the call's runs, the consumer each run takes: a generated run row after row as the row kernels read it, a prompt's run block-major, block k of every row of its region together, the rows padded to an odd multiple of 4 (`twin_map`); neighbouring runs of one kernel share a region, and more than eight regions lay every row row after row. The twin is sized from the map; the padding is at most 7 rows a region and sits inside `scratch_reserve`, which the fit leaves out. Producers (`rms_norm_rows`, `silu_mul` from their runs, the per-row attention from its views) write it as the product of those runs reads it, and a product whose runs give another map makes its own; a block's row comes from its number by a multiply and a shift. The tile reads its twin through row and block strides in `TileCall`, under the 32-bit offset bound. Both twins, block-int16 and block-int8, since the one tile reads both. `backend-rocm`: prompt rows at 1, 4, 5, 12, 13, 20, 21, 63, 64, 65, 70 and 129 (512 wide) and 261 and 520 (4096 wide, the tall build) block-major give the bits of the same rows read row after row, a call of four runs of both kernels gives each run's bits alone, and producers given mixed and prompt runs, and attention of a 5-row prompt, give the bits of a product of a copy.
+**Found** (probe build d09efa2b5 and 643552644, rocprofv3 kernel traces, pp512, one MI50, renderD131, ms a call): 8B int8 gate,up tall 5.49 -> 5.13 (-6.6%), qkv tall 1.53 -> 1.43, short tile 2.08 -> 1.76 (-15%); 14B int8 gate,up 8.89 -> 8.32 (-6.4%), short 3.01 -> 2.70 (-10%), so the 5120-wide rows gain as the 4096-wide do; F16 8B gate,up 8.08 -> 7.73, short 2.96 -> 2.80. The producers pay for the scattered writes: 8B silu_mul with its twin 0.158 -> 0.200 ms, the norm 0.055 -> 0.061, the product's own twin 0.039 -> 0.050 (first build, with a division a value, 0.217, 0.076 and 0.056).
+**Measured at 55515e402** (map-free producer builds) against perf/rocm-tall-stage at b0af9f978 and Vulkan at 98bd6223c on one MI50 (renderD131, CPUs 14,15, default clocks, all built alike from archives, 2026-11-01 03:24-04:08 UTC, rotated interleaved rounds of three runs, three in int8 and six in F16, Vulkan in rounds 1 to 3 on the 8B and 14B, tok/s medians, raw rig ddev/rocm/g61/log.txt; other cards of the machine busy, load 9 to 23, mon.log beside it). tg1 is the decode after each prompt, both depths together; tg128 is 128 tokens after a 16-token prompt. 55515e402 differs from the branch head only in which product the per-row attention's running sum fuses, the same instructions.
+
+| Model, dtype | Cell | before | branch | change | Vulkan |
+|---|---|---|---|---|---|
+| Qwen3-8B Q8_0 int8 | pp512 | 1130.7 | 1238.8 | +9.6% | 1318.1 |
+| Qwen3-8B Q8_0 int8 | pp2048 | 995.9 | 1077.0 | +8.1% | 1177.2 |
+| Qwen3-8B Q8_0 int8 | tg1 | 83.0 | 82.8 | -0.2% | 77.7 |
+| Qwen3-8B Q8_0 int8 | tg128 | 80.5 | 81.1 | +0.7% | 77.8 |
+| Qwen3-8B Q8_0 F16 | pp512 | 801.2 | 830.0 | +3.6% | 849.4 |
+| Qwen3-8B Q8_0 F16 | pp2048 | 732.1 | 756.7 | +3.4% | 787.4 |
+| Qwen3-8B Q8_0 F16 | tg1 | 69.4 | 69.6 | +0.3% | 77.1 |
+| Qwen3-8B Q8_0 F16 | tg128 | 67.8 | 68.0 | +0.3% | 77.2 |
+| Qwen3-14B Q8_0 int8 | pp512 | 681.3 | 723.6 | +6.2% | 781.2 |
+| Qwen3-14B Q8_0 int8 | pp2048 | 602.5 | 631.3 | +4.8% | 711.3 |
+| Qwen3-14B Q8_0 int8 | tg1 | 45.8 | 45.8 | -0.1% | 45.2 |
+| Qwen3-14B Q8_0 int8 | tg128 | 43.0 | 43.7 | +1.6% | 44.6 |
+| Qwen3-14B Q8_0 F16 | pp512 | 452.8 | 464.3 | +2.5% | 491.6 |
+| Qwen3-14B Q8_0 F16 | pp2048 | 421.2 | 432.4 | +2.6% | 462.6 |
+| Qwen3-14B Q8_0 F16 | tg1 | 38.8 | 38.7 | -0.5% | 44.4 |
+| Qwen3-14B Q8_0 F16 | tg128 | 38.1 | 37.8 | -0.9% | 43.7 |
+| Qwen3-0.6B Q8_0 int8 | pp512 | 9889.0 | 10616.4 | +7.4% | - |
+| Qwen3-0.6B Q8_0 int8 | pp2048 | 6364.7 | 6777.2 | +6.5% | - |
+| Qwen3-0.6B Q8_0 int8 | tg1 | 387.1 | 386.1 | -0.2% | - |
+| Qwen3-0.6B Q8_0 int8 | tg128 | 297.9 | 288.8 | -3.1% | - |
+| Qwen3-0.6B Q8_0 F16 | pp512 | 7974.7 | 8323.7 | +4.4% | - |
+| Qwen3-0.6B Q8_0 F16 | pp2048 | 5553.1 | 5696.2 | +2.6% | - |
+| Qwen3-0.6B Q8_0 F16 | tg1 | 397.0 | 399.7 | +0.7% | - |
+| Qwen3-0.6B Q8_0 F16 | tg128 | 334.4 | 339.6 | +1.6% | - |
+
+The prompt cells gain 2.5 to 9.6 percent, every branch run above every base run on the 8B and in the 0.6B F16 pp512 and 14B F16 pp2048, with a few low runs of either arm under the load (0.6B int8 branch 7819 and 5941, 14B int8 branch 637 and 559, base 14B F16 425); decode is level within spread, every tg1 cell within 0.5 percent, tg128 within 1.6 percent but the 0.6B int8, whose runs span 287-346 (before) and 277-303 (branch) tok/s.
+The decode loss of ec58a474b (tg1 -0.7 to -5.4 percent) came from the map's code in the producers even on the flat path (decode traces, rig ddev/rocm/g60: rms_norm with its twin 9.44 -> 10.80 us a call and the split merge 4.78 -> 6.24 on the 8B int8); each twin producer now has a map-free build, which a call whose twin lies row after row takes, and a build reading the map (`_major`), chosen in `twin_build`.
+tg128 at the head against perf/rocm-tall-stage (renderD130, CPUs 14,15, 2026-11-01 04:37-04:44 UTC, three alternating rounds of three runs, tok/s medians, raw rig ddev/rocm/g62/log.txt, load 9.5 to 14): 8B int8 81.2 -> 81.2, F16 68.1 -> 68.0, 14B int8 45.2 -> 45.0, F16 37.9 -> 37.9, 0.6B int8 368.0 -> 366.6, F16 372.6 -> 375.2, every cell within 0.7 percent.
+Identity at the head: Qwen3-8B Q8_0 greedy 256 tokens in int8 and F16 and Qwen3-0.6B Q8_0 16k raw and chat in int8 and F16, 6 of 6 the same bytes as perf/rocm-tall-stage (rig ddev/rocm/g62); `backend-rocm` PASS at the head with the per-row attention's pinned bits, which 55515e402 fails; CTest 79/79, docs 0 findings and dead-code ok at 55515e402 (g61).
+**Left:** review and the hosted run; it lands after perf/rocm-tall-stage. Then step 2 (weight staging two threads a row) and step 3 (32-bit offsets), each its own branch.
+**Gotchas:** HIP compiles with contraction on, so a kernel body inlined into two builds may fuse the other product of a sum: 55515e402's per-row attention took acc * corr + w * v as fma(acc, corr, w * v) where the single kernel had fma(w, v, acc * corr), changing decode bits at depth (8B int8 and 0.6B 16k identity broke); its running sum now writes both fmaf out, and `backend-rocm` pins that kernel's bits on gfx906. Layout never changes a value, so a wrong map shows only as wrong bits against a row-major read, which is what `backend-rocm` compares; the 14B F16 short tile's median is bimodal in both arms (4.5 or 7.1 ms), so read that cell over rounds.
+
 ## The hc down product's scaled SiLU as the Q8_0 decode kernel's tail: closed as measured (2026-11-01, VDEV, probe 2 of VDEV's 2x2 decode proposals, approved by F2DEV at 2026-10-31 18:33 for the SiLU alone, its second form ruled at 2026-11-01 01:33 and closed by its rule; code kept on gitea branch probe/silu-tail)
 
 **Goal:** a shorter decode step on Flash-Next 2x2 with the same bits, by ending the hyper-connection mix's down product (`matmul` of Q8_0 rows 10240 wide into 320, then `silu_scaled`) in one dispatch.

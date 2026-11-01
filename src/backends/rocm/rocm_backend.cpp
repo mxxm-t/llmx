@@ -342,7 +342,7 @@ public:
         span(*src.buffer, src.offset * sizeof(float), size_mul(size_mul(size_add(*std::max_element(rows, rows + count), 1), width), sizeof(float)));
         gather(dst, src, width, rows, count);
     }
-    void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n, size_t stride, float eps, RowRuns) override {
+    void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n, size_t stride, float eps, RowRuns runs) override {
         if (!rows) return;
         const size_t last = size_add(size_mul(rows - 1, stride), n);
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(last, sizeof(float)));
@@ -358,13 +358,14 @@ public:
             return launch(kRmsNorm, (unsigned)rows, 1, args);
         }
         // Rows of up to 8192 values take a held build, which writes the twin beside them where a product reads one next.
-        const TwinOut t = stride == n ? twin_out(dst, rows * n) : TwinOut{};
+        const TwinOut t = stride == n && n % 32 == 0 ? twin_out(dst, rows * n, twin_map(runs, rows, n)) : TwinOut{};
         const bool wide = n > 16 * kThreads;
         const Kernel k = !t.q ? (wide ? kRmsNorm32 : kRmsNorm16) : t.int8 ? (wide ? kRmsNorm32Twin8 : kRmsNorm16Twin8) : (wide ? kRmsNorm32Twin16 : kRmsNorm16Twin16);
         void* q = t.q;
         float* td = t.d;
-        void* args[] = {&d, &s, &wp, &in, &st, &eps, &q, &td};
-        launch(k, (unsigned)rows, 1, args, 1, kNormThreads);
+        TwinMap map = t.map;
+        void* args[] = {&d, &s, &wp, &in, &st, &eps, &q, &td, &map};
+        launch(twin_build(k, map), (unsigned)rows, 1, args, 1, kNormThreads);
         keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
@@ -395,18 +396,20 @@ public:
         void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p};
         launch(kNormRope, (unsigned)rows, (unsigned)heads, args);
     }
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns) override {
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs) override {
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), gate, up}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
         float* d = f32(dst);
         const float* g = f32(gate);
         const float* u = f32(up);
         unsigned long long nn = n;
-        const TwinOut t = twin_out(dst, n);
+        const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
+        const TwinOut t = twin_out(dst, n, rows && n % rows == 0 && n / rows % 32 == 0 ? twin_map(runs, rows, n / rows) : twin_map({}, 1, n));
         void* q = t.q;
         float* td = t.d;
-        void* args[] = {&d, &g, &u, &nn, &q, &td};
-        launch(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        TwinMap map = t.map;
+        void* args[] = {&d, &g, &u, &nn, &q, &td, &map};
+        launch(twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
     }
     void add(Slice dst, CSlice src, size_t n) override {
@@ -495,6 +498,7 @@ public:
         // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
         const size_t tile_rows = dev_.profile.attention_tile_rows;
         std::vector<int32_t> table, firsts, ends, wide;
+        std::vector<RowRun> runs;   // the views as the rows' runs, for the layout of the twin written beside the output
         int32_t row0 = 0, tiles = 0;
         bool narrow = false;
         for (size_t vi = 0; vi < n_views; ++vi) {
@@ -515,6 +519,7 @@ public:
                 ends.push_back(tiled ? 0 : (int32_t)(view.causal ? view.length + b + 1 : view.length + view.nq));
             }
             row0 += (int32_t)view.nq;
+            if (view.nq) runs.push_back({(size_t)row0, extent});
         }
         const size_t rows = firsts.size();
         if (!rows) return;
@@ -560,16 +565,17 @@ public:
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
-            const TwinOut t = wide.empty() ? twin_out(out, floats) : TwinOut{};
+            const TwinOut t = wide.empty() ? twin_out(out, floats, twin_map({runs.data(), runs.size()}, rows, (size_t)n_head * head_dim)) : TwinOut{};
             void* tq = t.q;
             float* td = t.d;
+            TwinMap map = t.map;
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
             void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp, &tq, &td,
-                            nsplit > 1 ? &none : &tl};
-            launch(kAttentionVec, (unsigned)(rows * n_head * nsplit), 1, args);
+                            nsplit > 1 ? &none : &tl, &map};
+            launch(twin_build(kAttentionVec, map), (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
-                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit, &tq, &td, &tl};
-                launch(kAttentionVecMerge, (unsigned)(rows * n_head), 1, margs);
+                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit, &tq, &td, &tl, &map};
+                launch(twin_build(kAttentionVecMerge, map), (unsigned)(rows * n_head), 1, margs);
             }
             keep(t, o, floats);
             return;
@@ -589,7 +595,8 @@ private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
-                  kAttentionVecMerge, kTwin16, kTwin8,
+                  kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major,
                   kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
@@ -598,7 +605,10 @@ private:
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
                                                            "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
-                                                           "llmx_twin16", "llmx_twin8", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
+                                                           "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
+                                                           "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
                                                            "llmx_q8_0_tile16", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
                                                            "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce",
@@ -771,8 +781,78 @@ private:
         int add;
         unsigned kper, parts;
         float* partials;
+        unsigned xrow, xblock;
     };
-    static_assert(sizeof(TileCall) == 128 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120, "TileCall is the kernel's layout");
+    static_assert(sizeof(TileCall) == 136 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132,
+                  "TileCall is the kernel's layout");
+    // The host's copy of the twin's layout (kernels/f32.hip, TwinMap), field for field.
+    struct TwinMap {
+        static constexpr unsigned kRegions = 8;
+        unsigned regions, blocks, shift, magic_lo, magic_hi;
+        unsigned first[kRegions], base[kRegions], pad[kRegions];
+        unsigned total;
+        bool flat() const { return regions == 1 && !pad[0]; }
+        // Two maps of every row row after row lie alike however their values divide into rows.
+        bool operator==(const TwinMap& o) const { return flat() && o.flat() ? total == o.total : std::memcmp(this, &o, sizeof(TwinMap)) == 0; }
+        // Where row b's block 0 lies, and the blocks from one row to the next and from one block to the next.
+        void locate(size_t b, size_t& at, unsigned& row, unsigned& block) const {
+            unsigned g = 0;
+            for (unsigned i = 1; i < regions; ++i) g = b >= first[i] ? i : g;
+            row = pad[g] ? 1 : blocks;
+            block = pad[g] ? pad[g] : 1;
+            at = base[g] + (b - first[g]) * row;
+        }
+    };
+    static_assert(sizeof(TwinMap) == 120 && offsetof(TwinMap, pad) == 84 && offsetof(TwinMap, total) == 116, "TwinMap is the kernels' layout");
+    // The twin's layout from each run's kernel: generated rows row after row, a prompt's rows block-major and padded to an odd multiple of 4 (docs/src/backends-rocm.md).
+    // It moves where a value lies, never the value; without a prompt's run, or past the map's regions, every row lies row after row.
+    static TwinMap twin_map(RowRuns runs, size_t rows, size_t nin) {
+        TwinMap m{};
+        m.blocks = (unsigned)(nin / 32);
+        size_t total = 0, begin = 0;
+        unsigned n = 0;
+        bool major = false;
+        for (size_t r = 0; r < runs.n && begin < rows; ++r) {
+            const size_t end = std::min(runs.runs[r].end, rows);
+            const bool tile = runs.runs[r].extent != 1;
+            if (end <= begin) continue;
+            if (n && (m.pad[n - 1] != 0) == tile) {
+                if (tile) total -= size_t(m.pad[n - 1]) * m.blocks;
+            } else {
+                if (n == TwinMap::kRegions) {
+                    major = false;
+                    break;
+                }
+                m.first[n] = (unsigned)begin;
+                m.base[n] = (unsigned)total;
+                ++n;
+            }
+            const size_t height = end - m.first[n - 1];
+            m.pad[n - 1] = tile ? (unsigned)((((height + 3) >> 2) | 1) << 2) : 0;
+            total += tile ? size_t(m.pad[n - 1]) * m.blocks : (end - begin) * m.blocks;
+            major = major || tile;
+            begin = end;
+        }
+        m.regions = n;
+        if (!major || begin != rows) {
+            m = TwinMap{};
+            m.regions = 1;
+            m.blocks = (unsigned)(nin / 32);
+            total = rows * (nin / 32);
+        }
+        if (total >= 0x80000000ull || rows * (nin / 32) >= 0x80000000ull) throw std::runtime_error("rocm: a twin of 2^31 blocks or more");
+        m.total = (unsigned)total;
+        // A block's row from its number, by a multiply and a shift: with 2^(L-1) < blocks <= 2^L, magic = ceil(2^(32 + L) / blocks) is exact for every block number below 2^32, and a number below 2^31 times it stays below 2^64.
+        if (!m.flat() && m.blocks) {
+            unsigned l = 0;
+            while ((1ull << l) < m.blocks) ++l;
+            m.shift = 32 + l;
+            const unsigned long long magic = ((1ull << m.shift) + m.blocks - 1) / m.blocks;
+            m.magic_lo = (unsigned)magic;
+            m.magic_hi = (unsigned)(magic >> 32);
+        }
+        return m;
+    }
     // The host's copy of the row kernel's call (kernels/int16.hip, RowCall), field for field.
     struct RowCall {
         const uint8_t* w[3];
@@ -798,33 +878,37 @@ private:
     // Without runs a call of one row is a generated row and any other a prompt's.
     void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
         const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
-        const size_t qbytes = size_mul(blocks, 32 * qsize), need = size_add(qbytes, size_mul(blocks, sizeof(float)));
+        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
+        const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
+        TwinMap map = twin_map(all, nbatch, nin);
+        const size_t qbytes = size_mul(map.total, 32 * qsize), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
         const float* x = f32(X);
         if (twin) want_twin_ = int8 ? 2 : 1;
-        if (twin && !(kept_.x == x && kept_.blocks == blocks && kept_.int8 == int8)) {
+        if (twin && !(kept_.x == x && kept_.values == blocks * 32 && kept_.int8 == int8 && kept_.map == map)) {
             if (!twin_ || twin_->size() < need) {
                 twin_ = alloc(need, Memory::device);
             }
             uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
             float* d = (float*)(q + qbytes);
             unsigned long long nb = blocks;
-            void* args[] = {&x, &q, &d, &nb};
-            launch(int8 ? kTwin8 : kTwin16, (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
+            void* args[] = {&x, &q, &d, &nb, &map};
+            launch(twin_build(int8 ? kTwin8 : kTwin16, map), (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
         }
         const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_).data();
         const float* d0 = (const float*)(q0 + qbytes);
         unsigned long long ni = nin;
         int add = accumulate;
-        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
-        const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
         size_t begin = 0;
         for (size_t r = 0; r < all.n; ++r) {
             const size_t end = all.runs[r].end;
             if (end <= begin || end > nbatch) throw std::runtime_error("rocm: row runs out of order or past the call");
             for (size_t at = begin; at < end;) {
                 const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
-                const uint8_t* q = q0 + at * nin * qsize;
-                const float* d = d0 + at * (nin / 32);
+                size_t first = 0;
+                unsigned xrow = 0, xblock = 0;
+                map.locate(at, first, xrow, xblock);
+                const uint8_t* q = q0 + first * 32 * qsize;
+                const float* d = d0 + first;
                 if (all.runs[r].extent == 1) {
                     // One launch for the group's projections, their output rows one after another.
                     RowCall c{};
@@ -847,7 +931,7 @@ private:
                     launch(builds[form][build], (unsigned)((c.total + rows_per_block_ - 1) / rows_per_block_), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
-                    tile(proj, nproj, q, d, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
+                    tile(proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
                 }
                 at += rows;
             }
@@ -856,10 +940,12 @@ private:
         if (begin != nbatch) throw std::runtime_error("rocm: row runs short of the call");
         record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
         for (size_t pi = 0; pi < nproj; ++pi)
-            if (kept_.x && proj[pi].y < kept_.x + kept_.blocks * 32 && kept_.x < proj[pi].y + proj[pi].nout * nbatch) kept_ = {};
+            if (kept_.x && proj[pi].y < kept_.x + kept_.values && kept_.x < proj[pi].y + proj[pi].nout * nbatch) kept_ = {};
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
-    void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, size_t at, size_t rows, size_t tiles, size_t nin, int add, bool int8) {
+    // The twin's rows lie `xrow` blocks apart and a row's blocks `xblock` apart (TwinMap).
+    void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, unsigned xrow, unsigned xblock, size_t at, size_t rows, size_t tiles, size_t nin,
+              int add, bool int8) {
         // The tall build where the profile's tile_rows_for takes the tallest height; the split stays the 64-output build's, so both builds give the same bits.
         size_t outputs = 0, gx64 = 0;
         for (size_t pi = 0; pi < nproj; ++pi) {
@@ -870,7 +956,8 @@ private:
         const bool tall = tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from) == kTileOutTall;
         const size_t per = tall ? kTileOutTall : kTileOut;
         // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row.
-        if ((nin / 32) * per * 34 + 64 > 0xffffffffull) throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
+        if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (size_t(kTileRows) * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
+            throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
         TileCall c{};
         size_t gx = 0;
         for (size_t pi = 0; pi < nproj; ++pi) {
@@ -884,6 +971,8 @@ private:
         c.nin = nin;
         c.nrows = rows;
         c.add = add;
+        c.xrow = xrow;
+        c.xblock = xblock;
         const size_t nblk = nin / 32, kper = split_blocks(gx64 * tiles, nblk);
         c.kper = (unsigned)kper;
         c.parts = (unsigned)((nblk + kper - 1) / kper);
@@ -918,17 +1007,36 @@ private:
         void* q = nullptr;
         float* d = nullptr;
         bool int8 = false;
+        TwinMap map{};
     };
-    TwinOut twin_out(Slice dst, size_t values) {
+    // Its rows lie as `map` lays them out (TwinMap), the layout the product's own runs give.
+    TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) {
         if (!want_twin_ || values % 32 || as_rocm(*dst.buffer).host_ptr()) return {};
         const bool int8 = want_twin_ == 2;
-        const size_t qbytes = size_mul(values, int8 ? 1 : 2), need = size_add(qbytes, size_mul(values / 32, sizeof(float)));
+        const size_t qbytes = size_mul(map.total, int8 ? 32 : 64), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
         if (!twin_ || twin_->size() < need) twin_ = alloc(need, Memory::device);
         uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
-        return {q, (float*)(q + qbytes), int8};
+        return {q, (float*)(q + qbytes), int8, map};
+    }
+    // A twin producer's build for `m`: the map-free one where every row lies row after row or no twin is written, the one reading the map otherwise (kernels/f32.hip, _major).
+    static Kernel twin_build(Kernel k, const TwinMap& m) {
+        if (!m.regions || m.flat()) return k;
+        switch (k) {
+        case kSiluMulTwin16: return kSiluMulTwin16Major;
+        case kSiluMulTwin8: return kSiluMulTwin8Major;
+        case kRmsNorm16Twin16: return kRmsNorm16Twin16Major;
+        case kRmsNorm16Twin8: return kRmsNorm16Twin8Major;
+        case kRmsNorm32Twin16: return kRmsNorm32Twin16Major;
+        case kRmsNorm32Twin8: return kRmsNorm32Twin8Major;
+        case kAttentionVec: return kAttentionVecMajor;
+        case kAttentionVecMerge: return kAttentionVecMergeMajor;
+        case kTwin16: return kTwin16Major;
+        case kTwin8: return kTwin8Major;
+        default: return k;
+        }
     }
     void keep(const TwinOut& t, const float* x, size_t values) {
-        if (t.q) kept_ = {x, values / 32, t.int8};
+        if (t.q) kept_ = {x, values, t.int8, t.map};
     }
     void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
         raise_failed();
@@ -972,8 +1080,9 @@ private:
     // The twin a producer wrote into twin_ beside its output (the Vulkan producers' design), which a product of that output reads instead of making its own; any other launch, copy, write or allocation forgets it.
     struct {
         const float* x = nullptr;
-        size_t blocks = 0;
+        size_t values = 0;
         bool int8 = false;
+        TwinMap map{};
     } kept_;
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     BufferPtr staged_;   // a product bound for host memory, formed here first

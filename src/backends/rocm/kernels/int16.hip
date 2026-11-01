@@ -292,6 +292,7 @@ struct TileCall {
     int add;
     unsigned kper, parts;
     float* partials;
+    unsigned xrow, xblock;   // the twin's blocks from one row to the next and from one block to the next (TwinMap, kernels/f32.hip)
 };
 // Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
 // A step loads while the previous one computes, but in the tall build over the 16-bit twin, which loads its step after the barrier: holding the next step's loads took it 124 VGPRs and after the barrier it takes 99 (docs/STATUS.md, ROCm tall tile staging).
@@ -328,8 +329,8 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     const unsigned char* Wt = W + o0 * blocks * 34;
     const unsigned mis = (unsigned)((unsigned long long)Wt & 3);
     const unsigned* W4 = (const unsigned*)(Wt - mis);   // the words around the tile's weights, as a pointer into the same buffer so its loads stay global ones
-    const QT* qt = q + b0 * blocks * 32;
-    const float* dxt = dx + b0 * blocks;
+    const QT* qt = q + b0 * c.xrow * 32;
+    const float* dxt = dx + b0 * c.xrow;
     // The quarter's eight bytes sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes: three word loads cover them, the word after where they straddle and the word before where not, which holds the scale in its high half; straddling, the first word holds it in its low half.
     // Every load of a stage goes out before any is waited for: a load out of range reads block 0 and its zero is chosen at the store, so no load sits under a branch the compiler would wait inside.
     const auto load = [&](unsigned long long k0) {
@@ -346,7 +347,7 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
             wv[l][s][1] = W4[w + 1];
             wv[l][s][2] = W4[al[l][s] ? w - 1 : w + 2];
             }
-            const unsigned xb = xok[s] ? (unsigned)r * (unsigned)blocks + (unsigned)k : 0u;
+            const unsigned xb = xok[s] ? (unsigned)r * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
                 const int4 v = ((const int4*)(qt + xb * 32u))[seg];
                 xv[s][0] = v.x, xv[s][1] = v.y, xv[s][2] = v.z, xv[s][3] = v.w;

@@ -602,6 +602,46 @@ void twin_products(Backend& g, Dtype dt) {
         }
         require(same, form + ": the tall tile's outputs are the 64-output tile's bits, at the matrix's start and at its end inside a partial tile");
     }
+    // The twin's layout: a prompt's rows block-major, padded to an odd multiple of 4 rows, give the bits of the same rows laid row after row, which a call of more regions than the layout holds takes.
+    // Row counts either side of each padding step (4, 12, 20) and of a 64-row tile, final tiles cut short, the tall build at 261 and 520 rows, and runs of both kernels side by side, a prompt's region after a row kernel's.
+    for (const size_t lw : {size_t(512), size_t(4096)}) {
+        const size_t lo = lw == 512 ? 200 : 5860;
+        const std::vector<uint8_t> ml = q8_matrix(lw, lo, 95);
+        auto mlb = g.adopt(ml.data(), ml.size());
+        const WeightView wl{quant::GGML_TYPE_Q8_0, {mlb.get(), 0}};
+        const std::vector<size_t> counts = lw == 512 ? std::vector<size_t>{1, 4, 5, 12, 13, 20, 21, 63, 64, 65, 70, 129} : std::vector<size_t>{261, 520};
+        bool flat = true, mixed = true;
+        for (const size_t n : counts) {
+            // xa: the prompt's n rows and 8 more; xo: 3 generated rows, 2 more and a prompt of 5; xm: xo's first 3, the prompt's n, then xo's other 7.
+            const std::vector<float> xa = row_classes::values(lw * (n + 8), 96 + (uint32_t)n), xo = row_classes::values(lw * 10, 97);
+            std::vector<float> xm(xo.begin(), xo.begin() + 3 * lw);
+            xm.insert(xm.end(), xa.begin(), xa.begin() + n * lw);
+            xm.insert(xm.end(), xo.begin() + 3 * lw, xo.end());
+            auto xab = g.adopt(xa.data(), xa.size() * 4), xob = g.adopt(xo.data(), xo.size() * 4), xmb = g.adopt(xm.data(), xm.size() * 4);
+            auto ya = g.alloc(lo * (n + 8) * 4), ym = g.alloc(lo * (n + 10) * 4), yo = g.alloc(lo * 5 * 4);
+            const RowRun alone[1] = {{n, n}};
+            g.matmul(wl, {xab.get(), 0}, {ya.get(), 0}, lw, lo, n, {alone, 1}, dt);
+            const std::vector<float> a = read(g, *ya, lo * n);
+            // Nine regions: the prompt, then single rows of the row kernel and the tile in turn.
+            std::vector<RowRun> nine = {{n, n}};
+            for (size_t i = 1; i <= 8; ++i) nine.push_back({n + i, i % 2 ? size_t(1) : size_t(3)});
+            g.matmul(wl, {xab.get(), 0}, {ya.get(), 0}, lw, lo, n + 8, {nine.data(), nine.size()}, dt);
+            flat = flat && std::memcmp(read(g, *ya, lo * n).data(), a.data(), lo * n * 4) == 0;
+            const RowRun four_runs[4] = {{3, 1}, {3 + n, n}, {5 + n, 1}, {10 + n, 7}};
+            g.matmul(wl, {xmb.get(), 0}, {ym.get(), 0}, lw, lo, n + 10, {four_runs, 4}, dt);
+            const std::vector<float> m4 = read(g, *ym, lo * (n + 10));
+            mixed = mixed && std::memcmp(m4.data() + 3 * lo, a.data(), lo * n * 4) == 0;
+            // Each other run alone gives its rows' bits.
+            struct Part { size_t row, rows, extent, at; };
+            for (const Part p : {Part{0, 3, 1, 0}, Part{3, 2, 1, 3 + n}, Part{5, 5, 7, 5 + n}}) {
+                const RowRun run[1] = {{p.rows, p.extent}};
+                g.matmul(wl, {xob.get(), p.row * lw}, {yo.get(), 0}, lw, lo, p.rows, {run, 1}, dt);
+                mixed = mixed && std::memcmp(read(g, *yo, lo * p.rows).data(), m4.data() + p.at * lo, lo * p.rows * 4) == 0;
+            }
+        }
+        require(flat, form + ": a prompt's rows read block-major give the bits of the same rows read row after row, rows " + std::to_string(lw) + " wide");
+        require(mixed, form + ": runs of the row kernel and the tile side by side give each run's bits alone, rows " + std::to_string(lw) + " wide");
+    }
     // Every pair of extents of one class: the same bits through a Q8_0 product in this class.
     std::vector<std::vector<float>> out;
     const size_t four = 4;
@@ -632,13 +672,13 @@ void producer_twins(Backend& g, Dtype dt) {
         // The copy is dense, so the product of a strided output reads row 0 alone.
         const size_t prows = stride == n ? rows : 1;
         const RowRun prun[1] = {{prows, prows == 1 ? size_t(1) : cs.extent}};
-        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
+        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f, {run, 1});
         g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, prows, {prun, 1}, dt);
         g.copy(*cb, 0, *ob, 0, prows * n * 4);
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, prows, {prun, 1}, dt);
         norms = norms && same(read(g, *y, nout * prows), read(g, *yc, nout * prows));
         if (stride != n) continue;
-        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n);
+        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, {run, 1});
         g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
         g.copy(*cb, 0, *ob, 0, rows * n * 4);
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
@@ -659,9 +699,67 @@ void producer_twins(Backend& g, Dtype dt) {
             dropped = dropped && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
         }
     }
+    // The producers write the twin as the product's runs lay it out (TwinMap): runs of both kernels side by side, and the same output read by a product of other runs, which makes its own.
+    {
+        const size_t n = 4096, rows = 13;
+        const RowRun mixed[3] = {{3, 1}, {10, 7}, {13, 1}}, prompt[1] = {{13, 13}};
+        const std::vector<float> x = row_classes::values(rows * n, 95), w = row_classes::values(n, 96), up = row_classes::values(rows * n, 97);
+        const std::vector<uint8_t> m = q8_matrix(n, nout, 98);
+        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ub = g.adopt(up.data(), up.size() * 4), mb = g.adopt(m.data(), m.size());
+        auto ob = g.alloc(rows * n * 4), cb = g.alloc(rows * n * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
+        const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+        for (const RowRun* pr : {mixed, prompt}) {
+            const RowRuns produced{mixed, 3}, read_as{pr, pr == mixed ? size_t(3) : size_t(1)};
+            g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, produced);
+            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
+            g.copy(*cb, 0, *ob, 0, rows * n * 4);
+            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
+            norms = norms && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, produced);
+            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
+            g.copy(*cb, 0, *ob, 0, rows * n * 4);
+            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
+            silus = silus && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+        }
+    }
     require(norms, form + ": a product of rms_norm_rows' output gives the bits of a product of its copy");
     require(silus, form + ": a product of silu_mul's output gives the bits of a product of its copy");
     require(dropped, form + ": a write or a product into a producer's output drops its twin");
+}
+
+// The per-row attention's bits on gfx906 after 100 and 3000 tokens, one split and several, pinned so a build that sums in another order fails here (docs/STATUS.md, ROCm block-major twin).
+void vec_bits(Backend& g) {
+    const int n_head = 8, n_head_kv = 2, head_dim = 128;
+    const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, rows = 3;
+    const bool pinned = g.identity().find(" gfx906") != std::string::npos;
+    struct Case { size_t hist; uint64_t want; };
+    for (const Case cs : {Case{100, 0xd61b2b255c1cf1b8ull}, Case{3000, 0xedabec7b6f3c2373ull}}) {
+        const size_t all = cs.hist + rows;
+        const std::vector<float> keys = row_classes::values(all * kvw, 71), vals = row_classes::values(all * kvw, 72), q = row_classes::values(rows * qw, 73, 4.0f);
+        auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4), qb = g.adopt(q.data(), q.size() * 4);
+        auto ob = g.alloc(rows * qw * 4);
+        auto st = g.kv_alloc(1, n_head_kv, head_dim, 3200, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence s(&pool, g.kv_layout().block_tokens);
+        s.prepare(all);
+        KVView v = s.view(st.get());
+        g.kv_write(0, &v, 1, {kb.get(), 0}, {vb.get(), 0});
+        v.length = cs.hist;
+        v.nq = rows;
+        v.extent = 1;
+        g.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+        const std::vector<float> out = read(g, *ob, rows * qw);
+        uint64_t h = 1469598103934665603ull;
+        for (float x : out) {
+            uint32_t u;
+            std::memcpy(&u, &x, 4);
+            for (int k = 0; k < 4; ++k) h = (h ^ ((u >> (8 * k)) & 0xff)) * 1099511628211ull;
+        }
+        std::cout << "per-row attention after " << cs.hist << " tokens: bits 0x" << std::hex << h << std::dec << (pinned ? "" : " (not pinned on this device)") << "\n";
+        if (pinned) require(h == cs.want, "the per-row attention after " + std::to_string(cs.hist) + " tokens gives its pinned bits on gfx906");
+        s.abort();
+    }
 }
 
 // A prompt's rows whose histories cross a change in the attention's chunks (256 positions, and 4096 where the count stops at 16), and at 16K a prompt of 40 rows on the attention tile: each row the same bits as that row alone in its class.
@@ -763,7 +861,7 @@ void attention_twins(Backend& g, Dtype dt) {
     const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
     bool ok = true;
     struct Case { size_t hist, rows, extent; };
-    for (const Case cs : {Case{10, 1, 1}, Case{200, 1, 1}, Case{200, 3, 1}, Case{70, 40, 40}}) {
+    for (const Case cs : {Case{10, 1, 1}, Case{200, 1, 1}, Case{200, 3, 1}, Case{70, 5, 5}, Case{70, 40, 40}}) {
         const size_t rows = cs.rows, all = cs.hist + rows;
         const std::vector<float> keys = row_classes::values(all * kvw, 62), vals = row_classes::values(all * kvw, 63), q = row_classes::values(rows * qw, 64, 4.0f);
         auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4), qb = g.adopt(q.data(), q.size() * 4);
@@ -918,6 +1016,7 @@ int main() {
         attention_twins(*g, Dtype::int8);
         host_output(*g);
         attention_chunks(*g);
+        vec_bits(*g);
         pass_args(*g);
         failure();
     } catch (const std::exception& e) {

@@ -61,22 +61,48 @@ __device__ inline void twin_value(float v, float amax, QT* q, float* d, int lane
     if (lane == 0) *d = ldexpf(an / (float)L, -s);
 }
 
+// Where a twin's blocks lie (the host's TwinMap, rocm_backend.cpp): its rows in regions, region g from row first[g] and its blocks from base[g], row after row where pad[g] is 0, else block k of the region's rows together, pad[g] rows a block.
+struct TwinMap {
+    unsigned regions, blocks, shift, magic_lo, magic_hi;   // fb / blocks = fb * magic >> shift for every fb below 2^31
+    unsigned first[8], base[8], pad[8];
+    unsigned total;
+};
+
+// The twin block of block k of row b.
+__device__ inline unsigned long long twin_block(const TwinMap& m, unsigned b, unsigned k) {
+    unsigned g = 0;
+    for (unsigned i = 1; i < m.regions; ++i) g = b >= m.first[i] ? i : g;
+    const unsigned r = b - m.first[g];
+    return m.base[g] + (m.pad[g] ? k * m.pad[g] + r : r * m.blocks + k);
+}
+
+// The twin block of the block numbered fb = b * blocks + k as the floats lie; a null map lays every row row after row, as the map-free builds take it.
+__device__ inline unsigned long long twin_block(const TwinMap* m, unsigned long long fb) {
+    if (!m) return fb;
+    const unsigned b = (unsigned)((fb * ((unsigned long long)m->magic_hi << 32 | m->magic_lo)) >> m->shift);
+    return twin_block(*m, b, (unsigned)fb - b * m->blocks);
+}
+
 // Value v at element i of an output whose twin a later product reads, at the class `level` names (1 block-int16, 2 block-int8, 0 none); the 32 lanes of i's block call it together.
-__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level) {
+__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level, const TwinMap* m) {
     if (!level) return;
     const float amax = block_amax(v);
-    if (level == 2) twin_value<signed char, 127>(v, amax, (signed char*)q + i, d + i / 32, (int)(i % 32));
-    else twin_value<short, 32767>(v, amax, (short*)q + i, d + i / 32, (int)(i % 32));
+    const unsigned long long b = twin_block(m, i / 32);
+    if (level == 2) twin_value<signed char, 127>(v, amax, (signed char*)q + b * 32 + i % 32, d + b, (int)(i % 32));
+    else twin_value<short, 32767>(v, amax, (short*)q + b * 32 + i % 32, d + b, (int)(i % 32));
 }
 
 // The twin of `blocks` blocks of 32 floats, 32 threads a block.
 template <typename QT, int L>
-__device__ void twin(const float* x, QT* q, float* d, unsigned long long blocks) {
+__device__ void twin(const float* x, QT* q, float* d, unsigned long long blocks, const TwinMap* m) {
     const unsigned long long b = (unsigned long long)blockIdx.x * (kThreads / 32) + threadIdx.x / 32;
     const int lane = threadIdx.x % 32;
     const float v = b < blocks ? x[b * 32 + lane] : 0.0f;
     const float amax = block_amax(v);
-    if (b < blocks) twin_value<QT, L>(v, amax, q + b * 32 + lane, d + b, lane);
+    if (b < blocks) {
+        const unsigned long long t = twin_block(m, b);
+        twin_value<QT, L>(v, amax, q + t * 32 + lane, d + t, lane);
+    }
 }
 
 constexpr int kNormThreads = 1024;   // the held norm's block: four times kThreads, so each thread scales a quarter of the values
@@ -85,7 +111,7 @@ constexpr int kNormThreads = 1024;   // the held norm's block: four times kThrea
 // Each of the block's kNormThreads threads loads its values and their weights at once, element t + kNormThreads j; the sum is rms_norm_row's, thread t < kThreads chaining elements t + kThreads k and the chains folded by block_sum's tree, so both give the same bits.
 template <int K, typename QT, int L>
 __device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__ src, const float* __restrict__ w, int n, unsigned long long stride, float eps,
-                              QT* __restrict__ q, float* __restrict__ d) {
+                              QT* __restrict__ q, float* __restrict__ d, const TwinMap* m) {
     constexpr int J = K * kThreads / kNormThreads;
     __shared__ float xs[K * kThreads];
     __shared__ float lds[kThreads];
@@ -130,16 +156,27 @@ __device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__
         y[i] = o;
         if (L) {
             const float amax = block_amax(o);
-            const unsigned long long g = r * (unsigned long long)n + i;
-            twin_value<QT, L>(o, amax, q + g, d + g / 32, i % 32);
+            const unsigned long long b = !m ? (r * (unsigned long long)n + i) / 32 : twin_block(*m, (unsigned)r, (unsigned)i / 32);
+            twin_value<QT, L>(o, amax, q + b * 32 + i % 32, d + b, i % 32);
         }
     }
 }
 
 } // namespace
 
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin16(const float* x, short* q, float* d, unsigned long long blocks) { twin<short, 32767>(x, q, d, blocks); }
-extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin8(const float* x, signed char* q, float* d, unsigned long long blocks) { twin<signed char, 127>(x, q, d, blocks); }
+// Each producer of a twin has a map-free build, which a call whose rows lie row after row takes, and a build reading the map (_major).
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin16(const float* x, short* q, float* d, unsigned long long blocks) {
+    twin<short, 32767>(x, q, d, blocks, nullptr);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin8(const float* x, signed char* q, float* d, unsigned long long blocks) {
+    twin<signed char, 127>(x, q, d, blocks, nullptr);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin16_major(const float* x, short* q, float* d, unsigned long long blocks, TwinMap m) {
+    twin<short, 32767>(x, q, d, blocks, &m);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin8_major(const float* x, signed char* q, float* d, unsigned long long blocks, TwinMap m) {
+    twin<signed char, 127>(x, q, d, blocks, &m);
+}
 
 // dst[i] += src[i].
 extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long long n) {
@@ -149,7 +186,7 @@ extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long 
 
 // dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32.
 template <typename QT, int L>
-__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, QT* q, float* d) {
+__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, QT* q, float* d, const TwinMap* m) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     float o = 0.0f;
     if (i < n) {
@@ -159,17 +196,26 @@ __device__ void silu_mul(float* dst, const float* gate, const float* up, unsigne
     }
     if (L) {
         const float amax = block_amax(o);
-        if (i < n) twin_value<QT, L>(o, amax, q + i, d + i / 32, (int)(i % 32));
+        if (i < n) {
+            const unsigned long long b = twin_block(m, i / 32);
+            twin_value<QT, L>(o, amax, q + b * 32 + i % 32, d + b, (int)(i % 32));
+        }
     }
 }
 extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
-    silu_mul<short, 0>(dst, gate, up, n, q, d);
+    silu_mul<short, 0>(dst, gate, up, n, q, d, nullptr);
 }
 extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
-    silu_mul<short, 32767>(dst, gate, up, n, q, d);
+    silu_mul<short, 32767>(dst, gate, up, n, q, d, nullptr);
 }
 extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, signed char* q, float* d) {
-    silu_mul<signed char, 127>(dst, gate, up, n, q, d);
+    silu_mul<signed char, 127>(dst, gate, up, n, q, d, nullptr);
+}
+extern "C" __global__ void llmx_silu_mul_twin16_major(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d, TwinMap m) {
+    silu_mul<short, 32767>(dst, gate, up, n, q, d, &m);
+}
+extern "C" __global__ void llmx_silu_mul_twin8_major(float* dst, const float* gate, const float* up, unsigned long long n, signed char* q, float* d, TwinMap m) {
+    silu_mul<signed char, 127>(dst, gate, up, n, q, d, &m);
 }
 
 // A block a row: dst row r = RMSNorm(src row r) against w, for any n.
@@ -179,11 +225,16 @@ extern "C" __global__ void llmx_rms_norm_rows(float* dst, const float* src, cons
     rms_norm_row(dst + r * stride, src + r * stride, w, n, eps, lds);
 }
 
-// The held builds for rows of up to 4096 and 8192 values, plain and with the twin of either class.
+// The held builds for rows of up to 4096 and 8192 values, plain and with the twin of either class, the twin's map-free and the map's (_major).
 #define LLMX_NORM(name, K, QT, L)                                                                                                       \
     extern "C" __global__ void __launch_bounds__(kNormThreads) name(float* dst, const float* src, const float* w, int n, unsigned long long stride, \
                                                                 float eps, QT* q, float* d) {                                         \
-        rms_norm_held<K, QT, L>(dst, src, w, n, stride, eps, q, d);                                                                   \
+        rms_norm_held<K, QT, L>(dst, src, w, n, stride, eps, q, d, nullptr);                                                          \
+    }
+#define LLMX_NORM_MAJOR(name, K, QT, L)                                                                                                 \
+    extern "C" __global__ void __launch_bounds__(kNormThreads) name(float* dst, const float* src, const float* w, int n, unsigned long long stride, \
+                                                                float eps, QT* q, float* d, TwinMap m) {                                \
+        rms_norm_held<K, QT, L>(dst, src, w, n, stride, eps, q, d, &m);                                                               \
     }
 LLMX_NORM(llmx_rms_norm_16, 16, short, 0)
 LLMX_NORM(llmx_rms_norm_16_twin16, 16, short, 32767)
@@ -191,6 +242,10 @@ LLMX_NORM(llmx_rms_norm_16_twin8, 16, signed char, 127)
 LLMX_NORM(llmx_rms_norm_32, 32, short, 0)
 LLMX_NORM(llmx_rms_norm_32_twin16, 32, short, 32767)
 LLMX_NORM(llmx_rms_norm_32_twin8, 32, signed char, 127)
+LLMX_NORM_MAJOR(llmx_rms_norm_16_twin16_major, 16, short, 32767)
+LLMX_NORM_MAJOR(llmx_rms_norm_16_twin8_major, 16, signed char, 127)
+LLMX_NORM_MAJOR(llmx_rms_norm_32_twin16_major, 32, short, 32767)
+LLMX_NORM_MAJOR(llmx_rms_norm_32_twin8_major, 32, signed char, 127)
 
 // One head of up to kThreads values held a value a thread: its RMS norm when w is given, then pairs (i, i + half) rotated by the angles c and s, written to head and to out, the value of thread t at out[t].
 // The sum and every product are those of the wider form in llmx_norm_rope, so both give the same bits.
@@ -547,9 +602,9 @@ extern "C" __global__ void llmx_attention_tile(const float* Q, float* O, const v
 
 // Causal attention of rows that attend one at a time (the Vulkan per-row design, attention_vec.comp), heads 128 wide: a block a (row, head, split), 16 streams of 16 lanes, each stream's softmax online and the streams merged in stream order.
 // A row's splits are chunks of its own length; one split writes O and its twin (twin_at), several write partials for llmx_attention_vec_merge; a row whose end is 0 is the tile kernel's.
-extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
-                                              int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
-                                              float* partials, void* tq, float* td, int tlevel) {
+__device__ inline void attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
+                                     int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
+                                     float* partials, void* tq, float* td, int tlevel, const TwinMap* tm) {
     constexpr int DIM = 128, LANES = 16, STREAMS = kThreads / LANES;
     __shared__ float ms[STREAMS], ls[STREAMS];
     __shared__ float accs[STREAMS * DIM];
@@ -577,8 +632,9 @@ extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const vo
         for (int o = LANES / 2; o > 0; o /= 2) part += __shfl_xor(part, o, LANES);
         const float sc = part * scale, mn = fmaxf(m, sc);
         const float corr = expf(m - mn), w = expf(sc - mn);
-        l = l * corr + w;
-        for (int e = 0; e < 8; ++e) acc[e] = acc[e] * corr + w * v8[e];
+        // The fused products are written out, so where this is inlined cannot choose which product the compiler fuses.
+        l = fmaf(l, corr, w);
+        for (int e = 0; e < 8; ++e) acc[e] = fmaf(w, v8[e], acc[e] * corr);
         m = mn;
     }
     if (lid == stream * LANES) {
@@ -601,7 +657,7 @@ extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const vo
     if (nsplit == 1) {
         const float r = A / L;
         O[qrow + lid] = r;
-        twin_at(r, qrow + lid, tq, td, tlevel);
+        twin_at(r, qrow + lid, tq, td, tlevel, tm);
     } else {
         float* out = partials + ((unsigned long long)rh * nsplit + split) * (DIM + 2);
         out[2 + lid] = A;
@@ -611,9 +667,19 @@ extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const vo
         }
     }
 }
+extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
+                                              int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
+                                              float* partials, void* tq, float* td, int tlevel) {
+    attention_vec(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, tlevel, nullptr);
+}
+extern "C" __global__ void llmx_attention_vec_major(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts,
+                                                    const int* ends, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0,
+                                                    int max_parts, float* partials, void* tq, float* td, int tlevel, TwinMap tm) {
+    attention_vec(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk0, max_parts, partials, tq, td, tlevel, &tm);
+}
 
 // The splits of one (row, head) merged (the Vulkan split merge's order, attention_merge.comp): the largest maximum, then the sums in split order, a split without tokens weighing nothing.
-extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, int tlevel) {
+__device__ inline void attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, int tlevel, const TwinMap* tm) {
     constexpr int DIM = 128;
     __shared__ float sw[kThreads], sl[kThreads];
     const int rh = blockIdx.x, r = rh / n_head, lid = threadIdx.x;
@@ -637,7 +703,14 @@ extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float
     }
     const float o = A / L;
     O[(unsigned long long)rh * DIM + lid] = o;
-    twin_at(o, (unsigned long long)rh * DIM + lid, tq, td, tlevel);
+    twin_at(o, (unsigned long long)rh * DIM + lid, tq, td, tlevel, tm);
+}
+extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, int tlevel) {
+    attention_vec_merge(partials, O, ends, n_head, nsplit, tq, td, tlevel, nullptr);
+}
+extern "C" __global__ void llmx_attention_vec_merge_major(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, int tlevel,
+                                                          TwinMap tm) {
+    attention_vec_merge(partials, O, ends, n_head, nsplit, tq, td, tlevel, &tm);
 }
 
 // A block a (row, head): the row's chunks merged in order, each scaled to the largest maximum.

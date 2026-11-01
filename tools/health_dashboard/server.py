@@ -15,6 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY = 1024 * 1024
@@ -296,10 +297,8 @@ def make_handler(collector, html_path):
         def log_message(self, fmt, *args):
             pass
 
-        def _send(self, status, body, content_type):
-            accept = self.headers.get("Accept-Encoding", "")
-            gzip_ok = False
-            for part in accept.split(","):
+        def _accepts_gzip(self):
+            for part in self.headers.get("Accept-Encoding", "").split(","):
                 fields = [field.strip() for field in part.split(";")]
                 if fields[0].lower() != "gzip":
                     continue
@@ -307,9 +306,11 @@ def make_handler(collector, html_path):
                     quality = next((float(field[2:]) for field in fields[1:] if field.lower().startswith("q=")), 1.0)
                 except ValueError:
                     quality = 0.0
-                gzip_ok = math.isfinite(quality) and quality > 0.0
-                break
-            if gzip_ok and body:
+                return math.isfinite(quality) and quality > 0.0
+            return False
+
+        def _send(self, status, body, content_type):
+            if self._accepts_gzip() and body:
                 body = gzip.compress(body, compresslevel=1)
                 self.send_response(status)
                 self.send_header("Content-Encoding", "gzip")
@@ -387,26 +388,43 @@ def make_handler(collector, html_path):
                     cursor = int(parts[1])
             if collector_id != collector.collector_id:
                 cursor = 0
+            gzip_ok = self._accepts_gzip()
+            compressor = zlib.compressobj(level=1, wbits=16 + zlib.MAX_WBITS) if gzip_ok else None
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            if gzip_ok:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("Vary", "Accept-Encoding")
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Connection", "keep-alive")
             self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
+
+            def write_frame(frame):
+                if compressor is not None:
+                    frame = compressor.compress(frame) + compressor.flush(zlib.Z_SYNC_FLUSH)
+                self.wfile.write(frame)
+                self.wfile.flush()
+
+            def finish_stream():
+                if compressor is not None:
+                    self.wfile.write(compressor.flush(zlib.Z_FINISH))
+                    self.wfile.flush()
+
             revision = -1
             try:
                 while True:
                     with collector.changed:
-                        if collector.stopped.is_set():
-                            self.close_connection = True
-                            return
-                        if revision == collector.revision:
+                        stopped = collector.stopped.is_set()
+                        if not stopped and revision == collector.revision:
                             collector.changed.wait(15.0)
-                        if collector.stopped.is_set():
-                            self.close_connection = True
-                            return
+                        stopped = stopped or collector.stopped.is_set()
                         current_revision = collector.revision
+                    if stopped:
+                        finish_stream()
+                        self.close_connection = True
+                        return
                     if current_revision != revision:
                         data = collector.snapshot(cursor)
                         if data["collector_id"] != collector_id:
@@ -416,13 +434,11 @@ def make_handler(collector, html_path):
                             cursor = data["samples"][-1]["seq"]
                         event_id = data["collector_id"] + ":" + str(cursor) + ":" + str(data["revision"])
                         body = json.dumps(data, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-                        self.wfile.write(("id: " + event_id + "\nevent: history\ndata: " + body + "\n\n").encode("utf-8"))
-                        self.wfile.flush()
+                        write_frame(("id: " + event_id + "\nevent: history\ndata: " + body + "\n\n").encode("utf-8"))
                         collector_id = data["collector_id"]
                         revision = current_revision
                     else:
-                        self.wfile.write(b": keepalive\n\n")
-                        self.wfile.flush()
+                        write_frame(b": keepalive\n\n")
             except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
                 self.close_connection = True
                 return

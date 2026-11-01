@@ -46,6 +46,8 @@ the browser's last event cursor after a reconnect. The browser marks the view
 stale while disconnected and retains its displayed history until the collector
 reconnects. Each client waits on the shared collector notification; a slow
 client cannot hold up collection, and there is no per-client polling loop.
+Clients that advertise gzip receive the SSE stream as one incrementally flushed
+gzip response; clients without gzip support keep the plain event stream.
 One-second upstream polling remains an operator choice through `--interval 1`.
 The local mock tests do not measure its load on a live inference server, so the
 default remains two seconds and no zero-overhead claim is made.

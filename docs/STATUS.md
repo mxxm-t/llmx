@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Compressed dashboard event stream (2026-11-01, standalone dashboard)
+
+- **Goal:** reduce the initial dashboard stream transfer while keeping the existing SSE event schema, history cursor, reconnect behavior and uncompressed clients.
+- **Done:** a read-only live history measured 12,435,483 bytes uncompressed and 695,762 bytes with gzip (17.9x smaller) for 1,785 retained samples. The server negotiates one gzip stream per SSE connection and sync-flushes every history and keepalive frame. Clients that decline gzip retain plain SSE. Cursor, restart/reset and event data are unchanged.
+- **Checks:** a test-first stream regression fails against the base server because it lacks `Content-Encoding: gzip`; test commit `c0938296c` preserves it. Seven collector/server tests and the existing browser EventSource update/coalescing test pass. A real headless Chrome EventSource check observed two frames on one connection (initial sample `[1]`, incremental sample `[2]`), `eventsource_opens=1`, and negotiated `gzip`; receipt and runner are in `worktrees/dashboard-sse-gzip-20261101/scratch/`. `docs` reports 0 findings/21 planted faults and `dead-code` reports 8 listed findings/19 planted faults using `llmx 0.1.0+g51eba5587ab1`, SHA-256 `F0E57234CBA00E1C591A47664EE4864ECF3528166163AFDC71E7931ADA890E24`. The CLI source is unchanged from its build base. Python syntax and `git diff --check` pass.
+- **Rebased-tree checks:** the 34c base carries intervening current-main ROCm, build and documentation changes; dashboard server, README, HTML and test files are byte-identical to reviewed head `e352a8ee2`. Docs/dead-code were rerun here with unchanged CLI source using `llmx 0.1.0+g049c2a4102a6.dirty numerics b28b12c9ca13228e`, SHA-256 `d9a2c959cd3c690131b50a48483e6a23eba408fb03c96d76ab44ef37fac05fa5`; results are in `scratch/docs-dead.log` (docs 0 findings/21 planted faults; dead-code 8 listed findings/19 planted faults).
+- **Left:** review complete; prepared for coordinator fast-forward from this rebased tree, with the authorized production rollout after landing.
+- **Gotchas:** the live size check was one HTTP history response, not an inference workload or a browser handshake measurement. No collector, inference runtime or production service has been changed.
+
 ## Vulkan GLSL incremental dependencies (2026-11-01, build fix, rebased and landed on public main)
 
 - **Goal:** rebuild a Vulkan SPIR-V output when any shared GLSL include changes, and automatically add new shader headers to the build graph.

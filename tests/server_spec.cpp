@@ -132,8 +132,16 @@ void steady_holds(const Make& drafting, const MakeProposer& proposer, const bpe:
     auto model = drafting(4096, 0);
     auto p = proposer(*model);
     server::Scheduler sched(*model, tok, 2, 64, passes, false, 0, p.get(), kDraftMax, false);
-    std::thread runner([&] { sched.run(); });
+    // The counters as the first pass retires whose history has reached the 60th and the 300th generated token, taken on the scheduler's thread, so the window follows the reply's positions however late its tokens are read.
     server::Scheduler::Stats early, late;
+    bool at_early = false, at_late = false;
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        for (size_t e = 0; e < t.from.size(); ++e) {
+            if (!at_early && t.from[e] >= prompt.size() + 60) early = sched.stats(), at_early = true;
+            if (!at_late && t.from[e] >= prompt.size() + 300) late = sched.stats(), at_late = true;
+        }
+    };
+    std::thread runner([&] { sched.run(); });
     size_t read = 0;
     try {
         auto r = sched.submit(prompt, params_of({prompt, 400}));
@@ -148,8 +156,7 @@ void steady_holds(const Make& drafting, const MakeProposer& proposer, const bpe:
             const auto got = r->next(t, server::Request::Clock::now() + std::chrono::seconds(120));
             if (got == server::Request::Next::end) break;
             require(got == server::Request::Next::id, what + ": a channel gave nothing for 120 seconds");
-            if (++read == 60) early = sched.stats();
-            if (read == 300) late = sched.stats();
+            ++read;
         }
     } catch (...) {
         sched.stop();
@@ -158,7 +165,8 @@ void steady_holds(const Make& drafting, const MakeProposer& proposer, const bpe:
     }
     sched.stop();
     runner.join();
-    require(read == 400 && total(late.drafted) > total(early.drafted), what + ": " + std::to_string(total(late.drafted) - total(early.drafted)) + " drafts fed in steady state");
+    require(read == 400 && at_early && at_late, what + ": " + std::to_string(read) + " tokens read, the window's ends " + (at_early ? "" : "not ") + "reached at 60 and " + (at_late ? "" : "not ") + "at 300");
+    require(total(late.drafted) > total(early.drafted), what + ": " + std::to_string(total(late.drafted) - total(early.drafted)) + " drafts fed in steady state");
     require(late.holds == early.holds, what + ": " + std::to_string(late.holds - early.holds) + " holds of every recorder in steady drafting");
     std::cout << "server-spec: " << what << ": " << total(late.drafted) - total(early.drafted) << " drafts fed in steady state with no hold of the recorders" << std::endl;
 }

@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Steady drafting is seen by the reply's positions (2026-11-01, SDEV, branch fix/steady-drafting-by-position on main 2a6740508, the coordinator's ask of 04:15)
+
+- **Goal:** the hosted macos-15-intel runner once failed `server-spec` with "steady drafting, the hybrid model with its embedded drafter on one CPU: 0 drafts fed in steady state" (job 124723419632) and passed on a re-run.
+- **Found:** a test fault, not a drafting one: `steady_holds` took the scheduler's counters when its reader read the 60th and the 300th token, and a reader starved on a slow machine reads token 60 after the reply has passed 300, so both snapshots are the end's, the window holds no drafts, and the holds check passes without having looked.
+- **Done:** the failing test (the reader starts only once the reply has ended, which makes that case certain), then the counters are taken on the scheduler's thread as the first pass retires whose history has reached each end (`Scheduler::on_retire`), so the window follows the reply's positions however late its tokens are read; what it requires is unchanged.
+
 ## ROCm block-major twin (2026-11-01, DDEV, branch perf/rocm-twin-major on perf/rocm-tall-stage b0af9f978, which it lands after; step 1 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
 
 **Goal:** the int8 tall tile within reach of Vulkan's call time with the same bits: the 8-bit twin's rows lay 4096 bytes apart on the 8B, so a tile stage's 64 rows of block k fell on the same memory channels (knockouts: one X row for every row took the 8B gate,up from 5.62 to 5.02 ms a call, Vulkan 4.99).

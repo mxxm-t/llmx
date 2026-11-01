@@ -144,12 +144,38 @@
     "log_path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/glsl-include-deps-571f92c-final-20261101.log",
     "log_sha256": "ee5e10a3d48440b152615be5db54d71d999912ee081e8f94c7876d0abc8427b8"
   },
-  "pending_hosted_configure_checks": {
+  "hosted_configure_checks": {
     "windows": "passed: Configure and Build",
     "macos": "passed: Configure and Build",
     "ubuntu": "passed: Configure and Build",
     "linux_vulkan": "passed: Configure with Vulkan backend and Build",
     "full_runtime_or_numerical_requalification": "not required for this CMake dependency-only change"
+  },
+  "final_hosted_run": {
+    "run_id": 41317114046,
+    "run_url": "https://github.com/mxxm-t/llmx/actions/runs/41317114046",
+    "tested_head": "3418d0b2cbe4d27f2e5fc5e194faa925a6d1f39b",
+    "branch": "gate/glsl-include-deps-20261101",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs_passed": 8,
+    "verification": "GitHub Actions run summary reports Success for the exact landed head."
+  },
+  "landing": {
+    "public_main": "3418d0b2cbe4d27f2e5fc5e194faa925a6d1f39b",
+    "method": "fast-forward",
+    "temporary_gate_branch_deleted_by": "XDEV",
+    "temporary_gate_branch_deleted": true
+  },
+  "final_docs_only_correction": {
+    "base_main": "3418d0b2cbe4d27f2e5fc5e194faa925a6d1f39b",
+    "command": "python tests/run_tests.py --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-main049c-20261101/build-q2-native-current/Release/llmx.exe --only docs,dead-code",
+    "cli_version": "llmx 0.1.0+g049c2a4102a6.dirty numerics b28b12c9ca13228e",
+    "cli_sha256": "d9a2c959cd3c690131b50a48483e6a23eba408fb03c96d76ab44ef37fac05fa5",
+    "docs": "PASS: 0 findings, 21 planted faults",
+    "dead_code": "PASS: 8 listed findings (1 unused, 7 test-only), 19 planted faults",
+    "log_path": "scratch/glsl-status-3418-20261101/docs-dead.log",
+    "log_sha256": "25256c77b97913176bf6e87349af6f9a13a028b52d26ab28c13f5bf3b78dc3e5"
   },
   "hosted_build_observation": {
     "run_id": 41295796049,

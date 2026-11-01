@@ -1,5 +1,5 @@
 // Drafting in the scheduler (docs/SPECULATIVE.md, section 3): requests that verify drafts beside each other give, token for token, the ids and log-probabilities they give alone without drafts.
-// The models, placements and request kinds it runs over are listed under `server-spec` in AGENTS.md, Tests.
+// The models, placements and request kinds it runs over are listed under `server-spec` in docs/TESTS.md.
 #include <iostream>
 #include <cmath>
 #include <cstring>

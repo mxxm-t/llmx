@@ -1,4 +1,4 @@
-"""The runtime names no architecture: outside the modules under src/model/arch/, no file of the runtime, the loader, the passes, the server or the CLI names a registered architecture or a tensor, and neither does a header the modules share (AGENTS.md, Tests, the Arch boundary entry).
+"""The runtime names no architecture: outside the modules under src/model/arch/, no file of the runtime, the loader, the passes, the server or the CLI names a registered architecture or a tensor, and neither does a header the modules share (docs/TESTS.md, the Arch boundary entry).
 
 The registered names are read from src/model/arch/registry.hpp. Modules are the headers it includes or headers under src/model/arch/ that implement Architecture; the rest are shared.
 A name counts wherever it stands as a word: in its own case anywhere, comments and strings included, and in any case outside a string, so a comment's "Qwen3" counts and a model id in a help text does not.

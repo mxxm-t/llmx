@@ -158,7 +158,7 @@ python -X utf8 tests/baseline_8b.py --exe build/llmx --model path/to/Qwen3-8B-Q8
 
 Use `--exe build/Release/llmx.exe` for MSVC.
 It verifies model/fixture hashes, records executable identity, commands and failures in `report.json`, saves raw output beside it, and never downloads or skips a missing model.
-Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, counting the boundary swaps AGENTS.md's HF baseline rule allows, with absolute NLL deltas <= 0.01 continuous and <= 0.02 windowed.
+Frozen bounds require exact token IDs, top-1 agreement and top-5 overlap 5/5, counting the boundary swaps the HF baseline rule of `docs/TESTS.md` allows, with absolute NLL deltas <= 0.01 continuous and <= 0.02 windowed.
 Each NLL case is scored twice, in batched passes and with `--per-token`, as in `tests/baseline.py`, so a run has 41 checks.
 Top-10 output must be finite, sorted, unique-ID and within absolute magnitude 100; `tests/baseline.py` holds the 0.6B outputs to the same validators at its own bounds.
 This optional run is outside default CI; see [ASSETS](ASSETS.md#optional-qwen3-8b-hf-consumer) for reference provenance, the verified Linux cache path and the limits of short-excerpt coverage.

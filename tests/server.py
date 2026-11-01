@@ -26,7 +26,7 @@ from tokenizer import build_byte_vocab
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import server_load  # noqa: E402
 
-# The server of docs/SERVER.md against the CLI on the same file, on synthetic dense and MoE models that need no download and on the real Q8_0 fixture when it is on disk; AGENTS.md (Tests, Server) lists what each check holds.
+# The server of docs/SERVER.md against the CLI on the same file, on synthetic dense and MoE models that need no download and on the real Q8_0 fixture when it is on disk; docs/TESTS.md (Server) lists what each check holds.
 
 
 class Server:
@@ -203,7 +203,7 @@ def cli_detokenize(model, ids):
 
 
 def check_tokenize(srv, model, texts, replies, vocab, chat):
-    """/v1/tokenize and /v1/detokenize against `llmx tokenize` and `llmx detokenize`, the load tool's count and the prompts the generating routes read; AGENTS.md lists the cases."""
+    """/v1/tokenize and /v1/detokenize against `llmx tokenize` and `llmx detokenize`, the load tool's count and the prompts the generating routes read; docs/TESTS.md lists the cases."""
     counts = {}
     for text in texts:
         want = cli_tokenize(model, text)
@@ -244,7 +244,7 @@ def check_tokenize(srv, model, texts, replies, vocab, chat):
         assert status == 200 and turn["prompt_tokens"] == len(cli_tokenize(model, last["expected"])), turn
         status, plain = srv.post("/v1/generate", {"prompt": last["expected"], "max_tokens": 4, "temperature": 0})
         assert status == 200 and plain["ids"] == turn["ids"], (plain, turn)
-    # Refusals in the native error shape (AGENTS.md, Tests): a body that is not a JSON object, a mistyped or missing field, an id outside the vocabulary (2^32 past a valid id included), and a body past the size limit.
+    # Refusals in the native error shape (docs/TESTS.md): a body that is not a JSON object, a mistyped or missing field, an id outside the vocabulary (2^32 past a valid id included), and a body past the size limit.
     refused = [("/v1/tokenize", b"{"), ("/v1/tokenize", b"[]"), ("/v1/tokenize", {}), ("/v1/tokenize", {"text": 5}),
                ("/v1/tokenize", {"text": "a", "messages": [{"role": "user", "content": "a"}]}),
                ("/v1/tokenize", {"messages": []}), ("/v1/tokenize", {"messages": "a"}),
@@ -632,7 +632,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
                                                   "max_tokens": 2, "temperature": 0})
             assert status == 200 and reply["tokens"] >= 1, reply
 
-        # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed, and /v1/chat/completions renders the same template as /v1/chat (AGENTS.md, Tests).
+        # The compatible routes: /v1/completions gives the native route's greedy text in the standard shape, whole and streamed, and /v1/chat/completions renders the same template as /v1/chat (docs/TESTS.md).
         # An absent max_tokens, or -1, means no cap, checked on the synthetic model only, since the real model's uncapped reply would run long.
         if not chat:
             limit = models["data"][0]["context_length"]

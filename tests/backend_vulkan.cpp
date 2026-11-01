@@ -1,4 +1,4 @@
-// Vulkan storage, submission and kernel checks against CPU or independent references; coverage and bounds are in AGENTS.md, Tests.
+// Vulkan storage, submission and kernel checks against CPU or independent references; coverage and bounds are in docs/TESTS.md.
 // Exits 77 when no supported device opens, which CTest reports as skipped.
 #include <algorithm>
 #include <cctype>
@@ -480,7 +480,7 @@ std::vector<float> tie_free(size_t n, uint32_t seed) {
     return v;
 }
 
-// Check int8 matrix paths against CPU products of independently rounded inputs, with whole and sliced prompt identity (AGENTS.md, Tests).
+// Check int8 matrix paths against CPU products of independently rounded inputs, with whole and sliced prompt identity (docs/TESTS.md).
 // MXFP4 and F32 weights must retain F16 results and report their wider paths.
 size_t check_int8(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
@@ -590,7 +590,7 @@ size_t check_int8_twin_width() {
     return exact(expected, actual, "int8 twin reused across matrix widths changes output");
 }
 
-// Twins producers wrote stay with their activations through writes elsewhere in the same buffer: matmuls from them quantize nothing and equal matmuls from fresh copies of their floats (AGENTS.md, Tests).
+// Twins producers wrote stay with their activations through writes elsewhere in the same buffer: matmuls from them quantize nothing and equal matmuls from fresh copies of their floats (docs/TESTS.md).
 size_t check_twin_table() {
     const auto owner = backend::make_vulkan_backend(0, true);
     backend::Backend& vk = *owner;
@@ -697,7 +697,7 @@ size_t check_twin_table() {
     return values;
 }
 
-// Each kernel's write set as the backend derives it from its SPIR-V, against its shader's qualifiers: a binding whose every declaration is readonly is read only, and one with no readonly declaration is written (AGENTS.md, Tests).
+// Each kernel's write set as the backend derives it from its SPIR-V, against its shader's qualifiers: a binding whose every declaration is readonly is read only, and one with no readonly declaration is written (docs/TESTS.md).
 size_t check_write_sets() {
     std::map<std::string, std::string> sources;
     for (std::string list = LLMX_VK_SHADER_SOURCES; !list.empty();) {
@@ -1183,7 +1183,7 @@ size_t check_kernels(backend::Backend& vk) {
             values += close(qc, qv, 1e-5, "norm_rope_kv q differs beyond 1e-5");
             values += close(ac, av, 1e-4, "norm_rope_kv attention differs beyond 1e-4");
         }
-        // Tiled attention covers full and partial query tiles, both head widths and cache types, and several histories against the CPU (AGENTS.md, Tests).
+        // Tiled attention covers full and partial query tiles, both head widths and cache types, and several histories against the CPU (docs/TESTS.md).
         // Scaled queries produce peaked scores rather than nearly uniform softmax.
         for (int head_dim : {128, 256})
         for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16})
@@ -1451,7 +1451,7 @@ size_t check_kernels(backend::Backend& vk) {
                 throw;
             }
         }
-        // Producer-written and separately quantized twins must give identical products, including both int8 layouts (AGENTS.md, Tests).
+        // Producer-written and separately quantized twins must give identical products, including both int8 layouts (docs/TESTS.md).
         // Intervening host or kernel writes must invalidate the cached twin.
         if (nin == 1024) {
             backend::Dtype dtype = backend::Dtype::f16;
@@ -1822,7 +1822,7 @@ size_t check_kernels(backend::Backend& vk) {
             }
         }
         // A mixed group keeps every partition on the whole group's row kernel, even when its Q8_0 partition alone would cross to a tile.
-        // Compare both edges of the gap against forced row calls (AGENTS.md, Tests).
+        // Compare both edges of the gap against forced row calls (docs/TESTS.md).
         for (size_t nbatch : {tile_from_8bit, tile_from_other - 1}) {
             if (nbatch < tile_from_8bit || nbatch >= tile_from_other) continue;
             const auto x = uniform(nbatch * nin, 50 + (uint32_t)nbatch);
@@ -2090,7 +2090,7 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: Q8_0 matvec 4096x4096 " << ms << " ms, "
                   << (double)wq.size() / ms / 1e6 << " GB/s\n";
     }
-    // Routing and grouped gate/up/down products are checked against the CPU for every type, across row, tile and mixed passes (AGENTS.md, Tests).
+    // Routing and grouped gate/up/down products are checked against the CPU for every type, across row, tile and mixed passes (docs/TESTS.md).
     // Each reference row uses the activations its selected kernel reads.
     {
         const size_t n_expert = 6, k = 2, nin = 256, nff = 67, nout = 45;
@@ -2358,7 +2358,7 @@ size_t check_f32_filling_builds(backend::Backend& vk) {
 }
 
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
-// AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
+// docs/TESTS.md describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
 size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
     const size_t widest = 256;
     // Remainders reach every narrower build, 18 and 29 columns leave the widest Q8_0 build's second group partially filled, and past 64 whole chunks run side by side beside a remainder of each width.
@@ -2955,7 +2955,7 @@ std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
     return v;
 }
 
-// Witness independently named kernels and require each refusal to leave recording and output unchanged, with a valid call afterwards (AGENTS.md, Tests).
+// Witness independently named kernels and require each refusal to leave recording and output unchanged, with a valid call afterwards (docs/TESTS.md).
 // The first pass retires operand slots before refusal; the second retains a previously filled output.
 size_t check_weight_dispatch() {
     const auto owner = backend::make_vulkan_backend(0, true);
@@ -3833,7 +3833,7 @@ size_t check_gated_attention(Pair& p, bool integer_dot) {
 }
 }  // namespace q35
 
-// Embedded-drafter argmax and embedding ops must match the CPU, including ties, nonfinite logits, prior ids and out-of-range ids (AGENTS.md, Tests).
+// Embedded-drafter argmax and embedding ops must match the CPU, including ties, nonfinite logits, prior ids and out-of-range ids (docs/TESTS.md).
 size_t check_drafter_ops(Pair& p) {
     size_t values = 0;
     auto ids_on = [](backend::Backend& b, const std::vector<uint32_t>& ids) {
@@ -4119,7 +4119,7 @@ size_t check_ops(backend::Backend& vk) {
 }
 }  // namespace vision
 
-// Matrix precision checks use unquantized double products and the selected activation policy's bound (AGENTS.md, Tests).
+// Matrix precision checks use unquantized double products and the selected activation policy's bound (docs/TESTS.md).
 // Block outliers expose the quantization step, and F32/BF16 cases also hold decode-column identity.
 size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
     const size_t nin = 1024, nout = 48;
@@ -4429,7 +4429,7 @@ size_t check_float_workspace(backend::Backend& vk) {
 }
 
 // A tensor group's collective must add partials in member order on every device, with alternating inbox parities (docs/TENSOR-SPLIT.md, section 4.3).
-// AGENTS.md, Tests describes the widths, tails and refusals.
+// docs/TESTS.md describes the widths, tails and refusals.
 size_t check_collective(const backend::BackendPtr& first) {
     backend::BackendPtr second;
     try {

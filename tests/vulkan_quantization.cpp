@@ -960,7 +960,7 @@ void check_elementwise_reference(backend::VulkanBackend& preserved, backend::Vul
     }
 }
 
-// Every 16-bit twin word equals the host's run of the writer's arithmetic (xquant.glsl xq_div and xq_rdiv), the quantizer's and a producer's in either module, so a twin is one function of its floats (AGENTS.md, Tests).
+// Every 16-bit twin word equals the host's run of the writer's arithmetic (xquant.glsl xq_div and xq_rdiv), the quantizer's and a producer's in either module, so a twin is one function of its floats (docs/TESTS.md).
 size_t check_twin_quotients(backend::VulkanBackend& b) {
     const size_t blocks = 4096, n = blocks * 32;
     std::mt19937 rng(91);

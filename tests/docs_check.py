@@ -696,7 +696,8 @@ TEST_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SPAN_LIST = r"\x00\d+\x00(?:(?:,\s*(?:and\s+)?|\s+and\s+)\x00\d+\x00)*"
 CTEST_SPANS = re.compile(r"\bCTests?\b(?:\s*[\w',]+){0,3}?\s*(" + SPAN_LIST + ")")
 COMPONENT_SPANS = re.compile(r"\bcomponents?\s+(" + SPAN_LIST + r")|(" + SPAN_LIST + r")\s+components?\b")
-# A line of AGENTS.md's Tests that opens with a test's name and what it does: "`sampler` calls ...".
+TESTS_DOC = "docs/TESTS.md"
+# A line of docs/TESTS.md that opens with a test's name and what it does: "`sampler` calls ...".
 OPENER = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)*)` [a-z]+s\b")
 
 
@@ -721,18 +722,15 @@ def presented_tests(line):
 
 
 def test_name_findings(tree):
-    """`test-name`: a name a live doc presents as a CTest or a suite component, or that opens a line of AGENTS.md's Tests, that the tree does not have as one; another test-like name in AGENTS.md's Tests or docs/CI.md that nothing in the tree names; and a CTest or suite component AGENTS.md's Tests never describes."""
+    """`test-name`: a name a live doc presents as a CTest or a suite component, or that opens a line of docs/TESTS.md, that the tree does not have as one; another test-like name in docs/TESTS.md or docs/CI.md that nothing in the tree names; and a CTest or suite component docs/TESTS.md never describes."""
     found = Findings()
-    agents = tree.texts["AGENTS.md"]
-    start = agents.index("\n## Tests")
-    end = agents.index("\n## ", start + 1)
-    first, last = agents.count("\n", 0, start) + 2, agents.count("\n", 0, end) + 1
+    page = tree.texts[TESTS_DOC]
     exact = {"ctest": (tree.ctests, "a CTest the tree lacks"), "component": (tree.components, "a suite component the tree lacks")}
     for doc in doc_files(tree.texts):
         for n, line, region, fence in doc_lines(doc, tree.texts[doc]):
             if region != "live" or fence:
                 continue
-            in_tests = doc == "AGENTS.md" and first <= n < last
+            in_tests = doc == TESTS_DOC
             held = set()
             for name, what, column in presented_tests(line):
                 held.add(column)
@@ -742,20 +740,20 @@ def test_name_findings(tree):
             if m:
                 held.add(0)
                 if m.group(1) not in tree.ctests and m.group(1) not in tree.components:
-                    found.add("test-name", doc, m.group(1), n, "a test AGENTS.md's Tests describes that the tree lacks")
+                    found.add("test-name", doc, m.group(1), n, "a test docs/TESTS.md describes that the tree lacks")
             if in_tests or doc == "docs/CI.md":
                 for s in SPAN.finditer(line):
                     t = s.group(2).strip()
                     if s.start() not in held and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)+", t) and not tree.known(t) \
                             and t not in tree.code_text and t not in tree.build_text:
                         found.add("test-name", doc, t, n, "a test name the tree lacks", s.start())
-    named = set(re.findall(r"`([^`\n]+)`", agents[start:end]))
+    named = set(re.findall(r"`([^`\n]+)`", page))
     for name, target in sorted(tree.ctests.items()):
         if name not in named and tree.targets.get(target, "") not in named:
-            found.add("test-name", "AGENTS.md", name, first, "a CTest AGENTS.md's Tests never describes")
+            found.add("test-name", TESTS_DOC, name, 1, "a CTest docs/TESTS.md never describes")
     for name, module in sorted(tree.components.items()):
         if name not in named and "tests/%s.py" % module not in named:
-            found.add("test-name", "AGENTS.md", name, first, "a suite component AGENTS.md's Tests never describes")
+            found.add("test-name", TESTS_DOC, name, 1, "a suite component docs/TESTS.md never describes")
     return found
 
 
@@ -915,7 +913,7 @@ def planted(tree, plants):
 
 
 def self_test(tree, found, listed):
-    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while AGENTS.md describes them, and a stale list entry.
+    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while docs/TESTS.md describes them, and a stale list entry.
     A correct pinned line reference must give no finding.
     The faults one check reports share a copy of the tree, so each check runs once."""
     page = "docs/src/core-utf8.md"
@@ -959,8 +957,8 @@ def self_test(tree, found, listed):
             ("a page for a file that does not exist", ("src-page", "docs/src/core-planted.md", "src/core/planted.hpp"))]),
         (comment_findings, walls, [("a comment of four sentences", ("comment", "src/core/utf8.hpp", "wall"))]),
         (test_name_findings, removed, [
-            ("a removed CTest AGENTS.md's Tests opens a line with", ("test-name", "AGENTS.md", "sampler")),
-            ("a removed CTest AGENTS.md names after CTest", ("test-name", "AGENTS.md", "kv-cache"))]),
+            ("a removed CTest docs/TESTS.md opens a line with", ("test-name", TESTS_DOC, "sampler")),
+            ("a removed CTest docs/TESTS.md names after CTest", ("test-name", TESTS_DOC, "kv-cache"))]),
     ]
     ok, count = True, 2
     for check, planted_tree, faults in cases:

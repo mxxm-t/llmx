@@ -1,4 +1,4 @@
-// The Vulkan twin writer's scale and reciprocal (shaders/xquant.glsl, xq_div and xq_rdiv), followed on the host operation for operation for every significand in [1, 2), against the IEEE quotients (AGENTS.md, Tests).
+// The Vulkan twin writer's scale and reciprocal (shaders/xquant.glsl, xq_div and xq_rdiv), followed on the host operation for operation for every significand in [1, 2), against the IEEE quotients (docs/TESTS.md).
 // Built without contraction, so each multiply and add rounds as the shader's precise ones do.
 #include <algorithm>
 #include <cmath>

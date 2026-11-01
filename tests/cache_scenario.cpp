@@ -745,7 +745,7 @@ void restore_beside_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
 }
 
 // A donor's write slower than the wait's constant (production, 2026-10-17 run D), each 4 MiB held five seconds, whose room another request needs once the write is under way.
-// The wait lets the next turn read it back; `capped` at 1 us a row of recomputing, each piece held five minutes, it reaches its bound and is counted (AGENTS.md, Tests).
+// The wait lets the next turn read it back; `capped` at 1 us a row of recomputing, each piece held five minutes, it reaches its bound and is counted (docs/TESTS.md).
 void slow_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v, bool capped) {
     const std::string what = capped ? "a write slower than a wait capped by recomputing" : "a write slower than the wait's constant";
     DiskRoot disk(capped ? "slow-write-capped" : "slow-write");

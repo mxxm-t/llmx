@@ -1,5 +1,5 @@
 // infer::log_sum_exp, logprob and top_logprobs against a compensated double-precision reference, and the server's token channel carrying the log-softmax of the very row each token was sampled from.
-// AGENTS.md (Tests, logprobs) lists the cases.
+// docs/TESTS.md lists the cases under `logprobs`.
 #include <algorithm>
 #include <chrono>
 #include <cmath>

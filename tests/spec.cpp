@@ -1,4 +1,4 @@
-// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: test-only proposers, lookup and the embedded drafter, on dense, routed and hybrid models over one to four CPU stages (AGENTS.md, Tests).
+// Speculative decoding's round (docs/SPECULATIVE.md, section 3) held to the run without drafts: test-only proposers, lookup and the embedded drafter, on dense, routed and hybrid models over one to four CPU stages (docs/TESTS.md).
 // Then the history calls under a verify: every row equals single steps, a retract to any row continues as if never drafted, and a rerun that fails keeps the mark for a retry.
 #include <chrono>
 #include <iostream>

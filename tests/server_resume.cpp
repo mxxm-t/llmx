@@ -1,5 +1,5 @@
 // Requests the scheduler pauses and resumes give, token for token, the ids and log-probabilities they give alone, over the synthetic Q8_0 model, and room goes by first admission (docs/SERVER.md).
-// Usage: llmx-server-resume-test [cpu|device], both by default, the device cases on Vulkan device 0 when it opens; the cases are listed in AGENTS.md, Tests.
+// Usage: llmx-server-resume-test [cpu|device], both by default, the device cases on Vulkan device 0 when it opens; the cases are listed in docs/TESTS.md.
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -972,7 +972,7 @@ void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
 }
 
 // A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): the ids a 300-token prompt's next turn begins with go to the scheduler, whose job reads them on a fork and keeps a donor for a follow-up to fork.
-// The variants (idle, `interrupt` k, `small`, `writing`, `at_once`, `passes`) are in AGENTS.md, Tests; each gives every reply its reply alone, and with two passes on a split the job's slices must continue each other.
+// The variants (idle, `interrupt` k, `small`, `writing`, `at_once`, `passes`) are in docs/TESTS.md; each gives every reply its reply alone, and with two passes on a split the job's slices must continue each other.
 enum class When { idle, writing, at_once };
 
 void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false, size_t passes = 1) {
@@ -1613,7 +1613,7 @@ void arrives_during_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t 
 }
 
 // Turns at the pool's edge are given up only where the history left behind is kept (production, 2026-10-17: a reply paused 20 times, nothing taken back, 67456 tokens recomputed).
-// Two uncapped replies on a pool too small for both, a host tier of 1 GiB and the host's free memory enough for every copy or 1 MiB, the expectations in AGENTS.md, Tests.
+// Two uncapped replies on a pool too small for both, a host tier of 1 GiB and the host's free memory enough for every copy or 1 MiB, the expectations in docs/TESTS.md.
 void turns_need_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool hybrid, bool memory) {
     const std::string what = std::string("turns at the pool's edge on a ") + (hybrid ? "hybrid" : "Q8_0") + " model, " + (memory ? "the host's memory for every copy" : "1 MiB of host memory free");
     const size_t room = memory ? (size_t)1 << 32 : (size_t)1 << 20;
@@ -3684,7 +3684,7 @@ void stream_end_seen(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
 }
 
 // A restart whose host memory cannot hold one whole copy of a kept conversation (A20, docs/CACHE-PLAN.md): its next turn must still reuse every row its files hold, read from disk straight to the devices, with its reply on a fresh model.
-// The second server has a host tier of 64 KiB and 1 MiB free, and the stream's faults are a flipped byte, a turn cancelled mid-read and a stop mid-read (AGENTS.md, Tests).
+// The second server has a host tier of 64 KiB and 1 MiB free, and the stream's faults are a flipped byte, a turn cancelled mid-read and a stop mid-read (docs/TESTS.md).
 enum class Streamed { whole, corrupt, cancelled, stopped, device_fails, shared, partial, group, setup_fails };
 // A CPU backend whose first submission after a copy out of a read ring's slot it imported (a streamed chunk's, kChunk bytes) throws.
 struct StreamFails : backend::CpuBackend {

@@ -26,7 +26,7 @@ inline bool k23_integer(backend::Backend& b, backend::Dtype dtype) {
 }
 
 // Reconstruct each 32-value block at 32767 levels, or 127 for int8, with half-away-from-zero rounding.
-// Feeding these activations to the CPU separates matrix arithmetic from input quantization (AGENTS.md, Tests).
+// Feeding these activations to the CPU separates matrix arithmetic from input quantization (docs/TESTS.md).
 inline std::vector<float> row_activations(const std::vector<float>& x, int levels = 32767) {
     std::vector<float> out(x.size());
     const float top = float(levels);

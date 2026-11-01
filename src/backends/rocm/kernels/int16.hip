@@ -296,6 +296,8 @@ struct TileCall {
 };
 // Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
 // A step loads while the previous one computes, but in the tall build over the 16-bit twin, which loads its step after the barrier: holding the next step's loads took it 124 VGPRs and after the barrier it takes 99 (docs/STATUS.md, ROCm tall tile staging).
+// A value at a 32-bit byte offset from a uniform base, so the load takes the base from scalar registers and the offset from one vector register, with no 64-bit address arithmetic; the host bounds every offset (`rocm_backend.cpp`, the tile launch).
+template <typename T> __device__ inline T at(const void* base, unsigned off) { return *(const T*)((const unsigned char*)base + off); }
 // WQ quant words as one load: their words are 4-byte aligned, which a global vector load takes.
 template <int WQ> using QWords = unsigned __attribute__((ext_vector_type(WQ), aligned(4)));
 template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; static constexpr bool ahead = RO == 4 || sizeof(QT) == 1; };
@@ -328,7 +330,7 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     bool wok[STEP], al[STEP], xok[STEP];
     int xv[STEP][WORDS / 4];       // a quarter of the twin block
     float xs_[STEP];
-    // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit and its loads take the base from scalar registers.
+    // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit bytes (`at`) and its loads take the base from scalar registers.
     const unsigned char* Wt = W + o0 * blocks * 34;
     const unsigned mis = (unsigned)((unsigned long long)Wt & 3);
     const unsigned* W4 = (const unsigned*)(Wt - mis);   // the words around the tile's weights, as a pointer into the same buffer so its loads stay global ones
@@ -342,21 +344,21 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
             const unsigned long long k = k0 + s;
             xok[s] = k < kend && b < nrows;
             wok[s] = k < kend && o < nout;
-            const unsigned a = mis + (wok[s] ? ((unsigned)wr * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + ws * (4u * WQ), w = a >> 2;
+            const unsigned a = mis + (wok[s] ? ((unsigned)wr * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + ws * (4u * WQ), w = a & ~3u;
             al[s] = (a & 3) == 0;
-            const QWords<WQ> v = *(const QWords<WQ>*)(W4 + w);
+            const QWords<WQ> v = at<QWords<WQ>>(W4, w);
 #pragma unroll
             for (int i = 0; i < WQ; ++i) wv[s][i] = v[i];
-            wv[s][WQ] = W4[al[s] ? w - 1 : w + WQ];
+            wv[s][WQ] = at<unsigned>(W4, al[s] ? w - 4u : w + 4u * WQ);
             const unsigned xb = xok[s] ? (unsigned)r * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
-                const int4 v = ((const int4*)(qt + xb * 32u))[seg];
+                const int4 v = at<int4>(qt, xb * 64u + seg * 16u);
                 xv[s][0] = v.x, xv[s][1] = v.y, xv[s][2] = v.z, xv[s][3] = v.w;
             } else {
-                const int2 v = ((const int2*)(qt + xb * 32u))[seg];
+                const int2 v = at<int2>(qt, xb * 32u + seg * 8u);
                 xv[s][0] = v.x, xv[s][1] = v.y;
             }
-            xs_[s] = dxt[xb];
+            xs_[s] = at<float>(dxt, xb * 4u);
         }
     };
     // Widened to the twin's integer type as they are stored: each quant word to two words of two 16-bit values, or the words of bytes as they are.

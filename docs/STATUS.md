@@ -20,6 +20,28 @@ Evidence details: [`vulkan-glsl-dependencies-20261101.json`](benchmarks/vulkan-g
 - **Found:** a test fault, not a drafting one: `steady_holds` took the scheduler's counters when its reader read the 60th and the 300th token, and a reader starved on a slow machine reads token 60 after the reply has passed 300, so both snapshots are the end's, the window holds no drafts, and the holds check passes without having looked.
 - **Done:** the failing test (the reader starts only once the reply has ended, which makes that case certain), then the counters are taken on the scheduler's thread as the first pass retires whose history has reached each end (`Scheduler::on_retire`), so the window follows the reply's positions however late its tokens are read; what it requires is unchanged.
 
+## ROCm prompt tile loads at 32-bit byte offsets (2026-11-01, DDEV, branch perf/rocm-tile-off32 on perf/rocm-tall-w2 9990896f9, which it lands after; step 3 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
+
+**Goal:** no 64-bit address arithmetic in the tile's loads with the same bits: the weights' extra word, the twin's words and its scales took a 64-bit shift and add a load, as a pointer indexed by a 32-bit value is widened before its scale.
+**Done:** every load of `q8_0_tile` reads at a 32-bit byte offset off a uniform base (`at` in `kernels/int16.hip`), which the existing bound at the tile's launch already covers (`rocm_backend.cpp`: the weights' span plus 64 bytes and the twin's 64 rows and blocks in bytes below 2^32), so every load takes its base from scalar registers and its offset from one vector register.
+**Found** (gfx906 code objects of the dot16 build, the main loop, against e50a809d2): tile8_tall 113 -> 110 VGPRs, 949 -> 930 instructions; tile16_tall 98 -> 94, 1588 -> 1566; tile8 82 -> 78, 1107 -> 1070; tile16 85 -> 82, 899 -> 877; every loop load now global_load with an saddr base, none through a 64-bit vector address; no scratch, two waves a SIMD.
+**Measured** (MI50 under ROCm HIP, one card, default clocks, interleaved rounds of 3 runs, medians, 3 rounds int8 and 6 F16, Vulkan beside on the same card; Qwen3 Q8_0, tok/s, step 2 -> branch, Vulkan):
+
+| model | dtype | pp512 | pp2048 | tg128 |
+|---|---|---|---|---|
+| 0.6B | int8 | 10831 -> 10943 (+1.0%) | 6742 -> 6793 (+0.8%) | 362.8 -> 362.7 |
+| 0.6B | f16 | 8251 -> 8694 (+5.4%) | 5650 -> 5847 (+3.5%) | 371.4 -> 374.7 |
+| 8B | int8 | 1273.6 -> 1282.6 (+0.7%), 1305.2 | 1104.3 -> 1112.1 (+0.7%), 1164.8 | 81.1 -> 80.9, 79.4 |
+| 8B | f16 | 831.8 -> 865.9 (+4.1%), 838.4 | 756.7 -> 785.2 (+3.8%), 777.8 | 68.3 -> 68.4, 77.5 |
+| 14B | int8 | 747.7 -> 759.6 (+1.6%), 770.7 | 664.5 -> 672.8 (+1.3%), 702.2 | 44.9 -> 45.1, 44.5 |
+| 14B | f16 | 471.7 -> 489.8 (+3.8%), 487.0 | 434.8 -> 452.5 (+4.1%), 458.1 | 38.0 -> 38.0, 43.9 |
+
+Decode is level in every cell; F16 prompts now pass Vulkan on 8B and 14B pp512 and on 8B pp2048.
+This gate ran on another card than step 2's, so its step 2 column is not step 2's branch column.
+**Identity:** byte-identical to step 2 in int8 and F16 on Qwen3-8B Q8_0 256 greedy tokens and Qwen3-0.6B Q8_0 16k raw and chat; backend-rocm, CTest (80 of 80), docs and dead-code pass.
+**Left:** review; the change lands by fast-forward after step 2.
+**Gotchas:** none yet.
+
 ## ROCm tall tile weight staging, two threads a row (2026-11-01, DDEV, branch perf/rocm-tall-w2 on main 3418d0b2c; step 2 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
 
 **Goal:** fewer weight-load instructions in the int8 tall tile with the same bits: its 128 output rows took four threads a row in two passes, each a quarter block as three 4-byte words, where the Vulkan tile takes two threads a row, a 16-byte load and a word each.

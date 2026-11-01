@@ -10,6 +10,8 @@
 #include <memory>
 #include <unordered_map>
 
+#include <immintrin.h>
+
 // The sampler and the sampling settings it reads, with their defaults and ranges.
 // generate (the CLI's generate and chat) and the server's scheduler both sample through it.
 
@@ -77,6 +79,54 @@ inline uint64_t rank_key(float score, uint32_t id) {
 }
 
 inline uint32_t key_id(uint64_t key) { return ~(uint32_t)key; }
+
+// The id a scan of the row from its first id taking part gives when it replaces its leader only by a larger score, passing over `skip` (n or more for none).
+// Ties take the lowest id, a NaN is taken only as leader, and a row with nothing above negative infinity gives its first id (docs/src/inference-sampler.md).
+inline size_t argmax(const float* s, size_t n, size_t skip) {
+    size_t best = skip == 0 ? 1 : 0;
+    float best_score = s[best];
+    if (std::isnan(best_score)) return best;  // no score is larger than a NaN leader
+    size_t i = best + 1;
+    if (i + 16 <= n && n <= (size_t)std::numeric_limits<int32_t>::max()) {
+        // Two sets of lane leaders, each lane's the first larger score in its lane, so a lane's tie keeps its lowest id; -1 marks a lane with no leader yet.
+        const __m256 none = _mm256_set1_ps(-std::numeric_limits<float>::infinity());
+        __m256 lead_a = none, lead_b = none;
+        __m256i at_a = _mm256_set1_epi32(-1), at_b = at_a;
+        __m256i id_a = _mm256_add_epi32(_mm256_set1_epi32((int32_t)i), _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
+        __m256i id_b = _mm256_add_epi32(id_a, _mm256_set1_epi32(8));
+        const __m256i step = _mm256_set1_epi32(16), skip_id = _mm256_set1_epi32(skip < n ? (int32_t)skip : -1);
+        const auto take = [&](__m256& lead, __m256i& at, __m256i id, const float* p) {
+            const __m256 v = _mm256_loadu_ps(p);
+            const __m256 larger = _mm256_andnot_ps(_mm256_castsi256_ps(_mm256_cmpeq_epi32(id, skip_id)), _mm256_cmp_ps(v, lead, _CMP_GT_OQ));
+            lead = _mm256_blendv_ps(lead, v, larger);
+            at = _mm256_castps_si256(_mm256_blendv_ps(_mm256_castsi256_ps(at), _mm256_castsi256_ps(id), larger));
+        };
+        for (; i + 16 <= n; i += 16) {
+            take(lead_a, at_a, id_a, s + i);
+            take(lead_b, at_b, id_b, s + i + 8);
+            id_a = _mm256_add_epi32(id_a, step);
+            id_b = _mm256_add_epi32(id_b, step);
+        }
+        alignas(32) float lead[16];
+        alignas(32) int32_t at[16];
+        _mm256_store_ps(lead, lead_a);
+        _mm256_store_ps(lead + 8, lead_b);
+        _mm256_store_si256((__m256i*)at, at_a);
+        _mm256_store_si256((__m256i*)(at + 8), at_b);
+        // Every lane's ids lie past the first id, and among equal leaders the lowest id is the scan's.
+        for (int l = 0; l < 16; l++)
+            if (at[l] >= 0 && (lead[l] > best_score || (lead[l] == best_score && (size_t)at[l] < best))) {
+                best_score = lead[l];
+                best = (size_t)at[l];
+            }
+    }
+    for (; i < n; i++)
+        if (s[i] > best_score && i != skip) {
+            best_score = s[i];
+            best = i;
+        }
+    return best;
+}
 
 // Ids in increasing order: a sort for a few, one pass over a mark per token for many.
 inline void in_id_order(std::vector<uint32_t>& ids, size_t n) {
@@ -147,17 +197,25 @@ private:
             std::push_heap(keys_.begin(), keys_.end(), worse_first);
         }
         // A score below the worst held one has the smaller key whatever its id, so it is passed over without a key.
+        // Eight scores are tested at a time against the worst score as it stood; the worst only rises, so a score below it then stays out, and the rest are tested again one by one.
         float worst = s_[key_id(keys_.front())];
-        for (; i < n_; i++) {
-            if (s_[i] < worst || i == skip_) continue;
-            const uint64_t key = rank_key(s_[i], (uint32_t)i);
+        const auto consider = [&](size_t at) {
+            if (s_[at] < worst || at == skip_) return;
+            const uint64_t key = rank_key(s_[at], (uint32_t)at);
             if (key > keys_.front()) {
                 std::pop_heap(keys_.begin(), keys_.end(), worse_first);
                 keys_.back() = key;
                 std::push_heap(keys_.begin(), keys_.end(), worse_first);
                 worst = s_[key_id(keys_.front())];
             }
+        };
+        for (; i + 8 <= n_; i += 8) {
+            const int in = _mm256_movemask_ps(_mm256_cmp_ps(_mm256_loadu_ps(s_ + i), _mm256_set1_ps(worst), _CMP_NLT_UQ));
+            if (in)
+                for (size_t l = 0; l < 8; l++)
+                    if (in >> l & 1) consider(i + l);
         }
+        for (; i < n_; i++) consider(i);
         std::sort_heap(keys_.begin(), keys_.end(), worse_first);
         ranked_ = c;
     }
@@ -225,15 +283,7 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
 
     // Greedy needs the largest score, not an ordering of the rest; ties take the lowest token id.
     // The scan starts past a masked id 0, so a row whose other scores are all negative infinity or NaN still does not give it.
-    if (temp <= 0.0f) {
-        size_t best = skip == 0 ? 1 : 0;
-        float best_score = score[best];
-        for (size_t i = best + 1; i < n; i++) {
-            const float v = score[i];
-            if (v > best_score && i != skip) { best_score = v; best = i; }
-        }
-        return (uint32_t)best;
-    }
+    if (temp <= 0.0f) return (uint32_t)detail::argmax(score, n, skip);
 
     // A token's weight is exp((score - best score) / temp), its softmax probability before the division by the sum; the draw is r times the drawn tokens' weight, found by walking them in the order it was summed in.
     // Temperature is applied exactly once, here: pre-scaling the scores by temp as well would cancel this division and make --temp a no-op at every value > 0.
@@ -245,9 +295,7 @@ inline uint32_t sample(const float* logits, size_t n, float temp, int top_k,
 
     // Every token kept: the draw walks the whole vocabulary, so nothing is ranked.
     if (keep == m && top_p >= 1.0f) {
-        size_t best = skip == 0 ? 1 : 0;
-        for (size_t i = best + 1; i < n; i++)
-            if (score[i] > score[best] && i != skip) best = i;
+        const size_t best = detail::argmax(score, n, skip);
         const float best_score = score[best];
         std::unique_ptr<float[]> w(new float[n]);  // not zeroed, since every weight read is written first
         double sum = 0.0;

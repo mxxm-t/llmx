@@ -321,6 +321,105 @@ void against_reference() {
     for (int levels : {5, 0}) grid(scores(40000, levels, 7 + (uint64_t)levels), {0, 40, 5000, 40000}, 3);
 }
 
+// The greedy scan as one scalar loop: from the first id taking part, the leader is replaced only by a larger score, passing over the masked id.
+// So a NaN leads only from the first id, a row with nothing above negative infinity gives that id, and a tie keeps the lower id.
+size_t scalar_greedy(const std::vector<float>& s, int64_t masked) {
+    const size_t n = s.size();
+    const size_t skip = (masked >= 0 && (uint64_t)masked < n && n > 1) ? (size_t)masked : n;
+    size_t best = skip == 0 ? 1 : 0;
+    for (size_t i = best + 1; i < n; i++)
+        if (s[i] > s[best] && i != skip) best = i;
+    return best;
+}
+
+// The vectorized scans against scalar ones on rows whose sizes are not multiples of the vector width: greedy against the loop above, and a top-k's kept set and its order against a full sort of every key.
+// Rows take ties on few levels, both zeros, NaN of both signs and negative infinity, placed at random and at the lane edges: the first id, the last lane of a block and the scalar tail.
+void vector_scans() {
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    std::mt19937 rng(20261101u);
+    const auto pick = [&](size_t n) { return (size_t)(rng() % n); };
+    const auto greedy_case = [&](const std::vector<float>& row, int64_t masked, const std::string& what) {
+        infer::RNG unused;
+        const uint32_t got = infer::sample(row.data(), row.size(), 0.0f, 40, 0.95f, 1.0f, no_history, unused, masked);
+        const size_t want = scalar_greedy(row, masked);
+        if (got != want)
+            require(false, what + ": " + std::to_string(row.size()) + " scores, masked " + std::to_string(masked) + ": greedy gave " +
+                               std::to_string(got) + ", the scalar scan " + std::to_string(want));
+        ++checks;
+    };
+
+    // Leaders at the edges of the blocks the scan reads: two sets of eight lanes from id 1 (id 2 past a masked id 0), then the tail.
+    for (size_t n : {17u, 18u, 31u, 32u, 33u, 34u, 35u, 49u, 50u, 63u, 64u, 65u, 66u, 1003u})
+        for (int64_t masked : {-1, 0, 1}) {
+            const size_t start = masked == 0 ? 2 : 1;
+            const size_t blocks = (n - start) / 16;
+            std::vector<size_t> edges = {0, 1, start, n - 1, n - 2};
+            if (blocks) {
+                edges.push_back(start + 7);
+                edges.push_back(start + 8);
+                edges.push_back(start + 15);
+                edges.push_back(start + 16 * blocks - 1);
+                edges.push_back(start + 16 * blocks);
+            }
+            for (size_t at : edges) {
+                if (at >= n) continue;
+                std::vector<float> row(n, -1.0f);
+                row[at] = 2.0f;
+                greedy_case(row, masked, "a leader at id " + std::to_string(at));
+                // A tie at a lower id in another lane keeps the lower id.
+                std::vector<float> tie = row;
+                tie[at > 0 ? at - 1 : 0] = 2.0f;
+                if (at + 9 < n) tie[at + 9] = 2.0f;
+                greedy_case(tie, masked, "a tie beside id " + std::to_string(at));
+                // A NaN or an infinity at the edge, beside a finite leader elsewhere.
+                for (float v : {nan, -nan, inf, -inf}) {
+                    std::vector<float> odd(n, 0.5f);
+                    odd[pick(n)] = 1.5f;
+                    odd[at] = v;
+                    greedy_case(odd, masked, "an edge value at id " + std::to_string(at));
+                }
+                // A row of negative infinity and NaN alone gives the first id taking part.
+                std::vector<float> empty(n, -inf);
+                empty[at] = nan;
+                greedy_case(empty, masked, "a row without a finite score, NaN at " + std::to_string(at));
+            }
+        }
+
+    // Random rows: few levels with both zeros, so ties fall across lanes, and a NaN or infinity now and then.
+    for (int t = 0; t < 4000; t++) {
+        const size_t n = 1 + pick(t < 3000 ? 140 : 5000);
+        const int levels = 1 + (int)pick(6);
+        std::vector<float> row(n);
+        for (float& v : row) {
+            v = (float)(int)pick((size_t)levels) * 0.25f - 0.5f;
+            if (v == 0.0f && rng() % 2) v = -0.0f;
+            const unsigned odd = rng() % 64;
+            if (odd == 0) v = nan;
+            else if (odd == 1) v = -inf;
+            else if (odd == 2 && t % 3 == 0) v = inf;
+        }
+        const int64_t masked = t % 4 == 0 ? -1 : t % 4 == 1 ? 0 : t % 4 == 2 ? (int64_t)pick(n) : (int64_t)scalar_greedy(row, -1);
+        greedy_case(row, masked, "a random row");
+
+        // The top-k's kept set, ranked: the best k keys of every id but the masked one, NaN ranked by its bits as rank_key ranks it.
+        const size_t skip = (masked >= 0 && (uint64_t)masked < n && n > 1) ? (size_t)masked : n;
+        const size_t m = skip < n ? n - 1 : n;
+        const size_t k = 1 + pick(std::min<size_t>(m, t % 2 ? 8 : 300));
+        if (k >= m) continue;
+        std::vector<uint64_t> keys;
+        for (size_t i = 0; i < n; i++)
+            if (i != skip) keys.push_back(infer::detail::rank_key(row[i], (uint32_t)i));
+        std::sort(keys.begin(), keys.end(), std::greater<uint64_t>());
+        infer::detail::Ranking ranking(row.data(), n, skip, k);
+        for (size_t i = 0; i < k; i++)
+            if (ranking.id(i) != infer::detail::key_id(keys[i]))
+                require(false, "a top-k of " + std::to_string(k) + " over " + std::to_string(n) + " scores ranked id " +
+                                   std::to_string(ranking.id(i)) + " at place " + std::to_string(i) + ", the full sort id " +
+                                   std::to_string(infer::detail::key_id(keys[i])));
+        ++checks;
+    }
+}
+
 }  // namespace
 
 // infer::accept against the loop without drafts written out here: row i sampled after the picks before it, one draw a row, the reply ending at an end token or the limit, and the drafts deciding only where sampling stops.
@@ -866,6 +965,7 @@ int main() {
         seeds();
         masked();
         against_reference();
+        vector_scans();
         acceptance();
         acceptance_rest();
         pass_price();

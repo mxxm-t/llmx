@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## The sampler's row scans in lanes of eight (2026-11-01, SDEV, branch perf/sampler-scan on main 2e77b49ab, plan A of SDEV's sampling post of 20:45, approved by F2DEV at 20:53)
+
+- **Goal:** a code reply's verify on Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 samples about 10.6 rows a round on the scheduler's thread, 2.15 ms a round, nearly all of it greedy's scalar maximum over 248320 logits, about 5% of a one-user code reply; scanning the row in vector lanes with the same result should take most of that off.
+- **Done:** `detail::argmax` takes greedy's maximum, and the best score of a draw over every token, in two sets of eight AVX2 lanes and a scalar tail, with the scalar loop's rule unchanged: ties to the lowest id across lanes and tail, a NaN only as the first id taking part, that first id for a row with nothing above negative infinity, the masked id passed over.
+  The heap pass of a top-k or nucleus tests eight scores at a time against the worst score it holds and the ones not below it again one by one, so the kept set is the same.
+  The CPU backend's `argmax_rows` keeps its own rule, the invalid id for a NaN anywhere or a row without a finite score, which the embedded drafter reads, so the two scans stay apart.
+  `sampler` holds both scans to scalar ones on rows whose sizes are not multiples of the lanes, with leaders, ties, NaN and infinities at the first id, the last lane of a block and the tail, and 4000 random rows with masks; planted faults (a tie to the higher id across lanes, a prefilter dropping equal scores and NaN, the masked id read in the lanes) each fail it.
+- **Measured (CPU microbench of `infer::sample` on the rig's EPYC, 248320 scores a row, 11 rows a round, main 2e77b49ab / branch, us a row, two interleaved runs):** greedy cold 176-177 / 60-61, warm 155-159 / 35; greedy with the end masked cold 173-176 / 61; top-k 40 top-p 0.95 at 0.8 cold 157-158 / 77-79, warm 144-146 / 48; penalty 1.1 cold 224 / 100-108; a row's read floor cold 60, warm 17.
+- **Measured (card A/B, Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 on four MI50s, main 2e77b49ab / branch, medians of 6 interleaved runs, decode tok/s):** one user code 266.4 / 277.3 (+4.10%, spreads 1.3% / 3.3%), seeded code 267.8 / 278.4 (+3.94%, spreads 0.8% / 0.5%), prose 60.9 / 60.8 (-0.16%, spreads 8.2% / 5.6%), four users' sum 80.5 / 80.4 (-0.11%, spreads 2.9% / 9.0%) and wall 326.9 / 328.5 s (+0.47%); the code cells gain outside the spread, the others are level, and every reply is the same bytes in every run and arm.
+- **Gates:** CTest and the CPU suite pass on the CPU, raw-blocks without `--require-tools` where the image has no numpy; Qwen3-0.6B Q8_0 against main on the CPU gives the same bytes for greedy, seeded, full-row sampled and chat replies and for the prompt's logits, timing lines left out.
+  The change lands by fast-forward.
+- **Left:** the hosted run; plan B, a verify's rows sampled in parallel, waits for these numbers.
+
 ## Tree drafting closed at step 1: no single rule and no branch clears the spread (2026-11-01, SDEV, plan-tree-drafting reopened by the owner on 2026-10-31, step 1 approved by F2DEV at 12:19 with XDEV's point of 12:18, docs only)
 
 - **Question:** step 0 (2026-10-31) found history forks worth a look on code edits and copies: at a lookup miss, another earlier occurrence had proposed the right token at 0.49 and 0.53 of misses. Step 1 prices, offline, whether a better single choice of occurrence (no extra rows) or one branch at the first point where occurrences disagree (extra rows on every pass that carries it) pays, by the rule set before it ran: build a single rule if it reaches 70% of the tree's gain, close if neither clears a main/main spread of about 2%.

@@ -22,12 +22,14 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   With the three at 0 no path changes: the copy is not made for them and a weight is never below 0.
   At `temp <= 0` it takes a linear maximum and returns; ties go to the lowest token id.
   The scan starts past a masked id 0, so greedy does not give the masked id even when every other score is negative infinity or NaN.
+  `detail::argmax` is that scan, in two sets of eight lanes each keeping its first larger score and its id, merged lowest id first among equal scores, and a scalar tail, so it gives the id a scalar loop that replaces its leader only by a larger score gives: a NaN only when it is the first id taking part, and that first id for a row with nothing above negative infinity; the draw over every token finds its best score with it too.
+  The CPU backend's `argmax_rows` gives the invalid id for a NaN anywhere or a row without a finite score, a rule the embedded drafter reads, so the sampler keeps its own scan.
   Above zero tokens rank by score and a tie by the lower id, through `detail::rank_key`, one integer per token whose order is that ranking, so no sort's or selection's handling of equal scores reaches the result.
   A token's weight is `exp((score - best score) / temp)`.
   The kept tokens' weights are summed in id order, and the nucleus is the shortest ranked prefix whose weight, summed best first, reaches `top_p` of that sum, so no sum depends on the order a selection leaves its candidates in.
   The draw walks the drawn tokens to `r` times their weight in the order that weight was summed in: the nucleus best first, or without top-p the kept tokens in id order.
   `detail::Ranking` ranks the kept tokens only as far as they are read: a top-k set of up to 4096 in one pass over the scores with a heap, a nucleus without a top-k to 512 in at most two such passes, and more by laying out the keys not yet ranked once behind the ranked ones and selecting each further prefix with `std::nth_element`.
-  The heap's pass forms a token's key only when its score is not below the worst score the heap holds, since a lower score has the smaller key whatever its id.
+  The heap's pass forms a token's key only when its score is not below the worst score the heap holds, since a lower score has the smaller key whatever its id; it tests eight scores at a time against the worst as it stood and the ones not below it again one by one, since the worst only rises.
   A top-k below the vocabulary is selected first, and its best token is then found within it.
   Without a top-k, or with one past 4096, a nucleus is ranked 64 tokens first and then 512, through heap passes without a top-k and selections within one, and past that each selection doubles the ranked prefix, so top-k 0 with top-p below 1 ranks 64 tokens, fewer than eight times a nucleus of up to 512, or fewer than twice a larger one, and the whole vocabulary only when the nucleus holds more than half of it.
   A nucleus leaves the heap at 512 because on rows whose nucleus runs to tens of thousands of tokens a heap pass of 4096 cost more than the selections it saves.

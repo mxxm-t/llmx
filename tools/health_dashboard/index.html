@@ -2984,7 +2984,7 @@ const state = {
   interval: 2,
   ok: false,
   error: null,
-  range: [300, 900, 3600].includes(preferences.range) ? preferences.range : 900,
+  range: [300, 900, 3600].includes(preferences.range) ? preferences.range : 300,
   paused: false,
   view: null,
   received: false
@@ -4130,35 +4130,73 @@ function configureWorkRates(raw) {
 }
 const chartViews = {};
 const inspection = { time: null, pinned: false };
-let previousChartSeq = null;
-let previousChartEnd = null;
-let previousChartCollector = null;
-let previousMotion = {seconds: 0, duration: 0, started: 0};
-function chartMotionFor(view) {
-  const end = Math.max(view.lastSuccess || 0, view.events.length ? view.events.at(-1).t : 0);
-  const delta = previousChartEnd === null ? 0 : end - previousChartEnd;
-  const sameCollector = state.collector !== null && state.collector === previousChartCollector;
-  const freshSamples = sameCollector && previousChartSeq !== null && state.seq > previousChartSeq;
+let chartTimeline = {collector: null, end: null, startedAt: 0, seq: 0};
+let chartVisualEnd = null;
+const chartMotionNodes = new Set();
+let chartMotionFrame = null;
+function chartCursorEnd(anchor, startedAt, now) {
+  return anchor + Math.max(0, now - startedAt) / 1000;
+}
+function chartX(time, end, range, width, left, right) {
+  return left + (time - (end - range)) / range * (width - left - right);
+}
+function observedChartEnd(view) {
+  const end = Math.max(view.lastSuccess || 0, view.samples.at(-1)?.t || 0, view.events.length ? view.events.at(-1).t : 0);
+  return end || Date.now() / 1000;
+}
+function chartMotionFor(view, now = performance.now()) {
+  const observedEnd = observedChartEnd(view);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const now = performance.now();
-  const remaining = previousMotion.duration > 0 ? previousMotion.seconds * Math.max(0, 1 - (now - previousMotion.started) / previousMotion.duration) : 0;
-  const hasTimeline = previousChartEnd > 0 && end > 0;
-  const allowed = hasTimeline && !state.paused && !document.hidden && !reduced;
-  const ordinarySample = delta > 0 && delta <= Math.max(2, state.interval * 2);
-  const seconds = allowed && freshSamples && ordinarySample ? delta + remaining : allowed && sameCollector && !freshSamples && delta === 0 ? remaining : 0;
-  previousChartSeq = state.seq;
-  previousChartEnd = end;
-  previousChartCollector = state.collector;
-  const duration = seconds > 0 ? seconds * 1000 : 0;
-  previousMotion = {seconds, duration, started: now};
-  return {seconds, duration};
+  const collectorChanged = chartTimeline.collector !== state.collector;
+  const runningEnd = chartTimeline.end === null ? observedEnd :
+    chartCursorEnd(chartTimeline.end, chartTimeline.startedAt, now);
+  const stopped = state.paused || document.hidden || reduced;
+  const newSample = state.seq > chartTimeline.seq;
+  const clockJump = newSample && observedEnd - runningEnd > Math.max(15, state.interval * 3);
+  const end = collectorChanged || chartTimeline.end === null ? observedEnd :
+    state.paused && number(state.chartPausedEnd) ? state.chartPausedEnd :
+      stopped || clockJump ? Math.max(runningEnd, observedEnd) : runningEnd;
+  chartTimeline = stopped || collectorChanged || chartTimeline.end === null || clockJump ?
+    {collector: state.collector, end, startedAt: now, seq: state.seq} :
+    {...chartTimeline, collector: state.collector, seq: state.seq};
+  chartVisualEnd = end;
+  return {end, animate: !stopped};
+}
+function stopChartMotion() {
+  if (chartMotionFrame !== null) cancelAnimationFrame(chartMotionFrame);
+  chartMotionFrame = null;
+  chartMotionNodes.clear();
+}
+function updateChartMotion(now) {
+  chartMotionFrame = null;
+  if (state.paused || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  chartVisualEnd = chartCursorEnd(chartTimeline.end, chartTimeline.startedAt, now);
+  for (const motion of chartMotionNodes) {
+    if (!motion.node.isConnected) {
+      chartMotionNodes.delete(motion);
+      continue;
+    }
+    const elapsed = Math.max(0, chartVisualEnd - motion.end);
+    const dx = -elapsed / motion.range * motion.width;
+    motion.node.setAttribute('transform', 'translate(' + dx.toFixed(3) + ' 0)');
+  }
+  if (chartMotionNodes.size) chartMotionFrame = requestAnimationFrame(updateChartMotion);
+}
+function registerChartMotion(node, motion, width, range) {
+  if (motion.animate) chartMotionNodes.add({node, end: motion.end, width, range});
+}
+function startChartMotion() {
+  if (chartMotionNodes.size && chartMotionFrame === null && !state.paused && !document.hidden &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    chartMotionFrame = requestAnimationFrame(updateChartMotion);
+  }
 }
 function settleChartMotion() {
-  document.querySelectorAll('[data-chart-motion]').forEach(node => {
-    node.style.transition = 'none';
-    node.setAttribute('transform', 'translate(0 0)');
-  });
-  previousMotion = {seconds: 0, duration: 0, started: performance.now()};
+  const now = performance.now();
+  if (!state.paused && chartTimeline.end !== null) chartVisualEnd = chartCursorEnd(chartTimeline.end, chartTimeline.startedAt, now);
+  else if (chartVisualEnd === null && chartTimeline.end !== null) chartVisualEnd = chartTimeline.end;
+  if (chartVisualEnd !== null) chartTimeline = {...chartTimeline, end: chartVisualEnd, startedAt: now};
+  stopChartMotion();
 }
 function clearInspection() {
   inspection.time = null;
@@ -4183,11 +4221,11 @@ function inspectTime(time, pinned = false) {
   if (pinned) txt('inspection-live', stamp + '. ' + summaries.join('. '));
   $('clear-inspection').hidden = false;
 }
-function renderChart(samples, stamp, config, events, motionSeconds = 0) {
+function renderChart(samples, stamp, config, events, motion = null) {
   const host = $(config.id + '-chart');
   const format = config.format || fmt;
   host.replaceChildren();
-  const end = Math.max(stamp || Date.now() / 1000, events.length ? events.at(-1).t : 0);
+  const end = motion && number(motion.end) ? motion.end : Math.max(stamp || Date.now() / 1000, events.length ? events.at(-1).t : 0);
   const start = end - state.range;
   const W = Math.max(240, host.clientWidth || 400),
   H = Math.max(160, host.clientHeight || 215),
@@ -4197,7 +4235,7 @@ function renderChart(samples, stamp, config, events, motionSeconds = 0) {
   B = 30;
   const points = [];
   samples.forEach((sample, i) => {
-    if (sample.t < start || sample.t > end) return;
+    if (sample.t < start) return;
     const previous = i ? samples[i - 1]: null;
     const gap = previous && sample.t - previous.t > Math.max(15, state.interval * 3);
     if (gap || sample.reset) points.push({
@@ -4215,7 +4253,7 @@ function renderChart(samples, stamp, config, events, motionSeconds = 0) {
   const finite = points.flatMap(point => point.values.filter(number));
   const maximum = finite.length ? Math.max(...finite): 0;
   const cap = config.floor ? Math.max(config.floor, maximum * 1.05): maximum > 0 ? maximum * 1.14: 1;
-  const x = t => L + (t - start) / state.range * (W - L - R);
+  const x = t => chartX(t, end, state.range, W, L, R);
   const y = value => T + (1 - value / cap) * (H - T - B);
   const svg = svgNode('svg', {
     viewBox: '0 0 ' + W + ' ' + H,
@@ -4263,21 +4301,9 @@ function renderChart(samples, stamp, config, events, motionSeconds = 0) {
       minute: '2-digit'
     })));
   }
-  if (motionSeconds.seconds > 0) {
-    const dx = motionSeconds.seconds / state.range * (W - L - R);
-    [timeMotion, plotMotion].forEach(motion => {
-      motion.setAttribute('transform', 'translate(' + dx.toFixed(2) + ' 0)');
-      motion.style.transition = 'transform ' + motionSeconds.duration + 'ms linear';
-      const transition = motion.style.transition;
-      requestAnimationFrame(() => {
-        if (!motion.isConnected || motion.style.transition !== transition || state.paused || document.hidden ||
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        requestAnimationFrame(() => {
-          if (motion.isConnected && motion.style.transition === transition && !state.paused && !document.hidden &&
-              !window.matchMedia('(prefers-reduced-motion: reduce)').matches) motion.setAttribute('transform', 'translate(0 0)');
-        });
-      });
-    });
+  if (motion?.animate) {
+    registerChartMotion(timeMotion, motion, W - L - R, state.range);
+    registerChartMotion(plotMotion, motion, W - L - R, state.range);
   }
   if (config.mode) {
     let shaded = false;
@@ -4497,7 +4523,9 @@ function render() {
   if ($('explorer').open) renderExplorer();
   renderRangeOverview(view);
   const motion = chartMotionFor(view);
+  stopChartMotion();
   chartConfigurations.forEach(config => renderChart(view.samples, view.lastSuccess, config, view.events, motion));
+  startChartMotion();
   if (inspection.time !== null) {
     const end = Math.max(view.lastSuccess || 0, view.events.length ? view.events.at(-1).t : 0);
     if (inspection.time < end - state.range || !view.samples.some(sample => sample.t === inspection.time)) clearInspection();
@@ -4625,9 +4653,17 @@ document.querySelectorAll('[data-range]').forEach(button => button.addEventListe
   render()
 }));
 $('pause').addEventListener('click', () => {
-  settleChartMotion();
-  if (!state.paused) state.view = snapshot();
-  state.paused = !state.paused;
+  if (!state.paused) {
+    state.view = snapshot();
+    settleChartMotion();
+    state.chartPausedEnd = chartVisualEnd === null ? observedChartEnd(state.view) : chartVisualEnd;
+    state.paused = true;
+  } else {
+    state.paused = false;
+    state.chartPausedEnd = null;
+    chartVisualEnd = observedChartEnd(snapshot());
+    chartTimeline = {collector: state.collector, end: chartVisualEnd, startedAt: performance.now(), seq: state.seq};
+  }
   $('pause').setAttribute('aria-pressed', String(state.paused));
   $('pause').querySelector('span').textContent = state.paused ? 'Resume live': 'Pause view';
   render()
@@ -4658,10 +4694,22 @@ $('explorer').addEventListener('toggle', () => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) settleChartMotion();
+  else {
+    const view = state.paused && state.view ? state.view : snapshot();
+    const observedEnd = observedChartEnd(view);
+    const changed = state.collector !== chartTimeline.collector || state.seq > chartTimeline.seq;
+    const end = state.paused && number(state.chartPausedEnd) ? state.chartPausedEnd :
+      changed ? Math.max(chartVisualEnd || 0, observedEnd) : chartVisualEnd ?? observedEnd;
+    chartVisualEnd = end;
+    chartTimeline = {collector: state.collector,
+      end, startedAt: performance.now(), seq: state.seq};
+    render();
+  }
 });
 const reducedMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
 reducedMotionPreference.addEventListener?.('change', event => {
   if (event.matches) settleChartMotion();
+  render();
 });
 let resizeTimer;
 window.addEventListener('resize', () => {

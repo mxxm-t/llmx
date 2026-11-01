@@ -432,76 +432,103 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 19)
 
-    def test_chart_motion_uses_only_collected_samples_and_keeps_inspection_in_motion(self):
+    def test_live_chart_cursor_stays_continuous_across_samples(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
-function sample(t, generated) { return {t, reset: false, metrics: {
-  'requests.since_start.generated_tokens': generated,
-  'requests.live.work.generated_tokens': generated,
-  'requests.live.work.prefilled_tokens': generated,
-  'requests.live.sample_elapsed_ms': (t + 30) * 1000
-}}; }
-previousChartSeq = 7;
-previousChartEnd = 100;
-state.collector = 'test-collector';
-previousChartCollector = 'test-collector';
-state.seq = 8;
+function close(a, b) { return Math.abs(a - b) < 0.001; }
+const originalMatchMedia = window.matchMedia;
+const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+window.matchMedia = () => ({matches: false});
+Object.defineProperty(document, 'hidden', {configurable: true, value: false});
+check('no-preference chart window is five minutes', state.range === 300);
+for (const [range, width] of [[300, 424], [60, 324]]) {
+  const left = 49, right = 14, plotWidth = width - left - right;
+  const previousEnd = 100;
+  const nextFrameEnd = chartCursorEnd(previousEnd, 0, 2000);
+  const oldPointAtPreviousEnd = chartX(99, previousEnd, range, width, left, right);
+  const oldPointAtNextEnd = chartX(99, nextFrameEnd, range, width, left, right);
+  check(range + 's chart moves by exact elapsed-time pixels',
+    close(oldPointAtNextEnd, oldPointAtPreviousEnd - 2 * plotWidth / range));
+  const reanchoredPoint = chartX(99, nextFrameEnd, range, width, left, right);
+  check(range + 's full redraw preserves existing sample position', close(oldPointAtNextEnd, reanchoredPoint));
+  const delayedClock = chartCursorEnd(previousEnd, 0, 2050);
+  check(range + 's delayed collector sample never moves cursor backwards', delayedClock >= nextFrameEnd);
+  check(range + 's jittered sample timestamps do not reanchor display cursor',
+    close(chartX(99, delayedClock, range, width, left, right),
+      chartX(99, chartCursorEnd(previousEnd, 0, 2050), range, width, left, right)));
+}
+state.collector = 'drift-test';
+state.seq = 0;
+chartTimeline = {collector: state.collector, end: 100, startedAt: 0, seq: 0};
+chartVisualEnd = 100;
+for (let i = 1; i <= 1000; i++) {
+  chartMotionFor({lastSuccess: 100 + i / 1000, samples: [], events: []}, i * 17);
+}
+check('1,000 render-time cursor refreshes preserve the original monotonic anchor',
+  close(chartVisualEnd, 117) && chartTimeline.startedAt === 0 && close(chartTimeline.end, 100));
+state.seq = 1;
+let jumped = chartMotionFor({lastSuccess: 120, samples: [], events: []}, 2000);
+check('large forward timestamp jumps snap forward without long catch-up', close(jumped.end, 120));
+stopChartMotion();
+state.collector = 'cursor-test';
+state.seq = 1;
 state.paused = false;
-inspection.time = null;
-document.hidden = false;
-check('fresh samples animate only between observed collection times', chartMotionFor({lastSuccess: 102, events: []}).seconds === 2);
-const sameSampleMotion = chartMotionFor({lastSuccess: 102, events: []});
-check('same-sequence render carries the current motion without a jump', sameSampleMotion.seconds > 0 && sameSampleMotion.seconds <= 2);
-state.seq = 9;
+state.chartPausedEnd = null;
+chartTimeline = {collector: 'cursor-test', end: 100, startedAt: 0, seq: 0};
+chartVisualEnd = 100;
+let motion = chartMotionFor({lastSuccess: 102, samples: [], events: []}, 2000);
+check('visible fresh sample animates on the elapsed clock', motion.animate && close(motion.end, 102));
+const sameSequence = chartMotionFor({lastSuccess: 102, samples: [], events: []}, 2100);
+check('same-sequence redraw carries motion without reanchoring', sameSequence.animate &&
+  close(sameSequence.end, 102.1) && chartTimeline.startedAt === 0);
+state.seq = 2;
 inspection.time = 100;
-check('timeline inspection leaves motion on the measured clock', chartMotionFor({lastSuccess: 104, events: []}).seconds > 0);
+motion = chartMotionFor({lastSuccess: 104, samples: [], events: []}, 4000);
+check('timeline inspection leaves motion on the measured clock', motion.animate && close(motion.end, 104));
 inspection.time = null;
 state.paused = true;
-check('paused view suppresses motion', chartMotionFor({lastSuccess: 106, events: []}).seconds === 0);
+state.chartPausedEnd = motion.end;
+motion = chartMotionFor({lastSuccess: 106, samples: [], events: []}, 5000);
+check('paused inspection freezes the display cursor', !motion.animate && close(motion.end, 104));
 state.paused = false;
-state.seq = 10;
-previousChartSeq = 9;
-previousChartEnd = 106;
-const preference = window.matchMedia;
+state.chartPausedEnd = null;
 window.matchMedia = () => ({matches: true});
-check('reduced motion preference suppresses motion', chartMotionFor({lastSuccess: 108, events: []}).seconds === 0);
-window.matchMedia = preference;
-state.seq = 11;
-Object.defineProperty(document, 'hidden', {configurable: true, value: true});
-check('hidden tab suppresses motion', chartMotionFor({lastSuccess: 110, events: []}).seconds === 0);
-delete document.hidden;
-state.seq = 12;
-check('long collection gaps do not animate catch-up', chartMotionFor({lastSuccess: 120, events: []}).seconds === 0);
-previousMotion = {seconds: 2, duration: 2000, started: performance.now()};
-previousChartEnd = 120;
-previousChartSeq = 12;
-previousChartCollector = 'test-collector';
-state.seq = 1;
+motion = chartMotionFor({lastSuccess: 107, samples: [], events: []}, 6000);
+check('reduced motion disables frame scrolling', !motion.animate);
+window.matchMedia = () => ({matches: false});
 state.collector = 'restarted-collector';
-check('collector reset does not carry old motion at an equal timestamp', chartMotionFor({lastSuccess: 120, events: []}).seconds === 0);
-state.samples = [sample(2, 0), sample(12, 10), sample(22, 20), sample(32, 30)];
+motion = chartMotionFor({lastSuccess: 50, samples: [], events: []}, 7000);
+check('collector restart resets to its own observed timeline', close(motion.end, 50) && motion.animate);
+Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+motion = chartMotionFor({lastSuccess: 51, samples: [], events: []}, 8000);
+check('hidden tab disables frame scrolling', !motion.animate);
+if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden);
+else delete document.hidden;
+window.matchMedia = originalMatchMedia;
+state.samples = [2, 12, 22, 32, 33].map((t, i) => ({t, reset: false, metrics: {
+  'requests.since_start.generated_tokens': i * 10
+}}));
 state.interval = 2;
 const config = chartConfigurations.find(c => c.id === 'throughput');
 config.fields = ['requests.since_start.generated_tokens'];
 config.clockField = null;
 config.mode = 'completed';
-renderChart(state.samples, 32, config, [], {seconds: 2, duration: 2000});
-const motionNodes = [...$('throughput-chart').querySelectorAll('[data-chart-motion]')];
-const motion = motionNodes[0], plotMotion = motionNodes[1];
-check('chart motion is a short linear transform', motion.style.transition.includes('transform 2000ms linear'));
-check('plot clipping stays fixed while its contents move', plotMotion.parentElement.getAttribute('clip-path').includes('plot-clip'));
-const vertices = (plotMotion.querySelector('path').getAttribute('d').match(/[ML]/g) || []).length;
-check('chart keeps exact sampled path vertices', vertices === 3);
-check('chart retains exact sample count while motion runs', state.samples.length === 4);
+renderChart(state.samples, 32, config, [], {end: 32, animate: false});
+const plotMotion = [...$('throughput-chart').querySelectorAll('[data-chart-motion]')][1];
+const futurePath = plotMotion.querySelector('path').getAttribute('d');
+const vertices = (futurePath.match(/[ML]/g) || []).length;
+const lastX = Number(futurePath.match(/[ML]([0-9.]+),/g).at(-1).match(/[ML]([0-9.]+),/)[1]);
+check('known future timestamp stays clipped until it naturally enters the window', vertices === 4 && lastX > 386);
+check('actual sample history is retained without synthetic points', state.samples.length === 5);
 globalThis.rateTestResults = outcomes;
 document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
 """
         document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + cases + "</script></body>")
         for width in (1440, 390):
             with self.subTest(width=width):
-                self.assertEqual(len(self.run_browser(document, width)), 12)
+                self.assertEqual(len(self.run_browser(document, width)), 20)
 
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

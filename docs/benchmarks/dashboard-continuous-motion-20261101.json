@@ -1,0 +1,78 @@
+{
+  "date_utc": "2026-11-01T01:04:18Z",
+  "base_commit": "66040b8a192d91fe513635a49f1c1b7dee8eede4",
+  "branch": "fix/dashboard-motion2-20261101",
+  "browser": "Remote Chromium, visible chart scrolled into viewport",
+  "telemetry": "Synthetic timestamped samples; no inference workload",
+  "method": {
+    "motion": "Compare one measured trace point's screen X over 250 ms against cursor elapsed-time movement.",
+    "arrival": "Compare the same point across an incoming sample and full SVG replacement; subtract expected movement from the cursor's elapsed time.",
+    "continuity_limit_px": 0.25
+  },
+  "cases": [
+    {
+      "viewport_width_px": 1440,
+      "chart_box_px": [641, 215],
+      "range_s": 300,
+      "trace_delta_250ms_px": -0.514,
+      "elapsed_expected_250ms_px": -0.5138,
+      "movement_error_px": -0.0002,
+      "arrival_cursor_elapsed_ms": 16.7,
+      "arrival_raw_screen_delta_px": -0.036,
+      "arrival_expected_screen_delta_px": -0.0322,
+      "arrival_discontinuity_px": -0.0038,
+      "page_errors": 0,
+      "horizontal_overflow": false
+    },
+    {
+      "viewport_width_px": 1440,
+      "chart_box_px": [641, 215],
+      "range_s": 60,
+      "trace_delta_250ms_px": -2.409,
+      "elapsed_expected_250ms_px": -2.4083,
+      "movement_error_px": -0.0007,
+      "arrival_cursor_elapsed_ms": 16.7,
+      "arrival_raw_screen_delta_px": -0.159,
+      "arrival_expected_screen_delta_px": -0.1609,
+      "arrival_discontinuity_px": 0.0019,
+      "page_errors": 0,
+      "horizontal_overflow": false
+    },
+    {
+      "viewport_width_px": 390,
+      "chart_box_px": [324, 215],
+      "range_s": 300,
+      "trace_delta_250ms_px": -0.217,
+      "elapsed_expected_250ms_px": -0.2175,
+      "movement_error_px": 0.0005,
+      "arrival_cursor_elapsed_ms": 16.6,
+      "arrival_raw_screen_delta_px": -0.012,
+      "arrival_expected_screen_delta_px": -0.0144,
+      "arrival_discontinuity_px": 0.0024,
+      "page_errors": 0,
+      "horizontal_overflow": false
+    },
+    {
+      "viewport_width_px": 390,
+      "chart_box_px": [324, 215],
+      "range_s": 60,
+      "trace_delta_250ms_px": -1.087,
+      "elapsed_expected_250ms_px": -1.0875,
+      "movement_error_px": 0.0005,
+      "arrival_cursor_elapsed_ms": 16.8,
+      "arrival_raw_screen_delta_px": -0.097,
+      "arrival_expected_screen_delta_px": -0.0731,
+      "arrival_discontinuity_px": -0.0239,
+      "page_errors": 0,
+      "horizontal_overflow": false
+    }
+  ],
+  "additional_checks": {
+    "render_time_refreshes_without_cursor_drift": 1000,
+    "future_measured_point_waits_behind_stationary_clip": true,
+    "forward_timestamp_jump_does_not_animate_a_long_gap": true,
+    "focused_ui_tests_passed": 9,
+    "inference_tests_or_performance_measurements": false
+  },
+  "limits": "Synthetic browser telemetry establishes presentation timing and geometry only. It does not measure collector or inference overhead."
+}

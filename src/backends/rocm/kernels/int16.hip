@@ -86,30 +86,37 @@ __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned lo
     return {w + local * row_bytes, y + local, p == 2 ? c.nout[2] : p == 1 ? c.nout[1] : c.nout[0]};
 }
 
-// A wave an output row o for up to C generated rows: four lanes a block, eight values each, so a wave reads 16 blocks a step in wide loads.
-// Each lane's part is scaled into F32 in block order and the parts folded by one shuffle tree, the same for every column whatever C the call takes.
-template <int C, typename QT>
+// A wave computes R output rows for up to C generated rows: four lanes a block, eight values each, each lane's part scaled into F32 in block order and folded by one shuffle tree, the same for every column whatever C the call takes.
+// With R rows each twin load serves every row and a row keeps its lanes and its order, so it has the bits of the one-row build (docs/STATUS.md, ROCm F16 decode rows).
+template <int C, typename QT, int R>
 __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
-    // A wave takes rows o, o + waves, ...: the host launches a wave a row, and this loop form measured four times faster than an early return on rows of 2048 and 4096 (docs/STATUS.md, ROCm step 3).
-    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < rc.total; o += waves) {
-        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * 34);
-        const unsigned char* w = r.w;
-        float acc[C];
-        for (int c = 0; c < C; ++c) acc[c] = 0.0f;
+    // A wave takes rows o, o + R * waves, ...: the host launches a wave for R rows, and this loop form measured four times faster than an early return on rows of 2048 and 4096 (docs/STATUS.md, ROCm step 3).
+    for (unsigned long long o = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); o < rc.total; o += R * waves) {
+        Row r[R];
+#pragma unroll
+        for (int j = 0; j < R; ++j) r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * 34);
+        float acc[R][C];
+#pragma unroll
+        for (int j = 0; j < R; ++j)
+            for (int c = 0; c < C; ++c) acc[j][c] = 0.0f;
         for (unsigned long long u = lane; u < blocks * 4; u += lanes) {
             const unsigned long long k = u / 4;
             const int part = (int)(u % 4);
-            const unsigned char* block = w + k * 34;
-            const float dw = __half2float(*(const __half*)block);
-            // Eight weights as four 16-bit loads, the block being 2-byte aligned.
-            const unsigned short* wp = (const unsigned short*)(block + 2 + part * 8);
-            signed char wv[8];
-            for (int i = 0; i < 4; ++i) {
-                const unsigned short pair = wp[i];
-                wv[2 * i] = (signed char)(pair & 0xff);
-                wv[2 * i + 1] = (signed char)(pair >> 8);
+            float dw[R];
+            signed char wv[R][8];
+#pragma unroll
+            for (int j = 0; j < R; ++j) {
+                const unsigned char* block = r[j].w + k * 34;
+                dw[j] = __half2float(*(const __half*)block);
+                // Eight weights as four 16-bit loads, the block being 2-byte aligned.
+                const unsigned short* wp = (const unsigned short*)(block + 2 + part * 8);
+                for (int i = 0; i < 4; ++i) {
+                    const unsigned short pair = wp[i];
+                    wv[j][2 * i] = (signed char)(pair & 0xff);
+                    wv[j][2 * i + 1] = (signed char)(pair >> 8);
+                }
             }
 #pragma unroll
             for (int c = 0; c < C; ++c) {
@@ -117,18 +124,25 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
                 const unsigned long long xb = (unsigned long long)c * blocks + k;
                 int xv[8];
                 eight(q + xb * 32 + part * 8, xv);
-                int isum = 0;
-                for (int i = 0; i < 8; ++i) isum += (int)wv[i] * xv[i];
-                acc[c] = fmaf(dw * dx[xb], (float)isum, acc[c]);
+                const float xd = dx[xb];
+#pragma unroll
+                for (int j = 0; j < R; ++j) {
+                    int isum = 0;
+                    for (int i = 0; i < 8; ++i) isum += (int)wv[j][i] * xv[i];
+                    acc[j][c] = fmaf(dw[j] * xd, (float)isum, acc[j][c]);
+                }
             }
         }
 #pragma unroll
-        for (int c = 0; c < C; ++c) {
-            if (c >= ncols) break;
-            const float v = wave_sum(acc[c]);
-            if (lane == 0) {
-                float* y = r.y + (unsigned long long)c * r.nout;
-                *y = add ? *y + v : v;
+        for (int j = 0; j < R; ++j) {
+#pragma unroll
+            for (int c = 0; c < C; ++c) {
+                if (c >= ncols) break;
+                const float v = wave_sum(acc[j][c]);
+                if (lane == 0 && o + j < rc.total) {
+                    float* y = r[j].y + (unsigned long long)c * r[j].nout;
+                    *y = add ? *y + v : v;
+                }
             }
         }
     }
@@ -444,20 +458,20 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 
 // Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler: its default assumes 1024 threads and caps a thread at 64 registers, which spilled the tile's prefetch to scratch.
 // The row kernel's builds, the host taking the narrowest that holds a call's columns.
-#define LLMX_ROWS(name, C, QT)                                                                                                          \
+#define LLMX_ROWS(name, C, QT, R)                                                                                                          \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
-        q8_0_rows<C, QT>(c, q, dx, nin, ncols, add);                                                                                    \
+        q8_0_rows<C, QT, R>(c, q, dx, nin, ncols, add);                                                                                    \
     }
-LLMX_ROWS(llmx_q8_0_rows16_1, 1, short)
-LLMX_ROWS(llmx_q8_0_rows16_2, 2, short)
-LLMX_ROWS(llmx_q8_0_rows16_4, 4, short)
-LLMX_ROWS(llmx_q8_0_rows16_8, 8, short)
-LLMX_ROWS(llmx_q8_0_rows16_16, 16, short)
-LLMX_ROWS(llmx_q8_0_rows8_1, 1, signed char)
-LLMX_ROWS(llmx_q8_0_rows8_2, 2, signed char)
-LLMX_ROWS(llmx_q8_0_rows8_4, 4, signed char)
-LLMX_ROWS(llmx_q8_0_rows8_8, 8, signed char)
-LLMX_ROWS(llmx_q8_0_rows8_16, 16, signed char)
+LLMX_ROWS(llmx_q8_0_rows16_1, 1, short, 2)
+LLMX_ROWS(llmx_q8_0_rows16_2, 2, short, 2)
+LLMX_ROWS(llmx_q8_0_rows16_4, 4, short, 2)
+LLMX_ROWS(llmx_q8_0_rows16_8, 8, short, 2)
+LLMX_ROWS(llmx_q8_0_rows16_16, 16, short, 2)
+LLMX_ROWS(llmx_q8_0_rows8_1, 1, signed char, 1)
+LLMX_ROWS(llmx_q8_0_rows8_2, 2, signed char, 1)
+LLMX_ROWS(llmx_q8_0_rows8_4, 4, signed char, 1)
+LLMX_ROWS(llmx_q8_0_rows8_8, 8, signed char, 1)
+LLMX_ROWS(llmx_q8_0_rows8_16, 16, signed char, 1)
 #define LLMX_HALF(name, C)                                                                                                              \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) { \
         q8_0_rows_half<C>(c, q, dx, nin, ncols, add);                                                                                   \

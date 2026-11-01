@@ -1,5 +1,34 @@
 # llmx - Development Status
 
+## ROCm F16 decode rows, two rows a wave (2026-11-01, DDEV, branch perf/rocm-f16-two-rows on main fb2e379d2; the f16 decode plan posted to F2DEV and XDEV at 2026-11-01 20:5x, probe 2 kept by p71)
+
+**Goal:** the F16 class's decode products of Qwen3 Q8_0 on one MI50 toward Vulkan's with the same bits; 8B tg128 F16 was 68.3 tok/s against Vulkan's 77.5, the products 1.39 ms of the 1.7 ms a token gap (rig `ddev/rocm/p66`).
+**Done:** every 16-bit twin build of the quarter-layout row kernel (`q8_0_rows` in `kernels/int16.hip`, `R` rows a wave) takes two output rows a wave: each lane's twin load and scale serve both rows, and each row keeps its lanes and its sum order, so its bits are the one-row build's; the host launches a wave for two rows in that class; the int8 class keeps one row.
+**Found** (probes on the one-column build, same bits each, tg128 F16 medians, main / probe): four steps of loads ahead (56 VGPRs) lost, 8B 68.2 -> 65.2; two rows won, 8B 68.3 -> 70.2, 14B 38.0 -> 39.6, 0.6B 372 -> 382, its product 83.0 -> 80.5 us a call; four rows lost, 8B 65.4; two rows on aligned words and `alignbyte` lost against two rows on 16-bit loads (p71, renderD131: 8B 63.4 against 70.1, 0.6B 353 against 364, 14B 37.9 against 36.8 within spread), 84.2 us a call.
+**Measured** (one MI50, renderD131, default clocks, Qwen3 Q8_0, main be0dbed72 / branch 6c1382597 built alike, tok/s; rig `ddev/rocm/g66` three interleaved rounds with Vulkan, `ddev/rocm/g66b` three base-head-head-base rounds):
+
+| cell | main | branch | change | spread main / branch |
+|---|---:|---:|---:|---|
+| 8B f16 4 sequences tg64, total (g66b, 6 runs) | 65.81 | 70.59 | +7.3% | every round faster: +8.6%, +6.1%, +6.9% |
+| 8B f16 tg128 (g66b, 6 runs) | 62.02 | 65.76 | +6.0% | every round faster: +9.0%, +4.4%, +4.5% |
+| 8B f16 tg128 (g66) | 67.09 | 68.42 | +2.0% | 4.6% / 7.3% |
+| 14B f16 tg128 (g66) | 35.80 | 37.76 | +5.5% | 11% / 10% |
+| 8B f16 pp512 (g66) | 865.2 | 859.7 | -0.6% | 2.3% / 3.2% |
+| 14B f16 pp512 (g66) | 483.0 | 478.5 | -0.9% | 3.0% / 4.2% |
+| 0.6B f16 tg128 (g66) | 374.5 | 371.3 | -0.9% | 0.7% / 1.5% |
+| 0.6B f16 tg128 (g66b, 6 runs) | 335.9 | 332.2 | -1.1% | 23% / 25%, rounds -0.5%, +4.5%, -6.9% |
+| 0.6B f16 pp512 (g66) | 8763 | 8761 | -0.0% | 0.3% / 0.3% |
+| 8B int8 tg128 (g66) | 70.98 | 70.82 | -0.2% | 0.4% / 0.7% |
+| 0.6B int8 tg128 (g66) | 363.7 | 364.7 | +0.3% | 2.2% / 0.5% |
+
+The 0.6B and 14B decode cells are wide: the machine's load rose from 12 to 24 during g66b, which a host-bound 0.6B step feels, and 0.6B is at most about 1% slower, within its spread; g66's ordered rounds favoured the first arm of a round, which g66b's base-head-head-base order cancels.
+The gain is in the kernel's own time (83.0 -> 80.5 us a call, timestamps), not host code, so the code-layout band of the single host translation unit does not apply.
+Registers (gfx906 resource usage, plain and 16-bit-dot modules alike, main / branch, VGPRs and waves a SIMD): rows16_1 35/46, 7/5; rows16_2 46/62, 5/4; rows16_4 70/89, 3/2; rows16_8 118/141, 2/1; rows16_16 60/80, 4/3; no scratch; the rows8 builds keep their VGPRs.
+**Identity:** device byte identity against main on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, Qwen3-0.6B Q8_0 16k raw and chat-template sequences at f16, and Qwen3-0.6B Q8_0 on the CPU; backend-rocm passes, with every decode column of 1 to 64 generated rows the column alone, bit for bit, in both forms on rows 4096, 1280 and 1312 wide, the residual add and a group of three, and a decode group of 41, 104 and 63 rows equal to each projection alone, which takes the odd row a wave's second row falls past; CTest 80/80; docs and dead-code clean; the suite on rocm:0 passes but for reference-consumer, half-weights, moe and vision, each the ROCm backend refusing an op the branch does not reach (group_rms_norm, F16 and BF16 weights, routed_experts, layer_norm); int8's dense f16 HF logit errors 0.00011 and 0.00013, the same bits as main.
+**Gates after the rebase:** builds of main fb2e379d2 and the head pass, and CTest passes 80/80 on the device; reviewed by F2DEV; the change lands by fast-forward.
+The suite on rocm:0 fails reference-consumer, half-weights, moe and vision on main fb2e379d2 and on the head alike, measured with both built the same way: each is the device refusing an op it lacks (routed_experts among them), which the components should report as SKIP through `common.device_lacks_kernel` rather than FAIL; that skip path is the follow-up.
+**Gotchas:** four sequences on ROCm decode barely faster in total than one (about 66 against 62 tok/s at 8B, Vulkan 225-241 for four), on main and the branch alike: the batched decode is bound outside the products.
+
 ## The sampler's row scans in lanes of eight (2026-11-01, SDEV, branch perf/sampler-scan on main 2e77b49ab, plan A of SDEV's sampling post of 20:45, approved by F2DEV at 20:53)
 
 - **Goal:** a code reply's verify on Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 samples about 10.6 rows a round on the scheduler's thread, 2.15 ms a round, nearly all of it greedy's scalar maximum over 248320 logits, about 5% of a one-user code reply; scanning the row in vector lanes with the same result should take most of that off.

@@ -928,7 +928,9 @@ private:
                                                             {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
                                                             {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
                     const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
-                    launch(builds[form][build], (unsigned)((c.total + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                    // The F16 class's builds take two output rows a wave.
+                    const size_t per = form == 0 ? 2 * rows_per_block_ : rows_per_block_;
+                    launch(builds[form][build], (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
                     tile(proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);

@@ -174,7 +174,8 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         VulkanKVStorage& s = *t.storage;
         check_storage(s, n_head_kv, head_dim);
         size_t tiles = 0;
-        for (const Placed& pv : wide) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+        const size_t tile_rows = head_dim == 256 ? kAttentionTileRowsD256 : kAttentionTileRows;
+        for (const Placed& pv : wide) tiles += (pv.view->nq + tile_rows - 1) / tile_rows;
         // With every view here and the integer-dot tile reading the output next, the output's twin written beside it (shaders/attention_tile.comp).
         std::vector<RowRun> vruns;
         for (const Placed& pv : placed) vruns.push_back(RowRun{pv.row0 + pv.view->nq, pv.view->extent});

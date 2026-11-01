@@ -1640,7 +1640,8 @@ const size_t kNarrowCols = 16;
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
-const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
+const size_t kAttentionTileRows = 64;     // attention_tile.comp: `ROWS * TQ`, the query rows of one workgroup of the 128-wide build
+const size_t kAttentionTileRowsD256 = 32; // the same in the LLMX_D256 build
 const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, the query rows of one non-causal tile
 
 // The cluster width whose reduction a two-row build transposes (shaders/matmul_row_two.glsl, TREE_CLUSTER): the width a long row of its kernel takes on the device, or 0 where the profile keeps the butterfly.

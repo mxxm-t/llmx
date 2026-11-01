@@ -2137,7 +2137,7 @@ struct OrderCalls {
     }
 };
 
-// The split tiled attention cut over whole tiles under the smallest scratch cap gives the bytes of the uncut call, output and twin.
+// The split tiled attention cut over whole tiles under the smallest scratch cap gives the bytes of the uncut call, output and twin, with one row a lane and with two.
 int tile_split_cap_checks() {
     auto base = backend::make_vulkan_backend(0);
     auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
@@ -2179,13 +2179,22 @@ int tile_split_cap_checks() {
         b.read(*p, 0, out.data() + nq * qw, nq * 32 * sizeof(float));
         return out;
     };
-    const auto whole = once();
+    // Each run with one row a lane and with two, forced through the compute units the pairing rule reads; the last workgroup's second tile holds 4 live rows.
+    const auto dev = backend::VulkanLifetimeTest::device(b);
+    const uint32_t units = dev->caps.compute_units;
     const size_t cap = backend::VulkanLifetimeTest::attention_scratch_cap(b);
-    backend::VulkanLifetimeTest::attention_scratch_cap(b, 1);
-    const auto cut = once();
-    backend::VulkanLifetimeTest::attention_scratch_cap(b, cap);
-    const bool same = std::memcmp(whole.data(), cut.data(), whole.size() * sizeof(float)) == 0;
-    std::cout << "tiled attention " << nq << " rows after " << hist << " tokens, cut into pieces of one tile: " << (same ? "same bytes PASS\n" : "differs FAIL\n");
+    std::vector<std::vector<float>> runs;
+    for (uint32_t u : {uint32_t(1) << 30, uint32_t(1)}) {
+        dev->caps.compute_units = u;
+        runs.push_back(once());
+        backend::VulkanLifetimeTest::attention_scratch_cap(b, 1);
+        runs.push_back(once());
+        backend::VulkanLifetimeTest::attention_scratch_cap(b, cap);
+    }
+    dev->caps.compute_units = units;
+    bool same = true;
+    for (const auto& r : runs) same = same && std::memcmp(runs[0].data(), r.data(), r.size() * sizeof(float)) == 0;
+    std::cout << "tiled attention " << nq << " rows after " << hist << " tokens, whole and cut into pieces of one tile, one and two rows a lane: " << (same ? "same bytes PASS\n" : "differs FAIL\n");
     return same ? 0 : 1;
 }
 

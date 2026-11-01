@@ -66,7 +66,7 @@ The first three come before the class; the others define members the class decla
 - `vulkan_memory.hpp`: allocation and adoption, reads, writes and copies through staging, stream-ordered scratch (`grow`), padded F32 copies, the argument arena (`args`), of which each dispatch takes its own copy in the slot recording it, lookup grids (`lookup_grid`), and `WeightView` scale validation and descriptor binding (including the unit-scale fallback).
 - `vulkan_dispatch.hpp`: storage bindings (`bind`), pipelines made on first use (`kernel`) and one recorded `dispatch`.
 - `vulkan_twins.hpp`: the activation twins (`twin`, `take_twin`, `keep_twin`) and what a write drops (`forget_written`).
-- While unordered (`Backend::unordered`) barriers are left out, but `order_step`, called by `dispatch` and `copy`, still puts one before a step that follows another of its op call (`OpSteps`, held by the matmuls, the routed products, attention and the routed step) and before a step that uses scratch written, or writes scratch used, since the last barrier (`is_scratch`: twins, partial sums, groupings, split states); a caller's own buffers across calls are its promise. A single-dispatch op that touches no scratch, such as the rerun's conv and delta rule, takes none, and `vulkan-lifetime --queue` holds both (AGENTS.md, Tests).
+- While unordered (`Backend::unordered`) barriers are left out, but `order_step`, called by `dispatch` and `copy`, still puts one before a step that follows another of its op call (`OpSteps`, held by the matmuls, the routed products, attention and the routed step) and before a step that uses scratch written, or writes scratch used, since the last barrier (`is_scratch`: twins, partial sums, groupings, split states); a caller's own buffers across calls are its promise. A single-dispatch op that touches no scratch, such as the rerun's conv and delta rule, takes none, and `vulkan-lifetime --queue` holds both (docs/TESTS.md).
 - `vulkan_matmul.hpp`: the products: the row build or tile a call takes (`row_plan`, `column_builds`), column chunks, row and tile dispatch, and routed expert calls using each operand's scale binding.
 - `vulkan_moe.hpp`: the fused routed step (`moe_step`, `moe_build`), below.
 - `vulkan_attention.hpp`: the KV cache and attention: storage, view tables, the KV write, attention, sparse attention and index selection.
@@ -103,7 +103,7 @@ The first three come before the class; the others define members the class decla
   decode build to the counts its shape and forms give, and a kernel's
   two-row builds to whole copies of one row and column's products apart,
   and of one row's weight operations where their rows differ,
-  as the first line of each build's representation states its shape (AGENTS.md, Tests). On a queue that
+  as the first line of each build's representation states its shape (docs/TESTS.md). On a queue that
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
   since the last reading, waiting for the queue, and
@@ -447,7 +447,7 @@ of one column's products, depending on whether the compiler unrolls the
 column loop. Two-row builds keep whole copies and the baseline fusion ratio.
 These checks detect count changes, not every reassociation: the separate
 decode-column identity checks hold results across widths and tails, as
-described in AGENTS.md, Tests.
+described in docs/TESTS.md.
 
 ## Finite activation range repair
 

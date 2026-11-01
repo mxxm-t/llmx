@@ -660,7 +660,7 @@ void token_history_host(bool split) {
     model.release_host(state);
 }
 
-// State checkpoints (docs/SPECULATIVE.md, section 1) on a model of a 512-token context: keep, retract, fork, failed passes and slot counts, each continuing with the bits of the history never stopped (AGENTS.md, Tests).
+// State checkpoints (docs/SPECULATIVE.md, section 1) on a model of a 512-token context: keep, retract, fork, failed passes and slot counts, each continuing with the bits of the history never stopped (docs/TESTS.md).
 void checkpoints() {
     const gguf::GGUFModel m = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     const infer::ModelWeights w = infer::gguf_weights(m);
@@ -1797,7 +1797,7 @@ struct NoArgmax : backend::CpuBackend {
     bool implements(backend::Op op) const override { return op != backend::Op::argmax_rows; }
 };
 
-// The embedded drafter (docs/SPECULATIVE.md, section 7) on the tiny MTP model: loaded, it leaves the logits as they were, and its drafts and draft logits are those of a fresh sequence fed the same tokens (AGENTS.md, Tests).
+// The embedded drafter (docs/SPECULATIVE.md, section 7) on the tiny MTP model: loaded, it leaves the logits as they were, and its drafts and draft logits are those of a fresh sequence fed the same tokens (docs/TESTS.md).
 // It is held across slices, other sequences, retracts, forks, resets, failed passes and four CPU stages; a draft whose blocks run out takes none and changes nothing.
 void drafts() {
     const gguf::GGUFModel file = tiny_mtp();

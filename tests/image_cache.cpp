@@ -1,4 +1,4 @@
-// An image's identity in every tier of the server's cache (docs/VISION.md, section 5), and its encode in pieces (section 10), through the scheduler over a tiny hybrid model (AGENTS.md, Tests).
+// An image's identity in every tier of the server's cache (docs/VISION.md, section 5), and its encode in pieces (section 10), through the scheduler over a tiny hybrid model (docs/TESTS.md).
 // Each reply is held to the same request's reply on a fresh model, bit for bit.
 #include <algorithm>
 #include <atomic>

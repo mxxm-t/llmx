@@ -567,7 +567,7 @@ void stream_checks(const std::string& path) {
             "a stream over a file cut after its header was read did not say where it ended");
 }
 
-// The read ring stepped without waiting, as the server drives it (ReadRing), its cases listed in AGENTS.md, Tests.
+// The read ring stepped without waiting, as the server drives it (ReadRing), its cases listed in docs/TESTS.md.
 void ring_checks() {
     // A ring not started has no reader, so its pages can be set up, and fail to be, before any fill runs, and it goes with nothing to join.
     {

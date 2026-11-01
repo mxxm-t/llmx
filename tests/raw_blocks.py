@@ -15,7 +15,7 @@ import roundtrip
 import spec_decode as sd
 
 # Raw-block round trips for the decoders of tests/spec_decode.py, which the file-exact HF references and the MXFP4 writer decode with.
-# Blocks built from chosen fields must decode to the values those fields define, exact fractions rounded once to f32, and the numpy form must give the pure form's bits, NaN as NaN (AGENTS.md, Tests).
+# Blocks built from chosen fields must decode to the values those fields define, exact fractions rounded once to f32, and the numpy form must give the pure form's bits, NaN as NaN (docs/TESTS.md).
 
 WRITER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "write_mxfp4.py")
 

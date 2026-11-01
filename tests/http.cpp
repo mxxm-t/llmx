@@ -1,4 +1,4 @@
-// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client (AGENTS.md, Tests).
+// The HTTP layer of docs/SERVER.md step 1: a listener on a system-chosen port served from a thread, requests sent with the layer's own client (docs/TESTS.md).
 // The hosted TSan job runs it under ThreadSanitizer, which sees the socket read by accept on one thread and closed on another.
 #include <atomic>
 #include <chrono>

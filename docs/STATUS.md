@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Test descriptions on their own page (2026-11-01, RDEV, branch docs/tests-page on main 34c18feb4, the owner's token-savings goal of 2026-11-01)
+
+- **Goal:** AGENTS.md is read into every agent call, and most of it was the Tests section's per-test descriptions; move them to their own page, losing nothing.
+- **Done:** the CTest descriptions, the suite component bullets, the matrix-path witness paragraphs and the by-hand real-model checks moved verbatim to `docs/TESTS.md`; AGENTS.md keeps the run commands, the two project gates, the merge gates, the traps, the dead-code and stale-docs rules and a pointer, with the rule that every CTest and suite component is described in `docs/TESTS.md`.
+- **Check:** the `docs` component's `test-name` check now reads `docs/TESTS.md` as the list, the whole page where it read AGENTS.md's Tests section, with the same findings and its planted faults (a removed CTest that opens a line, a removed CTest named after CTest) anchored there.
+- **References:** the code comments and live docs that pointed to AGENTS.md, Tests for a test's cases now point to `docs/TESTS.md`; dated STATUS records keep theirs, which still resolve to AGENTS.md's Tests heading.
+- **Left:** the hosted run, which the coordinator starts.
+- **Gotchas:** a new test is described in `docs/TESTS.md`, not AGENTS.md; `test-name` fails a CTest or component that page never names.
 ## Compressed dashboard event stream (2026-11-01, standalone dashboard)
 
 - **Goal:** reduce the initial dashboard stream transfer while keeping the existing SSE event schema, history cursor, reconnect behavior and uncompressed clients.

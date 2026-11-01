@@ -137,4 +137,4 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 - [BUILD](docs/BUILD.md): building on each platform, and running the tests.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 - [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan backend and the multi-device modes work.
-- [AGENTS](AGENTS.md): for contributors.
+- [AGENTS](AGENTS.md): for contributors, and [TESTS](docs/TESTS.md): what each test checks.

@@ -1,5 +1,5 @@
 // A reply's decode path on a real model: the prompt read as one prefill, then each forced id of a fixture fed as a decode step, as a request alone runs through the server.
-// Each step prints its greedy token and the forced one with their logits, the last also the five best and the two tokens' logits; it exits 1 where a forced id is off the greedy path and 2 on a bad fixture entry (AGENTS.md, Tests).
+// Each step prints its greedy token and the forced one with their logits, the last also the five best and the two tokens' logits; it exits 1 where a forced id is off the greedy path and 2 on a bad fixture entry (docs/TESTS.md).
 #include <cmath>
 #include <cstdint>
 #include <cstdio>

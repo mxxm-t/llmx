@@ -15,7 +15,7 @@ import tensor_split
 from block_fixture import write_fixture
 
 
-# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends, raw logits compared bit for bit (AGENTS.md, Tests).
+# The layer split against one device through llmx-split-check (tools/split_check.cpp), on CPU backends, raw logits compared bit for bit (docs/TESTS.md).
 # The tool names its own devices and cache type, so the configured ones do not reach it, and LLMX_DTYPE reaches both placements; the tensor-split fixtures also run as a group of two CPU backends against two stages of such groups.
 UBATCHES = (1, 3, 16)
 CACHE_TYPES = ("f16", "f32")

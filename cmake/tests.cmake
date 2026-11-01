@@ -395,7 +395,7 @@ if(LLMX_HAS_BACKEND_ROCM)
     target_link_libraries(llmx-encode-image PRIVATE llmx-rocm)
 endif()
 list(APPEND LLMX_TARGETS llmx-encode-image)
-# Not a CTest either: a fixture's forced reply read through the decode path of a real model, run by hand (AGENTS.md, Tests).
+# Not a CTest either: a fixture's forced reply read through the decode path of a real model, run by hand (docs/TESTS.md).
 add_executable(llmx-decode-probe tools/decode_probe.cpp)
 target_include_directories(llmx-decode-probe PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(LLMX_HAS_BACKEND_VULKAN)

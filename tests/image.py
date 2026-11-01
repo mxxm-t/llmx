@@ -13,7 +13,7 @@ import spec_decode
 from f32 import build_byte_vocab, write_model
 from server import Server, post_ok
 
-# A prompt with images through `llmx logits` and `generate` with --chat, --mmproj and --image, against HF Qwen3_5ForConditionalGeneration (tools/gen_baseline.py image-tiny, AGENTS.md, Tests).
+# A prompt with images through `llmx logits` and `generate` with --chat, --mmproj and --image, against HF Qwen3_5ForConditionalGeneration (tools/gen_baseline.py image-tiny, docs/TESTS.md).
 # Every prompt row and the greedy ids after it are held to HF's token-by-token cached forward at the F32 bound, and on a tiny qwen4exp model to HF Qwen4ExpForConditionalGeneration (image-qwen4exp).
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")

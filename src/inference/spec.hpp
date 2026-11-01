@@ -34,7 +34,7 @@ Accepted accept(const float* rows, size_t n_vocab, const uint32_t* drafts, size_
 
 namespace spec {
 
-// The most drafts a verify takes: with the last pick 64 rows, the most generated tokens a pass's kernels are held to give the bits of single steps for (AGENTS.md, backend-vulkan).
+// The most drafts a verify takes: with the last pick 64 rows, the most generated tokens a pass's kernels are held to give the bits of single steps for (docs/TESTS.md, backend-vulkan).
 inline constexpr int kMaxDrafts = 63;
 
 // The rows of a history's images, [first, end) each in order, as its sequence's runs give them (Model::image_rows).

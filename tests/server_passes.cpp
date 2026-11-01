@@ -1,4 +1,4 @@
-// The scheduler's policy core (server/policy.hpp) by hand, then its round under a simulated executor in random schedules (AGENTS.md, Tests).
+// The scheduler's policy core (server/policy.hpp) by hand, then its round under a simulated executor in random schedules (docs/TESTS.md).
 // `llmx-server-passes-test N` runs N schedules, 2000 by default; `--replay FILE` or `--load NAME` replays loads under each share rule instead (docs/SERVER.md, Prompt shares).
 #include <algorithm>
 #include <cmath>

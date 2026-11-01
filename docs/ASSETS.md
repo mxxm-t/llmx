@@ -719,7 +719,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 | Qwen3.5-4B | 1.844163831 | 2.519526005 | 2.216166791 | 2.269156456 |
 
 `tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
-`tests/baseline.py` runs it on each file of the gate on disk at 512-token windows, and it runs by hand on any pinned file at either window (`AGENTS.md`, Tests).
+`tests/baseline.py` runs it on each file of the gate on disk at 512-token windows, and it runs by hand on any pinned file at either window (`docs/TESTS.md`).
 Where llmx does not run the architecture, on a device whose backend lacks its ops, it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
 The chat checks hold the file to the template transformers rendered with and to the render's ids; the `chat-template` test holds llmx's own render of the two conversations to transformers', and the renderer to transformers' on that template over other conversations.
 Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
@@ -879,7 +879,7 @@ Since 2026-09-25, `common.top5_overlap` counts a boundary swap as agreement
 when the reference puts the exchanged tokens within 0.1 logits of its fifth
 value. It also forgives the reference's fifth and sixth trading places when
 llmx puts that pair within 0.1 logits, even if the reference does not. This
-is the rule described in AGENTS.md; overlap 5/5 need not mean identical sets.
+is the rule described in `docs/TESTS.md`; overlap 5/5 need not mean identical sets.
 
 The context-123 case omits its singleton tail: 246 used tokens, 244 targets and two windows.
 Each NLL case runs twice, in batched passes (`ppl-NN`), the prompt path, and one token at a time with `--per-token` (`ppl-NN-per-token`), the decode path, as `tests/baseline.py` does; rankings exercise short batched prefill.

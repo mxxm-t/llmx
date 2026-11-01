@@ -244,7 +244,7 @@ Both routes refresh the identifier and the fingerprint on every build, CMake wit
 ## After building: the tests
 
 The native tests run through CTest after a CMake build, and the Python suite drives the built binary.
-[AGENTS](../AGENTS.md#tests) describes what each test covers, and [CI](CI.md) which of them each hosted job runs.
+[TESTS](TESTS.md) describes what each test covers, and [CI](CI.md) which of them each hosted job runs.
 
 Windows, after `build.bat` (the suite's default binary is `llmx.exe` in the repository root, so no `--exe` is needed):
 

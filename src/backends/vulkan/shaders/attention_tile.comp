@@ -1,11 +1,11 @@
 #version 450
-// Causal GQA for a wide pass over every view of a batch: one workgroup per (tile of 32 query rows of one view, head), the head's K and V streamed through shared memory in tiles of TK tokens.
+// Causal GQA for a wide pass over every view of a batch: one workgroup per (tile of 32 query rows of one view, head), or with `pair` per two tiles in the 128-wide build, the head's K and V streamed through shared memory in tiles of TK tokens.
 // Row b of a view attends through its hist + b; the head width is fixed at 128 (256 in the LLMX_D256 build, whose 8-token tiles fit 16 KiB of shared memory), and TK, where the online softmax rescales, is a constant of it, never of the batch.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major; uint chunk; uint nsplit; uint wg0;
+    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major; uint pair; uint chunk; uint nsplit; uint wg0;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -39,130 +39,52 @@ layout(set = 0, binding = 5) writeonly buffer XQ { uint xq[]; };
 layout(set = 0, binding = 6) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
 #include "xquant.glsl"
+// With `pair` set the 128-wide build gives each lane two query rows of one 32-row tile, so a workgroup covers two tiles and every K and V value read from shared memory serves both rows.
+// Each row takes the operations of a lane of its own in the same order and stops at its own tile's last token, so its bits do not depend on the pairing.
 #ifdef LLMX_D256
-const uint DIM = 256u, TK = 8u;
+const uint DIM = 256u, TK = 8u, WG_ROWS = 32u;
 #else
-const uint DIM = 128u, TK = 16u;
+const uint DIM = 128u, TK = 16u, WG_ROWS = 64u;
 #endif
 const uint TQ = 32u, LANES = 8u, OWN = TK / LANES, RUNS = DIM / 32u;
 shared vec4 ks[TK * DIM / 4u];
 shared vec4 vs[TK * DIM / 4u];
-shared float ps[TQ * TK];
+shared float ps[WG_ROWS * TK];
+// One step of the butterfly over row j's partial dots: lanes whose bit H is set keep the upper half, the others the lower.
+#define ATTN_BFLY(j, t, H) { bool upper = (lane & H) != 0u; float lo = part[j][t], hi = part[j][t + H]; part[j][t] = (upper ? hi : lo) + subgroupShuffleXor(upper ? lo : hi, H); }
+#define ROWS 1
+#define TILE_ROWS tile_rows1
+#include "attention_tile_rows.glsl"
+#undef ROWS
+#undef TILE_ROWS
+#ifndef LLMX_D256
+#define ROWS 2
+#define TILE_ROWS tile_rows2
+#include "attention_tile_rows.glsl"
+#undef ROWS
+#undef TILE_ROWS
+#endif
 
 void main() {
     uint wg = (gl_WorkGroupID.x + p.wg0) / p.nsplit;
     uint part = gl_WorkGroupID.x + p.wg0 - wg * p.nsplit;
     uint n = view_count();
     uint v = 0u, first = 0u;
+    uint wg_rows = p.pair != 0u ? WG_ROWS : TQ;
     for (uint i = 0u; i < n; ++i) {
-        uint tiles = (view_nq(i) + TQ - 1u) / TQ;
+        uint tiles = (view_nq(i) + wg_rows - 1u) / wg_rows;
         if (wg < first + tiles * p.n_head) { v = i; break; }
         first += tiles * p.n_head;
     }
     uint local = wg - first;
     uint tile = local / p.n_head;
     uint h = local - tile * p.n_head;
-    uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v), local0 = view_local0(v);
-    uint kvh = h / (p.n_head / p.n_head_kv);
-    uint lid = gl_LocalInvocationID.x;
-    uint r = lid >> 3u, lane = lid & 7u;             // query row of the tile, lane within it
-    uint b = tile * TQ + r;                          // row of the view
-    bool live = b < nq;
-    uint qstride = p.n_head * DIM;
-    uint qbase = (row0 + min(b, nq - 1u)) * qstride + h * DIM;
-    vec4 qv[RUNS], acc[RUNS];
-    for (uint k = 0u; k < RUNS; ++k) {
-        uint d = 32u * k + 4u * lane;
-        qv[k] = vec4(q[qbase + d], q[qbase + d + 1u], q[qbase + d + 2u], q[qbase + d + 3u]) * p.scale;
-        acc[k] = vec4(0.0);
-    }
-    float m = -1.0 / 0.0, l = 0.0;
-    // The last token any row of this tile attends, exclusive.
-    uint tile_end = min(hist + tile * TQ + TQ, hist + nq);
-    uint my_end = hist + b + 1u;
-    // Split, a workgroup walks one part of `chunk` tokens from position 0 and leaves its rows' states to attention_merge.
-    uint t_lo = p.nsplit > 1u ? part * p.chunk : 0u;
-    uint t_hi = p.nsplit > 1u ? min(t_lo + p.chunk, tile_end) : tile_end;
-    uint bf = p.n_head_kv * p.bt * DIM;
-    for (uint t0 = t_lo; t0 < t_hi; t0 += TK) {
-        // Stage the tile eight values a load, zero past the tile's last token so a masked score meets a finite value.
-        for (uint i = lid; i < TK * DIM / 8u; i += 256u) {
-            uint j = i / (DIM / 8u), d = (i - j * (DIM / 8u)) * 8u;
-            uint t = t0 + j;
-            vec4 k0 = vec4(0.0), k1 = vec4(0.0), v0 = vec4(0.0), v1 = vec4(0.0);
-            if (t < t_hi) {
-                uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
-                k_load8(base, k0, k1);
-                v_load8(base, v0, v1);
-            }
-            uint s = (j * DIM + d) / 4u;
-            ks[s] = k0; ks[s + 1u] = k1;
-            vs[s] = v0; vs[s + 1u] = v1;
-        }
-        barrier();
-        // Phase one: partial dots eight tokens at a time, then the butterfly, which leaves token 8g + l's score in lane l.
-        float sc[OWN];
-        float mt = -1.0 / 0.0;
-        for (uint g = 0u; g < OWN; ++g) {
-            float part[8];
-            for (uint j = 0u; j < 8u; ++j) {
-                float s = 0.0;
-                for (uint k = 0u; k < RUNS; ++k) s += dot(qv[k], ks[(8u * g + j) * (DIM / 4u) + 8u * k + lane]);
-                part[j] = s;
-            }
-            for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
-                bool upper = (lane & half_) != 0u;
-                for (uint j = 0u; j < half_; ++j) {
-                    float lo = part[j], hi = part[j + half_];
-                    part[j] = (upper ? hi : lo) + subgroupShuffleXor(upper ? lo : hi, half_);
-                }
-            }
-            sc[g] = t0 + 8u * g + lane < my_end ? part[0] : -1.0 / 0.0;
-            mt = max(mt, sc[g]);
-        }
-        mt = max(mt, subgroupShuffleXor(mt, 1u));
-        mt = max(mt, subgroupShuffleXor(mt, 2u));
-        mt = max(mt, subgroupShuffleXor(mt, 4u));
-        float mn = max(m, mt);
-        // A row with nothing unmasked yet keeps m at -inf; its weights are zero rather than the NaN of inf - inf.
-        float corr = mn == -1.0 / 0.0 ? 1.0 : exp(m - mn);
-        float sum = 0.0;
-        for (uint g = 0u; g < OWN; ++g) {
-            float w = sc[g] == -1.0 / 0.0 ? 0.0 : exp(sc[g] - mn);
-            ps[r * TK + 8u * g + lane] = w;
-            sum += w;
-        }
-        sum += subgroupShuffleXor(sum, 1u);
-        sum += subgroupShuffleXor(sum, 2u);
-        sum += subgroupShuffleXor(sum, 4u);
-        l = l * corr + sum;
-        m = mn;
-        for (uint k = 0u; k < RUNS; ++k) acc[k] *= corr;
-        // A row's eight lanes are one subgroup, so their probabilities are visible to each other past this point.
-        subgroupMemoryBarrierShared();
-        subgroupBarrier();
-        // Phase two: the weighted sum of the tile's values.
-        for (uint j = 0u; j < TK; ++j) {
-            float w = ps[r * TK + j];
-            for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[j * (DIM / 4u) + 8u * k + lane];
-        }
-        barrier();
-    }
-    if (p.nsplit > 1u) {
-        // A row with no token in this part keeps m at -inf and l at 0, which the merge weighs as nothing.
-        uint base = (((local0 + b) * p.n_head + h) * p.nsplit + part) * (DIM + 2u);
-        if (live && lane == 0u) { scratch[base] = m; scratch[base + 1u] = l; }
-        for (uint k = 0u; k < RUNS; ++k) {
-            uint d = base + 2u + 32u * k + 4u * lane;
-            if (live) { scratch[d] = acc[k].x; scratch[d + 1u] = acc[k].y; scratch[d + 2u] = acc[k].z; scratch[d + 3u] = acc[k].w; }
-        }
-        return;
-    }
-    for (uint k = 0u; k < RUNS; ++k) {
-        uint d = 32u * k + 4u * lane;
-        vec4 a = acc[k] / l;
-        if (live) { o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w; }
-        // Dimensions 32k .. 32k + 31 of head h are block RUNS h + k of the row, held by its eight lanes in order.
-        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + RUNS * h + k, p.rows * qstride, p.major);
-    }
+    uint nq = view_nq(v), base = tile * wg_rows;
+#ifdef LLMX_D256
+    tile_rows1(v, base, h, nq, part);
+#else
+    // A workgroup whose second tile holds no row takes one row a lane, so every subgroup has rows.
+    if (p.pair != 0u && base + TQ < nq) tile_rows2(v, base, h, nq, part);
+    else tile_rows1(v, base, h, nq, part);
+#endif
 }

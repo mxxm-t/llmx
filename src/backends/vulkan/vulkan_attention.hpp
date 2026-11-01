@@ -257,12 +257,18 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
     const size_t nsplit = (longest + part - 1) / part;
     const VulkanKVStorage& s = storage_of(views.front().view->storage);
     const KernelId kernel = head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s);
-    struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major, chunk, nsplit, wg0; }
-        tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, quant ? 1u : 0u, u32(rows), major, u32(part), 1u, 0u};
-    // The tiles of `pieces`, whole or in `parts` parts each, in dispatches within the device's workgroup count.
+    // Two rows a lane, a workgroup of two 32-row tiles, once the paired workgroups of every part still give every compute unit one; below that the call is too small to fill the device and halving its workgroups slows it.
+    // A row's bits are the same either way (shaders/attention_tile.comp).
+    size_t pairs = 0;
+    for (const Placed& pv : views) pairs += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+    const bool pair = head_dim == 128 && size_mul(pairs * (size_t)n_head, nsplit) >= dev_->caps.compute_units;
+    const size_t wg_rows = pair ? kAttentionTileRows : kAttentionTileRowsOne;
+    struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major, pair, chunk, nsplit, wg0; }
+        tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, quant ? 1u : 0u, u32(rows), major, pair ? 1u : 0u, u32(part), 1u, 0u};
+    // The workgroups of `pieces`, whole or in `parts` parts each, in dispatches within the device's workgroup count.
     auto tiles_of = [&](const std::vector<Placed>& pieces, const ViewTable& t, VkDescriptorBufferInfo scratch, size_t scratch_floats, uint32_t parts) {
         size_t tiles = 0;
-        for (const Placed& pv : pieces) tiles += (pv.view->nq + kAttentionTileRows - 1) / kAttentionTileRows;
+        for (const Placed& pv : pieces) tiles += (pv.view->nq + wg_rows - 1) / wg_rows;
         const size_t total = size_mul(tiles * (size_t)n_head, parts);
         tc.nsplit = parts;
         for (size_t g0 = 0; g0 < total; g0 += limit) {
@@ -281,10 +287,10 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
     }
     // Pieces of whole tiles whose parts fit the cap; a view cut at a tile boundary goes on as a view whose history holds the rows before the cut.
     const size_t per_row = size_mul(size_mul((size_t)n_head, nsplit), stride * sizeof(float));
-    const size_t cap_rows = std::max(kAttentionTileRows, attention_scratch_cap_ / per_row / kAttentionTileRows * kAttentionTileRows);
+    const size_t cap_rows = std::max(kAttentionTileRowsOne, attention_scratch_cap_ / per_row / kAttentionTileRowsOne * kAttentionTileRowsOne);
     std::vector<KVView> cut;
     size_t cuts = 0;
-    for (const Placed& pv : views) cuts += pv.view->nq / kAttentionTileRows + 1;
+    for (const Placed& pv : views) cuts += pv.view->nq / kAttentionTileRowsOne + 1;
     cut.reserve(cuts);
     std::vector<std::vector<Placed>> pieces(1);
     size_t held = 0;
@@ -297,7 +303,7 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
             v.nq = take;
             cut.push_back(v);
             pieces.back().push_back(Placed{&cut.back(), pv.row0 + b0});
-            held += (take + kAttentionTileRows - 1) / kAttentionTileRows * kAttentionTileRows;
+            held += (take + kAttentionTileRowsOne - 1) / kAttentionTileRowsOne * kAttentionTileRowsOne;
             b0 += take;
         }
     for (const std::vector<Placed>& piece : pieces) {

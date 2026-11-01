@@ -1,0 +1,112 @@
+{
+  "scope": "Executed assembly confirms changed dependency chains; not a dynamic bottleneck measurement.",
+  "results": [
+    {
+      "build": "q1-int16-isa-v1",
+      "family": "q1",
+      "independent_chains": 1,
+      "maximum_dot_depth": 16,
+      "dot_instructions": [
+        "v_dot2_i32_i16 v40, v40, v24, 0                             ; d3a64028 1a023128",
+        "v_dot2_i32_i16 v42, v42, v25, v40                           ; d3a6402a 1ca2332a",
+        "v_dot2_i32_i16 v43, v43, v26, v42                           ; d3a6402b 1caa352b",
+        "v_dot2_i32_i16 v45, v45, v27, v43                           ; d3a6402d 1cae372d",
+        "v_dot2_i32_i16 v47, v47, v28, v45                           ; d3a6402f 1cb6392f",
+        "v_dot2_i32_i16 v9, v9, v29, v47                             ; d3a64009 1cbe3b09",
+        "v_dot2_i32_i16 v10, v10, v30, v9                            ; d3a6400a 1c263d0a",
+        "v_dot2_i32_i16 v13, v13, v31, v10                           ; d3a6400d 1c2a3f0d",
+        "v_dot2_i32_i16 v15, v15, v32, v13                           ; d3a6400f 1c36410f",
+        "v_dot2_i32_i16 v17, v17, v33, v15                           ; d3a64011 1c3e4311",
+        "v_dot2_i32_i16 v19, v19, v34, v17                           ; d3a64013 1c464513",
+        "v_dot2_i32_i16 v23, v23, v35, v19                           ; d3a64017 1c4e4717",
+        "v_dot2_i32_i16 v44, v44, v36, v23                           ; d3a6402c 1c5e492c",
+        "v_dot2_i32_i16 v6, v6, v37, v44                             ; d3a64006 1cb24b06",
+        "v_dot2_i32_i16 v7, v7, v38, v6                              ; d3a64007 1c1a4d07",
+        "v_dot2_i32_i16 v14, v14, v39, v7                            ; d3a6400e 1c1e4f0e"
+      ],
+      "isa_sha256": "cc8b8275dbe221264c13adfe260b7c8c17be67e93b78e54afcadcfbbeb7fe7db",
+      "receipt_sha256": "54cd221ee8959e74de01b15640b8503fb686bd9c046a102d5b256aed109a8ddf"
+    },
+    {
+      "build": "q1-int16-isa-v1",
+      "family": "q2",
+      "independent_chains": 1,
+      "maximum_dot_depth": 16,
+      "dot_instructions": [
+        "v_dot2_i32_i16 v47, v47, v24, 0                             ; d3a6402f 1a02312f",
+        "v_dot2_i32_i16 v22, v22, v25, v47                           ; d3a64016 1cbe3316",
+        "v_dot2_i32_i16 v11, v11, v26, v22                           ; d3a6400b 1c5a350b",
+        "v_dot2_i32_i16 v41, v41, v27, v11                           ; d3a64029 1c2e3729",
+        "v_dot2_i32_i16 v14, v14, v28, v41                           ; d3a6400e 1ca6390e",
+        "v_dot2_i32_i16 v42, v42, v29, v14                           ; d3a6402a 1c3a3b2a",
+        "v_dot2_i32_i16 v16, v16, v30, v42                           ; d3a64010 1caa3d10",
+        "v_dot2_i32_i16 v43, v43, v31, v16                           ; d3a6402b 1c423f2b",
+        "v_dot2_i32_i16 v9, v9, v32, v43                             ; d3a64009 1cae4109",
+        "v_dot2_i32_i16 v44, v44, v33, v9                            ; d3a6402c 1c26432c",
+        "v_dot2_i32_i16 v18, v18, v34, v44                           ; d3a64012 1cb24512",
+        "v_dot2_i32_i16 v45, v45, v35, v18                           ; d3a6402d 1c4a472d",
+        "v_dot2_i32_i16 v23, v23, v36, v45                           ; d3a64017 1cb64917",
+        "v_dot2_i32_i16 v46, v46, v37, v23                           ; d3a6402e 1c5e4b2e",
+        "v_dot2_i32_i16 v10, v10, v38, v46                           ; d3a6400a 1cba4d0a",
+        "v_dot2_i32_i16 v20, v20, v39, v10                           ; d3a64014 1c2a4f14"
+      ],
+      "isa_sha256": "ef95ee5f587c1738fecbca20bbb61a0da4aa126ab782661205ad6bd348c5d1a5",
+      "receipt_sha256": "54cd221ee8959e74de01b15640b8503fb686bd9c046a102d5b256aed109a8ddf"
+    },
+    {
+      "build": "q12-row-sums-isa-v1",
+      "family": "q1",
+      "independent_chains": 4,
+      "maximum_dot_depth": 4,
+      "dot_instructions": [
+        "v_dot2_i32_i16 v42, v42, v25, 0                             ; d3a6402a 1a02332a",
+        "v_dot2_i32_i16 v45, v45, v27, 0                             ; d3a6402d 1a02372d",
+        "v_dot2_i32_i16 v9, v9, v29, 0                               ; d3a64009 1a023b09",
+        "v_dot2_i32_i16 v40, v40, v24, v42                           ; d3a64028 1caa3128",
+        "v_dot2_i32_i16 v13, v13, v31, 0                             ; d3a6400d 1a023f0d",
+        "v_dot2_i32_i16 v43, v43, v26, v45                           ; d3a6402b 1cb6352b",
+        "v_dot2_i32_i16 v47, v47, v28, v9                            ; d3a6402f 1c26392f",
+        "v_dot2_i32_i16 v15, v15, v32, v40                           ; d3a6400f 1ca2410f",
+        "v_dot2_i32_i16 v10, v10, v30, v13                           ; d3a6400a 1c363d0a",
+        "v_dot2_i32_i16 v19, v19, v34, v43                           ; d3a64013 1cae4513",
+        "v_dot2_i32_i16 v44, v44, v36, v47                           ; d3a6402c 1cbe492c",
+        "v_dot2_i32_i16 v17, v17, v33, v15                           ; d3a64011 1c3e4311",
+        "v_dot2_i32_i16 v23, v23, v35, v19                           ; d3a64017 1c4e4717",
+        "v_dot2_i32_i16 v6, v6, v37, v44                             ; d3a64006 1cb24b06",
+        "v_dot2_i32_i16 v7, v7, v38, v10                             ; d3a64007 1c2a4d07",
+        "v_dot2_i32_i16 v14, v14, v39, v7                            ; d3a6400e 1c1e4f0e"
+      ],
+      "isa_sha256": "38f6a84462de5c19d41afaeadd8ca7f8d37b91db69daa042873c66e40c3404bd",
+      "receipt_sha256": "3634060e3e558af9f3d913eeae98447499b9ec2ec16d1452774daa0d2b5c2ac2"
+    },
+    {
+      "build": "q12-row-sums-isa-v1",
+      "family": "q2",
+      "independent_chains": 4,
+      "maximum_dot_depth": 4,
+      "dot_instructions": [
+        "v_dot2_i32_i16 v22, v22, v25, 0                             ; d3a64016 1a023316",
+        "v_dot2_i32_i16 v41, v41, v27, 0                             ; d3a64029 1a023729",
+        "v_dot2_i32_i16 v42, v42, v29, 0                             ; d3a6402a 1a023b2a",
+        "v_dot2_i32_i16 v47, v47, v24, v22                           ; d3a6402f 1c5a312f",
+        "v_dot2_i32_i16 v43, v43, v31, 0                             ; d3a6402b 1a023f2b",
+        "v_dot2_i32_i16 v11, v11, v26, v41                           ; d3a6400b 1ca6350b",
+        "v_dot2_i32_i16 v14, v14, v28, v42                           ; d3a6400e 1caa390e",
+        "v_dot2_i32_i16 v9, v9, v32, v47                             ; d3a64009 1cbe4109",
+        "v_dot2_i32_i16 v16, v16, v30, v43                           ; d3a64010 1cae3d10",
+        "v_dot2_i32_i16 v18, v18, v34, v11                           ; d3a64012 1c2e4512",
+        "v_dot2_i32_i16 v23, v23, v36, v14                           ; d3a64017 1c3a4917",
+        "v_dot2_i32_i16 v44, v44, v33, v9                            ; d3a6402c 1c26432c",
+        "v_dot2_i32_i16 v10, v10, v38, v16                           ; d3a6400a 1c424d0a",
+        "v_dot2_i32_i16 v45, v45, v35, v18                           ; d3a6402d 1c4a472d",
+        "v_dot2_i32_i16 v46, v46, v37, v23                           ; d3a6402e 1c5e4b2e",
+        "v_dot2_i32_i16 v20, v20, v39, v10                           ; d3a64014 1c2a4f14"
+      ],
+      "isa_sha256": "717189c81e3cb33e03a4409d9e1fe1baccee7b106c1970fef5d568ddbd07bebc",
+      "receipt_sha256": "3634060e3e558af9f3d913eeae98447499b9ec2ec16d1452774daa0d2b5c2ac2"
+    }
+  ],
+  "interpretation": "Native checks pass but timing did not demonstrate a benefit. Runtime trial removed, 54-call HF replay not run.",
+  "build_sha256": "6f402a6d31ffa122894fe9313cf614b2edce19a804941d22cccdce04c47b5dcf",
+  "raw_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027"
+}

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <memory>
 
 namespace backend {
 namespace {
@@ -206,7 +207,8 @@ int scoring(backend::VulkanBackend& b) {
 
 // The tiled scoring dispatched as its own kernel, its device time printed, and in its ISA, where the driver gives it, no fused or contracted float multiply-add.
 int scoring_build() {
-    backend::VulkanBackend t(0, true);
+    auto owner = std::make_unique<backend::VulkanBackend>(0, true);
+    auto& t = *owner;
     for (const size_t groups : {size_t(1025), size_t(4096), size_t(16384), size_t(38912)}) {
         std::vector<float> q(4 * 128), k(groups * 128);
         for (size_t i = 0; i < q.size(); ++i) q[i] = float(int(i % 7) - 3) / 8.0f;
@@ -255,7 +257,8 @@ int scoring_build() {
 
 // The wide selection's dispatches, five whatever the groups against the one-workgroup selection's one, and each selection's device time, printed and not asserted, up to 38912 groups, Flash's at a 155648-token history.
 int timing() {
-    backend::VulkanBackend t(0, true);
+    auto owner = std::make_unique<backend::VulkanBackend>(0, true);
+    auto& t = *owner;
     int failures = 0;
     for (const size_t count : {size_t(1025), size_t(2048), size_t(3072), size_t(4096), size_t(5120), size_t(6144), size_t(8192), size_t(16384), size_t(38912)}) {
         std::vector<float> scores(count);
@@ -287,7 +290,8 @@ int timing() {
 
 int main() {
     try {
-        backend::VulkanBackend b(0);
+        auto owner = std::make_unique<backend::VulkanBackend>(0);
+        auto& b = *owner;
         return run(b) + scoring(b) + scoring_build() + timing() ? 1 : 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

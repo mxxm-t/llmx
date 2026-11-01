@@ -1,0 +1,2082 @@
+{
+  "status": "Completed diagnosis, not a qualification pass or approved allowance.",
+  "scope": "Fixed remaining split-fixture single-CPU diagnostic, packed versus main holding independently decoded F32 weights. Reports strict HF failures without changing or accepting limits.",
+  "execution_sha256": "9a80b32b7865f8afb954eba106bde31cc2174ffdc5b80ac7b60dbda7d7e56ba2",
+  "runner_sha256": "8cab9acbdcd0293769062d16184007ff4493393ae83308d84682bee3d180b9cf",
+  "source_sha256": {
+    "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+    "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/data/dtype_budget.json": "35d3b06f8293263307135d11d8fd44cb7188e4eecd837101eded9b10baf3cd06"
+  },
+  "tool_sha256": {
+    "packed": "7329febf12efa448b8ab45ba23684759d8a542fe157eb988e6d574a867755a92",
+    "main-f32": "702484e90a7a714cabbc6d5a2ab1d781028f0855b3d03eb3d2fb6a7db8dcaf01"
+  },
+  "calls": [
+    {
+      "family": "q1-0",
+      "fixture": "dense-untied",
+      "arm": "packed",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\packed",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121531.9838374,
+      "exit_code": 0,
+      "seconds": 0.5277960300445557
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-untied",
+      "arm": "main-f32",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\main-f32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\main-f32",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121532.5271893,
+      "exit_code": 0,
+      "seconds": 0.5218939781188965
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-tied",
+      "arm": "packed",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\packed",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121542.5073028,
+      "exit_code": 0,
+      "seconds": 0.5146753787994385
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-tied",
+      "arm": "main-f32",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\main-f32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\main-f32",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121543.034977,
+      "exit_code": 0,
+      "seconds": 0.5165932178497314
+    },
+    {
+      "family": "q1-0",
+      "fixture": "moe",
+      "arm": "packed",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\packed",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121567.2892642,
+      "exit_code": 0,
+      "seconds": 1.0294179916381836
+    },
+    {
+      "family": "q1-0",
+      "fixture": "moe",
+      "arm": "main-f32",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\main-f32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\main-f32",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121568.3406773,
+      "exit_code": 0,
+      "seconds": 1.0668647289276123
+    },
+    {
+      "family": "q2-0",
+      "fixture": "moe",
+      "arm": "packed",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\packed",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121595.8809717,
+      "exit_code": 0,
+      "seconds": 1.0458123683929443
+    },
+    {
+      "family": "q2-0",
+      "fixture": "moe",
+      "arm": "main-f32",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\main-f32.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\main-f32",
+        "cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "1"
+      ],
+      "started": 1793121596.9517844,
+      "exit_code": 0,
+      "seconds": 0.523482084274292
+    }
+  ],
+  "fixtures": [
+    {
+      "family": "q1-0",
+      "fixture": "dense-untied",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "weights_sha256": "abf76c4bc24e4f542085bdceda2f4d618bcb6594616b5e3443c6b49f8c479540",
+      "packed_sha256": "9ea2d7b0b62ef71d8ba1aaeefb1fddeb9be29bb7c88e4db0f0032292acff7e07",
+      "byte_identical": {
+        "batched": true,
+        "decode": false,
+        "greedy": false
+      },
+      "arms": {
+        "packed": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.7670135498046875e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.574920654296875e-05,
+                  "worst_token": 53,
+                  "got": 5.90048885345459,
+                  "hf": 5.900514602661133,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 3.0517578125e-05,
+                  "worst_token": 162,
+                  "got": 16.818965911865234,
+                  "hf": 16.81893539428711,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 3.2901763916015625e-05,
+                  "worst_token": 204,
+                  "got": 0.783961296081543,
+                  "hf": 0.783928394317627,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.7670135498046875e-05,
+                  "worst_token": 188,
+                  "got": -4.492376804351807,
+                  "hf": -4.492339134216309,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 1.9550323486328125e-05,
+                  "worst_token": 56,
+                  "got": -2.422960042953491,
+                  "hf": -2.422940492630005,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": true
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 3.7670135498046875e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.574920654296875e-05,
+                  "worst_token": 53,
+                  "got": 5.90048885345459,
+                  "hf": 5.900514602661133,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 3.0517578125e-05,
+                  "worst_token": 162,
+                  "got": 16.818965911865234,
+                  "hf": 16.81893539428711,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 3.2901763916015625e-05,
+                  "worst_token": 204,
+                  "got": 0.783961296081543,
+                  "hf": 0.783928394317627,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.7670135498046875e-05,
+                  "worst_token": 188,
+                  "got": -4.492376804351807,
+                  "hf": -4.492339134216309,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 1.9550323486328125e-05,
+                  "worst_token": 56,
+                  "got": -2.422960042953491,
+                  "hf": -2.422940492630005,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": true
+                }
+              ]
+            }
+          },
+          "nll_error": 3.4802526371890963e-07,
+          "row_sha256": {
+            "batched": "34d2e4cbbbc7fc3c53c8e9b52ff7107901ee4191e616c76173baba27459bab1e",
+            "decode": "34d2e4cbbbc7fc3c53c8e9b52ff7107901ee4191e616c76173baba27459bab1e",
+            "greedy": "6ad1aba8e0abbee4a0ccd06a1ade65dc2565674809fc021a3d28e5648a9e96f1"
+          },
+          "metadata": {
+            "version": "0.1.0+g9fbb6029e1a5.dirty",
+            "architecture": "",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8,
+              41
+            ],
+            "greedy": [
+              210,
+              145,
+              39,
+              145,
+              19,
+              64,
+              62,
+              38,
+              175,
+              67,
+              29,
+              39,
+              29,
+              62,
+              194,
+              175,
+              67,
+              72,
+              106,
+              62,
+              188,
+              72,
+              106,
+              62,
+              194,
+              222,
+              39,
+              145,
+              194,
+              222,
+              119,
+              222,
+              119,
+              222,
+              110,
+              62,
+              94,
+              140,
+              41,
+              140,
+              72,
+              72,
+              67,
+              147,
+              176,
+              72,
+              194,
+              38,
+              62,
+              15,
+              188,
+              162,
+              107,
+              120,
+              188,
+              116,
+              254,
+              211,
+              116,
+              176,
+              147,
+              249,
+              232,
+              19
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788"
+        },
+        "main-f32": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.7670135498046875e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.574920654296875e-05,
+                  "worst_token": 53,
+                  "got": 5.90048885345459,
+                  "hf": 5.900514602661133,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 3.0517578125e-05,
+                  "worst_token": 162,
+                  "got": 16.818965911865234,
+                  "hf": 16.81893539428711,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 3.2901763916015625e-05,
+                  "worst_token": 204,
+                  "got": 0.783961296081543,
+                  "hf": 0.783928394317627,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.7670135498046875e-05,
+                  "worst_token": 188,
+                  "got": -4.492376804351807,
+                  "hf": -4.492339134216309,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 1.9550323486328125e-05,
+                  "worst_token": 56,
+                  "got": -2.422960042953491,
+                  "hf": -2.422940492630005,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": true
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 2.8133392333984375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 1.7404556274414062e-05,
+                  "worst_token": 45,
+                  "got": 3.884422540664673,
+                  "hf": 3.8844051361083984,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": true
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.4318695068359375e-05,
+                  "worst_token": 128,
+                  "got": 6.1452107429504395,
+                  "hf": 6.145235061645508,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 194,
+                  "got": 1.906632900238037,
+                  "hf": 1.9066061973571777,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 188,
+                  "got": -4.492365837097168,
+                  "hf": -4.492339134216309,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.8133392333984375e-05,
+                  "worst_token": 136,
+                  "got": -7.888458251953125,
+                  "hf": -7.888430118560791,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 3.4802526371890963e-07,
+          "row_sha256": {
+            "batched": "34d2e4cbbbc7fc3c53c8e9b52ff7107901ee4191e616c76173baba27459bab1e",
+            "decode": "5c57a0275bd2ec4971d9dd77042a2e24cfa12682754fb1a12d563fd581e9bf3e",
+            "greedy": "594e896da387f37190ded484a05184a7149e7c59a2454a9a197213997d70fc1b"
+          },
+          "metadata": {
+            "version": "0.1.0+g9d00fb0a5b21",
+            "architecture": "",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8
+            ],
+            "greedy": [
+              210,
+              145,
+              39,
+              145,
+              19,
+              64,
+              62,
+              38,
+              175,
+              67,
+              29,
+              39,
+              29,
+              62,
+              194,
+              175,
+              67,
+              72,
+              106,
+              62,
+              188,
+              72,
+              106,
+              62,
+              194,
+              222,
+              39,
+              145,
+              194,
+              222,
+              119,
+              222,
+              119,
+              222,
+              110,
+              62,
+              94,
+              140,
+              41,
+              140,
+              72,
+              72,
+              67,
+              147,
+              176,
+              72,
+              194,
+              38,
+              62,
+              15,
+              188,
+              162,
+              107,
+              120,
+              188,
+              116,
+              254,
+              211,
+              116,
+              176,
+              147,
+              249,
+              232,
+              19
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "4a1da5d0dee64fb2d3eab8c7903f2943ab5a003ee7c69440f83ca21c299fe260"
+        }
+      },
+      "greedy_id_matches": 64,
+      "greedy_steps": 64
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-tied",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "weights_sha256": "2b926e365c04f407537b2876661e3eeadee1727a30bfd1233f940713c40a0491",
+      "packed_sha256": "3a357f60c3225847a123a151115e1c004db05dc87630eb275ea69b88633fcadc",
+      "byte_identical": {
+        "batched": true,
+        "decode": false,
+        "greedy": false
+      },
+      "arms": {
+        "packed": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.5762786865234375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.193450927734375e-05,
+                  "worst_token": 72,
+                  "got": 8.452012062072754,
+                  "hf": 8.451990127563477,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.2411346435546875e-05,
+                  "worst_token": 210,
+                  "got": 4.456732273101807,
+                  "hf": 4.456709861755371,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.7298927307128906e-05,
+                  "worst_token": 127,
+                  "got": -0.9619611501693726,
+                  "hf": -0.9619884490966797,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.5762786865234375e-05,
+                  "worst_token": 238,
+                  "got": 4.212898254394531,
+                  "hf": 4.2129340171813965,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.1457672119140625e-05,
+                  "worst_token": 241,
+                  "got": 2.3002266883850098,
+                  "hf": 2.300248146057129,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 3.5762786865234375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.193450927734375e-05,
+                  "worst_token": 72,
+                  "got": 8.452012062072754,
+                  "hf": 8.451990127563477,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.2411346435546875e-05,
+                  "worst_token": 210,
+                  "got": 4.456732273101807,
+                  "hf": 4.456709861755371,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.7298927307128906e-05,
+                  "worst_token": 127,
+                  "got": -0.9619611501693726,
+                  "hf": -0.9619884490966797,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.5762786865234375e-05,
+                  "worst_token": 238,
+                  "got": 4.212898254394531,
+                  "hf": 4.2129340171813965,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.1457672119140625e-05,
+                  "worst_token": 241,
+                  "got": 2.3002266883850098,
+                  "hf": 2.300248146057129,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 4.1892077007332773e-07,
+          "row_sha256": {
+            "batched": "a8b6bb6ba2790958a0ee1dde02651ddf6e9f1f5989eab19abf67c5c8137c23aa",
+            "decode": "a8b6bb6ba2790958a0ee1dde02651ddf6e9f1f5989eab19abf67c5c8137c23aa",
+            "greedy": "c336256b427e9fac92ad91c94b1c6dc0cd8e161e8434136525ce478fac060d43"
+          },
+          "metadata": {
+            "version": "0.1.0+g9fbb6029e1a5.dirty",
+            "architecture": "",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8,
+              41
+            ],
+            "greedy": [
+              139,
+              163,
+              235,
+              130,
+              132,
+              123,
+              154,
+              235,
+              235,
+              235,
+              235,
+              235,
+              235,
+              235,
+              130,
+              97,
+              250,
+              97,
+              142,
+              97,
+              97,
+              97,
+              78,
+              142,
+              97,
+              78,
+              142,
+              97,
+              78,
+              142,
+              132,
+              97,
+              78,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              92,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              40,
+              11,
+              250,
+              87,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              253,
+              213
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c"
+        },
+        "main-f32": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.5762786865234375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.193450927734375e-05,
+                  "worst_token": 72,
+                  "got": 8.452012062072754,
+                  "hf": 8.451990127563477,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.2411346435546875e-05,
+                  "worst_token": 210,
+                  "got": 4.456732273101807,
+                  "hf": 4.456709861755371,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.7298927307128906e-05,
+                  "worst_token": 127,
+                  "got": -0.9619611501693726,
+                  "hf": -0.9619884490966797,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.5762786865234375e-05,
+                  "worst_token": 238,
+                  "got": 4.212898254394531,
+                  "hf": 4.2129340171813965,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.1457672119140625e-05,
+                  "worst_token": 241,
+                  "got": 2.3002266883850098,
+                  "hf": 2.300248146057129,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 2.8848648071289062e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.193450927734375e-05,
+                  "worst_token": 72,
+                  "got": 8.452012062072754,
+                  "hf": 8.451990127563477,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.09808349609375e-05,
+                  "worst_token": 59,
+                  "got": -10.580652236938477,
+                  "hf": -10.580631256103516,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.2649765014648438e-05,
+                  "worst_token": 57,
+                  "got": -2.188809633255005,
+                  "hf": -2.1888322830200195,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 164,
+                  "got": 5.783740997314453,
+                  "hf": 5.7837677001953125,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.8848648071289062e-05,
+                  "worst_token": 237,
+                  "got": 1.336122989654541,
+                  "hf": 1.3361518383026123,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 4.1892077007332773e-07,
+          "row_sha256": {
+            "batched": "a8b6bb6ba2790958a0ee1dde02651ddf6e9f1f5989eab19abf67c5c8137c23aa",
+            "decode": "80140cfc2bedcbfd1330e9dba7f7156266090320241f3e7432a918d55eb07c94",
+            "greedy": "d940754a1a3c41931a202e59095668533d67e084618608fbee964e6edba38f6c"
+          },
+          "metadata": {
+            "version": "0.1.0+g9d00fb0a5b21",
+            "architecture": "",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8
+            ],
+            "greedy": [
+              139,
+              163,
+              235,
+              130,
+              132,
+              123,
+              154,
+              235,
+              235,
+              235,
+              235,
+              235,
+              235,
+              235,
+              130,
+              97,
+              250,
+              97,
+              142,
+              97,
+              97,
+              97,
+              78,
+              142,
+              97,
+              78,
+              142,
+              97,
+              78,
+              142,
+              132,
+              97,
+              78,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              92,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              28,
+              78,
+              40,
+              11,
+              250,
+              87,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              213,
+              253,
+              213
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "c7c78132336631ebffd38776e0338a59d2279086832b9b7a4dd4a8c2ab336f85"
+        }
+      },
+      "greedy_id_matches": 64,
+      "greedy_steps": 64
+    },
+    {
+      "family": "q1-0",
+      "fixture": "moe",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+      "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654",
+      "byte_identical": {
+        "batched": true,
+        "decode": false,
+        "greedy": false
+      },
+      "arms": {
+        "packed": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.5762786865234375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 3.24249267578125e-05,
+                  "worst_token": 76,
+                  "got": 5.003898620605469,
+                  "hf": 5.003931045532227,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.86102294921875e-05,
+                  "worst_token": 88,
+                  "got": -8.654352188110352,
+                  "hf": -8.65432357788086,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.47955322265625e-05,
+                  "worst_token": 155,
+                  "got": 6.387726783752441,
+                  "hf": 6.387751579284668,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.5762786865234375e-05,
+                  "worst_token": 98,
+                  "got": -5.0414299964904785,
+                  "hf": -5.041465759277344,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.4557113647460938e-05,
+                  "worst_token": 24,
+                  "got": -3.8723626136779785,
+                  "hf": -3.872338056564331,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 3.24249267578125e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 3.24249267578125e-05,
+                  "worst_token": 76,
+                  "got": 5.003898620605469,
+                  "hf": 5.003931045532227,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 3.0517578125e-05,
+                  "worst_token": 88,
+                  "got": -8.654354095458984,
+                  "hf": -8.65432357788086,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 3.0040740966796875e-05,
+                  "worst_token": 155,
+                  "got": 6.387721538543701,
+                  "hf": 6.387751579284668,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.0040740966796875e-05,
+                  "worst_token": 98,
+                  "got": -5.041435718536377,
+                  "hf": -5.041465759277344,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.4318695068359375e-05,
+                  "worst_token": 24,
+                  "got": -3.8723623752593994,
+                  "hf": -3.872338056564331,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 6.502954004616868e-06,
+          "row_sha256": {
+            "batched": "a63f04d29f587693ac1c90a0d0a64ddc39f5c98a1265c32b2034bf5aaf3e6fd7",
+            "decode": "926856c41fe28d01b331ee87974c8f66e52ac13a15b03e5e73bdd6961ea2de23",
+            "greedy": "c2b197cd50e2ff5e472a752e93a485e4d9d87d1428b8243656df6018255c7132"
+          },
+          "metadata": {
+            "version": "0.1.0+g9fbb6029e1a5.dirty",
+            "architecture": "qwen3moe",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8,
+              41
+            ],
+            "greedy": [
+              155,
+              116,
+              98,
+              106,
+              138,
+              164,
+              218,
+              189,
+              102,
+              88,
+              147,
+              200,
+              206,
+              147,
+              4,
+              179,
+              7,
+              88,
+              7,
+              88,
+              88,
+              88,
+              187,
+              227,
+              138,
+              208,
+              16,
+              155,
+              7,
+              259,
+              102,
+              58,
+              216,
+              213,
+              215,
+              7,
+              88,
+              194,
+              102,
+              187,
+              31,
+              192,
+              132,
+              126,
+              138,
+              76,
+              25,
+              17,
+              187,
+              202,
+              137,
+              216,
+              103,
+              98,
+              216,
+              155,
+              213,
+              102,
+              19,
+              17,
+              155,
+              202,
+              137,
+              137
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c"
+        },
+        "main-f32": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 3.5762786865234375e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 3.24249267578125e-05,
+                  "worst_token": 76,
+                  "got": 5.003898620605469,
+                  "hf": 5.003931045532227,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.86102294921875e-05,
+                  "worst_token": 88,
+                  "got": -8.654352188110352,
+                  "hf": -8.65432357788086,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.47955322265625e-05,
+                  "worst_token": 155,
+                  "got": 6.387726783752441,
+                  "hf": 6.387751579284668,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.5762786865234375e-05,
+                  "worst_token": 98,
+                  "got": -5.0414299964904785,
+                  "hf": -5.041465759277344,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.4557113647460938e-05,
+                  "worst_token": 24,
+                  "got": -3.8723626136779785,
+                  "hf": -3.872338056564331,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 3.546476364135742e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 115,
+                  "got": -23.155914306640625,
+                  "hf": -23.155887603759766,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 2.09808349609375e-05,
+                  "worst_token": 88,
+                  "got": -8.65434455871582,
+                  "hf": -8.65432357788086,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.574920654296875e-05,
+                  "worst_token": 155,
+                  "got": 6.387725830078125,
+                  "hf": 6.387751579284668,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 3.546476364135742e-05,
+                  "worst_token": 164,
+                  "got": -0.10651922225952148,
+                  "hf": -0.10648375749588013,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 2.956390380859375e-05,
+                  "worst_token": 128,
+                  "got": 7.749143600463867,
+                  "hf": 7.749114036560059,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 6.502954004616868e-06,
+          "row_sha256": {
+            "batched": "a63f04d29f587693ac1c90a0d0a64ddc39f5c98a1265c32b2034bf5aaf3e6fd7",
+            "decode": "6c0e6f7030ccf5dc185e654d36b0f34c1e774629ad87890283e38f12110af8c8",
+            "greedy": "ae8e185a7bfefb88573c3a4ad5374bcad7487fc56983c1639d74d9da992476a3"
+          },
+          "metadata": {
+            "version": "0.1.0+g9d00fb0a5b21",
+            "architecture": "qwen3moe",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8
+            ],
+            "greedy": [
+              155,
+              116,
+              98,
+              106,
+              138,
+              164,
+              218,
+              189,
+              102,
+              88,
+              147,
+              200,
+              206,
+              147,
+              4,
+              179,
+              7,
+              88,
+              7,
+              88,
+              88,
+              88,
+              187,
+              227,
+              138,
+              208,
+              16,
+              155,
+              7,
+              259,
+              102,
+              58,
+              216,
+              213,
+              215,
+              7,
+              88,
+              194,
+              102,
+              187,
+              31,
+              192,
+              132,
+              126,
+              138,
+              76,
+              25,
+              17,
+              187,
+              202,
+              137,
+              216,
+              103,
+              98,
+              216,
+              155,
+              213,
+              102,
+              19,
+              17,
+              155,
+              202,
+              137,
+              137
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "3eba16cd01bdbc50686cd9f32fe5ce76df013f9cc7e9effce4fe6e6a52f62333"
+        }
+      },
+      "greedy_id_matches": 64,
+      "greedy_steps": 64
+    },
+    {
+      "family": "q2-0",
+      "fixture": "moe",
+      "golden_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "weights_sha256": "248bcbf034738dffb8632321b0de13de97da19e2de4c0a5f0d73ef2fbc7db22f",
+      "packed_sha256": "667ff515cc5cff1c7bcf5dd4531f2f16a90b5185fb399ba51bfbf8605bef71dc",
+      "byte_identical": {
+        "batched": true,
+        "decode": false,
+        "greedy": false
+      },
+      "arms": {
+        "packed": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 5.221366882324219e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.86102294921875e-05,
+                  "worst_token": 124,
+                  "got": 8.919660568237305,
+                  "hf": 8.919631958007812,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 5.221366882324219e-05,
+                  "worst_token": 134,
+                  "got": -1.9674158096313477,
+                  "hf": -1.967468023300171,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.1219253540039062e-05,
+                  "worst_token": 116,
+                  "got": -2.0660533905029297,
+                  "hf": -2.0660321712493896,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 134,
+                  "got": -12.833870887756348,
+                  "hf": -12.833897590637207,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 3.910064697265625e-05,
+                  "worst_token": 80,
+                  "got": 9.850458145141602,
+                  "hf": 9.850419044494629,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 8.380413055419922e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 124,
+                  "got": 8.919658660888672,
+                  "hf": 8.919631958007812,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 8.380413055419922e-05,
+                  "worst_token": 134,
+                  "got": -1.9673842191696167,
+                  "hf": -1.967468023300171,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.09808349609375e-05,
+                  "worst_token": 178,
+                  "got": -5.067165374755859,
+                  "hf": -5.067144393920898,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 134,
+                  "got": -12.833870887756348,
+                  "hf": -12.833897590637207,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 3.540515899658203e-05,
+                  "worst_token": 237,
+                  "got": -0.9039617776870728,
+                  "hf": -0.9039971828460693,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 8.585005915051624e-06,
+          "row_sha256": {
+            "batched": "0e27683d6541803bd4662f60cee67f1a7e31862ef2ee54018a7ca1c7a1489985",
+            "decode": "3f9ee1020d279e749c26ba3c68a1d3c1a36ed2622a52ad7af35e68bf5df47526",
+            "greedy": "6e7f7a74d6dd48c741200d5ee5e355d644b1788663f612ac0aeeec730f7752cb"
+          },
+          "metadata": {
+            "version": "0.1.0+g9fbb6029e1a5.dirty",
+            "architecture": "qwen3moe",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8,
+              42
+            ],
+            "greedy": [
+              124,
+              212,
+              151,
+              136,
+              201,
+              70,
+              197,
+              182,
+              124,
+              197,
+              182,
+              28,
+              124,
+              28,
+              141,
+              69,
+              178,
+              52,
+              142,
+              96,
+              160,
+              257,
+              222,
+              116,
+              83,
+              66,
+              208,
+              216,
+              35,
+              14,
+              111,
+              111,
+              178,
+              40,
+              111,
+              83,
+              156,
+              111,
+              23,
+              257,
+              28,
+              122,
+              152,
+              98,
+              8,
+              74,
+              27,
+              28,
+              122,
+              40,
+              66,
+              79,
+              36,
+              119,
+              156,
+              116,
+              35,
+              128,
+              171,
+              42,
+              80,
+              105,
+              14,
+              111
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+        },
+        "main-f32": {
+          "hf_errors": {
+            "batched": {
+              "max_abs_error": 5.221366882324219e-05,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.86102294921875e-05,
+                  "worst_token": 124,
+                  "got": 8.919660568237305,
+                  "hf": 8.919631958007812,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 5.221366882324219e-05,
+                  "worst_token": 134,
+                  "got": -1.9674158096313477,
+                  "hf": -1.967468023300171,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.1219253540039062e-05,
+                  "worst_token": 116,
+                  "got": -2.0660533905029297,
+                  "hf": -2.0660321712493896,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.6702880859375e-05,
+                  "worst_token": 134,
+                  "got": -12.833870887756348,
+                  "hf": -12.833897590637207,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 3.910064697265625e-05,
+                  "worst_token": 80,
+                  "got": 9.850458145141602,
+                  "hf": 9.850419044494629,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            },
+            "decode": {
+              "max_abs_error": 0.0001285076141357422,
+              "cases": [
+                {
+                  "text": "a",
+                  "row_index": 0,
+                  "max_abs_logit_error": 2.288818359375e-05,
+                  "worst_token": 124,
+                  "got": 8.919654846191406,
+                  "hf": 8.919631958007812,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "ab",
+                  "row_index": 1,
+                  "max_abs_logit_error": 0.0001285076141357422,
+                  "worst_token": 134,
+                  "got": -1.9673395156860352,
+                  "hf": -1.967468023300171,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abc",
+                  "row_index": 2,
+                  "max_abs_logit_error": 2.574920654296875e-05,
+                  "worst_token": 30,
+                  "got": 9.014433860778809,
+                  "hf": 9.014459609985352,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefg",
+                  "row_index": 6,
+                  "max_abs_logit_error": 2.9087066650390625e-05,
+                  "worst_token": 144,
+                  "got": -7.865746021270752,
+                  "hf": -7.865716934204102,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                },
+                {
+                  "text": "abcdefghijklm",
+                  "row_index": 12,
+                  "max_abs_logit_error": 3.0279159545898438e-05,
+                  "worst_token": 17,
+                  "got": -2.9421427249908447,
+                  "hf": -2.942112445831299,
+                  "existing_bound": 2e-05,
+                  "within_existing_bound": false
+                }
+              ]
+            }
+          },
+          "nll_error": 8.585005915051624e-06,
+          "row_sha256": {
+            "batched": "0e27683d6541803bd4662f60cee67f1a7e31862ef2ee54018a7ca1c7a1489985",
+            "decode": "013527a028ce803ef158204d2bee1fc27d09f96baaac9d909a12a1d853bd7443",
+            "greedy": "1b399d8569245f31dfeab159d35de3794b6349ac17b81ab9fad7f88817ea88df"
+          },
+          "metadata": {
+            "version": "0.1.0+g9d00fb0a5b21",
+            "architecture": "qwen3moe",
+            "vocab": 260,
+            "tokens": [
+              97,
+              98,
+              99,
+              100,
+              101,
+              102,
+              103,
+              104,
+              105,
+              106,
+              107,
+              108,
+              109
+            ],
+            "storage_types": [
+              0,
+              8
+            ],
+            "greedy": [
+              124,
+              212,
+              151,
+              136,
+              201,
+              70,
+              197,
+              182,
+              124,
+              197,
+              182,
+              28,
+              124,
+              28,
+              141,
+              69,
+              178,
+              52,
+              142,
+              96,
+              160,
+              257,
+              222,
+              116,
+              83,
+              66,
+              208,
+              216,
+              35,
+              14,
+              111,
+              111,
+              178,
+              40,
+              111,
+              83,
+              156,
+              111,
+              23,
+              257,
+              28,
+              122,
+              152,
+              98,
+              8,
+              74,
+              27,
+              28,
+              122,
+              40,
+              66,
+              79,
+              36,
+              119,
+              156,
+              116,
+              35,
+              128,
+              171,
+              42,
+              80,
+              105,
+              14,
+              111
+            ],
+            "dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          "model_sha256": "db14a1a82f1fdeaa93a65d7a11be0173f2ccedad1893118b34122a0fbf03a049"
+        }
+      },
+      "greedy_id_matches": 64,
+      "greedy_steps": 64
+    }
+  ]
+}

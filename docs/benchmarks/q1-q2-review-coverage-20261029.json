@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-29",
+  "base_commit": "2f3a8b3410ca3aa6fdd621a1d3d48f9d1a5f6828",
+  "scope": "Q1/Q2 review coverage and stale test catalogs; runtime variant constant naming only",
+  "source_files": {
+    "tests/backend_errors.cpp": "3dec69928a25852472f91f81579343b559ab5354d59a4760a8c5279c4eabfb2c",
+    "tests/backend_vulkan.cpp": "a4b03a8c052b3fdf8c8c93436e3ad7b982f27d50afc142ca93082c108a3515e9",
+    "tests/low_bits.cpp": "562c0459afd1c40e8ec6980555aa5bd5dc9541f36da3d6c355cf44cbf42a6e49",
+    "src/backends/vulkan/vulkan_kernels.hpp": "7bf247932618c9052f74b9619ad537de6786061054b0226ba23abf13ff48bd40",
+    "src/backends/vulkan/vulkan_backend.cpp": "224943dfa373599039cf6d386f761f7cb660e3f293cfd9a0ce85dc029d2a23a2",
+    "src/backends/vulkan/vulkan_matmul.hpp": "6c83b42500e6bf19f2a21f7c7dbf7cc572599b8f5631a8d6982b59183bb35967"
+  },
+  "logs": {
+    "windows-review-build-bf16.log": "6f172836207f796dfee3fd05919d7e679fadcb3d99a306edbec81a2bfb959770",
+    "review-low-bits-cpu.log": "e224fb74b91a49a7df48600176b993ead05cfabbec6a8d85d2d48c1a1be3b8c7",
+    "review-low-bits-radeon.log": "07b66540f088dc5a72856b7dc2f591267c46f1260693482c819aa9090474aef7",
+    "review-backend-radeon-alias-fix.log": "3c1e0f22ddb315d01aea18ba1521df6fc5e71227caba601de59b903db1b43041",
+    "review-backend-radeon-bf16.log": "d63bc27790708558406a6a0beee8c757f6c6a0945007b0066c7feeebb247f2cf",
+    "backend-errors-after-fix.log": "4d2a6cdf3cebdb7d9e0cbb6f44ec2331e6ff99b7a7f8a1a649d977dfb0da9f4e"
+  },
+  "binaries": {
+    "llmx-low-bits-test.exe": "54b156e2bff8e8a4ddbd4db3ab7386b38efd66f29f861c04a528316f996b5871",
+    "llmx-backend-vulkan-test.exe": "b2532f766faba277ca7ab04defa997d69c1770fc7df18a53f5485e8ae1e582e7"
+  },
+  "results": {
+    "low_bits_cpu": "pass",
+    "low_bits_radeon": "pass",
+    "backend_radeon_with_isa_before_bf16_extension": "pass",
+    "backend_radeon_with_bf16_extension": "pass",
+    "backend_errors_ctest": "pass 1/1",
+    "bf16_values": 43599360,
+    "decode_columns": 199544
+  },
+  "retained_failed_attempts": [
+    "review-backend-radeon.log: stale unsupported type 42",
+    "review-backend-radeon-type-fix.log: expected path catalog omitted IQ3_S",
+    "review-backend-radeon-catalog-fix.log: generic Q1/Q2 tile shader aliases missing from test"
+  ],
+  "remaining": [
+    "MI50 integer-profile execution",
+    "final runtime identity and applicable suite/performance checks",
+    "hosted CI"
+  ],
+  "limits_changed": false
+}

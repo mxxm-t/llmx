@@ -1,0 +1,531 @@
+{
+  "date": "2026-10-29",
+  "scope": "Completed native integration checks and independent cached-HF schedule control; not final landing qualification",
+  "native_mi50": {
+    "scope": "Focused Q1_0/Q2_0 MI50 native correctness checks on the current integration build; no performance measurement.",
+    "revision": "643f62542f68fbaa8d4ab80a73956de6aaf040e2",
+    "complete": true,
+    "tests": [
+      {
+        "name": "low-bits-vulkan",
+        "argv": [
+          "/build/llmx-low-bits-test",
+          "--vulkan"
+        ],
+        "status": "passed"
+      },
+      {
+        "name": "backend-vulkan",
+        "argv": [
+          "/build/llmx-backend-vulkan-test"
+        ],
+        "status": "passed"
+      }
+    ],
+    "seconds": 67.33413028717041,
+    "memory_peak_bytes": 616009728,
+    "removed": true,
+    "remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/native-mi50-v1/out",
+    "files": {
+      "stdout.log": "5c8e00e76172aa2df3890d94280b43277447b718476b092a5a3bda05b7f26898",
+      "low-bits-vulkan.stdout.log": "64fedf4e928aed209a79db16fd0bf6db52fbecbf92f5657899851e91c6ecff7c",
+      "backend-vulkan.stderr.log": "4191b4f314ad3cdf0155ae0a3996dc7a8774f70b1d9c2f7bbf63b7a618688b6a",
+      "backend-vulkan.stdout.log": "33b08f06d3be4c0b2cfd2f4301890e868f2cf25c3c823625f911f040eb379fe3",
+      "low-bits-vulkan.stderr.log": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+      "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "backend-vulkan.json": "963ee5aedc9cb4fdfe864ac39091b924826089737416b7c74967bbc99a39e868",
+      "result.json": "11696ae1e74b9962f5a5234fb2eee1487ad4e1646cf9e9f95c0faaad654246db",
+      "execution.json": "a264a3c8ac63b047786431e108918e6747a7dc620e1728c430b7a25602b8e7cb",
+      "low-bits-vulkan.json": "faee1d132d01922c03f2a2a23456863a455bd63ae77b57c92c0c1f9fe9e9e64c"
+    },
+    "limitations": "Single visible device; unavailable multi-device collective checks are not passes. Read-only container shader-cache warnings retained."
+  },
+  "cpu_short_remaining": {
+    "complete": true,
+    "revision": "643f62542f68fbaa8d4ab80a73956de6aaf040e2",
+    "binary_sha256": "e8275c5376a51fb4480f12442b6fd5ad4241d6f937f2d7b8091f318e84e394ad",
+    "version": "llmx 0.1.0+g643f62542f68 numerics d36832bdcd838d7b",
+    "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "rows": [
+      {
+        "case_index": 0,
+        "context_size": 0,
+        "chunks": 1,
+        "used_tokens": 247,
+        "scored_tokens": 246,
+        "mode": "per-token",
+        "nll": 5.499571645,
+        "hf_nll": 5.499749239154885,
+        "absolute_error": 0.0001775941548851634,
+        "bound": 0.01,
+        "headroom": 0.009822405845114837,
+        "seconds": 484.0312433242798
+      },
+      {
+        "case_index": 1,
+        "context_size": 64,
+        "chunks": 4,
+        "used_tokens": 247,
+        "scored_tokens": 243,
+        "mode": "batched",
+        "nll": 6.375009823,
+        "hf_nll": 6.375059617820694,
+        "absolute_error": 4.9794820694337716e-05,
+        "bound": 0.02,
+        "headroom": 0.019950205179305663,
+        "seconds": 21.002121925354004
+      },
+      {
+        "case_index": 1,
+        "context_size": 64,
+        "chunks": 4,
+        "used_tokens": 247,
+        "scored_tokens": 243,
+        "mode": "per-token",
+        "nll": 6.375009823,
+        "hf_nll": 6.375059617820694,
+        "absolute_error": 4.9794820694337716e-05,
+        "bound": 0.02,
+        "headroom": 0.019950205179305663,
+        "seconds": 517.1320815086365
+      },
+      {
+        "case_index": 2,
+        "context_size": 64,
+        "chunks": 2,
+        "used_tokens": 128,
+        "scored_tokens": 126,
+        "mode": "batched",
+        "nll": 5.673546421,
+        "hf_nll": 5.673664514078978,
+        "absolute_error": 0.0001180930789779211,
+        "bound": 0.02,
+        "headroom": 0.01988190692102208,
+        "seconds": 12.358978748321533
+      },
+      {
+        "case_index": 2,
+        "context_size": 64,
+        "chunks": 2,
+        "used_tokens": 128,
+        "scored_tokens": 126,
+        "mode": "per-token",
+        "nll": 5.673546421,
+        "hf_nll": 5.673664514078978,
+        "absolute_error": 0.0001180930789779211,
+        "bound": 0.02,
+        "headroom": 0.01988190692102208,
+        "seconds": 283.5100588798523
+      },
+      {
+        "case_index": 3,
+        "context_size": 123,
+        "chunks": 2,
+        "used_tokens": 246,
+        "scored_tokens": 244,
+        "mode": "batched",
+        "nll": 6.014030006,
+        "hf_nll": 6.014167499656018,
+        "absolute_error": 0.00013749365601878338,
+        "bound": 0.02,
+        "headroom": 0.019862506343981217,
+        "seconds": 18.921441793441772
+      },
+      {
+        "case_index": 3,
+        "context_size": 123,
+        "chunks": 2,
+        "used_tokens": 246,
+        "scored_tokens": 244,
+        "mode": "per-token",
+        "nll": 6.014030006,
+        "hf_nll": 6.014167499656018,
+        "absolute_error": 0.00013749365601878338,
+        "bound": 0.02,
+        "headroom": 0.019862506343981217,
+        "seconds": 538.7532618045807
+      }
+    ],
+    "carried_forward": {
+      "source_bundle": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-full-short-v2/out/cpu",
+      "pinned_local_copy": "prior-cpu",
+      "successes": [
+        "six logits rankings",
+        "continuous PPL batched"
+      ],
+      "prior_timeout": "continuous PPL per-token at 300 seconds; rerun only as one of seven missing cells with a 900-second CLI timeout",
+      "source_git_revision": "643f62542f68fbaa8d4ab80a73956de6aaf040e2",
+      "binary_sha256": "e8275c5376a51fb4480f12442b6fd5ad4241d6f937f2d7b8091f318e84e394ad",
+      "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+      "goldens": {
+        "baseline_logits.json": {
+          "bytes": 3882,
+          "sha256": "c1cf12e840c608e7196f8980cb4a32151495deecb3323c76548b2084d445ea67"
+        },
+        "baseline_perplexity.json": {
+          "bytes": 5299,
+          "sha256": "5891bc57e10ea8493156fe20b8b8cd7531db1fad053c69630f4b58dbc916395d"
+        }
+      },
+      "ranking_command_files": [
+        "prior-cpu/commands/02-logits.json",
+        "prior-cpu/commands/03-logits.json",
+        "prior-cpu/commands/04-logits.json",
+        "prior-cpu/commands/05-logits.json",
+        "prior-cpu/commands/06-logits.json",
+        "prior-cpu/commands/07-logits.json"
+      ],
+      "tokenize_command_file": "prior-cpu/commands/08-tokenize.json",
+      "continuous_batched_command_file": "prior-cpu/commands/09-perplexity.json",
+      "prior_timeout_command_file": "prior-cpu/commands/10-perplexity.json",
+      "stdout_file": "prior-cpu/stdout.log",
+      "prior_result_file": "prior-cpu/result.json",
+      "record_file": "carry-forward.json",
+      "record_sha256": "74e4735154e06485cb136ef449d3bcc6f5c39e80c3d1b821e514c2c12d1734bf"
+    },
+    "original_timeout_retained": true,
+    "seconds": 1885.7386815547943,
+    "removed": true,
+    "peak_memory_bytes": 2585006080,
+    "execution_sha256": "2bf82f02dc4bfcb9e0256df38c1401cee0b975b0c2949bb844b712e0fd440ec3",
+    "files": {
+      "cpu/stderr.log": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "cpu/stdout.log": {
+        "bytes": 4481,
+        "sha256": "7c1ede8d276f67c91a2fa5393aeb3f0d236834bcb72346437c1ccb8e75b749e7"
+      },
+      "cpu/result.json": {
+        "bytes": 4483,
+        "sha256": "434e36ef149d284054bf0f8f6a30eba584528b0d266b5caf887372dcfc31b353"
+      },
+      "cpu/commands/04-tokenize.json": {
+        "bytes": 2614,
+        "sha256": "71ba68099ae27b128daa2d0bb7accf730f002300a6bd43fbcc1b0771e8b6bd25"
+      },
+      "cpu/commands/09-perplexity.json": {
+        "bytes": 811,
+        "sha256": "632b06e784687788743751d38127ecf488479b5cce7c24d988df38702f7d9198"
+      },
+      "cpu/commands/07-perplexity.json": {
+        "bytes": 833,
+        "sha256": "dc5a663cf0887fab916b21e71ce10aa84f404d5326384ef07de5e77941b3298b"
+      },
+      "cpu/commands/08-perplexity.json": {
+        "bytes": 852,
+        "sha256": "6d1af95ede2084d42519d041d807522a3878dd763991ccbce88f8c87fc32037c"
+      },
+      "cpu/commands/06-perplexity.json": {
+        "bytes": 827,
+        "sha256": "7afd3d36b78f1bd9690d982cc130b809c38b088152d945998ff982c78aa5f6cd"
+      },
+      "cpu/commands/01---version.json": {
+        "bytes": 225,
+        "sha256": "958ec162d2aa797a99fa5b0faec724397904795364a850d0fd1e5264c1481b1e"
+      },
+      "cpu/commands/05-perplexity.json": {
+        "bytes": 808,
+        "sha256": "b4346a0cc42674f594eb746a989ffe66fbcb56671188ebcdb36871e0714d35d4"
+      },
+      "cpu/commands/02-tokenize.json": {
+        "bytes": 2614,
+        "sha256": "505a69fa9764c92a9a256aca622119b1d73215fc5e0dce8c04e06c6c7f38193f"
+      },
+      "cpu/commands/03-perplexity.json": {
+        "bytes": 801,
+        "sha256": "38a06df917fd7532f09de8fb8e591b6693299f3755a8657b1ccc587ef3137b67"
+      },
+      "cpu/commands/10-perplexity.json": {
+        "bytes": 829,
+        "sha256": "63e45826baef1082453fcafa7bd64fceff6a5f2d2a9c46e65770c7e134c7408c"
+      }
+    }
+  },
+  "cached_hf_control": {
+    "scope": "resident HF chunked cached forward versus per-layer HF cached traversal; schedule equivalence only",
+    "source_revision": "643f62542f68fbaa8d4ab80a73956de6aaf040e2",
+    "fixture": {
+      "type": "Q2_0 independently packed, spec-decoded tiny dense untied Qwen3",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "packed_tensor_count": 16,
+      "packed_payload_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7",
+      "head_type": "Q2_0",
+      "head_rule": {
+        "prompt_final": "block16",
+        "decode_1": "block16"
+      },
+      "checkpoint_sha256": {
+        "model.safetensors": "cdf87090a6d7416019f7a384bf52fb55dae08371e0ab36883b462a3a333988e3",
+        "generation_config.json": "6787f5652d74053b38331d87cd550f74b4ba8eaa95716d97efd4644334dc9ac0",
+        "config.json": "72fec73114a090dfac64e01abebdcccf5f8abf043b2dbdd6d27becfcbf2c445e"
+      }
+    },
+    "schedule": {
+      "prefill_ids": [
+        7,
+        33,
+        19,
+        128,
+        200,
+        42,
+        12,
+        99,
+        5,
+        17,
+        241
+      ],
+      "chunks": [
+        8,
+        3
+      ],
+      "decode_ids": [
+        23,
+        11
+      ],
+      "schedule": [
+        {
+          "phase": "prefill_512",
+          "start": 0,
+          "tokens": 8
+        },
+        {
+          "phase": "prefill_512",
+          "start": 8,
+          "tokens": 3
+        },
+        {
+          "phase": "decode_1",
+          "start": 11,
+          "tokens": 1
+        },
+        {
+          "phase": "decode_1",
+          "start": 12,
+          "tokens": 1
+        }
+      ]
+    },
+    "comparisons": [
+      {
+        "phase": "prefill_512",
+        "position": 10,
+        "resident": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "97da21e66261772f37e934cc1e908a5376cf89699efc99308fc16304d6d33694"
+        },
+        "layer_major": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "97da21e66261772f37e934cc1e908a5376cf89699efc99308fc16304d6d33694"
+        },
+        "same_shape_dtype": true,
+        "equal_values": true,
+        "equal_bits": true,
+        "bit_identical": true
+      },
+      {
+        "phase": "decode_1",
+        "position": 11,
+        "resident": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "45da7834d096ebf2ed08f97ff431cfef8779ccb7ab41f24272531642625bad53"
+        },
+        "layer_major": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "45da7834d096ebf2ed08f97ff431cfef8779ccb7ab41f24272531642625bad53"
+        },
+        "same_shape_dtype": true,
+        "equal_values": true,
+        "equal_bits": true,
+        "bit_identical": true
+      },
+      {
+        "phase": "decode_1",
+        "position": 12,
+        "resident": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "e3c949bca9ce0dd836e615caeebdfd97199c2fa6e111fae8ee723f4aa4316d9c"
+        },
+        "layer_major": {
+          "shape": [
+            1,
+            1,
+            257
+          ],
+          "dtype": "torch.float32",
+          "sha256": "e3c949bca9ce0dd836e615caeebdfd97199c2fa6e111fae8ee723f4aa4316d9c"
+        },
+        "same_shape_dtype": true,
+        "equal_values": true,
+        "equal_bits": true,
+        "bit_identical": true
+      }
+    ],
+    "full_vocab_rows_bit_identical": true,
+    "matrix_witnesses_equal": true,
+    "layer_call_inputs_masks_positions_and_rope_identical": true,
+    "policy_owner_sha256": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8",
+    "cache_owner_sha256": "a4547e4bfa7449c3396db819b03fa9bc40c0693a35eb580bb9e7ad9416d4e566",
+    "verification": {
+      "complete": true,
+      "scope": "resident HF chunked cached forward versus per-layer HF cached traversal; schedule equivalence only",
+      "payload_files_verified": 8,
+      "comparisons": 3,
+      "removed": true,
+      "elapsed_seconds": 10.28,
+      "files": {
+        "execution.json": "16c2a97997f2573d42d8ccfeafaf7fecd86bd641c4fe6ac73dbcec10c62938a3",
+        "report.json": "e392f9ad9c81142ba485e1cf78794327646d34c36b6473ac5e49442affcba1a5",
+        "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout.log": "20aca0b943860f636653709483fcb4a68e00c4f77b8a35f45098f0d17e687775",
+        "tiny-q2-checkpoint\\config.json": "72fec73114a090dfac64e01abebdcccf5f8abf043b2dbdd6d27becfcbf2c445e",
+        "tiny-q2-checkpoint\\generation_config.json": "6787f5652d74053b38331d87cd550f74b4ba8eaa95716d97efd4644334dc9ac0",
+        "tiny-q2-checkpoint\\model.safetensors": "cdf87090a6d7416019f7a384bf52fb55dae08371e0ab36883b462a3a333988e3"
+      }
+    },
+    "remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/layer-major-cache-v4/out",
+    "limitations": "Tiny cached schedule equivalence only. New 8B raw16K and original-F32 quality companion remain required. Original harness import/cache/rotary failures remain retained."
+  },
+  "cpu_timeout_diagnostic": {
+    "profile": {
+      "scope": "Exclusive period-weighted five-second cycles:u sample; not a benchmark",
+      "samples": 964,
+      "period": 64318837586,
+      "threads": {
+        "1945342": 247,
+        "1945340": 237,
+        "1945326": 244,
+        "1945341": 236
+      },
+      "elf_relocation_from_saved_mapping": "0x5c11cc121000",
+      "lost_samples": 0,
+      "regions": [
+        {
+          "symbol": "quant::dequantize_row_q2_0(unsigned char const*, float*, unsigned long)",
+          "percent": 92.34962849659607,
+          "samples": 887
+        },
+        {
+          "symbol": "backend::CpuBackend::matmul_raw(unsigned int, unsigned char const*, float const*, float*, unsigned long, unsigned long, unsigned long, bool, backend::Dtype, float const*)::{lambda(int, unsigned long, unsigned long)#2}::operator()(int, unsigned long, unsigned long) const",
+          "percent": 7.010958456720515,
+          "samples": 64
+        },
+        {
+          "symbol": "std::thread::_State_impl<std::thread::_Invoker<std::tuple<backend::CpuBackend::start_pool()::{lambda()#1}> > >::_M_run()",
+          "percent": 0.5297262602801791,
+          "samples": 5
+        },
+        {
+          "symbol": "void backend::CpuBackend::run_parallel<backend::CpuBackend::matmul_raw(unsigned int, unsigned char const*, float const*, float*, unsigned long, unsigned long, unsigned long, bool, backend::Dtype, float const*)::{lambda(int)#3}>(backend::CpuBackend::matmul_raw(unsigned int, unsigned char const*, float const*, float*, unsigned long, unsigned long, unsigned long, bool, backend::Dtype, float const*)::{lambda(int)#3}&&)",
+          "percent": 0.10968662470877137,
+          "samples": 1
+        },
+        {
+          "symbol": "backend::CpuBackend::bytes_at(backend::CSlice)",
+          "percent": 1.5236593769121728e-07,
+          "samples": 1
+        },
+        {
+          "symbol": "unresolved: [unknown]",
+          "percent": 6.219017864947644e-09,
+          "samples": 4
+        },
+        {
+          "symbol": "unresolved: /usr/lib/x86_64-linux-gnu/libc.so.6",
+          "percent": 3.109508932473822e-09,
+          "samples": 2
+        }
+      ]
+    },
+    "binary_sha256": "e8275c5376a51fb4480f12442b6fd5ad4241d6f937f2d7b8091f318e84e394ad",
+    "remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/cpu-remaining-profile-v1",
+    "finding": "Scalar unpack, integer-to-float conversion and scaled stores dominate sampled CPU cycles. No candidate edit or bound change follows this diagnostic. Sampling does not establish individual instruction latency or a comparative speed claim."
+  },
+  "new_8b_depth_reference": {
+    "plan_sha256": "449712ff7c0748c4994bdfeb90dfc732c3f031b2ec4549b2831579e171a97102",
+    "payload_sha256": "d2bf130a09c9264594b12634b9aacb95021cdceb2d95b23380896c1e9ad3244e",
+    "remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-layer-major-depth-v1/out",
+    "status": "MI50-selected companion running; F32-quality follows sequentially. No depth comparison completed.",
+    "scope": "Raw16895 inputs, prefill512/decode1/head1, 512 scored full-vocabulary rows, unchanged HF and cache owners.",
+    "memory_cap_GiB": 15
+  },
+  "new_main_integration": {
+    "base": "80cbf1da09b237ac22fdd4d6182e807412a14242",
+    "candidate": "3f803d0a6",
+    "conflicts": {
+      "src/backends/vulkan/vulkan_backend.cpp": "Retain Q8 paired-build name and Q1 two-row name together.",
+      "src/backends/vulkan/vulkan_dispatch.hpp": "Retain eleven specialization entries: low-bit format at15 and Q8 halves at16."
+    },
+    "reference_files_unchanged_from_643": [
+      "tools/gen_baseline.py",
+      "tools/gen_layered_reference.py",
+      "tests/spec_decode.py",
+      "tests/common.py"
+    ],
+    "windows": {
+      "version": "llmx 0.1.0+g3f803d0a6488 numerics 0f48861c5a262943",
+      "binary_sha256": "68e7352e6e195c75adc7c0d73644c30820b43f59b97a8a37798722aa73ffd8c1",
+      "configure_log_sha256": "80e1eb8a08993e37a8b3cff7aed07bb94c642d0572000d22fe51e6ca15050d2e",
+      "build_log_sha256": "542e54fbc61d1fc9070e2320293af376dc7d4ab12f5fd769fd6fe4bd99d4b61d",
+      "build_passed": true,
+      "radeon_native": {
+        "backend-vulkan_seconds": 101.74,
+        "low-bits-vulkan_seconds": 1.81,
+        "passed": 2,
+        "skipped": 0,
+        "log_sha256": "88125df4afc318b4977465363178ea53ad6a7d8bf889b5c8cab1883e6b5bbec8"
+      },
+      "cpu_native": {
+        "passed": 78,
+        "failed": [
+          "server-passes-cpu"
+        ],
+        "error": "the interleaved rule on 2 devices at P = 3: stage 0's last slice reads empty",
+        "seconds": 387.59,
+        "log_sha256": "c6a83abd952e8db00ebdc4aaf8af36d90589ddebe28aefe62c770b6910acb7bc",
+        "serial_repeat": {
+          "seconds": 240.38,
+          "error": "the interleaved rule on 3 devices at P = 3: stage 0's last slice reads empty",
+          "log_sha256": "884f7497a98585e4f3750f242ad28c04ba1fa8b79bbcba58c2ce7f26d5f76505"
+        },
+        "disposition": "Open. Source matches main for test/server/model/CPU backend. Serial repeat also fails. Timing diagnosis identifies possible zero elapsed time; RDEV owns the test fix. No assertion waived."
+      }
+    },
+    "qualification": "Fresh Windows build and Radeon native checks passed; CPU scheduler assertion remains unresolved. Linux/final combined checks pending. Prior results remain pinned to their actual source revisions."
+  }
+}

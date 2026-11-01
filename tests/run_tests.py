@@ -31,6 +31,7 @@ import iq2_s
 import iq3_xxs
 import iq2_small
 import iq1
+import low_bits
 import tq
 import nvfp4
 import qwen35
@@ -139,6 +140,7 @@ def main():
                   ("iq2-xs", iq2_small.run_xs),
                   ("iq3-xxs", iq3_xxs.run),
                   ("iq1", iq1.run),
+                  ("low-bits", low_bits.run),
                   ("tq1-0", tq.run_tq1),
                   ("tq2-0", tq.run_tq2),
                   ("nvfp4", nvfp4.run),

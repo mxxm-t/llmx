@@ -1,0 +1,82 @@
+{
+  "schema": "llmx.q1-windows-vulkan-quantization-stack.v1",
+  "date": "2026-11-01",
+  "scope": "Focused diagnosis of the Windows Radeon VII vulkan-quantization CTest failure; no runtime code or numerical bounds changed.",
+  "control": {
+    "commit": "e72d09640de11f99c64b962569e1b304c97d896f",
+    "test_source_sha256": "6db66b22f480fcaa2ac1eedc91bb76af260cc6801e9a19c0c7832f3b358036b4",
+    "focused_result": "passed",
+    "seconds": 41.41,
+    "test_binary_sha256": "d69c2de7f9c069bfd0d0f3e237cd5e63db5937d1bf7402ec3ae91554392f15d9",
+    "log": "../q1-main-vkquant-control-20261101/build-vkquant-control-main-test.log"
+  },
+  "original_q1_failure": {
+    "built_commit": "51eba5587ab1cecc10a16603feb5d3128771877a",
+    "test_source_sha256": "6db66b22f480fcaa2ac1eedc91bb76af260cc6801e9a19c0c7832f3b358036b4",
+    "full_ctest": "96/97 passed; vulkan-quantization segfaulted after 3.05 seconds",
+    "focused_repeat": "segfault after 2.48 seconds",
+    "test_binary_sha256": "95fff850c1deabdf1b2f2890acdbab39b94fa8984ea26c5ab6986dc4f8133951",
+    "windows_event": {
+      "provider": "Application Error",
+      "event_id": 1000,
+      "module": "amdvlk64.dll",
+      "module_version": "31.0.21925.1001",
+      "exception": "0xc00000fd",
+      "fault_offsets": ["0x1c6bfdd", "0x2667057"]
+    },
+    "phase_diagnosis": "Temporary markers showed the failure in VulkanBackend construction at vkCreateDevice, before test check functions run. No exception text or minidump was available."
+  },
+  "cause_and_repair": {
+    "test_source": "tests/vulkan_quantization.cpp",
+    "kernel_ids_added_by_q1": 8,
+    "variants": 13,
+    "backend_instance_growth_bytes": 8320,
+    "q1_backend_size_bytes": 305112,
+    "main_backend_size_bytes_derived": 296792,
+    "main_stack_frame_bytes": {
+      "e72_control": 890448,
+      "q1_before_repair": 915456,
+      "q1_after_repair": 120
+    },
+    "change": "Heap-own all nine direct VulkanBackend instances in Vulkan test sources: three in vulkan-quantization, three in vulkan-buffer, and three in vulkan-index. Their types, initialization, uses, destruction and assertions are unchanged.",
+    "other_test_sources": {
+      "tests/vulkan_buffer.cpp": "d073d381b6649e406ac488bf266a6a40ed77e2452588e1f4c91cf2dfeb4a020c",
+      "tests/vulkan_index.cpp": "40a5239bae677b798061b124e6b77189f254c9012fca401554e31c79d5e95a85"
+    },
+    "production_ownership": "VulkanBackend is internal to vulkan_backend.cpp; make_vulkan_backend already heap-owns it with std::make_shared."
+  },
+  "post_repair": {
+    "test_source_sha256": "43077ff14caf040c02b4dad40bfb74064e31a614d288ea43882fb3badaf24df9",
+    "vulkan_quantization": {
+      "result": "passed",
+      "seconds": 41.64,
+      "log": "build-q1-e72-20261101/vulkan-quantization-heap-fix-test.log",
+      "test_binary_sha256": "a13fff65e40d1bb4eeeaf436e4b265cdb121567bba8a4bd9c3156a25ac454f9a"
+    },
+    "vulkan_buffer": {
+      "result": "passed",
+      "seconds": 0.05,
+      "log": "build-q1-e72-20261101/focused-vulkan-tests-after-stack-audit.log"
+    },
+    "vulkan_index": {
+      "result": "passed",
+      "seconds": 3.89,
+      "log": "build-q1-e72-20261101/focused-vulkan-tests-after-stack-audit.log"
+    },
+    "low_bits_vulkan": {
+      "result": "passed",
+      "device": "AMD Radeon VII",
+      "log": "build-q1-e72-20261101/low-bits-vulkan-focused.log"
+    },
+    "full_ctest_after_repair": "not run; the retained pre-repair full CTest result remains 96/97 and is not represented as a pass"
+  },
+  "historical_crosscheck": {
+    "older_q1_binary_sha256": "7324498c3f759274c241bb3c8fa4f8d4d194d4e2356f2e0af9a5fe2c5b5a937f",
+    "current_driver_result": "passed",
+    "historical_ctest": "vulkan-quantization passed in 43.83 seconds on 2026-10-29"
+  },
+  "limitations": [
+    "The full CTest suite was not repeated after the test-only fix.",
+    "The old Q1 binary differs in runtime source and base, so it is supporting evidence, not the matched main control."
+  ]
+}

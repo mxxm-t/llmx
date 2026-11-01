@@ -1056,33 +1056,33 @@ size_t check_twin_quotients(backend::VulkanBackend& b) {
 
 int main() {
     try {
-        backend::VulkanBackend b(0);
-        check(b);
-        check_group_rms_norm(b);
+        auto b = std::make_unique<backend::VulkanBackend>(0);
+        check(*b);
+        check_group_rms_norm(*b);
         for (size_t width : {size_t(32), size_t(64)})
-            check_activation_range(b, width, backend::VulkanQuantizationTest::preserves_float32(b));
-        backend::VulkanBackend fallback(0);
-        backend::VulkanQuantizationTest::WithoutPreservation guard(fallback);
-        for (size_t width : {size_t(32), size_t(64)}) check_activation_range(fallback, width, false);
+            check_activation_range(*b, width, backend::VulkanQuantizationTest::preserves_float32(*b));
+        auto fallback = std::make_unique<backend::VulkanBackend>(0);
+        backend::VulkanQuantizationTest::WithoutPreservation guard(*fallback);
+        for (size_t width : {size_t(32), size_t(64)}) check_activation_range(*fallback, width, false);
         require(guard.modules != 0, "unsupported-mode check created no modules");
         std::cout << "vulkan-quantization: " << guard.modules << " modules accepted without float preservation\n";
-        check_ordinary_identity(b, fallback);
-        check_elementwise_reference(b, fallback);
-        check_twin_quotients(b);
-        check_twin_quotients(fallback);
-        check_elementwise_subnormals(b);
-        check_elementwise_subnormals(fallback);
-        check_float_identity(b, fallback);
-        check_wide_tile(b, backend::VulkanQuantizationTest::preserves_float32(b) ? "preserving" : "plain");
-        check_wide_tile(fallback, "plain");
-        check_combine_identity(b, fallback);
-        check_combine_subnormals(b);
-        check_combine_subnormals(fallback);
-        check_offset_range(b);
-        backend::VulkanBackend tiled(0, true);
-        check_offset_range(tiled, true);
-        check_offset_range(tiled, false, backend::Dtype::f32);
-        check_offset_range(tiled, true, backend::Dtype::f32);
+        check_ordinary_identity(*b, *fallback);
+        check_elementwise_reference(*b, *fallback);
+        check_twin_quotients(*b);
+        check_twin_quotients(*fallback);
+        check_elementwise_subnormals(*b);
+        check_elementwise_subnormals(*fallback);
+        check_float_identity(*b, *fallback);
+        check_wide_tile(*b, backend::VulkanQuantizationTest::preserves_float32(*b) ? "preserving" : "plain");
+        check_wide_tile(*fallback, "plain");
+        check_combine_identity(*b, *fallback);
+        check_combine_subnormals(*b);
+        check_combine_subnormals(*fallback);
+        check_offset_range(*b);
+        auto tiled = std::make_unique<backend::VulkanBackend>(0, true);
+        check_offset_range(*tiled, true);
+        check_offset_range(*tiled, false, backend::Dtype::f32);
+        check_offset_range(*tiled, true, backend::Dtype::f32);
         return 0;
     } catch (const backend::VulkanUnavailable& e) {
         std::cerr << e.what() << '\n';

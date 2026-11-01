@@ -1,0 +1,135 @@
+{
+  "scope": "Q1 row trace and analyzer coverage, not a performance or numerical gate",
+  "runtime_sha256": "423d994acb0643e289ab587f56ee3f3a05a40320ff445b49db3184f506d99e15",
+  "probe": {
+    "K": 2048,
+    "M": 6144,
+    "N": 1,
+    "exact_outputs_per_call": 6144,
+    "nonzero_outputs": 6144,
+    "path_witness": "block-int16"
+  },
+  "viewer": {
+    "version": "RGP1.16",
+    "v1_event": 5,
+    "v2_event": 4,
+    "pipeline_hash": "B82C7F6B1BA6E533",
+    "group_count": [
+      1536,
+      1,
+      1
+    ],
+    "local_size": [
+      256,
+      1,
+      1
+    ],
+    "v1_total_waves": 6144,
+    "timing_status": "No wavefronts analyzed: insufficient wavefronts for analysis",
+    "isa_export_sha256": "817f50580e27c43a1f4303f89690e5ca7edc62c4b9dc51d46b8fd1e899274fbe",
+    "dot_instructions": 16,
+    "all_dot_opcodes_unrecognized_by_viewer": true,
+    "dot_first_words": [
+      "d3a64023",
+      "d3a64025",
+      "d3a64026",
+      "d3a64029",
+      "d3a6402a",
+      "d3a6402d",
+      "d3a6402e",
+      "d3a6402f",
+      "d3a64009",
+      "d3a6400b",
+      "d3a6400c",
+      "d3a64021",
+      "d3a64022",
+      "d3a64028",
+      "d3a6402b",
+      "d3a64007"
+    ],
+    "all_unrecognized_first_words": [
+      "d3a64023",
+      "d3a64025",
+      "d3a64026",
+      "d3a64029",
+      "d3a6402a",
+      "d3a6402d",
+      "d3a6402e",
+      "d3a6402f",
+      "d3a64009",
+      "d3a6400b",
+      "d3a6400c",
+      "d3a64021",
+      "d3a64022",
+      "d3a64028",
+      "d3a6402b",
+      "d3a64007",
+      "bf9f0000",
+      "bf9f0000",
+      "bf9f0000",
+      "bf9f0000",
+      "bf9f0000"
+    ],
+    "interpretation": "The viewer misdecodes all 16 native integer-dot instructions, including treating their second words as separate instructions. This establishes analyzer ISA incompatibility. Its causal role in missing instruction timing is likely, not independently proven."
+  },
+  "attempts": [
+    {
+      "bundle": "q1-row-trace-v1",
+      "seconds": 6.4714202880859375,
+      "receipt_sha256": "4068c584c83f292ad43d96495add859d659fcf9b83d6d69624cd7ef2b3b61bec",
+      "captures": {
+        "probe_2026.10.27_23.56.37.rgp": {
+          "bytes": 1169432,
+          "sha256": "fa3268085832a15dfadc1ea029388b2de0a0b198abbb8f1aa36a586bbff0d378"
+        }
+      },
+      "timestamp_instrumentation": true,
+      "runtime_unchanged": true,
+      "capture_container_removed": true,
+      "viewer_container_removed": true,
+      "viewer_seconds": 391.0817520618439,
+      "analysis_files": {
+        "events.png": "f75d1b429074743d11bfafbea522a2bfac06dfc0b878e04f8399aebddcff27c8",
+        "fonts.conf": "d9179d7b2c872ee293d3e73ba7262206d046dd79dcc7ce32eeb784619c2c9500",
+        "host.json": "c1992da78d4775df5fabdf0063d15afe39475498fd4ee969004e80ad1dcf5f6e",
+        "initial.png": "cf8f93e0685f93bd50694368bfea53f3b556eb06b8ebb79636863468424874d4",
+        "pipelines.png": "56631836773f0069fde0b97819b831a9a1390641d01e69d8e8ad43eb147afc29",
+        "q1-isa-copy.txt": "817f50580e27c43a1f4303f89690e5ca7edc62c4b9dc51d46b8fd1e899274fbe",
+        "q1-isa.png": "46d614b1bb2041be3c94867c95c33ccfc5c92a0f5d64a64a870f22ec1837f3a6",
+        "q1-state.png": "3d55c594cc131ec81c64f0612f59ff020e587ad8b32a7fd61cf865e5679a298c",
+        "q1-timing.png": "97758ca0ef6849b1522f7db4dd87f97b0a15ed395632bc5cde5c6c379e86b168",
+        "session.json": "bbe296c8561382bf772e74431afdc8c049e75ab1ce41bf9f350943d526e9484c",
+        "stop": "7cd5cb9a9e1d14b60e6bdaf0bbf517055f182357c7ece504e57e9c97edd3b987",
+        "timing.png": "178e25768acfec3263f8a4dd3da2cdda9acd4a6f9af1f40ff729dd6e9736bf6a",
+        "viewer.log": "293366de426441d567ee4a1add2b76715f0b8200d539dc3872951fd56e8ef69a",
+        "xvfb.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "bundle": "q1-row-trace-v2",
+      "seconds": 6.427950143814087,
+      "receipt_sha256": "fab71ec17ffb4012ec8088dedd2fad32a8e2bf1e39b89005ae83ec1a72898ba6",
+      "captures": {
+        "probe_2026.10.28_00.08.40.rgp": {
+          "bytes": 1161624,
+          "sha256": "0fa3f5da26e56121a36c29e4f2f55ae366d16ad238dd7c9017157ce4a32237cc"
+        }
+      },
+      "timestamp_instrumentation": false,
+      "runtime_unchanged": true,
+      "capture_container_removed": true,
+      "viewer_container_removed": true,
+      "viewer_seconds": 35.04179906845093,
+      "analysis_files": {
+        "fonts.conf": "d9179d7b2c872ee293d3e73ba7262206d046dd79dcc7ce32eeb784619c2c9500",
+        "host.json": "b86097202a02de624e37919c6f58dac1d949fce67e20db5c027d4c60df771f78",
+        "session.json": "032fcb65f4feffa450024c7d16fdc4e1b6a679778a051372dcc89ab1f91eadb0",
+        "stop": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timing.png": "ba9f4864dfcd27abd466426d83bbb7d8e6c0d8da8845165de42ae81395ec30d4",
+        "viewer.log": "293366de426441d567ee4a1add2b76715f0b8200d539dc3872951fd56e8ef69a",
+        "xvfb.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "decision": "Do not report per-instruction stalls or bandwidth saturation from these captures. Timestamp-free capture rules out query instrumentation as a sufficient explanation. Retain driver timestamps and compiled ISA as valid evidence; use a compatible decoder or controlled direct-kernel experiments next. No runtime edit or gate change."
+}

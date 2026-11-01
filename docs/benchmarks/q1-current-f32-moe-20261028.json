@@ -1,0 +1,287 @@
+{
+  "scope": "Current packed Q1 split-MoE fixture at one-GPU, two-device layer-split and TP2 placements, with explicit F32 arithmetic and F32 KV. The current approved-consumer comparison passes all three placements. No new bound or reference; this does not close broader split or model qualification.",
+  "runtime_checkpoint": "86ecd75fc",
+  "candidate_binary_sha256": "c0a668057928cca2646baa337c94ec1b84cdad397ef431a501bacf9676741006",
+  "candidate_library_sha256": "608e2afde63e90f7f7966a5d2bb904177a3c645d482badd96caa9fe5fa2e8278",
+  "nll": {
+    "check": "HF-NLL",
+    "value": 18.57421139091454,
+    "reference": 18.574219666744234,
+    "error": 8.27582969264995e-06,
+    "bound": 1e-05,
+    "passed": true
+  },
+  "approved_consumer": {
+    "scope": "Offline recheck of retained current-runtime capture with current approved fixture consumer. No GPU rerun or new limits. Frozen capture source used older budget and tensor_split consumer; their strict logit failures and signature error stay recorded.",
+    "passed": true,
+    "logit_checks": [
+      {
+        "phase": "batched",
+        "text": "a",
+        "max_abs_error": 2.2411346435546875e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "batched",
+        "text": "ab",
+        "max_abs_error": 2.956390380859375e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "batched",
+        "text": "abc",
+        "max_abs_error": 2.6702880859375e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "batched",
+        "text": "abcdefg",
+        "max_abs_error": 3.528594970703125e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "batched",
+        "text": "abcdefghijklm",
+        "max_abs_error": 2.1219253540039062e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "decode",
+        "text": "a",
+        "max_abs_error": 2.2411346435546875e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "decode",
+        "text": "ab",
+        "max_abs_error": 2.956390380859375e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "decode",
+        "text": "abc",
+        "max_abs_error": 2.6702880859375e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "decode",
+        "text": "abcdefg",
+        "max_abs_error": 3.528594970703125e-05,
+        "bound": 0.0001020159912109375
+      },
+      {
+        "phase": "decode",
+        "text": "abcdefghijklm",
+        "max_abs_error": 2.1219253540039062e-05,
+        "bound": 0.0001020159912109375
+      }
+    ],
+    "nll": {
+      "check": "HF-NLL",
+      "value": 18.57421139091454,
+      "reference": 18.574219666744234,
+      "error": 8.27582969264995e-06,
+      "bound": 1e-05,
+      "passed": true
+    },
+    "original_capture_report_sha256": "261223331c3eebaa030e8de8b28b7a471b194ac0bc97815d8e4a4f016b3a0d98",
+    "source_hashes": {
+      "tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests\\tensor_split.py": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+      "tests\\data\\dtype_budget.json": "3980418c806032e9f3e44b54d4d9be2f03c75480cae800420ca660b3ab4c146f",
+      "tests\\data\\baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2"
+    }
+  },
+  "legacy_consumer_checks": [
+    {
+      "check": "HF-logits",
+      "phase": "batched",
+      "text": "a",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 batched 'a'/HF logit error: 0.00002241\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "batched",
+      "text": "ab",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 batched 'ab'/HF logit error: 0.00002956\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "batched",
+      "text": "abc",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 batched 'abc'/HF logit error: 0.00002670\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "batched",
+      "text": "abcdefg",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 batched 'abcdefg'/HF logit error: 0.00003529\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "batched",
+      "text": "abcdefghijklm",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 batched 'abcdefghijklm'/HF logit error: 0.00002122\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "decode",
+      "text": "a",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 decode 'a'/HF logit error: 0.00002241\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "decode",
+      "text": "ab",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 decode 'ab'/HF logit error: 0.00002956\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "decode",
+      "text": "abc",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 decode 'abc'/HF logit error: 0.00002670\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "decode",
+      "text": "abcdefg",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 decode 'abcdefg'/HF logit error: 0.00003529\")"
+    },
+    {
+      "check": "HF-logits",
+      "phase": "decode",
+      "text": "abcdefghijklm",
+      "bound": 2e-05,
+      "passed": false,
+      "error_message": "AssertionError(\"q1-0-moe-gpu4 decode 'abcdefghijklm'/HF logit error: 0.00002122\")"
+    },
+    {
+      "check": "HF-NLL",
+      "value": 18.57421139091454,
+      "reference": 18.574219666744234,
+      "error": 8.27582969264995e-06,
+      "bound": 1e-05,
+      "passed": true
+    },
+    {
+      "check": "tensor_split.held_to_hf",
+      "passed": false,
+      "error": "TypeError(\"held_to_hf() got an unexpected keyword argument 'family'\")"
+    }
+  ],
+  "fixture": {
+    "model_sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c",
+    "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654",
+    "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+    "model_context": 128,
+    "token_ids": [
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109
+    ]
+  },
+  "execution_summary": {
+    "completed": true,
+    "source_unchanged": true,
+    "build_unchanged": true,
+    "stages": [
+      {
+        "tag": "build",
+        "passed": true,
+        "removed": true,
+        "seconds": 47.43928050994873
+      },
+      {
+        "tag": "capture",
+        "passed": true,
+        "removed": true,
+        "seconds": 25.34233856201172
+      }
+    ]
+  },
+  "two_device_rechecks": {
+    "scope": "The existing explicit-F32/F32-KV helper and unchanged packed fixture were captured on physical GPUs 4 and 5. Both layer2 (width 1, shares 1,1) and TP2 (width 2) capture and current approved HF comparison pass. This closes this F32 MoE fixture issue across these three placements only; broader split, dtype, released-model and landing gates remain.",
+    "runtime_checkpoint": "86ecd75fc",
+    "candidate_receipt_sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6",
+    "capture_report_sha256": "ad6fcacab090853bd30265afb40125d5e38bc4e50e737484abeb2ac3cb20fca9",
+    "current_consumer_sha256": "e10d8e6b04922ecdd8e6b4139a65eb38a1865217db8b2f31e7fa0fa966a6e6de",
+    "execution_receipt_sha256": "e6fd366d03d4fc349fd24f8647bc831ddcf1824f629d5ea5f2c1e16bc409e609",
+    "artifact_path": "build-low-bits-dev/q1-current-f32-moe-multigpu-v1/out-retry-v2",
+    "source_build_previous_capture_and_initial_failure_outputs_unchanged": true,
+    "container_removed": true,
+    "placements": [
+      {
+        "name": "layer2",
+        "devices": [4, 5],
+        "tensor_width": 1,
+        "layer_shares": "1,1",
+        "all_batched_decode_and_greedy_matrix_paths": "f32",
+        "approved_consumer_passed": true,
+        "logit_checks": 10,
+        "maximum_logit_error": 0.00003528594970703125,
+        "approved_logit_bound": 0.0001020159912109375,
+        "nll": 18.57421139091454,
+        "hf_nll": 18.574219666744234,
+        "nll_error": 0.00000827582969264995,
+        "unchanged_nll_bound": 0.00001,
+        "batched_logits_sha256": "d38cbd4dcef0a9455a38182c7d1a9dd22a5ced107a147c52c3213e98326f91f9",
+        "decode_logits_sha256": "d38cbd4dcef0a9455a38182c7d1a9dd22a5ced107a147c52c3213e98326f91f9",
+        "greedy_logits_sha256": "56b362358d1d0c56e86d4579b78a0247ef257d50962469f76df865564c7ec650"
+      },
+      {
+        "name": "tp2",
+        "devices": [4, 5],
+        "tensor_width": 2,
+        "layer_shares": "1",
+        "all_batched_decode_and_greedy_matrix_paths": "f32",
+        "approved_consumer_passed": true,
+        "logit_checks": 10,
+        "maximum_logit_error": 0.000033855438232421875,
+        "approved_logit_bound": 0.0001020159912109375,
+        "nll": 18.5742102044975,
+        "hf_nll": 18.574219666744234,
+        "nll_error": 0.00000946224673370466,
+        "unchanged_nll_bound": 0.00001,
+        "batched_logits_sha256": "feef6e0f766a18d688ac3813cd02c54634bccdb76140a16412627424daf84a0d",
+        "decode_logits_sha256": "feef6e0f766a18d688ac3813cd02c54634bccdb76140a16412627424daf84a0d",
+        "greedy_logits_sha256": "6638ff7c9053db4b69b144e8f1f8774d810513a7d03bef27dfacd1f7c134ba78"
+      }
+    ],
+    "initial_attempt": {
+      "path": "build-low-bits-dev/q1-current-f32-moe-multigpu-v1/out",
+      "classification": "The plan-hash typo was rejected before GPU capture. No inference capture occurred, so this was a harness admission failure, not a runtime failure.",
+      "preserved_unchanged": true
+    },
+    "legacy_consumer_results": "The original strict-logit misses and tensor_split consumer signature error remain retained diagnostics. The current approved consumer passes the same raw captures offline; no limits or reference were changed.",
+    "identity_note": "The TP2 raw-logit hashes differ from layer2. No bit-identity claim is made across placements."
+  },
+  "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-current-f32-moe-v1/out"
+}

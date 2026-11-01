@@ -1,0 +1,52 @@
+{
+  "scope": "Q1 exact-method HF controls and Q2 original-F32 quality companions; observations only, with no gate or limit changes.",
+  "q1_controls": {
+    "source": "build-low-bits-dev/q1-depth-exact-v1-scheduling/controls-review-v2.json",
+    "source_sha256": "73b3349bd8f2219cdad2a049b5937133baa83d1d641c23d42d78f09f652dfbd9",
+    "report_sha256": "7f40dd8790f8d33e35206fe857f3c156cf46dddf6fe65f9a775097e3c3e1a29f",
+    "receipt_sha256": "a0f00e2a278349cdb767a0c7d530e9626e19fca3f28f621c60593079a1fc5907",
+    "unchanged": true,
+    "controls": {
+      "histories": 4,
+      "positions_each": 17,
+      "top1_top2_equal_positions_each": 17,
+      "arithmetic_samples": 394,
+      "arithmetic_mismatches": 0,
+      "prompt_chunk_64_vs_17": "byte-identical logits for each continuation shape",
+      "singleton_max_abs_logit_delta": 0.0019683837890625,
+      "singleton_max_abs_gap_delta": 0.0002288818359375,
+      "singleton_top1_top2_differences": 0
+    },
+    "limitation": "These are 64-token prompt plus 16-token continuation controls, not 512-token phase controls. Corrected MI50 raw reference is in progress; prior MI50 depth remains pending exact-method reference review."
+  },
+  "q2_original_f32_quality": {
+    "source": "build-low-bits-dev/q2-depth-default-v3/quality-summary-v1/summary.json",
+    "source_sha256": "fc625a06e5c49d0d1d3253ce47df30d80679cb2bbd0794c45133cfe33f62e0a3",
+    "plan_sha256": "d169aeb9bc232b68259048674bbf7c06db83aa6c75002a24ee7e97c1aa3c85ec",
+    "payload_sha256": "598af5cc274e4b9f46dae1037879292b01b339e20c742b1137582ace617bd436",
+    "reference_policy_sha256": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8",
+    "policy_map_sha256": "4a38f97f6f4c0497be5f575eac83e8fb61b2c323444caf57f935748226a860f3",
+    "capture_execution_sha256": "cae4dcadd0440d776506aa411f7acba7acb9fc9e170338e634ec32c0363ee7ee",
+    "raw": {
+      "report_sha256": "c35074e51f47619a4b9d943dce142ed1ad36c20f5978d62d87a21429a55487fa",
+      "scores_sha256": "944658ade50f6f14b7ff9629f353330c35eab0a1d178eef120af39acf00b0cfa",
+      "comparison_sha256": "74910239f391e72ed1e77ceea3c2d3d4fba0cd8c48241848f8929cba08281d51",
+      "rows": 512,
+      "original_f32_hf_mean_nll": 18.655014209287227,
+      "selected_hf_mean_nll": 18.66441945629786,
+      "runtime_mean_nll": 18.664799413944266,
+      "runtime_top1_counts_vs_original_f32": [484, 18, 10]
+    },
+    "chat": {
+      "report_sha256": "e8b842061d342f9c963e5dcaabba892cf5632c03a6e011a904dac7e4a6197ae7",
+      "scores_sha256": "27fd4e7e26002852e67556be3597ba5e7053d432d6b544fbfc1a974f8d51f487",
+      "comparison_sha256": "f4e15043040f560044e37d3570078d1d174ac0f4397dc6d471c6149f449b1675",
+      "rows": 512,
+      "original_f32_hf_mean_nll": 17.78511908178266,
+      "selected_hf_mean_nll": 17.783544842826135,
+      "runtime_mean_nll": 17.7829295135773,
+      "runtime_top1_counts_vs_original_f32": [459, 24, 29]
+    },
+    "interpretation": "Both companions completed, were removed, and were unchanged. NLL and top1 counts are descriptive quality observations, not an additional acceptance gate. Q2 all-layer observer analysis remains underway; canonical short ranking/NLL failures remain unchanged and unapproved."
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "scope": "Review draft for the 7f/26f candidate comparison only. This is not evidence for the later main 509 vision delta.",
+  "artifacts": {
+    "initial_execution": {
+      "path": "scratch/q12-landing-20261029/existing-path-perf-v1/execution.json",
+      "sha256": "a7ce2184fde6b8b8a45e63d7cac0877278878bcef7d85ed91167b854b5101851"
+    },
+    "initial_summary": {
+      "path": "scratch/q12-landing-20261029/existing-path-perf-v1/summary.json",
+      "sha256": "efc4495e1cf2144daf11e940664b0c8f7d60166325e8909c8b7d0cf3498ccc21"
+    },
+    "initial_activity_audit": {
+      "path": "scratch/q12-landing-20261029/existing-path-perf-v1/activity-audit.json",
+      "sha256": "204f7b5c4b24ba62dbfe65a1fd686337f77c2fa711152f4b59aa8495e76af802",
+      "activity_jsonl_sha256": "01300f12579b819f4c51c9ebd29aae1a6a57c7c59e549983f2fdbd8c3174aac9"
+    },
+    "cpu_repeat_execution": {
+      "path": "scratch/q12-landing-20261029/existing-path-perf-v1/cpu-q8-tg-repeat-v1/execution.json",
+      "sha256": "1485bff538199021951c0e897682284efd0ad4073e927f03de4f7142b3569464"
+    },
+    "cpu_repeat_summary": {
+      "path": "scratch/q12-landing-20261029/existing-path-perf-v1/cpu-q8-tg-repeat-v1/summary.json",
+      "sha256": "bc8c0ea42811c8e4b219d18c34787e1a0bdd4213e92967dccd5728ee629ea568"
+    },
+    "codegen_audit": {
+      "path": "scratch/q12-landing-20261029/cpu-codegen-v1/audit.json",
+      "sha256": "9e09bc47b3b3cf813e11a0a4f51f7f40d2fdba607f804fe9e40366d1f34da8f2"
+    },
+    "codegen_audit_markdown": {
+      "path": "scratch/q12-landing-20261029/cpu-codegen-v1/audit.md",
+      "sha256": "7b34741222b977d60c7a71ff9d57fda468eea8045e3bb5bc1d455f0c690f9482"
+    },
+    "codegen_symbols": {
+      "path": "scratch/q12-landing-20261029/cpu-codegen-v1/symbols.json",
+      "sha256": "cb1be077848d25dd0854b5ad06e9f42dc7c8402119241b80e66b9709b4ebee3b"
+    }
+  },
+  "builds": {
+    "main": {
+      "revision": "26f97c37d9cc",
+      "version": "llmx 0.1.0+g26f97c37d9cc numerics 3a22beee5cbffa92",
+      "sha256": "f6e45c05498b12c6f5633df80ea02168181844a1f76c4b3a8c0186194421dd1f"
+    },
+    "selected": {
+      "revision": "7fbe5d33b11d",
+      "version": "llmx 0.1.0+g7fbe5d33b11d numerics b1684b47b0aae389",
+      "sha256": "fe67478f4c96f5c78416230f972f3f5312dd50fc696234fa6eac50335265c8e7"
+    },
+    "common_model": {
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "size_bytes": 639446688
+    }
+  },
+  "initial_existing_paths_screen": {
+    "calls": 20,
+    "all_calls_valid": true,
+    "method": "One retained ABBA round, two samples per arm per cell; existing cmd_bench_model with one untimed prefill and decode followed by one measured repeat per phase. No retries or sample removal.",
+    "cpu_q8_qwen3_0_6b": {
+      "pp128_tok_s": {
+        "main_samples": [
+          235.26,
+          238.47
+        ],
+        "selected_samples": [
+          264.56,
+          215.63
+        ],
+        "main_mean": 236.865,
+        "selected_mean": 240.095,
+        "selected_change_percent": 1.364
+      },
+      "tg128_tok_s": {
+        "main_samples": [
+          40.04,
+          42.59
+        ],
+        "selected_samples": [
+          39.27,
+          34.35
+        ],
+        "main_mean": 41.315,
+        "selected_mean": 36.81,
+        "selected_change_percent": -10.904
+      }
+    },
+    "mi50_four_existing_files_change_percent": {
+      "mi50-0": {
+        "pp128": -0.153,
+        "tg128": -0.295
+      },
+      "mi50-1": {
+        "pp128": -0.478,
+        "tg128": 0.627
+      },
+      "mi50-2": {
+        "pp128": 0.058,
+        "tg128": 0.394
+      },
+      "mi50-3": {
+        "pp128": -0.314,
+        "tg128": 0.818
+      }
+    },
+    "activity": {
+      "calls_with_unrelated_cpu_flag": 20,
+      "calls_with_disk_flag": 1,
+      "calls_with_other_gpu_flag": 0,
+      "calls_with_gap_flag": 0,
+      "overlap_weighted_mean_unrelated_cpu_cores": 4.218,
+      "top_attributed_processes_by_overlap_weighted_cpu_seconds": {
+        "cc1plus": 103.675,
+        "llmx-server-res": 57.684
+      },
+      "process_samples": 43,
+      "unknown_process_cpu_observations": 500,
+      "missed_or_inaccessible_process_observations": 13,
+      "sampling_period_seconds": 2.0,
+      "limitations": "Short-lived processes between samples may be missed. New, disappeared, or inaccessible processes make attribution incomplete; unrelated CPU is a lower-bound estimate. Missing GPU counters are not treated as zero."
+    }
+  },
+  "cpu_q8_repeat": {
+    "calls": 24,
+    "blocks": 6,
+    "all_calls_valid": true,
+    "method": "Six retained ABBA blocks for CPU Q8_0 PP128/TG128; no retries, filtering, or automatic performance gate.",
+    "aggregate": {
+      "pp128_tok_s": {
+        "main_mean": 241.4275,
+        "selected_mean": 254.1425,
+        "selected_change_percent": 5.267
+      },
+      "tg128_tok_s": {
+        "main_mean": 38.67,
+        "selected_mean": 38.0566666667,
+        "selected_change_percent": -1.586
+      }
+    },
+    "tg128_block_change_percent_selected_vs_main": [
+      -7.068,
+      -4.276,
+      1.011,
+      6.415,
+      0.54,
+      -5.847
+    ],
+    "tg128_blocks_with_gain": 3,
+    "tg128_blocks_with_loss": 3,
+    "activity": {
+      "calls_with_unrelated_cpu_flag": 24,
+      "calls_with_disk_flag": 24,
+      "calls_with_other_gpu_flag": 0,
+      "calls_with_gap_flag": 0,
+      "process_samples": 119,
+      "unknown_process_cpu_observations": 948,
+      "missed_or_inaccessible_process_observations": 57,
+      "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are coverage limits. The saved summary does not establish process attribution as a complete census."
+    },
+    "cgroup": "Per-call memory.events and cpu.stat deltas were retained; the run records cgroup telemetry complete."
+  },
+  "static_codegen_review": {
+    "selected_functions": [
+      {
+        "name": "matmul_raw",
+        "instruction_count_each": 817,
+        "stack_reference_count_each": 223,
+        "backward_branch_count_each": 49,
+        "normalized_instruction_sequence_equal": true
+      },
+      {
+        "name": "matmul_raw worker lambda #2",
+        "instruction_count_each": 1319,
+        "stack_reference_count_each": 166,
+        "backward_branch_count_each": 38,
+        "normalized_instruction_sequence_equal": true
+      },
+      {
+        "name": "row_dot",
+        "instruction_count_each": 684,
+        "stack_reference_count_each": 29,
+        "backward_branch_count_each": 11,
+        "normalized_instruction_sequence_equal": false,
+        "difference": "One vandps RIP-relative target label/address differs; root-observed objdump dumps for both binaries show identical 16-byte target contents ffffff7f000000000000000000000000."
+      }
+    ],
+    "interpretation": "No source-level Q8 loop addition or changed control flow was identified in these inspected symbols. This is not whole-binary equivalence and does not attribute the timing result."
+  },
+  "disposition": "The initial -10.904% CPU TG signal was not reproduced at similar magnitude: the six-block repeat is -1.586% overall with mixed block signs amid persistent activity flags. Treat CPU TG impact as uncertain, report the complete tradeoff, and retain it for review; these data establish neither a regression nor equivalence and do not justify an automatic green or a new cutoff. The initial MI50 deltas range from -0.478% to +0.818% in this bounded screen.",
+  "root_disposition": {
+    "decision": "Keep all measurements and close additional CPU repeats for this tested pair. Accept the observed complete tradeoff as existing-path timing evidence, with CPU TG uncertainty explicitly retained; this is not a no-regression claim or a full landing pass.",
+    "basis": [
+      "Six additional fixed ABBA blocks were completed with all samples retained; TG effect changes sign across blocks.",
+      "The repeated aggregate PP gain is5.267% against TG loss1.586%; the original10.904% TG loss remains reported.",
+      "Source and selected emitted Q8 functions identify no added hot-loop work, but do not prove layout or whole-runtime timing equivalence.",
+      "Existing MI50 phase effects span-0.478% to+0.818%; assess phases together under AGENTS rather than inventing an isolated cutoff."
+    ],
+    "remaining": "Own8B file qualification, applicable new-main delta/build audit and final landing gates remain separate; this decision changes no correctness limits."
+  }
+}

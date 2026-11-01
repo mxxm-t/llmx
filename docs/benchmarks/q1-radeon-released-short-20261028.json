@@ -1,0 +1,80 @@
+{
+  "scope": "Current Q1 cluster32 Boole-1.7B-Q1_0 released-file short HF check on Windows Radeon VII. Correctness only; not depth, full suite, or performance qualification.",
+  "device": "AMD Radeon VII, Vulkan device 0, AMD proprietary driver 26.5.2",
+  "runtime": {
+    "exe": "build-low-bits-windows-cluster32-20261028/Release/llmx.exe",
+    "exe_sha256": "a9f51dd5c06aca9839d2cd50bbcbebf69333e17f9f41e108227fde38ae71c60d",
+    "matches_windows_native_evidence": true,
+    "model": "Boole-1.7B-Q1_0.gguf",
+    "model_sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "dtype_request": "auto; effective dtype witness f16",
+    "load_mode": "direct"
+  },
+  "references": {
+    "generated": false,
+    "baseline_logits.json": "7ae3b19be20b3203f73b74ebf6b2a6d4dd0b052224b6ab66899298ebb1378d83",
+    "baseline_perplexity.json": "b250fece73ee120e97868d170b8713b49a0cd5b202a2214c908d57391768c846"
+  },
+  "limits": {
+    "top1": "all six match",
+    "top5_set_overlap": "at least 5 of 5",
+    "continuous_nll": 0.01,
+    "window_nll": 0.02
+  },
+  "cells": [
+    {
+      "cache": "f16",
+      "status": "pass",
+      "seconds": 32.50374674797058,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_reported_nll_delta": 0.000058,
+      "continuous_limit": 0.01,
+      "window_limit": 0.02,
+      "path_witnesses": 14,
+      "witness": {"dtype": "f16", "devices": [["f32"]]},
+      "stdout_sha256": "0b3628be5c7c6ac764070f9af0db27f480d4969c0e3e61332d006fd11cdc00b4",
+      "stderr_sha256": "943f09afe4c761758b4a20b14085ad0adc9b372b9d20bd5820f051e5476bbc4f"
+    },
+    {
+      "cache": "f32",
+      "status": "pass",
+      "seconds": 31.047117471694946,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_reported_nll_delta": 0.000001,
+      "continuous_limit": 0.01,
+      "window_limit": 0.02,
+      "path_witnesses": 14,
+      "witness": {"dtype": "f16", "devices": [["f32"]]},
+      "stdout_sha256": "5817312451ffb35612a3057445adb7257610c87b4500451099595b10004394dc",
+      "stderr_sha256": "943f09afe4c761758b4a20b14085ad0adc9b372b9d20bd5820f051e5476bbc4f"
+    }
+  ],
+  "path_interpretation": "Both cache runs resolved auto to f16, while all 14 actual matrix-path witnesses per run report f32 on Radeon VII. Q1 lacks the device integer-dot path; the dtype request is not the matrix arithmetic path.",
+  "activity": {
+    "sampled_background_gpu_activity": ["DWM", "Code", "RuneLite", "Firefox", "Firefox video decode"],
+    "timing_claim": false
+  },
+  "retry_history": {
+    "v1": {
+      "status": "failed before inference",
+      "execution": "build-low-bits-dev/q1-windows-radeon-short-v1/out/execution.json",
+      "execution_sha256": "a669743f4692e124d4d8524e18318d1c63eb357c002a60c3d0c2673e90296643",
+      "reason": "Import-only failure: ModuleNotFoundError for tests.qwen35 import of f32; no path witnesses or inference output. Retained unchanged."
+    },
+    "retry2": {
+      "status": "pass",
+      "execution": "build-low-bits-dev/q1-windows-radeon-short-retry2-v1/out-v2/execution.json",
+      "execution_sha256": "4a003de522bd6863b1d9133573464c751431a72b87764ede5c71137d24c3d056",
+      "inputs_unchanged": true,
+      "files_verified": 7,
+      "plan_sha256": "a9c75d78df2bf622d4fd8e665799feb9575721281aa6d6987782e9634e6b6754",
+      "consumer_source_pins_sha256": "441eceb223bd0d1255eed20320407fc82819a121855dbe1d7df09a95da097296",
+      "import_closure_count": 12,
+      "import_only_help": "The exact pinned consumer closure passed baseline.py --help before inference; one missing pinned tests/tokenizer.py dependency was added. The import-only help attempt did not run model inference."
+    }
+  },
+  "cpu_depth_status": "CPU-default raw/chat HF is not a pass. A separate runtime capture stopped before prefill because retry2 metadata incorrectly expected auto to resolve F32. Frozen CPU placement/Q8 policy resolves auto to F16; Q1 has no dot path and its actual matrix products are F32. The CPU HF default-cache map remains correct; retry3 is metadata-only and pending.",
+  "qualification": "This closes the current candidate's Radeon VII released-file short HF check only. It does not close CPU-default depth, raw/chat depth on another backend, split coverage, final performance, or landing checks."
+}

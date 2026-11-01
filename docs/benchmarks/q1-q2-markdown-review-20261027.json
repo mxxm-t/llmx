@@ -1,0 +1,18 @@
+{
+  "scope": "Checkpoint catalog applicability review for Q1/Q2 support and config-only file-exact reference construction; local read-only review, not full technical requalification of unrelated/history content.",
+  "utc": "2026-10-27T21:20:52.126076+00:00",
+  "head": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+  "tracked_markdown_files": 152,
+  "new_nonignored_markdown_files": 2,
+  "classification_counts": {
+    "applicable-current": 28,
+    "applicable-current-and-dated-records": 1,
+    "applicable-policy-record": 2,
+    "current-outside-change": 88,
+    "historical-or-research": 35
+  },
+  "review": "Checkpoint Markdown review: Q1/Q2 and file-exact generator\n\nCatalog: 152 tracked Markdown files plus 2 new nonignored Markdown files.\nAll files read for applicability; per-file disposition and snapshot hashes in catalog.json.\nCurrent relevant contracts reviewed against quant/low_bits.hpp, quant/types.hpp,\nquant/quant.hpp, Vulkan descriptor/matmul/shader owners, model/place.hpp,\nCLI parsing/help, tests/common.py and tools/gen_baseline.py/load_gguf_weights.\n\nOne concrete stale claim found: AGENTS ordinary Q1 failures. Parent fixed it\nwhile review ran; final paragraph re-read. No remaining concrete issue found\nwithin the changed scope. README avoids qualification claims; Q1-Q2/source\npages explicitly retain open qualification. Removed row/workgroup experiments\nare described as retained historical evidence. Current Q1 sign-bit owner,\nBF16 forced-input tile and F16/int8 wider F32 descriptions match code.\n\nASSETS accurately says config/tokenizer-only Qwen3/Qwen3-MoE construction,\nnull checkpoint-equality provenance, exhaustive GGUF replacement and explicit\nhead/tie behavior. qwen35 checkpoint path/equality safety remains separate.\nProof alignment is correctly harness-only; no runtime or budget change claimed.\nPrecision exact-identity allowances and BF16 family calibration remain distinct\nfrom unchanged CPU/device group limits and full release qualification.\nExisting --dtype/--tensor-width/--layer-shares flags and placement owners agree.\n\nAll 49 relevant Q1/Q2 evidence-link targets exist. New HF/stdout identity,\nactual ISA, BF16 existing-main control and config proof links are present in\nSTATUS/ASSETS as appropriate. Added Markdown since feature base and both new\npolicy records are ASCII. Historical records were not rewritten.\n\nLimits: this is a full catalog applicability review with focused semantic\nreview, not a fresh proof of all unrelated documentation or historical data.\nNo tests, builds, remote access or workload executed. Parent owns STATUS and\nmechanical docs/dead-code checks. Only scratch review artifacts written.\n",
+  "catalog_sha256": "252a134f58284bedb96d5721df4d6cb527b001b3336eb396f48d5bcb8c49f982",
+  "fixed": "AGENTS.md ordinary Q1 failure claim replaced with approved-fixture pass scope and remaining qualification.",
+  "mechanical": "docs:0findings,21planted faults pass; dead-code:7listed findings,19planted faults pass. No runtime gate implied."
+}

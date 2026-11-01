@@ -1,0 +1,180 @@
+{
+  "scope": "Current63a selected Linux native CPU and three-MI50 backend checks. Original failed run retained with focused environment recovery; scheduler test remains pending.",
+  "phases": {
+    "cpu": {
+      "tests": 76,
+      "failures": [
+        "hub-transport"
+      ],
+      "passed": 75,
+      "receipt_sha256": "92b8475e72f8b4576e93beefbad8af43127bce4bf2b0f00f08dd06bf729dc412",
+      "files": {
+        "ctest.log": "0868dd67c6d4482d94f4823baf7606927bb83a4d122640f508ec2ab9c3097ccb",
+        "ctest.xml": "bbd54995dc259390b4783512a9ed73c4d23d80ac84bd957c1c2fe5fc3b601f62"
+      },
+      "seconds_including_cleanup": 683.335072517395,
+      "revision": "63a7dfacf4857c66799918fda11e93c96cf14693",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "devices": [],
+      "removed": true,
+      "source_and_binaries_unchanged": true
+    },
+    "gpu": {
+      "tests": 2,
+      "failures": [],
+      "passed": 2,
+      "receipt_sha256": "a631a5fda54b205332ac457b1835424ee006a6ec7742d878802a5d91ba804e10",
+      "files": {
+        "ctest.xml": "eae62c989b4e7503e8202c9d616d645c366b1f08869e257c9e902ee29ad07621",
+        "ctest.log": "8d473128eeba1ec4183c6738626b68d4352de944ea768c6413e70026042cf445"
+      },
+      "seconds_including_cleanup": 70.24883079528809,
+      "revision": "63a7dfacf4857c66799918fda11e93c96cf14693",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "devices": [
+        {
+          "pci": "0000:c3:00.0",
+          "path": "/dev/dri/renderD128",
+          "busy_percent": 0,
+          "vram_used_bytes": 10919936,
+          "performance_level": "auto",
+          "free": true
+        },
+        {
+          "pci": "0000:c6:00.0",
+          "path": "/dev/dri/renderD129",
+          "busy_percent": 0,
+          "vram_used_bytes": 10919936,
+          "performance_level": "auto",
+          "free": true
+        },
+        {
+          "pci": "0000:c9:00.0",
+          "path": "/dev/dri/renderD130",
+          "busy_percent": 0,
+          "vram_used_bytes": 10932224,
+          "performance_level": "auto",
+          "free": true
+        }
+      ],
+      "removed": true,
+      "source_and_binaries_unchanged": true
+    }
+  },
+  "transport_control_receipt_sha256": "2ac385db53f77d30cfac38b9ef8a3223185e59e5ab5031f1c5f4ec08ba8634a1",
+  "transport_control": {
+    "complete": true,
+    "admission": {
+      "available_bytes": 19718275072,
+      "required_bytes": 15224827904,
+      "disk_free_bytes": 558112964608,
+      "peers": [
+        {
+          "id": "ecb9f090650a5ee7bb1aefcb880a85c2fa5b31b62f6f16cd8174017962d5fd9b",
+          "name": "llmx-xdev-q2-8b-layer-major-depth-mi50-selected-v1",
+          "cpuset": "8-11",
+          "cap_bytes": 16106127360,
+          "used_bytes": 4102524928,
+          "unused_bytes": 12003602432
+        }
+      ],
+      "verified_idle_exclusions": [
+        {
+          "id": "648eba57241791bb5a8292c459665687d91465a47510d5095dddd5e457dacc95",
+          "name": "llmx-xdev-flash-20261015",
+          "top": "PID                 COMMAND\n3754867             docker-init\n3754920             sleep"
+        }
+      ],
+      "passed": true
+    },
+    "binary_sha256": "8ad436d9a1e878fd21db8f37fcdc6745d5b03078e74e5629dec77d712ffae2c2",
+    "calls": [
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "-e",
+          "TMPDIR=/tmp",
+          "776b29a7faf65c382c537b1d9434a0517dc6c7113fe2f84a5caf26ae2f573713",
+          "/build/llmx-hub-transport-test"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": "hub-transport: pull: cannot launch curl; install curl 8.4 or newer\nfixtures retained: \"/tmp/llmx-transport-1539184899190507\"\n",
+        "seconds": 0.07508230209350586
+      },
+      {
+        "argv": [
+          "docker",
+          "exec",
+          "-e",
+          "TMPDIR=/executable-tmp",
+          "776b29a7faf65c382c537b1d9434a0517dc6c7113fe2f84a5caf26ae2f573713",
+          "/build/llmx-hub-transport-test"
+        ],
+        "exit": 0,
+        "stdout": "hub-transport: 58 checks passed (fake child; no network)\n",
+        "stderr": "",
+        "seconds": 0.14542126655578613
+      }
+    ],
+    "argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-q12-main80cb-transport-tmp-control-v1",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "12-15",
+      "--cpus",
+      "1",
+      "--memory",
+      "1g",
+      "--memory-swap",
+      "1g",
+      "--pids-limit",
+      "64",
+      "--ulimit",
+      "core=0",
+      "--tmpfs",
+      "/tmp:rw,nosuid,nodev,size=128m",
+      "--tmpfs",
+      "/executable-tmp:rw,nosuid,nodev,exec,size=128m",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/integration-main80cb-20261029/candidate/build:/build:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "cid": "776b29a7faf65c382c537b1d9434a0517dc6c7113fe2f84a5caf26ae2f573713",
+    "mounts": [
+      "tmpfs /executable-tmp tmpfs rw,nosuid,nodev,relatime,size=131072k,inode64 0 0",
+      "tmpfs /tmp tmpfs rw,nosuid,nodev,noexec,relatime,size=131072k,inode64 0 0"
+    ],
+    "state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 2504633,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-29T11:59:51.323029279Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "removed": true,
+    "binary_unchanged": true
+  },
+  "disposition": "CPU original75/76. The same transport binary reproduces launch refusal on the recorded noexec tmpfs and passes58 checks on executable private tmpfs. No runtime source, test assertion or numerical limit changed. GPU2/2 passes with no skips. No full CPU repeat.",
+  "pending": [
+    "server-passes-cpu corrected integration check after tests-only fix",
+    "new8B HF depth comparison and F32 quality companion",
+    "remaining current-head suite, output comparisons, timing and hosted CI"
+  ],
+  "remote_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/integration-main80cb-20261029"
+}

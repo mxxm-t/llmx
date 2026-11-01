@@ -1,0 +1,46 @@
+{
+  "scope": "Q1 selected MI50 F16/block-int16/F16-KV raw and chat depth, exact reference arithmetic. No final combined-build qualification claim.",
+  "model_sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+  "rule": "Existing hf_depth_top1 with margin 0.1, 512 scored positions after a 16384-token prompt.",
+  "consumer_note": "Only the receipt key source_files was corrected to frozen_source_before in a separate comparison consumer; numerical comparison is unchanged.",
+  "cells": {
+    "raw": {
+      "scope": "Selected-policy depth comparison only; other qualification remains separate.",
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "passed": true,
+      "margin": 0.1,
+      "reference_receipt_sha256": "d0ec70ce89bebb279e74afa9ef2c45058459e171b51afe8a996013a699ff06b2",
+      "capture_receipt_sha256": "7fa9370eba286013e088800434a97563873432fb82035cfac0d2e48713191865",
+      "consumer_sha256": "d1c82a417d2815368c7e0fbbe114cae823869152bb19c43ab7f2230031452fa9",
+      "rule_owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "comparison_sha256": "436c038a4e57646e78220881f0a34de5b44ed936b17876b5742e4bd7904fdcf4",
+      "reference_seconds": 2875.525782585144,
+      "reference_removed": true,
+      "reference_passed": true
+    },
+    "chat": {
+      "scope": "Selected-policy depth comparison only; other qualification remains separate.",
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "passed": true,
+      "margin": 0.1,
+      "reference_receipt_sha256": "2d5e8857d923f253eb59b1f4bcd87667ac71b58ee3464505845ed9461f1efdef",
+      "capture_receipt_sha256": "7fa9370eba286013e088800434a97563873432fb82035cfac0d2e48713191865",
+      "consumer_sha256": "d1c82a417d2815368c7e0fbbe114cae823869152bb19c43ab7f2230031452fa9",
+      "rule_owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "comparison_sha256": "7c7399508ba80f87bb74f138500db5a16280bbed3371276a6b297955efb3908e",
+      "reference_seconds": 2674.611431837082,
+      "reference_removed": true,
+      "reference_passed": true
+    }
+  }
+}

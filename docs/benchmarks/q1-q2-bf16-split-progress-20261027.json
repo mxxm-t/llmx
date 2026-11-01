@@ -1,0 +1,265 @@
+{
+  "title": "Q1_0/Q2_0 BF16 split CLI sweep progress",
+  "date": "2026-10-27",
+  "status": "incomplete; no full qualification claim",
+  "scope": "BF16 split-fixture correctness qualification; existing HF consumer bounds; no model generation or policy edits.",
+  "source": {
+    "rig_base": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/bf16-split-v1/out",
+    "rig_files": {
+      "supervisor_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/bf16-split-v1/out/supervisor-receipt.json",
+      "execution": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/bf16-split-v1/out/results/execution.json",
+      "calls": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/bf16-split-v1/out/results/calls.jsonl"
+    },
+    "local_evidence": "build-low-bits-dev/bf16-split-v1/cli-sweep-evidence",
+    "sha256": {
+      "calls.jsonl": "228dfd7adcc1274ae65f59bd56be6c2501b20b4acdd841fc4b705ed0d07f5aa0",
+      "execution.json": "f27dd9cb9e7eedd69b33ad0f8622325adaa2b61416d0621c6411fef4cb802e03",
+      "supervisor-receipt.json": "164d1baf59c3883bbcea5793dfc36e5400f2656b7adb7a645de6d5617ee20f16",
+      "cpu2-example.stderr": "6b7399baebd804f29a95faa4e189ba2658f80a5cfdb7a4e2bc8657a464bc6943"
+    },
+    "source_sha256": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "tests/data/dtype_budget.json": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+      "tests/data/baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "build-low-bits-dev/gpu-split-v1/results-v3/report.json": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a"
+    },
+    "source_sha256_end": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "tests/data/dtype_budget.json": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+      "tests/data/baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "build-low-bits-dev/gpu-split-v1/results-v3/report.json": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a"
+    },
+    "sources_unchanged": true,
+    "dtype_budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+    "model_sha256_end": {
+      "q1-0-dense-untied": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788",
+      "q1-0-dense-tied": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c",
+      "q1-0-moe": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c",
+      "q2-0-dense-untied": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+      "q2-0-dense-tied": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+      "q2-0-moe": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+    },
+    "models_unchanged": true,
+    "binary": {
+      "path": "/opt/q1-q2/build/llmx",
+      "sha256": "d3fa44017ee9e2195af066b9f782be598083ab896b1c905fc5552892796c02dd",
+      "version": "llmx 0.1.0+unknown numerics c8a2801c42f120dc"
+    }
+  },
+  "plan": {
+    "models": 6,
+    "cells": 36,
+    "calls": 1944,
+    "threads": [
+      1,
+      4
+    ],
+    "ubatches": [
+      1,
+      2,
+      3,
+      5,
+      16
+    ],
+    "cells_detail": [
+      {
+        "name": "cpu1",
+        "device": "cpu"
+      },
+      {
+        "name": "cpu2",
+        "device": "cpu,cpu",
+        "tensor_width": "2"
+      },
+      {
+        "name": "cpu4",
+        "device": "cpu,cpu,cpu,cpu",
+        "tensor_width": "4"
+      },
+      {
+        "name": "singleGPU",
+        "device": "vulkan:0"
+      },
+      {
+        "name": "layer2",
+        "device": "vulkan:0,vulkan:1",
+        "layer_shares": "1,1"
+      },
+      {
+        "name": "TP2",
+        "device": "vulkan:0,vulkan:1",
+        "tensor_width": "2"
+      }
+    ]
+  },
+  "observed": {
+    "calls_completed": 1711,
+    "calls_recorded_in_jsonl": 1711,
+    "calls_passed": 1063,
+    "mode_totals": {
+      "logits": {
+        "recorded": 1585,
+        "passed": 985,
+        "cli_exit_1": 600
+      },
+      "perplexity": {
+        "recorded": 126,
+        "passed": 78,
+        "cli_exit_1": 48
+      }
+    },
+    "by_cell": {
+      "cpu1": {
+        "calls_recorded": 324,
+        "calls_passed": 324,
+        "calls_cli_exit_1": 0,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 0,
+        "modes": {
+          "logits": {
+            "recorded": 300,
+            "passed": 300,
+            "cli_exit_1": 0
+          },
+          "perplexity": {
+            "recorded": 24,
+            "passed": 24,
+            "cli_exit_1": 0
+          }
+        }
+      },
+      "cpu2": {
+        "calls_recorded": 324,
+        "calls_passed": 0,
+        "calls_cli_exit_1": 324,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 0,
+        "modes": {
+          "logits": {
+            "recorded": 300,
+            "passed": 0,
+            "cli_exit_1": 300
+          },
+          "perplexity": {
+            "recorded": 24,
+            "passed": 0,
+            "cli_exit_1": 24
+          }
+        }
+      },
+      "cpu4": {
+        "calls_recorded": 324,
+        "calls_passed": 0,
+        "calls_cli_exit_1": 324,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 0,
+        "modes": {
+          "logits": {
+            "recorded": 300,
+            "passed": 0,
+            "cli_exit_1": 300
+          },
+          "perplexity": {
+            "recorded": 24,
+            "passed": 0,
+            "cli_exit_1": 24
+          }
+        }
+      },
+      "singleGPU": {
+        "calls_recorded": 324,
+        "calls_passed": 324,
+        "calls_cli_exit_1": 0,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 0,
+        "modes": {
+          "logits": {
+            "recorded": 300,
+            "passed": 300,
+            "cli_exit_1": 0
+          },
+          "perplexity": {
+            "recorded": 24,
+            "passed": 24,
+            "cli_exit_1": 0
+          }
+        }
+      },
+      "layer2": {
+        "calls_recorded": 324,
+        "calls_passed": 324,
+        "calls_cli_exit_1": 0,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 0,
+        "modes": {
+          "logits": {
+            "recorded": 300,
+            "passed": 300,
+            "cli_exit_1": 0
+          },
+          "perplexity": {
+            "recorded": 24,
+            "passed": 24,
+            "cli_exit_1": 0
+          }
+        }
+      },
+      "TP2": {
+        "calls_recorded": 91,
+        "calls_passed": 91,
+        "calls_cli_exit_1": 0,
+        "calls_other_nonzero": 0,
+        "calls_unrun": 233,
+        "modes": {
+          "logits": {
+            "recorded": 85,
+            "passed": 85,
+            "cli_exit_1": 0
+          },
+          "perplexity": {
+            "recorded": 6,
+            "passed": 6,
+            "cli_exit_1": 0
+          }
+        }
+      }
+    },
+    "cli_errors": {
+      "count": 648,
+      "cells": {
+        "cpu2": 300,
+        "cpu4": 300
+      },
+      "classification": "CLI argument rejection before inference: --device contains cpu more than once; these are harness-invalid cells, not numeric failures or passes.",
+      "retained_error_record_example": {
+        "index": 324,
+        "cell": "cpu2",
+        "model": "q1-0-dense-untied",
+        "mode": "logits",
+        "exit_code": 1,
+        "stderr_path": "/out/results/cpu2-q1-0-dense-untied-t1-u1-a.stderr"
+      },
+      "retained_error_text": "error: --device: cpu is listed twice"
+    },
+    "calls_unrun": 233,
+    "deadline_hit": true,
+    "elapsed_seconds_execution": 601.7243298059329,
+    "elapsed_seconds_supervisor": 604.350025177002,
+    "stop_reason": null
+  },
+  "terminal": {
+    "container_status": "exited",
+    "exit_code": 0,
+    "oom_killed": false,
+    "cleanup_returncode": 0,
+    "container_removed": true,
+    "free_bytes_after": 34501140480
+  },
+  "interpretation": "Completed valid calls all passed their recorded checks. CPU2/CPU4 calls were rejected by duplicate CPU device names before inference. TP2 ended after 91 of 324 planned calls when the 600-second run deadline was reached. The sweep is incomplete; no full BF16 split qualification is established."
+}

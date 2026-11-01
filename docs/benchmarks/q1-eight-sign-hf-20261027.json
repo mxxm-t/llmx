@@ -1,0 +1,130 @@
+{
+  "title": "Q1 eight-value sign-bit row focused HF screen",
+  "scope": "Focused q1-eight-sign-v1 F32 numerical development screen; existing HF consumer bounds; not a full correctness or performance gate.",
+  "result": {
+    "completed": 102,
+    "passed": 102,
+    "failed": 0,
+    "matrix": [
+      {
+        "model": "q1-0-dense-untied",
+        "passed": 17,
+        "max_logit_error": 2.7776260375977913e-05,
+        "max_nll_error": 1.3456091743080378e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q1-0-dense-tied",
+        "passed": 17,
+        "max_logit_error": 2.9925109862993793e-05,
+        "max_nll_error": 3.619340535720994e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q1-0-moe",
+        "passed": 17,
+        "max_logit_error": 3.532943725570448e-05,
+        "max_nll_error": 8.27574423567512e-06,
+        "bounds": {
+          "logit": 0.0001020159912109375,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-dense-untied",
+        "passed": 17,
+        "max_logit_error": 2.0097625732518054e-05,
+        "max_nll_error": 2.678085706975253e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-dense-tied",
+        "passed": 17,
+        "max_logit_error": 2.6569763184269846e-05,
+        "max_nll_error": 7.74325427599365e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      },
+      {
+        "model": "q2-0-moe",
+        "passed": 17,
+        "max_logit_error": 5.60233001709598e-05,
+        "max_nll_error": 7.137985313931949e-06,
+        "bounds": {
+          "logit": 9.82012939453125e-05,
+          "nll": 1e-05
+        }
+      }
+    ]
+  },
+  "binary": {
+    "sha256": "4fafb58acf456fc4acb5f0ce0c6a98b347d7879d73e8f2d90c9cb8eb4f318b18",
+    "version": "llmx 0.1.0+unknown numerics 66b4667e8e416356"
+  },
+  "models": {
+    "q1-0-dense-untied": {
+      "path": "/source/models/q1-0-dense-untied.gguf",
+      "sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788"
+    },
+    "q1-0-dense-tied": {
+      "path": "/source/models/q1-0-dense-tied.gguf",
+      "sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c"
+    },
+    "q1-0-moe": {
+      "path": "/source/models/q1-0-moe.gguf",
+      "sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c"
+    },
+    "q2-0-dense-untied": {
+      "path": "/source/models/q2-0-dense-untied.gguf",
+      "sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df"
+    },
+    "q2-0-dense-tied": {
+      "path": "/source/models/q2-0-dense-tied.gguf",
+      "sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d"
+    },
+    "q2-0-moe": {
+      "path": "/source/models/q2-0-moe.gguf",
+      "sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+    }
+  },
+  "source_sha256": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+    "tests/data/dtype_budget.json": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+    "tests/data/baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+    "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+    "build-low-bits-dev/gpu-split-v1/results-v3/report.json": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a"
+  },
+  "budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+  "ubatches": [
+    1,
+    3,
+    16
+  ],
+  "threads": [
+    4
+  ],
+  "sources_unchanged": true,
+  "models_unchanged": true,
+  "container_removed": true,
+  "raw_directory": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-eight-sign-hf-v1",
+  "artifacts": {
+    "results\\execution.json": "e239cdf77782b76c05798bfaad8e38197c5f890d34d6ae29c4d2552aabcb97e1",
+    "supervisor.json": "cd3dc8b943ec81cf51ec75894149b248ee1f968fc9603e12b1d693adc742871e",
+    "results\\calls.jsonl": "13158c60f356b5e71185d4ac61af0b8d44b154f61048bc878a3a23f57394f467"
+  },
+  "remaining": "Changed Q1 reduction order is checked against HF here, not claimed bit-identical. Split/dtype, released/depth, range and final matched performance qualification remain open."
+}

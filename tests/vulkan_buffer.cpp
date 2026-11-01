@@ -8,6 +8,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <stdexcept>
 #include <new>
@@ -243,7 +244,8 @@ struct KernelCalls {
 // A row's MXFP4 decoder can use integer dots without ever creating a tile copy.
 // Fitting must reserve that copy only when the device's tile path can reach it.
 int scratch_reserve_checks() {
-    backend::VulkanBackend b(0);
+    auto owner = std::make_unique<backend::VulkanBackend>(0);
+    auto& b = *owner;
     const auto dev = backend::VulkanLifetimeTest::device(b);
     const auto saved = dev->profile;
     int failures = 0;
@@ -267,7 +269,8 @@ int scratch_reserve_checks() {
 int dictionary_checks() {
     int failures = 0;
     for (const bool medium_first : {false, true}) {
-        backend::VulkanBackend b(0);
+        auto owner = std::make_unique<backend::VulkanBackend>(0);
+        auto& b = *owner;
         const uint32_t first_type = medium_first ? quant::GGML_TYPE_IQ1_M : quant::GGML_TYPE_IQ1_S;
         const uint32_t second_type = medium_first ? quant::GGML_TYPE_IQ1_S : quant::GGML_TYPE_IQ1_M;
         const auto first = backend::VulkanLifetimeTest::dictionary(b, first_type);
@@ -1132,7 +1135,8 @@ struct ArgsCalls {
 // An op whose dispatches read one table: after a sync, k single adds put the chunk flush between two of its dispatches for some k, and no dispatch may then bind the table in the slot before it.
 // Attention's merge after its main dispatch (a decode row whose 600-token history splits) and select_rows' five wide stages, each output the bits of the run without adds.
 int args_slot_checks() {
-    backend::VulkanBackend b(0);
+    auto owner = std::make_unique<backend::VulkanBackend>(0);
+    auto& b = *owner;
     backend::Backend& base = b;
     const auto zero = std::vector<float>(256, 0.0f);
     const auto filler = b.adopt(zero.data(), zero.size() * sizeof(float));

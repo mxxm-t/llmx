@@ -1,0 +1,694 @@
+{
+  "scope": "Four-row activation reuse v2 P128/G256 before/after MI50 ABBA development screen; not final qualification.",
+  "execution": {
+    "path": "build-low-bits-dev/row-reuse-screen-v2/execution.json",
+    "sha256": "671bab11de351b312b73cff81656ea2caa56976a5a27a861134e39df7936ad1d"
+  },
+  "activity": {
+    "path": "build-low-bits-dev/row-reuse-screen-v2/activity.jsonl",
+    "sha256": "7700afee6c318c5131af3cb76ff0f8875f491226fe07e075d90be0ca0ecb2d34"
+  },
+  "summary_helper": {
+    "path": "../nvfp4-20261025/build-nvfp4-rig-main3/performance_summary.py",
+    "sha256": "aaf8ff34e4110e7c541e2eb26c3c14b11a62d94ae73a3567e2f9823a14cf6a0a"
+  },
+  "device": {
+    "physical": 8,
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/row-four-v2/build/llmx": "dedef34a6714b2a1e60289a4335195aa47736c79da6c16e4438b5743562b77bf",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/row-reuse-v2/build/llmx": "29d99971840aa98eb021c83814be6846c9edb977638ab37f1889410eea557321",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/row-reuse-v2/build/llmx-low-bits-test": "938e04530f013beeb24f08990c4c0cc4d101d737c58f72a9a39f53033d92e48b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b"
+  },
+  "version": {
+    "before": "llmx 0.1.0+unknown numerics c6e60afdb400f1fa\n",
+    "after": "llmx 0.1.0+unknown numerics 0fadbafea9b2bcb0\n"
+  },
+  "settings": {
+    "cpu_set": "12-15",
+    "p": 128,
+    "g": 256,
+    "threads": 4,
+    "ubatch": 512,
+    "context": 40960,
+    "kv": "f16/f16",
+    "order": [
+      "before",
+      "after",
+      "after",
+      "before"
+    ],
+    "timing_boundary": "Existing pinned harness: same deterministic IDs and full PP/TG warmups, one final prompt head. Native runtime synchronization boundaries retained."
+  },
+  "activity_policy": "All fixed calls retained. Flag background activity without replacing samples. Disk is aggregate, not per-process.",
+  "thresholds": {
+    "other_gpu_percent": 0,
+    "unrelated_cpu_cores": 1,
+    "disk_bytes_per_second": 104857600,
+    "sample_gap_seconds": 3
+  },
+  "monitor_samples": 19,
+  "monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+  "matrix": [
+    {
+      "family": "q1-0",
+      "phase": "pp",
+      "arms": {
+        "before": {
+          "samples": [
+            1100.29,
+            1103.24
+          ],
+          "mean": 1101.7649999999999
+        },
+        "after": {
+          "samples": [
+            1104.61,
+            1103.82
+          ],
+          "mean": 1104.215
+        }
+      },
+      "after_over_before": 1.002223704692017,
+      "change_percent": 0.22237046920170478
+    },
+    {
+      "family": "q1-0",
+      "phase": "tg",
+      "arms": {
+        "before": {
+          "samples": [
+            132.39,
+            132.23
+          ],
+          "mean": 132.31
+        },
+        "after": {
+          "samples": [
+            128.7,
+            129.4
+          ],
+          "mean": 129.05
+        }
+      },
+      "after_over_before": 0.9753608948681128,
+      "change_percent": -2.4639105131887162
+    },
+    {
+      "family": "q2-0",
+      "phase": "pp",
+      "arms": {
+        "before": {
+          "samples": [
+            2473.79,
+            2466.51
+          ],
+          "mean": 2470.15
+        },
+        "after": {
+          "samples": [
+            2462.72,
+            2459.55
+          ],
+          "mean": 2461.135
+        }
+      },
+      "after_over_before": 0.9963504240633161,
+      "change_percent": -0.3649575936683913
+    },
+    {
+      "family": "q2-0",
+      "phase": "tg",
+      "arms": {
+        "before": {
+          "samples": [
+            266.66,
+            268.46
+          ],
+          "mean": 267.56
+        },
+        "after": {
+          "samples": [
+            245.08,
+            245.26
+          ],
+          "mean": 245.17000000000002
+        }
+      },
+      "after_over_before": 0.9163178352519061,
+      "change_percent": -8.368216474809387
+    }
+  ],
+  "calls": [
+    {
+      "index": 0,
+      "family": "q1-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133260.7080863,
+      "end": 1793133265.7306921,
+      "rates": {
+        "pp": 1100.29,
+        "tg": 132.39
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4465281467444395,
+        "benchmark_cpu_cores_mean": 0.046651940915551554,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 0,
+        "disk_MiB_per_second_max": 102.43767372660344
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/00-q1-0-before.stdout",
+          "sha256": "71aeac1626c8e2d9a0235089b22762d08b6583df5c3029fd397ca0c6c5510ce5"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/00-q1-0-before.stderr",
+          "sha256": "f337f1d3759e32b702e9b6bddc25da571a1e1721fa79786618a628ea822f82f9"
+        }
+      }
+    },
+    {
+      "index": 1,
+      "family": "q1-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133265.73113,
+      "end": 1793133270.6039836,
+      "rates": {
+        "pp": 1104.61,
+        "tg": 128.7
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 4,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4986087583744859,
+        "benchmark_cpu_cores_mean": 0.0324878154938478,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 0,
+        "disk_MiB_per_second_max": 100.95504423316055
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/01-q1-0-after.stdout",
+          "sha256": "6a6a707a70f874819b74f12f61c43d713d70e2b8733700ebcc4136c0686be9ef"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/01-q1-0-after.stderr",
+          "sha256": "3b9c4af50c66227cb97acf54601e2562b98988d5cd0c8c2d161702837e8ad04b"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "family": "q1-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133270.6042337,
+      "end": 1793133275.4254663,
+      "rates": {
+        "pp": 1103.82,
+        "tg": 129.4
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4432244040402258,
+        "benchmark_cpu_cores_mean": 0.04165581782336395,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 0,
+        "disk_MiB_per_second_max": 100.95504423316055
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/02-q1-0-after.stdout",
+          "sha256": "44e70eb37af98e8a5e24726ed3ab717285f49054dd6da16c835ff5dbfa5e6d8c"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/02-q1-0-after.stderr",
+          "sha256": "6acdf29f011b97593bbba7dc1f2d61f6f51dff5500192241f23b0ac14bce3887"
+        }
+      }
+    },
+    {
+      "index": 3,
+      "family": "q1-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133275.4257505,
+      "end": 1793133280.147167,
+      "rates": {
+        "pp": 1103.24,
+        "tg": 132.23
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 4,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4761327075236797,
+        "benchmark_cpu_cores_mean": 0.07998079363018001,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 109.46828354741612
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/03-q1-0-before.stdout",
+          "sha256": "1f1ee6def17adee04c712a4f970adfb05dc6b03257a38e64b90bba4b458e7e6a"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/03-q1-0-before.stderr",
+          "sha256": "65598ec1ec7c305ba5dc200395b8cf8f38c53978448c05e0e7ab696be0b73e74"
+        }
+      }
+    },
+    {
+      "index": 4,
+      "family": "q2-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133280.1474483,
+      "end": 1793133282.9160578,
+      "rates": {
+        "pp": 2473.79,
+        "tg": 266.66
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.5123487929380185,
+        "benchmark_cpu_cores_mean": 0.0,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 109.46828354741612
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/04-q2-0-before.stdout",
+          "sha256": "0a3f5bf4c10664519bf0b40fcce917741630189a9d076b8c8fe4c47ea0dbd5bc"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/04-q2-0-before.stderr",
+          "sha256": "91c3ba61ff4b087d0aeb088a64f95b22332a7c7933a10794145c1d1fc86a8325"
+        }
+      }
+    },
+    {
+      "index": 5,
+      "family": "q2-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133282.9163418,
+      "end": 1793133285.78558,
+      "rates": {
+        "pp": 2462.72,
+        "tg": 245.08
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4748590415541374,
+        "benchmark_cpu_cores_mean": 0.0,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 107.31951389546333
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/05-q2-0-after.stdout",
+          "sha256": "b7907a50e7800508a187fdeed25acea463e99ec758d0f6c849cca704d15bddb6"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/05-q2-0-after.stderr",
+          "sha256": "7153e6d4903d1af5c52176e3d3a68eb4fbe0f935dc16eef5b68793ca5f74734d"
+        }
+      }
+    },
+    {
+      "index": 6,
+      "family": "q2-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133285.7859256,
+      "end": 1793133288.6545186,
+      "rates": {
+        "pp": 2459.55,
+        "tg": 245.26
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.5231755775675594,
+        "benchmark_cpu_cores_mean": 0.0,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 2,
+        "disk_MiB_per_second_max": 107.75700144945777
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/06-q2-0-after.stdout",
+          "sha256": "7f092fb207a4430c5381349f26563d6c6a8233e911cb982224a8ebf8056b55f4"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/06-q2-0-after.stderr",
+          "sha256": "760fb982d1c31051e8a294212b8547b4d1e2c6211df1c9db26c8d7b5f312fbe6"
+        }
+      }
+    },
+    {
+      "index": 7,
+      "family": "q2-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793133288.6548197,
+      "end": 1793133291.3239295,
+      "rates": {
+        "pp": 2466.51,
+        "tg": 268.46
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 0.4898519766770888,
+        "benchmark_cpu_cores_mean": 0.0,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 107.28329093532878
+      },
+      "raw_outputs": {
+        "stdout": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/07-q2-0-before.stdout",
+          "sha256": "aa03b5c545ddbaba7126110400561bdb6abff36fa2097f28be6714e03291b44c"
+        },
+        "stderr": {
+          "path": "build-low-bits-dev/row-reuse-screen-v2/07-q2-0-before.stderr",
+          "sha256": "5839e6eebfa554f89ecdeaad1cd098da439f66727368c15baf34edc898770039"
+        }
+      }
+    }
+  ],
+  "all_planned_samples_retained": true,
+  "discarded_samples": 0,
+  "operator_checks": {
+    "cpu": {
+      "stdout": {
+        "path": "build-low-bits-dev/row-reuse-screen-v2/operator-cpu.stdout",
+        "sha256": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61"
+      },
+      "stderr": {
+        "path": "build-low-bits-dev/row-reuse-screen-v2/operator-cpu.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "output": "low-bits: independent Q1_0/Q2_0 blocks, finite scales, alignment and guards [ok]\n"
+    },
+    "vulkan": {
+      "stdout": {
+        "path": "build-low-bits-dev/row-reuse-screen-v2/operator-vulkan.stdout",
+        "sha256": "b7359bf987497e13b2325cbf9fa7b26a364edd4337757f0ac59fbdcc81a7228f"
+      },
+      "stderr": {
+        "path": "build-low-bits-dev/row-reuse-screen-v2/operator-vulkan.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "output": "low-bits Vulkan device: AMD Instinct MI60 / MI50 (RADV VEGA20)\nQ1_0 Vulkan dispatches: timestamps=available, row+tile witnessed\nQ2_0 Vulkan dispatches: timestamps=available, row+tile witnessed\nlow-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]\n"
+    }
+  },
+  "decision": {
+    "status": "not_advanced",
+    "gate_passed": false,
+    "reason": "Both model decode means regress versus the frozen four-value row. Small prefill changes do not establish an offsetting benefit in this two-sample-per-arm screen."
+  },
+  "v2_profile": null,
+  "profile_attribution": "No v2 executable profile is included. Earlier v1 register/ISA observations belong only to their own binary and are not attributed to v2.",
+  "limitations": [
+    "Only two retained samples per arm and one short prompt/decode setting.",
+    "Other jobs were active on separate GPUs; every planned sample is retained with activity flags.",
+    "Disk activity is aggregate and includes loading. Unrelated CPU summaries cover overlapping whole-command intervals.",
+    "No matched layout perturbation establishes a small prefill effect.",
+    "No mx timing arm is present here; matched mx evidence remains separate.",
+    "Operator checks do not establish HF or final performance qualification."
+  ]
+}

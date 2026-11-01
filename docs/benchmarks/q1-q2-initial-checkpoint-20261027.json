@@ -1,0 +1,226 @@
+{
+  "scope": "Initial Q1_0/Q2_0 CPU and Vulkan implementation checkpoint, not merge qualification",
+  "base": "c601fc31e57d3e1dbbeba8d48387cb82ad84c9ae",
+  "source_inputs_sha256": {
+    "CMakeLists.txt": "b297d62b15e0bdbc26e2dba8adcca92546bc7d9b2e85806d44c70c48090a46b6",
+    "cmake/tests.cmake": "b0cd66071d642a34231d72b974b4031cc3d6223b50bbb474fb0d1d82c2547125",
+    "src/backends/vulkan/shaders/embed.comp": "4c6dee98b988e344c5abc26c60a2f8b4714022a2579b27bb7687271296a18d8d",
+    "src/backends/vulkan/shaders/low_bits.glsl": "da1431f0ca3118523988b608056b456d858327feee89570a4b06196779ed5a4c",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "0e6f5d029d399470b1806f62cacc6be5e563bb97aa9e77eb68e8e91b9f0e2086",
+    "src/backends/vulkan/shaders/q.glsl": "1c69aa7bf0df9899ba775f852e524d54fe7c37193cf98d26e59029154fc7bfcf",
+    "src/backends/vulkan/shaders/qdecode.glsl": "7d97402d3ed4dfe936d71115e16228f9666a770269262359ae9475d7e17f8b1a",
+    "src/backends/vulkan/vulkan_backend.cpp": "b5d4580cb20886c8fc6af76782ca3adc8be16127cb4725fcdee4d60d441dffc4",
+    "src/backends/vulkan/vulkan_kernels.hpp": "be45cf7243e5115223ad5639cbece650c03b736e5d1e33aea21d77a908db0668",
+    "src/quant/low_bits.hpp": "5abe18a8d6c1681b7cc745af8cc7b4d063f8f2c341a7c51e55aeab44416b535b",
+    "src/quant/quant.hpp": "60cd9b7b4302dab7da15b483423ea17411894f128bc406fdae9b1ef951568ea8",
+    "src/quant/types.hpp": "c6755f10c84f0501e2e169820fc65a99ff5096586586a302912a982a8f8db975",
+    "tests/low_bits.cpp": "416d77a3007ec6a4857b1292bdd4bf39d68394f9c7bf465a4fbbba06958fa4b8",
+    "tests/raw_blocks.py": "b5421029f366d3485db94f2a758590221440ee9b92bf2c88b59410661790d1d5",
+    "tests/roundtrip.py": "0c00d12ce507351032a9b8f8973345d7ad93b57d9b43688e71069ff2a00b4688",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57"
+  },
+  "binaries": {
+    "llmx.exe": "36bf1dcebc7b7f4a5e317bf6bd3f987bf48c6cd0a11268cafe81833746f02a0d",
+    "llmx-low-bits-test.exe": "e8f0f5241ec75ebd34da4226fa68dd85824ae07b74c3de02627b380fddfc112f",
+    "llmx-gguf-validation-test.exe": "13a1e3603231a760e92d568f9b1ab34b947324ec2046145db48569d4c8ea19d5"
+  },
+  "version": "llmx 0.1.0+gc601fc31e57d.dirty numerics 84ccf38f6e554a09",
+  "device": "AMD Radeon VII, Windows Vulkan",
+  "gpu_activity": "Before the focused functional tests, Windows GPU engine counters showed two RuneLite 3D clients at about 5% and 2%. No inference benchmark or timing claim was made.",
+  "checks": {
+    "native": "low-bits, low-bits-vulkan and gguf-validation passed. Final CPU/device operator rerun passed after the reporting-only rebuild.",
+    "dispatch": "Q1_0 and Q2_0 each report timestamps available and row/tile witnessed.",
+    "roundtrip": {
+      "Q1_0_values": 327680,
+      "Q2_0_values": 163840,
+      "blocks_each": 2560,
+      "result": "bit-exact against independent format decoder"
+    },
+    "docs": "0 findings, 21 planted faults passed",
+    "dead_code": "known baseline only, 19 planted faults passed"
+  },
+  "logs": {
+    "vulkan-build.log": {
+      "relative_path": "build-low-bits-dev/vulkan-build.log",
+      "sha256": "c550d652495dca6037abff1585daafe8243338e7e4138044548c5a9ee20b4e64"
+    },
+    "cli-build.log": {
+      "relative_path": "build-low-bits-dev/cli-build.log",
+      "sha256": "8f9c49cd5707f379f264a4f43c52784552393cb306586377856b1d2c0356a553"
+    },
+    "operator-expanded-build.log": {
+      "relative_path": "build-low-bits-dev/operator-expanded-build.log",
+      "sha256": "7407e42d38926e133011fde93036f5fb6f4d8af4d97b3a45b7188b3ebe358d4b"
+    },
+    "operator-expanded-ctest.log": {
+      "relative_path": "build-low-bits-dev/operator-expanded-ctest.log",
+      "sha256": "40f7d7ad374a7ef59e82b45a66c8d2ac46bf4f96a1401bf6b2448a1842b86ae4"
+    },
+    "focused-ctest.log": {
+      "relative_path": "build-low-bits-dev/focused-ctest.log",
+      "sha256": "8626c394b91572b81f5905a57ff62259c0073c6089d70fe189e49cdab20b30ac"
+    },
+    "fallback-report-build.log": {
+      "relative_path": "build-low-bits-dev/fallback-report-build.log",
+      "sha256": "d7e7af5ed6d141ab11d0154e67bd8664ae845865decb20276430892889490858"
+    },
+    "final-operators.log": {
+      "relative_path": "build-low-bits-dev/final-operators.log",
+      "sha256": "60c7b60da3f13997375121037be18c69f2b901cbf2b9f291c46f003086049951"
+    },
+    "roundtrip-unsandboxed.log": {
+      "relative_path": "build-low-bits-dev/roundtrip-unsandboxed.log",
+      "sha256": "39e39429a223f5077f5fe7cba8f4e5d9e3d4b5fce155257f488f37e46046045c"
+    },
+    "checkpoint-docs.log": {
+      "relative_path": "build-low-bits-dev/checkpoint-docs.log",
+      "sha256": "cd6470c528b467b9317ec1ee51140cd0cb2ec4dd1a51f48bb3feff5260d052c8"
+    }
+  },
+  "smoke": {
+    "purpose": "Bounded first real-file Vulkan load/generate smoke, not an HF or performance gate",
+    "version": "llmx 0.1.0+gc601fc31e57d.dirty numerics 8a150c4b3f81fae2",
+    "binary_sha256": "bb07c2a9bfa3d2f3cb14c1d031341bbe517f0a6a0367fa8e86272bd067751585",
+    "runs": [
+      {
+        "model": "Boole-1.7B-Q1_0.gguf",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--precision-numerics--Boole-1.7B-GGUF\\snapshots\\ae4d0f4c44a31ff21df910f0083faaed06d3cb52\\Boole-1.7B-Q1_0.gguf",
+          "The capital of France is",
+          "--device",
+          "vulkan:0",
+          "--temp",
+          "0",
+          "-n",
+          "16",
+          "--threads",
+          "4"
+        ],
+        "started_unix": 1793111094.741731,
+        "ended_unix": 1793111097.664027,
+        "exit_code": 0,
+        "stdout": "pp: 5 tok, 833 ms, 6.00 tok/s\n Paris. The capital of France is Paris. The capital of France is Paris.\ntg: 16 tok, 1258 ms, 12.71 tok/s\n",
+        "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\n"
+      },
+      {
+        "model": "Ternary-Bonsai-1.7B-Q2_0_g64.gguf",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--prism-ml--Ternary-Bonsai-1.7B-gguf\\snapshots\\983b5dec2ff16aab79990711ba0f828a499a7e6a\\Ternary-Bonsai-1.7B-Q2_0_g64.gguf",
+          "The capital of France is",
+          "--device",
+          "vulkan:0",
+          "--temp",
+          "0",
+          "-n",
+          "16",
+          "--threads",
+          "4"
+        ],
+        "started_unix": 1793111097.6650279,
+        "ended_unix": 1793111098.0273356,
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "error: inference: unsupported metadata qwen3.rope.scaling.type\n"
+      }
+    ]
+  },
+  "q2_alternate_smoke": {
+    "purpose": "Bounded first real-file Vulkan load/generate smoke, not an HF or performance gate",
+    "version": "llmx 0.1.0+gc601fc31e57d.dirty numerics 8a150c4b3f81fae2",
+    "binary_sha256": "bb07c2a9bfa3d2f3cb14c1d031341bbe517f0a6a0367fa8e86272bd067751585",
+    "runs": [
+      {
+        "model": "Qwen3-0.6B-Q2_0.gguf",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--device",
+          "vulkan:0",
+          "--temp",
+          "0",
+          "-n",
+          "16",
+          "--threads",
+          "4"
+        ],
+        "started_unix": 1793111217.851031,
+        "ended_unix": 1793111219.288535,
+        "exit_code": 0,
+        "stdout_hex": "70703a203520746f6b2c20313132206d732c2034342e383220746f6b2f730d0a81656c6c697465e6bf80e7b4a0697475726573616c79736973e58d81696f726573e1baad74a1206dc3a369616174696f72657384e4bbb65552414ce58e86205265630d0a74673a20313620746f6b2c20343733206d732c2033332e383020746f6b2f730d0a",
+        "stdout": "pp: 5 tok, 112 ms, 44.82 tok/s\r\n\\x81ellite\u6fc0\u7d20ituresalysis\u5341iores\u1eadt\\xa1 m\u00e3iaatiores\\x84\u4ef6URAL\u5386 Rec\r\ntg: 16 tok, 473 ms, 33.80 tok/s\r\n",
+        "stderr": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\r\n"
+      }
+    ]
+  },
+  "q2_first_token_control": [
+    {
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "The capital of France is",
+        "--top",
+        "8",
+        "--dtype",
+        "f32",
+        "--device",
+        "cpu",
+        "--threads",
+        "4",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "exit_code": 0,
+      "stdout_hex": "746f6b656e733a20350d0a3232332031332e3333343638340d0a3235322031322e3436363132370d0a33343831312031322e3334313832390d0a37333931362031322e3137393932390d0a3233392031312e3934383935370d0a373934322031312e3933323738340d0a39353638392031312e3633323131390d0a3134313831362031312e3533383235330d0a",
+      "stdout": "tokens: 5\r\n223 13.334684\r\n252 12.466127\r\n34811 12.341829\r\n73916 12.179929\r\n239 11.948957\r\n7942 11.932784\r\n95689 11.632119\r\n141816 11.538253\r\n",
+      "stderr": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n"
+    },
+    {
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "The capital of France is",
+        "--top",
+        "8",
+        "--dtype",
+        "f32",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "exit_code": 0,
+      "stdout_hex": "746f6b656e733a20350d0a3232332031332e3333353638380d0a3235322031322e3436363934360d0a33343831312031322e3334333031360d0a37333931362031322e3137393530340d0a3233392031312e3935303330320d0a373934322031312e3933323638320d0a39353638392031312e3633313531300d0a3134313831362031312e3533373931380d0a",
+      "stdout": "tokens: 5\r\n223 13.335688\r\n252 12.466946\r\n34811 12.343016\r\n73916 12.179504\r\n239 11.950302\r\n7942 11.932682\r\n95689 11.631510\r\n141816 11.537918\r\n",
+      "stderr": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n"
+    }
+  ],
+  "retained_development_failures": [
+    "Initial roundtrip child failed in the sandbox. Same check passed with normal Windows child access.",
+    "An initial docs check used the stale root executable and reported old flag coverage. Fresh branch executable eliminated those reports. Adding AGENTS test descriptions resolved the two actual new test-name findings.",
+    "pull Q2_0 plus --file Q2_0_g64 was refused by suffix selection. The documented Q2_0_g64 selector downloaded and verified the intended file.",
+    "The first smoke command included unsupported generate --ctx-size and was refused before loading. It was removed.",
+    "Bonsai Q2_0 requests unsupported YaRN scaling and remains refused. No metadata or numerical-limit workaround was made.",
+    "The alternate Q2_0 generated invalid UTF-8 bytes and the initial text-mode observer failed. Binary capture preserves the bytes. CPU/GPU first-token F32 top-eight ranks match, which is not an independent correctness or quality verdict."
+  ],
+  "remaining": [
+    "range and row-class coverage",
+    "split and tiny HF checks",
+    "file-exact HF and raw/chat 16K",
+    "matched mx Vulkan performance",
+    "applicable integration identities/timing/device suite/hosted gates"
+  ]
+}

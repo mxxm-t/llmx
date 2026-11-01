@@ -1,0 +1,140 @@
+{
+  "scope": "Driver ISA from frozen retained/trial Q1 libraries. Static instruction evidence, not hardware occupancy or wait-time measurement.",
+  "frozen_unchanged": true,
+  "complete": true,
+  "assemblies": [
+    {
+      "name": "matmul_row_q1_0_dot.txt",
+      "whole_dump_identical": false,
+      "assembly_identical": true,
+      "assembly_before_sha256": "beab625553847f87344340933e83d9d1b2b0e3093a9d3946124e2e8aaad2fdb9",
+      "assembly_after_sha256": "beab625553847f87344340933e83d9d1b2b0e3093a9d3946124e2e8aaad2fdb9"
+    },
+    {
+      "name": "matmul_row_q1_0_dot_1col.txt",
+      "whole_dump_identical": false,
+      "assembly_identical": true,
+      "assembly_before_sha256": "19f8b6721b6b01ec88100e0e1a4418e3202f4a1a66aad2ec0d2988ff507bccd1",
+      "assembly_after_sha256": "19f8b6721b6b01ec88100e0e1a4418e3202f4a1a66aad2ec0d2988ff507bccd1"
+    },
+    {
+      "name": "matmul_row_q1_0_dot_1col_2row.txt",
+      "whole_dump_identical": false,
+      "assembly_identical": false,
+      "assembly_before_sha256": "5243ae6e5273eb3ac433e23cfa04a69d78d698a00fbdbedded934c86be63cdb6",
+      "assembly_after_sha256": "7198056a2312e4270d59e50cd6847822b58dbc92eceda2bea0376ecb58a08ba4"
+    },
+    {
+      "name": "matmul_row_q1_0_dot_grouped.txt",
+      "whole_dump_identical": false,
+      "assembly_identical": true,
+      "assembly_before_sha256": "a6f3f659500212f7579ebcd0648c95d504a99cc666e8f3461b0beca1c045bf4c",
+      "assembly_after_sha256": "a6f3f659500212f7579ebcd0648c95d504a99cc666e8f3461b0beca1c045bf4c"
+    }
+  ],
+  "arms": {
+    "retained": {
+      "block": "BB29",
+      "instructions": 342,
+      "opcodes": {
+        "s_mov_b64": 1,
+        "s_mov_b32": 3,
+        "s_movk_i32": 3,
+        "s_lshl_b32": 1,
+        "s_load_dwordx4": 3,
+        "s_mul_i32": 3,
+        "s_lshr_b32": 2,
+        "v_lshl_add_u32": 3,
+        "v_lshlrev_b32_e32": 37,
+        "s_waitcnt": 7,
+        "buffer_load_dwordx4": 4,
+        "s_add_u32": 1,
+        "v_add_lshl_u32": 1,
+        "buffer_load_dword": 1,
+        "v_mul_lo_u32": 2,
+        "v_add_u32_e32": 35,
+        "v_lshrrev_b32_e32": 30,
+        "v_and_b32_e32": 70,
+        "v_add3_u32": 2,
+        "buffer_load_ushort": 6,
+        "v_bfe_u32": 8,
+        "v_cvt_f32_f16_e32": 2,
+        "v_lshl_or_b32": 32,
+        "v_xor_b32_e32": 32,
+        "v_dot2_i32_i16": 32,
+        "v_mul_f32_e32": 2,
+        "v_min_f32_e64": 2,
+        "v_cmp_eq_i32_e32": 2,
+        "v_cmp_eq_i32_e64": 2,
+        "s_or_b64": 2,
+        "v_cmp_neq_f32_e32": 2,
+        "s_and_b64": 2,
+        "v_cndmask_b32_e64": 2,
+        "v_cvt_f32_i32_e32": 2,
+        "v_fma_f32": 2,
+        "s_branch": 1
+      },
+      "first_dot_instruction": 101,
+      "stage_hashes": {
+        "stdout.log": "339c3e17fe30528ac46c7368cca2add782fe86c29f61b5e38f8c3e6ec1697e1f",
+        "stderr.log": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matmul_row_q1_0_dot_1col.txt": "3fa00c781ba95277fed376d341caeeec012a141cbe5629802055ebccd741e4c6",
+        "matmul_row_q1_0_dot_1col_2row.txt": "e3d8415157c726600004da71c0f645e6a9f015a39c575bebe68a911a2763c6f0",
+        "matmul_row_q1_0_dot.txt": "418d7dbba4c7ec1e9bb26e5f0407a5a7803ac8ef4887832ace1199548fac17d2",
+        "matmul_row_q1_0_dot_grouped.txt": "ac704edae3cff5918e29e246d6f74d48da7a44d30c17662500dbf81c09ed985f"
+      }
+    },
+    "trial": {
+      "block": "BB29",
+      "instructions": 342,
+      "opcodes": {
+        "s_mov_b64": 1,
+        "s_mov_b32": 3,
+        "s_movk_i32": 3,
+        "s_lshl_b32": 1,
+        "s_load_dwordx4": 3,
+        "s_mul_i32": 3,
+        "s_lshr_b32": 2,
+        "v_lshl_add_u32": 3,
+        "v_lshlrev_b32_e32": 37,
+        "s_waitcnt": 7,
+        "buffer_load_dwordx4": 4,
+        "s_add_u32": 1,
+        "v_add_lshl_u32": 1,
+        "buffer_load_dword": 1,
+        "v_mul_lo_u32": 2,
+        "v_add_u32_e32": 35,
+        "v_lshrrev_b32_e32": 30,
+        "v_and_b32_e32": 70,
+        "v_add3_u32": 2,
+        "buffer_load_ushort": 6,
+        "v_bfe_u32": 8,
+        "v_cvt_f32_f16_e32": 2,
+        "v_mul_f32_e32": 2,
+        "v_min_f32_e64": 2,
+        "v_lshl_or_b32": 32,
+        "v_cmp_eq_i32_e32": 2,
+        "v_cmp_eq_i32_e64": 2,
+        "s_or_b64": 2,
+        "v_cmp_neq_f32_e32": 2,
+        "v_xor_b32_e32": 32,
+        "s_and_b64": 2,
+        "v_dot2_i32_i16": 32,
+        "v_cndmask_b32_e64": 2,
+        "v_cvt_f32_i32_e32": 2,
+        "v_fma_f32": 2,
+        "s_branch": 1
+      },
+      "first_dot_instruction": 84,
+      "stage_hashes": {
+        "matmul_row_q1_0_dot_grouped.txt": "3c9e60d9c4379660710b1023418f32753c07042ed42a92e0385bef9ea62aabe8",
+        "matmul_row_q1_0_dot.txt": "36ebec0513e97e9e6c379806765ad4ff84badc3f1e580509fc6956728c2576b2",
+        "matmul_row_q1_0_dot_1col_2row.txt": "b5673eb0ef106d50c63756192dff8b85b73a4ec92875ecbc89088f6a4d2ed92c",
+        "stdout.log": "339c3e17fe30528ac46c7368cca2add782fe86c29f61b5e38f8c3e6ec1697e1f",
+        "stderr.log": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matmul_row_q1_0_dot_1col.txt": "d76d97d8e229011e9a24ef0b424a3ea01841e66b541f1cc1e44eb870daad117c"
+      }
+    }
+  },
+  "interpretation": "Both hot BB29 bodies retain 342 instructions, 32 integer dot operations, four 16-byte activation loads, one activation-scale load and six weight halfword loads (scale plus two code halfwords per row). Repeated lookup_pairs loads are already eliminated. Pair-local scheduling changes order/register assignment, not load/instruction counts. Explicit outer-loop scheduling or reducing packing instruction cost are candidates, not demonstrated fixes."
+}

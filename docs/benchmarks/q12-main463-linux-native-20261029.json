@@ -1,0 +1,77 @@
+{
+  "schema": "llmx.q12-main463-linux-native.v1",
+  "scope": "Main-463 and candidate build identities plus three focused candidate Vulkan native tests; not a full native suite or overall qualification.",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "builds": {
+    "main": {
+      "revision": "46375e9686bda4edad127194f271015f46cec155",
+      "version": "llmx 0.1.0+g46375e9686bd numerics b3adfc792471a74f",
+      "receipt_sha256": "d3de9b582132d644036936469dd83d13c4b2d5853d044d2e0d92e15d320ca696",
+      "completed": true,
+      "exit": 0,
+      "removed": true,
+      "source_unchanged": true,
+      "outputs": {
+        "llmx": "b57e47b6b0f7ac521e09f99347f4084e9537639fe6c722d195626f067d0a073d",
+        "llmx-model-logits": "bfcff947799f08901f698b1c65b7c61a1c9484bab20f173713464c39518fe5a9",
+        "libllmx-vulkan.a": "ca6b61e270b8d658ce835102327f7837909a44b389a65158bcfdf055db17d85e"
+      }
+    },
+    "candidate": {
+      "revision": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+      "version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2",
+      "receipt_sha256": "b1c74b4e5c4901ecfb40024111095e6335c7125f8595a1dd62cb5bec9ecdd27d",
+      "completed": true,
+      "exit": 0,
+      "removed": true,
+      "source_unchanged": true,
+      "outputs": {
+        "llmx": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3",
+        "llmx-model-logits": "1713f9db1699784e1dc1c7d17886260cfe2d34bc12f6333e825220b76d86f022",
+        "libllmx-vulkan.a": "3a254f49d914b4638d3dd1b42c2e82bac0430d413d59f711d4900e062de4eb41"
+      }
+    }
+  },
+  "focused_candidate_native_gpu": {
+    "revision": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+    "build_receipt_sha256": "b1c74b4e5c4901ecfb40024111095e6335c7125f8595a1dd62cb5bec9ecdd27d",
+    "tests": [
+      {"name": "backend-vulkan", "seconds": 63.5611, "passed": true},
+      {"name": "vulkan-quantization", "seconds": 16.7208, "passed": true},
+      {"name": "low-bits-vulkan", "seconds": 1.62827, "passed": true}
+    ],
+    "ctest": {"cases": 3, "failures": 0, "errors": 0, "skips": 0},
+    "cards": [
+      {"pci": "0000:89:00.0", "render_node": "/dev/dri/renderD134", "busy_percent": 0, "vram_used_bytes": 10932224},
+      {"pci": "0000:8c:00.0", "render_node": "/dev/dri/renderD135", "busy_percent": 0, "vram_used_bytes": 10932224}
+    ],
+    "resources": {
+      "cpuset": "12-15",
+      "memory_cap_bytes": 4294967296,
+      "deadline_seconds": 1200,
+      "minimum_host_available_bytes": 16642547712
+    },
+    "completed": true,
+    "exit": 0,
+    "oom_killed": false,
+    "removed": true,
+    "source_unchanged": true,
+    "build_outputs_unchanged": true,
+    "ctest_manifest_unchanged": true,
+    "execution_sha256": "5c24725bb2b331bc53ca7e86d8a14ed223796c84b5ed363cceb17e600894e359",
+    "ctest_xml_sha256": "03525b5bb9847106b559f6463cb72cedc03446cc66549116dfa1c6186c402bda",
+    "ctest_log_sha256": "734124ee8134b306936a9b2f33b99698071167b6878e3a5ad0c82783387934fb"
+  },
+  "prior_three_card_coverage": {
+    "revision": "63a7dfacf4857c66799918fda11e93c96cf14693",
+    "main_revision": "80cbf1da09b237ac22fdd4d6182e807412a14242",
+    "gpu_tests_passed": 2,
+    "evidence": "q12-main80cb-native-20261029.json",
+    "evidence_sha256": "f252faa979cb34e37409d23bfb902ba19d8ac88914ff853414415c67cd40baa3",
+    "interpretation": "Retained earlier three-MI50 coverage at its original main-80cb/candidate-63a pins; it is not combined with the new two-card run."
+  },
+  "qualification": {
+    "full_native_suite_passed": false,
+    "overall_qualification_complete": false
+  }
+}

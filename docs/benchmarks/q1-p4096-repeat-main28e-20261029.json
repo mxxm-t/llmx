@@ -1,0 +1,77 @@
+{
+  "schema": "llmx.q12.q1-p4096-repeat.v1",
+  "date": "2026-10-29",
+  "result": "completed_diagnostic_repeat",
+  "scope": "Six retained matched Q1_0 P4096/G256 calls on the actual 28e candidate and the pinned mx Vulkan reference. Three samples per arm for each phase; no pooled cross-window means or formal significance claim.",
+  "receipts": {
+    "local_execution": "../../../../scratch/q12-landing-20261029/q1-p4096-repeat-main28e-v1/out/execution.json",
+    "execution_sha256": "379b9fd85a7ff99eb0af903fa3b29c88555650a42f5158f94fd9d4a7c5e99c0e",
+    "local_summary": "../../../../scratch/q12-landing-20261029/q1-p4096-repeat-main28e-v1/out/summary.json",
+    "summary_sha256": "f62300836ea29faa3bcbc409458e1f37d868babaea1753cab9751eaef73af9b2",
+    "identity_receipt_sha256": "640f291ae1ea8b4245c0884603f0100b7fd9342e87407ea7b087dd1e1ae79ac0",
+    "output_files_verified": 23,
+    "completed": true,
+    "removed": true,
+    "unchanged": true
+  },
+  "candidate": {
+    "version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2",
+    "binary_sha256": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3",
+    "device_pci": "0000:c9:00.0",
+    "device": "MI50",
+    "matrix_path": "block-int16",
+    "effective_weight_arithmetic": "f16",
+    "kv": "f16"
+  },
+  "model": {
+    "file": "Boole-1.7B-Q1_0.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf",
+    "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d"
+  },
+  "workload": {
+    "prompt_tokens": 4096,
+    "generated_tokens": 256,
+    "threads": 4,
+    "ubatch": 512,
+    "call_order": ["selected", "mx", "mx", "selected", "selected", "mx"]
+  },
+  "rates_tok_s": {
+    "prefill": {
+      "selected_samples": [2227.1, 2222.09, 2218.78],
+      "mx_samples": [1314.467839, 1313.336449, 1313.899513],
+      "selected_mean": 2222.656667,
+      "mx_mean": 1313.901267,
+      "selected_change_percent": 69.1647
+    },
+    "decode": {
+      "selected_samples": [253.22, 251.89, 243.35],
+      "mx_samples": [252.463442, 251.264473, 244.742435],
+      "selected_mean": 249.486667,
+      "mx_mean": 249.490117,
+      "selected_change_percent": -0.00138,
+      "paired_change_percent": [0.300, 0.249, -0.569]
+    }
+  },
+  "monitoring": {
+    "samples": 36,
+    "covered_calls": 6,
+    "flagged_calls": {
+      "unrelated_cpu": 6,
+      "other_gpu": 6,
+      "disk": 4,
+      "gaps": 0
+    },
+    "unknown_cpu_observations": 813,
+    "missed_process_observations": 14,
+    "monitor_exit": 0,
+    "activity_did_not_remove_samples": true
+  },
+  "admission_history": {
+    "pre_registration_refusals": [
+      {"available_gib": 16.67, "required_gib": 16.947},
+      {"available_gib": 16.33, "required_gib": 17.078}
+    ],
+    "interpretation": "Both refusals occurred before a benchmark was created and produced no samples; they are operational setup history, not discarded measurements."
+  },
+  "interpretation": "Both arms decline in the final sample. The repeat reaches three samples per arm; it does not establish formal significance. Preserve the initial screen's Q1 decode shortfall as a separate historical result."
+}

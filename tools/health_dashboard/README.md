@@ -8,8 +8,10 @@ No inference request is sent. Browser updates are coalesced to at most once per
 second, while the collector keeps its existing two-second default interval.
 Fresh visits default to a five-minute chart range; a saved range remains in
 effect. The chart timeline advances continuously using elapsed browser time and
-stays one configured collection interval behind the live readout; each chart
-labels that delay. Samples retain their measured timestamps. A known next point
+targets one configured collection interval of buffering. Actual lag varies
+with initial history and sample delivery, so each chart uses a stable
+"Delayed view" caption rather than claiming an exact delay. Samples retain
+their measured timestamps. A known next point
 is clipped beyond the chart edge until the timeline reaches its timestamp, so
 the existing measured segment enters progressively without adding sample
 values or changing rates. Hover and keyboard inspection cannot select a point

@@ -43,6 +43,15 @@ Identity: Qwen3-8B Q8_0 greedy 256 tokens in int8 and F16 and Qwen3-0.6B Q8_0 16
 **Gotchas:** the tile rule's column groups are the extent's column tiles, at most eight (`split_tiles_of`), so a check of the tall build needs a matrix of at least 45 tall tiles on a 60-unit device, and a slice compared against it must keep the whole call's inner split.
 A 0.6B int8 pp512 cell is bimodal on this card in every arm (runs near 9600 and near 9870 tok/s, some at 7400); compare it over more rounds before reading a few percent.
 
+## Dashboard absolute time ticks (2026-11-01, branch fix/dashboard-tick-flow-e2-20261101)
+
+- **Problem:** Re-rendering the chart re-anchored its time labels to the moving window start. In the regression fixture, the same tick jumped 4.380px at 1440px and 1.913px at 390px after a two-second sample step.
+- **Change:** Tick timestamps now use absolute multiples of the selected range's tick spacing, so the same timestamp follows the continuous chart motion across redraws. The chart uses a fixed “Delayed view” caption. The cursor targets one collection interval of buffering, but actual lag varies with initial history and sample delivery; the caption does not claim an exact delay.
+- **Checks:** The regression-only commit `ad0abd001` failed before the fix with the measured jumps above. The focused dashboard browser suite passes 12 tests. The same tick moves 0.0000px at 1440px and -0.0003px at 390px across redraws; the caption remains Delayed view across sample arrival and cursor movement. The continuous-segment checks retain their 0.0000px boundary deltas at both widths. On the final Q1-based tree, docs reports zero findings with 21 planted faults and dead-code reports eight listed findings with 19 planted faults; the compatible Q1 CLI was reused because Q1 does not change CLI source. Logs: `scratch/dashboard-tick-flow-20261101/{tick-red-before.log,focused-browser.log,docs-dead-e2-final.log}`.
+- **Integration:** The two commits were cherry-picked onto public-main Q1 head `e2cea5113b882844aab378505042545e82d0c33d`. The HTML, browser test and README blobs match the tested candidate exactly; Q1's intervening changes are outside `tools/health_dashboard`.
+- **Landing:** lands by fast-forward after focused browser, syntax, docs and dead-code checks; no inference/runtime gates apply.
+- **Gotchas:** Time tick spacing remains range-based and ticks near the plot edges are omitted to keep their labels inside the chart. The delayed caption describes presentation, not a measured wall-clock lag.
+
 ## Dashboard measured-segment flow follow-up (2026-11-01, branch fix/dashboard-sample-motion-20261101)
 
 - **Problem:** The prior live capture showed each new measured segment fully drawn, then fading over about 250 ms, once per roughly 2.013-second collector update. That periodic pulse remained visible even though the old timeline points moved continuously.

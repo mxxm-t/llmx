@@ -4279,7 +4279,6 @@ function renderChart(samples, stamp, config, events, motion = null) {
   const format = config.format || fmt;
   host.replaceChildren();
   const end = motion && number(motion.end) ? motion.end : Math.max(stamp || Date.now() / 1000, events.length ? events.at(-1).t : 0);
-  const displayLag = motion && number(motion.end) ? chartDisplayLag() : 0;
   const inspectionEnd = () => motion?.animate && number(chartVisualEnd) ? chartVisualEnd : end;
   const start = end - state.range;
   const W = Math.max(240, host.clientWidth || 400),
@@ -4319,8 +4318,8 @@ function renderChart(samples, stamp, config, events, motion = null) {
     'aria-hidden': 'true'
   });
   svg.append(svgNode('text', { x: L, y: 9 }, config.unit));
-  if (displayLag > 0) svg.append(svgNode('text', {x: W - R, y: 9, 'text-anchor': 'end', 'font-size': '9',
-    'data-chart-delay': 'true'}, Math.round(displayLag) + 's behind'));
+  if (motion && number(motion.end)) svg.append(svgNode('text', {x: W - R, y: 9, 'text-anchor': 'end', 'font-size': '9',
+    'data-chart-delay': 'true'}, 'Delayed view'));
   const scaleLabels = [];
   for (let i = 0; i < 4; i++) {
     const yy = T + i * (H - T - B) / 3;
@@ -4354,12 +4353,19 @@ function renderChart(samples, stamp, config, events, motion = null) {
   plotViewport.append(plotMotion);
   svg.append(defs, viewport);
   const timeIntervals = W < 420 ? 3 : 4;
-  for (let i = 0; i <= timeIntervals; i++) {
-    const time = start + state.range * i / timeIntervals;
+  const tickStep = state.range / timeIntervals;
+  const firstTick = Math.ceil(start / tickStep - 1e-9);
+  const lastTick = Math.floor(end / tickStep + 1e-9);
+  const tickInset = 26;
+  for (let tick = firstTick; tick <= lastTick; tick++) {
+    const time = tick * tickStep;
+    const tickX = x(time);
+    if (tickX < L + tickInset || tickX > W - R - tickInset) continue;
     timeMotion.append(svgNode('text', {
-      x: x(time),
+      x: tickX,
       y: H - 7,
-      'text-anchor': i === 0 ? 'start': i === timeIntervals ? 'end': 'middle'
+      'text-anchor': 'middle',
+      'data-time-tick': String(time)
     }, new Date(time * 1000).toLocaleTimeString(undefined, {
       hour: '2-digit',
       minute: '2-digit'
@@ -4531,8 +4537,7 @@ function renderChart(samples, stamp, config, events, motion = null) {
   };
   host.onblur = () => { if (!inspection.pinned) clearInspection(); };
   host.setAttribute('aria-label', config.title + ', ' + Math.round(state.range / 60) + ' minute range. ' +
-    (displayLag > 0 ? 'Chart is ' + Math.round(displayLag) + ' seconds behind the live readout. ' : '') +
-    latest + ' Left and right arrows inspect visible samples.');
+    (motion && number(motion.end) ? 'Delayed view. ' : '') + latest + ' Left and right arrows inspect visible samples.');
 }
 function render() {
   const view = state.paused && state.view ? state.view: snapshot();

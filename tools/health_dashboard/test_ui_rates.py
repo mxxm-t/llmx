@@ -724,8 +724,8 @@ const edge = () => {
 };
 const close = (a,b,tolerance=.03) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a-b) <= tolerance;
 const beforeProgress = edge();
-check('chart starts exactly one collection interval behind the measured samples',
-  motion.end === 97 && chartDisplayLag() === 3 && host.querySelector('[data-chart-delay]')?.textContent === '3s behind');
+check('chart starts one target collection interval behind with a stable caption',
+  motion.end === 97 && chartDisplayLag() === 3 && host.querySelector('[data-chart-delay]')?.textContent === 'Delayed view');
 check('next measured point is retained but clipped beyond the visible cursor',
   state.samples.length === 3 && beforeProgress && close(beforeProgress.x,right) && !chartViews['arrival-test'].show(100));
 host.onkeydown({key:'End', preventDefault(){}});
@@ -781,7 +781,7 @@ check('the latest numeric value remains the exact measured value', $('arrival-te
   state.samples.at(-1).value === 12);
 const bounds = host.getBoundingClientRect();
 const delayLabel = host.querySelector('[data-chart-delay]')?.textContent;
-check('explicit chart lag does not alter the compact chart box', delayLabel === '3s behind' &&
+check('stable delayed-view caption does not alter the compact chart box', delayLabel === 'Delayed view' &&
   bounds.width > 0 && bounds.height === 215);
 
 if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden); else delete document.hidden;
@@ -852,9 +852,11 @@ renderChart(state.samples,motion.end,config,[],motion);
 const intervals=Number(host.clientWidth < 420 ? 3 : 4);
 const targetTime=99900-state.range/intervals*Math.floor(intervals/2);
 const firstGroup=host.querySelector('[data-chart-motion]');
-const firstTick=[...firstGroup.querySelectorAll('text')].find((node,i)=>i===Math.floor(intervals/2));
+const firstTicks=[...firstGroup.querySelectorAll('text')];
+const firstTick=firstTicks.find(node=>Number(node.getAttribute('data-time-tick'))===targetTime) ||
+  firstTicks.find((node,i)=>i===Math.floor(intervals/2));
 const firstX=Number(firstTick?.getAttribute('x'));
-const label=firstTick?.textContent;
+const captionBefore=host.querySelector('[data-chart-delay]')?.textContent;
 fakeNow+=2000;
 updateChartMotion(fakeNow);
 const movedGroup=host.querySelector('[data-chart-motion]');
@@ -865,15 +867,20 @@ state.seq=2;
 motion=chartMotionFor(view(),fakeNow);
 renderChart(state.samples,motion.end,config,[],motion);
 const afterGroup=host.querySelector('[data-chart-motion]');
-const afterTick=[...afterGroup.querySelectorAll('text')].find(node=>node.textContent===label);
+const afterTick=[...afterGroup.querySelectorAll('text')].find(node=>Number(node.getAttribute('data-time-tick'))===targetTime);
 const afterX=Number(afterTick?.getAttribute('x'))+Number((afterGroup.getAttribute('transform')||'').match(/translate\((-?[0-9.]+)/)?.[1]||0);
+const captionAfter=host.querySelector('[data-chart-delay]')?.textContent;
 check('fixture advances exactly one measured two-second sample', motion.end===99902 && state.samples.at(-1).t===99904);
-check('the same time label survives the redraw', !!afterTick && Number.isFinite(targetTime));
+check('the same absolute time tick survives the redraw', !!afterTick && Number(firstTick?.getAttribute('data-time-tick'))===targetTime);
 check('the same time tick has no horizontal redraw jump ('+(afterX-beforeX).toFixed(3)+'px)',
   Number.isFinite(beforeX) && Number.isFinite(afterX) && Math.abs(afterX-beforeX)<0.03);
 check('time ticks stay ordered and chart dimensions stay compact',
-  [...afterGroup.querySelectorAll('text')].every((n,i,a)=>!i||Number(a[i-1].getAttribute('x'))<Number(n.getAttribute('x')))&&
+  [...afterGroup.querySelectorAll('text')].every((n,i,a)=>!i||Number(a[i-1].getAttribute('data-time-tick'))<Number(n.getAttribute('data-time-tick')))&&
   host.getBoundingClientRect().height===215);
+check('caption stays stable across the sample redraw',captionBefore==='Delayed view'&&captionAfter==='Delayed view');
+fakeNow+=2000;
+updateChartMotion(fakeNow);
+check('caption stays stable while the delayed cursor moves',host.querySelector('[data-chart-delay]')?.textContent==='Delayed view');
 if(originalHidden)Object.defineProperty(document,'hidden',originalHidden);else delete document.hidden;
 window.matchMedia=originalMatchMedia;window.requestAnimationFrame=originalRaf;window.cancelAnimationFrame=originalCancelRaf;
 Object.defineProperty(performance,'now',{configurable:true,value:originalNow});
@@ -893,7 +900,7 @@ document.querySelector('#rate-test-results').textContent=JSON.stringify(outcomes
                 outcomes = self.run_browser(wrapper)
                 diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'time-tick-pixel-diagnostic')
                 print('dashboard stable ticks ' + json.dumps(diagnostics, sort_keys=True))
-                self.assertEqual(len(outcomes), 5)
+                self.assertEqual(len(outcomes), 7)
 
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))

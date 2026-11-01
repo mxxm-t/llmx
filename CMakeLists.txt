@@ -72,6 +72,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
     endif()
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
+    # Shaders include shared files transitively; keep the full include set current when files are added.
+    file(GLOB LLMX_VK_SHADER_INCLUDES CONFIGURE_DEPENDS "${LLMX_VK_SHADER_DIR}/*.glsl")
     set(LLMX_VK_SHADERS copy_mxfp4 add sum_rows silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile matmul_tile_wide norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act attention_vec
@@ -333,13 +335,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/vulkan
             COMMAND ${LLMX_GLSLC} -fshader-stage=compute --target-env=vulkan1.2 -O
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
-            DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
-                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/iq3_s.glsl ${LLMX_VK_SHADER_DIR}/lookup_cache.glsl ${LLMX_VK_SHADER_DIR}/iq1.glsl ${LLMX_VK_SHADER_DIR}/iq1_layout.glsl ${LLMX_VK_SHADER_DIR}/iq1_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_s.glsl ${LLMX_VK_SHADER_DIR}/iq2_dot.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs_dot.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
-                    ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
-                    ${LLMX_VK_SHADER_DIR}/matmul_row.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_one.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_two.glsl
-                    ${LLMX_VK_SHADER_DIR}/matmul_vec_q8.glsl ${LLMX_VK_SHADER_DIR}/matmul_vec_q8_one.glsl
-                    ${LLMX_VK_SHADER_DIR}/moe_route.glsl ${LLMX_VK_SHADER_DIR}/moe_combine.glsl ${LLMX_VK_SHADER_DIR}/silu_mul.glsl ${LLMX_VK_SHADER_DIR}/sigmoid_mul.glsl
-                    ${LLMX_VK_SHADER_DIR}/low_bits.glsl ${LLMX_VK_SHADER_DIR}/tq.glsl ${LLMX_VK_SHADER_DIR}/tq_packed.glsl ${LLMX_VK_SHADER_DIR}/tq_dot.glsl ${LLMX_VK_SHADER_DIR}/tq_layout.glsl ${LLMX_VK_SHADER_DIR}/k23_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_small.glsl ${LLMX_VK_SHADER_DIR}/iq2_layout.glsl
+            DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_INCLUDES}
             COMMENT "glslc ${shader}"
             VERBATIM)
         list(APPEND LLMX_VK_SPV ${spv})

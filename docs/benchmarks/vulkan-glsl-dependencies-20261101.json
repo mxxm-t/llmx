@@ -1,0 +1,314 @@
+{
+  "schema": 1,
+  "date_utc": "2026-11-01",
+  "purpose": "Incremental dependency regression proof for Vulkan GLSL shared includes.",
+  "fix": {
+    "base_commit": "b45a44d4ba40c5fc9b0aa8943c3dd9b2bc8a3ed9",
+    "cmake_lists_sha256": "8132fb18eb9c6d21fda35426000e3c6e4c7a8a46b13dd4ee80b9226371b1550d",
+    "change": "Replace hand-maintained shared-GLSL dependencies with a local *.glsl file(GLOB CONFIGURE_DEPENDS) set, retaining global per-shader dependencies."
+  },
+  "tools": {
+    "cmake": "4.3.1",
+    "ninja": "1.13.0.git.kitware.jobserver-pipe-1",
+    "glslc": "shaderc v2026.3; glslang 11.1.0-1493-g168d452a; SPIR-V target 1.0",
+    "visual_studio_generator": "Visual Studio 18 2026"
+  },
+  "red": {
+    "source_worktree": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-red-b45a-20261101",
+    "cmake_home_directory": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-red-b45a-20261101",
+    "source_commit": "b45a44d4ba40c5fc9b0aa8943c3dd9b2bc8a3ed9",
+    "cmake_lists_sha256": "663db488714f344dfd6660ce0e8b389cc95ce27c1dbf415606b84eac08556597",
+    "generator": "Ninja",
+    "configure_command": "cmake -S . -B build-glsl-deps-ninja -G Ninja -DLLMX_HAS_BACKEND_VULKAN=ON -DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include -DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+    "build_command": "ninja -C build-glsl-deps-ninja generated/vulkan/matmul_row_q1_0_dot.inc generated/vulkan/matmul_row_iq3_s_dot.inc",
+    "checks": [
+      {
+        "header": "src/backends/vulkan/shaders/lookup_dot.glsl",
+        "header_sha256_after_touch": "269b5f3f3e788cb2394e7e64159186903a77a052c213b92ee55be44f1352ca97",
+        "header_mtime_utc_after_touch": "2026-11-01T09:42:37.3041263Z",
+        "target": "generated/vulkan/matmul_row_q1_0_dot.inc",
+        "observed_result": "Ninja reported no work to do after a timestamp-only touch; header bytes were unchanged.",
+        "built_output_sha256": "b22f271912faa64dd65aa460c589f3982ac4edcc95f153de60a7920207a78296",
+        "output_mtime_utc_before_header_touch": "2026-11-01T09:42:30.9030499Z"
+      },
+      {
+        "header": "src/backends/vulkan/shaders/iq3_dot.glsl",
+        "header_sha256_after_touch": "2c0c3a7ef24e4a4d56c17fe1415a717dfcf550b6e1f52cf4f4af74b5ff563741",
+        "header_mtime_utc_after_touch": "2026-11-01T09:42:37.3576894Z",
+        "target": "generated/vulkan/matmul_row_iq3_s_dot.inc",
+        "observed_result": "Ninja reported no work to do after a timestamp-only touch; header bytes were unchanged.",
+        "built_output_sha256": "f64d7f47490b915983b1e4cc2736640d8f62ad4a3138c5584f84ca525e76abfc",
+        "output_mtime_utc_before_header_touch": "2026-11-01T09:42:30.8693180Z"
+      }
+    ],
+    "ninja_log_sha256": "4cbf04a631603a316be66fff15f1e016db95ee1496f613abfddf7aaa111246c0",
+    "ninja_log_path": "build-glsl-deps-ninja/.ninja_log"
+  },
+  "green": {
+    "source_worktree": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101",
+    "cmake_home_directory": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101",
+    "source_revision_at_green_build": "ba97e007cd1e7c7fde046108e17a0c3b848c7749",
+    "cmake_lists_sha256": "8132fb18eb9c6d21fda35426000e3c6e4c7a8a46b13dd4ee80b9226371b1550d",
+    "generator": "Ninja",
+    "build_command": "ninja -C build-glsl-deps-ninja generated/vulkan/matmul_row_q1_0_dot.inc generated/vulkan/matmul_row_iq3_s_dot.inc",
+    "earlier_direct_attempt": "Not used as authoritative timing evidence: its recorded output mtimes precede the recorded header touch times, so those timestamps do not prove rebuild ordering.",
+    "authoritative_recheck": {
+      "script": "scratch/verify-glsl-rebuild-20261101.py",
+      "script_sha256": "e133fa7715333c7ae7c4e5b38b255010467d6edd29f6892056348c11a745365e",
+      "receipt": "scratch/glsl-dependency-root-verification-20261101.json",
+      "receipt_sha256": "05c16c57c48cb27d427d2f547aae115942007229e0eaf4cb912efebfba80f65",
+      "tested_tree_revision": "95d03a57a9c36213347f11b7ec5ae9dba73ea396",
+      "passed": true,
+      "checks": [
+        {
+          "header": "lookup_dot.glsl",
+          "target": "generated/vulkan/matmul_row_q1_0_dot.inc",
+          "argv": [
+            "cmake",
+            "--build",
+            "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101/build-glsl-deps-ninja",
+            "--target",
+            "generated/vulkan/matmul_row_q1_0_dot.inc"
+          ],
+          "header_sha256_unchanged": "269b5f3f3e788cb2394e7e64159186903a77a052c213b92ee55be44f1352ca97",
+          "output_sha256_unchanged": "b22f271912faa64dd65aa460c589f3982ac4edcc95f153de60a7920207a78296",
+          "header_touch_utc": "2026-11-01T09:49:41.939262Z",
+          "output_before_touch_utc": "2026-11-01T09:42:40.973531Z",
+          "output_after_build_utc": "2026-11-01T09:49:42.705164Z",
+          "stdout": "[0/2] Re-checking globbed directories...\\n[1/2] glslc matmul_row_q1_0_dot\\n",
+          "exit_code": 0
+        },
+        {
+          "header": "iq3_dot.glsl",
+          "target": "generated/vulkan/matmul_row_iq3_s_dot.inc",
+          "argv": [
+            "cmake",
+            "--build",
+            "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101/build-glsl-deps-ninja",
+            "--target",
+            "generated/vulkan/matmul_row_iq3_s_dot.inc"
+          ],
+          "header_sha256_unchanged": "2c0c3a7ef24e4a4d56c17fe1415a717dfcf550b6e1f52cf4f4af74b5ff563741",
+          "output_sha256_unchanged": "f64d7f47490b915983b1e4cc2736640d8f62ad4a3138c5584f84ca525e76abfc",
+          "header_touch_utc": "2026-11-01T09:49:42.747010Z",
+          "output_before_touch_utc": "2026-11-01T09:42:41.345522Z",
+          "output_after_build_utc": "2026-11-01T09:49:43.427991Z",
+          "stdout": "[0/2] Re-checking globbed directories...\\n[1/2] glslc matmul_row_iq3_s_dot\\n",
+          "exit_code": 0
+        }
+      ],
+      "ninja_log_snapshot": "C:/Users/Marko/Desktop/Projects/llmx/scratch/glsl-deps-green-ninja-log-20261101",
+      "ninja_log_sha256": "ae3e3ab841bd0fa3b657c07a6fe9474b6ca2eb932128e1ae4d451cef62c5b8eb"
+    },
+    "rebased_integration": {
+      "base_commit": "571f92c0a",
+      "main_delta_paths": [
+        "docs/STATUS.md",
+        "docs/src/backends-rocm.md",
+        "src/backends/rocm/kernels/f32.hip",
+        "src/backends/rocm/kernels/int16.hip",
+        "src/backends/rocm/rocm_backend.cpp",
+        "tests/backend_rocm.cpp"
+      ],
+      "carryforward_basis": "The main delta changes no CMakeLists.txt or Vulkan backend/shader files. Its only test change is the ROCm backend test. Thus the incremental shader proof has identical CMake and Vulkan source inputs after rebase; it is not a claim that the ROCm test itself was unchanged.",
+      "post_rebase_shader_rebuild_rerun": false
+    },
+    "temporary_include_add_remove": "Both creation and removal of a temporary .glsl file triggered CMake's Ninja glob verification and reconfiguration; temporary file removed.",
+    "earlier_direct_ninja_log_sha256": "c1c605906a5f6756456e3ddca4b24853bdfa79999e7e44094a937a1f80c032a5",
+    "earlier_direct_ninja_log_path": "build-glsl-deps-ninja/.ninja_log",
+    "visual_studio": {
+      "cmake_home_directory": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101",
+      "generator": "Visual Studio 18 2026",
+      "configure_command": "cmake -S . -B build-glsl-deps-vs -G \"Visual Studio 18 2026\" -DLLMX_HAS_BACKEND_VULKAN=ON -DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include -DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+      "glob_verification_file": "build-glsl-deps-vs/CMakeFiles/VerifyGlobs.cmake",
+      "verify_globs_sha256": "60fab6d0bbcb001367a4b66c76ed0a754ba20365c0ce33dce4b64055277e415f",
+      "verify_globs_mtime_utc": "2026-11-01T09:40:50.4002715Z"
+    }
+  },
+  "scoped_checks": {
+    "cli_version": "llmx 0.1.0+gb3ca62bebd2a numerics 57f83d79972ae050",
+    "cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "docs": "PASS: 0 findings, 21 planted faults",
+    "dead_code": "PASS: 8 listed findings (1 unused, 7 test-only), 19 planted faults",
+    "log_path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/glsl-include-deps-b45a-final-20261101.log",
+    "log_sha256": "a0579159fc943fccfe5a28239fd8971c9678036d228126d616387767cc307103"
+  },
+  "post_rebase_scoped_checks": {
+    "source_worktree": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/glsl-include-deps-b45a-20261101",
+    "rebased_base": "571f92c0a",
+    "command": "python tests/run_tests.py --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-main-b7eef-20261101/build-q2-integration/Release/llmx.exe --only docs,dead-code",
+    "cli_version": "llmx 0.1.0+gb3ca62bebd2a numerics 57f83d79972ae050",
+    "cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "docs": "PASS: 0 findings, 21 planted faults",
+    "dead_code": "PASS: 8 listed findings (1 unused, 7 test-only), 19 planted faults",
+    "log_path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/glsl-include-deps-571f92c-final-20261101.log",
+    "log_sha256": "ee5e10a3d48440b152615be5db54d71d999912ee081e8f94c7876d0abc8427b8"
+  },
+  "pending_hosted_configure_checks": {
+    "windows": "passed: Configure and Build",
+    "macos": "passed: Configure and Build",
+    "ubuntu": "passed: Configure and Build",
+    "linux_vulkan": "passed: Configure with Vulkan backend and Build",
+    "full_runtime_or_numerical_requalification": "not required for this CMake dependency-only change"
+  },
+  "hosted_build_observation": {
+    "run_id": 41295796049,
+    "run_url": "https://github.com/mxxm-t/llmx/actions/runs/41295796049",
+    "branch": "gate/glsl-include-deps-20261101",
+    "tested_head": "5c5e4e506898dcb60238b785c0777d8284024740",
+    "tree_base": "571f92c0a",
+    "observation_interval_rig_utc": [
+      "2026-11-01T10:34:46Z",
+      "2026-11-01T10:34:47Z"
+    ],
+    "run_status_at_observation": "in_progress",
+    "required_build_steps": [
+      {
+        "job": "CPU (windows-2022)",
+        "configure": "success",
+        "build": "success"
+      },
+      {
+        "job": "CPU (macos-15-intel)",
+        "configure": "success",
+        "build": "success"
+      },
+      {
+        "job": "CPU (ubuntu-24.04)",
+        "configure": "success",
+        "build": "success"
+      },
+      {
+        "job": "Vulkan backend (build, Linux)",
+        "configure": "success",
+        "build": "success"
+      }
+    ],
+    "other_jobs_at_observation": [
+      {
+        "job": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "job": "ROCm backend (build only, Linux)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "job": "HF reference (CPU)",
+        "status": "in_progress",
+        "configure": "success",
+        "build": "success"
+      },
+      {
+        "job": "CPU (windows-2022)",
+        "status": "in_progress",
+        "next_step": "Backend tests"
+      },
+      {
+        "job": "CPU (macos-15-intel)",
+        "status": "in_progress",
+        "next_step": "Backend tests"
+      },
+      {
+        "job": "CPU (ubuntu-24.04)",
+        "status": "in_progress",
+        "next_step": "Backend tests"
+      },
+      {
+        "job": "Vulkan backend (build, Linux)",
+        "status": "in_progress",
+        "next_step": "Backend tests"
+      },
+      {
+        "job": "CPU (Linux UBSan)",
+        "status": "in_progress",
+        "configure": "success",
+        "build": "in_progress"
+      }
+    ],
+    "api_snapshots": {
+      "run": {
+        "path": "scratch/glsl-ci-gate-20261101/run-response-22.json",
+        "sha256": "926ae20d452a7c57a27daecbc75a5d424e0e22e80573d671530093de54c3f2ba"
+      },
+      "jobs": {
+        "path": "scratch/glsl-ci-gate-20261101/jobs-response-22.json",
+        "sha256": "50065fb7dddae3991e973ccd371ea20f267acc352b63588954fb01a75d674880"
+      },
+      "rig_bracketed_observation": {
+        "path": "scratch/glsl-ci-gate-20261101/observation-22.json",
+        "sha256": "29e008b433588acc551fff7c7b245106b4389d69d3052420ea32e527683b5c4e"
+      },
+      "later_no_transition_poll": {
+        "path": "scratch/glsl-ci-gate-20261101/observation-23.json",
+        "sha256": "a3ee7b08b3097e5910ea646f07ac45bba373d9524fb61cadc9d12dbef7902a5e"
+      }
+    },
+    "interpretation": "The four requested platform/backend Configure and Build steps are green on the exact feature head. The workflow remains in progress in additional test/reference jobs; this is not an all-jobs pass and no numerical or runtime requalification is claimed."
+  },
+  "status_update_scoped_checks": {
+    "command": "python tests/run_tests.py --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-main-b7eef-20261101/build-q2-integration/Release/llmx.exe --only docs,dead-code",
+    "cli_version": "llmx 0.1.0+gb3ca62bebd2a numerics 57f83d79972ae050",
+    "cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "docs": "PASS: 0 findings, 21 planted faults",
+    "dead_code": "PASS: 8 listed findings (1 unused, 7 test-only), 19 planted faults",
+    "log_path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/glsl-include-deps-final-hosted-20261101.log",
+    "log_sha256": "b0bc6894ba52ce8745c14f9bbe5ee9e41029a06b9659bcda9334f61c36d4983e"
+  },
+  "limitations": [
+    "No local full runtime build or device test was run. Hosted Configure/Build steps are recorded separately; the hosted workflow was still in progress at the retained observation.",
+    "The red and green consumer checks were run in the worktrees named above. A separate accidental canonical-root CMake configure was not used for these checks and is not evidence for this change.",
+    "Timestamp-only checks establish incremental rebuild behavior, not runtime numerical behavior."
+  ],
+  "main2a_integration": {
+    "base": "2a67405084b0808177685497400b4af00f36fbc0",
+    "previous_feature_checkpoint": "e6d6446ae07848c13f1897738f782f09f97fe485",
+    "main_delta_paths": [
+      "docs/SERVER.md",
+      "docs/SPECULATIVE.md",
+      "docs/STATUS.md",
+      "docs/src/server.md",
+      "src/server/cache.hpp",
+      "src/server/scheduler.hpp",
+      "tests/server_resume.cpp"
+    ],
+    "identical_to_hosted_head": "5c5e4e506898dcb60238b785c0777d8284024740",
+    "identical_paths": [
+      "CMakeLists.txt",
+      "cmake",
+      ".github",
+      "src/backends/vulkan"
+    ],
+    "scoped_checks": {
+      "docs": "PASS: 0 findings, 21 planted faults",
+      "dead_code": "PASS: 8 listed findings, 19 planted faults",
+      "log_path": "scratch\\glsl-main2a-docs-20261101.log",
+      "log_sha256": "ffa74b54fd9d3ebfe7a5a17f5330519ff68c342cdeb52ac6cd00c80c709f5c9a"
+    },
+    "scope": "Build dependency proof carried at identical CMake and Vulkan inputs. No numerical equivalence claim for the new server behavior."
+  },
+  "steady_drafting_integration": {
+    "base": "049c2a4102a6f7362b72fa554448c97cfcd6d86a",
+    "conflicts": [
+      "docs/STATUS.md"
+    ],
+    "preserved": "Both status sections retained. CMake and Vulkan inputs remain identical to earlier hosted feature head 5c5e4e506.",
+    "scoped_checks": {
+      "exit_code": 0,
+      "docs_findings": 0,
+      "docs_planted_faults": 21,
+      "dead_code_listed_findings": 8,
+      "dead_code_planted_faults": 19,
+      "docs_seconds": 15.8,
+      "dead_code_seconds": 21.3
+    },
+    "reused_cli": {
+      "version": "llmx 0.1.0+g658cb08ef1ee numerics 89ed52cad7b7e2bd",
+      "sha256": "573db9529c66b0180930547e4ed1bb63c23fdbea5823ab1384401aa7bb8f7dae",
+      "scope": "Help/schema consumer only. Not rebuilt from this CMake-only branch."
+    },
+    "hosted": "Pending new run on rebased head. No current-head full-suite pass claimed."
+  }
+}

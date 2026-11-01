@@ -296,6 +296,8 @@ struct TileCall {
 };
 // Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
 // A step loads while the previous one computes, but in the tall build over the 16-bit twin, which loads its step after the barrier: holding the next step's loads took it 124 VGPRs and after the barrier it takes 99 (docs/STATUS.md, ROCm tall tile staging).
+// WQ quant words as one load: their words are 4-byte aligned, which a global vector load takes.
+template <int WQ> using QWords = unsigned __attribute__((ext_vector_type(WQ), aligned(4)));
 template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; static constexpr bool ahead = RO == 4 || sizeof(QT) == 1; };
 
 // The prompt tile (the Vulkan tile's design, matmul_tile_q.comp): a block of 256 threads 64 outputs by 64 rows, each thread 4 adjacent outputs by 4 adjacent rows, the blocks of a step staged k-major in shared memory, word w of every output and then of every row, the weights widened to the twin's integer type.
@@ -303,7 +305,8 @@ template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof
 template <typename QT, int RO>
 __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     constexpr bool AHEAD = TileStep<QT, RO>::ahead;
-    constexpr int STEP = TileStep<QT, RO>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = RO * 16, LOADS = RO / 4;
+    constexpr int STEP = TileStep<QT, RO>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = RO * 16;
+    constexpr int WT = kThreads / OUTS, WQ = 32 / WT / 4;   // threads a weight row and the quant words each stages
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
     const unsigned char* W = c.w[pi];
     const unsigned long long nout = c.nout[pi], nrows = c.nrows, nin = c.nin;
@@ -317,12 +320,12 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     float acc[RO][4];
     for (int i = 0; i < RO; ++i)
         for (int j = 0; j < 4; ++j) acc[i][j] = 0.0f;
-    // Four threads a row, each a quarter of a block's 32 values (the Vulkan tile's staging): thread t / 4 of the outputs and t / 4 of the rows.
+    // Each weight row takes WT threads, each WQ words of a block's quants (two threads a row on the tall tile, four on the other), and the twin's rows four threads, each a quarter of a block (the Vulkan tile's staging).
     // A stage's blocks are loaded into registers while the previous stage computes, and stored to shared memory after it.
-    const int r = t / 4, seg = t % 4;
-    const unsigned long long o = o0 + r, b = b0 + r;
-    unsigned wv[LOADS][STEP][3];          // the quarter's eight quants and the scale: two words where they start aligned, three where not, plus the word before
-    bool wok[LOADS][STEP], al[LOADS][STEP], xok[STEP];
+    const int r = t / 4, seg = t % 4, wr = t / WT, ws = t % WT;
+    const unsigned long long o = o0 + wr, b = b0 + r;
+    unsigned wv[STEP][WQ + 1];   // the thread's quant words and one more: the word after where they straddle, the word before where not
+    bool wok[STEP], al[STEP], xok[STEP];
     int xv[STEP][WORDS / 4];       // a quarter of the twin block
     float xs_[STEP];
     // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit and its loads take the base from scalar registers.
@@ -331,22 +334,20 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     const unsigned* W4 = (const unsigned*)(Wt - mis);   // the words around the tile's weights, as a pointer into the same buffer so its loads stay global ones
     const QT* qt = q + b0 * c.xrow * 32;
     const float* dxt = dx + b0 * c.xrow;
-    // The quarter's eight bytes sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes: three word loads cover them, the word after where they straddle and the word before where not, which holds the scale in its high half; straddling, the first word holds it in its low half.
+    // A thread's quants sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes: one vector load of WQ words and one word cover them, the word after where they straddle and the word before where not, which holds the scale in its high half; straddling, the first word holds it in its low half.
     // Every load of a stage goes out before any is waited for: a load out of range reads block 0 and its zero is chosen at the store, so no load sits under a branch the compiler would wait inside.
     const auto load = [&](unsigned long long k0) {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             const unsigned long long k = k0 + s;
             xok[s] = k < kend && b < nrows;
+            wok[s] = k < kend && o < nout;
+            const unsigned a = mis + (wok[s] ? ((unsigned)wr * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + ws * (4u * WQ), w = a >> 2;
+            al[s] = (a & 3) == 0;
+            const QWords<WQ> v = *(const QWords<WQ>*)(W4 + w);
 #pragma unroll
-            for (int l = 0; l < LOADS; ++l) {
-            wok[l][s] = k < kend && o + 64 * l < nout;
-            const unsigned a = mis + (wok[l][s] ? ((unsigned)(r + 64 * l) * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + seg * 8u, w = a >> 2;
-            al[l][s] = (a & 3) == 0;
-            wv[l][s][0] = W4[w];
-            wv[l][s][1] = W4[w + 1];
-            wv[l][s][2] = W4[al[l][s] ? w - 1 : w + 2];
-            }
+            for (int i = 0; i < WQ; ++i) wv[s][i] = v[i];
+            wv[s][WQ] = W4[al[s] ? w - 1 : w + WQ];
             const unsigned xb = xok[s] ? (unsigned)r * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
                 const int4 v = ((const int4*)(qt + xb * 32u))[seg];
@@ -358,31 +359,28 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
             xs_[s] = dxt[xb];
         }
     };
-    // Widened to the twin's integer type as they are stored: four words of two 16-bit values, or the two words of bytes as they are.
+    // Widened to the twin's integer type as they are stored: each quant word to two words of two 16-bit values, or the words of bytes as they are.
     const auto store = [&]() {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
+            const unsigned last = wv[s][WQ];
 #pragma unroll
-            for (int l = 0; l < LOADS; ++l) {
-            const unsigned q0 = wok[l][s] ? (al[l][s] ? wv[l][s][0] : __builtin_amdgcn_alignbit(wv[l][s][1], wv[l][s][0], 16)) : 0;
-            const unsigned q1 = wok[l][s] ? (al[l][s] ? wv[l][s][1] : __builtin_amdgcn_alignbit(wv[l][s][2], wv[l][s][1], 16)) : 0;
-            const unsigned short sc = wok[l][s] ? (unsigned short)(al[l][s] ? wv[l][s][2] >> 16 : wv[l][s][0] & 0xffff) : 0;
-            const unsigned qw[2] = {q0, q1};
-            if constexpr (sizeof(QT) == 2) {
+            for (int i = 0; i < WQ; ++i) {
+                const unsigned next = i + 1 < WQ ? wv[s][i + 1] : last;
+                const unsigned qw = wok[s] ? (al[s] ? wv[s][i] : __builtin_amdgcn_alignbit(next, wv[s][i], 16)) : 0;
+                if constexpr (sizeof(QT) == 2) {
 #pragma unroll
-                for (int h = 0; h < 2; ++h)
-#pragma unroll
-                    for (int w = 0; w < 2; ++w) {
-                        const unsigned pair = (qw[h] >> (16 * w)) & 0xffff;
-                        wq[s * WORDS + seg * 4 + 2 * h + w][r + 64 * l] = (int)((unsigned)(unsigned short)(short)(signed char)(pair & 0xff) |
-                                                                       ((unsigned)(unsigned short)(short)(signed char)(pair >> 8) << 16));
+                    for (int h = 0; h < 2; ++h) {
+                        const unsigned pair = (qw >> (16 * h)) & 0xffff;
+                        wq[s * WORDS + ws * 2 * WQ + 2 * i + h][wr] = (int)((unsigned)(unsigned short)(short)(signed char)(pair & 0xff) |
+                                                                    ((unsigned)(unsigned short)(short)(signed char)(pair >> 8) << 16));
                     }
-            } else {
-                wq[s * WORDS + seg * 2][r + 64 * l] = (int)q0;
-                wq[s * WORDS + seg * 2 + 1][r + 64 * l] = (int)q1;
+                } else {
+                    wq[s * WORDS + ws * WQ + i][wr] = (int)qw;
+                }
             }
-            if (seg == 0) wd[s][r + 64 * l] = __half2float(__ushort_as_half(sc));
-            }
+            const unsigned short sc = wok[s] ? (unsigned short)(al[s] ? last >> 16 : wv[s][0] & 0xffff) : 0;
+            if (ws == 0) wd[s][wr] = __half2float(__ushort_as_half(sc));
 #pragma unroll
             for (int w = 0; w < WORDS / 4; ++w) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xok[s] ? xv[s][w] : 0;
             if (seg == 0) xd[s][r] = xok[s] ? xs_[s] : 0.0f;

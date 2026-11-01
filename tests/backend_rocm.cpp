@@ -582,9 +582,9 @@ void twin_products(Backend& g, Dtype dt) {
         edge = edge && std::memcmp(read(g, *ysn, so * sn).data(), y.data(), so * sn * 4) == 0;
         require(edge, form + ": a prompt row of a matrix whose last block ends inside a word gives the bits of that row alone and of the matrix with room after it");
     }
-    // The tall build gives the 64-output build's bits: a whole matrix against slices of the same inner split, at 70 rows (both split) and at 520 rows 4096 wide, where the MI50's HIP row takes the tall build (docs/STATUS.md, ROCm tall tile).
-    for (const size_t tr : {size_t(70), size_t(520)}) {
-        const size_t tw = tr == 70 ? 512 : 4096, tn = tr == 70 ? 3940 : 5860, slice = tr == 70 ? 100 : 3840;
+    // The tall build gives the 64-output build's bits, a whole matrix against slices of the same inner split (docs/src/backends-rocm.md).
+    for (const size_t tw : {size_t(512), size_t(4096), size_t(4128)}) {
+        const size_t tr = tw == 512 ? 70 : 520, tn = tw == 512 ? 3940 : 5860, slice = tw == 512 ? 100 : 3840;
         const std::vector<uint8_t> mt = q8_matrix(tw, tn, 91);
         const std::vector<float> xt = row_classes::values(tw * tr, 92);
         const size_t row_bytes = tw / 32 * 34;

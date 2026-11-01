@@ -20,6 +20,27 @@ Evidence details: [`vulkan-glsl-dependencies-20261101.json`](benchmarks/vulkan-g
 - **Found:** a test fault, not a drafting one: `steady_holds` took the scheduler's counters when its reader read the 60th and the 300th token, and a reader starved on a slow machine reads token 60 after the reply has passed 300, so both snapshots are the end's, the window holds no drafts, and the holds check passes without having looked.
 - **Done:** the failing test (the reader starts only once the reply has ended, which makes that case certain), then the counters are taken on the scheduler's thread as the first pass retires whose history has reached each end (`Scheduler::on_retire`), so the window follows the reply's positions however late its tokens are read; what it requires is unchanged.
 
+## ROCm tall tile weight staging, two threads a row (2026-11-01, DDEV, branch perf/rocm-tall-w2 on main 3418d0b2c; step 2 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
+
+**Goal:** fewer weight-load instructions in the int8 tall tile with the same bits: its 128 output rows took four threads a row in two passes, each a quarter block as three 4-byte words, where the Vulkan tile takes two threads a row, a 16-byte load and a word each.
+**Done:** a weight row takes 256 / outputs threads (`WT` in `q8_0_tile`, `kernels/int16.hip`), two on the tall build and four on the 64-output one, each its share of a block's quants as one vector load of 4-byte-aligned words (`QWords`) and the word before or after, realigned and stored as before: the same bytes in the same shared-memory words. The twin's staging is unchanged. `backend-rocm` adds a tall matrix 4128 wide, 129 blocks, so a tall tile's rows start on alternating halves of a word, against the 64-output build's bits.
+**Found** (gfx906 code objects of the dot16 build, the main loop): tile8_tall 116 -> 113 VGPRs, 1018 -> 949 instructions, weight loads 12 dwordx2 and 44 dword -> 4 dwordx4, 4 dwordx2 and 40 dword in the whole kernel, vmcnt waits 19 -> 7; tile16_tall 99 -> 98 VGPRs, 1651 -> 1588; tile8 82 VGPRs, 1098 -> 1107; tile16 unchanged; no scratch in any, two waves a SIMD kept.
+**Measured** (MI50 under ROCm HIP, one card, default clocks, interleaved rounds of 3 runs, medians, 3 rounds int8 and 6 F16, Vulkan beside on the same card; Qwen3 Q8_0, tok/s, main -> branch, Vulkan):
+
+| model | dtype | pp512 | pp2048 | tg128 |
+|---|---|---|---|---|
+| 0.6B | int8 | 10903 -> 10863 (-0.4%) | 6795 -> 6775 (-0.3%) | 363.9 -> 364.3 |
+| 0.6B | f16 | 8331 -> 8340 (+0.1%) | 5700 -> 5692 (-0.1%) | 369.0 -> 361.1 (spread 20-27%) |
+| 8B | int8 | 1237.7 -> 1289.0 (+4.2%), 1319.5 | 1079.8 -> 1114.7 (+3.2%), 1178.6 | 81.5 -> 81.5, 78.5 |
+| 8B | f16 | 829.8 -> 840.5 (+1.3%), 848.4 | 756.0 -> 765.0 (+1.2%), 786.9 | 68.5 -> 68.5, 76.8 |
+| 14B | int8 | 724.0 -> 742.1 (+2.5%), 780.4 | 647.1 -> 672.1 (+3.9%), 711.0 | 45.1 -> 45.0, 44.5 |
+| 14B | f16 | 465.9 -> 472.3 (+1.4%), 491.0 | 431.8 -> 441.0 (+2.1%), 462.2 | 38.2 -> 38.2, 43.7 |
+
+Decode is level in every cell; 0.6B int8 prompt is 0.3 to 0.4% lower, within the layout band (AGENTS.md, Principles).
+**Identity:** byte-identical to main in int8 and F16 on Qwen3-8B Q8_0 256 greedy tokens and Qwen3-0.6B Q8_0 16k raw and chat; backend-rocm, CTest (80 of 80), docs and dead-code pass.
+**Left:** review; the change lands by fast-forward.
+**Gotchas:** a 16-byte global load needs only 4-byte alignment on gfx906, so the vector type carries `aligned(4)` and the compiler still issues dwordx4.
+
 ## ROCm block-major twin (2026-11-01, DDEV, branch perf/rocm-twin-major on perf/rocm-tall-stage b0af9f978, which it lands after; step 1 of the global-traffic plan (DDEV 01:18), approved by F2DEV at 01:21)
 
 **Goal:** the int8 tall tile within reach of Vulkan's call time with the same bits: the 8-bit twin's rows lay 4096 bytes apart on the 8B, so a tile stage's 64 rows of block k fell on the same memory channels (knockouts: one X row for every row took the 8B gate,up from 5.62 to 5.02 ms a call, Vulkan 4.99).

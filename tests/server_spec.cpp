@@ -137,6 +137,12 @@ void steady_holds(const Make& drafting, const MakeProposer& proposer, const bpe:
     size_t read = 0;
     try {
         auto r = sched.submit(prompt, params_of({prompt, 400}));
+        // The reader starts once the reply has ended, as a reader starved on a slow machine does, so the window is held by the reply's positions and not by when its tokens are read.
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(120);
+        while (sched.stats().finished == 0) {
+            require(std::chrono::steady_clock::now() < until, what + ": the reply did not end in 120 seconds");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         server::Request::Token t;
         for (;;) {
             const auto got = r->next(t, server::Request::Clock::now() + std::chrono::seconds(120));

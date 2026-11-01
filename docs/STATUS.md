@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## Tree drafting closed at step 1: no single rule and no branch clears the spread (2026-11-01, SDEV, plan-tree-drafting reopened by the owner on 2026-10-31, step 1 approved by F2DEV at 12:19 with XDEV's point of 12:18, docs only)
+
+- **Question:** step 0 (2026-10-31) found history forks worth a look on code edits and copies: at a lookup miss, another earlier occurrence had proposed the right token at 0.49 and 0.53 of misses. Step 1 prices, offline, whether a better single choice of occurrence (no extra rows) or one branch at the first point where occurrences disagree (extra rows on every pass that carries it) pays, by the rule set before it ran: build a single rule if it reaches 70% of the tree's gain, close if neither clears a main/main spread of about 2%.
+- **Replay:** each recorded reply of step 0 (23 cases in six types a model, Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 and Qwen3.6-27B-MTP Q4_1 over two MI50s) token by token: a history draft wherever the last 8 tokens occur earlier, its length by match bucket at production's mean depth (20, 20, 40, 63), else the case's next recorded MTP verify. Each verify is priced by measured decode cells: Flash-Next from production's stage 1 at band 5 (doubled for its two stages), the 27B from both stages of a two-card rig run at band 0, each made non-decreasing in rows; four users run four rotations of a type's cases, one verify each a pass, the pass priced at their summed rows. Production keeps no token ids, so it enters only as a weight: history drafts are 10% of its verifies (68.6k of 671k since start on 2026-11-01).
+- **Rules:** main (`Lookup::convincing`, the furthest backward match); a, the latest occurrence; b, the furthest match without the stop at 32; c, the most frequent continuation; d, the occurrence the last kept verify followed; O, an oracle that picks the occurrence keeping most; T, main plus one branch at the first divergence point from the latest disagreeing occurrence (at most 32 rows, within 63); Tg, T gated by a per-request fork-hit average from a shadow check against the branch's price; TO, T with the branch moved to the trunk's actual miss and its best occurrence (an upper bound at T's row cost).
+- **Result** (ms a token against main, positive faster):
+
+| model, users | a | b | c | d | O (oracle) | T | Tg | TO (oracle) |
+|---|---|---|---|---|---|---|---|---|
+| Flash-Next, 1 | -1.13% | +0.05% | -1.73% | +0.05% | +0.49% | -0.94% | -0.06% | -0.82% |
+| Flash-Next, 4 | -1.52% | +0.08% | -1.06% | +0.08% | +0.76% | -0.41% | +0.01% | -0.27% |
+| 27B, 1 | -0.86% | +0.02% | -1.75% | +0.02% | +0.93% | -2.53% | -0.32% | -2.20% |
+| 27B, 4 | -1.07% | +0.02% | -2.24% | +0.02% | +1.08% | -3.35% | -0.42% | -2.95% |
+
+- **By type, on main's own path** (history draft points, main's misses, then recovered and extra misses against main for a, c and b/d): Flash-Next code edit 137, 45, a 0/15, c 1/8, b/d 0/0; copy 307, 67, a 0/44, c 0/27, b/d 2/0; code write 314, 296, all within 5. The best cell of any non-oracle rule is T on Flash-Next's code edit at four users, +1.8%, and it loses at one user (-1.6%); every other type is within 0.3% for b, d and Tg.
+- **Why closed:** neither a single rule nor a branch clears 2% on either model, and the oracles' ceilings (O up to 2.4%, TO up to 2.0% in one cell) are unattainable bounds. Step 0's s of 0.49 and 0.53 was measured against the latest-occurrence rule, which fix/lookup-longest-match replaced: on main's path only 5 of Flash-Next's 45 code-edit misses had another occurrence with the right token, and the latest rule itself adds 15 and 44 misses on code edit and copy while recovering none. No step 2.
+- **Reopen if:** a proposer gives several plausible continuations where main's one misses (a draft model's second choice, or a history with many diverging copies), measured by the same replay (rig `sdev/tree/step1.py`, outputs `step1_fl.txt` and `step1_27.txt`).
+
+## The embedded drafter one pass ahead: closed as measured (2026-11-01, SDEV, branch feat/draft-tail 998daca92 on main c92d2d353, kept on gitea, closed by F2DEV's ruling of 12:19 after the profile the owner asked for on 2026-10-31)
+
+- **Goal:** a request drafting from the embedded drafter sits a pass out each round while its chain runs; a draft tail ran the chain's steps after the head of the verifying pass, in the same submission, its drafts serving the next pass where the verify kept every draft and the pick was the tail's guess.
+- **Measured** (Qwen3.6-27B-MTP Q4_1 layer-split over two MI50s, `--drafter embedded --draft-max 63`, greedy, main / tail / tail / main, 2026-10-31 19:25-21:52, every reply the same bytes), decode tok/s: a1 code edit, one user, 36.46, 35.56 against 32.20, 32.86 (-9.7%); prose, one user, mean of four 23.37 against 16.18 (-31%); prose, four users, per request 9.36 against 7.67 (-18%); four code edits at once, aggregate 32.45, 31.66 against 34.63, 20.45.
+- **Profile** (per-pass logs): a1 took 231 tail passes, 193 of them 64-row lookup tails, none landing right, 13868 rows against 1478, and each tail pass waited on its chain before it recorded (median 222 ms, the whole host gap); b5 lost (193 s against 159 s) although 1147 of its 1256 landings were right.
+- **Why closed:** the tails given whatever they land and their 64-row size are a gate and a cap, but the wait is the design: a tail's pass records only after its chain, serializing what was meant to overlap, and it loses even where tails land right.
+- **Reopen if:** the chain can run without delaying the tail's recording.
+
+## A price cell as the median of its recent measures: closed as measured (2026-11-01, SDEV, branch fix/price-cell-median bd97a4b60 on main c92d2d353, kept on gitea, closed by F2DEV's ruling of 12:19)
+
+- **Goal:** production's stage-0 band-5 decode cells priced a few widths far above their neighbours, from single passes held behind other work, which the forgetting mean took a quarter of; each cell kept its last 8 measures and priced at their median.
+- **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL 2x2, four MI50s, fresh servers main / branch / branch / main, 2026-10-31 21:52-22:32, replies the same bytes): one user, 63k-token prose prompt, decode 54.96, 53.09 against 56.19, 53.16 tok/s (+1.2%, spread 3.5%); one user, 7.6k-token code prompt, 270.0, 264.3 against 274.9, 268.3 (+1.7%, spread 2.2%); four users, wall 350.1, 348.9 against 354.8, 357.3 s (2.0% slower) and the last request's first token 241.9, 241.5 against 248.3, 250.0 s (3.1% slower).
+- **Why closed:** no use measured, and the four-user first token is later; the outlying cells it targets cost no measurable decode in these runs.
+
 ## Test descriptions on their own page (2026-11-01, RDEV, branch docs/tests-page on main 34c18feb4, the owner's token-savings goal of 2026-11-01)
 
 - **Goal:** AGENTS.md is read into every agent call, and most of it was the Tests section's per-test descriptions; move them to their own page, losing nothing.

@@ -22,6 +22,16 @@ Identity: Qwen3-8B Q8_0 greedy 256 tokens in int8 and F16 and Qwen3-0.6B Q8_0 16
 **Left:** review; landing after the tile staging on a green hosted run.
 **Gotchas:** the tile rule's column groups are the extent's column tiles, at most eight (`split_tiles_of`), so a check of the tall build needs a matrix of at least 45 tall tiles on a 60-unit device, and a slice compared against it must keep the whole call's inner split.
 A 0.6B int8 pp512 cell is bimodal on this card in every arm (runs near 9600 and near 9870 tok/s, some at 7400); compare it over more rounds before reading a few percent.
+
+## Dashboard chart flow (2026-11-01, branch fix/dashboard-flow-maine72-20261101)
+
+- **Problem:** New samples appeared abruptly and axis rescaling moved the whole history at once. A fixed point jumped 73.69 pixels on contraction and 36.85 on expansion in the reproduced cases.
+- **Change:** Both scale directions ease over 250 ms, with tick labels and plotted samples using the same scale. The newest measured segment or isolated marker fades in through the existing elapsed-time animation loop. Redraws preserve progress; event-only sequence updates do not replay it. Collector changes, reset/missing points, clock jumps, pause, hidden tabs and reduced motion preserve their existing discontinuity rules. Values, timestamps, tooltips and collector cadence are unchanged.
+- **Checks:** The four focused Chromium checks at ba755b638 pass at 1440 CSS pixels and in a true 390-pixel iframe: geometry/zeros, cursor continuity, scale motion and sample reveal. Deterministic 16 ms chart-clock steps reduce the reproduced largest steps to 7.98 and 4.02 pixels; these are SVG geometry measurements, not physical frame-pacing measurements. Segment opacity is 0 at start, 0.36 at 90 ms and 1 at 250 ms. Docs and dead-code pass with no unlisted findings. Logs are in `scratch/dashboard-sample-reveal-20261101/`.
+- **Integration:** Combined the tested axis and sample-arrival changes onto main e72d09640. Dashboard HTML and tests are byte-identical Git blobs to ba755b638; the intervening main delta changes only ROCm and its documentation. Browser evidence carries forward. The combined STATUS record and README replace the superseded immediate-expansion claim, including the contradiction found in F2's review; docs/dead-code are checked again on this landing tree. The Markdown review retains the earlier unchanged-page audit and checks the changed dashboard behavior against its README and this record.
+- **Landing:** This branch lands by coordinator fast-forward after its applicable checks. HTML-only production deployment remains pending; no inference restart is needed. Collector, API and inference-runtime code are unchanged, so inference correctness and performance gates do not apply.
+- **Limits:** A new high may briefly extend beyond the plot edge while the scale opens, then becomes fully visible. Samples still arrive at the collector's two-second default cadence; the animation neither adds samples nor smooths measured TPS values.
+
 ## Dashboard live delivery (2026-11-01, branch feat/dashboard-sse-20261101)
 
 - **Goal:** Replace the browser's second two-second polling wait with a shared collector-to-browser event stream while preserving bounded history, rates, chart timestamps and the compact drafting grid.

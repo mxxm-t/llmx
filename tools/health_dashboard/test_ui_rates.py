@@ -530,6 +530,270 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 20)
 
+    def test_chart_scale_contracts_smoothly_without_changing_samples(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+function close(a, b, epsilon = 0.02) { return Math.abs(a - b) < epsilon; }
+const result = document.createElement('pre');
+result.id = 'rate-test-results';
+document.body.prepend(result);
+try {
+const originalMatchMedia = window.matchMedia;
+const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+window.matchMedia = () => ({matches: false});
+Object.defineProperty(document, 'hidden', {configurable: true, value: false});
+state.paused = false;
+state.collector = 'scale-test';
+state.range = 60;
+state.interval = 2;
+const scaleHost = document.createElement('div');
+scaleHost.id = 'scale-test-chart';
+scaleHost.style.cssText = 'width:min(420px,100%);height:215px';
+document.body.append(scaleHost);
+for (const suffix of ['summary','value','at']) {
+  const node = document.createElement('div');
+  node.id = 'scale-test-' + suffix;
+  document.body.append(node);
+}
+const config = {id:'scale-test', labels:['rate','isolated'], colors:['#7ed6cf','#f1c777'], unit:'tok/s', format:fmt,
+  values:(samples, i) => [samples[i].value, i === 0 ? 17 : null], note:'scale test'};
+const sample = (t, value) => ({t, value, reset:false, metrics:{}});
+renderChart([sample(-59,100), sample(-30,50), sample(-1,40)], 0, config, [], {end:0,animate:false});
+renderChart([sample(-30,50), sample(-1,40)], 2, config, [], {end:2,animate:true});
+const host = $('scale-test-chart');
+let group = host.querySelector('[data-chart-y-scale]');
+let entry = [...chartScaleNodes].find(item => item.group === group);
+const pair = index => [...entry.group.querySelectorAll('path')].at(-1).getAttribute('d')
+  .match(/[ML]([0-9.]+),([0-9.]+)/g)[index].match(/[ML]([0-9.]+),([0-9.]+)/).slice(1).map(Number);
+const yAt = (index, now) => {
+  updateChartScaleNode(entry, now);
+  const [x, y] = pair(index);
+  const ratio = Number(group.getAttribute('transform').match(/scale\(1 ([^)]+)\)/)?.[1] || 1);
+  return {x, y:entry.bottom + (y - entry.bottom) * ratio, cap:chartScaleValue(entry.scale, now)};
+};
+const labelsMatch = now => {
+  updateChartScaleNode(entry, now);
+  return entry.labels.every((label, i) => label.textContent === fmt(chartScaleValue(entry.scale, now) * (1 - i / 3)) &&
+    close(Number(label.getAttribute('y')) - 3, entry.top + i * entry.height / 3));
+};
+const start = entry.scale.startedAt;
+const atStart = yAt(0, start);
+const atMiddle = yAt(0, start + 125);
+const carriedCap = chartScaleValue(entry.scale, start + 125);
+const contractionY = [];
+for (let t = 0; t <= 250; t += 16) contractionY.push(yAt(0, start + Math.min(t, 250)).y);
+contractionY.push(yAt(0, start + 250).y);
+const contractionFrameMaxPx = Math.max(...contractionY.slice(1).map((value, i) => Math.abs(value - contractionY[i])));
+const contractionImmediatePx = Math.abs(yAt(0, start + 250).y - atStart.y);
+const carriedStart = entry.scale.startedAt;
+const originalNow = performance.now;
+Object.defineProperty(performance, 'now', {configurable:true, value:() => start + 125});
+chartScaleNodes.clear();
+renderChart([sample(-30,50), sample(-1,40)], 2, config, [], {end:2,animate:true});
+entry = [...chartScaleNodes].find(item => item.group === $('scale-test-chart').querySelector('[data-chart-y-scale]'));
+group = entry.group;
+const afterRedraw = yAt(0, start + 125);
+Object.defineProperty(performance, 'now', {configurable:true, value:originalNow});
+check('same-target telemetry redraw preserves the in-flight scale and point position',
+  entry.scale.startedAt === carriedStart && close(chartScaleValue(entry.scale, start + 125), carriedCap) &&
+  close(afterRedraw.y, atMiddle.y));
+const atEnd = yAt(0, start + 250);
+check('historical point moves continuously up as a departing peak leaves', atStart.y > atMiddle.y && atMiddle.y > atEnd.y);
+check('the contraction reaches the recomputed cap in 250ms', close(atEnd.cap, 57) && close(atEnd.y, entry.top + (1 - 50 / 57) * entry.height));
+check('tick labels map to the same interpolated cap at start, middle and end', labelsMatch(start) && labelsMatch(start + 125) && labelsMatch(start + 250));
+check('time coordinates stay fixed during the y-axis transition', close(atStart.x, atMiddle.x) && close(atMiddle.x, atEnd.x));
+const isolated = host.querySelector('circle[data-sample-value="17"]');
+check('sample values remain exact while isolated point position follows the scale', !!isolated && isolated.dataset.sampleValue === '17' &&
+  close(Number(isolated.getAttribute('cy')), entry.top + (1 - 17 / 57) * entry.height));
+const highSamples = [sample(-30,50), sample(-1,40), sample(2,200)];
+state.samples = highSamples;
+renderChart(highSamples, 2, config, [], {end:2,animate:true});
+const expanded = $('scale-test-chart').querySelector('[data-chart-y-scale]');
+const highPath = [...expanded.querySelectorAll('path')].at(-1);
+const expandedEntry = [...chartScaleNodes].find(item => item.group === expanded);
+const expandedPoints = [...highPath.getAttribute('d').matchAll(/[ML]([0-9.]+),([0-9.]+)/g)].map(match => match.slice(1).map(Number));
+const expandedPointY = (index, now) => {
+  updateChartScaleNode(expandedEntry, now);
+  const ratio = Number(expanded.getAttribute('transform').match(/scale\(1 ([^)]+)\)/)?.[1] || 1);
+  return expandedEntry.bottom + (expandedPoints[index][1] - expandedEntry.bottom) * ratio;
+};
+const expandStart = expandedEntry.scale.startedAt;
+const expandingFrom = chartScaleValue(expandedEntry.scale, expandStart);
+const expandY0 = expandedPointY(0, expandStart);
+const expandYmid = expandedPointY(0, expandStart + 125);
+const expandYend = expandedPointY(0, expandStart + 250);
+const highYend = expandedPointY(2, expandStart + 250);
+const expansionY = [];
+for (let t = 0; t <= 250; t += 16) expansionY.push(expandedPointY(0, expandStart + Math.min(t, 250)));
+expansionY.push(expandedPointY(0, expandStart + 250));
+const expansionFrameMaxPx = Math.max(...expansionY.slice(1).map((value, i) => Math.abs(value - expansionY[i])));
+const expansionImmediatePx = Math.abs(expandYend - expandY0);
+check('new maximum expands the cap continuously from its current value',
+  expandingFrom < 228 && expandY0 < expandYmid && expandYmid < expandYend &&
+  close(chartScaleValue(expandedEntry.scale, expandStart + 250), 228));
+check('new maximum is fully inside the plot after the 250ms zoom-out',
+  highYend >= expandedEntry.top && highYend <= expandedEntry.bottom && state.samples[2].value === 200);
+outcomes.push({name:'motion-pixel-diagnostics', ok:true, metrics:{viewport:innerWidth, chartWidth:scaleHost.clientWidth,
+  contractionImmediatePx:+contractionImmediatePx.toFixed(3), contractionMax16msPx:+contractionFrameMaxPx.toFixed(3),
+  expansionImmediatePx:+expansionImmediatePx.toFixed(3), expansionMax16msPx:+expansionFrameMaxPx.toFixed(3),
+  expansionStartCap:+expandingFrom.toFixed(3), expansionEndCap:+chartScaleValue(expandedEntry.scale, expandStart + 250).toFixed(3)}});
+if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden); else delete document.hidden;
+window.matchMedia = originalMatchMedia;
+} catch (error) { check('unexpected browser exception: ' + error.message, false); }
+globalThis.rateTestResults = outcomes;
+result.textContent = JSON.stringify(outcomes);
+"""
+        document = source.replace("</body>", "<script>" + cases + "</script></body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                wrapper = ("<!doctype html><html><body style='margin:0'><iframe style='border:0;width:" + str(width) +
+                           "px;height:1100px' srcdoc=\"" + html.escape(document, quote=True) +
+                           "\" onload=\"document.querySelector('pre').textContent=this.contentDocument.querySelector('pre').textContent\"></iframe>"
+                           "<pre id='rate-test-results'></pre></body></html>")
+                outcomes = self.run_browser(wrapper)
+                diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'motion-pixel-diagnostics')
+                print('dashboard axis pixels ' + json.dumps(diagnostics, sort_keys=True))
+                self.assertEqual(len(outcomes), 9)
+
+    def test_new_sample_reveal_keeps_values_and_redraw_continuity(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+function sample(seq, t, value, reset = false) { return {seq, t, value, reset, metrics:{}}; }
+const result = document.createElement('pre');
+result.id = 'rate-test-results';
+document.body.prepend(result);
+  const originalMatchMedia = window.matchMedia;
+  const originalHidden = Object.getOwnPropertyDescriptor(document, 'hidden');
+  const originalRaf = window.requestAnimationFrame;
+  const originalCancelRaf = window.cancelAnimationFrame;
+  const originalNow = performance.now;
+  let fakeNow = performance.now();
+  Object.defineProperty(performance, 'now', {configurable:true, value:() => fakeNow});
+  window.requestAnimationFrame = () => 0;
+  window.cancelAnimationFrame = () => {};
+  window.matchMedia = () => ({matches:false});
+  Object.defineProperty(document, 'hidden', {configurable:true, value:false});
+  state.paused = false;
+  state.collector = 'arrival-test';
+  state.range = 60;
+  state.interval = 2;
+  state.seq = 1;
+  state.samples = [sample(1, 100, 10)];
+  chartTimeline = {collector:'arrival-test', end:100, startedAt:performance.now(), seq:1};
+  const host = document.createElement('div');
+  host.id = 'arrival-test-chart';
+  host.style.cssText = 'width:min(720px,calc(100vw - 40px));height:215px';
+  document.body.append(host);
+  for (const suffix of ['summary','value','at']) {
+    const node = document.createElement('div');
+    node.id = 'arrival-test-' + suffix;
+    document.body.append(node);
+  }
+  const config = {id:'arrival-test', labels:['rate'], colors:['#7ed6cf'], unit:'tok/s', format:fmt,
+    values:(samples, i) => [samples[i].value]};
+  renderChart(state.samples, 100, config, [], {end:100, animate:true, revealSample:false, sampleTime:100});
+  const boundsBefore = host.getBoundingClientRect();
+  stopChartMotion();
+  const next = sample(2, 102, 10);
+  state.seq = 2;
+  state.samples = [state.samples[0], next];
+  const arrivalView = {lastSuccess:102, samples:state.samples, events:[]};
+  chartTimeline = {collector:'arrival-test', end:100, startedAt:fakeNow - 2000, seq:1};
+  let motion = chartMotionFor(arrivalView, fakeNow);
+  check('only a fresh visible sample starts a reveal', motion.revealSample && motion.sampleTime === 102);
+  renderChart(state.samples, 102, config, [], motion);
+  startChartMotion();
+  let segment = host.querySelector('[data-fresh-segment]');
+  const initialOpacity = segment?.getAttribute('opacity');
+  const segmentData = segment?.getAttribute('d');
+  const segmentEnd = motion.end;
+  check('new measured segment starts transparent with exactly two observed endpoints', initialOpacity === '0' &&
+    (segmentData?.match(/[ML]/g) || []).length === 2 && state.samples.length === 2 &&
+    state.samples[0].value === 10 && state.samples[1].value === 10);
+  const firstReveal = [...chartMotionNodes].find(entry => entry.revealStartedAt !== undefined);
+  const revealStart = firstReveal?.revealStartedAt;
+  check('fresh segment is registered with the shared frame owner (' + revealStart + ')', !!firstReveal && Number.isFinite(revealStart));
+  updateChartMotion(revealStart + 16);
+  fakeNow = revealStart + 90;
+  updateChartMotion(fakeNow);
+  const opacityMid = Number(getComputedStyle(segment).opacity);
+  check('segment opacity progresses without changing its sample coordinates (' + opacityMid + ')', opacityMid > 0.05 && opacityMid < 1 &&
+    segment.getAttribute('d') === segmentData);
+  const opacityBeforeRedraw = Number(getComputedStyle(segment).opacity);
+  motion = chartMotionFor(arrivalView, fakeNow);
+  renderChart(state.samples, 102, config, [], motion);
+  startChartMotion();
+  segment = host.querySelector('[data-fresh-segment]');
+  const opacityAfterRedraw = Number(segment?.getAttribute('opacity'));
+  const pointsAfterRedraw = [...(segment?.getAttribute('d') || '').matchAll(/[ML]([0-9.]+),([0-9.]+)/g)];
+  const pointsBeforeRedraw = [...segmentData.matchAll(/[ML]([0-9.]+),([0-9.]+)/g)];
+  const expectedShift = -(motion.end - segmentEnd) / state.range * (host.clientWidth - 63);
+  const actualShift = Number(pointsAfterRedraw.at(-1)?.[1]) - Number(pointsBeforeRedraw.at(-1)?.[1]);
+  check('same-sequence redraw resumes from current reveal progress (' + opacityBeforeRedraw + ' / ' + opacityAfterRedraw + ')', !!segment &&
+    Math.abs(opacityAfterRedraw - opacityBeforeRedraw) < 0.1 && pointsAfterRedraw.length === 2 &&
+    Math.abs(actualShift - expectedShift) < 0.02);
+  const revealAnchor = chartRevealStates['arrival-test'].startedAt;
+  fakeNow = revealStart + 100;
+  state.seq = 3;
+  motion = chartMotionFor(arrivalView, fakeNow);
+  renderChart(state.samples, 102, config, [], motion);
+  segment = host.querySelector('[data-fresh-segment]');
+  check('event-only sequence change does not replay the same measured sample', motion.revealSample &&
+    chartRevealStates['arrival-test'].startedAt === revealAnchor && Math.abs(Number(segment?.getAttribute('opacity')) - 0.4) < 0.01);
+  updateChartMotion(revealStart + 100);
+  fakeNow = revealStart + 150;
+  updateChartMotion(fakeNow);
+  fakeNow = revealStart + 250;
+  updateChartMotion(fakeNow);
+  const opacityFinal = Number(getComputedStyle(segment).opacity);
+  check('measured segment reaches full visibility (' + opacityFinal + ')', segment.isConnected && opacityFinal > 0.99);
+  const boundsAfter = host.getBoundingClientRect();
+  check('segment reveal does not change chart geometry', boundsBefore.width === boundsAfter.width && boundsBefore.height === boundsAfter.height);
+
+  state.seq = 4;
+  state.samples = [sample(1, 100, 10), sample(2, 102, null), sample(3, 104, 10, true)];
+  chartTimeline = {collector:'arrival-test', end:102, startedAt:fakeNow - 2000, seq:3};
+  motion = chartMotionFor({lastSuccess:104, samples:state.samples, events:[]}, fakeNow);
+  renderChart(state.samples, 104, config, [], motion);
+  check('a reset after a missing point does not reveal a connecting segment',
+    !host.querySelector('[data-fresh-segment]') && !!host.querySelector('[data-fresh-sample-marker]'));
+
+  state.seq = 5;
+  state.samples.push(sample(4, 106, 12));
+  chartTimeline = {collector:'arrival-test', end:104, startedAt:fakeNow - 2000, seq:4};
+  window.matchMedia = () => ({matches:true});
+  motion = chartMotionFor({lastSuccess:106, samples:state.samples, events:[]}, fakeNow);
+  renderChart(state.samples, 106, config, [], motion);
+  check('reduced motion displays new samples immediately without a reveal',
+    !motion.revealSample && !host.querySelector('[data-fresh-segment]') && !host.querySelector('[data-fresh-sample-marker]'));
+  if (originalHidden) Object.defineProperty(document, 'hidden', originalHidden); else delete document.hidden;
+  window.matchMedia = originalMatchMedia;
+  window.requestAnimationFrame = originalRaf;
+  window.cancelAnimationFrame = originalCancelRaf;
+  Object.defineProperty(performance, 'now', {configurable:true, value:originalNow});
+  chartMotionNodes.clear();
+  chartScaleNodes.clear();
+  chartMotionFrame = null;
+  outcomes.push({name:'motion-reveal-diagnostics', ok:true, metrics:{viewport:innerWidth, chartWidth:host.clientWidth,
+    opacityStart:Number(initialOpacity), opacityAt90ms:+opacityMid.toFixed(3), opacityAt250ms:+opacityFinal.toFixed(3)}});
+  result.textContent = JSON.stringify(outcomes);
+"""
+        document = source.replace("</body>", "<script>" + cases + "</script></body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                wrapper = ("<!doctype html><html><body style='margin:0'><iframe style='border:0;width:" + str(width) +
+                           "px;height:1100px' srcdoc=\"" + html.escape(document, quote=True) +
+                           "\" onload=\"document.querySelector('pre').textContent=this.contentDocument.querySelector('pre').textContent\"></iframe>"
+                           "<pre id='rate-test-results'></pre></body></html>")
+                outcomes = self.run_browser(wrapper)
+                diagnostics = next(item['metrics'] for item in outcomes if item['name'] == 'motion-reveal-diagnostics')
+                print('dashboard segment reveal ' + json.dumps(diagnostics, sort_keys=True))
+                self.assertEqual(len(outcomes), 11)
+
     def test_startup_panel_transitions_and_rate_suppression(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""

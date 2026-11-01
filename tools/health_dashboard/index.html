@@ -4133,7 +4133,12 @@ const inspection = { time: null, pinned: false };
 let chartTimeline = {collector: null, end: null, startedAt: 0, seq: 0};
 let chartVisualEnd = null;
 const chartMotionNodes = new Set();
+const chartScaleStates = {};
+const chartScaleNodes = new Set();
+const chartRevealStates = {};
 let chartMotionFrame = null;
+const chartScaleDuration = 250;
+const chartRevealDuration = 250;
 function chartCursorEnd(anchor, startedAt, now) {
   return anchor + Math.max(0, now - startedAt) / 1000;
 }
@@ -4160,12 +4165,86 @@ function chartMotionFor(view, now = performance.now()) {
     {collector: state.collector, end, startedAt: now, seq: state.seq} :
     {...chartTimeline, collector: state.collector, seq: state.seq};
   chartVisualEnd = end;
-  return {end, animate: !stopped};
+  return {end, animate: !stopped,
+    revealSample: newSample && !collectorChanged && !clockJump && !stopped,
+    sampleTime: view.samples.at(-1)?.t ?? null};
 }
 function stopChartMotion() {
   if (chartMotionFrame !== null) cancelAnimationFrame(chartMotionFrame);
   chartMotionFrame = null;
   chartMotionNodes.clear();
+  chartScaleNodes.clear();
+}
+function chartScaleValue(scale, now) {
+  if (!scale || scale.startCap === scale.targetCap) return scale?.targetCap || 1;
+  const progress = Math.max(0, Math.min(1, (now - scale.startedAt) / chartScaleDuration));
+  const eased = progress * progress * (3 - 2 * progress);
+  return scale.startCap + (scale.targetCap - scale.startCap) * eased;
+}
+function chartScaleFor(config, targetCap, motion, now) {
+  const previous = chartScaleStates[config.id];
+  const mode = String(config.mode || '') + ':' + String(config.floor || '');
+  const sameView = previous && previous.collector === state.collector && previous.range === state.range && previous.mode === mode;
+  const currentCap = sameView ? chartScaleValue(previous, now) : targetCap;
+  if (!motion?.animate || !sameView) {
+    chartScaleStates[config.id] = {
+      collector: state.collector, range: state.range, mode,
+      startCap: targetCap, targetCap, startedAt: now
+    };
+  } else if (previous.targetCap !== targetCap) {
+    chartScaleStates[config.id] = {
+      collector: state.collector, range: state.range, mode,
+      startCap: currentCap, targetCap, startedAt: now
+    };
+  }
+  return chartScaleStates[config.id];
+}
+function chartRevealFor(config, sampleTime, motion, now) {
+  const previous = chartRevealStates[config.id];
+  const mode = String(config.mode || '') + ':' + String(config.floor || '');
+  const sameContext = previous && previous.collector === state.collector && previous.range === state.range && previous.mode === mode;
+  const sameSample = sameContext && previous.sampleTime === sampleTime;
+  if (!number(sampleTime)) {
+    delete chartRevealStates[config.id];
+    return null;
+  }
+  if (!motion?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode, sampleTime, completed: true};
+    return null;
+  }
+  if (motion.revealSample && sameContext && sampleTime !== previous.sampleTime) {
+    if (sampleTime <= previous.sampleTime) return null;
+    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode,
+      sampleTime, startedAt: now};
+  } else if (!sameSample) {
+    chartRevealStates[config.id] = {collector: state.collector, range: state.range, mode, sampleTime, completed: true};
+    return null;
+  }
+  const reveal = chartRevealStates[config.id];
+  if (reveal.completed) return null;
+  const elapsed = Math.max(0, now - reveal.startedAt);
+  if (elapsed >= chartRevealDuration) return null;
+  return {opacity: elapsed / chartRevealDuration, startedAt: reveal.startedAt};
+}
+function updateChartScaleNode(entry, now) {
+  const scale = entry.scale;
+  const cap = chartScaleValue(scale, now);
+  const ratio = scale.targetCap / cap;
+  entry.group.setAttribute('transform', ratio === 1 ? '' :
+    'translate(0 ' + entry.bottom + ') scale(1 ' + ratio + ') translate(0 ' + -entry.bottom + ')');
+  entry.labels.forEach((label, i) => {
+    const text = entry.format(cap * (1 - i / 3));
+    if (label.textContent !== text) label.textContent = text;
+  });
+  entry.circles.forEach(circle => {
+    circle.setAttribute('cy', (entry.top + (1 - Number(circle.dataset.sampleValue) / cap) * entry.height).toFixed(2));
+  });
+  return now < scale.startedAt + chartScaleDuration && scale.startCap !== scale.targetCap;
+}
+function updateChartScales(now) {
+  for (const entry of chartScaleNodes) {
+    if (!entry.group.isConnected || !updateChartScaleNode(entry, now)) chartScaleNodes.delete(entry);
+  }
 }
 function updateChartMotion(now) {
   chartMotionFrame = null;
@@ -4176,20 +4255,30 @@ function updateChartMotion(now) {
       chartMotionNodes.delete(motion);
       continue;
     }
+    if (motion.revealStartedAt !== undefined) {
+      const opacity = Math.max(0, Math.min(1, (now - motion.revealStartedAt) / chartRevealDuration));
+      motion.node.setAttribute('opacity', opacity.toFixed(3));
+      if (opacity >= 1) chartMotionNodes.delete(motion);
+      continue;
+    }
     const elapsed = Math.max(0, chartVisualEnd - motion.end);
     const dx = -elapsed / motion.range * motion.width;
     motion.node.setAttribute('transform', 'translate(' + dx.toFixed(3) + ' 0)');
   }
-  if (chartMotionNodes.size) chartMotionFrame = requestAnimationFrame(updateChartMotion);
+  updateChartScales(now);
+  if (chartMotionNodes.size || chartScaleNodes.size) chartMotionFrame = requestAnimationFrame(updateChartMotion);
 }
 function registerChartMotion(node, motion, width, range) {
   if (motion.animate) chartMotionNodes.add({node, end: motion.end, width, range});
 }
 function startChartMotion() {
-  if (chartMotionNodes.size && chartMotionFrame === null && !state.paused && !document.hidden &&
+  if ((chartMotionNodes.size || chartScaleNodes.size) && chartMotionFrame === null && !state.paused && !document.hidden &&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     chartMotionFrame = requestAnimationFrame(updateChartMotion);
   }
+}
+function registerChartReveal(node, reveal) {
+  if (reveal) chartMotionNodes.add({node, revealStartedAt: reveal.startedAt});
 }
 function settleChartMotion() {
   const now = performance.now();
@@ -4252,7 +4341,10 @@ function renderChart(samples, stamp, config, events, motion = null) {
   });
   const finite = points.flatMap(point => point.values.filter(number));
   const maximum = finite.length ? Math.max(...finite): 0;
-  const cap = config.floor ? Math.max(config.floor, maximum * 1.05): maximum > 0 ? maximum * 1.14: 1;
+  const targetCap = config.floor ? Math.max(config.floor, maximum * 1.05): maximum > 0 ? maximum * 1.14: 1;
+  const scale = chartScaleFor(config, targetCap, motion, performance.now());
+  const cap = scale.targetCap;
+  const displayCap = chartScaleValue(scale, performance.now());
   const x = t => chartX(t, end, state.range, W, L, R);
   const y = value => T + (1 - value / cap) * (H - T - B);
   const svg = svgNode('svg', {
@@ -4261,8 +4353,15 @@ function renderChart(samples, stamp, config, events, motion = null) {
     'aria-hidden': 'true'
   });
   svg.append(svgNode('text', { x: L, y: 9 }, config.unit));
+  const scaleLabels = [];
   for (let i = 0; i < 4; i++) {
     const yy = T + i * (H - T - B) / 3;
+    const label = svgNode('text', {
+      x: L - 10,
+      y: yy + 3,
+      'text-anchor': 'end'
+    }, format(displayCap * (1 - i / 3)));
+    scaleLabels.push(label);
     svg.append(svgNode('line', {
       x1: L,
       y1: yy,
@@ -4270,14 +4369,11 @@ function renderChart(samples, stamp, config, events, motion = null) {
       y2: yy,
       stroke: '#253343',
       'stroke-dasharray': '3 5'
-    }), svgNode('text', {
-      x: L - 10,
-      y: yy + 3,
-      'text-anchor': 'end'
-    }, format(cap * (1 - i / 3))));
+    }), label);
   }
   const timeMotion = svgNode('g', {'data-chart-motion': 'true'});
   const plotMotion = svgNode('g', {'data-chart-motion': 'true'});
+  const seriesScale = svgNode('g', {'data-chart-y-scale': 'true'});
   const plotClip = svgNode('clipPath', {id: config.id + '-plot-clip'});
   plotClip.append(svgNode('rect', {x: L, y: T, width: W - L - R, height: H - T - B}));
   const viewClip = svgNode('clipPath', {id: config.id + '-view-clip'});
@@ -4321,18 +4417,32 @@ function renderChart(samples, stamp, config, events, motion = null) {
     }
     if (shaded) host.append(element('div', 'chart-gap-key', 'Shaded = unavailable'))
   }
+  plotMotion.append(seriesScale);
+  const scaleCircles = [];
+  const freshSegments = [];
+  const reveal = chartRevealFor(config, motion?.sampleTime, motion, performance.now());
   for (let series = config.labels.length - 1; series >= 0; series--) {
     let path = '',
     connected = false;
-    for (const point of points) {
+    let previousPoint = null;
+    let freshPath = '';
+    for (let index = 0; index < points.length; index++) {
+      const point = points[index];
       if (!number(point.values[series])) {
         connected = false;
+        previousPoint = null;
         continue;
       }
-      path += (connected ? 'L': 'M') + x(point.t).toFixed(2) + ',' + y(point.values[series]).toFixed(2) + ' ';
+      const coords = x(point.t).toFixed(2) + ',' + y(point.values[series]).toFixed(2);
+      if (connected && reveal && index === points.length - 1 && point.t === motion.sampleTime) {
+        freshPath = 'M' + x(previousPoint.t).toFixed(2) + ',' + y(previousPoint.values[series]).toFixed(2) + ' L' + coords;
+      } else {
+        path += (connected ? 'L': 'M') + coords + ' ';
+      }
       connected = true;
+      previousPoint = point;
     }
-    plotMotion.append(svgNode('path', {
+    const stroke = {
       d: path,
       fill: 'none',
       stroke: config.colors[series],
@@ -4340,13 +4450,32 @@ function renderChart(samples, stamp, config, events, motion = null) {
       'stroke-linejoin': 'round',
       'stroke-linecap': 'round',
       'vector-effect': 'non-scaling-stroke'
-    }));
+    };
+    seriesScale.append(svgNode('path', stroke));
+    if (freshPath) {
+      const segment = svgNode('path', {...stroke, d: freshPath, opacity: reveal?.opacity ?? 1,
+        'data-fresh-segment': 'true'});
+      seriesScale.append(segment);
+      if (reveal) freshSegments.push(segment);
+    }
     points.forEach((point, index) => {
       if (!number(point.values[series])) return;
       if (number(points[index - 1]?.values[series]) || number(points[index + 1]?.values[series])) return;
-      plotMotion.append(svgNode('circle', {cx: x(point.t), cy: y(point.values[series]), r: 2.5, fill: config.colors[series], 'data-sample-value': point.values[series]}))
+      const circle = svgNode('circle', {cx: x(point.t), cy: y(point.values[series]), r: 2.5,
+        fill: config.colors[series], 'data-sample-value': point.values[series]});
+      if (reveal && index === points.length - 1 && point.t === motion.sampleTime) {
+        circle.setAttribute('opacity', String(reveal.opacity));
+        circle.setAttribute('data-fresh-sample-marker', 'true');
+        freshSegments.push(circle);
+      }
+      plotMotion.append(circle);
+      scaleCircles.push(circle);
     });
   }
+  const scaleEntry = {scale, group: seriesScale, labels: scaleLabels, circles: scaleCircles,
+    format, top: T, bottom: H - B, height: H - T - B};
+  updateChartScaleNode(scaleEntry, performance.now());
+  if (motion?.animate && scale.startCap !== scale.targetCap) chartScaleNodes.add(scaleEntry);
   const eventColors = { restart: '#f48d99', disconnect: '#f3c17e', recovery: '#66dfd1' };
   events.filter(event => event.t >= start && event.t <= end && eventColors[event.kind]).forEach(event => {
     const marker = svgNode('g');
@@ -4366,6 +4495,7 @@ function renderChart(samples, stamp, config, events, motion = null) {
   });
   plotMotion.append(cross);
   host.append(svg);
+  freshSegments.forEach(node => registerChartReveal(node, reveal));
   const tooltip = element('div', 'tooltip');
   host.append(tooltip);
   if (!finite.length) {

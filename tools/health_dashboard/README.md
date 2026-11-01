@@ -12,7 +12,10 @@ timestamp using elapsed browser time. Samples keep their measured timestamps;
 known points just ahead of the cursor enter the chart when the timeline reaches
 them. A large timestamp gap or collector reset moves the cursor forward to the
 latest observation instead of animating through a long stale interval. The chart
-does not add or smooth data points.
+does not add or smooth data points. New measured line segments and vertical
+scale changes ease over 250ms; this changes presentation only, not sample values
+or timestamps, and respects reduced-motion preferences. A new high may briefly
+reach beyond the plot edge while the scale opens to include it.
 Pinned and hover inspection stay tied to their selected sample as the timeline
 moves. Motion stops while pausing, in hidden tabs, and when reduced motion is
 requested; collector resets re-anchor to the new collector's timestamp.
@@ -174,6 +177,11 @@ missing history, resets and recorded disconnects leave these changes unavailable
 Sample boundaries approximate the selected duration without extrapolation; the
 tooltip gives their actual times and duration. Recorded collector events appear
 as timeline markers.
+
+The y-axis expands and contracts over 250 ms, with tick labels following the
+same scale as the plotted samples. A new high may briefly extend beyond the
+plot edge during expansion. This changes only chart mapping; rate values are
+not interpolated.
 
 Detailed cache, drafting and scheduling counters expand separately. The browser
 remembers the range, panel choices and compact spacing when local storage is

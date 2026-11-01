@@ -5,6 +5,7 @@ import os
 import threading
 import time
 import unittest
+import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import server
@@ -262,53 +263,74 @@ class HealthTests(unittest.TestCase):
         thread = threading.Thread(target=web.serve_forever, daemon=True)
         thread.start()
 
-        def read_frame(response):
-            lines = []
-            while True:
-                line = response.readline()
-                if not line or line in (b"\r\n", b"\n"):
-                    break
-                lines.append(line.decode("utf-8").rstrip("\r\n"))
-            return lines
+        def frame_reader(response, compressed):
+            stream = zlib.decompressobj(16 + zlib.MAX_WBITS) if compressed else None
+            pending = bytearray()
 
-        def connect(last_event_id=None):
+            def read_frame():
+                while b"\n\n" not in pending:
+                    chunk = response.read1(65536)
+                    if not chunk:
+                        raise AssertionError("stream ended before an SSE frame")
+                    pending.extend(stream.decompress(chunk) if stream else chunk)
+                frame, rest = pending.split(b"\n\n", 1)
+                pending[:] = rest
+                return frame.decode("utf-8").splitlines()
+
+            read_frame.inflater = stream
+            return read_frame
+
+        def payload(lines):
+            return json.loads(next(line[6:] for line in lines if line.startswith("data: ")))
+
+        def connect(last_event_id=None, gzip_ok=True):
             conn = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=3)
             headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+            headers["Accept-Encoding"] = "gzip" if gzip_ok else "gzip;q=0"
             conn.request("GET", "/api/stream", headers=headers)
             response = conn.getresponse()
             self.assertEqual(response.status, 200)
             self.assertEqual(response.getheader("Content-Type"), "text/event-stream; charset=utf-8")
-            lines = read_frame(response)
+            self.assertEqual(response.getheader("Content-Encoding"), "gzip" if gzip_ok else None)
+            read_frame = frame_reader(response, gzip_ok)
+            lines = read_frame()
             event_id = next(line[4:] for line in lines if line.startswith("id: "))
-            data = json.loads(next(line[6:] for line in lines if line.startswith("data: ")))
-            return conn, response, event_id, data
+            data = payload(lines)
+            return conn, response, read_frame, event_id, data
 
         try:
-            first, _, event_id, initial = connect()
+            first, _, _, event_id, initial = connect()
             self.assertEqual([sample["seq"] for sample in initial["samples"]], [1])
-            second, _, _, same = connect()
+            second, _, _, _, same = connect()
             self.assertEqual([sample["seq"] for sample in same["samples"]], [1])
+            plain, _, _, _, plain_initial = connect(gzip_ok=False)
+            self.assertEqual([sample["seq"] for sample in plain_initial["samples"]], [1])
             self.assertEqual(calls, [1])
             first.close()
             second.close()
+            plain.close()
 
             collector.poll_once()
-            resumed, replay_response, _, replay = connect(event_id)
+            resumed, replay_response, read_replay, _, replay = connect(event_id)
             self.assertEqual([sample["seq"] for sample in replay["samples"]], [2])
             self.assertEqual(calls, [1, 2])
             collector.fetch = lambda: (503, startup_health())
             collector.poll_once()
-            starting = json.loads(next(line[6:] for line in read_frame(replay_response) if line.startswith("data: ")))
+            starting = payload(read_replay())
             self.assertEqual(starting["startup"]["status"], "starting")
             self.assertEqual(starting["samples"], [])
             collector.fetch = lambda: (_ for _ in ()).throw(ValueError("upstream unavailable"))
             collector.poll_once()
-            lines = read_frame(replay_response)
-            disconnected = json.loads(next(line[6:] for line in lines if line.startswith("data: ")))
+            disconnected = payload(read_replay())
             self.assertFalse(disconnected["ok"])
             self.assertEqual(disconnected["events"][-1]["kind"], "disconnect")
             collector.stop()
-            self.assertEqual(replay_response.read(1), b"")
+            while True:
+                chunk = replay_response.read1(4096)
+                if not chunk:
+                    break
+                read_replay.inflater.decompress(chunk)
+            self.assertTrue(read_replay.inflater.eof)
             resumed.close()
         finally:
             web.shutdown()

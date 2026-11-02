@@ -1318,7 +1318,7 @@ private:
         const ReuseMiss& m = s.last_miss;
         const std::string last = !s.reuse_misses ? "null" : "{\"prompt\":" + n(m.prompt) + ",\"reused\":" + n(m.reused) + ",\"agreed\":" + n(m.agreed) + ",\"limit\":" + jmini::quote(limit_name(m.limit)) +
             ",\"at\":" + n(m.at) + ",\"message\":" + (m.messages ? n(m.message + 1) : "null") + ",\"messages\":" + n(m.messages) + ",\"role\":" + (m.messages ? jmini::quote(m.role) : "null") + "}";
-        return ",\"misses\":{\"since_start\":" + n(s.reuse_misses) + ",\"last\":" + last + "}";
+        return ",\"misses\":{\"since_start\":" + n(s.reuse_misses) + ",\"last\":" + last + "},\"scans\":{\"since_start\":" + n(s.reuse_scans) + "}";
     }
 
     // Where each message of a chat prompt ends in `ids` and its role, from the end tokens alone with no render, for the note of a turn that reuses little (Cache::note_miss).

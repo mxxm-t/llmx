@@ -4,10 +4,12 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <random>
 #include <set>
 
 #include "core/crc32c.hpp"
@@ -557,6 +559,167 @@ void refused_evicts_nothing(const Make& make, const bpe::Tokenizer& tok, uint32_
     }
     sched.stop();
     runner.join();
+}
+
+// A request waiting for room asks the reuse question every round, and each round compares at most the two holders its answers name token by token, however many donors share its prompt (Stats::reuse_scans).
+// On 16 blocks four requests of two blocks leave three donors (max_seqs 3) sharing N's first block, capped A holds 8 blocks for 900 tokens and N needs 10, so N waits about 900 rounds and then gives its reply on a fresh server.
+void waiting_round_cost(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 16 * kBlock;
+    const std::vector<uint32_t> shared = prompt_of(7, 200, vocab);
+    std::vector<Req> setup;
+    for (uint32_t k = 0; k < 4; ++k) {
+        std::vector<uint32_t> p = shared;
+        p.push_back(k + 1);
+        setup.push_back(Req{p, 1});
+    }
+    const Req a{prompt_of(1, 10, vocab), 900};
+    std::vector<uint32_t> np = shared;
+    const std::vector<uint32_t> tail = prompt_of(3, 1000, vocab);
+    np.insert(np.end(), tail.begin(), tail.end());
+    const Req n{np, 10};
+    const Reply alone = serve(*make(pool, 0), tok, 3, {{n}})[0];
+    auto model = make(pool, 0);
+    server::Scheduler sched(*model, tok, 3, 64);
+    std::thread runner([&] { sched.run(); });
+    try {
+        for (const Req& r : setup) drain(*sched.submit(r.prompt, params_of(r)));
+        const size_t before = sched.stats().reuse_scans;
+        const auto ha = sched.submit(a.prompt, params_of(a)), hn = sched.submit(n.prompt, params_of(n));
+        drain(*ha);
+        same(alone, drain(*hn), "a request that waited for room beside three donors sharing its prompt");
+        const size_t scans = sched.stats().reuse_scans - before;
+        require(scans <= 3 * (size_t)(a.cap + n.cap) + 64,
+                "a request waiting about " + std::to_string(a.cap) + " rounds for room compared " + std::to_string(scans) + " holders token by token, more than 3 a round");
+        std::cout << "server-resume: a request waiting " << a.cap << " rounds for room beside three donors compared " << scans << " holders token by token" << std::endl;
+        ledger(sched.stats(), *model, "after a request waited for room beside donors");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
+// The reuse question by hashes gives the token compare's kind, index and tokens on random holders, also with every block hashing to 0 and asked of a holder's own tokens.
+// Prefixes, row classes and states end on and off block edges; some holders are passed over and some boundaries lack their rows.
+void reuse_question_by_hashes() {
+    constexpr size_t bt = 16;
+    std::mt19937_64 rng(20261102);
+    const auto pick = [&](size_t n) { return (size_t)(rng() % n); };
+    const auto row_class = [](size_t e) { return e <= 1 ? 0 : e <= 16 ? 1 : 2; };
+    const auto alike = [&](const std::vector<server::RowClass>& a, const std::vector<server::RowClass>& b, size_t n) { return server::alike(a, b, n, row_class); };
+    // Row classes over n positions: runs of random extents, their ends anywhere, mid-block included.
+    const auto classes_of = [&](size_t n) {
+        std::vector<server::RowClass> c;
+        for (size_t at = 0; at < n;) {
+            const size_t end = std::min(n, at + 1 + pick(3 * bt));
+            c.push_back({end, std::vector<size_t>{1, 8, 16, 64}[pick(4)], {}});
+            at = end;
+        }
+        return c;
+    };
+    size_t fell_back = 0, answered = 0;
+    for (int trial = 0; trial < 3000; ++trial) {
+        const size_t len = bt * (2 + pick(12)) + pick(bt);
+        std::vector<uint32_t> base(len);
+        for (uint32_t& t : base) t = (uint32_t)pick(5);
+        // A holder or the question: base's tokens up to a random point, on a block edge or not, then tokens of its own.
+        const auto derived = [&]() {
+            const size_t keep = pick(2) ? bt * pick(len / bt + 1) : pick(len + 1);
+            std::vector<uint32_t> t(base.begin(), base.begin() + (std::ptrdiff_t)keep);
+            const size_t more = pick(3 * bt);
+            for (size_t k = 0; k < more; ++k) t.push_back(5 + (uint32_t)pick(3));
+            return t;
+        };
+        const std::vector<server::RowClass> shared = classes_of(len + 4 * bt);
+        const auto classes_for = [&](size_t n) {
+            if (pick(3)) return shared;
+            return classes_of(n);
+        };
+        std::deque<server::HeldTokens> held;
+        std::deque<std::vector<server::RowClass>> cls;
+        std::vector<server::ReuseHolder> holders;
+        std::vector<char> rows;
+        const size_t counts[3] = {pick(5), pick(5), pick(6)};
+        const server::Served::Kind kinds[3] = {server::Served::Kind::donor, server::Served::Kind::host, server::Served::Kind::bound};
+        for (size_t k = 0; k < 3; ++k)
+            for (size_t i = 0; i < counts[k]; ++i) {
+                held.emplace_back(derived());
+                cls.push_back(classes_for(held.back().size()));
+                const size_t n = held.back().size();
+                const size_t on_hand = pick(4) ? n : pick(n + 1);
+                std::optional<size_t> kept;
+                if (pick(4)) kept = pick(2) ? bt * pick(on_hand / bt + 1) : pick(on_hand + 1);
+                holders.push_back({kinds[k], i, &held.back(), on_hand, &cls.back(), kept, pick(6) == 0});
+                if (kinds[k] == server::Served::Kind::bound) rows.push_back(pick(4) != 0);
+            }
+        const std::vector<uint32_t> asked = derived();
+        const std::vector<server::RowClass> own = classes_for(asked.size());
+        const bool state = pick(3) == 0;
+        std::atomic<size_t> scans{0};
+        const auto common = [](const server::HeldTokens& a, const server::HeldTokens& b) { return server::common_prefix(a.data(), b.data(), std::min(a.size(), b.size())); };
+        const auto blocks = [](const server::HeldTokens& t) -> const std::vector<uint64_t>& { return t.blocks(bt); };
+        const auto has_rows = [&](size_t i) { return rows.at(i) != 0; };
+        const auto same = [&](const server::Served& a, const server::Served& b, const std::string& what) {
+            require(a.kind == b.kind && a.index == b.index && a.tokens == b.tokens,
+                    "the reuse question " + what + " gave kind " + std::to_string((int)a.kind) + " index " + std::to_string(a.index) + " tokens " + std::to_string(a.tokens) +
+                        " against the token compare's kind " + std::to_string((int)b.kind) + " index " + std::to_string(b.index) + " tokens " + std::to_string(b.tokens) +
+                        " (trial " + std::to_string(trial) + ")");
+        };
+        const server::ReuseAsked q{asked.data(), asked.size(), nullptr, &own, nullptr, state};
+        const server::Served exact = server::reuse_answer(q, holders, bt, true, scans, alike, common, blocks, has_rows);
+        answered += exact.kind != server::Served::Kind::none;
+        same(server::reuse_answer(q, holders, bt, false, scans, alike, common, blocks, has_rows), exact, "by hashes");
+        const std::vector<uint64_t> hashes = server::block_hashes(asked.data(), asked.size(), bt);
+        server::ReuseAsked given = q;
+        given.hashes = hashes.data();
+        same(server::reuse_answer(given, holders, bt, false, scans, alike, common, blocks, has_rows), exact, "by hashes made once");
+        // Every block hashing to 0: each holder seems to share all it holds, and the token compare must still give the answer.
+        const std::vector<uint64_t> zeros(asked.size() / bt + len + 8 * bt, 0);
+        const auto zero_blocks = [&](const server::HeldTokens&) -> const std::vector<uint64_t>& { return zeros; };
+        server::ReuseAsked colliding = q;
+        colliding.hashes = zeros.data();
+        const size_t before = scans.load();
+        same(server::reuse_answer(colliding, holders, bt, false, scans, alike, common, zero_blocks, has_rows), exact, "with every block hashing to 0");
+        fell_back += scans.load() - before > 1;
+        // The question asked of a holder's own tokens, compared by what pairs share.
+        const server::HeldTokens mine(asked);
+        server::ReuseAsked own_tokens = q;
+        own_tokens.held = &mine;
+        same(server::reuse_answer(own_tokens, holders, bt, false, scans, alike, common, blocks, has_rows), exact, "of a holder's own tokens");
+    }
+    require(answered > 1000 && fell_back > 100, "the reuse question's trials answered " + std::to_string(answered) + " and fell back " + std::to_string(fell_back) + " times, too few to test");
+    std::cout << "server-resume: the reuse question by hashes gave the token compare's answer in 3000 trials, " << answered << " answered and " << fell_back << " falling back on colliding hashes" << std::endl;
+}
+
+// The pair memo follows a donor trimmed shorter (Cache::trim), which decides Cache::holds and so a boundary's rank.
+// Past its cap it keeps the live holders' pairs and drops the rest.
+void pair_memo() {
+    std::atomic<size_t> scans{0};
+    server::PairMemo memo;
+    std::vector<uint32_t> t(256);
+    for (size_t k = 0; k < t.size(); ++k) t[k] = (uint32_t)k;
+    server::HeldTokens bound(std::vector<uint32_t>(t.begin(), t.begin() + 128)), donor(t);
+    std::vector<uint64_t> live{bound.generation(), donor.generation()};
+    const auto live_of = [&] { return live; };
+    require(memo.common(bound, donor, scans, live_of) == 128, "a donor holding a boundary's tokens shares all of them");
+    donor.resize(64);
+    live = {bound.generation(), donor.generation()};
+    require(memo.common(bound, donor, scans, live_of) == 64, "a donor trimmed to 64 tokens still shares 128 with a boundary in the pair memo");
+    donor.assign(t.begin(), t.begin() + 200);
+    live = {bound.generation(), donor.generation()};
+    require(memo.common(bound, donor, scans, live_of) == 128, "a donor given its tokens again shares the boundary's 128");
+    // Many dead pairs beside the live one: the live pair is never compared again, and the memo stays within twice its least cap.
+    const size_t scans_live = scans.load();
+    for (size_t k = 0; k < 20000; ++k) {
+        server::HeldTokens gone(std::vector<uint32_t>(t.begin(), t.begin() + 32));
+        require(memo.common(gone, donor, scans, live_of) == 32, "a short holder shares its 32 tokens");
+        require(memo.common(bound, donor, scans, live_of) == 128, "the live pair's 128 shared tokens");
+    }
+    require(scans.load() - scans_live == 20000, "the live pair was compared again " + std::to_string(scans.load() - scans_live - 20000) + " times past the memo's cap");
+    require(memo.size() <= 8192, "the pair memo holds " + std::to_string(memo.size()) + " pairs, dead ones not dropped");
+    std::cout << "server-resume: the pair memo follows a trimmed donor and keeps its live pair past its cap, holding " << memo.size() << " pairs" << std::endl;
 }
 
 // Paused requests wait apart from the queue, so they do not fill the queue --max-queue bounds: with a queue of one, A's growth pauses B as in three_uncapped and a request submitted meanwhile is queued, not refused.
@@ -5586,6 +5749,9 @@ int main(int argc, char** argv) {
             cancel_while_paused_donor(one, tok, vocab);
             resumed_short_of_room(one, tok, vocab);
             refused_evicts_nothing(one, tok, vocab);
+            reuse_question_by_hashes();
+            pair_memo();
+            waiting_round_cost(one, tok, vocab);
             paused_outside_queue(weights, tok, vocab);
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);

@@ -130,6 +130,18 @@ One sequence and the single prompt run no new code and stay level.
 The suite on rocm:0 fails only reference-consumer, half-weights, moe and vision, the four components main fails there too, each the device refusing an op it lacks (routed_experts among them); the skip path is the follow-up recorded below.
 **Left:** review by F2DEV, the hosted run, landing by fast-forward.
 **Gotchas:** the F16 class gains far less than int8 at four and sixteen sequences (8B 126 against 211, Vulkan 240): its multi-column row builds are the next lever, profiled first; sixteen sequences add little over four in both classes, so the sixteen-column builds want the same profile.
+## Wide decode for every type, steps 6c and 7: recorded, not built (2026-11-02, VDEV, branch test/wide-decode-harness, its own commit on step 5, steps 6c and 7 of VDEV's plan "wide decode, all types" of 2026-11-02 with XDEV's amendment and F2DEV's conditions)
+
+**Goal:** step 6c, the draft length chosen by the tokens a verify is expected to keep a millisecond; step 7, more output reuse in the decode builds for verifies of 256 rows and more, only if production chooses such verifies (F2DEV's condition).
+**Done:** 6c is already the server's rule, in the form XDEV's amendment (d) asks for, so nothing was built: `spec::draft_depths` takes the depth that gives the most tokens a millisecond from each request's chance of keeping each draft (`spec::Acceptance::keeps`) and the pass cost the scheduler measures as passes run (`spec::PassTimes` and the price table's decode cells in server time), never an offline table; a depth no better than the pass without drafts gives no drafts.
+`generate` keeps `spec::draft_length` (the cap, the tokens left and the acceptance's rest): its verify of a long draft runs in passes of the mark's rows and ends at the first pass with a miss (step 6a), so a draft on prose costs at most one pass of 64 rows past its miss, and the CLI has no pass cost it measures to price with.
+Step 7 does not run: the server verifies at most 63 drafts a request and 64 draft rows a pass (`kDraftRows`, `draft_max_` clamped to `spec::kVerifyRows - 1`) and `generate` at most 64 rows a pass, so no path verifies 256 rows or more and no DMAX replay can show production choosing them.
+**Left:** step 7 comes back only if a later change lets a pass verify more than 64 rows a request; the CLI could price its depth from measured step and verify times if a workload needs it.
+**Device gates (2026-11-03, rebased on main 672b6d998):** two findings fixed in their own commits.
+Q1_0's one-column calls took the two-row build with the transposed reduction over 32 lanes whatever cluster their width gave, so on an MI50 a 96-wide call left its second row unwritten (`low-bits-vulkan`); that build now reduces as the one-row builds do (`row_tree_cluster`), as on main.
+The whole-chunk check counted dispatches by name, and on the Radeon VII a call's chunks share one build's name, so it now counts the dispatches timed.
+CTest passes on one MI50 under RADV and the Vulkan CTests on the Radeon VII under the AMD driver; Qwen3-0.6B Q8_0 logits on the Radeon VII are byte-identical to main's at ubatch 32, 45 and 96 and per token.
+
 ## Wide decode for every type, step 5: whole decode chunks in one dispatch, and no Q8_0 build past 32 columns (2026-11-02, VDEV, branch test/wide-decode-harness, its own commit on step 4, step 5 of VDEV's plan "wide decode, all types" of 2026-11-02 with XDEV's amendment and F2DEV's conditions)
 
 **Goal:** a Q8_0 decode build past 32 columns, measured first and built only if it gains 10 percent or more at 64 to 256 columns (F2DEV's condition).

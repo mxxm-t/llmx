@@ -416,6 +416,48 @@ void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
     runner.join();
 }
 
+// A request that cannot grow beside an older one still reading its prompt leaves the pass to that prompt, rather than the round forming nothing.
+// Capped X and uncapped Y fill 7 blocks, so Y's step waits for X's end, and the last stage sleeps until the first stall so prompts wait for replies (docs/TESTS.md, Native tests).
+void stalled_beside_prompt(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a request that cannot grow beside a prompt still read";
+    const size_t pool = 7 * kBlock;
+    const Req x{prompt_of(1, 400, vocab), 4}, y{prompt_of(2, kBlock, vocab)};
+    std::vector<Reply> alone;
+    for (const Req& r : {x, y}) {
+        auto model = on(weights, [] { return cpus(4); })(pool, 16);
+        alone.push_back(serve(*model, tok, 2, {{r}})[0]);
+    }
+    const std::vector<std::shared_ptr<Hooked>> devices = hooked(4);
+    auto model = on(weights, [&devices] { return std::vector<backend::BackendPtr>(devices.begin(), devices.end()); })(pool, 16);
+    server::Scheduler::Stats s;
+    {
+        server::Scheduler sched(*model, tok, 2, 64, 1);
+        std::atomic<bool> slow{true};
+        devices.back()->hook = [&] {
+            if (!slow.load()) return;
+            if (sched.stats().stalls) slow.store(false);
+            else std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        };
+        // Both submitted before the scheduler starts, so X is admitted first.
+        std::vector<std::shared_ptr<server::Request>> h;
+        for (const Req& r : {x, y}) h.push_back(sched.submit(r.prompt, params_of(r)));
+        std::thread runner([&] { sched.run(); });
+        try {
+            for (size_t i = 0; i < h.size(); ++i) same(alone[i], drain(*h[i]), what + ", request " + std::to_string(i));
+            s = sched.stats();
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            devices.back()->hook = nullptr;
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    devices.back()->hook = nullptr;
+    require(s.stalls > 0 && s.pauses == 0, what + ": " + std::to_string(s.stalls) + " passes sat out and " + std::to_string(s.pauses) + " pauses, against some and 0");
+}
+
 // An older request's growth step that falls due in the iteration a newer request could first be admitted takes the room first.
 // On 10 blocks uncapped A and capped E start together and capped D waits; E ends before A's step at 384 tokens falls due, and D fits only in the room that step needs, so D waits for A's stop rather than A sitting out D's reply.
 void growth_before_admission(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -5547,6 +5589,7 @@ int main(int argc, char** argv) {
             paused_outside_queue(weights, tok, vocab);
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);
+            stalled_beside_prompt(deep, tok, vocab);
             cancelled_short_donor(one, tok, vocab);
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);

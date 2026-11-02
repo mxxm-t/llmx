@@ -53,6 +53,7 @@ inline void VulkanBackend::external_ownership(const VkBufferMemoryBarrier* barri
     const uint32_t n = u32(count);
     const VkPipelineStageFlags src = acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
     const VkPipelineStageFlags dst = acquire ? VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    settle_all(open());
     dev_->fn.vkCmdPipelineBarrier(open(), src, dst, 0, 0, nullptr, n, barriers, 0, nullptr);
 }
 

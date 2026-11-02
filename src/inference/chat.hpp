@@ -2567,8 +2567,8 @@ public:
         return body;
     }
 
-    // The names the template reads as an attribute, a constant subscript, a get() or a filter's attribute, and the constant separators it splits text at.
-    std::set<std::string> fields, separators;
+    // The names the template reads as an attribute, a constant subscript, a get() or a filter's attribute, the variables it reads, and the constant separators it splits text at.
+    std::set<std::string> fields, variables, separators;
 
 private:
     std::vector<Token> t_;
@@ -2931,6 +2931,7 @@ private:
             if (name == "false" || name == "False") return std::make_unique<Const>(Value::boolean(false));
             if (name == "none" || name == "None") return std::make_unique<Const>(Value::none());
             if (macro_ && one_of(name, { "varargs", "kwargs", "caller" })) refuse("macros reading '" + name + "' are not supported");
+            variables.insert(name);
             return std::make_unique<Name>(name);
         }
         if (t.type == Token::STRING) {
@@ -3165,11 +3166,14 @@ public:
         Parser parser(std::move(tokens));
         body_ = parser.parse();
         fields_ = std::move(parser.fields);
+        variables_ = std::move(parser.variables);
         separators_ = std::move(parser.separators);
     }
 
     // Whether the template reads a field of this name, as an attribute, a constant subscript, a get() or a filter's attribute.
     bool reads(const std::string& field) const { return fields_.count(field) > 0; }
+    // Whether an expression of the template reads a variable of this name.
+    bool reads_variable(const std::string& name) const { return variables_.count(name) > 0; }
     // Whether a text or a string constant of the template holds `part`.
     bool writes(const std::string& part) const {
         for (const std::string& t : texts_)
@@ -3190,7 +3194,7 @@ public:
 
 private:
     Body body_;
-    std::set<std::string> fields_, separators_;
+    std::set<std::string> fields_, variables_, separators_;
     std::vector<std::string> texts_;
 };
 
@@ -3293,6 +3297,8 @@ struct ChatFormat {
     bool split_turns = false;
     // The tool-call format the template writes: the function format where its text holds `<function=`, the JSON one where it holds `<tool_call>` otherwise.
     ToolFormat tool_format = ToolFormat::none;
+    // Whether the template reads a variable `reasoning_effort`, as some templates choose their reasoning's length by it.
+    bool reasoning_effort = false;
 
     // An assistant turn as a conversation keeps it, the same for chat's own replies and the turns a client sends back.
     // It is split by assistant_turn only where the template needs the reasoning apart, and whole elsewhere, as that template was written to take it.
@@ -3319,6 +3325,7 @@ inline ChatFormat chat_format(const std::string& source, std::string bos, std::s
     catch (const Refused& e) { f.refusal = e.what(); }
     f.split_turns = f.program && f.program->reads("reasoning_content") && !f.program->splits_at("</think>");
     if (f.program) f.tool_format = f.program->writes("<function=") ? ToolFormat::xml : f.program->writes("<tool_call>") ? ToolFormat::json : ToolFormat::none;
+    f.reasoning_effort = f.program && f.program->reads_variable("reasoning_effort");
     f.bos = std::move(bos);
     f.eos = std::move(eos);
     return f;

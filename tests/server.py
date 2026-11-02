@@ -1240,6 +1240,15 @@ def check_tool_messages(model):
                                       ({"role": "user", "content": "x", "name": ["a"]}, "name must be a string")):
                     status, err = srv.post("/v1/chat/completions", {"messages": [{"role": "user", "content": "q"}, message, {"role": "user", "content": "x"}]})
                     assert status == 400 and text in err["error"]["message"], (message, status, err)
+                # A top-level reasoning_effort renders as the same value in chat_template_kwargs does, and a value the template refuses comes back with its own message.
+                ask = {"messages": [{"role": "user", "content": "q"}]}
+                status, plain = srv.post("/v1/tokenize", ask)
+                assert status == 200, plain
+                status, low = srv.post("/v1/tokenize", dict(ask, reasoning_effort="low"))
+                status2, kw = srv.post("/v1/tokenize", dict(ask, chat_template_kwargs={"reasoning_effort": "low"}))
+                assert status == 200 and status2 == 200 and low == kw and low["count"] != plain["count"], (low, kw, plain)
+                status, err = srv.post("/v1/tokenize", dict(ask, reasoning_effort="high"))
+                assert status == 400 and "Unexpected reasoning effort high" in err["error"], (status, err)
         finally:
             srv.close()
     # A template variable written 1.0 is the float transformers passes, 2 the int, and a whole number of 2^53 or more, which a double may not hold, is refused.
@@ -1251,6 +1260,43 @@ def check_tool_messages(model):
         assert status == 200 and got["text"] == reply and got["prompt_tokens"] == len("1.0|2|hi\n"), got
         status, err = srv.post("/v1/chat", {"messages": [{"role": "user", "content": "hi"}], "chat_template_kwargs": {"x": 9007199254740993}})
         assert status == 400 and "chat_template_kwargs: a whole number of 2^53 or more" in err["error"], (status, err)
+        # A template that reads no reasoning_effort refuses one on every chat route rather than ignoring it, while chat_template_kwargs may still set the variable.
+        hi = {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 16, "temperature": 0, "chat_template_kwargs": {"x": 1, "y": 2}}
+        for path in ("/v1/chat", "/v1/chat/completions", "/v1/tokenize"):
+            status, err = srv.post(path, dict(hi, reasoning_effort="low"))
+            message = err["error"]["message"] if path == "/v1/chat/completions" else err["error"]
+            assert status == 400 and "the model's chat template has no reasoning effort" in message, (path, status, err)
+        status, got = srv.post("/v1/tokenize", dict(hi, chat_template_kwargs={"x": 1, "y": 2, "reasoning_effort": "low"}))
+        assert status == 200 and got["count"] == len("1|2|hi\n"), got
+    finally:
+        srv.close()
+    # A template that reads reasoning_effort takes the top-level field as the variable on every chat route, counted alike by /v1/tokenize; the same value in chat_template_kwargs is taken, another or a value that is not a string refused.
+    f32.write_model(model, reasoning_tensors(), "{{ reasoning_effort|default('none') }}|{% for m in messages %}{{ m.content }}{% endfor %}{{ '\\n' }}", f32.VOCAB - 1, config=config)
+    srv = Server(model)
+    try:
+        hi = {"messages": [{"role": "user", "content": "hi"}], "max_tokens": 16, "temperature": 0}
+        status, got = srv.post("/v1/tokenize", hi)
+        assert status == 200 and got["count"] == len("none|hi\n"), got
+        for effort in ("low", "medium", "xhigh"):
+            want = len(effort + "|hi\n")
+            for extra in ({"reasoning_effort": effort}, {"chat_template_kwargs": {"reasoning_effort": effort}},
+                          {"reasoning_effort": effort, "chat_template_kwargs": {"reasoning_effort": effort}}):
+                status, got = srv.post("/v1/tokenize", dict(hi, **extra))
+                assert status == 200 and got["count"] == want, (extra, got)
+            status, got = srv.post("/v1/chat", dict(hi, reasoning_effort=effort))
+            assert status == 200 and got["text"] == reply and got["prompt_tokens"] == want, got
+            status, got = srv.post("/v1/chat/completions", dict(hi, reasoning_effort=effort))
+            assert status == 200 and got["usage"]["prompt_tokens"] == want, got
+        status, got = srv.post("/v1/chat/completions", dict(hi, reasoning_effort=None))
+        assert status == 200 and got["usage"]["prompt_tokens"] == len("none|hi\n"), got
+        for path in ("/v1/chat", "/v1/chat/completions", "/v1/tokenize"):
+            for extra, text in (({"reasoning_effort": "low", "chat_template_kwargs": {"reasoning_effort": "medium"}}, "reasoning_effort and chat_template_kwargs.reasoning_effort differ"),
+                                ({"reasoning_effort": 1}, "reasoning_effort must be a string")):
+                status, err = srv.post(path, dict(hi, **extra))
+                message = err["error"]["message"] if path == "/v1/chat/completions" else err["error"]
+                assert status == 400 and text in message, (path, extra, status, err)
+        status, err = srv.post("/v1/completions", {"prompt": "hi", "max_tokens": 4, "reasoning_effort": "low"})
+        assert status == 400 and "reasoning_effort" in err["error"]["message"], (status, err)
     finally:
         srv.close()
     return checked

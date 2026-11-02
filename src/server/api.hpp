@@ -924,13 +924,13 @@ private:
         return t;
     }
 
-    // A chat request's template variables: its chat_template_kwargs, booleans, numbers, strings or null, none of them one the render itself sets, and its tools where they are given (tools_of).
+    // A chat request's template variables: its chat_template_kwargs, booleans, numbers, strings or null, none of them one the render itself sets, its reasoning_effort (add_effort), and its tools where they are given (tools_of).
     std::vector<chat::TemplateVar> template_vars(const jmini::Value& body) const {
         std::vector<chat::TemplateVar> vars;
         Tools tools = tools_of(body);
         if (tools.on) vars.push_back({"tools", std::move(tools.value)});
         const jmini::Value* kwargs = body.get("chat_template_kwargs");
-        if (!kwargs || kwargs->t == jmini::Value::T::Null) return vars;
+        if (!kwargs || kwargs->t == jmini::Value::T::Null) { add_effort(body, vars); return vars; }
         if (!kwargs->isObject()) throw BadRequest(400, "chat_template_kwargs must be an object");
         static const char* const reserved[] = {"messages", "tools", "documents", "add_generation_prompt", "bos_token", "eos_token"};
         for (const auto& [name, v] : kwargs->obj) {
@@ -945,7 +945,22 @@ private:
             }
             else throw BadRequest(400, "chat_template_kwargs values must be booleans, numbers, strings or null");
         }
+        add_effort(body, vars);
         return vars;
+    }
+
+    // A request's reasoning_effort is the template variable of that name, as if given in chat_template_kwargs, refused where the template reads none or the kwargs give another value.
+    void add_effort(const jmini::Value& body, std::vector<chat::TemplateVar>& vars) const {
+        if (!given(body, "reasoning_effort")) return;
+        const jmini::Value& effort = *body.get("reasoning_effort");
+        if (!effort.isString()) throw BadRequest(400, "reasoning_effort must be a string");
+        if (format_.program && !format_.reasoning_effort) throw BadRequest(400, "reasoning_effort is not supported: the model's chat template has no reasoning effort");
+        for (const auto& [name, v] : vars)
+            if (name == "reasoning_effort") {
+                if (v.k != chat::jj::Value::STR || v.s != effort.asString()) throw BadRequest(400, "reasoning_effort and chat_template_kwargs.reasoning_effort differ");
+                return;
+            }
+        vars.push_back({"reasoning_effort", chat::jj::Value::str(effort.asString())});
     }
 
     // How much of a request's prompt a follow-up turn begins with, where the model keeps a state a follow-up could fork (chat::stable_prefix for a chat route, a text's whole prompt); a model that keeps none is not asked to render again.
@@ -1035,7 +1050,7 @@ private:
         const jmini::Value* echo = set("echo");
         if (echo && !(echo->t == jmini::Value::T::Bool && !echo->b)) refuse("echo", "llmx does not return the prompt with the completion");
         if (set("suffix")) refuse("suffix", "llmx has no insertion");
-        if (set("reasoning_effort")) refuse("reasoning_effort", "llmx has no reasoning budget");
+        if (route == Route::completions && set("reasoning_effort")) refuse("reasoning_effort", "the completions route renders no chat template to give it to");
     }
 
     // The sampling fields, native names first and the compatible routes' synonyms accepted beside them.

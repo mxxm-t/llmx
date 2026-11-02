@@ -1647,7 +1647,7 @@ public:
         int variant;
         size_t chunks;
     };
-    Fill filling_build(KernelId id, int variant, size_t ncols, size_t rows, uint32_t cluster) const;
+    Fill filling_build(KernelId id, int variant, size_t ncols, size_t rows) const;
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const;
 

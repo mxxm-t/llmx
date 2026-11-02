@@ -2313,14 +2313,23 @@ size_t check_q8_filling_builds(backend::Backend& vk) {
     return checks;
 }
 
-// F32 decode calls of 2, 6, 7 and 8 columns over rows halving from 65536 to 4 move from the wide build in one chunk to a chunk a column in the one-column build, in one dispatch (VulkanBackend::filling_build).
-// Between them the chunks double as the rows halve, so 7 columns are cut into chunks of 4 and 3 at some height on any device; every column must equal the same column alone.
+// F32 decode calls of 2, 6, 7 and 8 columns over rows halving from 65536 to 4 move from one chunk of a build holding them all to a chunk a column in the one-column build, in one dispatch (VulkanBackend::for_each_column_chunk).
+// Between them the chunks grow as the rows shrink, so 7 columns are cut into uneven chunks at some height on any device; every column must equal the same column alone.
 size_t check_f32_filling_builds(backend::Backend& vk) {
     const uint32_t f32 = quant::GGML_TYPE_F32;
     const size_t nin = 256;
     const auto x = uniform(8 * nin, 540);
     const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
     size_t checks = 0;
+    // A build's columns from its dispatch name: the wide one-row build's 8, or the count the name gives.
+    auto build_columns = [](const std::string& name) -> size_t {
+        const std::string base = "matmul_row_f32";
+        require(name.rfind(base, 0) == 0, ("an F32 decode call took " + name).c_str());
+        if (name == base) return 8;
+        const size_t at = base.size() + 1, end = name.find("col", at);
+        require(name[base.size()] == '_' && end != std::string::npos && end == name.size() - 3, ("an F32 decode call took " + name).c_str());
+        return std::stoul(name.substr(at, end - at));
+    };
     for (size_t n : {size_t(2), size_t(6), size_t(7), size_t(8)}) {
         bool one = false;
         for (size_t rows = 65536; rows >= 4; rows /= 2) {
@@ -2337,19 +2346,16 @@ size_t check_f32_filling_builds(backend::Backend& vk) {
                 std::cout << "backend-vulkan: F32 decode chunks unwitnessed without device timestamps\n";
                 return 0;
             }
-            size_t products = 0;
-            bool wide = false;
+            size_t products = 0, cols = 0;
             for (const auto& entry : times) {
                 if (entry.first.rfind("matmul_", 0) != 0) continue;
-                wide = entry.first == "matmul_row_f32";
-                require(wide || entry.first == "matmul_row_f32_1col", ("an F32 decode call took " + entry.first).c_str());
+                cols = build_columns(entry.first);
                 ++products;
             }
             require(products == 1, "an F32 decode call did not run in exactly one dispatch");
-            require(rows != 65536 || wide, "the largest F32 decode call left the wide build");
-            require(rows != 4 || !wide, "the smallest F32 decode call did not take the one-column build");
-            require(!one || !wide, "a smaller F32 decode call went back to the wide build");
-            one = !wide;
+            require(rows != 65536 || cols >= n, "the largest F32 decode call did not take one chunk");
+            require(rows != 4 || cols == 1, "the smallest F32 decode call did not take the one-column build");
+            one = one || cols == 1;
             std::vector<float> got(n * rows), alone(rows);
             vk.read(*y, 0, got.data(), got.size() * sizeof(float));
             const backend::RowRun step{1, 1};
@@ -5558,7 +5564,7 @@ int main(int argc, char** argv) {
         const DecodeCells cells = default_decode_cells(*b);
         const size_t columns = check_decode_columns(*b, backend::Dtype::f16, cells);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
-        std::cout << "backend-vulkan: " << check_f32_filling_builds(*b) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
+        std::cout << "backend-vulkan: " << check_f32_filling_builds(*backend::make_vulkan_backend(0, true)) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8, cells) << " int8 decode columns equal to the same columns alone\n";

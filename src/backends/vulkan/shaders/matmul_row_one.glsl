@@ -24,11 +24,18 @@
             uint word = (o + 4u + group * 8u) / 4u;
             uvec2 packed = uvec2(w32s[pi].w32[word], w32s[pi].w32[word + 1u]);
             uint shift = (first & 8u) >> 1u;
+            float weights[8];
             [[unroll]] for (uint k = 0u; k < 8u; ++k) {
                 uint code = (packed[k / 4u] >> (8u * (k & 3u) + shift)) & 15u;
                 precise float weight = nvfp4_value(scale, code) * factor;
-                for (uint c = 0u; c < ncols; ++c)
-                    acc[c] = fma(weight, x[XCOL(c) * p.nin + first + k], acc[c]);
+                weights[k] = weight;
+            }
+            // A column's eight values are loaded as two vec4s before its products, so a column's loads do not wait one at a time behind the column count's branch.
+            for (uint c = 0u; c < ncols; ++c) {
+                uint xb = (XCOL(c) * p.nin + first) / 4u;
+                vec4 x0 = xt4[xb], x1 = xt4[xb + 1u];
+                [[unroll]] for (uint k = 0u; k < 4u; ++k) acc[c] = fma(weights[k], x0[k], acc[c]);
+                [[unroll]] for (uint k = 0u; k < 4u; ++k) acc[c] = fma(weights[k + 4u], x1[k], acc[c]);
             }
         }
 #elif defined(LLMX_FLOAT_X) && defined(LLMX_Q1_0)

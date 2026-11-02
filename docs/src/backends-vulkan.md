@@ -240,10 +240,10 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
   A build takes the transposed reduction where it asks for it and the profile's `q8_decode_forms` allows it, and the half-block order (`kQ8Half`) wherever the profile allows it, in every build alike, since that order sums a column's products in another order than the quarter layout (`vec_forms`); `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, all in one dispatch whose workgroups in y each take one chunk (`gl_WorkGroupID.y` in `matmul_row.comp` and `matmul_vec_q8.comp`), then the rest in the narrowest build that holds them; a matrix of few rows, such as a router, so fills the device with its columns rather than running one chunk after another.
-  `row_dispatch` gives a plain dispatch's columns to its chunks as evenly as can be: each takes the `ncols` push constant's columns and the first `longer` of them one more, so the shaders cut a dispatch without dividing (RADV lowers an integer division to float operations, which the `--isa` screen would count); F32 rows take the whole call in one such dispatch, cut into the chunks `filling_build` gives.
+  `row_dispatch` gives a plain dispatch's columns to its chunks as evenly as can be: each takes the `ncols` push constant's columns and the first `longer` of them one more, so the shaders cut a dispatch without dividing (RADV lowers an integer division to float operations, which the `--isa` screen would count); F32, F16 and BF16 rows take the whole call in one such dispatch, cut into the chunks `for_each_column_chunk` gives.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
-  The two-row kernels (`row_kernel_builds_two_rows`), the Q4 and K-quant families and, on the integer dot, the lookup types (IQ4_NL, IQ4_XS, IQ3_S, IQ3_XXS, IQ2_S, IQ2_XS, IQ2_XXS, IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0), Q2_K, Q3_K and MXFP4, also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
+  The two-row kernels (`row_kernel_builds_two_rows`), the Q4 and K-quant families, the F32, F16 and BF16 rows and, on the integer dot, the lookup types (IQ4_NL, IQ4_XS, IQ3_S, IQ3_XXS, IQ2_S, IQ2_XS, IQ2_XXS, IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0), Q2_K, Q3_K and MXFP4, also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
   Where the profile sets `row_decode_tree` (the MI50 under RADV) these builds reduce through the transposed reduction (`row_tree_cluster`, specialization constant 17), and `column_builds` gives them only rows of its cluster width, the rest taking the one-row builds.
   `kernel_representations` starts such a build's text with `; row_build cols=C rows=R tree=W`.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
@@ -388,13 +388,14 @@ activations and one over 16-bit ones, else variant 12; a column group past
 the chunk's columns returns at once and is not counted. The factors and the
 fallback live in that one function, and the measurement that chose them is in
 [STATUS](../STATUS.md).
-The same function cuts an F32 decode call: its columns go in one dispatch, in
-as few chunks of at most the wide build's 8 columns as give two busy
-workgroups a compute unit, else a chunk a column in the one-column build; the
-chunks need not hold the same count, the first ones holding a column more, and
-each column keeps the one-column build's bits in either build. A call that
-fills the device in one chunk keeps the wide build, so a router of 512 rows
-does.
+An F32, F16 or BF16 decode call (`is_values_row`) goes in one dispatch
+(`for_each_column_chunk`): as few chunks of at most the widest build's columns
+as give two busy workgroups a compute unit, each chunk in the narrowest build
+holding it, or in the one-row wide build where only its rows a workgroup give
+that, else a chunk a column in the one-column build; the chunks need not
+hold the same count, the first ones holding a column more, and each column
+keeps the one-column build's bits in every build. A call that fills the device
+in one chunk keeps its widest build, so a router of 512 rows does.
 No other kernel has a variant 7 to 12 pipeline but the two-row kernels' builds (below); other slots stay empty, since
 a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
 properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
@@ -424,12 +425,12 @@ shared specialization entries; a module ignores those it does not declare.
 
 `for_each_column_chunk` fills the widest supported build while more columns remain
 than it holds, then chooses the narrowest build that holds the remainder,
-each Q8_0 chunk of 2 to 8 columns passing through `filling_build`; an F32
-call is one dispatch cut by `filling_build`.
+each Q8_0 chunk of 2 to 8 columns passing through `filling_build`; an F32,
+F16 or BF16 call is one dispatch cut as above.
 Successive Q8_0 capacities double, so a final chunk fills more than half its
 build. A single-group build checks columns beyond that first half; a
-two-group build checks each group's count. Two-row Q4 and K-quant builds
-compute every column they hold and use the same half-fill rule.
+two-group build checks each group's count. Two-row builds of the other
+kernels compute every column they hold and use the same half-fill rule.
 
 ## Instruction-count checks
 
@@ -620,7 +621,7 @@ The including function supplies the row, its weight row, the type, the column co
 
 ### `src/backends/vulkan/shaders/matmul_row_two.glsl`
 
-The two-row kernels' builds share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Each family keeps its one-column build's per-block dot, scale, add and contraction: the lookup types read every 32-value group through `lookup_group`, whatever block holds it (256 values in IQ4_XS and the TQ types, 128 in Q1_0), so a type plugs in by its group decode alone; Q2_K and Q3_K keep eight lanes a block and `k23_term`; MXFP4 its integer dot and combined-scale range check; and a build with `LLMX_PRESERVE_F32` keeps its sums `precise`. A product the one-column build repairs is flagged per row and column; a cluster holding one reduces by the butterfly, which carries the flags, and recomputes those rows as the one-column build does (`lookup_float_twin`, `k23_float_twin`, `mxfp4_wide`), as every build does a sum that is not finite.
+The two-row kernels' builds share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Each family keeps its one-column build's per-block dot, scale, add and contraction: the lookup types read every 32-value group through `lookup_group`, whatever block holds it (256 values in IQ4_XS and the TQ types, 128 in Q1_0), so a type plugs in by its group decode alone; Q2_K and Q3_K keep eight lanes a block and `k23_term`; MXFP4 its integer dot and combined-scale range check; the F32, F16 and BF16 rows (`LLMX_VALUES`) their vec4 steps and `acc += dot(w, x)`, or the scalar loop where a row is not a multiple of four; and a build with `LLMX_PRESERVE_F32` keeps its sums `precise`. A product the one-column build repairs is flagged per row and column; a cluster holding one reduces by the butterfly, which carries the flags, and recomputes those rows as the one-column build does (`lookup_float_twin`, `k23_float_twin`, `mxfp4_wide`), as every build does a sum that is not finite.
 In a build whose `TREE_CLUSTER` is set, the cluster reduces through the butterfly's pairs l ^ W/2 .. l ^ 1 in that order, transposed so each level halves the values a lane holds, and every lane stores the sums it is left with; float adds commute, so each sum has the butterfly's bits.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`

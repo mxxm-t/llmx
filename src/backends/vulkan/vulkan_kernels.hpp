@@ -1591,7 +1591,7 @@ inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
     return (kVecBuilds[variant].forms & profile.q8_decode_forms) | (profile.q8_decode_forms & kQ8Half);
 }
 
-// Whether a row kernel has the two-row decode builds (shaders/matmul_row_two.glsl, ROWS): the Q4 and K-quant families, and on the integer dot the lookup types' 32-value groups, Q2_K and Q3_K, and MXFP4.
+// Whether a row kernel has the two-row decode builds (shaders/matmul_row_two.glsl, ROWS): the Q4 and K-quant families, the F32, F16 and BF16 rows, and on the integer dot the lookup types' 32-value groups, Q2_K and Q3_K, and MXFP4.
 inline bool row_kernel_builds_two_rows(KernelId id) {
     switch (id) {
     case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
@@ -1601,9 +1601,15 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
     case K_MATMUL_ROW_IQ2_XS_DOT: case K_MATMUL_ROW_IQ2_XXS_DOT: case K_MATMUL_ROW_IQ1_S_DOT: case K_MATMUL_ROW_IQ1_M_DOT:
     case K_MATMUL_ROW_TQ1_0_DOT: case K_MATMUL_ROW_TQ2_0_DOT: case K_MATMUL_ROW_Q1_0_DOT:
     case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT: case K_MATMUL_ROW_MXFP4_DOT:
+    case K_MATMUL_ROW_F32: case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
         return true;
     default: return false;
     }
+}
+
+// Whether a row kernel reads plain values, F32, F16 or BF16, whose decode calls run in one dispatch (VulkanBackend::for_each_column_chunk).
+inline bool is_values_row(KernelId id) {
+    return id == K_MATMUL_ROW_F32 || id == K_MATMUL_ROW_WF16 || id == K_MATMUL_ROW_WBF16;
 }
 
 // Pipeline variants for the Q4 and K-quant row families: columns per lane, rows per cluster and whether a workgroup row takes a grouped routed run (GROUPED).

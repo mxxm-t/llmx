@@ -128,6 +128,35 @@
             }
         }
 #endif
+#ifdef LLMX_VALUES
+        // F32, F16 and BF16 rows, each lane's values in the one-row build's order and form; Q8_0 rows of the plain module take its one-row builds alone.
+        if (p.nin % 4u == 0u) {
+            uint n4 = p.nin / 4u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * n4;
+            for (uint i = l; i < n4; i += p.cluster) {
+                vec4 wr[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) wr[r] = WEIGHT4(wbr[r] + i);
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    vec4 xv = xt4[XCOL(min(c, ncols - 1u)) * n4 + i];
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) accr[r][c] += dot(wr[r], xv);
+                }
+            }
+        } else {
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * p.nin;
+            for (uint i = l; i < p.nin; i += p.cluster) {
+                float wr[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) wr[r] = WEIGHT1(wbr[r] + i);
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    float xv = x[XCOL(min(c, ncols - 1u)) * p.nin + i];
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) accr[r][c] += wr[r] * xv;
+                }
+            }
+        }
+#endif
 #ifdef LLMX_Q4
         if (type == TYPE_Q4_0 && wide != 0u) {
             uint nblocks = p.nin / Q4_0_BLOCK;

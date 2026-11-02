@@ -462,46 +462,47 @@ void twin_products(Backend& g, Dtype dt) {
     // Every decode column of 1 to 64 generated rows, up to four launches of 16, is the column alone, bit for bit.
     // The residual add and a group of three projections are held so at counts either side of each launch's edge.
     {
-        const size_t cols = 64;
+        // 37 outputs, which neither two nor four divides, so each build's last wave or block holds rows past the end, which it must not store.
+        const size_t cols = 64, dn = 37;
         bool alone = true, added = true, grouped = true;
         for (size_t w : {size_t(4096), size_t(1280), size_t(1312)}) {
-            const std::vector<uint8_t> mw = q8_matrix(w, nout, 61);
-            const std::vector<float> xw = row_classes::values(w * cols, 62), base = row_classes::values(nout * cols, 63);
+            const std::vector<uint8_t> mw = q8_matrix(w, dn, 61);
+            const std::vector<float> xw = row_classes::values(w * cols, 62), base = row_classes::values(dn * cols, 63);
             auto mwb = g.adopt(mw.data(), mw.size()), xwb = g.adopt(xw.data(), xw.size() * 4);
-            auto yw = g.alloc(nout * cols * 4), ya = g.alloc(nout * cols * 4), yb = g.alloc(nout * cols * 4), yc = g.alloc(nout * cols * 4);
+            auto yw = g.alloc(dn * cols * 4), ya = g.alloc(dn * cols * 4), yb = g.alloc(dn * cols * 4), yc = g.alloc(dn * cols * 4);
             const WeightView wv{quant::GGML_TYPE_Q8_0, {mwb.get(), 0}};
             std::vector<std::vector<float>> one(cols), one_added(cols);
             for (size_t r = 0; r < cols; ++r) {
                 const RowRun run[1] = {{1, 1}};
-                g.matmul(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, nout, 1, {run, 1}, dt);
-                one[r] = read(g, *y1, nout);
-                g.write(*y1, 0, base.data() + r * nout, nout * 4);
-                g.matmul_add(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, nout, 1, {run, 1}, dt);
-                one_added[r] = read(g, *y1, nout);
+                g.matmul(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, dn, 1, {run, 1}, dt);
+                one[r] = read(g, *y1, dn);
+                g.write(*y1, 0, base.data() + r * dn, dn * 4);
+                g.matmul_add(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, dn, 1, {run, 1}, dt);
+                one_added[r] = read(g, *y1, dn);
             }
             for (size_t n = 1; n <= cols; ++n) {
                 const RowRun run[1] = {{n, 1}};
-                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {run, 1}, dt);
-                const std::vector<float> y = read(g, *yw, nout * n);
-                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(y.data() + r * nout, one[r].data(), nout * 4) == 0;
+                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, dn, n, {run, 1}, dt);
+                const std::vector<float> y = read(g, *yw, dn * n);
+                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(y.data() + r * dn, one[r].data(), dn * 4) == 0;
                 // The same rows as n sequences' runs of one generated row each, as a decode pass of n sequences gives them.
                 std::vector<RowRun> each(n);
                 for (size_t r = 0; r < n; ++r) each[r] = {r + 1, 1};
-                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {each.data(), n}, dt);
-                const std::vector<float> ys = read(g, *yw, nout * n);
-                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(ys.data() + r * nout, one[r].data(), nout * 4) == 0;
+                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, dn, n, {each.data(), n}, dt);
+                const std::vector<float> ys = read(g, *yw, dn * n);
+                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(ys.data() + r * dn, one[r].data(), dn * 4) == 0;
             }
             for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(15), size_t(16), size_t(17), size_t(31), size_t(32), size_t(33), size_t(48), size_t(49), size_t(63), size_t(64)}) {
                 const RowRun run[1] = {{n, 1}};
-                g.write(*ya, 0, base.data(), nout * n * 4);
-                g.matmul_add(wv, {xwb.get(), 0}, {ya.get(), 0}, w, nout, n, {run, 1}, dt);
-                const std::vector<float> y = read(g, *ya, nout * n);
-                for (size_t r = 0; r < n; ++r) added = added && std::memcmp(y.data() + r * nout, one_added[r].data(), nout * 4) == 0;
-                g.matmul_group({Projection(wv, {yw.get(), 0}, nout), Projection(wv, {yb.get(), 0}, nout), Projection(wv, {yc.get(), 0}, nout)},
+                g.write(*ya, 0, base.data(), dn * n * 4);
+                g.matmul_add(wv, {xwb.get(), 0}, {ya.get(), 0}, w, dn, n, {run, 1}, dt);
+                const std::vector<float> y = read(g, *ya, dn * n);
+                for (size_t r = 0; r < n; ++r) added = added && std::memcmp(y.data() + r * dn, one_added[r].data(), dn * 4) == 0;
+                g.matmul_group({Projection(wv, {yw.get(), 0}, dn), Projection(wv, {yb.get(), 0}, dn), Projection(wv, {yc.get(), 0}, dn)},
                                {xwb.get(), 0}, w, n, {run, 1}, dt);
                 for (BufferPtr* out : {&yw, &yb, &yc}) {
-                    const std::vector<float> yg = read(g, **out, nout * n);
-                    for (size_t r = 0; r < n; ++r) grouped = grouped && std::memcmp(yg.data() + r * nout, one[r].data(), nout * 4) == 0;
+                    const std::vector<float> yg = read(g, **out, dn * n);
+                    for (size_t r = 0; r < n; ++r) grouped = grouped && std::memcmp(yg.data() + r * dn, one[r].data(), dn * 4) == 0;
                 }
             }
         }

@@ -116,10 +116,10 @@ public:
         dev_.caps.integer_dot = f.hipModuleLoadData(&dot_module_, kInt16DotModule) == hipSuccess;
         if (!dev_.caps.integer_dot) dot_module_ = nullptr;
         dev_.profile = profile_for(dev_.caps);
-        // The prompt tiles and the int8 half-block row kernels take the dot where there is one; the quarter-layout row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
+        // The prompt tiles and the row builds of four columns and more take the dot where there is one; the narrower quarter-layout builds measured faster on the plain module (docs/STATUS.md, ROCm wide decode rows).
         for (size_t k = 0; k < kKernels; ++k) {
-            const bool dot = k == kTile16 || k == kTile8 || k >= kHalf8x1;
-            const hipModule_t m = k < kRows16x1 ? module_ : dot && dot_module_ ? dot_module_ : int16_module_;
+            const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows8x1 || k == kRows8x2 || k == kTileReduce;
+            const hipModule_t m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -599,7 +599,7 @@ private:
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major,
                   kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
+                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kTile16Tall, kTile8Tall, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -612,7 +612,7 @@ private:
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
                                                            "llmx_q8_0_tile16", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
                                                            "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce",
-                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
+                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
@@ -874,7 +874,7 @@ private:
         const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
         return std::min(kper, nblk);
     }
-    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
+    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time and eight in the half-block order, a prompt's rows on the tile.
     // Without runs a call of one row is a generated row and any other a prompt's.
     void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
         const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
@@ -908,7 +908,11 @@ private:
             };
             while (r + 1 < all.n && same(all.runs[r], all.runs[r + 1]) && all.runs[r + 1].end > end && all.runs[r + 1].end <= nbatch) end = all.runs[++r].end;
             for (size_t at = begin; at < end;) {
-                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
+                // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
+                const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
+                // The half-block order takes eight columns a launch: sixteen in one launch measured slower than two launches of eight (docs/STATUS.md, ROCm wide decode rows).
+                const size_t width = form == 2 ? 8 : kColumns;
+                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, width) : end - at;
                 size_t first = 0;
                 unsigned xrow = 0, xblock = 0;
                 map.locate(at, first, xrow, xblock);
@@ -928,13 +932,13 @@ private:
                     int ncols = (int)rows;
                     void* args[] = {&c, &q, &d, &ni, &ncols, &add};
                     const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                    // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
+                    // The half-block order has no sixteen-column build, its width being eight.
                     static constexpr Kernel builds[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
                                                             {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
-                                                            {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
-                    const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
-                    // The F16 class's builds take two output rows a wave.
-                    const size_t per = form == 0 ? 2 * rows_per_block_ : rows_per_block_;
+                                                            {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x8}};
+                    // Output rows a wave takes, R of each kernel build (kernels/int16.hip), so a twin load serves that many rows.
+                    static constexpr size_t waves_rows[3][5] = {{2, 2, 2, 2, 2}, {1, 1, 2, 2, 2}, {1, 1, 4, 2, 2}};
+                    const size_t per = waves_rows[form][build] * rows_per_block_;
                     launch(builds[form][build], (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.

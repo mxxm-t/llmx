@@ -1,5 +1,66 @@
 # llmx - Development Status
 
+## ROCm wide decode rows (2026-11-02, DDEV, branch perf/rocm-f16-decode-dot on main 672b6d998, after perf/rocm-decode-run-launch landed; the coordinator's ask of 11:5x after DDEV's p74 FINDING)
+
+**Goal:** ROCm decode of 4 to 16 sequences nearer Vulkan's on one MI50; after perf/rocm-decode-run-launch, Qwen3-8B Q8_0 gave f16 x16 142 tok/s against Vulkan's 313, int8 x16 246 against 520.
+**Cause** (rocprofv3 kernel trace, Qwen3-8B Q8_0, 16-token prompts and 32 tokens, rig `ddev/rocm/p74`): every column count takes one launch of its row build, and the wide builds were slow per launch, f16 x1/x4/x16 85/206/746 us against Vulkan's 75/95/295 and int8 73/116/422 against 73/82/164.
+The sixteen-column F16 build held 195 VGPRs, one wave a SIMD, most of them a 64-bit twin pointer a column; the four-column builds waited on their twin loads.
+**Done:** the row kernels take R, the output rows a wave, and G, the columns whose twin loads issue together before their products, per build (`LLMX_ROWS`, `LLMX_HALF`, the host's `waves_rows` following R).
+A build wider than its group addresses every column from one 32-bit lane offset, which took the sixteen-column F16 build to 112 VGPRs and two waves a SIMD; in the narrower builds that form measured slower (f16 x1 85 to 100 us, x4 141 to 208), so they keep a pointer a column.
+The F16 builds of four columns and more and the int8 quarter-layout builds take two rows a wave in groups of four or eight columns on the dot module; the half-block order's four-column build takes four rows a wave and its eight-column build two, and the half-block order launches eight columns at a time, its sixteen-column build removed: it measured 420 us at one row a wave, 494 at one row with per-column loads, 510 at two rows in groups of four, against 163 for eight columns.
+Every column keeps the bits of the column alone, since a column's sum keeps its lanes and order in every build; backend-rocm passes on every variant.
+**Measured per launch** (us, rocprofv3, Qwen3-8B Q8_0, renderD131, default clocks; base from p74, branch from p76/p77 of the variants it combines):
+
+| build | base | branch | Vulkan |
+|---|---:|---:|---:|
+| f16 x1 | 85 | 85 | 75 |
+| f16 x4 | 206 | 141 | 95 |
+| f16 x8 | - | 224 | - |
+| f16 x16 | 746 | 439 | 295 |
+| int8 x1 | 73 | 74 | 73 |
+| int8 x4 | 116 | 96 | 82 |
+| int8 x8 | - | 163 | - |
+| int8 x16 | 422 | two launches of x8 | 164 |
+
+**Measured** (one MI50, renderD131, default clocks, base perf/rocm-decode-run-launch 8abb91d04 and branch de5d0dcee built alike from tarballs, Vulkan build 34c18feb4, `bench --p 16`, tg128 for one sequence, tg64 for 4, tg32 for 16, total tok/s, medians of three rotated rounds, rig `ddev/rocm/g74`; the head differs from de5d0dcee only in two comments):
+
+| model, class, sequences | base | branch | Vulkan | branch / base |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Q8_0 f16 x1 | 71.3 | 69.6 | 74.0 | 0.98 |
+| Qwen3-8B Q8_0 f16 x4 | 123.8 | 172.8 | 239.1 | 1.40 |
+| Qwen3-8B Q8_0 f16 x16 | 140.1 | 221.8 | 316.7 | 1.58 |
+| Qwen3-8B Q8_0 int8 x1 | 80.1 | 81.1 | 78.8 | 1.01 |
+| Qwen3-8B Q8_0 int8 x4 | 210.3 | 253.7 | 275.1 | 1.21 |
+| Qwen3-8B Q8_0 int8 x16 | 241.7 | 310.1 | 549.5 | 1.28 |
+| Qwen3-14B Q8_0 f16 x1 | 39.6 | 39.1 | 41.1 | 0.99 |
+| Qwen3-14B Q8_0 f16 x4 | 71.1 | 98.8 | 140.9 | 1.39 |
+| Qwen3-14B Q8_0 f16 x16 | 76.0 | 132.1 | 179.1 | 1.74 |
+| Qwen3-14B Q8_0 int8 x1 | 45.0 | 43.6 | 39.5 | 0.97 |
+| Qwen3-14B Q8_0 int8 x4 | 118.7 | 152.5 | 157.4 | 1.29 |
+| Qwen3-14B Q8_0 int8 x16 | 128.4 | 177.4 | 326.9 | 1.38 |
+
+One sequence runs the same one-column builds, 85 and 74 us a launch on both arms in the traces; its cells are within the rounds' spread, round 2 being slower for every arm (8B f16 head 66.6 to 70.9, 14B int8 37.9 to 45.2, base 39.0 to 45.1).
+**Identity:** device byte identity against the base on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, four lines identical; backend-rocm passes; docs and dead-code clean at the head.
+**Gate at main 672b6d998** (one round, renderD130, base main and branch built alike from tarballs, rig `ddev/rocm/g80`): device byte identity against main on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, Qwen3-0.6B Q8_0 16k raw and chat-template sequences at f16, and Qwen3-0.6B Q8_0 on the CPU, seven lines identical; backend-rocm passes; CTest 80/80; the suite on rocm:0 fails only main's four ROCm op refusals (reference-consumer, half-weights, moe, vision); docs and dead-code clean.
+Its round (tok/s, main / branch / Vulkan): 8B f16 x1 70.5/70.7/74.5, x4 123.6/171.8/232.3, x16 142.8/230.9/321.7; 8B int8 x1 79.6/80.3/75.3, x4 205.3/247.3/266.8, x16 243.0/303.3/533.7; 14B f16 x4 71.0/99.5/137.8, x16 77.2/134.3/178.4; 14B int8 x4 117.0/150.9/154.2, x16 130.1/179.7/329.1; 8B f16 pp512 860.5/861.4/833.7.
+Loss: Qwen3-0.6B Q8_0 int8 x4 falls from 937 to 845 tok/s (-9.8%, six interleaved runs an arm, host load average 30 to 41), while its f16 x4 rises from 585 to 720 (+23%) and its x1 cells are within spread; suspected cause, unmeasured: the half-block order's four-column build takes four rows a wave, so the 0.6B's products of 1024 to 3072 rows launch a quarter of the waves on 60 CUs.
+**Review fixes** (F2DEV's review of 01:16; head dc0768704 built alike with main 672b6d998 and the two-rows variant from tarballs, renderD130, default clocks, `bench --p 16`, tg64 for 4 and 8 sequences, tg32 for 16, total tok/s, medians of three rotated rounds of three runs, host load average 9.6 to 13.4, rig `ddev/rocm/g81`):
+
+| model, class, sequences | main | branch | half8_4 at two rows | branch / main |
+|---|---:|---:|---:|---:|
+| Qwen3-0.6B Q8_0 int8 x4 | 1094.3 | 1009.3 | 1154.0 | 0.92 |
+| Qwen3-0.6B Q8_0 int8 x8 | 1432.7 | 1426.9 | - | 1.00 |
+| Qwen3-0.6B Q8_0 int8 x16 | 1674.9 | 1568.0 | - | 0.94 |
+| Qwen3-0.6B Q8_0 f16 x8 | 637.3 | 1310.9 | - | 2.06 |
+| Qwen3-0.6B Q8_0 f16 x16 | 1267.9 | 1240.3 | - | 0.98 |
+| Qwen3-8B Q8_0 int8 x4 | 208.3 | 250.8 | 241.0 | 1.20 |
+
+The 0.6B also loses int8 x16 (-6.4%, sixteen columns now two launches of the eight-column build) and f16 x16 (-2.2%), with every run of each arm inside 2% but one slow run a cell in round 2; int8 x8 is level and f16 x8 doubles.
+The half-block four-column build at two rows a wave recovers the 0.6B's int8 x4 (+5.5% on main) but takes 8B int8 x4 from 250.8 to 241.0 (-3.9%, every run of each arm within 1 tok/s), so the stated cause holds and the build keeps four rows; choosing rows a wave by a product's rows, so the small model's products launch more waves, is the follow-up, profiled first.
+backend-rocm's decode columns of 1 to 64 rows now take 37 outputs, so each build's last wave or block holds rows past the end; it passes on the branch and on the variant, CTest 80/80, device byte identity against main on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, four lines identical, and on the variant the same and the 0.6B 16k raw and chat-template sequences at f16; docs and dead-code clean.
+**Left:** review by F2DEV, the hosted run, landing by fast-forward.
+**Gotchas:** Vulkan stays ahead at four and sixteen sequences, 1.03 to 1.84 times the branch (int8 x16 most): each extra column still costs nearly a one-column launch's time, so the next lever is the column loop itself (the twin's reloads per row), profiled first; grouping all sixteen columns' loads, or four rows a wave at sixteen columns, ran out of registers and measured slower.
+
 ## A request's passes on its request line (2026-11-02, SDEV, branch feat/request-log-drafting on main d1686f69f, the coordinator's ask after production's replies at 291-298k tokens ran at 16-23 and then 64.8 tok/s)
 
 - **Change:** the request line gives, after its rate, `S steps, V verifies, D drafted, K kept, M ms a pass` (docs/SERVER.md, The request line): its passes without drafts, those that verified drafts with the drafts fed and kept, and its time after the first token over its passes after the first, so a slow reply shows whether it kept fewer drafts a verify or waited longer between passes; sat out passes, pauses, resumes and recomputed rows were already on it and stay.

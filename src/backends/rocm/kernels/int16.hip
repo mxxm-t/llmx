@@ -28,22 +28,6 @@ __device__ inline int word_dot(int a, int b, int s, signed char) {
 #endif
 }
 
-// Eight values of a twin block at `p` as ints: four words of two 16-bit values, or two words of four 8-bit values.
-__device__ inline void eight(const short* p, int v[8]) {
-    const int4 w = *(const int4*)p;
-    const int words[4] = {w.x, w.y, w.z, w.w};
-    for (int i = 0; i < 4; ++i) {
-        v[2 * i] = (short)(words[i] & 0xffff);
-        v[2 * i + 1] = (short)(words[i] >> 16);
-    }
-}
-__device__ inline void eight(const signed char* p, int v[8]) {
-    const int2 w = *(const int2*)p;
-    const int words[2] = {w.x, w.y};
-    for (int i = 0; i < 2; ++i)
-        for (int j = 0; j < 4; ++j) v[4 * i + j] = (signed char)((words[i] >> (8 * j)) & 0xff);
-}
-
 
 // v of lane (this lane xor m) across the whole wave, m a power of two: DPP for 1 and 2 and swizzles up to 16, which wait on no LDS queue as a permute does; the same partner, so a sum over them keeps its bits.
 __device__ inline int lane_xor(int v, int m) {
@@ -88,7 +72,7 @@ __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned lo
 
 // A wave computes R output rows for up to C generated rows: four lanes a block, eight values each, each lane's part scaled into F32 in block order and folded by one shuffle tree, the same for every column whatever C the call takes.
 // With R rows each twin load serves every row and a row keeps its lanes and its order, so it has the bits of the one-row build (docs/STATUS.md, ROCm F16 decode rows).
-template <int C, typename QT, int R>
+template <int C, typename QT, int R, int G>
 __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
@@ -100,44 +84,73 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
         float acc[R][C];
 #pragma unroll
         for (int j = 0; j < R; ++j)
+#pragma unroll
             for (int c = 0; c < C; ++c) acc[j][c] = 0.0f;
         for (unsigned long long u = lane; u < blocks * 4; u += lanes) {
             const unsigned long long k = u / 4;
             const int part = (int)(u % 4);
+            const unsigned ko = (unsigned)k, xo = ko * 32 + part * 8;
+            // A lane's eight weights as the twin's words, packed once for every column: four words of two 16-bit values, or two of four 8-bit values.
+            constexpr int NW = sizeof(QT) == 2 ? 4 : 2;
             float dw[R];
-            signed char wv[R][8];
+            int ww[R][NW];
 #pragma unroll
             for (int j = 0; j < R; ++j) {
                 const unsigned char* block = r[j].w + k * 34;
                 dw[j] = __half2float(*(const __half*)block);
                 // Eight weights as four 16-bit loads, the block being 2-byte aligned.
                 const unsigned short* wp = (const unsigned short*)(block + 2 + part * 8);
+#pragma unroll
                 for (int i = 0; i < 4; ++i) {
                     const unsigned short pair = wp[i];
-                    wv[j][2 * i] = (signed char)(pair & 0xff);
-                    wv[j][2 * i + 1] = (signed char)(pair >> 8);
+                    if constexpr (NW == 4)
+                        ww[j][i] = ((int)(signed char)(pair & 0xff) & 0xffff) | ((int)(signed char)(pair >> 8) << 16);
+                    else if (i % 2)
+                        ww[j][i / 2] |= (int)pair << 16;
+                    else
+                        ww[j][i / 2] = pair;
                 }
             }
+            // Columns in groups of G: a group's loads issue together before its products, a column past the call reading column 0 and storing nothing, so no branch splits the loads.
 #pragma unroll
-            for (int c = 0; c < C; ++c) {
-                if (c >= ncols) break;
-                const unsigned long long xb = (unsigned long long)c * blocks + k;
-                int xv[8];
-                eight(q + xb * 32 + part * 8, xv);
-                const float xd = dx[xb];
+            for (int g = 0; g < C; g += G) {
+                int xw[G][NW];
+                float xd[G];
 #pragma unroll
-                for (int j = 0; j < R; ++j) {
-                    int isum = 0;
-                    for (int i = 0; i < 8; ++i) isum += (int)wv[j][i] * xv[i];
-                    acc[j][c] = fmaf(dw[j] * xd, (float)isum, acc[j][c]);
+                for (int c = 0; c < G; ++c) {
+                    // A build wider than its group takes one 32-bit lane offset for every column, where a pointer a column held it to one wave a SIMD.
+                    // The narrower builds measured faster with a pointer a column (docs/STATUS.md, ROCm wide decode rows).
+                    const unsigned long long col = (unsigned long long)(g + c < ncols ? g + c : 0) * blocks;
+                    const QT* qc = C > G ? q + col * 32 : q + (col + k) * 32 + part * 8;
+                    const unsigned off = C > G ? xo : 0;
+                    if constexpr (NW == 4) {
+                        const int4 x = *(const int4*)(qc + off);
+                        xw[c][0] = x.x, xw[c][1] = x.y, xw[c][2] = x.z, xw[c][3] = x.w;
+                    } else {
+                        const int2 x = *(const int2*)(qc + off);
+                        xw[c][0] = x.x, xw[c][1] = x.y;
+                    }
+                    xd[c] = C > G ? dx[col + ko] : dx[col + k];
                 }
+#pragma unroll
+                for (int c = 0; c < G; ++c)
+#pragma unroll
+                    for (int j = 0; j < R; ++j) {
+                        // The integer sum is exact, so the word dots give the bits of any order.
+                        int isum = 0;
+#pragma unroll
+                        for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
+                        acc[j][g + c] = fmaf(dw[j] * xd[c], (float)isum, acc[j][g + c]);
+                    }
+                // A group's loads wait for the group before it, which holds a wide build's registers to one group's twin.
+                if constexpr (C > G) __builtin_amdgcn_sched_barrier(0);
             }
         }
 #pragma unroll
         for (int j = 0; j < R; ++j) {
 #pragma unroll
             for (int c = 0; c < C; ++c) {
-                if (c >= ncols) break;
+                if (c >= ncols) continue;
                 const float v = wave_sum(acc[j][c]);
                 if (lane == 0 && o + j < rc.total) {
                     float* y = r[j].y + (unsigned long long)c * r[j].nout;
@@ -148,89 +161,90 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
     }
 }
 
-// The dot of four weight words (16 weights) and 16 block-int8 twin values at p, added to s.
-__device__ inline int half_dot(const unsigned wq[4], const signed char* p, int s) {
-    const int4 x = *(const int4*)p;
-    s = word_dot((int)wq[0], x.x, s, (signed char)0);
-    s = word_dot((int)wq[1], x.y, s, (signed char)0);
-    s = word_dot((int)wq[2], x.z, s, (signed char)0);
-    return word_dot((int)wq[3], x.w, s, (signed char)0);
-}
-
-// The int8 class's Q8_0 decode kernel in the half-block order of the Vulkan decode kernel (matmul_vec_q8_one.glsl, HALF), for rows of an even block count: a wave an output row, two lanes a block, so a wave reads warpSize / 2 blocks a step.
+// The int8 class's Q8_0 decode kernel in the half-block order of the Vulkan decode kernel (matmul_vec_q8_one.glsl, HALF), for rows of an even block count: a wave R output rows, two lanes a block, so a wave reads warpSize / 2 blocks a step.
 // The even lane takes the block's bytes [0, 18), the scale and 16 weights, the odd lane bytes [18, 34), each as aligned words realigned in registers without a branch, and the even lane hands the scale to the odd one; a branch on the alignment waited on its loads and measured slower (docs/STATUS.md, ROCm decode products).
 // Each lane scales its halves' integer dots into F32 in block order and the lanes fold by one shuffle tree, the same for every column whatever C the call takes.
-template <int C>
+template <int C, int R, int G>
 __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     const unsigned hl = lane & 1;
-    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < rc.total; o += waves) {
-        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * 34);
-        // An even block count puts every row on a word boundary.
-        const unsigned* w = (const unsigned*)r.w;
-        float acc[C];
-        for (int c = 0; c < C; ++c) acc[c] = 0.0f;
+    // A wave takes R rows, so each twin load serves every row; a row keeps its lanes and its order, so it has the bits of the one-row build.
+    for (unsigned long long o = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); o < rc.total; o += R * waves) {
+        Row r[R];
+        const unsigned* w[R];
+#pragma unroll
+        for (int j = 0; j < R; ++j) {
+            r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * 34);
+            // An even block count puts every row on a word boundary.
+            w[j] = (const unsigned*)r[j].w;
+        }
+        float acc[R][C];
+#pragma unroll
+        for (int j = 0; j < R; ++j)
+#pragma unroll
+            for (int c = 0; c < C; ++c) acc[j][c] = 0.0f;
 #pragma unroll 2
         for (unsigned b = lane >> 1; b < blocks; b += lanes / 2) {
             // The lane's bytes start sh bytes into word wi and its weights s0 bytes in, 4 meaning the next word.
             // The even lane's fifth word lies inside its block and the odd lane's, read only where its bytes do not start on a word, inside the block after it.
             const unsigned at = b * 34, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
-            // Up to 8 columns the twin's loads issue before the weights' and the dots come before the scale's exchange, so nothing waits on the weights before every load is in flight; wider builds keep each column's work together, which holds their registers (docs/STATUS.md, ROCm decode products).
-            constexpr bool first = C <= 8;
-            int4 xq[first ? C : 1];
-            float xd[first ? C : 1];
-            if constexpr (first) {
+            // Columns in groups of G, a column past the call skipped: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
+            int4 xq[G];
+            float xd[G];
+            const auto load = [&](int g) {
 #pragma unroll
-                for (int c = 0; c < C; ++c) {
-                    if (c >= ncols) break;
-                    const unsigned long long xb = (unsigned long long)c * blocks + b;
-                    xq[c] = *(const int4*)(q + xb * 32 + 16 * hl);
-                    xd[c] = dx[xb];
+                for (int c = 0; c < G; ++c) {
+                    if (g + c >= ncols) continue;
+                    // The column's base is the wave's and the lane's offset 32-bit, one register for every column.
+                    const unsigned long long col = (unsigned long long)(g + c) * blocks;
+                    xq[c] = *(const int4*)(q + col * 32 + (b * 32 + 16 * hl));
+                    xd[c] = dx[col + b];
                 }
+            };
+            load(0);
+            unsigned wq[R][4];
+            float dw[R];
+#pragma unroll
+            for (int j = 0; j < R; ++j) {
+                const unsigned t0 = w[j][wi], t1 = w[j][wi + 1], t2 = w[j][wi + 2], t3 = w[j][wi + 3], t4 = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
+                const bool next = s0 == 4;
+                const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
+                wq[j][0] = __builtin_amdgcn_alignbyte(u1, u0, n);
+                wq[j][1] = __builtin_amdgcn_alignbyte(u2, u1, n);
+                wq[j][2] = __builtin_amdgcn_alignbyte(u3, u2, n);
+                wq[j][3] = __builtin_amdgcn_alignbyte(t4, u3, n);
+                const int own = (int)(t0 >> (8 * sh)) & 0xffff;
+                const int partner = lane_xor(own, 1);
+                dw[j] = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
             }
-            const unsigned t0 = w[wi], t1 = w[wi + 1], t2 = w[wi + 2], t3 = w[wi + 3], t4 = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
-            const bool next = s0 == 4;
-            const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-            const unsigned wq[4] = {__builtin_amdgcn_alignbyte(u1, u0, n), __builtin_amdgcn_alignbyte(u2, u1, n), __builtin_amdgcn_alignbyte(u3, u2, n),
-                                    __builtin_amdgcn_alignbyte(t4, u3, n)};
-            const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-            if constexpr (first) {
-                int isum[C];
 #pragma unroll
-                for (int c = 0; c < C; ++c) {
-                    if (c >= ncols) break;
-                    int t = word_dot((int)wq[0], xq[c].x, 0, (signed char)0);
-                    t = word_dot((int)wq[1], xq[c].y, t, (signed char)0);
-                    t = word_dot((int)wq[2], xq[c].z, t, (signed char)0);
-                    isum[c] = word_dot((int)wq[3], xq[c].w, t, (signed char)0);
-                }
-                const int partner = lane_xor(own, 1);
-                const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+            for (int g = 0; g < C; g += G) {
+                if (g) load(g);
 #pragma unroll
-                for (int c = 0; c < C; ++c) {
-                    if (c >= ncols) break;
-                    acc[c] = fmaf(dw * xd[c], (float)isum[c], acc[c]);
-                }
-            } else {
-                const int partner = lane_xor(own, 1);
-                const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+                for (int c = 0; c < G; ++c) {
+                    if (g + c >= ncols) continue;
 #pragma unroll
-                for (int c = 0; c < C; ++c) {
-                    if (c >= ncols) break;
-                    const unsigned long long xb = (unsigned long long)c * blocks + b;
-                    const int isum = half_dot(wq, q + xb * 32 + 16 * hl, 0);
-                    acc[c] = fmaf(dw * dx[xb], (float)isum, acc[c]);
+                    for (int j = 0; j < R; ++j) {
+                        int t = word_dot((int)wq[j][0], xq[c].x, 0, (signed char)0);
+                        t = word_dot((int)wq[j][1], xq[c].y, t, (signed char)0);
+                        t = word_dot((int)wq[j][2], xq[c].z, t, (signed char)0);
+                        t = word_dot((int)wq[j][3], xq[c].w, t, (signed char)0);
+                        acc[j][g + c] = fmaf(dw[j] * xd[c], (float)t, acc[j][g + c]);
+                    }
                 }
             }
         }
 #pragma unroll
-        for (int c = 0; c < C; ++c) {
-            if (c >= ncols) break;
-            const float v = wave_sum(acc[c]);
-            if (lane == 0) {
-                float* y = r.y + (unsigned long long)c * r.nout;
-                *y = add ? *y + v : v;
+        for (int j = 0; j < R; ++j) {
+#pragma unroll
+            for (int c = 0; c < C; ++c) {
+                if (c >= ncols) continue;
+                const float v = wave_sum(acc[j][c]);
+                if (lane == 0 && o + j < rc.total) {
+                    float* y = r[j].y + (unsigned long long)c * r[j].nout;
+                    *y = add ? *y + v : v;
+                }
             }
         }
     }
@@ -458,31 +472,31 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 
 // Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler: its default assumes 1024 threads and caps a thread at 64 registers, which spilled the tile's prefetch to scratch.
 // The row kernel's builds, the host taking the narrowest that holds a call's columns.
-#define LLMX_ROWS(name, C, QT, R)                                                                                                          \
+// R is the output rows a wave takes and G the columns whose loads issue together; the host's per-build row counts follow R (rocm_backend.cpp).
+#define LLMX_ROWS(name, C, QT, R, G)                                                                                                                   \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
-        q8_0_rows<C, QT, R>(c, q, dx, nin, ncols, add);                                                                                    \
+        q8_0_rows<C, QT, R, G>(c, q, dx, nin, ncols, add);                                                                                             \
     }
-LLMX_ROWS(llmx_q8_0_rows16_1, 1, short, 2)
-LLMX_ROWS(llmx_q8_0_rows16_2, 2, short, 2)
-LLMX_ROWS(llmx_q8_0_rows16_4, 4, short, 2)
-LLMX_ROWS(llmx_q8_0_rows16_8, 8, short, 2)
-LLMX_ROWS(llmx_q8_0_rows16_16, 16, short, 2)
-LLMX_ROWS(llmx_q8_0_rows8_1, 1, signed char, 1)
-LLMX_ROWS(llmx_q8_0_rows8_2, 2, signed char, 1)
-LLMX_ROWS(llmx_q8_0_rows8_4, 4, signed char, 1)
-LLMX_ROWS(llmx_q8_0_rows8_8, 8, signed char, 1)
-LLMX_ROWS(llmx_q8_0_rows8_16, 16, signed char, 1)
-#define LLMX_HALF(name, C)                                                                                                              \
+LLMX_ROWS(llmx_q8_0_rows16_1, 1, short, 2, 1)
+LLMX_ROWS(llmx_q8_0_rows16_2, 2, short, 2, 2)
+LLMX_ROWS(llmx_q8_0_rows16_4, 4, short, 2, 4)
+LLMX_ROWS(llmx_q8_0_rows16_8, 8, short, 2, 4)
+LLMX_ROWS(llmx_q8_0_rows16_16, 16, short, 2, 8)
+LLMX_ROWS(llmx_q8_0_rows8_1, 1, signed char, 1, 1)
+LLMX_ROWS(llmx_q8_0_rows8_2, 2, signed char, 1, 2)
+LLMX_ROWS(llmx_q8_0_rows8_4, 4, signed char, 2, 4)
+LLMX_ROWS(llmx_q8_0_rows8_8, 8, signed char, 2, 4)
+LLMX_ROWS(llmx_q8_0_rows8_16, 16, signed char, 2, 8)
+#define LLMX_HALF(name, C, R, G)                                                                                                                                \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) { \
-        q8_0_rows_half<C>(c, q, dx, nin, ncols, add);                                                                                   \
+        q8_0_rows_half<C, R, G>(c, q, dx, nin, ncols, add);                                                                                                     \
     }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one(c, q, dx, nin, add);
 }
-LLMX_HALF(llmx_q8_0_half8_2, 2)
-LLMX_HALF(llmx_q8_0_half8_4, 4)
-LLMX_HALF(llmx_q8_0_half8_8, 8)
-LLMX_HALF(llmx_q8_0_half8_16, 16)
+LLMX_HALF(llmx_q8_0_half8_2, 2, 1, 2)
+LLMX_HALF(llmx_q8_0_half8_4, 4, 4, 4)
+LLMX_HALF(llmx_q8_0_half8_8, 8, 2, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }

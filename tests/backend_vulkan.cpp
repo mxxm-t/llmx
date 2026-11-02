@@ -166,6 +166,14 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
             else if (type == quant::GGML_TYPE_Q4_0) quant::quantize_row_q4_0(f.data() + r * in, dst, in / 32);
             else testq::quantizer(type)(f.data() + r * in, dst, in / 32);
         }
+    } else if (type != quant::GGML_TYPE_Q4_K && type != quant::GGML_TYPE_Q5_K && type != quant::GGML_TYPE_Q6_K) {
+        // Other layouts take bytes below 0x3c, so every half, E4M3 and packed scale they read is finite.
+        bytes.resize(quant::row_bytes(type, in, rows));
+        uint32_t s = seed * 2654435761u + 1;
+        for (auto& b : bytes) {
+            s = s * 1664525u + 1013904223u;
+            b = uint8_t((s >> 24) % 0x3c);
+        }
     } else {
         const size_t ts = type == quant::GGML_TYPE_Q6_K ? quant::Q6_K_TYPESIZE : type == quant::GGML_TYPE_Q4_K ? quant::Q4_K_TYPESIZE : quant::Q5_K_TYPESIZE;
         bytes.resize(rows * (in / 256) * ts);
@@ -2357,15 +2365,33 @@ size_t check_f32_filling_builds(backend::Backend& vk) {
     return checks;
 }
 
+// The decode-column cells: every type in `types` at 1 to 64 columns, and those in `wide` also at widths to 1024 (docs/TESTS.md, backend-vulkan).
+struct DecodeCells {
+    std::vector<uint32_t> types, wide;
+    bool is_wide(uint32_t type) const { return std::find(wide.begin(), wide.end(), type) != wide.end(); }
+};
+
+// Every weight type the device decodes, by GGUF id.
+std::vector<uint32_t> device_types(const backend::Backend& vk) {
+    std::vector<uint32_t> out;
+    for (uint32_t id = 0; id < 64; ++id)
+        if (quant::storage_type(id) && vk.supports_type(id)) out.push_back(id);
+    return out;
+}
+
+// The default cells: every type, and one type a family past 64 columns (F32, Q4_1, Q4_K and Q8_0).
+DecodeCells default_decode_cells(const backend::Backend& vk) {
+    return {device_types(vk), {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q8_0}};
+}
+
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
-// docs/TESTS.md describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
-size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
-    const size_t widest = 256;
+// docs/TESTS.md describes the widths and tails that distinguish the kernel builds.
+size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, const DecodeCells& cells) {
     // Remainders reach every narrower build, 18 and 29 columns leave the widest Q8_0 build's second group partially filled, and past 64 whole chunks run side by side beside a remainder of each width.
-    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64, 65, 96, 127, 128, 129, 200, 256};
+    const std::vector<size_t> narrow = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
+    const std::vector<size_t> past = {65, 96, 127, 128, 129, 255, 256, 257, 511, 512, 513, 1000, 1023, 1024};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
-    const uint32_t q50 = quant::GGML_TYPE_Q5_0, q51 = quant::GGML_TYPE_Q5_1;
-    const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
+    const uint32_t q50 = quant::GGML_TYPE_Q5_0, q51 = quant::GGML_TYPE_Q5_1, q6k = quant::GGML_TYPE_Q6_K;
     size_t columns = 0;
     auto floats = [&](const backend::BufferPtr& b, size_t n) {
         std::vector<float> v(n);
@@ -2381,21 +2407,37 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
             }
         columns += n;
     };
+    // The widths a cell runs: each of 1 to 64 or the narrow list, then the widths past 64 where the type is wide.
+    auto widths_of = [&](uint32_t type, bool every) {
+        std::vector<size_t> w;
+        if (every) for (size_t n = 1; n <= 64; ++n) w.push_back(n);
+        else w = narrow;
+        if (cells.is_wide(type)) w.insert(w.end(), past.begin(), past.end());
+        return w;
+    };
 
     // Q8_0 rows also as many as the profile's q8_decode_two_rows_from, from which a one-column chunk of rows 1024 wide or wider takes the build of two rows and two steps; rows 224 wide take the narrow build.
     const size_t two_rows = backend::vulkan_device_profile(vk).q8_decode_two_rows_from;
     struct Case { uint32_t type; size_t nin; size_t nout = 300; };
     // Q8_0 rows 320, 448 and 512 wide take the paired build alone where the profile has the half-block order and the tree, and every wider build beside it.
     // Q8_0 rows 320 to 5120 and F32 rows 48 to 512 tall reach, on 60 compute units, every build and cut a call of 2 to 8 columns takes (VulkanBackend::filling_build).
-    for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{f32, 2560, 48}, Case{f32, 2560, 96}, Case{f32, 2560, 256}, Case{f32, 2560, 512}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
-                          Case{q8, 2560, 320}, Case{q8, 2560, 640}, Case{q8, 2560, 1280}, Case{q8, 2560, 5120},
-                          Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
-                          Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
-                          Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280},
-                          Case{quant::GGML_TYPE_Q1_0, 2048},
-                          Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}}) {
+    std::vector<Case> cases = {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{f32, 2560, 48}, Case{f32, 2560, 96}, Case{f32, 2560, 256}, Case{f32, 2560, 512},
+                               Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224}, Case{q8, 2560, 320}, Case{q8, 2560, 640}, Case{q8, 2560, 1280}, Case{q8, 2560, 5120},
+                               Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows}, Case{quant::GGML_TYPE_Q1_0, 2048},
+                               Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}};
+    // Q1_0 rows 2048 wide reach its two-row build; other types take rows 4096, 1280 and 224 wide where they hold whole blocks, so lanes take every count of steps.
+    const size_t listed = cases.size();
+    for (uint32_t type : cells.types) {
+        bool special = false;
+        for (size_t i = 0; i < listed; ++i) special = special || cases[i].type == type;
+        if (special) continue;
+        for (size_t nin : {size_t(4096), size_t(1280), size_t(224)})
+            if (nin % quant::storage_type(type)->block_size == 0) cases.push_back({type, nin});
+    }
+    for (const Case& c : cases) {
         const uint32_t type = c.type;
-        if (only_q8 && type != q8) continue;
+        if (std::find(cells.types.begin(), cells.types.end(), type) == cells.types.end()) continue;
+        const size_t widest = cells.is_wide(type) ? past.back() : 64;
         const size_t nin = c.nin, nout = c.nout, rows[3] = {nout, 37, 129};
         const auto x = uniform(widest * nin, 300 + uint32_t(nin)), base = uniform(widest * nout, 301);
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
@@ -2428,14 +2470,14 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
                 };
                 const auto one = alone(0, false);
                 const auto yb = vk.alloc(widest * nout * sizeof(float));
-                for (size_t n = 1; n <= widest; ++n) {
+                for (size_t n : widths_of(type, true)) {
                     product(0, 0, n, {yb.get(), 0}, false);
                     same(floats(yb, n * nout), one, n, nout, "a decode column differs from the same column alone");
                 }
                 if (head) continue;
                 const auto one_add = alone(0, true), one1 = alone(1, false), one2 = alone(2, false);
                 const std::vector<float>* ones[3] = {&one, &one1, &one2};
-                for (size_t n : widths) {
+                for (size_t n : widths_of(type, false)) {
                     vk.write(*yb, 0, base.data(), n * nout * sizeof(float));
                     product(0, 0, n, {yb.get(), 0}, true);
                     same(floats(yb, n * nout), one_add, n, nout, "a decode column's residual add differs from the same column alone");
@@ -2449,7 +2491,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
                         same(floats(out[i], n * rows[i]), *ones[i], n, rows[i], "a grouped projection's decode column differs from the same column alone");
                 }
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  decode columns: type %u, nin %zu%s, %s\n", type, nin, head ? ", output head" : "", backend::dtype_name(dtype));
+                std::fprintf(stderr, "  decode columns: type %s, nin %zu%s, %s\n", quant::storage_type(type)->name, nin, head ? ", output head" : "", backend::dtype_name(dtype));
                 throw;
             }
         }
@@ -2457,18 +2499,21 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
 
     // Routed gate/up and residual down products must equal each token alone, on both sides of the grouped-build threshold.
     // The two input widths cover paired steps and their single-step tails.
-    const size_t nout = 300, n_expert = 8, k = 2, tokens = 32;
-    const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f), base = uniform(tokens * nout, 313);
+    const size_t nout = 300, n_expert = 8, k = 2;
+    bool any_wide = false;
+    for (uint32_t type : cells.types) any_wide = any_wide || cells.is_wide(type);
+    const size_t most = any_wide ? past.back() : 64;
+    const auto scores = uniform(most * n_expert, 310, -3.0f, 3.0f), base = uniform(most * nout, 313);
     const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
-    const auto ids = vk.alloc(tokens * k * sizeof(float)), wts = vk.alloc(tokens * k * sizeof(float));
-    vk.route_experts({sb.get(), 0}, tokens, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+    const auto ids = vk.alloc(most * k * sizeof(float)), wts = vk.alloc(most * k * sizeof(float));
+    vk.route_experts({sb.get(), 0}, most, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
     auto routing = [&](size_t first) { return backend::Backend::Routing{{ids.get(), first * k}, {wts.get(), first * k}, k, n_expert}; };
     for (size_t rin : {size_t(4096), size_t(1280)}) {
-        const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312);
+        const auto x = uniform(most * rin, 311), x2 = uniform(most * k * rin, 312);
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
-        for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k, quant::GGML_TYPE_Q1_0,
-                              quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
-            if (only_q8 && type != q8) continue;
+        for (uint32_t type : cells.types) {
+            if (rin % quant::storage_type(type)->block_size) continue;
+            const size_t tokens = cells.is_wide(type) ? past.back() : 64;
             try {
                 const auto g = matrix(type, rin, n_expert * nout, 314), u = matrix(type, rin, n_expert * nout, 315), d = matrix(type, rin, n_expert * nout, 316);
                 const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
@@ -2489,19 +2534,94 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
                     const auto r = routed(t, 1);
                     for (size_t i = 0; i < 3; ++i) one[i].insert(one[i].end(), r[i].begin(), r[i].end());
                 }
-                for (size_t n = 1; n <= tokens; ++n) {
+                for (size_t n : widths_of(type, true)) {
                     const auto r = routed(0, n);
                     same(r[0], one[0], n * k, nout, "a routed gate entry differs from the same token alone");
                     same(r[1], one[1], n * k, nout, "a routed up entry differs from the same token alone");
                     same(r[2], one[2], n, nout, "a routed down projection's row differs from the same token alone");
                 }
             } catch (const std::runtime_error&) {
-                std::fprintf(stderr, "  decode columns: routed type %u, nin %zu, %s\n", type, rin, backend::dtype_name(dtype));
+                std::fprintf(stderr, "  decode columns: routed type %s, nin %zu, %s\n", quant::storage_type(type)->name, rin, backend::dtype_name(dtype));
                 throw;
             }
         }
     }
     return columns;
+}
+
+// Printed, never asserted: decode calls of 1 to 1024 columns per type at Qwen3.8-Flash-Next's projection shapes, its routed expert shape and Qwen3.6-27B's long feed-forward down projection.
+// Each cell gives the products' device time, their rate, every kernel's time and the builds that ran, which witness the build each width takes.
+void report_decode_rates(const std::vector<uint32_t>& types) {
+    const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *timed;
+    struct Shape { const char* name; size_t nin, nout; bool routed; };
+    const Shape shapes[] = {{"flash attn_qkv", 2560, 10240, false}, {"flash ssm_out", 6144, 2560, false}, {"flash hc_down", 10240, 320, false},
+                            {"flash shexp_gate", 2560, 640, false}, {"flash exps_gate x10", 2560, 640, true}, {"27b ffn_down", 17408, 5120, false}};
+    const size_t widths[] = {1, 8, 16, 32, 64, 256, 1024}, widest = 1024, experts = 512, k = 10;
+    std::vector<backend::Dtype> dtypes = {backend::Dtype::f16};
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) dtypes.push_back(backend::Dtype::int8);
+    // Routing picks spread over every expert, k distinct a token.
+    std::vector<uint32_t> picks(widest * k);
+    for (size_t t = 0; t < widest; ++t)
+        for (size_t j = 0; j < k; ++j) picks[t * k + j] = uint32_t((t * 37 + j * (experts / k)) % experts);
+    const auto ib = vk.adopt(picks.data(), picks.size() * sizeof(uint32_t));
+    // Half a second of work first, so the first cell does not time an idle device waking up.
+    {
+        const auto w = uniform(4096 * 4096, 901);
+        const auto wb = vk.adopt(w.data(), w.size() * sizeof(float)), xb = vk.adopt(w.data(), 64 * 4096 * sizeof(float));
+        const auto y = vk.alloc(64 * 4096 * sizeof(float));
+        const auto t0 = std::chrono::steady_clock::now();
+        while (std::chrono::steady_clock::now() - t0 < std::chrono::milliseconds(500)) {
+            vk.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, 4096, 4096, 64);
+            vk.sync();
+        }
+        (void)backend::vulkan_kernel_times(vk);
+    }
+    std::cout << "backend-vulkan: decode rates, " << backend::vulkan_device_name(vk) << "; type, dtype, shape (in x out), columns: products us, TMAC/s, all kernels us, builds\n";
+    for (const Shape& s : shapes) {
+        const auto x = uniform(widest * s.nin, 900);
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const size_t outs = s.routed ? widest * k * s.nout : widest * s.nout;
+        const auto y = vk.alloc(outs * sizeof(float));
+        for (uint32_t type : types) {
+            if (s.nin % quant::storage_type(type)->block_size) continue;
+            // The test's weights for one matrix, copied into every expert of a routed shape; some kernels slow down on values real files rarely hold, such as subnormal MXFP4 scales.
+            const std::vector<uint8_t> one = matrix(type, s.nin, s.nout, 7);
+            std::vector<uint8_t> bytes;
+            for (size_t e = 0; e < (s.routed ? experts : 1); ++e) bytes.insert(bytes.end(), one.begin(), one.end());
+            const auto wb = vk.adopt(bytes.data(), bytes.size());
+            for (const backend::Dtype dtype : dtypes)
+                for (const size_t n : widths) {
+                    const backend::RowRun decode{n, 1};
+                    const backend::Backend::Routing routing{{ib.get(), 0}, {}, k, experts};
+                    auto call = [&] {
+                        if (s.routed) vk.matmul_experts({{{type, {wb.get(), 0}}, {y.get(), 0}, s.nout}}, {xb.get(), 0}, s.nin, n, routing, {&decode, 1}, dtype);
+                        else vk.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, s.nin, s.nout, n, {&decode, 1}, dtype);
+                    };
+                    call();
+                    (void)backend::vulkan_kernel_times(vk);
+                    const int iters = n >= 256 ? 3 : 10;
+                    for (int i = 0; i < iters; ++i) call();
+                    double products = 0, all = 0;
+                    std::string builds;
+                    for (const auto& t : backend::vulkan_kernel_times(vk)) {
+                        all += t.second;
+                        if (t.first.rfind("matmul_", 0) != 0) continue;
+                        products += t.second;
+                        builds += (builds.empty() ? "" : "+") + t.first;
+                    }
+                    if (all == 0) {
+                        std::printf("backend-vulkan: rate %s %s %s, %zu: untimed\n", quant::storage_type(type)->name, backend::dtype_name(dtype), s.name, n);
+                        continue;
+                    }
+                    const double us = 1e3 * products / iters, macs = double(s.nin) * s.nout * n * (s.routed ? k : 1);
+                    std::printf("backend-vulkan: rate %s %s %s (%zu x %zu), %zu: %.1f us, %.3f TMAC/s, %.1f us, %s\n", quant::storage_type(type)->name, backend::dtype_name(dtype),
+                                s.name, s.nin, s.nout, n, us, macs / us / 1e6, 1e3 * all / iters, builds.c_str());
+                }
+        }
+    }
+    std::fflush(stdout);
 }
 
 // Count the disassembly's float products and reductions, distinguishing fused operations and shuffled adds.
@@ -5201,8 +5321,32 @@ size_t check_moe_step_columns(backend::Backend& vk) {
     return columns;
 }
 
+// The types a comma-separated list names by their GGUF names, or every type the device decodes for an empty list.
+std::vector<uint32_t> named_types(const backend::Backend& vk, const std::string& list) {
+    if (list.empty()) return device_types(vk);
+    std::vector<uint32_t> out;
+    size_t at = 0;
+    while (at <= list.size()) {
+        const size_t end = std::min(list.find(',', at), list.size());
+        const std::string name = list.substr(at, end - at);
+        uint32_t id = 0;
+        while (id < 64 && !(quant::storage_type(id) && name == quant::storage_type(id)->name)) ++id;
+        if (id == 64 || !vk.supports_type(id)) throw std::runtime_error("no weight type " + name + " on this device");
+        out.push_back(id);
+        at = end + 1;
+    }
+    return out;
+}
+
 int main(int argc, char** argv) {
-    const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
+    // --isa DIR runs every check and writes the kernels' representations; --decode-columns [TYPES] and --decode-rates [TYPES] run only those cells.
+    const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
+    const std::string isa_dir = argc == 3 && mode == "--isa" ? arg : "";
+    const bool columns_only = mode == "--decode-columns", rates_only = mode == "--decode-rates";
+    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only)) {
+        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES]]\n";
+        return 2;
+    }
     backend::BackendPtr b;
     try {
         b = backend::make_vulkan_backend(0, !isa_dir.empty());
@@ -5211,6 +5355,18 @@ int main(int argc, char** argv) {
         return 77;
     }
     try {
+        if (rates_only) {
+            report_decode_rates(named_types(*b, arg));
+            return 0;
+        }
+        if (columns_only) {
+            // Named types run every width; with none named, the default cells.
+            const DecodeCells cells = arg.empty() ? default_decode_cells(*b) : DecodeCells{named_types(*b, arg), named_types(*b, arg)};
+            for (const backend::Dtype dtype : b->native_dtypes())
+                if (dtype != backend::Dtype::f32)
+                    std::cout << "backend-vulkan: " << check_decode_columns(*b, dtype, cells) << " " << backend::dtype_name(dtype) << " decode columns equal to the same columns alone\n";
+            return 0;
+        }
         check_float_ops();
         check_decode_contraction();
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
@@ -5399,12 +5555,13 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         print_argmax_after_head();
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";
-        const size_t columns = check_decode_columns(*b, backend::Dtype::f16);
+        const DecodeCells cells = default_decode_cells(*b);
+        const size_t columns = check_decode_columns(*b, backend::Dtype::f16, cells);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_f32_filling_builds(*b) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
-            std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8) << " int8 decode columns equal to the same columns alone\n";
+            std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8, cells) << " int8 decode columns equal to the same columns alone\n";
         // The Q8_0 decode kernel on a backend taking the integer dot, which a device whose profile does not prefer it reaches only here.
         backend::BackendPtr q8b = backend::make_vulkan_backend(0, true);
         const bool q8_forced = !backend::vulkan_device_profile(*q8b).prefer_integer_dot;
@@ -5420,7 +5577,7 @@ int main(int argc, char** argv) {
             std::cout << "backend-vulkan: " << moe::check_row_classes(*q8b, matrix) << " pairs of extents of one class with the same bits through the fused routed step\n";
             if (q8_forced)
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
-                    std::cout << "backend-vulkan: " << check_decode_columns(*q8b, dtype, true) << " Q8_0 decode columns on the integer dot, " << backend::dtype_name(dtype)
+                    std::cout << "backend-vulkan: " << check_decode_columns(*q8b, dtype, {{quant::GGML_TYPE_Q8_0}, {quant::GGML_TYPE_Q8_0}}) << " Q8_0 decode columns on the integer dot, " << backend::dtype_name(dtype)
                               << ", equal to the same columns alone\n";
         }
         std::cout << "backend-vulkan: " << check_bf16_rounding(*b) << " BF16 boundary and unchanged-weight products, with F32 control\n";

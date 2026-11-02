@@ -130,6 +130,18 @@ One sequence and the single prompt run no new code and stay level.
 The suite on rocm:0 fails only reference-consumer, half-weights, moe and vision, the four components main fails there too, each the device refusing an op it lacks (routed_experts among them); the skip path is the follow-up recorded below.
 **Left:** review by F2DEV, the hosted run, landing by fast-forward.
 **Gotchas:** the F16 class gains far less than int8 at four and sixteen sequences (8B 126 against 211, Vulkan 240): its multi-column row builds are the next lever, profiled first; sixteen sequences add little over four in both classes, so the sixteen-column builds want the same profile.
+## Wide decode for every type, step 1: the identity and rate harness (2026-11-02, VDEV, branch test/wide-decode-harness on main d50b7a2bb, step 1 of VDEV's plan "wide decode, all types" of 2026-11-02, approved by XDEV with amendments and by F2DEV with conditions; tests only)
+
+**Goal:** the gate and the baseline for the later steps: every weight type's decode columns held to the same column alone, and a per-type rate table at real shapes.
+**Done:** `check_decode_columns` runs every weight type the device decodes at each of 1 to 64 columns (plain and output-head calls), the residual add and grouped calls at the narrow widths, and 8 experts routed 2 a token over 1 to 64 tokens; F32, Q4_1, Q4_K and Q8_0, one type a row family, also run 65, 96, 127-129, 255-257, 511-513, 1000, 1023 and 1024 columns in every call kind (F2DEV's grid).
+The test's `matrix` gives every remaining type (Q2_K, Q3_K, the IQ types, NVFP4) bytes below 0x3c, which keep every half, E4M3 and packed scale finite.
+Focused cells (XDEV): `llmx-backend-vulkan-test --decode-columns [TYPES]` runs only these cells, every width for the named types; `--decode-rates [TYPES]` prints, never asserts, us, TMAC/s and the builds that ran at 1, 8, 16, 32, 64, 256 and 1024 columns on Qwen3.8-Flash-Next's shapes and Qwen3.6-27B's 17408 x 5120.
+One MI50 (renderD130, RADV): the default cells pass, 1,853,048 columns in each of f16 and int8, in 78 s; the rate table takes 159 s.
+Rate baseline, int8, TMAC/s at 1 / 64 / 1024 columns: Flash attn_qkv 2560x10240 Q8_0 0.24 / 5.03 / 5.35, Q4_K 0.41 / 4.07 / 4.37, IQ4_XS 0.18 / 0.50 / 0.51, Q3_K 0.23 / 0.51 / 0.52, MXFP4 0.42 / 0.60 / 0.61, F32 0.19 / 0.70 / 0.71; 27B ffn_down Q4_1 1.04 / 5.54 / 5.90; every type outside the Q4/Q5/K families and Q8_0 stays near 0.4-0.8 TMAC/s from 8 columns on.
+Routed Flash shape (2560 into 640, 512 experts, 10 a token): every type keeps the one-column build per entry to 64 tokens and takes the grouped build from 256, Q4_K 0.39 / 1.16 / 1.91 and Q8_0 0.59 / 0.70 / 3.47.
+**Found:** NVFP4's 8-column build is 25 times slower a column than its one-column build (attn_qkv int8 88.8 us at 1 column, 2195.6 us at 8), the plan's 0.88x defect, for its own branch (F2DEV); MXFP4 blocks with an E8M0 scale of 0 (a subnormal scale) ran the row kernel at 0.003 TMAC/s in a first run, which real files rarely hold, recorded for a look of its own.
+**Left:** review by F2DEV; the expanded matrix and the gates at the end of the plan.
+**Gotchas:** the rate table's weights must be the test's `matrix` values; arbitrary bytes reach slow paths, such as subnormal MXFP4 scales, where a 1024-column call of about 9 s came back with no timestamps.
 
 ## ROCm F16 decode rows, two rows a wave (2026-11-01, DDEV, branch perf/rocm-f16-two-rows on main fb2e379d2; the f16 decode plan posted to F2DEV and XDEV at 2026-11-01 20:5x, probe 2 kept by p71)
 

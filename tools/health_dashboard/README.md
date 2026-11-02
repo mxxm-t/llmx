@@ -77,14 +77,18 @@ The Runtime configuration card shows the effective RoPE policy, factor, original
   snapshots' actual elapsed time; per-request rates use those exact same
   endpoints and remain unavailable if either is missing or the request is
   absent in either endpoint. The dashboard does not interpolate or poll more
-  often. Repeated snapshots retain the last measured interval as stale briefly
-  in the headline and request cards, then become unavailable. Counter resets
-  and collector gaps are unavailable rather than zero. A new per-request rate
-  becomes available after two distinct snapshots. Old APIs retain the
-  collector-time aggregate fallback, which can differ from per-request runtime
-  rates. Long passes reveal prompt work only at retirement; zero does not
-  establish that the engine was idle. Collection remains shared, every two
-  seconds by default, without per-token polling.
+  often. A successful sample with zero active requests and valid work counters
+  shows zero PP/TG throughput immediately, including when the runtime snapshot
+  stops advancing. While requests remain active, repeated snapshots retain the
+  last measured interval as stale briefly in the headline and request cards,
+  then become unavailable. Missing counters, resets and collector gaps remain
+  unavailable, and stale or disconnected chart tails are shaded unavailable.
+  A new per-request rate becomes available after two distinct
+  snapshots. Old APIs retain the collector-time aggregate fallback, which can
+  differ from per-request runtime rates. Long passes reveal prompt work only at
+  retirement; zero output throughput does not establish that the device is
+  idle. Collection remains shared, every two seconds by default, without
+  per-token polling.
 - When `requests.live` is present, the live-request cards show the capped
   request IDs, phase, elapsed time and prominent PP/TG rates. Expand a card's
   token-counter details for prompt/reused/prefilled/published counts.

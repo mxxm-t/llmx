@@ -3363,6 +3363,18 @@ function sampleIntervalMeasurement(samples, i, path, clockField) {
     staleAfter: gapLimit
   })
 }
+function workRateMeasurement(samples, i, path, clockField, allowIdleZero = true) {
+  if (i < 0 || i >= samples.length) return null;
+  const sample = samples[i];
+  const value = sample.metrics[path];
+  const clock = clockField ? sample.metrics[clockField] : sample.t;
+  const measured = sampleIntervalMeasurement(samples, i, path, clockField);
+  if (allowIdleZero && !sample.reset && sample.metrics['requests.now.active'] === 0 && number(value) && number(clock)) {
+    if (measured && measured.age === 0) return measured;
+    return {rate: 0, elapsed: 0, age: 0, startClock: clock, endClock: clock}
+  }
+  return measured
+}
 function rateUnavailableReason(samples, i, path, clockField) {
   if (i < 0) return 'Waiting for health samples';
   const current = samples[i];
@@ -4141,7 +4153,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.prompt_tokens'],
   labels: ['Completed prompt tok/s'],
   colors: ['#7aa9ff'],
-  values: (samples, i, config) => config.fields.map(path => sampleIntervalRate(samples, i, path, config.clockField)),
+  values: (samples, i, config) => config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null),
   note: 'Includes cached prompt tokens; counted at request completion. Gaps indicate unavailable rates.'
 },
 {
@@ -4152,7 +4164,7 @@ const chartConfigurations = [{
   fields: ['requests.since_start.generated_tokens'],
   labels: ['Completed generated tok/s'],
   colors: ['#66dfd1'],
-  values: (samples, i, config) => config.fields.map(path => sampleIntervalRate(samples, i, path, config.clockField)),
+  values: (samples, i, config) => config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null),
   note: 'Completed-request counter deltas; gaps mark missing samples or counter resets.'
 },
 {
@@ -4219,8 +4231,8 @@ function configureWorkRates(raw) {
   txt('rate-explainer', mode === 'completed' ?
     'Live PP/TG throughput is unavailable from this API. These fallback charts show completed-request counter changes per collector sample interval; prompt totals include cached tokens. Zero does not mean the engine is idle.' :
     mode === 'unavailable' ? 'Live throughput unavailable until compatible health counters arrive.' :
-    mode === 'runtime' ? 'PP/TG and per-request rates use counter changes between the same consecutive distinct runtime snapshots, divided by their elapsed time. Gaps and missing counters are unavailable. Repeated snapshots show the last measured rate as stale in the headline, then unavailable after the freshness interval. Prompt work appears at pass retirement, and zero does not establish idle hardware.' :
-    'Legacy live PP/TG uses consecutive collector samples; per-request rates use runtime snapshots and can differ. Gaps are unavailable. Repeated snapshots show the last measured rate as stale, then become unavailable after the freshness interval.');
+    mode === 'runtime' ? 'PP/TG and per-request rates use counter changes between the same consecutive distinct runtime snapshots, divided by their elapsed time. A fresh sample with zero active requests and valid counters shows zero throughput, even when the runtime snapshot stops advancing. While requests remain active, repeated snapshots show the last measured rate as stale, then unavailable after the freshness interval. Gaps and missing counters stay unavailable. Prompt work appears at pass retirement.' :
+    'Legacy live PP/TG uses consecutive collector samples; per-request rates use runtime snapshots and can differ. A fresh sample with zero active requests and valid counters shows zero throughput. Gaps and missing counters are unavailable. Repeated snapshots while requests remain active show the last measured rate as stale, then become unavailable after the freshness interval.');
   txt('rate-footer', mode === 'completed' ? 'Old API: completed-work fallback, not live throughput.' : mode === 'runtime' ? 'Shared consecutive runtime sample interval; duration follows snapshot timestamps.' :
     mode === 'unavailable' ? 'Live throughput unavailable / waiting for health counters.' : 'Legacy aggregate uses collector time; per-request rates use runtime time.');
   return mode;
@@ -4371,7 +4383,7 @@ function inspectTime(time, pinned = false) {
   if (pinned) txt('inspection-live', stamp + '. ' + summaries.join('. '));
   $('clear-inspection').hidden = false;
 }
-function renderChart(samples, stamp, config, events, motion = null) {
+function renderChart(samples, stamp, config, events, motion = null, telemetryAvailable = true) {
   const host = $(config.id + '-chart');
   const format = config.format || fmt;
   host.replaceChildren();
@@ -4401,6 +4413,9 @@ function renderChart(samples, stamp, config, events, motion = null) {
       reasons: values.map((value, index) => number(value) ? '' : config.mode ? rateUnavailableReason(samples, i, config.fields[index], config.clockField) : 'Metric unavailable')
     });
   });
+  if (config.mode && !telemetryAvailable && !state.paused && points.length && end > points.at(-1).t) {
+    points.push({t: end, values: config.labels.map(() => null), reasons: ['Telemetry stale or disconnected'], gap: true})
+  }
   const finite = points.flatMap(point => point.values.filter(number));
   const maximum = finite.length ? Math.max(...finite): 0;
   const targetCap = config.floor ? Math.max(config.floor, maximum * 1.05): maximum > 0 ? maximum * 1.14: 1;
@@ -4659,11 +4674,22 @@ function render() {
   txt('capacity-status', !view.latest ? 'WAITING': number(paused) && paused > 0 ? 'PAUSED WORK': number(queued) && queued > 0 ? 'QUEUED WORK': 'CURRENT STATE');
   const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
   const throughputConfig = chartConfigurations.find(config => config.id === 'throughput');
-  const latestMeasured = sampleIntervalMeasurement(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField);
-  txt('token-rate', startupActive || workMode === 'unavailable' ? '--' : formatRate(latestMeasured?.rate ?? null));
+  const latestSample = view.samples.at(-1);
+  const sampleAgeSeconds = view.lastSuccess === null ? null : Math.max(0, Date.now() / 1000 - view.lastSuccess);
+  const telemetryFresh = number(sampleAgeSeconds) && sampleAgeSeconds <= Math.max(10, state.interval * 3);
+  const telemetryHealthy = state.paused ? telemetryFresh : state.ok && telemetryFresh;
+  const latestMeasured = workRateMeasurement(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField, workMode !== 'completed');
+  const idleZero = workMode !== 'completed' && latestMeasured?.rate === 0 && latestSample && !latestSample.reset &&
+    latestSample.metrics['requests.now.active'] === 0 && number(latestSample.metrics[outputField]) &&
+    (!throughputConfig.clockField || number(latestSample.metrics[throughputConfig.clockField]));
+  txt('token-rate', startupActive || workMode === 'unavailable' || !telemetryHealthy ? '--' : formatRate(latestMeasured?.rate ?? null));
   const sampleAge = runtimeSampleAge(view.samples, throughputConfig.clockField);
   if (startupActive) {
     txt('token-rate-note', 'Inference rates are unavailable during server startup.');
+  } else if (!telemetryHealthy) {
+    txt('token-rate-note', 'Throughput unavailable while telemetry is stale or disconnected.');
+  } else if (idleZero) {
+    txt('token-rate-note', 'No active requests; throughput is 0 tok/s.');
   } else if (workMode === 'runtime' && number(sampleAge) && sampleAge > 0) {
     const stale = sampleAge > Math.max(15, state.interval * 3);
     const status = stale ? 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; rate unavailable.' : 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; showing last measured sample interval as stale.';
@@ -4708,7 +4734,7 @@ function render() {
   renderRangeOverview(view);
   const motion = chartMotionFor(view);
   stopChartMotion();
-  chartConfigurations.forEach(config => renderChart(view.samples, view.lastSuccess, config, view.events, motion));
+  chartConfigurations.forEach(config => renderChart(view.samples, view.lastSuccess, config, view.events, motion, telemetryHealthy));
   startChartMotion();
   if (inspection.time !== null) {
     const end = Math.max(view.lastSuccess || 0, view.events.length ? view.events.at(-1).t : 0);

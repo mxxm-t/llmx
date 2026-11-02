@@ -5384,6 +5384,13 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 - Deployment: The static UI landed separately by fast-forward, without changing the collector or inference runtime. The later runtime deployment `3b2a701b` added `requests.live`, enabling per-request cards after two distinct samples for a request. Servers without that API still show the unavailable state.
 - Gotchas: Own-history provides lifetime drafted and kept totals only; its bar does not imply position, time-series or per-request data. Live rates are unavailable for first samples, resets and older APIs; requests can start and finish between polls without appearing, and the endpoint may omit rows above its cap. Replacing the Python collector requires browser-local polling/history (per-tab and lost on reload) or a native shared collector; serving only the static page is insufficient.
 
+## Health dashboard idle throughput (2026-11-02, branch fix/dashboard-idle-rates-20261102, UI only)
+
+- **Goal:** Show zero PP/TG throughput when healthy telemetry reports no active requests, while keeping stale, disconnected and missing data unavailable.
+- **Done:** A fresh zero-active sample with valid counters reports zero even if the runtime snapshot has stopped. A newly measured final interval is retained; the next idle sample reports zero. Completed-request fallback deltas are preserved. Stale or disconnected chart tails are shaded unavailable, and the live headline is unavailable while telemetry is stale or disconnected.
+- **Checks:** `python tools/health_dashboard/test_ui_rates.py` passes 13 tests, including desktop/mobile browser cases for active-to-idle, idle startup, disconnect/reconnect, missing counters and unavailable chart tails. `python tests/run_tests.py --exe <Release CLI> --only docs,dead-code` passes with docs 0 findings/21 planted faults and dead-code 8 listed findings/19 planted faults. Its Release CLI was built at `ac3884d2d7dd` (version `0.1.0+gac3884d2d7dd`, numerics `48cd2256cd3a3816`, SHA-256 `07526BF20C70B089E42F292A0F5A837CE58E2E843CB036CD21A72B8165FADF79`); this commit adds only this STATUS record since that build. Logs: `scratch/dashboard-idle-rates-20261102/`.
+- **Gate scope:** Static dashboard HTML/JavaScript and documentation only; no inference, HF, runtime numerical or performance gates and no production rollout.
+
 ## Active feature blocks
 
 ### Scoped correctness coverage and remaining HF work

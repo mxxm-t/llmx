@@ -25,7 +25,7 @@ CHROME_PATHS = (
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
 )
 CHROME_COMMANDS = ("google-chrome", "chromium", "chromium-browser", "chrome", "msedge")
-FUNCTIONS = ("consecutiveCounterRate", "sampleIntervalRate", "sampleIntervalMeasurement", "requestWindowRate", "runtimeSampleAge",
+FUNCTIONS = ("consecutiveCounterRate", "sampleIntervalRate", "sampleIntervalMeasurement", "workRateMeasurement", "requestWindowRate", "runtimeSampleAge",
              "resetLiveRequestSample", "updateLiveRequests")
 PRELUDE = ("const state = {interval: 2, liveRequests: {available: null, items: []}}; "
            "let fakePerformanceNow = 0; const performance = {now: () => fakePerformanceNow}; "
@@ -65,6 +65,32 @@ check('continuous duplicate polls still recover on the next runtime snapshot',
 check('old duplicate snapshot is unavailable',
   sampleIntervalRate([aggregate[2], {...aggregate[2], t: 40}], 1,
     'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms') === null);
+const idleBoot = {...sample(0, 0, 0), metrics: {...sample(0, 0, 0).metrics, 'requests.now.active': 0}};
+check('idle startup with healthy counters is zero',
+  workRateMeasurement([idleBoot], 0, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')?.rate === 0);
+const activeSnapshot = {...sample(10, 100, 100), metrics: {...sample(10, 100, 100).metrics, 'requests.now.active': 1}};
+const idleSnapshot = {...sample(12, 100, 100), metrics: {...activeSnapshot.metrics, 'requests.now.active': 0}};
+const activeThenIdle = [activeSnapshot, idleSnapshot];
+check('active to idle drops a held interval rate to zero immediately',
+  workRateMeasurement(activeThenIdle, 1, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')?.rate === 0);
+const finalRuntimeWork = [sample(10, 100, 100), {...sample(12, 150, 150), metrics: {...sample(12, 150, 150).metrics, 'requests.now.active': 0}}];
+check('idle boundary keeps its just-measured runtime work interval',
+  workRateMeasurement(finalRuntimeWork, 1, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')?.rate === 25);
+const completedWork = (t, value, active) => ({t, reset: false, metrics: {
+  'requests.since_start.generated_tokens': value, 'requests.now.active': active
+}});
+check('active-to-completed boundary preserves completed counter delta',
+  workRateMeasurement([completedWork(10, 100, 1), completedWork(12, 150, 0)], 1,
+    'requests.since_start.generated_tokens', null, false)?.rate === 25);
+const idleMissingCounter = {...idleBoot, metrics: {...idleBoot.metrics, 'requests.live.work.generated_tokens': undefined}};
+check('idle with a missing work counter stays unavailable',
+  workRateMeasurement([idleMissingCounter], 0, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms') === null);
+const busyFrozen = [sample(10, 0, 0), sample(12, 100, 100), {...sample(14, 100, 100), metrics: {...sample(12, 100, 100).metrics, 'requests.now.active': 1}}];
+check('active request keeps a recent frozen interval stale',
+  workRateMeasurement(busyFrozen, 2, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')?.rate === 50);
+const busyExpired = {...busyFrozen[2], t: 30};
+check('active request rate expires after a frozen snapshot ages out',
+  workRateMeasurement([...busyFrozen, busyExpired], 3, 'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms') === null);
 check('unchanged distinct samples are a real zero',
   sampleIntervalRate([aggregate[2], sample(30, 512, 512)], 1,
     'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms') === 0);
@@ -253,7 +279,28 @@ check('recovered historical gap remains visibly shaded', !!$('throughput-chart')
 const idleStart = sample(-20, 100);
 const idleLatest = {...idleStart, t: now, metrics: {...idleStart.metrics, 'requests.now.active': 0}};
 renderChart([sample(-30, 0), idleStart, idleLatest], now, config, []);
-check('idle frozen snapshot is explained without inventing zero', $('throughput-at').textContent === 'No active requests / no new runtime snapshot' && $('throughput-value').textContent === '--');
+check('idle frozen snapshot plots zero immediately', $('throughput-value').textContent === '0.00' && !!$('throughput-chart').querySelector('circle[data-sample-value="0"]'));
+const missingIdle = {...idleLatest, metrics: {...idleLatest.metrics, [metric]: undefined}};
+renderChart([idleStart, missingIdle], now, config, []);
+check('idle sample with a missing counter remains a gap', $('throughput-value').textContent === '--' && $('throughput-at').textContent.includes('missing'));
+const idleHealth = (t, seq) => ({seq, t, reset: false, metrics: {
+  'requests.now.active': 0, 'requests.live.work.generated_tokens': 0,
+  'requests.live.work.prefilled_tokens': 0, 'requests.live.sample_elapsed_ms': 100000
+}});
+state.latest = {requests: {now: {active: 0}, live: {sample_elapsed_ms: 100000, work: {generated_tokens: 0, prefilled_tokens: 0}}}};
+state.samples = [idleHealth(now, 1)]; state.lastSuccess = now; state.ok = true; state.error = null; state.received = true;
+state.startup = null; state.startupObservedAt = null; state.events = [];
+render();
+check('healthy idle startup headline is zero', $('token-rate').textContent === '0.00');
+state.ok = false; state.error = 'Live stream disconnected'; render();
+check('disconnect does not turn stale idle telemetry into zero', $('token-rate').textContent === '--');
+state.ok = true; state.error = null; state.lastSuccess = now + 2; state.samples = [idleHealth(now, 1), idleHealth(now + 2, 2)]; render();
+check('reconnect restores zero from a fresh idle sample', $('token-rate').textContent === '0.00');
+renderChart([idleHealth(now, 1)], now, config, [], {end: now + 10, animate: false}, false);
+const disconnectGap = $('throughput-chart').querySelector('rect[data-rate-gap]');
+check('disconnected chart tail is shaded unavailable', !!disconnectGap && disconnectGap.querySelector('title').textContent === 'Telemetry stale or disconnected');
+renderChart([idleHealth(now, 1)], now, config, [], {end: now + 10, animate: false}, true);
+check('healthy idle chart has no unavailable tail', !$('throughput-chart').querySelector('rect[data-rate-gap]'));
 renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
   {layer: 2, rows: 10, row_bytes: 128, bytes: 1280, type: 'Q4_K', storage: 'device', members: [0]}
 ]}});
@@ -430,7 +477,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         document = source.replace("</body>", results + "</body>")
         for width in (1440, 390):
             with self.subTest(width=width):
-                self.assertEqual(len(self.run_browser(document, width)), 19)
+                self.assertEqual(len(self.run_browser(document, width)), 25)
 
     def test_rope_configuration_display(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
@@ -1160,18 +1207,20 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                     "</script><pre id='rate-test-results'></pre><script>document.querySelector('#rate-test-results').textContent = "
                     "JSON.stringify(globalThis.rateTestResults)</script></body></html>")
         outcomes = self.run_browser(document)
-        self.assertEqual(len(outcomes), 34)
+        self.assertEqual(len(outcomes), 41)
 
     def test_health_contract_and_labels_are_source_backed(self):
         source = HTML_FILE.read_text(encoding="utf-8")
         self.assertIn("requests.live.work.", source)
         self.assertIn("requests.live.sample_elapsed_ms", source)
         self.assertIn("Consecutive collector samples", source)
-        self.assertIn("config.fields.map(path => sampleIntervalRate(samples, i, path, config.clockField))", source)
+        self.assertIn("config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null)", source)
+        self.assertIn("workMode !== 'completed' && latestMeasured?.rate === 0", source)
+        self.assertIn("zero active requests and valid counters shows zero throughput", source)
         self.assertIn("requestWindowRate(liveRequestHistory", source)
         self.assertIn("showing last measured sample interval as stale", source)
         self.assertIn("Runtime snapshot unchanged for", source)
-        self.assertIn("Repeated snapshots show the last measured rate as stale", source)
+        self.assertIn("Repeated snapshots while requests remain active show the last measured rate as stale", source)
         self.assertIn("same consecutive distinct runtime snapshots", source)
 
 

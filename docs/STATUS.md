@@ -29,6 +29,39 @@
   The change lands by fast-forward.
 - **Left:** the hosted run, F2DEV's review.
 
+## ROCm products join adjacent runs into one launch (2026-11-02, DDEV, branch perf/rocm-decode-run-launch on main d50b7a2bb; the coordinator's ask of 07:21 after DDEV's batched-decode FINDING of 05:18, cause posted with its profile before the code)
+
+**Goal:** ROCm decode of several sequences on one MI50 well above one sequence's total, as Vulkan's is; Qwen3-8B Q8_0 f16 gave about 70 tok/s for four sequences against 66 for one, Vulkan 225-241.
+**Cause** (rocprofv3 kernel trace, Qwen3-8B Q8_0 f16, 16-token prompts and 32 tokens, rig `ddev/rocm/p72`): one sequence took 9282 row kernel launches (q8_0_rows16_1, 807.6 ms, 87.0 us each), four sequences 37130 (3153.1 ms, 84.9 us each) and never a four-column build; the products were 77% and 80% of the device time. A pass gives one row run per entry (`model/passes.hpp`), and `RocmBackend::product_twin` launched run by run, so four sequences read every weight four times; four 16-token prompts likewise took 1440 tile calls against 288. Vulkan's `matmul_runs` joins neighbouring runs whose kernel and split match.
+**Done:** `product_twin` joins neighbouring runs that are both generated rows, or both prompts of one `split_tiles_of`, into one run of launches; a decode column and a tile row give the same bits in any call, so no bit moves. backend-rocm adds every decode column of 1 to 64 rows given as one run a row, and two prompts side by side, each their bits alone.
+**Measured** (one MI50, renderD131, default clocks, main d50b7a2bb / branch 8abb91d04 built alike from tarballs, Vulkan build 34c18feb4, `bench --p 16`, tg128 for one sequence, tg64 for 4, tg32 for 16, total tok/s, medians of three rotated rounds, rig `ddev/rocm/g73`):
+
+| model, class, sequences | main | branch | Vulkan | branch / main |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Q8_0 f16 x1 | 71.3 | 71.4 | 77.2 | 1.00 |
+| Qwen3-8B Q8_0 f16 x4 | 76.9 | 126.0 | 239.9 | 1.64 |
+| Qwen3-8B Q8_0 f16 x16 | 76.1 | 142.4 | 312.7 | 1.87 |
+| Qwen3-8B Q8_0 int8 x1 | 77.4 | 81.2 | 79.4 | 1.05 |
+| Qwen3-8B Q8_0 int8 x4 | 78.1 | 211.0 | 276.7 | 2.70 |
+| Qwen3-8B Q8_0 int8 x16 | 82.1 | 245.5 | 519.7 | 2.99 |
+| Qwen3-14B Q8_0 f16 x1 | 36.4 | 37.0 | 38.0 | 1.02 |
+| Qwen3-14B Q8_0 f16 x4 | 36.6 | 68.7 | 141.2 | 1.88 |
+| Qwen3-14B Q8_0 f16 x16 | 36.3 | 73.9 | 183.5 | 2.04 |
+| Qwen3-14B Q8_0 int8 x1 | 42.7 | 45.0 | 38.4 | 1.05 |
+| Qwen3-14B Q8_0 int8 x4 | 42.0 | 118.0 | 139.7 | 2.81 |
+| Qwen3-14B Q8_0 int8 x16 | 42.1 | 125.2 | 311.9 | 2.97 |
+| Qwen3-0.6B Q8_0 f16 x1 | 367.9 | 371.3 | 399.0 | 1.01 |
+| Qwen3-0.6B Q8_0 f16 x4 | 526.2 | 701.8 | 1208.5 | 1.33 |
+| Qwen3-0.6B Q8_0 int8 x1 | 365.5 | 365.8 | 396.3 | 1.00 |
+| Qwen3-0.6B Q8_0 int8 x4 | 509.4 | 1088.2 | 1316.2 | 2.14 |
+| Qwen3-8B Q8_0 f16 pp512 | 874.2 | 873.4 | 846.7 | 1.00 |
+
+One sequence and the single prompt run no new code and stay level.
+**Identity:** device byte identity against main on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, Qwen3-0.6B Q8_0 16k raw and chat-template sequences at f16, and Qwen3-0.6B Q8_0 on the CPU, all eight lines identical; backend-rocm passes with the new checks; CTest 80/80; docs and dead-code clean.
+The suite on rocm:0 fails only reference-consumer, half-weights, moe and vision, the four components main fails there too, each the device refusing an op it lacks (routed_experts among them); the skip path is the follow-up recorded below.
+**Left:** review by F2DEV, the hosted run, landing by fast-forward.
+**Gotchas:** the F16 class gains far less than int8 at four and sixteen sequences (8B 126 against 211, Vulkan 240): its multi-column row builds are the next lever, profiled first; sixteen sequences add little over four in both classes, so the sixteen-column builds want the same profile.
+
 ## ROCm F16 decode rows, two rows a wave (2026-11-01, DDEV, branch perf/rocm-f16-two-rows on main fb2e379d2; the f16 decode plan posted to F2DEV and XDEV at 2026-11-01 20:5x, probe 2 kept by p71)
 
 **Goal:** the F16 class's decode products of Qwen3 Q8_0 on one MI50 toward Vulkan's with the same bits; 8B tg128 F16 was 68.3 tok/s against Vulkan's 77.5, the products 1.39 ms of the 1.7 ms a token gap (rig `ddev/rocm/p66`).
@@ -56,7 +89,7 @@ Registers (gfx906 resource usage, plain and 16-bit-dot modules alike, main / bra
 **Identity:** device byte identity against main on Qwen3-8B Q8_0 (256 tokens) and Qwen3-14B Q8_0 (128 tokens) at f16 and int8, Qwen3-0.6B Q8_0 16k raw and chat-template sequences at f16, and Qwen3-0.6B Q8_0 on the CPU; backend-rocm passes, with every decode column of 1 to 64 generated rows the column alone, bit for bit, in both forms on rows 4096, 1280 and 1312 wide, the residual add and a group of three, and a decode group of 41, 104 and 63 rows equal to each projection alone, which takes the odd row a wave's second row falls past; CTest 80/80; docs and dead-code clean; the suite on rocm:0 passes but for reference-consumer, half-weights, moe and vision, each the ROCm backend refusing an op the branch does not reach (group_rms_norm, F16 and BF16 weights, routed_experts, layer_norm); int8's dense f16 HF logit errors 0.00011 and 0.00013, the same bits as main.
 **Gates after the rebase:** builds of main fb2e379d2 and the head pass, and CTest passes 80/80 on the device; reviewed by F2DEV; the change lands by fast-forward.
 The suite on rocm:0 fails reference-consumer, half-weights, moe and vision on main fb2e379d2 and on the head alike, measured with both built the same way: each is the device refusing an op it lacks (routed_experts among them), which the components should report as SKIP through `common.device_lacks_kernel` rather than FAIL; that skip path is the follow-up.
-**Gotchas:** four sequences on ROCm decode barely faster in total than one (about 66 against 62 tok/s at 8B, Vulkan 225-241 for four), on main and the branch alike: the batched decode is bound outside the products.
+**Gotchas:** four sequences on ROCm decode barely faster in total than one (about 66 against 62 tok/s at 8B, Vulkan 225-241 for four), on main and the branch alike: the cause was one row kernel launch per sequence (ROCm products join adjacent runs into one launch, above).
 
 ## The sampler's row scans in lanes of eight (2026-11-01, SDEV, branch perf/sampler-scan on main 2e77b49ab, plan A of SDEV's sampling post of 20:45, approved by F2DEV at 20:53)
 

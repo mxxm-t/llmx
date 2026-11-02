@@ -484,6 +484,12 @@ void twin_products(Backend& g, Dtype dt) {
                 g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {run, 1}, dt);
                 const std::vector<float> y = read(g, *yw, nout * n);
                 for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(y.data() + r * nout, one[r].data(), nout * 4) == 0;
+                // The same rows as n sequences' runs of one generated row each, as a decode pass of n sequences gives them.
+                std::vector<RowRun> each(n);
+                for (size_t r = 0; r < n; ++r) each[r] = {r + 1, 1};
+                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {each.data(), n}, dt);
+                const std::vector<float> ys = read(g, *yw, nout * n);
+                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(ys.data() + r * nout, one[r].data(), nout * 4) == 0;
             }
             for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(15), size_t(16), size_t(17), size_t(31), size_t(32), size_t(33), size_t(48), size_t(49), size_t(63), size_t(64)}) {
                 const RowRun run[1] = {{n, 1}};
@@ -499,7 +505,7 @@ void twin_products(Backend& g, Dtype dt) {
                 }
             }
         }
-        require(alone, form + ": every decode column of 1 to 64 generated rows is the column alone, bit for bit, rows 4096, 1280 and 1312 wide (41 blocks, the int8 class's quarter layout)");
+        require(alone, form + ": every decode column of 1 to 64 generated rows is the column alone, bit for bit, as one run and as one run a row, rows 4096, 1280 and 1312 wide (41 blocks, the int8 class's quarter layout)");
         require(added, form + ": every decode column of the residual add at 1 to 64 rows is the column alone, bit for bit");
         require(grouped, form + ": every decode column of a group of three projections at 1 to 64 rows is the column alone, bit for bit");
     }
@@ -631,6 +637,13 @@ void twin_products(Backend& g, Dtype dt) {
             g.matmul(wl, {xmb.get(), 0}, {ym.get(), 0}, lw, lo, n + 10, {four_runs, 4}, dt);
             const std::vector<float> m4 = read(g, *ym, lo * (n + 10));
             mixed = mixed && std::memcmp(m4.data() + 3 * lo, a.data(), lo * n * 4) == 0;
+            // Two prompts side by side, which share a tile call where their splits match, give each prompt's bits alone.
+            const RowRun two[2] = {{n, n}, {n + 8, 8}};
+            g.matmul(wl, {xab.get(), 0}, {ya.get(), 0}, lw, lo, n + 8, {two, 2}, dt);
+            const std::vector<float> a2 = read(g, *ya, lo * (n + 8));
+            const RowRun eight[1] = {{8, 8}};
+            g.matmul(wl, {xab.get(), n * lw}, {ym.get(), 0}, lw, lo, 8, {eight, 1}, dt);
+            mixed = mixed && std::memcmp(a2.data(), a.data(), lo * n * 4) == 0 && std::memcmp(a2.data() + n * lo, read(g, *ym, lo * 8).data(), lo * 8 * 4) == 0;
             // Each other run alone gives its rows' bits.
             struct Part { size_t row, rows, extent, at; };
             for (const Part p : {Part{0, 3, 1, 0}, Part{3, 2, 1, 3 + n}, Part{5, 5, 7, 5 + n}}) {

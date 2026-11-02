@@ -900,8 +900,13 @@ private:
         int add = accumulate;
         size_t begin = 0;
         for (size_t r = 0; r < all.n; ++r) {
-            const size_t end = all.runs[r].end;
+            size_t end = all.runs[r].end;
             if (end <= begin || end > nbatch) throw std::runtime_error("rocm: row runs out of order or past the call");
+            // Adjacent runs share launches where both take the same kernel and split, one per sequence otherwise: a decode column, and a tile row, gives the same bits in any call.
+            const auto same = [&](const RowRun& a, const RowRun& b) {
+                return (a.extent == 1) == (b.extent == 1) && (a.extent == 1 || split_tiles_of(a.extent) == split_tiles_of(b.extent));
+            };
+            while (r + 1 < all.n && same(all.runs[r], all.runs[r + 1]) && all.runs[r + 1].end > end && all.runs[r + 1].end <= nbatch) end = all.runs[++r].end;
             for (size_t at = begin; at < end;) {
                 const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
                 size_t first = 0;

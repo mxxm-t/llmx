@@ -3792,12 +3792,19 @@ void stop_keeps_request(const gguf::GGUFModel& weights, uint32_t vocab, bool lon
     std::cout << "server-resume: " << what << ": the next turn after the restart reused " << reused << " tokens" << std::endl;
 }
 
-// A CPU backend whose `done` the test holds false while `held`, as a device's is until its copies retire, counting the asks the scheduler's loop makes meanwhile; its copies' bytes land at submission, so only the wake is in question.
+// A CPU backend whose `done` the test holds false while `held`, as a device's is until its copies retire; it counts the loop's asks and the submissions meanwhile.
 struct HeldDone : backend::CpuBackend {
     std::mutex m;
     bool held = false;
     std::thread::id loop;
-    size_t asked = 0;
+    size_t asked = 0, submitted = 0;
+    backend::Ticket submit() override {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            submitted += held;
+        }
+        return CpuBackend::submit();
+    }
     bool done(backend::Ticket t) noexcept override {
         {
             std::lock_guard<std::mutex> lk(m);
@@ -3886,6 +3893,302 @@ void stream_end_seen(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
     auto fresh = on(weights, [] { return cpus(1); })(2048, 16);
     same(serve(*fresh, tok, 1, {{next}})[0], got, what + ", the next turn");
     std::cout << "server-resume: " << what << ": the round looked at the held stream 200 times, and the next turn reused " << reused << " tokens" << std::endl;
+}
+
+// A job's read from disk straight into the devices never holds room a queued request needs (docs/SERVER.md, Protocol); the arms are described in docs/TESTS.md.
+enum class JobRead { paced, held, held_group, shared, seat, same_round };
+void job_read_gives_room(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, JobRead arm) {
+    const std::string what = std::string("a job's read into the devices with a request needing its room") +
+                             (arm == JobRead::held ? ", its copies held" : arm == JobRead::held_group ? ", its copies held on a tensor group of two" : arm == JobRead::shared ? ", the request its next turn" :
+                              arm == JobRead::seat ? ", the request short of a seat alone" : arm == JobRead::same_round ? ", the next turn arriving in the same round" : "");
+    DiskRoot disk("job-read");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.read_wait = std::chrono::minutes(10);
+    const Req first{prompt_of(10, 300, vocab), 20};
+    const size_t width = arm == JobRead::held_group ? 2 : 1;
+    Reply reply;
+    {
+        // Written on the layout that reads it, since a kept directory of another layout is not adopted.
+        server::DiskOptions writes_at_once = options;
+        writes_at_once.idle = std::chrono::milliseconds(0);
+        auto model = on(weights, [width] { return cpus(width); }, 8, 0, 0, 0, false, width)(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, writes_at_once);
+        std::thread runner([&] { sched.run(); });
+        try {
+            reply = drain(*sched.submit(first.prompt, params_of(first)));
+            within_a_minute([&] { const auto st = sched.stats(); return st.disk_entries >= 1 && !st.disk_in_flight; }, what + ": the conversation written while idle");
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::vector<uint32_t> ids = first.prompt;
+    for (uint32_t id : ids_of(reply)) ids.push_back(id);
+    const std::vector<uint32_t> more = prompt_of(50, 30, vocab);
+    ids.insert(ids.end(), more.begin(), more.end());
+    const bool held = arm == JobRead::held || arm == JobRead::held_group;
+    // Each chunk read waits ten seconds where the request must run before the read could end, and less where the read must end.
+    options.pace = std::chrono::milliseconds(arm == JobRead::paced ? 10000 : arm == JobRead::same_round || arm == JobRead::seat ? 2000 : held ? 0 : 500);
+    std::vector<std::shared_ptr<HeldDone>> holds;
+    for (size_t k = 0; k < width; ++k) {
+        holds.push_back(std::make_shared<HeldDone>());
+        holds.back()->set_threads(1);
+    }
+    const auto hold = [&](bool on, std::thread::id loop) {
+        for (const auto& h : holds) {
+            std::lock_guard<std::mutex> lk(h->m);
+            h->loop = loop;
+            h->held = on;
+        }
+    };
+    const auto count = [&](size_t HeldDone::*field) {
+        size_t n = 0;
+        for (const auto& h : holds) {
+            std::lock_guard<std::mutex> lk(h->m);
+            n += (*h).*field;
+        }
+        return n;
+    };
+    const auto asked = [&] { return count(&HeldDone::asked); };
+    const Make short_of = held ? on(weights, [holds] { return std::vector<backend::BackendPtr>(holds.begin(), holds.end()); }, 8, 0, 0, 0, false, width, []() -> std::optional<size_t> { return (size_t)1 << 20; })
+                               : on(weights, [] { return cpus(1); }, 8, 0, 0, 0, false, 1, []() -> std::optional<size_t> { return (size_t)1 << 20; });
+    const Req donor{prompt_of(20, 1580, vocab), 20}, big{prompt_of(30, 1800, vocab), 20}, small{prompt_of(60, 100, vocab), 10};
+    const size_t seats = arm == JobRead::shared || arm == JobRead::seat ? 1 : arm == JobRead::same_round ? 3 : 2;
+    Reply got;
+    size_t done_at_end = 0, started = 0, gave_way = 0, reused = 0;
+    std::atomic<size_t> started_waiting{0}, still_queued{0};
+    double queued = 0;
+    {
+        auto model = short_of(2048, 16);
+        require(model->kv_pool_blocks(0) == 16, what + ": a pool of " + std::to_string(model->kv_pool_blocks(0)) + " blocks, against 16");
+        server::Scheduler sched(*model, tok, seats, 64, 0, false, (size_t)1 << 16, nullptr, 0, false, options);
+        const auto moves = [&](server::Move m) { return sched.stats().moves[(size_t)m]; };
+        // What each arm does as a pass retires, on the scheduler's thread, set before it runs.
+        std::atomic<const server::Request*> watched{nullptr};
+        std::shared_ptr<server::Request> h, second, wh, xh;
+        std::atomic<size_t> passes{0};
+        std::atomic<bool> seen{false}, sent{false}, counting{false};
+        const Req w{prompt_of(63, 1400, vocab), 20};
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            if (arm == JobRead::paced || held) {
+                // The request's first pass says how many reads started while it waited.
+                const server::Request* b = watched.load();
+                if (!b || seen.load() || std::find(t.requests.begin(), t.requests.end(), b) == t.requests.end()) return;
+                started_waiting.store(sched.stats().moves[(size_t)server::Move::read_started]);
+                seen.store(true);
+            } else if (arm == JobRead::seat && counting.load()) {
+                // The request in the one seat submits a second, which waits for the seat, and then gives the job its ids, whose read must start while the second waits.
+                const size_t n = ++passes;
+                if (n == 1) {
+                    second = sched.submit(small.prompt, params_of(small));
+                    sent.store(true);
+                }
+                if (n == 2) sched.follow(h, ids, true);
+                if (n == 40) {
+                    const auto st = sched.stats();
+                    started_waiting.store(st.moves[(size_t)server::Move::read_started]);
+                    still_queued.store(st.queued);
+                }
+            } else if (arm == JobRead::same_round && !sent.load() && sched.stats().moves[(size_t)server::Move::read_started]) {
+                // At the first pass of the request running beside the job's read, one needing more room than the read leaves and the job's own next turn arrive together.
+                wh = sched.submit(w.prompt, params_of(w));
+                xh = sched.submit(ids, params_of(Req{ids, 20}));
+                sent.store(true);
+            }
+        };
+        std::thread runner([&] { sched.run(); });
+        try {
+            within_a_minute([&] { return sched.stats().disk_entries >= 1; }, what + ": the kept entry adopted");
+            if (arm == JobRead::paced || held) {
+                // A donor of 13 blocks leaves three free, the job's whole room, of which its read takes two.
+                h = sched.submit(donor.prompt, params_of(donor));
+                drain(*h);
+                if (held) hold(true, runner.get_id());
+                sched.follow(h, ids, true);
+                within_a_minute([&] { return moves(server::Move::read_started) >= 1; }, what + ": the job's read started");
+                // Nothing but the read submits while the copies are held, so the request arrives with copies in flight.
+                if (held) within_a_minute([&] { return count(&HeldDone::submitted) >= width; }, what + ": the read's first copies submitted");
+                const size_t before = asked();
+                const auto b = sched.submit(big.prompt, params_of(big));
+                watched.store(b.get());
+                if (held) {
+                    within_a_minute([&] { return asked() >= before + 200; }, what + ": the round looking at the held copies 200 times");
+                    still_queued.store(sched.stats().queued);
+                    gave_way = moves(server::Move::job_gave_way);
+                    hold(false, runner.get_id());
+                }
+                got = drain(*b);
+                queued = b->timings().queued_ms;
+                const auto st = sched.stats();
+                done_at_end = st.moves[(size_t)server::Move::read_done];
+                started = st.moves[(size_t)server::Move::read_started];
+            } else if (arm == JobRead::shared) {
+                h = sched.submit(small.prompt, params_of(small));
+                drain(*h);
+                sched.follow(h, ids, true);
+                within_a_minute([&] { return moves(server::Move::read_started) >= 1; }, what + ": the job's read started");
+                // The next turn reserves the whole pool, so it lacks the read's room, and the job's read, which prefetch never shows it with its one seat, is its own history.
+                const Req next{ids, 1650};
+                const auto x = sched.submit(next.prompt, params_of(next));
+                got = drain(*x);
+                reused = x->reused();
+                gave_way = moves(server::Move::job_gave_way);
+                done_at_end = moves(server::Move::read_done);
+            } else if (arm == JobRead::seat) {
+                h = sched.submit(small.prompt, params_of(small));
+                drain(*h);
+                const Req a{prompt_of(62, 200, vocab), 64};
+                counting.store(true);
+                drain(*sched.submit(a.prompt, params_of(a)));
+                require(passes.load() >= 40 && sent.load(), what + ": the first request ran " + std::to_string(passes.load()) + " passes, against 40");
+                drain(*second);
+                within_a_minute([&] { return moves(server::Move::read_done) >= 1; }, what + ": the job's read done");
+                gave_way = moves(server::Move::job_gave_way);
+                started = moves(server::Move::read_started);
+            } else {
+                h = sched.submit(small.prompt, params_of(small));
+                drain(*h);
+                sched.follow(h, ids, true);
+                within_a_minute([&] { return moves(server::Move::read_started) >= 1; }, what + ": the job's read started");
+                // A request of four blocks runs beside the job's read.
+                const Req a{prompt_of(62, 300, vocab), 200};
+                drain(*sched.submit(a.prompt, params_of(a)));
+                require(sent.load(), what + ": the two requests were not sent while the first ran");
+                drain(*wh);
+                got = drain(*xh);
+                reused = xh->reused();
+                gave_way = moves(server::Move::job_gave_way);
+            }
+        } catch (...) {
+            hold(false, std::thread::id{});
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    std::cout << "server-resume: " << what << ": " << started << " reads started, " << started_waiting.load() << " by the request's first pass or while it waited, " << done_at_end << " completed, " << gave_way << " given way, "
+              << reused << " tokens reused, the request queued " << queued << " ms" << std::endl;
+    if (arm == JobRead::paced || held) {
+        require(!done_at_end, what + ": the request ran only once the job's read had completed (" + std::to_string(done_at_end) + " reads done), so the read held the room it needed");
+        require(started_waiting == 1, what + ": " + std::to_string(started_waiting.load()) + " reads started by the request's first pass, against the job's one, no job read starting while it waited for room");
+        auto fresh = on(weights, [width] { return cpus(width); }, 8, 0, 0, 0, false, width)(2048, 16);
+        same(serve(*fresh, tok, 1, {{big}})[0], got, what + ", the request");
+    }
+    // Its room comes back once the read's copies have retired, not once its reader has ended its ten-second chunk.
+    if (arm == JobRead::paced) require(queued < 5000, what + ": the request queued " + std::to_string(queued) + " ms, waiting for the read's reader");
+    if (held) require(still_queued == 1 && gave_way >= 1, what + ": with the copies held, " + std::to_string(still_queued.load()) + " requests queued and " + std::to_string(gave_way) + " given way, against the request waiting for its room behind the read stopped");
+    if (arm == JobRead::shared) {
+        require(done_at_end == 1 && !gave_way && reused >= 2 * kBlock, what + ": " + std::to_string(done_at_end) + " reads done, " + std::to_string(gave_way) + " given way and " + std::to_string(reused) + " tokens reused, against the turn waiting for the job's read and forking its 256 rows");
+    }
+    if (arm == JobRead::seat) {
+        require(started_waiting == 1 && still_queued == 1, what + ": " + std::to_string(started_waiting.load()) + " reads started with " + std::to_string(still_queued.load()) + " requests waiting for the seat, against the job's read starting while one waits");
+        require(!gave_way && started == 1, what + ": " + std::to_string(gave_way) + " given way and " + std::to_string(started) + " reads started, against a read no request short of a seat alone stops");
+    }
+    if (arm == JobRead::same_round) {
+        require(gave_way >= 1, what + ": the job's read did not give way to the request needing its room");
+        require(reused >= 2 * kBlock, what + ": the next turn reused " + std::to_string(reused) + " tokens, against the 256 on disk, so it waited for the read stopped in its round and looked at the disk no more");
+        auto fresh = on(weights, [] { return cpus(1); })(2048, 16);
+        same(serve(*fresh, tok, 1, {{Req{ids, 20}}})[0], got, what + ", the next turn");
+    }
+}
+
+// A job that gave way to a conversation's turn starts again only where that turn's room is spare beside it (Cache::job_spare, docs/SERVER.md, Protocol).
+// On 16 blocks a job that fits only while the conversation is idle must start once over five turns, and no pass may hold its rows beside a turn's.
+void job_between_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a job that fits only between a long conversation's turns";
+    const size_t turns = 5, at = 4;
+    // The conversation as it runs alone: each turn its history and a new message of 10 tokens, capped at 512 and ended at its reply's token `at` by a stop string.
+    std::vector<Req> conversation;
+    std::vector<Reply> alone;
+    std::vector<uint32_t> history = prompt_of(40, 390, vocab);
+    for (size_t k = 0; k < turns; ++k) {
+        if (k) {
+            for (uint32_t id : ids_of(alone.back())) history.push_back(id);
+            const std::vector<uint32_t> message = prompt_of(41 + (uint32_t)k, 10, vocab);
+            history.insert(history.end(), message.begin(), message.end());
+        }
+        Req turn{history, 8};
+        auto first = make(2048, 16);
+        turn.stop = stop_at(tok, ids_of(serve(*first, tok, 1, {{turn}})[0]), at);
+        turn.cap = 512;
+        auto model = make(2048, 16);
+        alone.push_back(serve(*model, tok, 1, {{turn}})[0]);
+        require(alone.back().size() == at + 1, what + ": turn " + std::to_string(k) + " alone gave " + std::to_string(alone.back().size()) + " tokens, against its stop at token " + std::to_string(at));
+        conversation.push_back(turn);
+    }
+    const Req other{prompt_of(50, 300, vocab), 20};
+    std::vector<Reply> got;
+    size_t started = 0, gave_way = 0, mixed = 0, job_passes = 0;
+    {
+        auto model = make(2048, 16);
+        require(model->kv_pool_blocks(0) == 16, what + ": a pool of " + std::to_string(model->kv_pool_blocks(0)) + " blocks, against 16");
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 0);
+        std::mutex handles;
+        std::set<const server::Request*> mine;
+        std::shared_ptr<server::Request> second;
+        std::atomic<bool> sent{false};
+        // A pass's rows are a turn's or the other conversation's where the test holds the request, and the job's otherwise.
+        // The job's first pass sends the second turn, so the turn finds the job running whatever the threads' timing.
+        sched.on_retire = [&](const server::Scheduler::Retired& t) {
+            std::lock_guard<std::mutex> lk(handles);
+            bool request = false, job = false;
+            for (const server::Request* r : t.requests) (mine.count(r) ? request : job) = true;
+            mixed += request && job;
+            job_passes += job;
+            if (job && !sent.load()) {
+                second = sched.submit(conversation[1].prompt, params_of(conversation[1]));
+                mine.insert(second.get());
+                sent.store(true);
+            }
+        };
+        const auto submit = [&](const Req& r) {
+            std::lock_guard<std::mutex> lk(handles);
+            auto h = sched.submit(r.prompt, params_of(r));
+            mine.insert(h.get());
+            return h;
+        };
+        const auto moves = [&](server::Move m) { return sched.stats().moves[(size_t)m]; };
+        std::thread runner([&] { sched.run(); });
+        try {
+            got.push_back(drain(*submit(conversation[0])));
+            const auto h = submit(other);
+            std::vector<uint32_t> ids = other.prompt;
+            for (uint32_t id : ids_of(drain(*h))) ids.push_back(id);
+            // The other conversation's next turn: 1340 ids, eight whole blocks past the two it forks, which the pool holds only while the long conversation is idle.
+            const std::vector<uint32_t> more = prompt_of(51, 1340 - ids.size(), vocab);
+            ids.insert(ids.end(), more.begin(), more.end());
+            sched.follow(h, ids, true);
+            within_a_minute([&] { return moves(server::Move::job_started) >= 1; }, what + ": the job started while the conversation was idle");
+            within_a_minute([&] { return sent.load(); }, what + ": the second turn sent at the job's first pass");
+            for (size_t k = 1; k < turns; ++k) {
+                got.push_back(drain(*(k == 1 ? second : submit(conversation[k]))));
+                // Between two turns the job has a moment to start again, as a client's next message gives it.
+                const size_t before = moves(server::Move::job_started);
+                const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+                while (moves(server::Move::job_started) == before && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            started = moves(server::Move::job_started);
+            gave_way = moves(server::Move::job_gave_way);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+    for (size_t k = 0; k < turns; ++k) same(alone[k], got[k], what + ", turn " + std::to_string(k));
+    const std::string seen = std::to_string(started) + " job starts, " + std::to_string(gave_way) + " given way, " + std::to_string(job_passes) + " passes of the job, " + std::to_string(mixed) + " holding a turn's rows too";
+    std::cout << "server-resume: " << what << ": " << seen << std::endl;
+    require(gave_way >= 1 && job_passes >= 1, what + ": " + seen + ", against a job that read and gave way to a turn");
+    require(started == 1, what + ": " + seen + ", against one start, the job starting again only where the turn's room is spare beside it");
+    require(!mixed, what + ": " + seen + ", against no pass holding both");
 }
 
 // A restart whose host memory cannot hold one whole copy of a kept conversation (A20, docs/CACHE-PLAN.md): its next turn must still reuse every row its files hold, read from disk straight to the devices, with its reply on a fresh model.
@@ -5804,6 +6107,7 @@ int main(int argc, char** argv) {
                                           Streamed::setup_fails})
                 restart_without_host_memory(weights, tok, vocab, fault);
             stream_end_seen(weights, tok, vocab);
+            for (const JobRead arm : {JobRead::paced, JobRead::held, JobRead::held_group, JobRead::shared, JobRead::seat, JobRead::same_round}) job_read_gives_room(weights, tok, vocab, arm);
             disk_kept(one, tok, vocab, 4 * ((size_t)64 << 20), (size_t)1 << 16);
             disk_age(one, tok, vocab);
             disk_age_restart(one, tok, vocab);
@@ -5825,6 +6129,7 @@ int main(int argc, char** argv) {
             }
             request_takes_job(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, Take::one_slot, ", a model keeping a state");
             job_holds_its_ids(one, tok, vocab, "a job given ids a donor holds whole");
+            job_between_turns(one, tok, vocab);
             stalled_alone(one, tok, vocab, 2048, false, "a lone request stalled by its own reply's job");
             stalled_alone(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 2048, false, "a lone request stalled by its own reply's job, a model keeping a state");
             stalled_alone(one, tok, vocab, 3840, true, "two requests stalled by their replies' jobs");

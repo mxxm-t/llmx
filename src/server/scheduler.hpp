@@ -310,6 +310,13 @@ private:
     // `whole_` is set once those ids follow the whole reply rather than the part written so far.
     bool job_ = false, whole_ = false;
     bool no_room_ = false;         // a job that has said it waits for spare room (enter), said once
+    // A job's: each turn of a kept conversation it gave way to, the blocks per pool that turn took beyond its fork, the tokens of that fork and the turn, which the job leaves free while the conversation stays (Cache::job_spare).
+    struct Room {
+        std::vector<size_t> blocks;
+        std::vector<uint32_t> tokens;
+        std::weak_ptr<const Request> by;
+    };
+    std::vector<Room> rooms_;
     bool room_wait_ = false;       // waiting for a donor's write, or for room for a restore, before its admission (waits_for_room), since room_since_
     bool room_timed_out_ = false;  // that wait reached its bound, counted once
     std::chrono::steady_clock::time_point room_until_{};   // the wait's bound: the scheduler's constant, or a write's remaining time at its measured rate (write_wait_ms), never lowered
@@ -713,7 +720,7 @@ public:
                     for (const auto& j : active)
                         if (j->job_) recall(*j);
                     cache_.hand_jobs(active, lines());
-                    cache_.yield_jobs(active, lines(), waiter.get());
+                    cache_.yield_jobs(active, lines(), waiter);
                 }
                 // Growth steps that fall due take their room before anything is admitted, so a request admitted now never holds what an older request's step needs in this pass.
                 grow(active);

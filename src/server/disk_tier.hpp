@@ -210,6 +210,13 @@ public:
         ring_->stop();
         if (state_ == State::running) state_ = State::failed;
     }
+    // Whether the read was cancelled or failed, so no request waits for it.
+    bool stopped() const { return state_ == State::failed; }
+    // Whether every copy into the devices has retired, so the history's blocks can go while readers still finish a chunk into host pages.
+    bool copied() {
+        retire();
+        return pending_.empty() && !views_left_;
+    }
     // Whether the readers have ended and every copy has retired, so the ring, its pages and the history's blocks can go with no wait.
     bool idle() {
         retire();

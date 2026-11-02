@@ -77,11 +77,13 @@ struct Run {
 
 // The tensor width every model here is placed at (docs/TENSOR-SPLIT.md): above 1 each stage is a group of that many CPU backends, and a run is held to the run on one such group, since a group gives its own bits.
 size_t group_width = 1;
+// Whether the backends play a device, so a verify of plain argmax draws takes its ids on the output device (Model::argmax_id).
+bool play_device = false;
 
 // A model of `weights` placed over `stages` stages of one-thread CPU backends, with a mark of up to 17 rows where it keeps a state and with `drafter` the file's embedded drafter; `submits`, when given, counts the first backend's submissions.
 std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stages, size_t* submits = nullptr, bool drafter = false) {
     std::vector<backend::BackendPtr> backends;
-    for (const auto& h : hooked(stages * group_width)) backends.push_back(h);
+    for (const auto& h : hooked(stages * group_width, play_device)) backends.push_back(h);
     if (submits) static_cast<Hooked&>(*backends[0]).hook = [submits] { ++*submits; };
     infer::PlacementRequest request;
     for (size_t i = 0; i < backends.size(); ++i) request.names.push_back("cpu " + std::to_string(i));
@@ -91,6 +93,7 @@ std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stag
     infer::ModelOptions options;
     options.mark_slots = 1;
     options.mark_rows = 32;
+    options.argmax_passes = true;
     return std::move(infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model);
 }
 
@@ -679,6 +682,89 @@ void failures(const gguf::GGUFModel& w, size_t vocab) {
     require(!unmarked.mark(), "a mark with none free was given");
 }
 
+// Ids from argmax_rows against accept on the rows, which hold ties, NaNs, an infinity and signed zeros.
+// A verify on CPUs playing a device keeps its rows there, each id its row's argmax, and on the CPU keeps them on the host.
+void device_argmax(const gguf::GGUFModel& dense, size_t vocab) {
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    const size_t n = 37, R = 64;
+    std::mt19937 rng(20261102u);
+    std::vector<float> rows(R * n);
+    for (size_t r = 0; r < R; ++r) {
+        float* row = rows.data() + r * n;
+        for (size_t i = 0; i < n; ++i) row[i] = (float)(int)(rng() % 9) / 4.0f - 1.0f;   // few levels, so ties fall everywhere
+        switch (r % 8) {
+            case 1: row[0] = nan; break;
+            case 2: row[rng() % n] = nan; break;
+            case 3: row[rng() % n] = inf; break;
+            case 4: std::fill(row, row + n, -inf); break;
+            case 5: for (size_t i = 0; i < n; i += 2) row[i] = -inf; break;
+            case 6: std::fill(row, row + n, -1.0f); row[5] = -0.0f; row[9] = 0.0f; break;
+            default: break;
+        }
+    }
+    backend::CpuBackend b;
+    b.set_threads(1);
+    auto logits = b.alloc(rows.size() * sizeof(float), backend::Memory::host_visible);
+    auto ids = b.alloc(R * sizeof(float), backend::Memory::host_visible);
+    b.write(*logits, 0, rows.data(), rows.size() * sizeof(float));
+    b.argmax_rows({ids.get(), 0}, {logits.get(), 0}, R, n);
+    std::vector<uint32_t> id(R);
+    b.read(*ids, 0, id.data(), R * sizeof(uint32_t));
+    size_t fell_back = 0;
+    for (uint32_t v : id) fell_back += v >= n;
+    require(fell_back >= 4 * R / 8, "device argmax: the rows with a NaN, an infinity or nothing finite did not all fall back to their rows");
+    infer::GenParams gp;
+    gp.temp = 0;
+    require(infer::plain_argmax(gp), "device argmax: greedy is not plain argmax");
+    for (auto off : {&infer::Sampling::penalty, &infer::Sampling::presence_penalty, &infer::Sampling::frequency_penalty}) {
+        infer::GenParams other = gp;
+        other.*off = 1.5f;
+        require(!infer::plain_argmax(other), "device argmax: a penalized draw taken as plain argmax");
+    }
+    infer::GenParams masked = gp, warm = gp;
+    masked.ignore_eos = true;
+    warm.temp = 0.5f;
+    require(!infer::plain_argmax(masked) && !infer::plain_argmax(warm), "device argmax: a masked or drawn sample taken as plain argmax");
+    const std::vector<uint32_t> gen{3, 5, 3};
+    for (size_t trial = 0; trial < 2000; ++trial) {
+        const size_t first = rng() % R, k = std::min<size_t>(rng() % 12, R - first - 1);
+        std::vector<uint32_t> drafts(k);
+        for (size_t i = 0; i < k; ++i) {
+            infer::RNG g;
+            drafts[i] = rng() % 4 ? infer::sample(rows.data() + (first + i) * n, n, gp, -1, gen, g) : (uint32_t)(rng() % n);
+        }
+        const size_t stop = rng() % 14;
+        std::vector<uint32_t> want_picks, got_picks;
+        infer::RNG r1, r2;
+        const infer::Accepted want = infer::accept(rows.data() + first * n, n, drafts.data(), k, gp, -1, gen, r1, [&](uint32_t y) { want_picks.push_back(y); return want_picks.size() < stop; });
+        const infer::Accepted got = infer::accept_ids([&](size_t i) { return id[first + i]; }, [&](size_t i) { return rows.data() + (first + i) * n; }, n, drafts.data(), k, gp, -1, gen, r2,
+                                                      [&](uint32_t y) { got_picks.push_back(y); return got_picks.size() < stop; });
+        require(want.rows == got.rows && want.last == got.last && want_picks == got_picks, "device argmax: verify " + std::to_string(trial) + " from row " + std::to_string(first) + " differs from accept");
+    }
+    // The model's own verify: on a CPU playing a device its rows stay there, each id the argmax of the same rows read on the host.
+    const std::vector<uint32_t> prompt = prompt_of(3, 20, (uint32_t)vocab), feed = prompt_of(5, 9, (uint32_t)vocab);
+    std::vector<float> host_rows;
+    {
+        auto model = placed(dense, 1);
+        model->prefill(prompt);
+        const float* p = model->step(feed.data(), feed.size(), true);
+        require(p, "device argmax: a verify on the CPU kept its rows on the device");
+        host_rows.assign(p, p + feed.size() * vocab);
+    }
+    play_device = true;
+    for (size_t st : {1, 2}) {
+        auto model = placed(dense, st);
+        model->prefill(prompt);
+        require(!model->step(feed.data(), feed.size(), true), "device argmax: a verify on a device copied its rows to the host");
+        for (size_t i = 0; i < feed.size(); ++i) {
+            infer::RNG g;
+            const uint32_t host = infer::sample(host_rows.data() + i * vocab, vocab, gp, -1, {}, g);
+            require(model->argmax_id(i) == host, "device argmax: row " + std::to_string(i) + " on " + std::to_string(st) + " stages gave another id than its row");
+            require(std::memcmp(model->logits(i), host_rows.data() + i * vocab, vocab * sizeof(float)) == 0, "device argmax: row " + std::to_string(i) + " read back differs");
+        }
+    }
+    play_device = false;
+}
 } // namespace
 
 int main() {
@@ -698,6 +784,11 @@ int main() {
         embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);
         failures(hybrid, (size_t)kHybrid.vocab);
+        device_argmax(dense, (size_t)kCpu.vocab);
+        // The dense model on CPUs playing devices, so its greedy verifies read their ids from argmax passes.
+        play_device = true;
+        rounds("the dense model playing a device", dense, (size_t)kCpu.vocab, {1, 2});
+        play_device = false;
         // The hybrid model over tensor groups of two CPUs, one stage and two: each member keeps the state of its own heads and reruns it from the mark on its own, and with the embedded drafter runs its shards of the block and reads the head whole.
         const gguf::GGUFModel even = served_hybrid(kHybridEven);
         group_width = 2;

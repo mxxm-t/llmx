@@ -21,15 +21,24 @@ struct Accepted {
     uint32_t last;
 };
 
+// accept (below) where row i's argmax may be known without its row, as `id(i)` gives it after an argmax pass (Model::argmax_id) for draws that are plain argmax (plain_argmax).
+// An id of `n_vocab` or more, a row whose largest logit is not finite or holds a NaN, is drawn from its row `row(i)` instead, so every pick is accept's.
+template <class Id, class Row, class Pick>
+Accepted accept_ids(Id&& id, Row&& row, size_t n_vocab, const uint32_t* drafts, size_t k, const Sampling& s, int32_t end, const std::vector<uint32_t>& gen,
+                    RNG& rng, Pick&& pick) {
+    for (size_t i = 0;; ++i) {
+        uint32_t y = id(i);
+        if (y >= n_vocab) y = sample(row(i), n_vocab, s, end, gen, rng);
+        if (!pick(y) || i == k || y != drafts[i]) return Accepted{i + 1, y};
+    }
+}
+
 // The rows of a verify of the drafts `drafts[0..k)`, row i the logits after the last pick and the first i drafts, sampled in order exactly as the run without drafts samples: one call of `sample` a row with the request's own settings.
 // `pick` takes each token as that run does and says whether the request goes on, and sampling stops at the first pick that ends the request or differs from its draft, or after row k.
 template <class Pick>
 Accepted accept(const float* rows, size_t n_vocab, const uint32_t* drafts, size_t k, const Sampling& s, int32_t end, const std::vector<uint32_t>& gen,
                 RNG& rng, Pick&& pick) {
-    for (size_t i = 0;; ++i) {
-        const uint32_t y = sample(rows + i * n_vocab, n_vocab, s, end, gen, rng);
-        if (!pick(y) || i == k || y != drafts[i]) return Accepted{i + 1, y};
-    }
+    return accept_ids([](size_t) { return std::numeric_limits<uint32_t>::max(); }, [&](size_t i) { return rows + i * n_vocab; }, n_vocab, drafts, k, s, end, gen, rng, pick);
 }
 
 namespace spec {

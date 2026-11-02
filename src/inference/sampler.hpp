@@ -381,4 +381,9 @@ inline uint32_t sample(const float* logits, size_t n, const Sampling& s, int32_t
     return sample(logits, n, s.temp, s.top_k, s.top_p, s.penalty, gen, rng, s.ignore_eos ? end : -1, s.min_p, s.presence_penalty, s.frequency_penalty);
 }
 
+// Whether a draw with these settings is the row's argmax alone, as a device takes it (Model::argmax_id): greedy, no penalty and no masked id.
+inline bool plain_argmax(const Sampling& s) {
+    return s.temp <= 0.0f && !(s.penalty > 0.0f && s.penalty != 1.0f) && s.presence_penalty == 0.0f && s.frequency_penalty == 0.0f && !s.ignore_eos;
+}
+
 } // namespace infer

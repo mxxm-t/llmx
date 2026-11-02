@@ -129,6 +129,7 @@ inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) 
     const Pass& p = in_flight(ctx, slot);
     if (p.ran < stages_.size()) throw std::logic_error("inference: the logits of a pass before its last stage");
     if (i >= p.want) throw std::out_of_range("inference: no such logits row");
+    if (p.argmax) throw std::logic_error("inference: the logits rows of a pass that kept them on the device");
     devices_[(size_t)place_.output_device]->b->wait(p.sent);
     for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->wait(p.sent_members[m]);
     devices_[(size_t)place_.output_device]->b->raise(p.sent);
@@ -228,6 +229,8 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.start.resize(n_entries);
     p.rows = rows;
     p.want = want;
+    // A pass whose wanting entries all read only their argmax keeps its logits rows on the output device, where that device can hold them.
+    p.argmax = want && width_ == 1 && std::all_of(entries, entries + n_entries, [](const BatchEntry& en) { return !en.want_logits || en.argmax; }) && argmax_buffers(ctx, logits_base + want);
     p.handoff = 0;
     p.logits_base = logits_base;
     p.ran = 0;
@@ -515,10 +518,14 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
         const size_t o = (size_t)place_.output_device;
         if (o != cur) { cross(ctx, cur, o, 0, p.rows); cur = o; }
         if (plan_.drafter) draft_context(ctx, p, s);
-        if (p.want)
+        if (p.want) {
+            backend::Buffer* const rows = p.argmax ? ctx.argmax_logits.get() : ctx.logits_buf.get();
             arch_->head(HeadStep{part(ctx, cur, pass_.data(), 0, 0, p.rows, all), p.pick.data(), p.want,
                                  backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
-                                 {ctx.logits_buf.get(), p.logits_base * plan_.vocab}});
+                                 {rows, p.logits_base * plan_.vocab}});
+            if (p.argmax)
+                devices_[cur]->b->argmax_rows({ctx.argmax_ids.get(), p.logits_base}, {rows, p.logits_base * plan_.vocab}, p.want, plan_.vocab);
+        }
     }
     stage_submit(ctx, p, s, cur);
 }
@@ -713,6 +720,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
 // After the last stage: where the logits are and the ticket that says they are ready, the pass's own head's.
 inline void Model::finish(ExecContext& ctx, const Pass& p) {
     ctx.n_logits = p.want;
+    ctx.argmax = p.argmax;
     ctx.backend = devices_[(size_t)place_.output_device]->b.get();
     ctx.ticket = p.sent;
     ctx.member_waits.clear();
@@ -740,6 +748,29 @@ inline backend::BufferPtr Model::alloc_arena(backend::Backend& b, const std::vec
         total = (total + bytes + 63) / 64 * 64;
     }
     return b.alloc(total);
+}
+
+// The output device's logits rows and ids for argmax passes, a verify's rows (argmax_rows) at most; false where the device cannot take them, for good, or the pass ends past them (`end`).
+// The CPU keeps its rows, already in host memory, which a draw reads only up to its first miss.
+inline bool Model::argmax_buffers(ExecContext& ctx, size_t end) {
+    const size_t o = (size_t)place_.output_device;
+    backend::Backend& b = *devices_[o]->b;
+    if (ctx.argmax_refused || b.is_cpu() || !b.implements(backend::Op::argmax_rows)) return false;
+    const size_t rows = std::min(ctx.logit_rows, argmax_rows(options_));
+    if (end > rows) return false;
+    if (ctx.argmax_logits && ctx.argmax_rows >= rows) return true;
+    if (ctx.argmax_logits) b.wait(ctx.tickets[o]);
+    try {
+        ctx.argmax_logits = b.alloc(backend::size_mul(backend::size_mul(rows, plan_.vocab), sizeof(float)), backend::Memory::device);
+        ctx.argmax_ids = b.alloc(backend::size_mul(rows, sizeof(float)), backend::Memory::host_visible);
+    } catch (const std::bad_alloc&) {
+        ctx.argmax_logits = ctx.argmax_ids = nullptr;
+        ctx.argmax_rows = 0;
+        ctx.argmax_refused = true;
+        return false;
+    }
+    ctx.argmax_rows = rows;
+    return true;
 }
 
 // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers on each device a crossing leaves (handoffs): grown when a pass needs more rows, never shrunk.

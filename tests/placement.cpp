@@ -555,6 +555,44 @@ void layer_split_fits() {
     auto more = infer::split_layers(logits, {budget("cpu", 2 * GiB, true), budget("a", GiB)}, 4, {1, 2}, 128 * MiB, 2, 8);
     require(fewer.host == 2 * 64 * MiB && more.host == 8 * 64 * MiB, "the logits rows the caller keeps not the ones fitted");
     checked += 3;
+    // A head's device that keeps argmax passes' logits rows (Model::argmax_buffers) is fitted for as many as a verify takes, at most the logits rows the caller keeps, and a device without them is not.
+    infer::Footprint argmax = three;
+    argmax.argmax_per_row = 64 * MiB + 4;
+    argmax.argmax_rows = 3;
+    // No reserve, which would follow the budget's bytes.
+    auto keeper = [&](size_t bytes, bool keeps = true) {
+        infer::DeviceBudget d = budget("a", bytes);
+        d.scratch = 0;
+        d.argmax = keeps;
+        return d;
+    };
+    const auto open = infer::split_layers(argmax, {keeper(4 * GiB, false)}, 4, {}, std::nullopt, 1, 2);
+    const size_t held = open.stages[0].weights + open.stages[0].cache + open.stages[0].other;
+    bool short_rows = false;
+    try { infer::split_layers(argmax, {keeper(held + 2 * argmax.argmax_per_row - 1)}, 4, {}, std::nullopt, 1, 2); } catch (const std::runtime_error&) { short_rows = true; }
+    infer::split_layers(argmax, {keeper(held + 2 * argmax.argmax_per_row)}, 4, {}, std::nullopt, 1, 2);
+    infer::split_layers(argmax, {keeper(held, false)}, 4, {}, std::nullopt, 1, 2);
+    bool short_verify = false;
+    try { infer::split_layers(argmax, {keeper(held + 3 * argmax.argmax_per_row - 1)}, 4, {}, std::nullopt, 1, 8); } catch (const std::runtime_error&) { short_verify = true; }
+    infer::split_layers(argmax, {keeper(held + 3 * argmax.argmax_per_row)}, 4, {}, std::nullopt, 1, 8);
+    require(short_rows && short_verify, "a head's device fitted without the argmax passes' logits rows it keeps");
+    require(!infer::budgets_for({std::make_shared<backend::CpuBackend>()}, {"cpu"})[0].argmax, "the CPU fitted for argmax rows it keeps on the host");
+    checked += 7;
+    // Only passes that take argmax, as generate's do, are charged for its rows: a server's mark of a verify's rows charges none.
+    {
+        const gguf::GGUFModel file = fixture();
+        const infer::ModelWeights w = infer::gguf_weights(file);
+        const infer::ModelPlan plan = infer::plan_model(w);
+        infer::ModelOptions served;
+        served.mark_slots = 1;
+        served.mark_rows = 64;
+        infer::ModelOptions verifying = served, stepping;
+        verifying.argmax_passes = stepping.argmax_passes = true;
+        require(infer::footprint(w, plan, served).argmax_rows == 0 && infer::footprint(w, plan, verifying).argmax_rows == 64 &&
+                    infer::footprint(w, plan, stepping).argmax_rows == 1,
+                "argmax rows charged to passes that take none, or not to those that take them");
+        checked += 1;
+    }
     // The host keeps the position tables, two handoff buffers on each used device but the last, which sends nothing, and each used backend's staging, never an unused one's.
     // Two devices staging 68 MiB each beside 64 MiB of tables need 202 MiB of the host: with 140 MiB free one device runs every layer, and with 100 MiB none can.
     infer::Footprint staged = three;
@@ -1020,8 +1058,11 @@ void lookup_storage_planned() {
     infer::DeviceBudget generous;
     generous.name = "device";
     generous.bytes = size_t(64) << 20;
-    const auto exact_fit = infer::split_layers(infer::footprint(tiny, tiny_plan, options), {generous}, request.ubatch);
-    device->room = exact_fit.stages[0].weights + exact_fit.stages[0].cache + exact_fit.stages[0].other;
+    generous.argmax = true;   // as budgets_for gives the device, which is not the CPU
+    const infer::Footprint tiny_fp = infer::footprint(tiny, tiny_plan, options);
+    const auto exact_fit = infer::split_layers(tiny_fp, {generous}, request.ubatch);
+    // The stage's bytes and the argmax passes' rows the head's device keeps beside them.
+    device->room = exact_fit.stages[0].weights + exact_fit.stages[0].cache + exact_fit.stages[0].other + tiny_fp.argmax_rows * tiny_fp.argmax_per_row;
     generous.bytes = device->room;
     tiny.tensors[tensor].row_source = tiny_source;
     bool packed_short = false;

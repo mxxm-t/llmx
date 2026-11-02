@@ -51,6 +51,7 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         chain_kept = chain_fed = 0;
     };
     static const spec::Acceptance fresh;
+    const bool argmax = infer::plain_argmax(gp);
     while (going) {
         // y is the last pick, not yet fed.
         size_t k = 0;
@@ -98,8 +99,10 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         const size_t start = (size_t)model.n_tokens();
         feed.assign(1, y);
         feed.insert(feed.end(), drafts.begin(), drafts.begin() + (std::ptrdiff_t)k);
-        const float* rows = model.step(feed.data(), feed.size());
-        const Accepted a = infer::accept(rows, n_vocab, drafts.data(), k, gp, tok.eos_id, gen, rng, [&](uint32_t id) { return going = take(id); });
+        // Plain argmax draws read the rows' ids, which the output device takes where it can, and only a row whose ids say nothing.
+        model.step(feed.data(), feed.size(), argmax);
+        const Accepted a = infer::accept_ids([&](size_t i) { return model.argmax_id(i); }, [&](size_t i) { return model.logits(i); }, n_vocab, drafts.data(), k, gp,
+                                             tok.eos_id, gen, rng, [&](uint32_t id) { return going = take(id); });
         // y and the drafts its picks equalled were fed, and a last pick the reply ends on fed where the verify fed it as its draft.
         const bool last_fed = end == End::fed && a.rows <= k && a.last == drafts[a.rows - 1];
         model.retract(start + a.rows + (last_fed ? 1 : 0));

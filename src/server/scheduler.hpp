@@ -912,7 +912,8 @@ private:
             if (r->job_) {
                 if (working(*r)) jobs.push_back(r);
             } else if (!r->gen_.empty() && r->seq_.length() + 1 >= history_tokens(*r)) {
-                // A reply, waiting for its decode entry or with it in flight.
+                // A reply, waiting for its decode entry or with it in flight; one that could not grow sits the pass out, so prompts do not wait for it.
+                if (r->stalled_) continue;
                 ++decoders;
                 deepest = std::max(deepest, r->seq_.length());
                 fewest = std::min(fewest, r->steps_.mean());

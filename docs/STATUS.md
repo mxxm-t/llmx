@@ -8,6 +8,14 @@
 - **Tests:** `server`: a completion without drafts gives a step a token, one more where it drew the end of text, and no verify, in `timings` and on its line; the Flash fixture's chat with and without the embedded drafter gives steps + verifies + kept = 64 on its line, verifies only with the drafter, and the line's drafted and kept equal to the server's counts for the request.
 - **Gates:** CTest (78 of 78) and the CPU suite pass on the CPU; Qwen3-0.6B Q8_0 against main on the CPU gives the same bytes for greedy, seeded and chat replies and for the prompt's logits, timing lines left out.
   The change lands by fast-forward.
+## A reply that could not grow is not a reply the prompts wait for (2026-11-02, SDEV-E, branch fix/empty-pass-round on main d1686f69f, the coordinator's ask from the uncapped mix check, lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Found:** `tools/server_mix_check.py --uncapped` on Qwen3-0.6B Q8_0 on the CPU of a loaded machine ended two requests with `server: a round with active requests formed an empty pass: a request of 1279 tokens was not ready, 2 active, blocks free 1 of 32`, and the tool then failed on the missing reply (KeyError 7).
+- **Cause:** a younger uncapped reply whose growth step the older request's room holds sits the pass out (a stall), but `Scheduler::plan` still counted it among the replies, so the round planned replies beside prompt work. With the replies' pass priced above a step's allowance (the objective unmet, as on a loaded machine) a prompt beside replies reads only once it has gone `kPromptWaitMs` without rows, or rides the replies' pass as the quick prompt, and the older request, resuming or still reading its prompt, got neither: no reply was ready and no prompt was in the plan's order, so the round formed nothing with nothing in flight and its check ended every active request.
+- **Done:** the failing test, then `plan` leaves a stalled reply out of the replies, as the pass leaves it out, so the prompt beside it reads as though no reply waited (docs/SERVER.md, The service rule).
+- **The failing case first:** `server-resume`, `stalled_beside_prompt`: on four CPU stages of the synthetic Q8_0 model at one pass in flight and ubatch 16, capped X (400 tokens and 4) and uncapped Y (128) fill 7 blocks of 128, the last stage sleeping 50 ms a submission until the first stall; each reply must be its reply alone with a stall and no pause. Main with the test failed it 4 runs of 4 with the empty-pass error (`a request of 16 tokens was not ready, 2 active, blocks free 0 of 7`); the fix passes it.
+- **Gates:** see the gate post of 2026-11-02 in the devlog; filled at the landing head.
+- **Reviewed:** review requested from F2DEV and the coordinator; not landed.
 
 ## Dashboard RoPE configuration (2026-11-02, XDEV)
 

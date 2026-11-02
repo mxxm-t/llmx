@@ -2371,6 +2371,36 @@ size_t check_f32_filling_builds(backend::Backend& vk) {
     return checks;
 }
 
+// Q8_0 and Q4_K decode calls of 64 and 256 columns, whole chunks of every widest build, run in one dispatch, and 65 columns in two (VulkanBackend::for_each_column_chunk); the decode-column cells hold their bits.
+size_t check_whole_chunks(backend::Backend& vk) {
+    const size_t nin = 256, rows = 320;
+    const auto x = uniform(256 * nin, 542);
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+    const auto y = vk.alloc(256 * rows * sizeof(float));
+    size_t checks = 0;
+    for (uint32_t type : {uint32_t(quant::GGML_TYPE_Q8_0), uint32_t(quant::GGML_TYPE_Q4_K)}) {
+        const auto wb = matrix(type, nin, rows, 543);
+        const auto w = vk.adopt(wb.data(), wb.size());
+        for (size_t n : {size_t(64), size_t(65), size_t(256)}) {
+            const backend::RowRun decode{n, 1};
+            (void)backend::vulkan_kernel_times(vk);
+            vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1});
+            const auto times = backend::vulkan_kernel_times(vk);
+            if (times.empty()) {
+                vk.sync();
+                std::cout << "backend-vulkan: whole decode chunks unwitnessed without device timestamps\n";
+                return 0;
+            }
+            // Dispatches of one build share a name, so products are the dispatches timed less the other kernels', each run once.
+            size_t products = backend::vulkan_timed_dispatches(vk);
+            for (const auto& entry : times) products -= entry.first.rfind("matmul_", 0) != 0;
+            require(products == (n == 65 ? 2u : 1u), "a decode call of whole chunks took another count of dispatches");
+            ++checks;
+        }
+    }
+    return checks;
+}
+
 // The decode-column cells: every type in `types` at 1 to 64 columns, and those in `wide` also at widths to 1024 (docs/TESTS.md, backend-vulkan).
 struct DecodeCells {
     std::vector<uint32_t> types, wide;
@@ -5565,6 +5595,7 @@ int main(int argc, char** argv) {
         const size_t columns = check_decode_columns(*b, backend::Dtype::f16, cells);
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_f32_filling_builds(*backend::make_vulkan_backend(0, true)) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
+        std::cout << "backend-vulkan: " << check_whole_chunks(*backend::make_vulkan_backend(0, true)) << " Q8_0 and Q4_K decode calls of whole chunks in one dispatch\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8, cells) << " int8 decode columns equal to the same columns alone\n";

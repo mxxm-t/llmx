@@ -361,7 +361,7 @@ inline VulkanBackend::Fill VulkanBackend::filling_build(KernelId id, int variant
 }
 
 // Call each(col0, ncols, variant, chunks) for each dispatch, its `ncols` columns cut evenly into `chunks` side by side; `rows` are the output rows, each `nin` wide.
-// F32, F16 and BF16 rows take the whole call in one dispatch, other kernels the widest build's whole chunks in one and the rest in the narrowest build that holds it.
+// F32, F16 and BF16 rows take the whole call in one dispatch, other kernels every whole chunk of the widest build in one, once there are two, and any rest in the narrowest build that holds it.
 template <typename Fn>
 inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const {
     int builds[kVariants] = {};
@@ -386,9 +386,11 @@ inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, siz
         }
     }
     const size_t wide = build_cols(id, builds[n - 1]);
-    const size_t whole = (nbatch - 1) / wide;
+    // A call of exactly one widest chunk takes the remainder path, where filling_build may spread it over more workgroups.
+    const size_t whole = nbatch > wide ? nbatch / wide : 0;
     if (whole) each(size_t(0), whole * wide, builds[n - 1], whole);
     const size_t col0 = whole * wide;
+    if (col0 == nbatch) return;
     size_t i = 0;
     while (build_cols(id, builds[i]) < nbatch - col0) ++i;
     const Fill f = filling_build(id, builds[i], nbatch - col0, rows);

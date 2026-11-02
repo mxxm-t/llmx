@@ -61,6 +61,29 @@ One sequence and the single prompt run no new code and stay level.
 The suite on rocm:0 fails only reference-consumer, half-weights, moe and vision, the four components main fails there too, each the device refusing an op it lacks (routed_experts among them); the skip path is the follow-up recorded below.
 **Left:** review by F2DEV, the hosted run, landing by fast-forward.
 **Gotchas:** the F16 class gains far less than int8 at four and sixteen sequences (8B 126 against 211, Vulkan 240): its multi-column row builds are the next lever, profiled first; sixteen sequences add little over four in both classes, so the sixteen-column builds want the same profile.
+## Wide decode for every type, step 5: whole decode chunks in one dispatch, and no Q8_0 build past 32 columns (2026-11-02, VDEV, branch test/wide-decode-harness, its own commit on step 4, step 5 of VDEV's plan "wide decode, all types" of 2026-11-02 with XDEV's amendment and F2DEV's conditions)
+
+**Goal:** a Q8_0 decode build past 32 columns, measured first and built only if it gains 10 percent or more at 64 to 256 columns (F2DEV's condition).
+**Done:** measured first on one MI50 (renderD130, RADV), `--decode-rates Q8_0` on the Flash-Next shapes and the 27B down projection, four candidate builds against step 4, interleaved, medians of two runs each (before / candidate time).
+32 columns in registers, 4 rows (`{32, 4, 2, tree, 1}`): int8 0.71 to 0.86x at 256 and 1024 columns on every shape; f16 1.02 to 1.07x on the large shapes and 0.86 to 0.92x on `hc_down`.
+32 columns in registers, 2 rows: 0.53 to 0.85x everywhere.
+32 columns in registers, two groups (64 a dispatch): f16 1.08 to 1.16x at 256 and 1024 (attn_qkv 1.16x, ssm_out and the 27B down projection 1.08x), but int8 0.67 to 0.88x and every shape 0.44 to 0.63x at 32 columns.
+16 columns, four groups (64 a dispatch): 1.00 to 1.03x at 256 and 1024 on int8 and f16, and up to 1.66x at 64.
+So no Q8_0 build past 32 columns gains 10 percent on int8, which production runs (`--dtype int8` on Flash-Next), and the one f16 gain would be an f16-only rule; none is built.
+The gain at 64 columns came from the call's split instead: `for_each_column_chunk` put every whole chunk but the last in one dispatch and the last in a second, so a call of exactly two widest chunks (64 Q8_0 columns, 32 of the 16-column builds) ran two dispatches one after the other.
+It now takes every whole chunk in one dispatch once there are two, and a rest, if any, in the narrowest build that holds it; a call of one chunk keeps the remainder path, where `filling_build` may spread a Q8_0 chunk of 2 to 8 columns.
+Every column takes the build it took before, so the bits do not change; it is host code alone, and all 330 SPIR-V modules are byte-identical to step 4's (`cmp`).
+`backend-vulkan` adds `check_whole_chunks`: Q8_0 and Q4_K decode calls of 64 and 256 columns run one product dispatch and 65 columns two, on a timed backend. The whole `backend-vulkan` passes on the MI50 (6 such calls witnessed); `dead-code` and `docs` pass.
+Identity: `--decode-columns Q8_0,Q4_K,Q5_K,Q6_K,Q4_1,Q4_0,IQ4_XS,Q3_K,MXFP4`, every width to 1024, plain, residual, grouped and routed: 1,840,976 f16 and 1,840,976 int8 columns equal to the same columns alone.
+Rates (`--decode-rates` over the same nine types, b a a b, step 4 against step 5, medians over six shapes and both activation widths, time before / after): at 32 columns Q4_K and Q5_K 1.22x, Q4_1 1.13x, Q4_0 1.09x, the others 1.06 to 1.07x and Q8_0 1.00x (one chunk for it); at 64 1.01 to 1.06x; at 256 1.00 to 1.01x; the largest cells are the small-row shapes, Flash-Next `hc_down` (320 rows) 1.9 to 2.2x at 32 and 64 columns and `shexp_gate` (640 rows) 1.9x at 32.
+Examples, int8 (us, before -> after): Q4_K `shexp_gate` 2560x640 at 32 columns 59.3 -> 30.8, at 64 50.7 -> 45.5; Q4_K `hc_down` 10240x320 at 64 122.3 -> 61.6, at 256 228.6 -> 171.9; Q8_0 `hc_down` at 64 116.3 -> 67.4, `ssm_out` 6144x2560 at 64 189.6 -> 172.9.
+Cells at 1, 8 and 16 columns, whose dispatches and modules are unchanged, read 0.77 to 1.66x in single cells with both runs of an arm agreeing (Flash-Next `hc_down` at 13 to 90 us), the harness's noise on identical work.
+Whole model, one MI50, `bench --p 16 --n 32 --r 3 --seqs S`, b a a b against step 4, decode tok/s medians at S = 1 / 32 / 64: Qwen3-0.6B Q8_0 f16 422 / 2731 / 2721 -> 424 / 2647 / 2944, int8 421 / 3680 / 3828 -> 419 / 3698 / 4124; Qwen3.5-0.8B Q4_K_M f16 328 / 1478 / 1664 -> 331 / 1573 / 1759, int8 341 / 1676 / 1911 -> 344 / 1784 / 1979; Qwen3.5-9B Q4_K_M f16 82 / 310 / 335 -> 81 / 329 / 337, int8 92 / 387 / 418 -> 92 / 409 / 423.
+The 0.6B f16 x32 median is one noisy run (2556 +- 54, the other 2739), where Q8_0 takes one chunk and nothing changed.
+Greedy ids, 300 tokens, step 4 against step 5 on the MI50, f16 and int8: the same ids on all three files (6 of 6).
+**Left:** F2DEV review; the plan's end gates (the Radeon VII, CTest on a device).
+**Gotchas:** a call of exactly one widest chunk must keep the remainder path, or a Q8_0 device whose widest build holds 8 columns loses `filling_build` for its 8-column calls.
+
 ## Wide decode for every type, step 4: family A in the two-row body, and NVFP4's column loads (2026-11-02, VDEV, branch test/wide-decode-harness, its own commit on step 2, step 4 of VDEV's plan "wide decode, all types" of 2026-11-02 with XDEV's amendment and F2DEV's conditions)
 
 **Goal:** the two-row decode builds for the F32, F16 and BF16 rows, a 16-column build among them, and the NVFP4 row kernel's wide build no slower a column than its one-column build.

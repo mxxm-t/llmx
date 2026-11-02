@@ -28,6 +28,228 @@ inline std::vector<uint32_t> history(const Request& r) {
 // Such a follow-up reads this and a block again, about 1.5 s at a 140k-token history on the 2x2 split of docs/STATUS.md.
 inline constexpr size_t kTailTokens = 1024;
 
+// How many of the first `n` tokens of `a` and `b` agree from the start, compared a run of 64 at a time.
+inline size_t common_prefix(const uint32_t* a, const uint32_t* b, size_t n) {
+    constexpr size_t kRun = 64;
+    size_t k = 0;
+    while (k + kRun <= n && std::memcmp(a + k, b + k, kRun * sizeof(uint32_t)) == 0) k += kRun;
+    while (k < n && a[k] == b[k]) ++k;
+    return k;
+}
+
+// The chained hashes of the whole blocks of `bt` tokens: entry k stands for tokens [0, (k + 1) bt), so equal tokens give equal entries and a different entry means different tokens.
+inline std::vector<uint64_t> block_hashes(const uint32_t* t, size_t n, size_t bt) {
+    constexpr uint64_t kMul = 0x9E3779B97F4A7C15ull;
+    std::vector<uint64_t> h(bt ? n / bt : 0);
+    uint64_t chain = 0;
+    for (size_t k = 0; k < h.size(); ++k) {
+        // Four lanes, so the multiplies of a block overlap.
+        uint64_t l[4] = {chain, chain ^ 1, chain ^ 2, chain ^ 3};
+        const uint32_t* b = t + k * bt;
+        size_t i = 0;
+        for (; i + 4 <= bt; i += 4)
+            for (size_t j = 0; j < 4; ++j) l[j] = (l[j] ^ b[i + j]) * kMul;
+        for (; i < bt; ++i) l[0] = (l[0] ^ b[i]) * kMul;
+        uint64_t x = l[0] ^ (l[1] << 1 | l[1] >> 63) ^ (l[2] << 2 | l[2] >> 62) ^ (l[3] << 3 | l[3] >> 61);
+        x ^= x >> 29;
+        x *= kMul;
+        h[k] = chain = x ^ (x >> 32);
+    }
+    return h;
+}
+
+// A holder's tokens, with a generation no change reuses and their whole blocks' hashes, so the reuse question compares blocks and remembers what two holders share (Cache::served).
+// Every change goes through a member here, which takes a new generation and drops the hashes.
+class HeldTokens {
+public:
+    HeldTokens() = default;
+    HeldTokens(std::vector<uint32_t> t) : t_(std::move(t)), gen_(next()) {}
+    HeldTokens(const HeldTokens&) = default;
+    HeldTokens& operator=(const HeldTokens&) = default;
+    HeldTokens(HeldTokens&& o) noexcept : t_(std::move(o.t_)), gen_(o.gen_), bt_(o.bt_), h_(std::move(o.h_)) { o.clear(); }
+    HeldTokens& operator=(HeldTokens&& o) noexcept {
+        if (this != &o) {
+            t_ = std::move(o.t_);
+            gen_ = o.gen_;
+            bt_ = o.bt_;
+            h_ = std::move(o.h_);
+            o.clear();
+        }
+        return *this;
+    }
+    operator const std::vector<uint32_t>&() const { return t_; }
+    const std::vector<uint32_t>& ids() const { return t_; }
+    size_t size() const { return t_.size(); }
+    std::vector<uint32_t>::const_iterator begin() const { return t_.begin(); }
+    std::vector<uint32_t>::const_iterator end() const { return t_.end(); }
+    uint32_t operator[](size_t i) const { return t_[i]; }
+    const uint32_t* data() const { return t_.data(); }
+    template <class It>
+    void assign(It first, It last) {
+        t_.assign(first, last);
+        renew();
+    }
+    void resize(size_t n) {
+        t_.resize(n);
+        renew();
+    }
+    uint64_t generation() const { return gen_; }
+    // The whole blocks' chained hashes (block_hashes), made once a generation.
+    const std::vector<uint64_t>& blocks(size_t bt) const {
+        if (bt_ != bt) {
+            h_ = block_hashes(t_.data(), t_.size(), bt);
+            bt_ = bt;
+        }
+        return h_;
+    }
+
+private:
+    static uint64_t next() {
+        static std::atomic<uint64_t> n{0};
+        return ++n;
+    }
+    void renew() {
+        gen_ = next();
+        bt_ = 0;
+        h_.clear();
+    }
+    void clear() {
+        t_.clear();
+        gen_ = 0;
+        bt_ = 0;
+        h_.clear();
+    }
+    std::vector<uint32_t> t_;
+    uint64_t gen_ = 0;   // 0 for no tokens
+    mutable size_t bt_ = 0;
+    mutable std::vector<uint64_t> h_;
+};
+
+// How many of the first `n` positions two records computed alike, their extents of one class as `row_class` gives it.
+template <class RowClassOf>
+inline size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n, RowClassOf row_class) {
+    size_t at = 0;
+    for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
+        if (a[i].image != b[j].image || (a[i].extent != b[j].extent && row_class(a[i].extent) != row_class(b[j].extent))) break;
+        at = std::min({a[i].end, b[j].end, n});
+        if (a[i].end <= at) ++i;
+        if (b[j].end <= at) ++j;
+    }
+    return std::min(at, n);
+}
+
+// How many tokens two holders share from the start, remembered by their generations, so a pair is compared once while neither changes.
+// Past its cap it drops the pairs of generations no holder has any more (`live`) and sets the cap to twice what stays, so live pairs are never compared again.
+class PairMemo {
+public:
+    template <class Live>
+    size_t common(const HeldTokens& a, const HeldTokens& b, std::atomic<size_t>& scans, Live live) {
+        const size_t n = std::min(a.size(), b.size());
+        if (!n) return 0;
+        if (a.generation() == b.generation()) return n;
+        const std::pair<uint64_t, uint64_t> key = std::minmax(a.generation(), b.generation());
+        const auto at = pairs_.find(key);
+        if (at != pairs_.end()) return at->second;
+        if (pairs_.size() >= cap_) {
+            std::vector<uint64_t> gens = live();
+            std::sort(gens.begin(), gens.end());
+            const auto has = [&](uint64_t g) { return std::binary_search(gens.begin(), gens.end(), g); };
+            for (auto it = pairs_.begin(); it != pairs_.end();) it = has(it->first.first) && has(it->first.second) ? std::next(it) : pairs_.erase(it);
+            cap_ = std::max(kLeast, 2 * pairs_.size());
+        }
+        scans.fetch_add(1, std::memory_order_relaxed);
+        return pairs_[key] = common_prefix(a.data(), b.data(), n);
+    }
+    size_t size() const { return pairs_.size(); }
+
+private:
+    static constexpr size_t kLeast = 4096;
+    std::map<std::pair<uint64_t, uint64_t>, size_t> pairs_;
+    size_t cap_ = kLeast;
+};
+
+// What memory serves a history (Cache::served): the longest restore point a holder gives, the holder's kind and its index in the cache's donors, host copies, boundaries or running requests.
+struct Served {
+    enum class Kind { none, donor, host, bound, running };
+    Kind kind = Kind::none;
+    size_t index = 0, tokens = 0;
+};
+
+// The tokens the reuse question is asked about: the first `size` of `tokens`, holder `held`'s where given, computed as `classes` record.
+// `hashes` holds at least size / bt of their whole blocks' hashes, or is null to make them; with `state` a restore starts only at a holder's own state (a model that keeps one).
+struct ReuseAsked {
+    const uint32_t* tokens = nullptr;
+    size_t size = 0;
+    const HeldTokens* held = nullptr;
+    const std::vector<RowClass>* classes = nullptr;
+    const uint64_t* hashes = nullptr;
+    bool state = false;
+};
+
+// One holder the reuse question looks at: its tokens, `on_hand` of them held, how they were computed, the state it keeps, and whether it is passed over.
+struct ReuseHolder {
+    Served::Kind kind = Served::Kind::none;
+    size_t index = 0;
+    const HeldTokens* tokens = nullptr;
+    size_t on_hand = 0;
+    const std::vector<RowClass>* classes = nullptr;
+    std::optional<size_t> kept;
+    bool passed = false;
+};
+
+// The reuse question over `holders`, donors then host copies then boundaries, by the rules of Cache::served, a boundary only with its rows held (`rows`).
+// Holders are compared by their blocks' hashes, then the answer's holder token by token, and all so (`exact`) where it shares less; `scans` counts token compares.
+template <class Alike, class Common, class Blocks, class Rows>
+inline Served reuse_answer(const ReuseAsked& q, const std::vector<ReuseHolder>& holders, size_t bt, bool exact, std::atomic<size_t>& scans, Alike alike, Common common, Blocks blocks, Rows rows) {
+    const bool hashed = !q.held && !exact;
+    std::vector<uint64_t> made;
+    const uint64_t* mine = q.hashes;
+    if (hashed && !mine) {
+        made = block_hashes(q.tokens, q.size, bt);
+        mine = made.data();
+    }
+    const auto agree = [&](const ReuseHolder& h) -> size_t {
+        const size_t limit = std::min({q.size, h.tokens->size(), h.on_hand});
+        if (q.held) return std::min(common(*q.held, *h.tokens), limit);
+        if (!hashed) {
+            scans.fetch_add(1, std::memory_order_relaxed);
+            return common_prefix(q.tokens, h.tokens->data(), limit);
+        }
+        // Whole blocks only, which the share rounds to in any case.
+        const std::vector<uint64_t>& theirs = blocks(*h.tokens);
+        size_t lo = 0, hi = std::min({q.size / bt, theirs.size(), limit / bt});
+        while (lo < hi) {
+            const size_t mid = (lo + hi + 1) / 2;
+            if (mine[mid - 1] == theirs[mid - 1]) lo = mid;
+            else hi = mid - 1;
+        }
+        return lo * bt;
+    };
+    const auto share = [&](size_t n, const ReuseHolder& h) {
+        n = alike(*q.classes, *h.classes, n) / bt * bt;
+        if (q.state) n = h.kept && *h.kept <= n && *h.kept % bt == 0 ? *h.kept : 0;
+        return n;
+    };
+    Served best;
+    for (const ReuseHolder& h : holders) {
+        if (h.passed) continue;
+        const size_t n = share(agree(h), h);
+        if (h.kind == Served::Kind::donor) {
+            if (n && n >= best.tokens) best = {h.kind, h.index, n};
+        } else if (n > best.tokens && (h.kind != Served::Kind::bound || rows(h.index))) {
+            best = {h.kind, h.index, n};
+        }
+    }
+    // Hashes that agree may still hide tokens that do not, so the holder answering is compared token by token, and every holder so where it shares less.
+    if (hashed && best.kind != Served::Kind::none) {
+        const auto it = std::find_if(holders.begin(), holders.end(), [&](const ReuseHolder& h) { return h.kind == best.kind && h.index == best.index; });
+        scans.fetch_add(1, std::memory_order_relaxed);
+        const size_t n = share(common_prefix(q.tokens, it->tokens->data(), std::min({q.size, it->tokens->size(), it->on_hand})), *it);
+        if (n != best.tokens) return reuse_answer(q, holders, bt, true, scans, alike, common, blocks, rows);
+    }
+    return best;
+}
+
 inline double ms_since(std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t).count(); }
 
 // Each read and promotion once, where Request::Restore attributes them to requests: counts, and each part's sum and largest (docs/SERVER.md, What a restore cost).
@@ -103,6 +325,7 @@ public:
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
         s.reuse_misses = misses_;
+        s.reuse_scans = scans_.load(std::memory_order_relaxed);
         s.last_miss = last_miss_;
         s.disk_entries = disk_now_.files;
         s.disk_states = disk_now_.states;
@@ -245,8 +468,9 @@ public:
             const auto ask = asked(*r);
             const std::vector<uint32_t>& mine = ask.first;
             const std::vector<RowClass>& own = ask.second;
+            const std::vector<uint64_t> hashes = block_hashes(mine.data(), mine.size(), model_.kv_block_tokens());
             // A job whose best source is in a pass waits for the round that pass has retired in: admitted now it would read what it could have forked, the whole prompt of the request it follows.
-            const size_t held = served(mine, own, r.get(), &active).tokens;
+            const size_t held = served(mine, own, r.get(), &active, {}, &hashes).tokens;
             for (const auto& a : active) {
                 const bool source = a->job_ ? a != r : a == r->of_;
                 if (r->job_ && source && a->seq_.in_flight() && !a->classes_.empty() && shareable(*r, a->job_ ? a->prompt_ : history(*a), a->classes_, a->seq_) > held) return false;
@@ -254,7 +478,7 @@ public:
             // The holder serving most is used, and one that fails is passed over and the question asked again, once a holder (docs/CACHE-PLAN.md, section 4).
             std::vector<uint64_t> skip;
             for (;;) {
-                const Served s = served(mine, own, r.get(), &active, skip);
+                const Served s = served(mine, own, r.get(), &active, skip, &hashes);
                 // A host copy goes back to the devices as a donor of its own and the question is asked again; a request finding no room waits, at most kWaitBound, rather than computing rows a copy holds (P2), a job never.
                 const auto promoted = [&](size_t h, size_t tokens, const char* what) -> std::optional<bool> {
                     // A copy whose parts are still queued is promoted in a later round, so the round never waits for them; its parts report as they run, which wakes it (F2DEV's ruling of 2026-10-30).
@@ -861,14 +1085,7 @@ private:
     };
     // How many of the first `n` positions two records computed alike, their extents of one class.
     size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) const {
-        size_t at = 0;
-        for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
-            if (a[i].image != b[j].image || (a[i].extent != b[j].extent && model_.row_class(a[i].extent) != model_.row_class(b[j].extent))) break;
-            at = std::min({a[i].end, b[j].end, n});
-            if (a[i].end <= at) ++i;
-            if (b[j].end <= at) ++j;
-        }
-        return std::min(at, n);
+        return server::alike(a, b, n, [this](size_t e) { return model_.row_class(e); });
     }
     // Defined below, out of the class.
     bool grow_host();
@@ -876,7 +1093,7 @@ private:
     // Shared full blocks are immutable, so a fork of it is safe while it lives; its partial last block, which no fork shares, goes on only in the request that paused, taking it back whole.
     struct Donor {
         uint64_t id = 0;   // which paused request may take it back (Request::donor_)
-        std::vector<uint32_t> tokens;
+        HeldTokens tokens;
         std::vector<RowClass> classes;
         infer::Sequence seq;
         uint64_t on_host = 0;         // the host donor holding the same history, which it was promoted from
@@ -891,20 +1108,19 @@ private:
     // Defined below, out of the class.
     size_t own_donor(const Request& r) const;
     bool checkpoint_room_held(size_t keeps, uint64_t spare = 0);
-    // What memory serves a history (served): the longest restore point a holder gives, the holder's kind and its index in donors_, host_, bounds_ or the running requests.
-    struct Served {
-        enum class Kind { none, donor, host, bound, running };
-        Kind kind = Kind::none;
-        size_t index = 0, tokens = 0;
-    };
-    Served served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, const std::vector<std::shared_ptr<Request>>* running, const std::vector<uint64_t>& skip = {}) const;
+    using Served = server::Served;
+    Served served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, const std::vector<std::shared_ptr<Request>>* running, const std::vector<uint64_t>& skip = {},
+                  const std::vector<uint64_t>* hashes = nullptr) const;
+    Served served_of(const uint32_t* tokens, size_t size, const HeldTokens* held, const std::vector<RowClass>& classes, const Request* self, const std::vector<std::shared_ptr<Request>>* running,
+                     const std::vector<uint64_t>& skip, const std::vector<uint64_t>* hashes = nullptr) const;
+    size_t common(const HeldTokens& a, const HeldTokens& b) const;
     std::pair<std::vector<uint32_t>, std::vector<RowClass>> asked(const Request& r) const;
     size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, const infer::Sequence& seq) const;
     size_t shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held, std::optional<size_t> kept) const;
     // A donor the device tier evicted, its history in host memory (Model::save_host): the tokens and row classes it holds, which a request matches as it matches a device donor.
     struct HostDonor {
         uint64_t id = 0;
-        std::vector<uint32_t> tokens;
+        HeldTokens tokens;
         std::vector<RowClass> classes;
         infer::HostHistory history;
         bool superseded = false;   // as Donor::superseded
@@ -919,7 +1135,7 @@ private:
     // A request that edits or regenerates that message forks it with the blocks of a history holding the same rows, a donor or a host donor of the same conversation (Model::fork with a state).
     struct Boundary {
         uint64_t id = 0;
-        std::vector<uint32_t> tokens;
+        HeldTokens tokens;
         std::vector<RowClass> classes;
         infer::HostHistory state;
         uint64_t disk = 0;         // as HostDonor::disk
@@ -941,14 +1157,13 @@ private:
     bool writing(const Donor& d) const;
     std::vector<std::pair<bool, uint64_t>> host_victims(const Rank& above, bool* outranked = nullptr) const;
     bool host_room_for(size_t bytes, const Rank& above);
-    bool holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const;
-    bool holds(const std::vector<uint32_t>& bt, const std::vector<RowClass>& bc, size_t n, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes,
-               size_t held) const;
+    bool holds(const Boundary& b, const HeldTokens& t, const std::vector<RowClass>& classes, size_t held) const;
     size_t copy_length(const Donor& d) const;
     void write_back(Donor& d);
     bool written_soon(bool boundary, uint64_t id) const;
     void drop_host(size_t i);
     size_t held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other = 0) const;
+    size_t held_below(const HeldTokens& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other = 0) const;
     // Why job j, about to give way, was not handed to a waiting request (hand_jobs), in that function's own terms; under the lock.
     const char* not_handed(const Lines& lines, const Request& j) const {
         bool first = false, shares = false;
@@ -1325,6 +1540,9 @@ private:
     uint64_t reading_for_ = 0;                    // the host entry whose rows a state about to be read alone is for, while that read's room is made (read_source)
     size_t bound_hits_ = 0;                       // under the lock
     size_t misses_ = 0;                           // turns that reused little (note_miss), under the lock
+    // What two holders share from the start, by their generations (common), and how many holders the reuse question compared token by token (Stats::reuse_scans), which the stats read from other threads.
+    mutable PairMemo common_;
+    mutable std::atomic<size_t> scans_{0};
     ReuseMiss last_miss_;
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
     size_t host_tails_ = 0;                                    // of host_held_, the images' rows the copies keep (ImageTail), under the lock
@@ -1768,46 +1986,55 @@ inline void Cache::drop_bound(size_t i) {
 
 // The one question for reuse (docs/CACHE-PLAN.md, section 4): the longest restore point memory holds of `tokens` computed as `classes` record and its holder, passing over `skip`, changing nothing; without `self` the rows held.
 // Shares are whole blocks over rows computed alike, the newest donor where several share as much, a host copy only past every donor, a boundary only with its rows held, and with `running` a running source (enter) only past all of them.
-inline Cache::Served Cache::served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, const std::vector<std::shared_ptr<Request>>* running, const std::vector<uint64_t>& skip) const {
+inline Cache::Served Cache::served(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, const Request* self, const std::vector<std::shared_ptr<Request>>* running, const std::vector<uint64_t>& skip,
+                                   const std::vector<uint64_t>* hashes) const {
+    return served_of(tokens.data(), tokens.size(), nullptr, classes, self, running, skip, hashes);
+}
+
+// The same for the first `size` of `tokens`, which are holder `held`'s where given, `hashes` their whole blocks' hashes where the caller made them (serve).
+inline Cache::Served Cache::served_of(const uint32_t* tokens, size_t size, const HeldTokens* held, const std::vector<RowClass>& classes, const Request* self,
+                                      const std::vector<std::shared_ptr<Request>>* running, const std::vector<uint64_t>& skip, const std::vector<uint64_t>* hashes) const {
     const size_t bt = model_.kv_block_tokens();
     const auto passed = [&](uint64_t id) { return std::find(skip.begin(), skip.end(), id) != skip.end(); };
-    const auto share = [&](const std::vector<uint32_t>& t, const std::vector<RowClass>& c, size_t held, std::optional<size_t> kept) {
-        size_t n = 0;
-        const size_t limit = std::min({tokens.size(), t.size(), held});
-        while (n < limit && t[n] == tokens[n]) ++n;
+    std::vector<ReuseHolder> holders;
+    holders.reserve(donors_.size() + host_.size() + (self ? bounds_.size() : 0));
+    for (size_t d = 0; d < donors_.size(); ++d) {
+        const Donor& x = donors_[d];
+        holders.push_back({Served::Kind::donor, d, &x.tokens, x.seq.length(), &x.classes, model_.checkpoint(x.seq), passed(x.id) || (x.seq.landing() && x.promoted_for != self)});
+    }
+    for (size_t h = 0; h < host_.size(); ++h) {
+        const HostDonor& x = host_[h];
+        const size_t len = x.history.length;
+        holders.push_back({Served::Kind::host, h, &x.tokens, len, &x.classes, model_.keeps_state() ? std::optional<size_t>(len) : std::nullopt, passed(x.id)});
+    }
+    // A boundary is a state alone, so a longer one without its rows does not hide a shorter one with them.
+    for (size_t i = 0; self && i < bounds_.size(); ++i) {
+        const Boundary& x = bounds_[i];
+        holders.push_back({Served::Kind::bound, i, &x.tokens, x.state.length, &x.classes, std::optional<size_t>(x.state.length), passed(x.id)});
+    }
+    const auto rows = [&](size_t i) {
+        const Boundary& b = bounds_[i];
+        return std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return !passed(d.id) && holds(b, d.tokens, d.classes, d.seq.length()); }) ||
+               std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return !passed(h.id) && holds(b, h.tokens, h.classes, h.history.length); });
+    };
+    const ReuseAsked q{tokens, size, held, &classes, hashes && hashes->size() >= size / bt ? hashes->data() : nullptr, self && model_.keeps_state()};
+    Served best = reuse_answer(
+        q, holders, bt, false, scans_, [this](const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) { return alike(a, b, n); },
+        [this](const HeldTokens& a, const HeldTokens& b) { return common(a, b); }, [bt](const HeldTokens& t) -> const std::vector<uint64_t>& { return t.blocks(bt); }, rows);
+    const auto share = [&](size_t n, const std::vector<RowClass>& c, std::optional<size_t> kept) {
         n = alike(classes, c, n) / bt * bt;
         if (self && model_.keeps_state()) n = kept && *kept <= n && *kept % bt == 0 ? *kept : 0;
         return n;
     };
-    Served best;
-    for (size_t d = 0; d < donors_.size(); ++d) {
-        if (passed(donors_[d].id)) continue;
-        if (donors_[d].seq.landing() && donors_[d].promoted_for != self) continue;
-        const size_t n = share(donors_[d].tokens, donors_[d].classes, donors_[d].seq.length(), model_.checkpoint(donors_[d].seq));
-        if (n && n >= best.tokens) best = {Served::Kind::donor, d, n};
-    }
-    for (size_t h = 0; h < host_.size(); ++h) {
-        if (passed(host_[h].id)) continue;
-        const size_t len = host_[h].history.length;
-        const size_t n = share(host_[h].tokens, host_[h].classes, len, model_.keeps_state() ? std::optional<size_t>(len) : std::nullopt);
-        if (n > best.tokens) best = {Served::Kind::host, h, n};
-    }
-    if (!self) return best;
-    // A boundary is a state alone, so a longer one without its rows does not hide a shorter one with them.
-    for (size_t i = 0; i < bounds_.size(); ++i) {
-        const Boundary& b = bounds_[i];
-        if (passed(b.id)) continue;
-        const size_t n = share(b.tokens, b.classes, b.state.length, std::optional<size_t>(b.state.length));
-        if (n <= best.tokens) continue;
-        const bool rows = std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return !passed(d.id) && holds(b, d.tokens, d.classes, d.seq.length()); }) ||
-                          std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return !passed(h.id) && holds(b, h.tokens, h.classes, h.history.length); });
-        if (rows) best = {Served::Kind::bound, i, n};
-    }
-    for (size_t i = 0; running && i < running->size(); ++i) {
+    for (size_t i = 0; self && running && i < running->size(); ++i) {
         const Request& a = *(*running)[i];
         const bool source = a.job_ ? &a != self : self->job_ && &a == self->of_.get();
         if (!source || a.seq_.in_flight() || a.seq_.landing() || a.classes_.empty()) continue;
-        const size_t n = share(a.job_ ? a.prompt_ : history(a), a.classes_, a.seq_.length(), model_.checkpoint(a.seq_));
+        std::vector<uint32_t> whole;
+        if (!a.job_) whole = history(a);
+        const std::vector<uint32_t>& h = a.job_ ? a.prompt_ : whole;
+        scans_.fetch_add(1, std::memory_order_relaxed);
+        const size_t n = share(common_prefix(tokens, h.data(), std::min({size, h.size(), a.seq_.length()})), a.classes_, model_.checkpoint(a.seq_));
         if (n > best.tokens) best = {Served::Kind::running, i, n};
     }
     return best;
@@ -1832,9 +2059,9 @@ inline void Cache::note_miss(const Request& r, size_t shared) {
         return [bound_state, own](size_t n) { return std::max(bound_state(n), own && *own <= n ? *own : size_t(0)); };
     };
     std::vector<HeldHistory> held;
-    for (const Donor& d : donors_) held.push_back({&d.tokens, alike_of(d.classes), state_of(model_.checkpoint(d.seq))});
-    for (const HostDonor& h : host_) held.push_back({&h.tokens, alike_of(h.classes), state_of(h.history.length)});
-    for (const Boundary& b : bounds_) held.push_back({&b.tokens, alike_of(b.classes), state_of(b.state.length)});
+    for (const Donor& d : donors_) held.push_back({&d.tokens.ids(), alike_of(d.classes), state_of(model_.checkpoint(d.seq))});
+    for (const HostDonor& h : host_) held.push_back({&h.tokens.ids(), alike_of(h.classes), state_of(h.history.length)});
+    for (const Boundary& b : bounds_) held.push_back({&b.tokens.ids(), alike_of(b.classes), state_of(b.state.length)});
     last_miss_ = reuse_miss(r.prompt_, shared, held, model_.kv_block_tokens(), r.spans_);
     ++misses_;
     const ReuseMiss& m = last_miss_;
@@ -1851,15 +2078,21 @@ inline std::pair<std::vector<uint32_t>, std::vector<RowClass>> Cache::asked(cons
     return {std::move(tokens), r.classes_.empty() ? first_classes(r) : r.classes_};
 }
 
-// Whether a history of tokens `t` computed as `classes` record, `held` of them on hand, holds boundary b's rows: its tokens and row classes below b's position.
-inline bool Cache::holds(const Boundary& b, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held) const {
-    return holds(b.tokens, b.classes, b.state.length, t, classes, held);
+// Whether a holder's history of tokens `t` computed as `classes` record, `held` of them on hand, holds boundary b's rows: its tokens and row classes below b's position.
+inline bool Cache::holds(const Boundary& b, const HeldTokens& t, const std::vector<RowClass>& classes, size_t held) const {
+    const size_t n = b.state.length;
+    return held >= n && t.size() >= n && b.tokens.size() >= n && common(b.tokens, t) >= n && alike(b.classes, classes, n) == n;
 }
 
-// The same for the rows below `n` of tokens `bt` computed as `bc` record.
-inline bool Cache::holds(const std::vector<uint32_t>& bt, const std::vector<RowClass>& bc, size_t n, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes,
-           size_t held) const {
-    return held >= n && t.size() >= n && bt.size() >= n && std::equal(bt.begin(), bt.begin() + (std::ptrdiff_t)n, t.begin()) && alike(bc, classes, n) == n;
+// How many tokens two holders' histories share from the start (PairMemo), the live generations being those of the donors, host copies and boundaries.
+inline size_t Cache::common(const HeldTokens& a, const HeldTokens& b) const {
+    return common_.common(a, b, scans_, [this] {
+        std::vector<uint64_t> g;
+        for (const Donor& d : donors_) g.push_back(d.tokens.generation());
+        for (const HostDonor& h : host_) g.push_back(h.tokens.generation());
+        for (const Boundary& x : bounds_) g.push_back(x.tokens.generation());
+        return g;
+    });
 }
 
 
@@ -2055,7 +2288,13 @@ inline void Cache::moved(Move kind, const char* line, A... a) {
 // The most rows below `n` of `tokens`, in whole blocks, that a donor or a host entry holds but `other`, the holder going: what is left in memory of a history whose holder goes.
 inline size_t Cache::held_below(const std::vector<uint32_t>& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other) const {
     const size_t bt = model_.kv_block_tokens();
-    return served(std::vector<uint32_t>(tokens.begin(), tokens.begin() + (std::ptrdiff_t)std::min(n / bt * bt, tokens.size())), classes, nullptr, nullptr, other ? std::vector<uint64_t>{other} : std::vector<uint64_t>{}).tokens;
+    return served_of(tokens.data(), std::min(n / bt * bt, tokens.size()), nullptr, classes, nullptr, nullptr, other ? std::vector<uint64_t>{other} : std::vector<uint64_t>{}).tokens;
+}
+
+// The same for a holder's own tokens, compared by what each pair of holders shares (common).
+inline size_t Cache::held_below(const HeldTokens& tokens, const std::vector<RowClass>& classes, size_t n, uint64_t other) const {
+    const size_t bt = model_.kv_block_tokens();
+    return served_of(tokens.data(), std::min(n / bt * bt, tokens.size()), &tokens, classes, nullptr, nullptr, other ? std::vector<uint64_t>{other} : std::vector<uint64_t>{}).tokens;
 }
 
 // Rows [first, tokens) of `history` leaving memory with their last holder, or a state of it at `tokens`: moved, and first given to a test that tells whose rows they were (on_move).
@@ -2629,7 +2868,8 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
             const auto ask = asked(*r);
             const std::vector<uint32_t>& mine = ask.first;
             const std::vector<RowClass>& own = ask.second;
-            const Served held = served(mine, own, r.get(), &active);
+            const std::vector<uint64_t> hashes = block_hashes(mine.data(), mine.size(), bt);
+            const Served held = served(mine, own, r.get(), &active, {}, &hashes);
             const size_t shared = held.tokens;
             // A job reads only where it could start, by enter's room for it: its need less what it forks, from free blocks and the donor it forks alone, so what it reads is on the devices at once.
             if (r->job_) {
@@ -2644,7 +2884,7 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
             const std::vector<uint32_t>& tokens = mine;
             const size_t limit = tokens.size();
             // Whether a donor or a host copy holds the first `n` rows, and which host copy where no donor does.
-            const auto rows = [&](size_t n) { return served(std::vector<uint32_t>(tokens.begin(), tokens.begin() + (std::ptrdiff_t)n), own, nullptr, nullptr); };
+            const auto rows = [&](size_t n) { return served_of(tokens.data(), n, nullptr, own, nullptr, nullptr, {}, &hashes); };
             const std::vector<std::string> d = digests_of(tokens.data(), limit, own);
             DiskIndex::Path path = disk_->index().path(d, bt, limit, model_.keeps_state());
             const DiskIndex::Path whole = path;

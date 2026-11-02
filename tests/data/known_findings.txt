@@ -26,4 +26,5 @@ linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBacke
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::prefer_integer_dot() | 1 | what vulkan_prefer_integer_dot calls; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user
+linked-test-only | src/server/cache.hpp | server::PairMemo::size() const | 1 | the memo's pair count, which server-resume reads to hold the memo to its bound as dead pairs come and go; no product reader needs the count
 test-only | src/server/policy.hpp | charge_share | 1 | serving rework, step 2: the credit of the share rules that divide prompt time, candidates the replay of server-passes measures against the server's least-remaining rule, which needs none

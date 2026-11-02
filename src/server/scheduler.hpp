@@ -16,6 +16,7 @@
 #include <future>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <numeric>
@@ -554,6 +555,7 @@ public:
         size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
+        size_t reuse_scans = 0;        // holders the reuse question compared token by token rather than by their blocks' hashes or a pair's remembered length (Cache::served)
         size_t reuse_misses = 0;       // first admissions of a long prompt that reused under half of it (Cache, kMissTokens), the last one's numbers beside
         ReuseMiss last_miss;
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed

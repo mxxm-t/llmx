@@ -36,6 +36,10 @@
 #if defined(LLMX_IQ4) || ((defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)) && defined(LLMX_DOT))
 #define LLMX_LOOKUP_DOT
 #endif
+// The value rows' modules (F32, F16 and BF16), whose rows hold plain values and no blocks.
+#if !defined(LLMX_FLOAT_X) && !defined(LLMX_DOT) && !defined(LLMX_MXFP4) && !defined(LLMX_Q8W) && !defined(LLMX_Q4) && !defined(LLMX_KQUANT) && !defined(LLMX_K4) && !defined(LLMX_K5) && !defined(LLMX_K23)
+#define LLMX_VALUES
+#endif
 #include "q.glsl"
 #include "iq2_layout.glsl"
 #include "tq_layout.glsl"

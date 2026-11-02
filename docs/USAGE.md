@@ -626,7 +626,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
 | `--drafter D`           | draft tokens to verify in one pass: `off`, or sources tried in the order given, comma-separated: `lookup`, `embedded` or a drafter file beside the model, as `lookup,embedded` | `off`  |
-| `--draft-max N`         | most drafts a verify takes, 1 to 63                  | 3       |
+| `--draft-max N`         | most drafts a draft holds, verified up to 63 a pass, 1 to 1023 | 3 |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
 | `--mmproj PATH`         | vision encoder file of the model's images, with `--chat` and `--image` | (none) |
@@ -644,7 +644,7 @@ A sampled token is drawn from the tokens `--topk` and `--topp` keep, ranked by s
 `--topk 0` ranks only the best tokens, 64 at first and more as the `--topp` nucleus needs them, and with `--topp 1` ranks none: the draw walks every token in id order.
 `--ignore-eos` takes the end-of-text token out of every draw, greedy included, so the reply runs to `-n` unless a `--stop` match ends it first; the server's `ignore_eos` is the same rule, and the two give the same tokens for the same settings.
 The model's context still bounds the reply: a `-n` up to what the prompt leaves of it runs to `-n`, and past that the command stops with the context error, as it does without the option, where the server refuses such a request before it starts.
-`--drafter lookup` drafts the tokens that followed the latest earlier occurrence of the last three tokens, else two, else one, of the prompt and the reply so far, and verifies the last token and up to `--draft-max` drafts in one pass of generated tokens (docs/SPECULATIVE.md, section 3).
+`--drafter lookup` drafts the tokens that followed the latest earlier occurrence of the last three tokens, else two, else one, of the prompt and the reply so far, and verifies the last token and up to `--draft-max` drafts in passes of generated tokens of up to 64 rows, a pass taking the rest of a draft only where every draft before it was kept (docs/SPECULATIVE.md, section 3).
 Each row is sampled as the token without drafts would be, so the text, the ids and every draw are the same as with `--drafter off`, greedy or seeded; drafts that match save passes, which pays where the reply repeats its prompt or itself, and a reply whose drafts kept average below half a draft a verify drafts nothing for its next 16 tokens, then tries again.
 On a model that keeps a recurrent state a verify keeps the state it started from in a slot of its own, and a rejected draft runs the state's update again over the rows it keeps.
 `--drafter embedded` drafts with the MTP block a qwen35 or qwen4exp file carries after its layers (docs/SPECULATIVE.md, section 7): the model is loaded with the block on the device of its head, every pass writes the block's cache rows for the tokens it feeds, and each round's drafts are one chain of the block's rows on that device; a file without the block is refused by name.
@@ -796,7 +796,7 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them |
 | Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit |
 | Speculative decoding | `--drafter D` | `off` | `off`, `lookup`, `embedded` (the model's MTP block), a drafter file with MTP blocks, or comma-separated sources with a model drafter last |
-| Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in one pass |
+| Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in a pass |
 | Images | `--mmproj PATH` | (none) | Vision encoder file beside the model; the chat routes then read `image_url` parts |
 | Images | `--image-max-tokens N` | the encoder's | At least 1, k or m suffix; most tokens of a resized image; needs `--mmproj` |
 

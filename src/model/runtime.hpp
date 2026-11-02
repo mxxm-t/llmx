@@ -945,6 +945,8 @@ public:
         for (const auto& d : devices_) n = std::min(n, d->b->decode_columns());
         return n;
     }
+    // The rows a pass after a mark may take (ModelOptions::mark_rows), the most one verify of drafts feeds.
+    size_t mark_rows() const { return options_.mark_rows; }
     // The logits of draft row i of the last draft's sequence `r`, in the order it was asked for, valid until the next.
     const float* draft_logits(size_t i, size_t r = 0) const {
         if (draft_logits_.empty() || r >= draft_order_.size() || i >= draft_k_[r]) throw std::out_of_range("inference: no such draft row");

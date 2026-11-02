@@ -766,7 +766,7 @@ struct Drafts {
     size_t draft_max = 3;
     std::unique_ptr<infer::LoadedModel> beside;   // a draft model the file was, loaded as a model of its own
     // The rows of a verify a mark must save, none without a proposer.
-    size_t mark_rows() const { return proposer || embedded || !file.empty() ? draft_max + 1 : 0; }
+    size_t mark_rows() const { return proposer || embedded || !file.empty() ? infer::spec::verify_rows(draft_max) : 0; }
     // The proposer over what the model was loaded with: its embedded drafter or the MTP blocks the drafter file held, or the draft model the file was, opened on the same devices once the model has taken its room.
     // A `server` takes no draft model, which drafts on its own history.
     void attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server = false);
@@ -782,7 +782,8 @@ struct Drafts {
 };
 
 // --drafter and --draft-max, which generate, chat and serve take; true when `f` is one of them.
-bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Drafts& drafts) {
+// serve verifies a reply's drafts in one pass, so it takes at most a pass's drafts, where generate and chat verify a longer draft over several.
+bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Drafts& drafts, bool server = false) {
     if (f == "--drafter") {
         const auto sources = drafter_sources(flag_value(argc, argv, i, a));
         drafts.embedded = false;
@@ -802,7 +803,7 @@ bool drafts_flag(int argc, char** argv, int& i, const std::string& a, std::strin
         return true;
     }
     if (f == "--draft-max") {
-        drafts.draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts);
+        drafts.draft_max = (size_t)int_arg(argc, argv, i, a, 1, server ? (int)infer::spec::kVerifyRows - 1 : infer::spec::kMaxDrafts);
         return true;
     }
     return false;
@@ -1622,7 +1623,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          carries) or a drafter file beside the model (its MTP blocks or a\n"
             << "                          draft model). One that runs a model comes last: embedded alone, or\n"
             << "                          lookup,embedded to take the reply's own history first (default: off)\n"
-            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
+            << "  --draft-max N           Most drafted tokens a draft holds, checked up to " << infer::spec::kVerifyRows - 1 << " a pass, 1 to "
+            << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
         model_options(true);
         if (chat) page << "\nEnter one message per line. Press Ctrl+C or end of input to exit.\n";
         page << "\nExample: llmx " << command << " model.gguf"
@@ -1676,7 +1678,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          tokens that followed the last ones earlier), embedded (the MTP block the\n"
             << "                          file carries) or a file of MTP blocks beside the model. One that runs a\n"
             << "                          model comes last: embedded alone, or lookup,embedded (default: off)\n"
-            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
+            << "  --draft-max N           Most drafted tokens checked in a pass, 1 to " << infer::spec::kVerifyRows - 1
+            << " (default: " << Drafts{}.draft_max << ")\n"
             << "\nImages (on the chat routes, as image_url parts holding data: URLs of PNG or JPEG):\n"
             << "  --mmproj PATH           Vision encoder file of the model's images\n"
             << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n";
@@ -1749,7 +1752,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          pass, drafting nothing, then time a round's rollback at\n"
             << "                          each kept row and a draft's chain and verify at each\n"
             << "                          draft count (default: off)\n"
-            << "  --draft-max N           Most drafts the draft timing takes, 1 to " << infer::spec::kMaxDrafts << " (default: " << BenchDrafter{}.draft_max << ")\n";
+            << "  --draft-max N           Most drafts the draft timing takes, 1 to " << infer::spec::kVerifyRows - 1 << " (default: " << BenchDrafter{}.draft_max << ")\n";
         model_options(false);
         page << "\nExecution options other than --device and --threads apply only with --model.\n"
             << "Example: llmx bench --model model.gguf --p 512 --n 128 --r 3\n";
@@ -2029,7 +2032,7 @@ int main(int argc, char** argv) {
                 else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
                 else if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--image-max-tokens") images.max_tokens = count_arg<uint64_t>(argc, argv, i, a, 1);
-                else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
+                else if (drafts_flag(argc, argv, i, a, f, drafts, true)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
@@ -2062,7 +2065,7 @@ int main(int argc, char** argv) {
                 else if (f == "--depth") { n.depth = count_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
                 else if (f == "--drafter") { drafter = flag_value(argc, argv, i, a); if (model_only.empty()) model_only = a; }
-                else if (f == "--draft-max") { draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts); if (model_only.empty()) model_only = a; }
+                else if (f == "--draft-max") { draft_max = (size_t)int_arg(argc, argv, i, a, 1, (int)infer::spec::kVerifyRows - 1); if (model_only.empty()) model_only = a; }
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }

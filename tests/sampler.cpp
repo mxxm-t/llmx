@@ -766,7 +766,7 @@ std::vector<size_t> closed_loop(const std::vector<double>& truth, size_t verifie
 // With position 21 truly kept at 0.2, at most 40 of 2000 verifies feed it (12 to 17 measured).
 void frontier_loop() {
     const std::vector<std::pair<size_t, size_t>> early(5, {20, 21});
-    std::vector<double> truth(infer::spec::kMaxDrafts, 0.99);
+    std::vector<double> truth(infer::spec::kVerifyRows - 1, 0.99);
     for (uint64_t seed = 1; seed <= 8; ++seed) {
         const std::vector<size_t> fed = closed_loop(truth, 400, seed, early);
         require(std::any_of(fed.begin(), fed.end(), [](size_t k) { return k > 21; }), "a depth kept at 0.99 everywhere stayed within 21 for 400 verifies after five early misses at 21");
@@ -795,7 +795,7 @@ size_t best_depth(const std::vector<double>& truth, double base_ms, double row_m
 // On code edits a draft that survived to a position is usually inside a long copy, so the chance of keeping it given the ones before rises with depth: 0.8 at the first, 0.99 from the 20th.
 // At a price where 63 drafts give the most tokens a millisecond, the depth opens to 63 from a fresh start and, after 300 verifies that missed within three, within 200 verifies (60 to 128 measured), and stays there.
 void rising_loop() {
-    std::vector<double> truth(infer::spec::kMaxDrafts);
+    std::vector<double> truth(infer::spec::kVerifyRows - 1);
     for (size_t j = 0; j < truth.size(); ++j) truth[j] = 0.8 + 0.19 * (double)std::min<size_t>(j, 19) / 19.0;
     const double base = 30, row = 0.1;
     require(best_depth(truth, base, row) == 63, "the rising profile's best depth at its price is not 63");
@@ -813,7 +813,7 @@ void rising_loop() {
 // Each bucket prices from its own verifies, at censored_depth's price: 0.97 a position (32+ on production's reruns) stays within 26 in 9 of 10 verifies.
 // 0.998 a position (its verbatim copies) takes 60 or more in two of three (225 of 300 on the worst seed measured).
 void bucket_depths() {
-    const std::vector<double> mixed(infer::spec::kMaxDrafts, 0.97), copies(infer::spec::kMaxDrafts, 0.998);
+    const std::vector<double> mixed(infer::spec::kVerifyRows - 1, 0.97), copies(infer::spec::kVerifyRows - 1, 0.998);
     for (uint64_t seed = 1; seed <= 4; ++seed) {
         const std::vector<size_t> a = closed_loop(mixed, 600, seed, {}), b = closed_loop(copies, 600, seed, {});
         const size_t a_shallow = (size_t)std::count_if(a.begin() + 300, a.end(), [](size_t k) { return k <= 26; });

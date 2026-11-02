@@ -353,7 +353,7 @@ public:
               size_t ctx_size = 0)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms),
-          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), draft_rows_(draft_rows(max_seqs, draft_max_)), priced_(priced), pools_(pools_of(model)),
+          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? std::min(draft_max, infer::spec::kVerifyRows - 1) : 0), draft_rows_(draft_rows(max_seqs, draft_max_)), priced_(priced), pools_(pools_of(model)),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
@@ -2508,7 +2508,7 @@ private:
     const Clock::time_point epoch_ = Clock::now();   // the stages' clocks count from here
     std::vector<char> plain_;             // per stage, whether it has a thread of its own (Recorder)
     infer::spec::Proposer* const proposer_;   // none drafts nothing
-    const size_t draft_max_;
+    const size_t draft_max_;             // the most drafts a pass verifies for a request, at most spec::kVerifyRows - 1
     const size_t draft_rows_;             // the draft rows a pass reserves (draft_rows)
     const bool priced_;
     std::vector<infer::spec::Proposer::Ask> asks_;   // the drafts being proposed, the first of them in use

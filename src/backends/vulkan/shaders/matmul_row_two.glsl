@@ -5,6 +5,7 @@
         uint r0 = row * ROWS, w0 = wrow - row + r0;
         if (r0 >= nout) return;
         uint rlast = nout - 1u - r0;
+        // A plain chunk computes every column its build holds, so its column loop has no branch; a grouped run, often narrower than its build, stops at its entries.
         float accr[ROWS][MAX_COLS];
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) accr[r][c] = 0.0;
 #if defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT)
@@ -52,6 +53,7 @@
                 }
                 uint b = 2u * j + t;
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -77,6 +79,7 @@
                     dr[r] = d; n0r[r] = n0; n1r[r] = n1; n2r[r] = n2; n3r[r] = n3;
                 }
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -108,6 +111,7 @@
                     hbr[r] = hb;
                 }
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
                     XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
@@ -147,6 +151,7 @@
                 }
                 uint bl = b * 8u + 2u * c;   // the low group's 32-block, the high group's is next
                 [[unroll]] for (uint cc = 0u; cc < MAX_COLS; ++cc) {
+                    if (GROUPED && cc >= ncols) break;
                     uint col = XCOL(min(cc, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
                     XQ4T lo0 = xq4[a4], hi0 = xq4[a4 + 4u], lo1 = xq4[a4 + 1u], hi1 = xq4[a4 + 5u];
@@ -184,6 +189,7 @@
                 }
                 uint bg = b * 8u + n * 4u;   // the 32-block of group 0
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
                     XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];

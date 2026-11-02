@@ -503,6 +503,7 @@ public:
         if (variant && is_row_kernel((KernelId)id)) {
             std::string name = std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
             if ((KernelId)id == K_MATMUL_ROW_Q1_0_DOT && variant == kQ1TwoRows) name += "_2row";
+            if (grouped_build((KernelId)id, variant)) name += "_grouped";
             return name;
         }
         if (moe_step_kernel((KernelId)id)) return std::string(kKernelNames[id]) + (variant == kVecOneRow ? "_1row" : variant == kVecTwoSteps ? "_2step" : variant == 1 ? "_1col" : "");
@@ -1657,6 +1658,7 @@ public:
         uint32_t type, wide, cluster;
     };
     RowPlan row_plan(uint32_t type, size_t nin, Dtype dtype) const;
+    int grouped_variant(const RowPlan& plan, size_t per_expert) const;
     uint32_t sg_rows(const RowPlan& plan, int variant) const;
     VkDescriptorBufferInfo row_twin(CSlice X, const RowPlan& plan, size_t n, Dtype dtype);
     VkDescriptorBufferInfo twin(CSlice X, size_t n, bool x8, size_t tile_nin, uint32_t* kept_major = nullptr);

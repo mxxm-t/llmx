@@ -1602,20 +1602,31 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
     }
 }
 
-// Pipeline variants for the Q4 and K-quant row families: columns per lane and rows per cluster.
+// Pipeline variants for the Q4 and K-quant row families: columns per lane, rows per cluster and whether a workgroup row takes a grouped routed run (GROUPED).
 // Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
 struct RowBuild {
     uint32_t cols, rows;
+    bool grouped = false;
 };
-const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 4}};
+const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1, true}, {2, 2}, {4, 2}, {8, 2}, {16, 4},
+                               {kRowColsOne, 2}, {4, 2, true}, {8, 2, true}, {16, 4, true}};
 // The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
+// Q1_0's two-row one-column build, variant 7 of its dot kernel.
 const int kQ1TwoRows = 7;
+// The two-row builds a grouped routed call takes, narrowest first, each the plain build of its shape reading its columns through the grouping.
+const int kRowGroupedByWidth[] = {8, 9, 10};
 
 // Rows per cluster: two for Q4/K-quant builds and Q1's two-row build; otherwise one.
 inline uint32_t build_rows(KernelId id, int variant) {
     if (id == K_MATMUL_ROW_Q1_0_DOT && variant == kQ1TwoRows) return 2;
     return row_kernel_builds_two_rows(id) ? kRowBuilds[variant].rows : 1;
+}
+
+// Whether a build runs one grouped routed run a workgroup row, specialization constant 8: the one-row wide build's third pipeline, or a grouped two-row build.
+// Other kernels read their variant 2 the same way, the integer tile as its narrow build.
+inline bool grouped_build(KernelId id, int variant) {
+    return variant == 2 || (row_kernel_builds_two_rows(id) && variant < int(std::size(kRowBuilds)) && kRowBuilds[variant].grouped);
 }
 
 // The columns a row kernel's build holds, by pipeline variant.

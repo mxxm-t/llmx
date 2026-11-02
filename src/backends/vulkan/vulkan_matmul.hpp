@@ -317,6 +317,22 @@ inline size_t VulkanBackend::column_builds(KernelId id, size_t nin, size_t rows,
     return n;
 }
 
+// A grouped routed call's build: where plain calls take the two-row builds, the narrowest grouped one holding the call's `per_expert` entries an expert on average, else the one-row grouped build.
+// The K-quant formats stop at 8 columns, their 16-column build having measured slower at every count on an MI50 (docs/STATUS.md).
+inline int VulkanBackend::grouped_variant(const RowPlan& plan, size_t per_expert) const {
+    int builds[kVariants] = {};
+    const size_t n = column_builds(plan.kernel, 0, 0, plan.cluster, builds);
+    if (!row_kernel_builds_two_rows(plan.kernel) || build_rows(plan.kernel, builds[n - 1]) < 2) return 2;
+    const uint32_t widest = weight_kernels(plan.type)->layout == RowLayout::k_blocks ? std::min(8u, dev_->profile.row_decode_cols) : dev_->profile.row_decode_cols;
+    int pick = 2;
+    for (int v : kRowGroupedByWidth) {
+        if (kRowBuilds[v].cols > widest) break;
+        pick = v;
+        if (kRowBuilds[v].cols >= per_expert) break;
+    }
+    return pick;
+}
+
 // The Q8_0 decode kernel's one-column build for `rows` output rows `nin` wide: two rows and one step below the profile's narrow width, else one row and four steps below the knee of its activations' width.
 // Above that knee 8-bit activations take two rows and two steps and 16-bit ones two rows and one step.
 inline int VulkanBackend::one_column_build(size_t nin, size_t rows, bool x8) const {
@@ -567,7 +583,9 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
     const size_t per_expert = i8 ? dev_->profile.qtile_narrow_per_expert_8bit : dev_->profile.qtile_narrow_per_expert;
     const size_t touched = std::min(n_expert, entries);
     const bool narrow = integer && (per_expert == SIZE_MAX || entries <= per_expert * touched);
-    const size_t chunk = narrow ? kNarrowCols : tile ? 64 : kRowColsWide;
+    const RowPlan plan = row_plan(type, nin, dtype);
+    const int grouped = tile ? 0 : grouped_variant(plan, (entries + touched - 1) / touched);
+    const size_t chunk = narrow ? kNarrowCols : tile ? 64 : build_cols(plan.kernel, grouped);
     const size_t max_tiles = (entries + chunk - 1) / chunk + touched;
     const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
     if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
@@ -587,11 +605,10 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         throw std::runtime_error("vulkan: dispatch exceeds the workgroup count limit");
     const uint32_t order0 = u32(4 * max_tiles);
     if (!tile) {
-        // Enough generated tokens that experts repeat: each run of one expert's entries a workgroup row of the row kernel's wide build, a column per entry, so the expert's rows are read once per run.
-        // A column computes the same in either build and as it would alone, so an entry does not depend on what else is routed beside it.
-        const RowPlan plan = row_plan(type, nin, dtype);
+        // Enough generated tokens that experts repeat: each run of one expert's entries a workgroup row of a grouped build, a column per entry, so the expert's rows are read once per run.
+        // A column computes the same in every build and as it would alone, so an entry does not depend on what else is routed beside it.
         const VkDescriptorBufferInfo xqi = row_twin(X, plan, xcols * nin, dtype);
-        row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, 2, u32(per), max_tiles, bind(ids), order0, tab, entries);
+        row_dispatch(plan, live, X, xqi, nin, xcols, 0, chunk, false, grouped, u32(per), max_tiles, bind(ids), order0, tab, entries);
         return;
     }
     if (integer) {

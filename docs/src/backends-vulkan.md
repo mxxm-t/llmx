@@ -229,7 +229,8 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   one wide, except the wide Q8_0 kernel, the Q4 and K-quant families also
   for two rows (below), and a third pipeline is the
   eight-column build grouped by expert (specialization constant 8,
-  Mixture of experts below). Integer-dot devices take the Q4 and K-quant
+  Mixture of experts below), which the Q4 and K-quant families also take in
+  their two-row builds of 4, 8 and 16 columns (Decode builds, below). Integer-dot devices take the Q4 and K-quant
   families' `LLMX_DOT` builds over the same 16-bit twin.
   Q6_K centers its weights with a 16-bit offset so the dot operands stay 16-bit.
   Q4_K and Q5_K rows take at most `k45_row_lanes`. There Q8_0 rows
@@ -394,7 +395,7 @@ chunks need not hold the same count, the first ones holding a column more, and
 each column keeps the one-column build's bits in either build. A call that
 fills the device in one chunk keeps the wide build, so a router of 512 rows
 does.
-No other kernel has a variant 7 to 12 pipeline; their slots stay empty, since
+No other kernel has a variant 7 to 12 pipeline but Q1_0's two-row build and the Q4 and K-quant families' grouped two-row builds (below); other slots stay empty, since
 a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
 properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
 for every build; the transposed reduction is allowed only where the subgroup
@@ -404,8 +405,17 @@ across build widths.
 The Q4 and K-quant row families use constants 0 and 9 for columns per lane
 and rows per cluster. Their first three variants are the one-row wide,
 one-column and grouped builds, followed by the two-row builds: two rows with
-2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Constant 8 marks
-grouped execution. Constant 17 (`TREE_CLUSTER`, `row_tree_cluster`) is the
+2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Variant 7 is Q1_0's
+two-row one-column build, and variants 8, 9 and 10 (`kRowGroupedByWidth`) the
+grouped two-row builds, the plain builds of 4, 8 and 16 columns reading their
+columns through a grouped routed call's runs. Constant 8 marks grouped
+execution (`grouped_build`). `grouped_variant` gives a grouped call the
+narrowest of them holding its entries an expert on average, within the
+profile's `row_decode_cols` and, for the K-quant formats, 8 columns,
+wherever `column_builds` gives the kernel's plain calls the two-row builds,
+and the one-row grouped build elsewhere. A plain chunk computes every column
+its build holds, so its column loop has no branch, while a grouped run, often
+narrower than its build, stops at its entries. Constant 17 (`TREE_CLUSTER`, `row_tree_cluster`) is the
 cluster width whose reduction those builds transpose where the profile sets
 `row_decode_tree`: the cluster width a long row of the kernel takes on the
 device, so `column_builds` gives them only rows of that width and a row of

@@ -130,6 +130,33 @@ One sequence and the single prompt run no new code and stay level.
 The suite on rocm:0 fails only reference-consumer, half-weights, moe and vision, the four components main fails there too, each the device refusing an op it lacks (routed_experts among them); the skip path is the follow-up recorded below.
 **Left:** review by F2DEV, the hosted run, landing by fast-forward.
 **Gotchas:** the F16 class gains far less than int8 at four and sixteen sequences (8B 126 against 211, Vulkan 240): its multi-column row builds are the next lever, profiled first; sixteen sequences add little over four in both classes, so the sixteen-column builds want the same profile.
+## Wide decode for every type, step 3: grouped routed builds wide (2026-11-02, VDEV, branch test/wide-decode-harness, its own commit on step 1, step 3 of VDEV's plan "wide decode, all types" of 2026-11-02, taken before step 2 in F2DEV's order)
+
+**Goal:** a routed call of many generated tokens, such as a verify of hundreds of drafts on a mixture-of-experts file, reading each expert's rows once a run in the wide decode builds rather than the one-row 8-column grouped build.
+**Done:** the Q4 and K-quant families' grouped runs take their two-row builds of 4, 8 and 16 columns (variants 8, 9 and 10, `kRowGroupedByWidth`), each the plain build of its shape reading its columns through the grouping, so a column keeps the one-column build's bits; `grouped_variant` gives a call the narrowest that holds its entries an expert on average, wherever `column_builds` gives the kernel's plain calls the two-row builds, and the one-row grouped build elsewhere, so Q8_0, F32 and the other types are unchanged; `moe_group.comp` groups the entries in runs of the build's columns.
+A grouped run stops at its entries (`GROUPED && c >= ncols`), where a plain chunk keeps computing every column its build holds.
+Identity (one MI50, renderD130, RADV): `--decode-columns Q4_0,Q4_1,Q5_0,Q5_1,Q4_K,Q5_K,Q6_K`, every width to 1024 in plain, residual, grouped and routed calls (8 experts, 2 a token, so 8 tokens on take the grouped builds, 4, 8 and 16 columns in turn), 1,265,856 columns equal alone in each of f16 and int8.
+Rates (`--decode-rates` on those types, m c c m twice, main's kernels against the step; ms, routed Flash-Next shape 2560 into 640, 512 experts, 10 a token):
+
+| type, dtype | 256 tokens | 1024 tokens |
+|---|---|---|
+| Q4_K int8 | 2.33 -> 1.34 (1.74x) | 8.74 -> 4.61 (1.89x) |
+| Q5_K int8 | 3.59 -> 1.68 (2.14x) | 14.04 -> 5.52 (2.54x) |
+| Q6_K int8 | 5.86 -> 4.08 (1.44x) | 21.12 -> 12.30 (1.72x) |
+| Q4_0 int8 | 2.89 -> 1.74 (1.66x) | 11.87 -> 5.45 (2.18x) |
+| Q4_1 int8 | 2.93 -> 1.75 (1.67x) | 11.44 -> 5.34 (2.14x) |
+| Q5_0 int8 | 6.23 -> 2.67 (2.34x) | 24.37 -> 7.53 (3.24x) |
+| Q5_1 int8 | 5.10 -> 1.86 (2.75x) | 19.69 -> 5.79 (3.40x) |
+| Q4_K f16 | 3.84 -> 2.39 (1.61x) | 15.20 -> 8.50 (1.79x) |
+| Q5_K f16 | 4.53 -> 2.55 (1.77x) | 18.22 -> 8.78 (2.08x) |
+| Q6_K f16 | 6.31 -> 5.62 (1.12x) | 23.87 -> 17.05 (1.40x) |
+
+Q4_K int8 at 1024 tokens is 3.64 TMAC/s against 1.92; below 103 tokens (entries under two an expert) every call keeps the one-column build per entry, unchanged.
+The 490 plain cells of the table keep their builds, median ratio 1.000; the outliers, 0.65 to 1.06, are each type's first one-column cell.
+**Found** (scratch build forcing each grouped width, ms, int8, 128 / 256 / 512 / 1024 tokens, so 2.5 / 5 / 10 / 20 entries an expert): without the stop a run computed every column, so the 16-column build cost the same at 128 to 512 tokens (Q4_K 3.07, 3.09, 3.12) and the 4-column build won even at 1024 (Q4_K 5.12 against 6.16); with the stop the narrowest build holding the average wins or ties for Q4_0, Q4_1, Q5_0 and Q5_1 (Q5_0 2.05 / 2.66 / 3.84 / 7.53), while the K-quants' 16-column build with the stop was slower than their 8-column one at every count (Q4_K 8.01 against 4.79 at 1024, Q6_K 18.17 against 12.30, Q5_K 8.38 against 5.72; f16 likewise), so their grouped builds stop at 8 columns.
+**Left:** F2DEV review; the plan's end gates (`--isa` on the MI50 and the Radeon VII, byte identity on a mixture-of-experts file, Flash-Next 2x2 verify timing); step 2's types join these builds there.
+**Gotchas:** a grouped build's waste follows the runs, not the call: every touched expert has a partial run, so the width follows the entries an expert, not the call's width.
+
 ## Wide decode for every type, step 1: the identity and rate harness (2026-11-02, VDEV, branch test/wide-decode-harness on main d50b7a2bb, step 1 of VDEV's plan "wide decode, all types" of 2026-11-02, approved by XDEV with amendments and by F2DEV with conditions; tests only)
 
 **Goal:** the gate and the baseline for the later steps: every weight type's decode columns held to the same column alone, and a per-type rate table at real shapes.

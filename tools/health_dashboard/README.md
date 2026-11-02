@@ -54,6 +54,10 @@ default remains two seconds and no zero-overhead claim is made.
 The collector requests only the configured URL, refuses redirects, and uses
 normal certificate validation for HTTPS. Runtime configuration uses flags.
 
+## Runtime configuration
+
+The Runtime configuration card shows the effective RoPE policy, factor, original context, attention scale, configured context and declared policy reported by the server. A forced configuration has a visible text label. Configured context is separate from request capacity and does not report available KV capacity. Older servers without RoPE metadata and incomplete payloads are shown as unavailable.
+
 ## Reading the charts
 
 - With `requests.live.work`, prompt and output panels use its

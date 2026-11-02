@@ -1134,6 +1134,33 @@ p {
   font-family: ui-monospace,SFMono-Regular,Consolas,monospace;
   font-size: 10px
 }
+.rope-details {
+  margin-top: 16px;
+  border-top: 1px solid #22304080;
+  padding-top: 12px
+}
+.rope-details h3 {
+  margin: 0;
+  font-size: 12px
+}
+.rope-details .metadata {
+  margin-top: 10px
+}
+.rope-forced {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid #8298b3;
+  border-radius: 10px;
+  color: #dce8f7;
+  font-size: 10px;
+  vertical-align: 1px
+}
+.rope-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px
+}
 .events {
   margin-top: 15px;
   max-height: 280px;
@@ -2872,6 +2899,12 @@ button[hidden] {
      </h2>
      <dl class="metadata" id="metadata">
      </dl>
+     <section class="rope-details" id="rope-details" aria-labelledby="rope-title">
+      <h3 id="rope-title">RoPE</h3>
+      <p class="rope-note" id="rope-summary"></p>
+      <dl class="metadata" id="rope-fields"></dl>
+      <p class="rope-note" id="rope-capacity-note" hidden>Available request capacity can be lower.</p>
+     </section>
      <details class="technical-details"><summary>Device precision details</summary><dl class="metadata" id="precision-details"></dl></details>
     </section>
     <section class="card pad">
@@ -3817,6 +3850,7 @@ function renderMetadata(raw) {
   for (const[label, value] of fields) {
     host.append(element('dt', '', label), element('dd', '', displayValue(value)))
   }
+  renderRope(raw);
   const details = $('precision-details');
   details.replaceChildren();
   const devices = get(raw, 'precision.devices');
@@ -3829,6 +3863,69 @@ function renderMetadata(raw) {
   }
   for (const [text, names] of groups) details.append(element('dt', '', names.join(', ')), element('dd', '', text));
   if (!groups.size) details.append(element('dt', '', 'Devices'), element('dd', '', 'Unavailable'));
+}
+function renderRope(raw) {
+  const summary = $('rope-summary');
+  const fields = $('rope-fields');
+  $('rope-forced-note')?.remove();
+  const capacityNote = $('rope-capacity-note');
+  capacityNote.hidden = true;
+  summary.replaceChildren();
+  fields.replaceChildren();
+  const rope = get(raw, 'rope');
+  if (rope === undefined) {
+    summary.textContent = 'RoPE details are unavailable from this server version.';
+    return
+  }
+  if (!rope || typeof rope !== 'object' || Array.isArray(rope)) {
+    summary.textContent = 'RoPE details are unavailable because the configuration is malformed.';
+    return
+  }
+  const add = (label, value) => fields.append(element('dt', '', label), element('dd', '', value));
+  const policy = value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (value.type === 'none') return 'Unscaled';
+    if (value.type === 'yarn' && number(value.factor) && value.factor > 0 &&
+        Number.isInteger(value.original) && value.original > 0) {
+      return 'YaRN, factor ' + exact.format(value.factor) + ', original context ' + fmt(value.original);
+    }
+    return null
+  };
+  let effective;
+  if (rope.type === 'none') effective = 'Unscaled';
+  else if (rope.type === 'yarn' && number(rope.factor) && rope.factor > 0 &&
+      Number.isInteger(rope.original) && rope.original > 0 && number(rope.attention_factor) && rope.attention_factor > 0) {
+    effective = 'YaRN, factor ' + exact.format(rope.factor);
+  }
+  if (!effective) {
+    summary.textContent = 'RoPE details are unavailable because the effective configuration is incomplete or malformed.';
+    return
+  }
+  summary.append(document.createTextNode(effective));
+  const forced = rope.forced === true;
+  if (forced) {
+    const badge = element('span', 'rope-forced', 'Forced');
+    badge.setAttribute('aria-label', 'Forced RoPE configuration');
+    summary.append(badge)
+  }
+  if (rope.type === 'yarn') {
+    add('Effective policy', 'YaRN');
+    add('Factor', exact.format(rope.factor));
+    add('Original context', fmt(rope.original) + ' tokens');
+    add('Attention scale', exact.format(rope.attention_factor));
+  } else add('Effective policy', effective);
+  if (Number.isInteger(rope.context) && rope.context > 0) {
+    add('Configured context', fmt(rope.context) + ' tokens');
+    capacityNote.hidden = false;
+  } else add('Configured context', 'Unavailable');
+  const declared = policy(rope.declared);
+  add('Declared policy', declared || 'Unavailable');
+  if (rope.forced !== undefined && typeof rope.forced !== 'boolean') add('Forced status', 'Unavailable');
+  if (forced) {
+    const note = element('p', 'rope-note', 'The server is using a forced RoPE configuration.');
+    note.id = 'rope-forced-note';
+    summary.after(note)
+  }
 }
 function renderTopology(raw) {
   const host = $('topology-view');

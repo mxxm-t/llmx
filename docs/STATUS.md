@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Dashboard RoPE configuration (2026-11-02, XDEV)
+
+- **Change:** The Runtime configuration card reads the health API's effective RoPE policy. It shows YaRN factor, original context, attention scale, configured context, declared policy and a textual forced indicator. Requested values are not substituted for effective values. Configured context is explicitly separate from available request capacity. Legacy and malformed responses show an unavailable state, and reset removes stale forced details.
+- **Checks:** The focused browser test passes 24 assertions at each actual CSS viewport of 390 and 1440 pixels, including populated layouts and reset. Fixed-width frames avoid Chrome's minimum window width and platform scrollbar differences. JavaScript syntax and the existing rate-geometry checks pass; screenshots of both populated layouts were inspected. Dead-code passes with 8 listed findings and 19 planted faults. Docs passes with 0 findings and 21 planted faults.
+- **Evidence reuse:** Docs command/help checks use the verified CPU CLI `0.1.0+g4de5a1af9801`, SHA-256 `6c8aaf80c44809f4ae578e4a672e896895d880ad539852363291a5e05eb6a519`. Its CLI sources are byte-identical to initial base `fb2e379d2` and landing base `d50b7a2bb`. An earlier run with the stale root CLI produced 45 command/usage findings and remains recorded as an invalid help-identity check. This reuse is not runtime qualification of the branch.
+- **Landing:** A static dashboard change, with no collector, API or inference changes. The applicable UI, docs and dead-code checks govern its fast-forward landing; no model correctness or inference performance run is required. Production deployment follows landing and verification of the served HTML.
+
 ## ROCm F16 decode rows, two rows a wave (2026-11-01, DDEV, branch perf/rocm-f16-two-rows on main fb2e379d2; the f16 decode plan posted to F2DEV and XDEV at 2026-11-01 20:5x, probe 2 kept by p71)
 
 **Goal:** the F16 class's decode products of Qwen3 Q8_0 on one MI50 toward Vulkan's with the same bits; 8B tg128 F16 was 68.3 tok/s against Vulkan's 77.5, the products 1.39 ms of the 1.7 ms a token gap (rig `ddev/rocm/p66`).

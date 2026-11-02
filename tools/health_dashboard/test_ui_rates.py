@@ -432,6 +432,70 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 19)
 
+    def test_rope_configuration_display(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+const fields = () => $('rope-fields').textContent;
+renderMetadata({server: {model: 'tiny-model', context_tokens: 4096}});
+check('legacy server reports unavailable RoPE details', $('rope-summary').textContent.includes('unavailable from this server version'));
+check('legacy metadata remains visible', $('metadata').textContent.includes('tiny-model'));
+check('legacy view has no stale forced note', !$('rope-forced-note'));
+renderMetadata({rope: {type: 'none', context: 4096, forced: false, declared: {type: 'yarn', factor: 4, original: 2048}}});
+check('effective none is shown as unscaled', $('rope-summary').textContent === 'Unscaled');
+check('declared YaRN is kept separate from effective policy', fields().includes('Unscaled') && fields().includes('YaRN, factor 4, original context 2,048'));
+check('none state omits unavailable scale and original context', !fields().includes('Attention scale') && !fields().includes('Original context'));
+check('configured context label is concise', fields().includes('Configured context'));
+check('declared YaRN state fits the viewport', document.documentElement.scrollWidth <= innerWidth);
+renderMetadata({rope: {type: 'yarn', factor: 4, original: 262144, attention_factor: 1.1386294,
+  context: 1048576, forced: true, declared: {type: 'none'}, requested: {factor: 99}}});
+check('effective YaRN values are shown', $('rope-summary').textContent.includes('YaRN, factor 4') &&
+  fields().includes('Factor4') && fields().includes('262,144 tokens') && fields().includes('1.138629'));
+check('forced status is visible and explained', $('rope-summary').textContent.includes('Forced') &&
+  $('rope-forced-note').textContent.includes('forced RoPE configuration'));
+check('configured context is labeled without claiming KV capacity', fields().includes('1,048,576 tokens') &&
+  $('rope-capacity-note').textContent.includes('Available request capacity can be lower.'));
+check('forced YaRN display fits the viewport', document.documentElement.scrollWidth <= innerWidth);
+check('requested policy is not shown as effective', !fields().includes('99'));
+check('declared unscaled policy is shown', fields().includes('Unscaled'));
+renderMetadata({rope: {type: 'yarn', factor: NaN, original: Infinity, attention_factor: 1,
+  context: 1024, forced: false, declared: {type: 'yarn', factor: 4, original: 2048}}});
+check('malformed effective numbers have a clear unavailable state', $('rope-summary').textContent.includes('incomplete or malformed'));
+check('malformed numbers never leak into rendered text', !$('rope-details').textContent.includes('NaN') && !$('rope-details').textContent.includes('Infinity'));
+renderMetadata({rope: {type: 'yarn', factor: 4, original: 2048, context: 4096, forced: false, declared: {type: 'none'}}});
+check('missing attention scale does not fabricate a YaRN display', $('rope-summary').textContent.includes('incomplete or malformed'));
+renderMetadata({rope: {type: 'yarn', factor: 4, original: 2048.5, attention_factor: 1, context: 4096,
+  forced: false, declared: {type: 'none'}}});
+check('fractional original context is rejected', $('rope-summary').textContent.includes('incomplete or malformed'));
+renderMetadata({rope: {type: 'yarn', factor: 4, original: 2048, attention_factor: 1, context: 4096.5,
+  forced: false, declared: {type: 'none'}}});
+check('fractional configured context stays unavailable', fields().includes('Configured contextUnavailable') && $('rope-capacity-note').hidden);
+renderMetadata({rope: []});
+check('malformed object has an explicit unavailable state', $('rope-summary').textContent.includes('configuration is malformed'));
+renderMetadata({server: {model: 'tiny-model'}});
+check('reset from forced YaRN to legacy removes badge and note', !$('rope-summary').textContent.includes('Forced') &&
+  !$('rope-forced-note') && $('rope-capacity-note').hidden);
+check('viewport width ' + innerWidth + ' expected ' + TEST_WIDTH, innerWidth === TEST_WIDTH);
+const cardRect = $('rope-details').closest('.card.pad').getBoundingClientRect();
+check('card fits document client width ' + document.documentElement.clientWidth,
+  cardRect.left >= 0 && cardRect.right <= document.documentElement.clientWidth);
+check('responsive layout has no horizontal overflow', document.documentElement.scrollWidth <= innerWidth);
+globalThis.rateTestResults = outcomes;
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                script = cases.replace("TEST_WIDTH", str(width))
+                inner = source.replace("</body>", "<pre hidden id='rate-test-results'></pre><script>" + script + "</script></body>")
+                document = ("<!doctype html><html><body style='margin:0'><iframe style='border:0;width:" +
+                            str(width) + "px;height:1200px' srcdoc=\"" + html.escape(inner, quote=True) +
+                            "\" onload=\"document.getElementById('rate-test-results').textContent="
+                            "this.contentDocument.getElementById('rate-test-results').textContent\"></iframe>"
+                            "<pre hidden id='rate-test-results'></pre></body></html>")
+                browser_width = max(800, width + 100)
+                self.assertEqual(len(self.run_browser(document, browser_width)), 24)
+
     def test_live_chart_cursor_stays_continuous_across_samples(self):
         source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""

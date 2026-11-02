@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## A request's reasoning_effort reaches the chat template (2026-11-02, SDEV, branch feat/reasoning-effort on main d50b7a2bb, the owner's ask for clients' thinking levels)
+
+- **Goal:** clients that send the OpenAI top-level `reasoning_effort` get the Qwen 3.8 templates' thinking levels instead of a 400, never with the field silently ignored.
+- **Done:** on the chat routes and `/v1/tokenize` a `reasoning_effort` string is the template variable of that name, as if given in `chat_template_kwargs` (`Api::add_effort`, called by `template_vars`, the one owner of a request's template variables, so the prompt, the follow-up prefix and the count all see it).
+  The template parser records the variables a template reads (`jj::Template::reads_variable`), and `chat::ChatFormat::reasoning_effort` says whether the template reads `reasoning_effort`; where it does not, the field is refused with 400 naming the template.
+  The same field in `chat_template_kwargs` with another value, and a value that is not a string, are refused with 400; a value the template refuses comes back as its own error, as before; `/v1/completions` keeps refusing the field, having no template.
+  The native `/v1/chat`, which ignored the field before, now honours it the same way.
+  `server` holds it on the Qwen 3.8 template (the top-level field renders as the kwargs value, `high` gives the template's refusal), on a tiny template that reads it (every route's count, the three ways of giving it, the conflicts) and on one that does not (refused on both chat routes and `/v1/tokenize`).
+- **Gates:** on the CPU, CTest passes and Qwen3-0.6B Q8_0 against main d50b7a2bb gives the same bytes for greedy, seeded and chat replies and the prompt's logits.
+  The CPU suite passes but for raw-blocks under `--require-tools`, which fails on `numpy is not installed` in the build image, as it does with main's binary there; a first run's arch-boundary finding, a comment naming a model family, is fixed, and arch-boundary, docs, dead-code, server and CTest pass again on the fixed tree.
+  The change lands by fast-forward.
+- **Left:** the hosted run, F2DEV's review.
+
 ## ROCm F16 decode rows, two rows a wave (2026-11-01, DDEV, branch perf/rocm-f16-two-rows on main fb2e379d2; the f16 decode plan posted to F2DEV and XDEV at 2026-11-01 20:5x, probe 2 kept by p71)
 
 **Goal:** the F16 class's decode products of Qwen3 Q8_0 on one MI50 toward Vulkan's with the same bits; 8B tg128 F16 was 68.3 tok/s against Vulkan's 77.5, the products 1.39 ms of the 1.7 ms a token gap (rig `ddev/rocm/p66`).

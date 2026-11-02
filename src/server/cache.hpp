@@ -573,7 +573,7 @@ public:
             awaited_ = 0;
         }
         // A job takes only spare room: no donor but the one it forks gives blocks up for it (docs/CACHE-PLAN.md, question 2), and what it would have read is the next turn's new work.
-        if (r->job_ && std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return !keep || g != d; })) {
+        if (r->job_ && (std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return !keep || g != d; }) || !job_spare(*r, fresh, active))) {
             if (!r->no_room_) std::fprintf(stderr, "server: cache: a job of %zu ids waits for spare room\n", r->prompt_.size());
             r->no_room_ = true;
             return false;
@@ -723,12 +723,97 @@ public:
         r->seq_ = infer::Sequence{};
         return id;
     }
-    // Whether r could be admitted now beside the requests and jobs running, by admission's own test: a free seat, and the blocks enter reserves for it from free blocks and donors make_room may give up.
-    // Under the lock.
-    bool admits(const Request& r, size_t seats, const std::vector<std::shared_ptr<Request>>& active) const {
-        if (seats >= max_seqs_) return false;
+    // Whether r could be admitted now beside the requests and jobs running, by admission's own test: a free seat and its room (fits); under the lock.
+    bool admits(const Request& r, size_t seats, const std::vector<std::shared_ptr<Request>>& active) const { return seats < max_seqs_ && fits(r, active); }
+    // Whether the blocks enter reserves for r come from free blocks less `taken` and the donors make_room may give up; under the lock.
+    bool fits(const Request& r, const std::vector<std::shared_ptr<Request>>& active, const std::vector<size_t>& taken = {}) const {
+        std::vector<size_t> free = room(active);
+        for (size_t p = 0; p < free.size() && p < taken.size(); ++p) free[p] -= std::min(free[p], taken[p]);
         const std::vector<size_t> need = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
-        return make_room(room(active), ranked(), npos, false, {}, 0, false, need, gain_of({})).enough;
+        return make_room(free, ranked(), npos, false, {}, 0, false, need, gain_of({})).enough;
+    }
+    // Whether a read for r taking `taken` blocks would hold room that a request first in line, paused or queued, then lacks: no read but that request's own takes it (docs/SERVER.md, Protocol); under the lock.
+    bool takes_room(const Lines& lines, const Request& r, const std::vector<size_t>& taken, const std::vector<std::shared_ptr<Request>>& active) const {
+        for (const auto* q : {&lines.paused, &lines.queue})
+            if (!q->empty() && q->front().get() != &r && !q->front()->cancel_.load() && !fits(*q->front(), active, taken)) return true;
+        return false;
+    }
+    // Where r forks every whole block of a donor's or host copy's history, the blocks it takes beyond that fork and the fork's tokens; nothing otherwise.
+    Request::Room fresh_of(const Request& r, const std::vector<std::shared_ptr<Request>>& active) const {
+        const auto ask = asked(r);
+        const Served held = served(ask.first, ask.second, &r, &active);
+        const size_t bt = model_.kv_block_tokens();
+        const std::vector<uint32_t>* of = held.kind == Served::Kind::donor ? &donors_[held.index].tokens.ids() : held.kind == Served::Kind::host ? &host_[held.index].tokens.ids() : nullptr;
+        if (!of || !held.tokens || held.tokens / bt < of->size() / bt) return {};
+        Request::Room to;
+        to.blocks = pools_.blocks_for(kGrowth.entry(history_tokens(r), r.params_.until_limit, (size_t)r.params_.max_tokens, r.gen_.size()));
+        const std::vector<size_t> shares = pools_.blocks_for(held.tokens);
+        for (size_t p = 0; p < to.blocks.size(); ++p) to.blocks[p] -= std::min(to.blocks[p], shares[p]);
+        to.tokens.assign(ask.first.begin(), ask.first.begin() + (std::ptrdiff_t)held.tokens);
+        return to;
+    }
+    // Whether the conversation a job gave way to is still kept: its turn did not leave before admission, and a donor, a host copy or a running request still holds its fork; under the lock.
+    bool kept(const Request::Room& to, const std::vector<std::shared_ptr<Request>>& active) const {
+        if (const auto by = to.by.lock(); by && by->cancel_.load() && !by->admission_) return false;
+        const auto holds = [&](const std::vector<uint32_t>& t) { return t.size() >= to.tokens.size() && std::equal(to.tokens.begin(), to.tokens.end(), t.begin()); };
+        return std::any_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return holds(d.tokens); }) ||
+               std::any_of(host_.begin(), host_.end(), [&](const HostDonor& h) { return holds(h.tokens); }) ||
+               std::any_of(active.begin(), active.end(), [&](const std::shared_ptr<Request>& a) { return !a->job_ && holds(a->prompt_); });
+    }
+    // Whether job j may take `fresh` blocks and still leave free the room of each kept conversation it gave way to (docs/SERVER.md, Protocol); under the lock.
+    bool job_spare(Request& j, const std::vector<size_t>& fresh, const std::vector<std::shared_ptr<Request>>& active) {
+        j.rooms_.erase(std::remove_if(j.rooms_.begin(), j.rooms_.end(), [&](const Request::Room& to) { return !kept(to, active); }), j.rooms_.end());
+        if (j.rooms_.empty()) return true;
+        const std::vector<size_t> free = room(active);
+        for (size_t p = 0; p < free.size(); ++p) {
+            size_t want = p < fresh.size() ? fresh[p] : 0;
+            for (const Request::Room& to : j.rooms_) want += p < to.blocks.size() ? to.blocks[p] : 0;
+            if (std::min(want, pools_.blocks[p]) > free[p]) return false;
+        }
+        return true;
+    }
+    // Job j gave way to a request: it looks at the disk again, and `to` replaces any earlier record of the same conversation; under the lock.
+    void gave_way(Request& j, const Request::Room& to) {
+        j.disk_checked_ = j.looked_ = false;
+        if (to.blocks.empty()) return;
+        const auto same = [&](const Request::Room& o) {
+            const size_t n = std::min(o.tokens.size(), to.tokens.size());
+            return std::equal(o.tokens.begin(), o.tokens.begin() + (std::ptrdiff_t)n, to.tokens.begin());
+        };
+        j.rooms_.erase(std::remove_if(j.rooms_.begin(), j.rooms_.end(), same), j.rooms_.end());
+        j.rooms_.push_back(to);
+    }
+    // Request r waits for read or proof `id` of `rows` rows, at most as long as computing them would take (read_until); under the lock.
+    void wait_for(Request& r, uint64_t id, size_t rows) {
+        const auto now = std::chrono::steady_clock::now();
+        r.disk_wait_ = id;
+        r.disk_rows_ = rows;
+        r.disk_since_ = now;
+        count_wait(r);
+        r.disk_until_ = read_until(rows, now);
+        ++disk_waits_;
+    }
+    // Each read into the devices that no queued or paused request waits for, a job's, stops where `waiter` lacks room, or where a request could not grow (no waiter), its jobs giving way with the room `to` records; whether any stopped.
+    // A read of rows the waiter's own history begins with goes on, its donor serving the waiter; a waiter short of a seat alone takes nothing from a read.
+    bool yield_reads(const Lines& lines, const std::vector<std::shared_ptr<Request>>& active, const std::shared_ptr<Request>& waiter, const Request::Room& to) {
+        std::lock_guard<std::mutex> lk(m_);
+        if (waiter && fits(*waiter, active)) return false;
+        std::pair<std::vector<uint32_t>, std::vector<RowClass>> ask;
+        if (waiter) ask = asked(*waiter);
+        bool any = false;
+        for (Streaming& s : streams_) {
+            if (s.ended || s.read->stopped()) continue;
+            const auto waits = [&](const std::shared_ptr<Request>& r) { return r->disk_wait_ == s.id; };
+            if (std::any_of(lines.queue.begin(), lines.queue.end(), waits) || std::any_of(lines.paused.begin(), lines.paused.end(), waits)) continue;
+            const size_t n = s.tokens.size();
+            if (ask.first.size() >= n && std::equal(s.tokens.begin(), s.tokens.end(), ask.first.begin()) && alike(s.classes, ask.second, n) == n) continue;
+            s.read->cancel();
+            for (auto& j : jobs_)
+                if (waits(j)) gave_way(*j, to);
+            moved(Move::job_gave_way, "server: cache: a read of %zu tokens into the devices for a job gave way\n", n);
+            any = true;
+        }
+        return any;
     }
     // Where a job would give way, a waiting request that can fork more of its rows than of any history kept takes them over: the job's history becomes a donor with its blocks (park), which admission forks and consumes by the donor rules.
     // The job ends where the request's prompt holds all its ids, the request being the turn it read ahead for, and otherwise waits to start again from that donor; a job in a pass is passed by, as it is by yield_jobs, until its pass has retired.
@@ -760,17 +845,24 @@ public:
             if (covered) j->finished_ = true;
             else {
                 // Back in the line, it is looked at again (prefetch), its history having moved.
-                j->disk_checked_ = j->looked_ = false;
+                gave_way(*j, {});
                 jobs_.push_front(j);
             }
         }
     }
-    // Each job not in flight gives way (park_job) and waits to start again from its donor once nothing else waits; whether any did.
+    // Each job not in flight gives way (park_job) and waits to start again from its donor once nothing else waits, as each read only jobs wait for does where `waiter` lacks room (yield_reads); whether any did.
     // One with at most one block left reads it first where `waiter` would wait for a donor's write in any case (A21), a spare with no clock: one block at most, ended by the write, which the next round no longer names.
-    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active, const Lines& lines, const Request* waiter = nullptr) {
+    bool yield_jobs(std::vector<std::shared_ptr<Request>>& active, const Lines& lines, const std::shared_ptr<Request>& waiter = nullptr) {
         const bool spare = waiter && waits_for_write(*waiter, active);
         const size_t bt = model_.kv_block_tokens();
-        bool any = false;
+        // The room recorded is a waiter's that lacks room; one short of a seat alone records none.
+        Request::Room to;
+        if (waiter) {
+            std::lock_guard<std::mutex> lk(m_);
+            if (!fits(*waiter, active)) to = fresh_of(*waiter, active);
+            to.by = waiter;
+        }
+        bool any = yield_reads(lines, active, waiter, to);
         for (size_t i = 0; i < active.size();) {
             auto j = active[i];
             if (!j->job_ || j->seq_.in_flight() || (spare && j->whole_ && j->prompt_.size() <= j->seq_.length() + bt)) {
@@ -785,7 +877,7 @@ public:
             any = true;
             std::lock_guard<std::mutex> lk(m_);
             moved(Move::job_gave_way);
-            j->disk_checked_ = j->looked_ = false;
+            gave_way(*j, to);
             jobs_.push_front(j);
             ++reprefill_cancels_;
         }
@@ -864,6 +956,10 @@ public:
                 n->media_.push_back(std::move(m));
             }
             n->encode_ = f.of->encode_;
+            // A newer read of the same conversation keeps what the one it replaces gave way to.
+            if (j) {
+                n->rooms_ = j->rooms_;
+            }
             // A job per conversation: one waiting that the new one's ids extend, or that reads for the same request, is that conversation's older read, and goes; at most max_seqs wait, the oldest dropped.
             stale(n->prompt_, n->of_.get(), "a newer job of the same conversation replaces it");
             if (jobs_.size() >= max_seqs_) jobs_.pop_front();
@@ -1583,6 +1679,7 @@ private:
         std::vector<RowClass> classes;
         Clock::time_point started;
         bool ended = false;
+        bool released = false;  // ended, its history's blocks given back before its readers ended
         bool restore = false;   // read for a job restore_later made
     };
     std::vector<Streaming> streams_;   // under the lock
@@ -2652,7 +2749,7 @@ inline bool Cache::reading(const Lines& lines, Request& r) {
     }
     const uint64_t id = r.disk_wait_;
     end_wait(r);
-    // A streamed read past the bound of every request waiting for it is cancelled: its room and slot come back once its readers and copies have ended (stream_round).
+    // A streamed read past the bound of every request waiting for it is cancelled: its blocks come back once its copies have retired and its slot once its readers have ended too (stream_round).
     const auto waits = [&] {
         for (auto* q : {&lines.queue, &lines.paused, &jobs_})
             for (const auto& o : *q)
@@ -2863,7 +2960,6 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
     for (auto* q : {&lines.paused, &lines.queue, &jobs_})
         for (auto& r : *q) {
             if (r->disk_checked_ || r->disk_wait_ || r->cancel_.load() || waiting >= max_seqs_) continue;
-            r->looked_ = true;
             // What memory serves the request, the running requests and jobs among it (N3).
             const auto ask = asked(*r);
             const std::vector<uint32_t>& mine = ask.first;
@@ -2876,10 +2972,13 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
                 std::vector<size_t> fresh = pools_.blocks_for(r->prompt_.size());
                 const std::vector<size_t> shares = pools_.blocks_for(shared);
                 for (size_t k = 0; k < fresh.size(); ++k) fresh[k] -= std::min(fresh[k], shares[k]);
+                if (takes_room(lines, *r, fresh, active)) continue;
                 const size_t keep = held.kind == Served::Kind::donor ? held.index : npos;
                 const Taken t = make_room(room(active), ranked(), keep, true, {}, 0, false, fresh, gain_of({}, keep, keep == npos ? 0 : shared));
-                if (!t.enough || std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return g != keep; })) continue;
+                if (!t.enough || std::any_of(t.donors.begin(), t.donors.end(), [&](size_t g) { return g != keep; }) || !job_spare(*r, fresh, active)) continue;
             }
+            // A job is looked at only once it could start, so one that gave way and finds its room again reads from disk rather than starting from what memory holds (reading).
+            r->looked_ = true;
             // The request's history as it would compute it: its tokens but the last, a job's all of them, which it reads and keeps whole.
             const std::vector<uint32_t>& tokens = mine;
             const size_t limit = tokens.size();
@@ -2904,13 +3003,7 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
                 r->disk_checked_ = !plan->busy;
                 if (!id) continue;
                 if (!plan->busy) r->proof_ = id;
-                const auto now = std::chrono::steady_clock::now();
-                r->disk_wait_ = id;
-                r->disk_rows_ = plan->end;
-                r->disk_since_ = now;
-                count_wait(*r);
-                r->disk_until_ = read_until(plan->end, now);
-                ++disk_waits_;
+                wait_for(*r, id, plan->end);
                 ++waiting;
                 continue;
             }
@@ -2939,15 +3032,16 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
                 return t.size() == path.length && std::equal(t.begin(), t.end(), tokens.begin()) && alike(c, own, path.length) == path.length;
             };
             uint64_t id = 0;
+            // A stream stopped this round is no read to wait for, though its readers have not yet ended (stream_round).
             for (const Streaming& s : streams_)
-                if (streams && !s.ended && same(s.tokens, s.classes)) id = s.id;
+                if (streams && !s.ended && !s.read->stopped() && same(s.tokens, s.classes)) id = s.id;
             for (const DiskRead& rd : disk_reads_)
                 if (!streams && rd.state_only == state_only && same(rd.tokens, rd.classes)) id = rd.id;
             size_t reads = disk_reads_.size();
             for (const Streaming& s : streams_) reads += !s.ended;
             if (!id && reads + 1 > kDiskReads) continue;
             // A stream takes its room on the devices as it starts, so one without that room now is looked at again next round, as the request's admission would be.
-            if (!id && streams && !stream_room(active, path.length, r->job_)) continue;
+            if (!id && streams && (!stream_room(active, path.length, r->job_) || takes_room(lines, *r, pools_.blocks_for(path.length), active))) continue;
             r->disk_checked_ = true;
             if (!id) id = start_read(active, path, state_only, tokens, own, *r, source, state_only && whole.length > shared ? &whole : nullptr);
             if (!id) continue;
@@ -2957,13 +3051,7 @@ inline void Cache::prefetch(const std::vector<std::shared_ptr<Request>>& active,
                 if (rd.id == id) length = rd.tokens.size();
             for (const Streaming& s : streams_)
                 if (s.id == id) length = s.tokens.size();
-            const auto now = std::chrono::steady_clock::now();
-            r->disk_wait_ = id;
-            r->disk_rows_ = length;
-            r->disk_since_ = now;
-            count_wait(*r);
-            r->disk_until_ = read_until(length, now);
-            ++disk_waits_;
+            wait_for(*r, id, length);
             ++waiting;
         }
 }
@@ -3020,7 +3108,7 @@ inline bool Cache::stream_room(const std::vector<std::shared_ptr<Request>>& acti
 }
 
 // The streamed reads stepped once a round, the stages held only while full slots are sent: one whose copies have all retired becomes a donor its request forks, as a promoted one does.
-// One that failed or was cancelled lets its waiters go at once and gives its room and slot back only once its readers and copies have ended, so nothing reuses blocks still being written; under the lock.
+// One that failed or was cancelled lets its waiters go at once, gives its blocks back once its copies have retired, so nothing reuses blocks still being written, and its slot once its readers have ended too; under the lock.
 inline void Cache::stream_round(const Lines& lines) {
     // A stream's outcome for the server and for each request waiting for it (Request::Restore): its time from start to its last copy retired is its read, and a whole one completes a restore from disk.
     const auto record = [&](const Streaming& s, bool ok) {
@@ -3087,11 +3175,15 @@ inline void Cache::stream_round(const Lines& lines) {
             if (!s.read->why().empty()) record(s, false);
             wake_readers(lines, s.id);
         }
+        // The blocks go back once no copy into them is left, a reader still finishing its chunk into host pages.
+        if (!s.released && s.read->copied()) {
+            model_.reset(s.into->seq);
+            s.released = true;
+        }
         if (!s.read->idle()) {
             ++i;
             continue;
         }
-        model_.reset(s.into->seq);
         streams_.erase(streams_.begin() + (std::ptrdiff_t)i);
     }
 }

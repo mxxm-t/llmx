@@ -166,6 +166,12 @@ class Proposer {
 4. `retract(seq, n)`, n being the history the run without drafts would hold at that point: L0 + 1 for x0, plus one for each draft kept and fed, a draft that is an end token or completes a stop text never counted, and the final pick fed or not by the caller's own rule, as today; KV blocks past n are returned and the state rerun from the mark over the kept saved rows, or, when every fed row was kept, the mark's slot returned and nothing rerun.
 5. `settle` on the proposer.
 
+**A draft longer than a pass** (`spec::kMaxDrafts`, 1023): a verify pass feeds at most the model's mark rows, `spec::kVerifyRows` (64) unless a command asks fewer, which bound the mark's saved inputs, the drafter's chain rows and the pass's logits rows, so the fit counts them and no pass holds 1024 rows of the vocabulary.
+`generate` verifies a longer draft in passes of that many rows, each its own mark and retract: a pass takes the rest only where every draft before it was kept and its pick is the rest's first draft, which it feeds as its last pick, so the rows sampled, the picks, the draws, the last pick and the bonus token are those of one verify of the whole draft, and a miss in a pass ends the draft there.
+Its passes count as one verify in the request's record (`spec::Record::verified`), so positions past a pass are priced as one draft's.
+A proposer on the model's devices drafts at most one pass, its chain's rows being the mark's; lookup drafts up to `--draft-max`.
+The server verifies at most 63 drafts a request a pass (`kDraftRows`) and drafts again after it, so its mark rows follow that and not `--draft-max`.
+
 The saved inputs cover the conv's raw rows and the recurrence's inputs of every linear-attention layer on every stage, so the rerun restores both parts of the state; it reads only the kept mark and the saved inputs and writes only the live slot, so it is exact, as the per-token recurrence gives the same bits for the same state and inputs, and it can be retried.
 
 **Rules of the round,** each from a failure the reference fork met (section 4):

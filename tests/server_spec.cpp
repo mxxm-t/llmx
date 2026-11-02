@@ -963,7 +963,7 @@ int main(int argc, char** argv) {
         // The draft rows in flight stay within the 64 the logits rows hold, and every reply is its reply alone.
         {
             const Make plain = on(q8, [] { return cpus(3); });
-            const Make deep = on(q8, [] { return wide(3); }, 8, 0, 4, infer::spec::kMaxDrafts + 1);
+            const Make deep = on(q8, [] { return wide(3); }, 8, 0, 4, infer::spec::kVerifyRows);
             std::vector<Req> reqs;
             for (uint32_t r = 0; r < 3; ++r) {
                 std::vector<uint32_t> prompt = prompt_of(10 + r, 80, q8_vocab);
@@ -971,7 +971,7 @@ int main(int argc, char** argv) {
                 reqs.push_back({prompt, 100});
             }
             against_alone(plain, deep, lookup, q8_tok, 4096, 3, 3, reqs, "Q8_0 with lookup at 63 drafts over three CPUs at three passes", false, false,
-                          infer::spec::kMaxDrafts);
+                          infer::spec::kVerifyRows - 1);
         }
         const gguf::GGUFModel hybrid = served_hybrid(kHybrid, true);
         const bpe::Tokenizer hybrid_tok(hybrid);

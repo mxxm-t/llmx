@@ -214,6 +214,10 @@ def check_usage_errors():
                        (["bench", "--size", "48"], "bench"), (["bench", "--p", "0"], "bench"), (["bench", "--depth", "-1"], "bench"),
                        (["bench", "--load-mode", "auto"], "bench")):
         usage_error(args, page)
+    # serve verifies a reply's drafts in one pass, so it refuses more drafts than a pass checks, which generate and chat verify over several.
+    usage_error(["serve", model, "--draft-max", "64"], "serve", "--draft-max: '64' is not a whole number from 1 to 63")
+    for command in (["generate", model, "a"], ["chat", model]):
+        usage_error(command + ["--draft-max", "1024"], command[0], "--draft-max: '1024' is not a whole number from 1 to 1023")
     # A flag is honoured or refused: entries are adopted only under keep, so the proved policy without it is refused by name.
     usage_error(["serve", model, "--disk-cache-adopt", "proved"], "serve", "--disk-cache-adopt proved adopts")
     # --drafter is a list of sources tried in order, and every rule of the list is decided by its words, so each refusal comes while the line is read, on every command that takes the flag.

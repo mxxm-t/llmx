@@ -17,6 +17,7 @@ struct Oracle final : Proposer {
     const std::vector<uint32_t>* truth = nullptr;
     size_t prompt = 0, miss = SIZE_MAX, vocab = 0;
     int64_t end = -1;
+    bool device = true;   // off, it drafts as lookup does, past a pass's rows
     void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override {
         out.clear();
         const size_t g = h.size() - prompt;
@@ -29,6 +30,7 @@ struct Oracle final : Proposer {
             out.push_back(id);
         }
     }
+    bool on_device() const override { return device; }
 };
 
 // Drafts drawn from a fixed sequence, inside the vocabulary.
@@ -68,6 +70,7 @@ struct Run {
     size_t passes = 0;         // the passes that generated them, counted at the first stage's submissions
     std::vector<float> next;   // the logits after the history and one more token, which hold the state the run left
     size_t drafted = 0;        // the drafts its verifies fed
+    size_t deepest = 0;        // the most drafts one verify fed, its passes counted as one
     size_t own = 0, own_kept = 0;   // those of them its own history gave ahead of the proposer, and the ones kept
     bool rested = false;       // whether the proposer's acceptance ended resting
 };
@@ -121,7 +124,9 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
         std::vector<size_t> fed, kept;
         drafting->record.tally(infer::spec::Source::proposer, fed, kept);
         for (size_t n : fed) r.drafted += n;
+        r.deepest = fed.size();
         drafting->record.tally(infer::spec::Source::lookup, fed, kept);
+        r.deepest = std::max(r.deepest, fed.size());
         for (size_t n : fed) r.drafted += n, r.own += n;
         for (size_t n : kept) r.own_kept += n;
         r.rested = drafting->record.proposer.resting();
@@ -222,6 +227,69 @@ void rounds(const std::string& name, const gguf::GGUFModel& plain, size_t vocab,
         oracle.vocab = vocab;
         oracle.miss = miss;
         same(stopped, generate(plain, stages.back(), prompt_of(3, 10, (uint32_t)vocab), stop, &oracle, 16), name + ": a stop text inside a verify");
+    }
+}
+
+// Drafts past a pass's rows (docs/SPECULATIVE.md, section 3): on marks of 32 rows a draft of up to 100 tokens verifies in passes of 31, each pass taking the rest only after every draft before it was kept, against the run without drafts.
+// Misses fall on the first draft, on each side of a pass's edge and on the last, an end token, a limit and a stop text end replies inside later passes, and the seeded sampler draws the same tokens.
+void long_drafts(const std::string& name, const gguf::GGUFModel& plain, size_t vocab, const std::vector<size_t>& stages) {
+    std::vector<infer::GenParams> samplers(2);
+    samplers[0].temp = 0;
+    samplers[1].temp = 1.5f, samplers[1].top_k = 0, samplers[1].top_p = 1.0f, samplers[1].penalty = 1.3f, samplers[1].seed = 9;
+    infer::GenParams g0 = samplers[0];
+    g0.max_tokens = 110;
+    const Run free = generate(plain, 1, prompt_of(3, 10, (uint32_t)vocab), g0, nullptr, 0);
+    require(free.ids.size() == 110, name + ": the greedy reply ended before 110 tokens");
+    const uint32_t end = free.ids[70];
+    const gguf::GGUFModel ended = ending(plain, end);
+    for (const gguf::GGUFModel* w : {&plain, &ended})
+        for (size_t s = 0; s < samplers.size(); ++s)
+            for (size_t prompt_len : {10, 129}) {
+                infer::GenParams gp = samplers[s];
+                gp.max_tokens = 110;
+                const std::vector<uint32_t> prompt = prompt_of(3, prompt_len, (uint32_t)vocab);
+                const Run want = generate(*w, 1, prompt, gp, nullptr, 0);
+                const std::string at = name + (w == &ended ? " with an end token" : "") + ", sampler " + std::to_string(s) + ", prompt " + std::to_string(prompt_len);
+                for (size_t st : stages) {
+                    Oracle oracle;
+                    oracle.truth = &want.ids;
+                    oracle.prompt = prompt.size();
+                    oracle.vocab = vocab;
+                    oracle.end = w == &ended ? (int64_t)end : -1;
+                    oracle.device = false;
+                    for (size_t k : {32, 63, 64, 100})
+                        for (size_t miss : {SIZE_MAX, size_t(0), size_t(30), size_t(31), size_t(32), size_t(62), size_t(63), k - 1}) {
+                            if (miss != SIZE_MAX && miss >= k) continue;
+                            oracle.miss = miss;
+                            const Run got = generate(*w, st, prompt, gp, &oracle, k);
+                            const std::string what = at + ", " + std::to_string(st) + " stages, " + std::to_string(k) + " drafts missing at " + std::to_string((int64_t)miss);
+                            same(want, got, what);
+                            if (miss == SIZE_MAX && want.ids.size() > k)
+                                require(got.deepest > 31, what + ": no verify went past one pass (" + std::to_string(got.deepest) + " drafts at most)");
+                        }
+                    // Lookup shown the reply as an earlier turn drafts its continuation, up to 100 tokens.
+                    infer::spec::Lookup lookup;
+                    same(want, generate(*w, st, prompt, gp, &lookup, 100, false, &want.ids), at + ", " + std::to_string(st) + " stages, lookup of 100");
+                }
+            }
+    bpe::Tokenizer tok(plain);
+    Oracle oracle;
+    oracle.truth = &free.ids;
+    oracle.prompt = 10;
+    oracle.vocab = vocab;
+    oracle.device = false;
+    for (size_t limit : {31, 32, 33, 62, 63, 64, 65, 100}) {
+        infer::GenParams lim = g0;
+        lim.max_tokens = (int)limit;
+        const Run want = generate(plain, 1, prompt_of(3, 10, (uint32_t)vocab), lim, nullptr, 0);
+        same(want, generate(plain, stages.back(), prompt_of(3, 10, (uint32_t)vocab), lim, &oracle, 100), name + ": a limit of " + std::to_string(limit) + " under 100 drafts");
+    }
+    infer::GenParams stop = g0;
+    stop.stop = tok.decode({free.ids[40], free.ids[41]});
+    const Run stopped = generate(plain, 1, prompt_of(3, 10, (uint32_t)vocab), stop, nullptr, 0);
+    for (size_t miss : {SIZE_MAX, size_t(35), size_t(45)}) {
+        oracle.miss = miss;
+        same(stopped, generate(plain, stages.back(), prompt_of(3, 10, (uint32_t)vocab), stop, &oracle, 100), name + ": a stop text in a later pass, missing at " + std::to_string((int64_t)miss));
     }
 }
 
@@ -623,6 +691,9 @@ int main() {
         rounds("the dense model", dense, (size_t)kCpu.vocab, {1, 2});
         rounds("the routed model", routed, 16, {1, 3});
         rounds("the hybrid model", hybrid, (size_t)kHybrid.vocab, {1, 2, 4});
+        long_drafts("the dense model", dense, (size_t)kCpu.vocab, {1, 2});
+        long_drafts("the routed model", routed, 16, {1, 3});
+        long_drafts("the hybrid model", hybrid, (size_t)kHybrid.vocab, {1, 4});
         for (size_t st : {1, 2, 4}) history(hybrid, (size_t)kHybrid.vocab, st);
         embedded(hybrid, served_hybrid(kHybrid, true), (size_t)kHybrid.vocab);
         history(dense, (size_t)kCpu.vocab, 2);

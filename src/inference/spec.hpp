@@ -34,8 +34,12 @@ Accepted accept(const float* rows, size_t n_vocab, const uint32_t* drafts, size_
 
 namespace spec {
 
-// The most drafts a verify takes: with the last pick 64 rows, the most generated tokens a pass's kernels are held to give the bits of single steps for (docs/TESTS.md, backend-vulkan).
-inline constexpr int kMaxDrafts = 63;
+// The most drafts one draft holds; a longer draft than a pass takes is verified in passes, each taking the rest only where every draft before it was kept (generate).
+inline constexpr int kMaxDrafts = 1023;
+// The most rows one verify pass feeds, its last pick and 63 drafts: the rows a mark saves and the logits rows the pass holds, which the fit counts (docs/SPECULATIVE.md, section 3).
+inline constexpr size_t kVerifyRows = 64;
+// The rows a mark saves for verifies of up to `draft_max` drafts.
+inline size_t verify_rows(size_t draft_max) { return std::min(draft_max, kVerifyRows - 1) + 1; }
 
 // The rows of a history's images, [first, end) each in order, as its sequence's runs give them (Model::image_rows).
 using ImageRows = std::vector<std::pair<size_t, size_t>>;
@@ -190,7 +194,7 @@ public:
         const size_t n_vocab = model_.n_vocab();
         std::vector<float> prompt;
         const float* logits = nullptr;
-        if (rest.size() <= size_t(kMaxDrafts) + 1) {
+        if (rest.size() <= kVerifyRows) {
             logits = model_.step(rest.data(), rest.size()) + (rest.size() - 1) * n_vocab;
         } else {
             prompt = model_.prefill(rest);

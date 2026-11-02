@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## A request's passes on its request line (2026-11-02, SDEV, branch feat/request-log-drafting on main d1686f69f, the coordinator's ask after production's replies at 291-298k tokens ran at 16-23 and then 64.8 tok/s)
+
+- **Change:** the request line gives, after its rate, `S steps, V verifies, D drafted, K kept, M ms a pass` (docs/SERVER.md, The request line): its passes without drafts, those that verified drafts with the drafts fed and kept, and its time after the first token over its passes after the first, so a slow reply shows whether it kept fewer drafts a verify or waited longer between passes; sat out passes, pauses, resumes and recomputed rows were already on it and stay.
+  The counts are `Request`'s own atomics the live view reads (`Request::passes`), filled as tokens are published, so nothing waits on a device; the compatible routes' `timings` carry them as `steps`, `verifies`, `drafted`, `kept` and `pass_ms`.
+  The line is now written before the request ends (`Request::stamp_end` takes its end time first), so its reply follows its line; it was written after, and a test reading the line on the reply could see none or the request before's.
+- **Tests:** `server`: a completion without drafts gives a step a token, one more where it drew the end of text, and no verify, in `timings` and on its line; the Flash fixture's chat with and without the embedded drafter gives steps + verifies + kept = 64 on its line, verifies only with the drafter, and the line's drafted and kept equal to the server's counts for the request.
+- **Gates:** CTest (78 of 78) and the CPU suite pass on the CPU; Qwen3-0.6B Q8_0 against main on the CPU gives the same bytes for greedy, seeded and chat replies and for the prompt's logits, timing lines left out.
+  The change lands by fast-forward.
+
 ## Dashboard RoPE configuration (2026-11-02, XDEV)
 
 - **Change:** The Runtime configuration card reads the health API's effective RoPE policy. It shows YaRN factor, original context, attention scale, configured context, declared policy and a textual forced indicator. Requested values are not substituted for effective values. Configured context is explicitly separate from available request capacity. Legacy and malformed responses show an unavailable state, and reset removes stale forced details.

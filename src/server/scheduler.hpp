@@ -160,6 +160,15 @@ public:
             after_first_ms += ms;
         }
     };
+    // Its passes that gave tokens: steps without drafts, and verifies with the drafts they fed and kept; the mean pass is its time after the first token over its passes after the first.
+    struct Passes {
+        uint64_t steps = 0, verifies = 0, drafted = 0, kept = 0;
+        double mean_ms(const Timings& t) const { return steps + verifies > 1 ? t.predicted_ms / (double)(steps + verifies - 1) : 0.0; }
+    };
+    Passes passes() const {
+        const uint64_t all = steps_taken_.load(), v = verifies_.load();
+        return {all - v, v, drafted_.load(), kept_.load()};
+    }
     Restore restore() const {
         std::lock_guard<std::mutex> lk(m_);
         return restore_;
@@ -199,9 +208,14 @@ private:
         out_.push_back(std::move(t));
         cv_.notify_all();
     }
-    void end(const std::string& why, const std::string& err = "") {
+    // Its end time, which `end` keeps when set, so its line can give its timings before its client is answered.
+    void stamp_end() {
         std::lock_guard<std::mutex> lk(m_);
         ended_ = Clock::now();
+    }
+    void end(const std::string& why, const std::string& err = "") {
+        std::lock_guard<std::mutex> lk(m_);
+        if (ended_ == Clock::time_point{}) ended_ = Clock::now();
         finish_ = why;
         error_ = err;
         done_ = true;
@@ -2394,7 +2408,8 @@ private:
             r->parked_ = cache_.park(active, lines(), i, history(*r));
             active_count_.store(requests(active));
         }
-        r->end(why, err);
+        // The line is written before the request ends, so a reply or a health read that follows the end follows its line too.
+        r->stamp_end();
         ++finished_;
         prompt_total_ += r->prompt_tokens();
         generated_total_ += r->gen_.size();
@@ -2405,9 +2420,13 @@ private:
                           r->taken_back_, r->recomputed_);
         if (r->stalls_) std::snprintf(stalled, sizeof stalled, ", sat out %zu pass%s", r->stalls_, r->stalls_ == 1 ? "" : "es");
         if (r->restore_late()) std::snprintf(late, sizeof late, ", a read of %zu tokens past its bound", r->restore_late());
-        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, %s%s%s%s%s\n",
-                     r->prompt_tokens(), r->reused(), r->gen_.size(), t.prepared_ms, t.queued_ms, t.first_token_ms(),
-                     t.predicted_per_second(r->gen_.size()), (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled, late, restore_line(r->restore(), t).c_str());
+        const Request::Passes p = r->passes();
+        std::fprintf(stderr, "request: %zu prompt tokens (%zu reused), %zu generated, %.0f ms preparing, %.0f ms queued, %.0f ms to first token, %.1f tok/s, "
+                     "%llu steps, %llu verifies, %llu drafted, %llu kept, %.2f ms a pass, %s%s%s%s%s\n",
+                     r->prompt_tokens(), r->reused(), r->gen_.size(), t.prepared_ms, t.queued_ms, t.first_token_ms(), t.predicted_per_second(r->gen_.size()),
+                     (unsigned long long)p.steps, (unsigned long long)p.verifies, (unsigned long long)p.drafted, (unsigned long long)p.kept, p.mean_ms(t),
+                     (err.empty() ? why : why + " (" + err + ")").c_str(), paused, stalled, late, restore_line(r->restore(), t).c_str());
+        r->end(why, err);
     }
 
     // What a request's restores cost, for its line: the spans as their parts and remainders, adding to its time to first token, and the figures that overlap them; empty where it neither waited for a read nor restored.

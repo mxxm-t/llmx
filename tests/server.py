@@ -276,6 +276,19 @@ def cli_chat_reply(model, line, n, flags):
     return repaired(out[len(banner):-1])
 
 
+REQUEST_PASSES = re.compile(r"tok/s, (\d+) steps, (\d+) verifies, (\d+) drafted, (\d+) kept, ([\d.]+) ms a pass, ")
+
+
+def last_request_passes(srv):
+    """The last request line's passes: steps, verifies, drafted, kept and the mean pass in milliseconds."""
+    srv.log.seek(0)
+    lines = [line for line in srv.log.read().splitlines() if line.startswith("request:")]
+    assert lines, "no request line"
+    m = REQUEST_PASSES.search(lines[-1])
+    assert m, lines[-1]
+    return [int(x) for x in m.groups()[:4]] + [float(m.group(5))]
+
+
 def post_ok(srv, path, body):
     status, reply = srv.post(path, body)
     assert status == 200, (path, body, reply)
@@ -652,6 +665,11 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         t = reply["timings"]
         assert t["prompt_n"] + t["cache_n"] == reply["usage"]["prompt_tokens"], reply
         assert t["predicted_n"] == max(reply["usage"]["completion_tokens"] - 1, 0) and t["prompt_ms"] >= 0, reply
+        # Without drafts every token is a step's, a step drawing the end of text included, and the request line gives the same passes.
+        ended = reply["choices"][0]["finish_reason"] == "stop"
+        assert t["steps"] - reply["usage"]["completion_tokens"] in ((0, 1) if ended else (0,)) and t["verifies"] == t["drafted"] == t["kept"] == 0, t
+        assert 0 <= t["pass_ms"] <= t["predicted_ms"], t
+        assert last_request_passes(srv)[:4] == [t["steps"], 0, 0, 0], t
         events = srv.stream("/v1/completions", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True,
                                                 "stream_options": {"include_usage": True}})
         assert events[-1] is None and events[-2]["usage"]["completion_tokens"] == len(expected[prompts[0]]), events[-3:]
@@ -2591,6 +2609,11 @@ def check_flash_mtp_http(tool=None):
                 assert all(math.isfinite(x) for x in whole["logprobs"]), whole
                 assert all(len(row) == 5 and all(math.isfinite(t["logprob"]) for t in row) for row in whole["top_logprobs"]), whole
                 ordinary = srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "Flash HTTP ordinary request stayed active")["drafting"]["since_start"]
+                # The request line's passes: each step gives a token and each verify one more than it kept, and its drafts are the server's.
+                steps, verifies, drafted, kept, pass_ms = last_request_passes(srv)
+                assert steps + verifies + kept == 64 and pass_ms >= 0, (steps, verifies, drafted, kept, pass_ms)
+                assert [drafted, kept] == [ordinary[key] - initial[key] for key in ("drafted", "kept")], (drafted, kept, initial, ordinary)
+                assert (verifies > 0) == (drafter != "off") and kept <= drafted, (steps, verifies, drafted, kept)
                 # A fresh server gives each transport the same initial adaptive drafting policy.
                 srv.close()
                 srv = None

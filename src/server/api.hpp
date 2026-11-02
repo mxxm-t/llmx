@@ -1186,16 +1186,18 @@ private:
         return "{\"prompt_tokens\":" + std::to_string(prompt_tokens) + ",\"completion_tokens\":" + std::to_string(tokens) +
                ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + ",\"prompt_tokens_details\":{\"cached_tokens\":" + std::to_string(cached) + "}}";
     }
-    // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
+    // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, generation after it, and its passes as the request line gives them.
     static std::string timings_json(const Request& r, size_t tokens) {
         const Request::Timings t = r.timings();
+        const Request::Passes p = r.passes();
         const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached;
         auto num = [](double v) { char b[32]; std::snprintf(b, sizeof b, "%.3f", v); return std::string(b); };
         return "{\"cache_n\":" + std::to_string(cached) + ",\"prompt_n\":" + std::to_string(prefilled) +
                ",\"prompt_ms\":" + num(t.prompt_ms) + ",\"prompt_per_second\":" + num(Request::Timings::per_second(prefilled, t.prompt_ms)) +
                ",\"predicted_n\":" + std::to_string(Request::Timings::predicted(tokens)) + ",\"predicted_ms\":" + num(t.predicted_ms) +
                ",\"predicted_per_second\":" + num(t.predicted_per_second(tokens)) + ",\"queued_ms\":" + num(t.queued_ms) +
-               ",\"prepared_ms\":" + num(t.prepared_ms) + "}";
+               ",\"prepared_ms\":" + num(t.prepared_ms) + ",\"steps\":" + std::to_string(p.steps) + ",\"verifies\":" + std::to_string(p.verifies) +
+               ",\"drafted\":" + std::to_string(p.drafted) + ",\"kept\":" + std::to_string(p.kept) + ",\"pass_ms\":" + num(p.mean_ms(t)) + "}";
     }
     // The head every compatible object and chunk starts with.
     std::string head(const std::string& id, const char* object) const {

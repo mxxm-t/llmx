@@ -570,6 +570,21 @@ A kind whose move the request's own line already says, or that loses nothing, is
 The disk tier's outcomes are taken where the scheduler takes in the tier's completions (`Cache::sync_disk` from `DiskTier::figures`), never on an I/O thread.
 
 
+## The request line
+
+Each finished request says on stderr what it read, what it gave and what explains its rate (`Scheduler::finish`), before it ends, so its reply and a `/v1/health` read after its end come after its line:
+
+```
+request: 297844 prompt tokens (297600 reused), 812 generated, 3 ms preparing, 0 ms queued, 1840 ms to first token, 64.8 tok/s, 120 steps, 210 verifies, 830 drafted, 482 kept, 38.03 ms a pass, length, sat out 3 passes
+```
+
+- `tok/s` is the tokens after the first over the time after it (`Request::Timings`).
+- `steps` are its passes that drew a token without drafts, a pass that drew the end of text among them, and `verifies` those that verified drafts, which fed `drafted` drafts and kept `kept` (`Request::Passes`); a reply that ends by its length has steps + verifies + kept tokens.
+- `ms a pass` is the time after the first token over the passes after the first, so the rate is the tokens a pass over it: a reply slow at one depth and fast at another either kept fewer drafts a verify or waited longer between its passes.
+- The time between passes holds what the request did not run in: the passes it sat out short of room (`sat out N passes`), and its pauses with what their resumes took back or recomputed (`paused N times, M taken back, R tokens recomputed`), each said only where it happened, then a late read and the restores (What a restore cost, below).
+- The counts are the scheduler's own as it publishes the tokens, so they need no wait on a device; `/v1/health`'s live item for a running request gives its passes as `steps` (every pass, verifies included), `verifies`, `drafted` and `kept`.
+- The compatible routes' `timings` carry the same passes as `steps`, `verifies`, `drafted`, `kept` and `pass_ms` (docs/USAGE.md).
+
 ## What a restore cost
 
 A request that waits for a read from disk, or takes a copy back from host memory (`promote`), keeps what that cost on itself (`Request::Restore`, filled where each part happens, in `server/cache.hpp`) and says it at the end of its line.

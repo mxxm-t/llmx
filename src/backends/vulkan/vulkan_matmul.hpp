@@ -423,7 +423,7 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
     if (dtype == Dtype::int8 && dev_->profile.prefer_integer_dot && format.int8_row != K_COUNT) kernel = format.int8_row;
     if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT || kernel == K_MATMUL_ROW_K4_I8 || kernel == K_MATMUL_ROW_K5_I8)
         cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
-    if (kernel == K_MATMUL_ROW_Q1_0_DOT) cluster = std::min(cluster, 32u);
+    if (kernel == K_MATMUL_ROW_Q1_0_DOT) cluster = std::min(cluster, kQ1RowLanes);
     // Where the integer dot is native, Q8_0 rows take the integer dot over the 16-bit twin (shaders/matmul_vec_q8.comp).
     if (dtype == Dtype::f16 && type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
     return RowPlan{kernel, type, wide, cluster};

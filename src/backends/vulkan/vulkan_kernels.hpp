@@ -1591,12 +1591,16 @@ inline uint32_t vec_forms(int variant, const DeviceProfile& profile) {
     return (kVecBuilds[variant].forms & profile.q8_decode_forms) | (profile.q8_decode_forms & kQ8Half);
 }
 
-// Whether a row kernel is one of the Q4 and K-quant families, which have two-row decode builds (shaders/matmul_row.comp, ROWS).
+// Whether a row kernel has the two-row decode builds (shaders/matmul_row_two.glsl, ROWS): the Q4 and K-quant families, and on the integer dot the lookup types' 32-value groups, Q2_K and Q3_K, and MXFP4.
 inline bool row_kernel_builds_two_rows(KernelId id) {
     switch (id) {
     case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50: case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT: case K_MATMUL_ROW_Q50_DOT: case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT:
     case K_MATMUL_ROW_Q4_I8: case K_MATMUL_ROW_Q5_I8: case K_MATMUL_ROW_Q50_I8: case K_MATMUL_ROW_K4_I8: case K_MATMUL_ROW_K5_I8: case K_MATMUL_ROW_K_I8:
+    case K_MATMUL_ROW_IQ4_DOT: case K_MATMUL_ROW_IQ4_XS_DOT: case K_MATMUL_ROW_IQ3_S_DOT: case K_MATMUL_ROW_IQ3_XXS_DOT: case K_MATMUL_ROW_IQ2_S_DOT:
+    case K_MATMUL_ROW_IQ2_XS_DOT: case K_MATMUL_ROW_IQ2_XXS_DOT: case K_MATMUL_ROW_IQ1_S_DOT: case K_MATMUL_ROW_IQ1_M_DOT:
+    case K_MATMUL_ROW_TQ1_0_DOT: case K_MATMUL_ROW_TQ2_0_DOT: case K_MATMUL_ROW_Q1_0_DOT:
+    case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT: case K_MATMUL_ROW_MXFP4_DOT:
         return true;
     default: return false;
     }
@@ -1612,14 +1616,13 @@ const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWid
                                {kRowColsOne, 2}, {4, 2, true}, {8, 2, true}, {16, 4, true}};
 // The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
-// Q1_0's two-row one-column build, variant 7 of its dot kernel.
+// The two-row one-column build, which Q1_0's one-column calls take.
 const int kQ1TwoRows = 7;
 // The two-row builds a grouped routed call takes, narrowest first, each the plain build of its shape reading its columns through the grouping.
 const int kRowGroupedByWidth[] = {8, 9, 10};
 
-// Rows per cluster: two for Q4/K-quant builds and Q1's two-row build; otherwise one.
+// Rows per cluster: a two-row kernel's build's; otherwise one.
 inline uint32_t build_rows(KernelId id, int variant) {
-    if (id == K_MATMUL_ROW_Q1_0_DOT && variant == kQ1TwoRows) return 2;
     return row_kernel_builds_two_rows(id) ? kRowBuilds[variant].rows : 1;
 }
 
@@ -1632,7 +1635,6 @@ inline bool grouped_build(KernelId id, int variant) {
 // The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
     if (is_vec_kernel(id)) return kVecBuilds[variant].capacity();
-    if (id == K_MATMUL_ROW_Q1_0_DOT && variant == kQ1TwoRows) return kRowColsOne;
     if (row_kernel_builds_two_rows(id)) return kRowBuilds[variant].cols;
     return variant == 1 ? kRowColsOne : kRowColsWide;
 }
@@ -1651,6 +1653,7 @@ const size_t kNarrowCols = 16;
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
+const uint32_t kQ1RowLanes = 32;         // the most lanes a Q1_0 row takes (VulkanBackend::row_plan)
 const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
 const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, the query rows of one non-causal tile
 
@@ -1658,6 +1661,8 @@ const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, t
 inline uint32_t row_tree_cluster(KernelId id, int variant, const DeviceProfile& profile, uint32_t subgroup) {
     if (!row_kernel_builds_two_rows(id) || !profile.row_decode_tree || build_rows(id, variant) < 2) return 0;
     const bool k45 = id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8;
+    // Q1_0's one-column calls take the two-row build at whatever cluster their width gives (VulkanBackend::matmul_group_impl), so it reduces as the one-row builds do.
+    if (id == K_MATMUL_ROW_Q1_0_DOT) return variant == kQ1TwoRows ? 0 : std::min(subgroup, kQ1RowLanes);
     return k45 ? std::min(subgroup, std::max(kKQuantLanes, profile.k45_row_lanes)) : subgroup;
 }
 

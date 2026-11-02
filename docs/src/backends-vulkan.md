@@ -229,7 +229,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   one wide, except the wide Q8_0 kernel, the Q4 and K-quant families also
   for two rows (below), and a third pipeline is the
   eight-column build grouped by expert (specialization constant 8,
-  Mixture of experts below), which the Q4 and K-quant families also take in
+  Mixture of experts below), which the two-row kernels also take in
   their two-row builds of 4, 8 and 16 columns (Decode builds, below). Integer-dot devices take the Q4 and K-quant
   families' `LLMX_DOT` builds over the same 16-bit twin.
   Q6_K centers its weights with a 16-bit offset so the dot operands stay 16-bit.
@@ -243,7 +243,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   `row_dispatch` gives a plain dispatch's columns to its chunks as evenly as can be: each takes the `ncols` push constant's columns and the first `longer` of them one more, so the shaders cut a dispatch without dividing (RADV lowers an integer division to float operations, which the `--isa` screen would count); F32 rows take the whole call in one such dispatch, cut into the chunks `filling_build` gives.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
-  The Q4 and K-quant families (`row_kernel_builds_two_rows`) also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
+  The two-row kernels (`row_kernel_builds_two_rows`), the Q4 and K-quant families and, on the integer dot, the lookup types (IQ4_NL, IQ4_XS, IQ3_S, IQ3_XXS, IQ2_S, IQ2_XS, IQ2_XXS, IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0), Q2_K, Q3_K and MXFP4, also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
   Where the profile sets `row_decode_tree` (the MI50 under RADV) these builds reduce through the transposed reduction (`row_tree_cluster`, specialization constant 17), and `column_builds` gives them only rows of its cluster width, the rest taking the one-row builds.
   `kernel_representations` starts such a build's text with `; row_build cols=C rows=R tree=W`.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
@@ -395,18 +395,18 @@ chunks need not hold the same count, the first ones holding a column more, and
 each column keeps the one-column build's bits in either build. A call that
 fills the device in one chunk keeps the wide build, so a router of 512 rows
 does.
-No other kernel has a variant 7 to 12 pipeline but Q1_0's two-row build and the Q4 and K-quant families' grouped two-row builds (below); other slots stay empty, since
+No other kernel has a variant 7 to 12 pipeline but the two-row kernels' builds (below); other slots stay empty, since
 a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
 properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
 for every build; the transposed reduction is allowed only where the subgroup
 uses its expected reduction pairs. These choices preserve a column's bits
 across build widths.
 
-The Q4 and K-quant row families use constants 0 and 9 for columns per lane
+The two-row kernels use constants 0 and 9 for columns per lane
 and rows per cluster. Their first three variants are the one-row wide,
 one-column and grouped builds, followed by the two-row builds: two rows with
-2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Variant 7 is Q1_0's
-two-row one-column build, and variants 8, 9 and 10 (`kRowGroupedByWidth`) the
+2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Variant 7 is the
+two-row one-column build, which Q1_0's one-column calls take, and variants 8, 9 and 10 (`kRowGroupedByWidth`) the
 grouped two-row builds, the plain builds of 4, 8 and 16 columns reading their
 columns through a grouped routed call's runs. Constant 8 marks grouped
 execution (`grouped_build`). `grouped_variant` gives a grouped call the
@@ -605,7 +605,7 @@ From the comment at line 118:
 
 From the comment at line 122:
 
-- Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, four in the 16-column build, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
+- Rows a cluster takes, specialization constant 9: the two-row kernels' decode builds (the backend's kRowBuilds) give a lane two rows' weights, four in the 16-column build, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
 - A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 
 From the comment at line 364:
@@ -620,7 +620,7 @@ The including function supplies the row, its weight row, the type, the column co
 
 ### `src/backends/vulkan/shaders/matmul_row_two.glsl`
 
-The Q4 and K-quant families' two-row builds and Q1's one-column integer build share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Q1 retains each block's integer dot and range repair, with the shared row planner choosing its reduction group.
+The two-row kernels' builds share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Each family keeps its one-column build's per-block dot, scale, add and contraction: the lookup types read every 32-value group through `lookup_group`, whatever block holds it (256 values in IQ4_XS and the TQ types, 128 in Q1_0), so a type plugs in by its group decode alone; Q2_K and Q3_K keep eight lanes a block and `k23_term`; MXFP4 its integer dot and combined-scale range check; and a build with `LLMX_PRESERVE_F32` keeps its sums `precise`. A product the one-column build repairs is flagged per row and column; a cluster holding one reduces by the butterfly, which carries the flags, and recomputes those rows as the one-column build does (`lookup_float_twin`, `k23_float_twin`, `mxfp4_wide`), as every build does a sum that is not finite.
 In a build whose `TREE_CLUSTER` is set, the cluster reduces through the butterfly's pairs l ^ W/2 .. l ^ 1 in that order, transposed so each level halves the values a lane holds, and every lane stores the sums it is left with; float adds commute, so each sum has the butterfly's bits.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`

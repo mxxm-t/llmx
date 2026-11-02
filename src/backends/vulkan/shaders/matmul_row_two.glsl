@@ -6,31 +6,124 @@
         if (r0 >= nout) return;
         uint rlast = nout - 1u - r0;
         // A plain chunk computes every column its build holds, so its column loop has no branch; a grouped run, often narrower than its build, stops at its entries.
+#if defined(LLMX_PRESERVE_F32) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT))
+        precise float accr[ROWS][MAX_COLS];
+#else
         float accr[ROWS][MAX_COLS];
+#endif
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) accr[r][c] = 0.0;
-#if defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT)
+#if defined(LLMX_LOOKUP_DOT) || defined(LLMX_K23) || defined(LLMX_MXFP4)
+        // A product whose scale or sum leaves the fast path's range, which the one-column build's row recomputes (ROW_REPAIR).
         uint repair[ROWS][MAX_COLS];
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) repair[r][c] = 0u;
-        uint nblocks = p.nin / 32u;
-        uint wbr[ROWS];
-        [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
-        for (uint b = l; b < nblocks; b += p.cluster) {
-            for (uint c = 0u; c < MAX_COLS; ++c) {
-                if (c >= ncols) break;
-                uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
-                uvec2 activations[8];
-                [[unroll]] for (uint j = 0u; j < 8u; ++j) activations[j] = xq2[a2 + j];
-                float dx = xq_block(col, b).x;
+#endif
+#ifdef LLMX_LOOKUP_DOT
+        // Every 32-value group a lane's in the one-column build's order, whatever block holds it (lookup_group), so a type plugs in by its group decode alone.
+        {
+            uint nblocks = p.nin / 32u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
+            for (uint b = l; b < nblocks; b += p.cluster) {
+                float dwr[ROWS];
+                uvec2 wr[ROWS][8];
                 [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
-                    float dw;
-                    uint codes = lookup_group(wbr[r], p.nin, b, dw);
-                    uvec2 weights[8];
-                    [[unroll]] for (uint j = 0u; j < 8u; ++j) weights[j] = lookup_pairs(codes, j);
-                    int sum = 0;
-                    for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], activations[j], sum);
-                    float scale = dw * dx;
-                    if (lookup_unsafe_scale(dw, dx, scale)) repair[r][c] = 1u;
-                    accr[r][c] = fma(scale, float(sum), accr[r][c]);
+                    uint codes = lookup_group(wbr[r], p.nin, b, dwr[r]);
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j) wr[r][j] = lookup_pairs(codes, j);
+                }
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    uint col = XCOL(min(c, ncols - 1u)), a2 = xa_col(col) / 2u + b * 8u;
+                    uvec2 activations[8];
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j) activations[j] = xq2[a2 + j];
+                    float dx = xq_block(col, b).x;
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        int sum = 0;
+                        for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(wr[r][j], activations[j], sum);
+                        float scale = dwr[r] * dx;
+                        if (lookup_unsafe_scale(dwr[r], dx, scale)) repair[r][c] = 1u;
+                        accr[r][c] = fma(scale, float(sum), accr[r][c]);
+                    }
+                }
+            }
+        }
+#endif
+#ifdef LLMX_K23
+        {
+            uint nblocks = p.nin / 256u;
+            uint first = l / 8u, part = l % 8u, stride = p.cluster / 8u;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
+            for (uint b = first; b < nblocks; b += stride) {
+                uint j = part * 32u, block = b * 8u + part;
+                uvec2 codesr[ROWS][8];
+                vec4 weightsr[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uint o = (wbr[r] * nblocks + b) * K23_BYTES;
+                    [[unroll]] for (uint w = 0u; w < 8u; ++w) codesr[r][w] = weight16(k23_word(o, j + 4u * w));
+#ifdef LLMX_Q2
+                    Q2KScale low = q2_k_scale(o, j), high = q2_k_scale(o, j + 16u);
+                    weightsr[r] = vec4(low.scale, high.scale, low.min, high.min);
+#else
+                    weightsr[r] = vec4(q3_k_scale(o, j).scale, q3_k_scale(o, j + 16u).scale, 0.0, 0.0);
+#endif
+                }
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    uint col = XCOL(min(c, ncols - 1u)), a = col * p.nin / 4u + block * 8u;
+                    uvec2 xl[4], xh[4];
+                    [[unroll]] for (uint w = 0u; w < 4u; ++w) { xl[w] = xq2[a + w]; xh[w] = xq2[a + w + 4u]; }
+                    float scale = xq_block(col, block).x;
+                    bool unsafe = k23_repair_scale(scale);
+                    int ls = 0, hs = 0;
+#ifdef LLMX_Q2
+                    [[unroll]] for (uint w = 0u; w < 4u; ++w) {
+                        ls = dot_pairs(uvec2(0x00010001u), xl[w], ls);
+                        hs = dot_pairs(uvec2(0x00010001u), xh[w], hs);
+                    }
+#endif
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        int lo = 0, hi = 0;
+                        [[unroll]] for (uint w = 0u; w < 4u; ++w) {
+                            lo = dot_pairs(codesr[r][w], xl[w], lo);
+                            hi = dot_pairs(codesr[r][w + 4u], xh[w], hi);
+                        }
+                        if (unsafe) repair[r][c] = 1u;
+                        accr[r][c] += k23_term(weightsr[r], scale, lo, hi, ls, hs);
+                    }
+                }
+            }
+        }
+#endif
+#if defined(LLMX_MXFP4) && defined(LLMX_DOT)
+        {
+            uint nblocks = p.nin / MXFP4_BLOCK;
+            uint wbr[ROWS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = (w0 + min(r, rlast)) * nblocks * MXFP4_BYTES;
+            for (uint block = l; block < nblocks; block += p.cluster) {
+                uint er[ROWS], pairsr[ROWS][16];
+                float dwr[ROWS];
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    uvec4 quants;
+                    er[r] = mxfp4_block(wbr[r] + block * MXFP4_BYTES, quants);
+                    dwr[r] = mxfp4_scale(er[r]);
+                    uint pairs[16];
+                    mxfp4_pairs_of(quants, pairs);
+                    [[unroll]] for (uint j = 0u; j < 16u; ++j) pairsr[r][j] = pairs[j];
+                }
+                [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
+                    if (GROUPED && c >= ncols) break;
+                    uint col = XCOL(min(c, ncols - 1u)), a2 = xa_col(col) / 2u + block * 8u;
+                    float dx = xq_block(col, block).x;
+                    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                        uint pairs[16];
+                        [[unroll]] for (uint j = 0u; j < 16u; ++j) pairs[j] = pairsr[r][j];
+                        float sum = float(mxfp4_dot(pairs, a2));
+                        float scale = dwr[r] * dx;
+                        uint exponent = (floatBitsToUint(scale) >> 23u) & 255u;
+                        // At 253 the largest decoded weight overflows f32; a combined scale must be normal.
+                        if (er[r] >= MXFP4_FIRST_OVERFLOW_EXPONENT || exponent == 0u || exponent == 255u) repair[r][c] = 1u;
+                        else accr[r][c] = fma(scale, sum, accr[r][c]);
+                    }
                 }
             }
         }
@@ -210,8 +303,25 @@
             }
         }
 #endif
+#if defined(LLMX_LOOKUP_DOT) || defined(LLMX_K23) || defined(LLMX_MXFP4)
+#ifdef LLMX_LOOKUP_DOT
+#define ROW_REPAIR(wr, col) lookup_float_twin(wr, col, p.nin, 0u, p.nin / 32u)
+#elif defined(LLMX_K23)
+#define ROW_REPAIR(wr, col) k23_float_twin(wr, col, p.nin, 0u, p.nin / 32u)
+#else
+#define ROW_REPAIR(wr, col) mxfp4_wide(wr, col)
+#endif
+        // A cluster holding a product to repair reduces by the butterfly below, which carries the flags; otherwise a sum that is not finite is the only one to recompute.
+        uint flagged = 0u;
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) flagged |= repair[r][c];
+        for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) flagged |= subgroupShuffleXor(flagged, off);
+        const bool flags = flagged != 0u;
+#define ROW_TREE (TREE_CLUSTER > 1u && !flags)
+#else
+#define ROW_TREE (TREE_CLUSTER > 1u)
+#endif
         // The butterfly's pairs l ^ TREE_CLUSTER / 2 .. l ^ 1 in order, transposed so each level halves the values a lane holds; float adds commute, so the sums keep the butterfly's bits.
-        if (TREE_CLUSTER > 1u) {
+        if (ROW_TREE) {
             const uint NV = ROWS * MAX_COLS;
             const uint NLEFT = NV >= TREE_CLUSTER ? NV / (TREE_CLUSTER > 0u ? TREE_CLUSTER : 1u) : 1u;
             float t[ROWS * MAX_COLS];
@@ -235,6 +345,9 @@
             }
             [[unroll]] for (uint j = 0u; j < NLEFT; ++j) {
                 uint v = idx + j, r = v / MAX_COLS, c = v - r * MAX_COLS;
+#ifdef ROW_REPAIR
+                if (writer && c < ncols && r <= rlast && (isnan(t[j]) || isinf(t[j]))) t[j] = ROW_REPAIR(w0 + r, XCOL(c));
+#endif
                 if (writer && c < ncols && r <= rlast) {
                     uint o = OCOL(c) * nout + r0 + r;
                     if (p.accum != 0u) ys[pi].y[o] += t[j];
@@ -249,14 +362,16 @@
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                 float s = accr[r][c];
                 for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
-#if defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT)
+#ifdef ROW_REPAIR
                 uint unsafe = repair[r][c];
-                for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
-                if (l == 0u && r <= rlast && (unsafe != 0u || isnan(s) || isinf(s)))
-                    s = lookup_float_twin(w0 + r, XCOL(c), p.nin, 0u, p.nin / 32u);
+                if (flags)
+                    for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
+                if (l == 0u && r <= rlast && (unsafe != 0u || isnan(s) || isinf(s))) s = ROW_REPAIR(w0 + r, XCOL(c));
 #endif
                 ROW_STORE2(c, r, s)
             }
         }
         return;
     }
+#undef ROW_REPAIR
+#undef ROW_TREE

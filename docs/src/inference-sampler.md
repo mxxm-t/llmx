@@ -36,4 +36,5 @@ Its callers are `infer::generate` (`inference/generate.hpp`), which the CLI's `g
   With every token kept each weight is held by id as the sum takes it, in a buffer that is not zeroed, so the nucleus and the draw take no exp again; within a top-k the nucleus takes its tokens' weights again, at most k of them.
   With top-k 0 and top-p 1 nothing is ranked: one pass finds the best score, one sums the weights and the draw walks the ids in order.
 - `sample(logits, n, s, end, gen, rng) -> uint32_t`: the next token of a reply under the settings `s`, where `end` is the id that ends a reply (`bpe::Tokenizer::eos_id`, -1 for none), masked when `s.ignore_eos` is set.
+- `plain_argmax(s) -> bool`: whether a draw under `s` is its row's argmax alone, as a device takes it (`Model::argmax_id`): temperature 0, no repetition, presence or frequency penalty and no id masked by `ignore_eos`; the one rule a verify asks for argmax passes by.
   `infer::generate` and the scheduler both sample through it, so the rule is written once and the CLI and the server draw the same tokens for the same settings.

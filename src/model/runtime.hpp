@@ -83,6 +83,8 @@ struct ModelOptions {
     size_t checkpoint_slots = 0;
     // Marks (Model::mark), each a slot more in every state storage and room for the recurrent inputs of `mark_rows` rows of every state layer, the most a pass after a mark may take.
     size_t mark_slots = 0, mark_rows = 0;
+    // Passes may keep plain argmax draws' logits rows on the output device (Model::step with argmax), as infer::generate's do; a server's passes never do, so its fit holds no room for them.
+    bool argmax_passes = false;
     backend::Dtype dtype = backend::Dtype::f16;
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (the budget every placement fits, fitted_kv in model/place.hpp).
@@ -90,6 +92,9 @@ struct ModelOptions {
     // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure.
     std::function<std::optional<size_t>()> host_memory;
 };
+
+// The most rows an argmax pass keeps on the output device (Model::argmax_buffers): a verify's, which a mark bounds, or a step's one, and none where passes take no argmax (ModelOptions::argmax_passes).
+inline size_t argmax_rows(const ModelOptions& o) { return o.argmax_passes ? std::max<size_t>(1, o.mark_rows) : 0; }
 
 // An image's rows in a history (docs/VISION.md, sections 4 and 5): its first row and its rows, the encoder's merged grid they fill row by row, its digest, and the encoder's rows, which a pass writes over their pad rows after the embedding.
 // The rows, held until read and possibly only those from `from` on, and the digest, zero where no tier compares it, are what a fork, a host copy and the owner's giving it again are held to.
@@ -231,6 +236,9 @@ struct BatchEntry {
     size_t extent = 0;
     // Keep the state after the entry's last token as its sequence's checkpoint (Model::checkpoint), at a position of whole blocks in every storage; the pass takes a checkpoint slot for it.
     bool keep = false;
+    // Its rows are read only as the id of their largest logit, as a greedy draw reads them (ExecContext::argmax_id): with want_logits.
+    // A pass all of whose wanting entries say so keeps their logits on the output device and copies only the ids to the host.
+    bool argmax = false;
 };
 
 // What a pass's stages read as they are recorded: its entries, its rows and their positions, the rows the head reads, and each storage's cache views once its stage has reserved them.
@@ -241,6 +249,7 @@ struct Pass {
     size_t rows = 0, want = 0;
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     std::vector<uint32_t> ids, pos, pick;
+    bool argmax = false;                               // its logits rows stay on the output device and their ids come to the host (BatchEntry::argmax)
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
     std::vector<std::pair<size_t, std::vector<uint32_t>>> group_pos;   // where a history holds an image, per group size of a pooled layer, the positions of the groups each entry completes
     std::vector<uint32_t> previous_tokens;             // the token-history layer's preceding IDs, a fixed-width row per entry
@@ -266,6 +275,27 @@ struct ExecContext {
     // Row i of the logits the last forward produced, in entry order, valid until the next forward through this context.
     // The first read waits on the pass's ticket, so forward itself never blocks: a caller with two contexts submits the next pass before it reads this one.
     const float* logits(size_t i) {
+        ready(i);
+        if (argmax) {
+            // A row of a pass that kept its logits on the device is read back.
+            row.resize(width);
+            backend->read(*argmax_logits, i * width * sizeof(float), row.data(), width * sizeof(float));
+            return row.data();
+        }
+        const void* p = logits_host.data() ? logits_host.data() : logits_buf->host_ptr();
+        if (!p) throw std::runtime_error("inference: logits are not host visible");
+        return (const float*)p + i * width;
+    }
+    // The id of row i's largest logit, ties to the lowest, after a pass whose rows were wanted only so (BatchEntry::argmax).
+    // It is `width` where the largest is not finite or the row holds a NaN, whose row logits(i) then reads.
+    uint32_t argmax_id(size_t i) {
+        ready(i);
+        if (!argmax) throw std::logic_error("inference: argmax ids of a pass that kept its logits rows");
+        uint32_t id;
+        std::memcpy(&id, (const float*)argmax_ids->host_ptr() + i, sizeof(id));
+        return id;
+    }
+    void ready(size_t i) {
         if (!logits_buf || i >= n_logits)
             throw std::out_of_range("inference: no such logits row");
         if (pending) {
@@ -275,9 +305,6 @@ struct ExecContext {
             for (const auto& [b, t] : member_waits) b->raise(t);
             pending = false;
         }
-        const void* p = logits_host.data() ? logits_host.data() : logits_buf->host_ptr();
-        if (!p) throw std::runtime_error("inference: logits are not host visible");
-        return (const float*)p + i * width;
     }
     size_t n_logits = 0;
     size_t width = 0;
@@ -285,6 +312,12 @@ struct ExecContext {
     backend::Backend* backend = nullptr;
     std::vector<std::pair<backend::Backend*, backend::Ticket>> member_waits;   // on a tensor split, the head group's other members' submissions the logits also wait for
     bool pending = false;
+    // An argmax pass's logits rows on the output device and their ids in host-visible memory, argmax_rows of each.
+    // Refused once the device could not hold them, after which every pass keeps its rows on the host.
+    bool argmax = false, argmax_refused = false;
+    backend::BufferPtr argmax_logits, argmax_ids;
+    size_t argmax_rows = 0;
+    std::vector<float> row;
 
     struct Scratch {
         struct LookupScratch {
@@ -988,13 +1021,19 @@ public:
     }
 
     // The logits after each of `n` tokens fed in one pass as generated tokens, as a verify of drafts feeds them (docs/SPECULATIVE.md, section 3): `n` rows of the vocabulary, each the bits single steps give, valid until the next pass.
-    const float* step(const uint32_t* ids, size_t n) {
+    // With `argmax`, for draws that are plain argmax (infer::plain_argmax), the rows stay on the output device where it can hold them: it returns null, argmax_id gives each row's id and logits a row read back.
+    const float* step(const uint32_t* ids, size_t n, bool argmax = false) {
         BatchEntry entry{&seq_, ids, n, true};
         entry.every_logits = true;
         entry.extent = 1;
+        entry.argmax = argmax;
         forward(ctx_, &entry, 1);
-        return ctx_.logits(0);
+        return ctx_.argmax ? nullptr : ctx_.logits(0);
     }
+    // Row i's argmax after step(ids, n, true), ties to the lowest id, or the vocabulary size where its largest logit is not finite, its row holds a NaN or the rows stayed on the host.
+    uint32_t argmax_id(size_t i) { return ctx_.argmax ? ctx_.argmax_id(i) : (uint32_t)plan_.vocab; }
+    // Row i of the last pass, read in place or, after an argmax pass, read back and valid until the next call.
+    const float* logits(size_t i) { return ctx_.logits(i); }
     bool mark() { return mark(seq_); }
     void draft(uint32_t last, size_t k, std::vector<uint32_t>& out) { draft(seq_, last, k, out); }
 
@@ -1437,6 +1476,7 @@ private:
     void roll_back(Pass& p) noexcept;
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers);
+    bool argmax_buffers(ExecContext& ctx, size_t end);
     void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows);
     void receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);

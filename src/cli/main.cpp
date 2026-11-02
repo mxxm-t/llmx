@@ -589,12 +589,12 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
 }
 
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
-// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared) are described in docs/src/cli-main.md, open_model.
+// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {},
-                                               std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}) {
+                                               std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}, bool argmax_passes = false) {
     const auto specs = exec_specs(exec);
     if (watch) watch({"devices"});
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
@@ -627,6 +627,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         request.history_tokens = history_tokens;
     }
     infer::ModelOptions options = model_options(exec);
+    options.argmax_passes = argmax_passes;
     // A recurrent state is held by each sequence decoding at once: the command's own one, or the sequences a pass carries.
     if (decode_rows) options.state_slots = decode_rows;
     options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
@@ -827,7 +828,8 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
                  Drafts& drafts, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("generate");
     const bool progress = show_progress(exec);
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file, {},
+                                   std::nullopt, {}, true);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, progress);
@@ -968,7 +970,8 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec, Drafts& drafts) {
     const bool progress = show_progress(exec);
     // A model that keeps a state keeps it where the next turn will begin, and two slots let a turn's checkpoint take over from the last one's.
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded, drafts.file);
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded, drafts.file, {},
+                                   std::nullopt, {}, true);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, progress);

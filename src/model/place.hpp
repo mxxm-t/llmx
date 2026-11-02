@@ -124,9 +124,13 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         // A member's head is its shard, a buffer of its own beside the whole table the embedding reads, so a group counts both.
         if (field == &fp.output) fp.tied = role.aliased && width == 1;
     }
-    // The host's logits rows hold the whole vocabulary; on a tensor group each member of the head's group keeps its slice of them too.
+    // The host's logits rows hold the whole vocabulary; on a tensor group each member of the head's group keeps its slice of them too, and off one the head's device keeps argmax passes' rows.
     fp.logits_per_row = plan.vocab * sizeof(float);
     if (width > 1) fp.head_slice_per_row = fp.output.rows * sizeof(float);
+    else {
+        fp.argmax_per_row = (plan.vocab + 1) * sizeof(float);
+        fp.argmax_rows = argmax_rows(options);
+    }
     // A member's caches hold its heads, one device's plan with the member's KV heads and state.
     ModelPlan heads;
     if (width > 1) {

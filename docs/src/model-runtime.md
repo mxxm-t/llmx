@@ -64,7 +64,7 @@ delegated to a `backend::Backend`.
 - `ModelOptions`: what is fixed at construction, before the caches are
   allocated: each cache side's type (`kv_k`, `kv_v`, the CLI's
   `--cache-type-k` and `--cache-type-v`), `kv_tokens`, the positions
-  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), `mark_slots` and `mark_rows`, the marks a verify keeps its starting state in and the rows a pass after a mark may take (one of `--draft-max` + 1 rows for `generate` and `chat` with a drafter), and `state_slots`, the
+  every pool holds, zero for one model context, `checkpoint_slots`, the states kept at a position beside the live ones (`serve --state-checkpoints`, two for `chat`), `mark_slots` and `mark_rows`, the marks a verify keeps its starting state in and the rows a pass after a mark may take (one of `--draft-max` + 1 rows for `generate` and `chat` with a drafter), `argmax_passes`, whether passes may keep plain argmax rows on the output device, as `generate` and `chat` ask and a server never does, so only then does the fit charge them (`argmax_rows`), and `state_slots`, the
   sequences that may hold a recurrent state at once in a model whose layers
   keep one: one for a command's own sequence, the sequences a pass carries
   for `bench --seqs` (the CLI's `open_model` sets it from them), four for
@@ -112,10 +112,10 @@ delegated to a `backend::Backend`.
   Allocated by the first forward that needs it and grown to the
   largest pass seen, or sized once by `reserve_passes` (below), after which
   nothing in it is replaced. `logits(i)` is row `i` of the last pass,
-  in entry order.
+  in entry order. After an argmax pass (`BatchEntry::argmax`) the rows sit on the output device (`argmax_logits`), `argmax_id(i)` gives row `i`'s argmax from host-visible `argmax_ids`, the vocabulary size where its largest logit is not finite or it holds a NaN, and `logits(i)` reads the row back.
 - `BatchEntry`: what one sequence contributes to a pass: tokens appended to
   it and whether the logits after its last token are wanted, or with
-  `every_logits` the logits after every one of its tokens. A prefill
+  `every_logits` the logits after every one of its tokens, with `argmax` only as their argmax, which a pass all of whose wanting entries ask keeps on an output device that is not the CPU. A prefill
   microbatch is one entry with many tokens, a decode batch is many entries
   with one, and they mix. `extent` is what a device picks the entry's
   kernels by (`backend.hpp` `RowRuns`): for a prompt's rows the position one
@@ -205,9 +205,9 @@ delegated to a `backend::Backend`.
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.
     The row is read in place and stays valid until the next pass, so a caller that keeps it past one copies it.
-  - `step(ids, n) -> rows`: one entry of `n` tokens of extent 1 with every
+  - `step(ids, n, argmax = false) -> rows`: one entry of `n` tokens of extent 1 with every
     row's logits, as a verify of drafts feeds them, so every row takes the
-    decode kernels and gives the bits single steps give; the rows stay
+    decode kernels and gives the bits single steps give; with `argmax` (draws that are `infer::plain_argmax`) the rows stay on an output device that can hold them and it returns null, `argmax_id(i)` giving each row's id and `logits(i)` a row read back; the rows stay
     valid until the next pass. `mark()`, `keep()` and `retract(length)` act on the
     model's own sequence.
   - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one

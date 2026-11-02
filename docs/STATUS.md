@@ -1,5 +1,47 @@
 # llmx - Development Status
 
+## The Vulkan queue family and barrier form chosen per device by a startup probe (2026-11-02, VDEV, branch perf/vulkan-queue-plan on main fb2e379d2, VDEV's queue plan of 2026-11-01 approved by F2DEV at 17:59, its revisions after step 0 approved at 2026-11-02 01:40 with conditions, in progress)
+
+- **Goal:** on Qwen3.8-Flash-Next UD-Q4_K_XL over four MI50s at tensor width 2, a graphics-capable queue family with barriers over the stages their neighbours use (step 0's arm b) takes a step from 21.48 to 20.38 ms, a verify of three drafts from 28.78 to 27.43 ms, tg64 from 51.5 to 55.6 tok/s and pp2048 from 1498 to 1509 tok/s (medians of 6 over three rounds), while the family alone (arm a) loses 15.4% of Qwen3-0.6B Q8_0 tg128 on one card, and the barrier form alone on today's family (arm c) gains nothing and costs 0.48 ms a step.
+  So the device open picks the pair (family, barrier form) per device from a cost it measures at startup, never from a device constant.
+- **Design:** the device open in `src/backends/vulkan/vulkan_backend.cpp` is the one owner of a queue plan, a family and a barrier form.
+  A throwaway device times, per candidate cell (at most one family with graphics and one without, each with both forms), a chain of dependent tiny dispatches on one pipeline and on a mixed chain of pipelines, fills and copies, as ratios to today's pair (the compute-only family, the full barrier) measured in the same rep after a warm-up.
+  A cell other than today's pair is chosen only if its one-pipeline ratio is at most 1 + margin and its mixed ratio at most 1 - margin, the smallest mixed ratio winning; otherwise today's pair stays.
+  One frozen margin serves both limits, set from the spread of the ratios over 20 startups on one MI50, with the Radeon VII's spread reported against it.
+  The result is shared by every backend that opens the same device, keyed by vendor, device, driver id and driver version, so identical cards probe once.
+  The matched form records a barrier where one is owed, over the stages used since the last one and the stages of the next command; the full barrier stays before every command buffer's end and before the collective's ownership barrier.
+- **Done:** step 0 in scratch (probe on one MI50, 45 startups; the 2x2 rounds of arms m, b and c; devlog RESULTs of 2026-11-01 18:30 and 2026-11-02 01:45).
+  Step 1 code: the plan owner (`plan_queue`, its table and `forced_queue_plan`), the probe at 128 links and three reps, which releases what it made when it fails, the matched form, `--verbose`'s `queue:` line, and the tests (`vulkan-buffer`'s rule cases, `vulkan-lifetime`'s forced cells and failing probe), with docs (docs/VULKAN.md, Queue plan).
+  Device check of 2026-11-02 02:10 on four MI50s (devlog RESULT of 03:05): over 21 startups on one MI50 the cells' ratios to today's pair, one-pipeline and mixed medians, were family 1 matched 1.001 and 0.996, family 0 full 1.455 and 0.921, family 0 matched 1.021 and 0.718; the widest spread of one ratio, family 0 matched one-pipeline 0.960 to 1.140, froze `kQueueMargin` at 0.18, at which every startup chooses family 0 matched (at the provisional 0.08, 2 of 21 flipped to today's pair).
+  The probe took 30.5 to 34.1 ms warm (median 31.8) and 73.4 ms on the first, cold-shader-cache start, over its 50 ms bound.
+  Identity against main fb2e379d2 (Qwen3-0.6B Q8_0 on one card and Qwen3.8-Flash-Next UD-Q4_K_XL 2x2, 64 greedy tokens): the same bytes.
+  Timing, Flash-Next UD-Q4_K_XL 2x2 int8, one round m b b m: tg64 52.06 and 51.99 against 55.34 and 55.62 tok/s (+6.6%), a step 21.28 and 21.46 against 20.88 and 20.63 ms, pp2048 1493 and 1495 against 1501 and 1502 tok/s, pp64 level; another job kept two other cards busy throughout, load 10 to 45 in both arms.
+  Single-card leg (devlog RESULT of 04:16), one MI50 (GPU 9), RADV, default clocks, three rounds m a b c c b a m, m main (family 1 full), a family 0 full, b family 0 matched (the cell the probe picks), c family 1 matched, tok/s, median [range]:
+
+  | Cell | m | a | b | c |
+  |---|---|---|---|---|
+  | Qwen3-0.6B Q8_0 tg128 (6 runs) | 398.9 [398.0-400.3] | 362.8 (-9.0%) | 396.0 [395.4-397.5] (-0.7%) | 398.3 [397.4-399.8] |
+  | Qwen3-8B Q8_0 tg128 (rounds 2-3) | 66.72 [66.57-66.78] | 65.27 (-2.2%) | 66.71 [66.61-66.73] | 66.62 |
+  | pp512 and pp2048, both models | 0.6B ~8510 and ~6030, 8B ~764 and ~688 | level | level | level |
+
+  Round 1 ran the card in a faster state for its first minutes (8B m 76.9, then 66.7 for every arm), so the 8B row reads rounds 2 and 3.
+  b's 0.6B loss is outside the spread by 0.5 tok/s (about 18 us a token), and c sits inside m, so the family is the cost and the matched form recovers most of it.
+  Against the multi-card gain (Flash-Next UD-Q4_K_XL 2x2 int8, m b b m):
+
+  | Cell | m | b |
+  |---|---|---|
+  | tg64, tok/s | 52.06, 51.99 | 55.34, 55.62 (+6.6%) |
+  | step, ms | 21.28, 21.46 | 20.88, 20.63 |
+  | pp2048, tok/s | 1493, 1495 | 1501, 1502 |
+
+  The coordinator's DECISION of 2026-11-02 04:17 accepts the pair as a measured tradeoff under AGENTS.md (Assess performance tradeoffs): +6.6% on 2x2 tg64 against -0.7% on 0.6B single-card tg128, with 8B and prompts level.
+  The probe now times the one-pipeline chain first and the mixed chain only for the cells within its limit (the plan's fallback for the startup bound); on GPUs 4-7 (devlog GO/DONE of 04:26) it took 28.0 to 37.2 ms warm (median 30.6, 20 startups) and 66.7 to 86.9 ms with an empty shader cache (median 75.7, 20 startups), so the warm probe is within the 50 ms bound and the cold one is not: the cold time is the two pipelines compiled without a cache, and the bound stands with this figure recorded.
+  All 41 of those startups chose family 0 matched, family 0 full never timed on the mixed chain (one-pipeline ratio 1.321 at least); family 0 matched's one-pipeline ratio ran 0.961 to 1.099 and its mixed ratio 0.684 to 0.806, 0.081 and 0.014 inside the limits at their worst.
+  `vulkan-lifetime` fails only its collective two-shot, mixed-shots and second-exchange kind 0 cases at widths 3 and 4, as main does.
+  At the squashed head on four MI50s every forced cell gives today's pair's bits, both failing probes keep today's pair with the probe's device destroyed where it was made, and `vulkan-buffer`, `docs` and `dead-code` pass.
+- **Left:** the device-code gates and the Radeon VII leg, whose ratio spread must fit inside the margin.
+- **Gotchas:** absolute link costs move about 35% between a cold card and one after benches, so only ratios within one rep are compared; a mixed chain alone ranks the family-only cell first, which the models refute, so the one-pipeline limit is part of the rule.
+
 ## The sampler's row scans in lanes of eight (2026-11-01, SDEV, branch perf/sampler-scan on main 2e77b49ab, plan A of SDEV's sampling post of 20:45, approved by F2DEV at 20:53)
 
 - **Goal:** a code reply's verify on Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 samples about 10.6 rows a round on the scheduler's thread, 2.15 ms a round, nearly all of it greedy's scalar maximum over 248320 logits, about 5% of a one-user code reply; scanning the row in vector lanes with the same result should take most of that off.

@@ -452,6 +452,7 @@ inline void VulkanBackend::select_rows(VkDescriptorBufferInfo scores, VkDescript
         // Zeroed once: the histograms are zero between calls, since each call's emission clears them.
         grow(select_state_, words * sizeof(uint32_t));
         VkCommandBuffer cmd = open();
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdFillBuffer(cmd, select_state_->handle(), 0, VK_WHOLE_SIZE, 0);
         barrier(cmd);
     }

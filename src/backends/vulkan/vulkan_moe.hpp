@@ -106,6 +106,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         // Zeroed once in stream order; every call's last workgroup sets it back to zero.
         grow(moe_count_, sizeof(uint32_t));
         VkCommandBuffer cmd = open();
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdFillBuffer(cmd, moe_count_->handle(), 0, VK_WHOLE_SIZE, 0);
         barrier(cmd);
     }

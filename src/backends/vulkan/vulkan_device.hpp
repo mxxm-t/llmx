@@ -7,6 +7,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include "backends/device_profile.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 
@@ -144,6 +145,50 @@ inline std::string missing_counter_need(uint32_t subgroup_size) {
     return {};
 }
 
+// A queue plan: the family the device's one queue comes from and the barrier form (docs/VULKAN.md, Queue plan).
+// Matched barriers cover the stages used since the last barrier and the next command's; the full one covers compute and transfer on both sides.
+struct QueuePlan {
+    uint32_t family = 0;
+    bool matched = false;
+};
+
+// A probed cell: a plan and its costs as ratios to today's pair (the base cell) in the same rep, on a chain of one pipeline and on a mixed chain of two pipelines, fills and copies.
+// A cell outside the one-pipeline limit is not timed on the mixed chain and keeps a NaN mixed ratio.
+struct QueueCell {
+    QueuePlan plan;
+    double one = 1.0;
+    double mixed = 1.0;
+};
+
+// The widest spread of one cell's ratio over 20 startups of one MI50, 0.960 to 1.140 on the one-pipeline chain; its headroom is in docs/VULKAN.md, Queue plan.
+constexpr double kQueueMargin = 0.18;
+
+// The candidate families: today's (the first compute family without graphics, else the first compute family) first, then the first compute family with graphics if it is another; empty without a compute family.
+inline std::vector<uint32_t> queue_candidates(const std::vector<VkQueueFamilyProperties>& families) {
+    int plain = -1, graphics = -1;
+    for (uint32_t i = 0; i < families.size(); ++i) {
+        const VkQueueFlags f = families[i].queueFlags;
+        if (!(f & VK_QUEUE_COMPUTE_BIT)) continue;
+        if (f & VK_QUEUE_GRAPHICS_BIT) { if (graphics < 0) graphics = (int)i; }
+        else if (plain < 0) plain = (int)i;
+    }
+    std::vector<uint32_t> out;
+    if (plain >= 0) out.push_back((uint32_t)plain);
+    if (graphics >= 0) out.push_back((uint32_t)graphics);
+    return out;
+}
+
+// The rule, with cells[base] today's pair: another cell is eligible only if its one-pipeline ratio is at most 1 + margin and its mixed ratio at most 1 - margin.
+// The eligible cell with the smallest mixed ratio is chosen; with none eligible today's pair stays, so a near tie chooses alike on every start and on identical cards.
+inline size_t choose_queue_plan(const std::vector<QueueCell>& cells, size_t base, double margin = kQueueMargin) {
+    size_t best = base;
+    for (size_t i = 0; i < cells.size(); ++i) {
+        if (i == base || !(cells[i].one <= 1.0 + margin) || !(cells[i].mixed <= 1.0 - margin)) continue;
+        if (best == base || cells[i].mixed < cells[best].mixed) best = i;
+    }
+    return best;
+}
+
 // Heads 128 and 256 wide take the tiled and vector kernels, whose lane groups fit every subgroup the device check accepts (shaders/attention_tile.comp, shaders/attention_vec.comp).
 // Other widths take the per-row kernel, which reads at most four elements of a head per lane of a subgroup (shaders/attention.comp); no head is wider than 256.
 inline size_t attention_row_width(uint32_t subgroup_size) { return std::min<size_t>(256, 4 * (size_t)subgroup_size); }
@@ -211,6 +256,8 @@ struct Device {
     VkDevice device = VK_NULL_HANDLE;
     VkQueue queue = VK_NULL_HANDLE;
     uint32_t queue_family = 0;
+    bool matched_barriers = false; // the queue plan's barrier form (QueuePlan)
+    std::string queue_report;      // the probe's cells and choice, or why it fell back, for --verbose
     VkPhysicalDeviceProperties props{};
     VkPhysicalDeviceMemoryProperties memory{};
     DeviceCaps caps{};            // what this device says of itself

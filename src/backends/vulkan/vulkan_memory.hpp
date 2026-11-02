@@ -57,6 +57,7 @@ inline BufferPtr VulkanBackend::alloc(size_t bytes, Memory where) {
         // The slot holds the buffer until the fill retires, so a caller may drop it before anything is submitted.
         VkCommandBuffer cmd = open();
         pending_[ring_index_].push_back(b);
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdFillBuffer(cmd, b->handle(), 0, VK_WHOLE_SIZE, 0);
         barrier(cmd);
     }
@@ -118,6 +119,7 @@ inline void VulkanBackend::read(const Buffer& src_b, size_t off, void* dst, size
         VkCommandBuffer cmd = open();
         barrier(cmd);
         VkBufferCopy region{off + done, 0, n};
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), st.handle(), 1, &region);
         barrier(cmd);
         wait(flush());
@@ -168,6 +170,7 @@ inline void VulkanBackend::copy(Buffer& dst_b, size_t dst_off, const Buffer& src
         order_step(cmd, uses, 2);
     }
     VkBufferCopy region{src_off, dst_off, bytes};
+    settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
     dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
     if (!unordered_) barrier(cmd);
 }
@@ -189,6 +192,7 @@ inline VkDescriptorBufferInfo VulkanBackend::padded_f32(CSlice data, uint32_t ty
         if (it != src.padded.end()) pending_[ring_index_].push_back(it->second.copy);
         it = src.padded.insert_or_assign(off, VulkanBuffer::Padded{rows, nin, copy}).first;
         barrier(cmd);
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), copy->handle(), count, regions.data());
         barrier(cmd);
     }
@@ -305,6 +309,7 @@ inline void VulkanBackend::upload(VulkanBuffer& dst, size_t off, const void* src
         if (keep) pending_[ring_index_].push_back(keep);
         barrier(cmd);
         VkBufferCopy region{i * half, off + done, n};
+        settle(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT);
         dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);
         barrier(cmd);
         staged_[i] = flush();

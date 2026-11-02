@@ -2,6 +2,7 @@
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "model/kv_cache.hpp"
 #include <algorithm>
+#include <cmath>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -1075,6 +1076,116 @@ size_t open_files() {
     return n;
 }
 
+// The probe's stand-ins for the failing-probe cases: a device creation refused, or a lookup refused once the probe's device exists, whose destroy is counted.
+struct ProbeCalls {
+    PFN_vkCreateDevice create = nullptr;
+    PFN_vkGetDeviceProcAddr lookup = nullptr;
+    PFN_vkDestroyDevice destroy = nullptr;
+    int creates = 0, destroys = 0;
+    bool refuse_create = false;
+};
+ProbeCalls* probe_calls = nullptr;
+VKAPI_ATTR VkResult VKAPI_CALL probe_create(VkPhysicalDevice p, const VkDeviceCreateInfo* info, const VkAllocationCallbacks* a, VkDevice* out) {
+    ++probe_calls->creates;
+    if (probe_calls->refuse_create) return VK_ERROR_INITIALIZATION_FAILED;
+    return probe_calls->create(p, info, a, out);
+}
+VKAPI_ATTR void VKAPI_CALL probe_destroy(VkDevice d, const VkAllocationCallbacks* a) {
+    ++probe_calls->destroys;
+    probe_calls->destroy(d, a);
+}
+VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL probe_lookup(VkDevice d, const char* name) {
+    const PFN_vkVoidFunction f = probe_calls->lookup(d, name);
+    if (std::strcmp(name, "vkDestroyDevice") == 0) {
+        probe_calls->destroy = (PFN_vkDestroyDevice)f;
+        return (PFN_vkVoidFunction)probe_destroy;
+    }
+    return std::strcmp(name, "vkCmdPushDescriptorSetKHR") == 0 ? nullptr : f;
+}
+
+// The queue plan on a device: every forced cell gives the bits of today's pair through a chain of products, a norm, an add and copies; a probe that fails keeps today's pair, says why, leaves no device behind and is not repeated.
+int queue_plan_device_checks() {
+    int failures = 0;
+    std::vector<uint32_t> families;
+    {
+        auto base = backend::make_vulkan_backend(0);
+        auto dev = backend::VulkanLifetimeTest::device(dynamic_cast<backend::VulkanBackend&>(*base));
+        uint32_t count = 0;
+        dev->fn.vkGetPhysicalDeviceQueueFamilyProperties(dev->physical, &count, nullptr);
+        std::vector<VkQueueFamilyProperties> props(count);
+        dev->fn.vkGetPhysicalDeviceQueueFamilyProperties(dev->physical, &count, props.data());
+        families = backend::queue_candidates(props);
+    }
+    const size_t nin = 1024, nout = 1024, rows = 96;
+    auto run = [&](backend::VulkanBackend& b) {
+        auto filled = [&](size_t floats, uint32_t seed) {
+            std::vector<float> v(floats);
+            for (size_t i = 0; i < floats; ++i) v[i] = float(int((i * 2654435761u + seed) >> 24) % 33 - 16) / 16.0f;
+            return b.adopt(v.data(), v.size() * sizeof(float));
+        };
+        std::vector<uint8_t> wq(nout * (nin / 32) * quant::Q8_0_TYPESIZE);
+        for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint8_t(i * 131 + 7);
+        for (size_t blk = 0; blk < nout * (nin / 32); ++blk) { wq[blk * quant::Q8_0_TYPESIZE] = 0x00; wq[blk * quant::Q8_0_TYPESIZE + 1] = 0x1c; }
+        auto w = b.adopt(wq.data(), wq.size());
+        auto x = filled(rows * nin, 1), nw = filled(nin, 2), res = filled(rows * nout, 3);
+        const auto dm = backend::Memory::device;
+        auto h = b.alloc(rows * nin * sizeof(float), dm), y = b.alloc(rows * nout * sizeof(float), dm), out = b.alloc(2 * rows * nout * sizeof(float), dm);
+        const backend::RowRun prompt{rows, rows}, one{1, 1};
+        b.rms_norm_rows({h.get(), 0}, {x.get(), 0}, {nw.get(), 0}, rows, nin, nin, 1e-6f, {&prompt, 1});
+        b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {h.get(), 0}, {y.get(), 0}, nin, nout, rows, {&prompt, 1}, backend::Dtype::int8);
+        b.add({y.get(), 0}, {res.get(), 0}, rows * nout);
+        b.copy(*out, 0, *y, 0, rows * nout * sizeof(float));
+        b.matmul_add({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {y.get(), 0}, {res.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::f16);
+        b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {res.get(), 0}, {y.get(), nout}, nin, nout, 1, {&one, 1}, backend::Dtype::int8);
+        b.copy(*out, rows * nout * sizeof(float), *y, 0, rows * nout * sizeof(float));
+        std::vector<float> got(2 * rows * nout);
+        b.read(*out, 0, got.data(), got.size() * sizeof(float));
+        return got;
+    };
+    std::vector<float> today;
+    for (const uint32_t f : families)
+        for (const bool matched : {false, true}) {
+            backend::forced_queue_plan() = backend::QueuePlan{f, matched};
+            auto base = backend::make_vulkan_backend(0);
+            backend::forced_queue_plan().reset();
+            auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+            auto dev = backend::VulkanLifetimeTest::device(b);
+            const std::vector<float> got = run(b);
+            if (today.empty()) today = got;
+            const bool ok = dev->queue_family == f && dev->matched_barriers == matched && got.size() == today.size() &&
+                            std::memcmp(got.data(), today.data(), got.size() * sizeof(float)) == 0;
+            std::cout << "queue plan forced family " << f << (matched ? " matched" : " full") << " same bits as today's pair" << (ok ? " PASS\n" : " FAIL\n");
+            failures += !ok;
+        }
+    // The failing probe, on a live backend's device whose instance calls are swapped for the probe's stand-ins and given back after; made-up driver ids keep its table rows apart.
+    auto base = backend::make_vulkan_backend(0);
+    auto dev = backend::VulkanLifetimeTest::device(dynamic_cast<backend::VulkanBackend&>(*base));
+    for (const bool refuse_create : {true, false}) {
+        ProbeCalls calls;
+        calls.create = dev->fn.vkCreateDevice;
+        calls.lookup = dev->fn.vkGetDeviceProcAddr;
+        calls.refuse_create = refuse_create;
+        probe_calls = &calls;
+        const backend::Fn saved = dev->fn;
+        dev->fn.vkCreateDevice = probe_create;
+        dev->fn.vkGetDeviceProcAddr = probe_lookup;
+        VkDeviceCreateInfo product{};
+        product.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        const uint32_t driver = refuse_create ? 0x7ffffff1u : 0x7ffffff2u;
+        const auto first = backend::plan_queue(*dev, driver, product, families);
+        const auto again = backend::plan_queue(*dev, driver, product, families);
+        dev->fn = saved;
+        probe_calls = nullptr;
+        const bool ok = first.first.family == families[0] && !first.first.matched && first.second.rfind("probe failed (", 0) == 0 &&
+                        first.second.find("today's pair kept") != std::string::npos && calls.creates == 1 && calls.destroys == (refuse_create ? 0 : 1) &&
+                        again.first.family == first.first.family && again.first.matched == first.first.matched && again.second == first.second;
+        std::cout << "queue plan probe failing at " << (refuse_create ? "its device" : "a lookup after its device") << " creates=" << calls.creates
+                  << " destroys=" << calls.destroys << " report=\"" << first.second.substr(0, 80) << "\"" << (ok ? " PASS\n" : " FAIL\n");
+        failures += !ok;
+    }
+    return failures;
+}
+
 // A backend whose queue a submission holds (VulkanBackend::prepare) refuses to record or submit until the queue is taken back, and works as before after.
 int lent_checks() {
     auto base = backend::make_vulkan_backend(0);
@@ -1705,6 +1816,44 @@ int allocation_error_checks() {
 }
 
 namespace {
+// The queue plan's rule on made-up ratios, cell 0 today's pair: a cell is chosen only with its one-pipeline ratio at most 1 + margin and its mixed ratio at most 1 - margin, the smallest mixed ratio winning.
+int queue_plan_checks() {
+    int failures = 0;
+    const double m = backend::kQueueMargin, e = 1e-9;
+    auto cells = [](std::vector<std::pair<double, double>> costs) {
+        std::vector<backend::QueueCell> c{backend::QueueCell{}};
+        for (size_t i = 0; i < costs.size(); ++i) c.push_back(backend::QueueCell{backend::QueuePlan{(uint32_t)i, true}, costs[i].first, costs[i].second});
+        return c;
+    };
+    auto check_choice = [&](const char* name, const std::vector<backend::QueueCell>& c, size_t want) {
+        const size_t got = backend::choose_queue_plan(c, 0);
+        std::cout << "queue plan " << name << " chose " << got << (got == want ? " PASS\n" : " FAIL\n");
+        failures += got != want;
+    };
+    check_choice("one-pipeline ratio just inside its limit", cells({{1 + m - e, 0.5}}), 1);
+    check_choice("one-pipeline ratio just outside its limit", cells({{1 + m + e, 0.5}}), 0);
+    check_choice("mixed ratio just inside its limit", cells({{1.0, 1 - m - e}}), 1);
+    check_choice("mixed ratio just outside its limit", cells({{1.0, 1 - m + e}}), 0);
+    check_choice("cheapest mixed cell failing the one-pipeline limit passed over", cells({{1 + 3 * m, 1 - 3 * m}, {1 + m / 2, 1 - 1.5 * m}}), 2);
+    check_choice("smallest mixed ratio among eligible cells", cells({{1.0, 1 - 1.2 * m}, {0.99, 1 - 3 * m}, {1.02, 1 - 2 * m}}), 2);
+    check_choice("a tie keeps today's pair", cells({{1.0, 1.0}, {0.999, 1 - m / 2}}), 0);
+    check_choice("a NaN cost is never chosen", cells({{std::nan(""), 0.5}, {1.0, std::nan("")}}), 0);
+    check_choice("the choice follows the costs", cells({{1 + m / 2, 1 - 3 * m}, {1.0, 1 - 1.2 * m}}), 1);
+    check_choice("the choice follows the costs when they swap", cells({{1.0, 1 - 1.2 * m}, {1 + m / 2, 1 - 3 * m}}), 2);
+    check_choice("one cell keeps today's pair", cells({}), 0);
+    // Candidates: today's family (compute without graphics, else the first compute family) first, then the first compute family with graphics if another.
+    auto fam = [](VkQueueFlags f) { VkQueueFamilyProperties p{}; p.queueFlags = f; return p; };
+    const VkQueueFlags g = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT, c = VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
+    const bool cand = backend::queue_candidates({fam(g), fam(c), fam(VK_QUEUE_TRANSFER_BIT)}) == std::vector<uint32_t>{1, 0} &&
+                      backend::queue_candidates({fam(c), fam(c), fam(g), fam(g)}) == std::vector<uint32_t>{0, 2} &&
+                      backend::queue_candidates({fam(g)}) == std::vector<uint32_t>{0} &&
+                      backend::queue_candidates({fam(VK_QUEUE_TRANSFER_BIT), fam(c)}) == std::vector<uint32_t>{1} &&
+                      backend::queue_candidates({fam(VK_QUEUE_TRANSFER_BIT)}).empty();
+    std::cout << "queue plan candidates" << (cand ? " PASS\n" : " FAIL\n");
+    failures += !cand;
+    return failures;
+}
+
 // The device needs the kernels declare, on property and feature values rather than a device: all present, then each taken away in turn, which must be named.
 int device_need_checks() {
     VkPhysicalDeviceSubgroupProperties sg{};
@@ -2388,7 +2537,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--float-controls-device") return created_float_control_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
-            const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
+            const int failures = queue_checks() + queue_plan_device_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
                                  loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks();
             return failures ? 1 : 0;
         }
@@ -2418,6 +2567,7 @@ int main(int argc, char** argv) {
         ++cases;
         if (calls.buffers || calls.memory || calls.maps || calls.bad_release) ++failures;
         failures += device_need_checks();
+        failures += queue_plan_checks();
         cases += 14;
         // A device whose memory is the host's (Backend::memory_is_host) by its type alone: an integrated GPU and a CPU device are, a discrete and a virtual GPU are not.
         if (!backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) || !backend::host_memory_device(VK_PHYSICAL_DEVICE_TYPE_CPU) ||

@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <cmath>
 #include <cstdio>
@@ -22,6 +23,7 @@
 #include <deque>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -142,6 +144,391 @@ private:
     std::thread thread_;
 };
 
+// The queue plan's probe (docs/VULKAN.md, Queue plan): a throwaway device with one queue of each candidate family times dependent chains of tiny dispatches under each cell's barrier.
+// The product device keeps one queue, so nothing it does sees the probe.
+class QueueProbe {
+public:
+    static constexpr uint32_t kLinks = 128;   // links a chain
+    static constexpr uint32_t kReps = 3;      // timed reps after one warm-up
+    static constexpr uint32_t kFloats = 4096; // floats a buffer, 16 workgroups
+
+    QueueProbe(const Device& d, const VkDeviceCreateInfo& product, const std::vector<uint32_t>& families) : d_(d), fn_(d.fn) {
+        uint32_t count = 0;
+        fn_.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &count, nullptr);
+        std::vector<VkQueueFamilyProperties> props(count);
+        fn_.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &count, props.data());
+        const float priority = 1.0f;
+        std::vector<VkDeviceQueueCreateInfo> qi(families.size());
+        timestamps_ = d.props.limits.timestampComputeAndGraphics != 0;
+        for (size_t i = 0; i < families.size(); ++i) {
+            qi[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+            qi[i].queueFamilyIndex = families[i];
+            qi[i].queueCount = 1;
+            qi[i].pQueuePriorities = &priority;
+            fams_.push_back(Family{families[i], props[families[i]].timestampValidBits});
+            if (!fams_.back().ts_bits) timestamps_ = false;
+        }
+        VkDeviceCreateInfo di = product;
+        di.queueCreateInfoCount = (uint32_t)qi.size();
+        di.pQueueCreateInfos = qi.data();
+        check(fn_.vkCreateDevice(d.physical, &di, nullptr, &dev_), "vkCreateDevice");
+        // A constructor that throws runs no destructor, so what it made is released here; the device's own destroy is loaded first.
+        fn_.vkDestroyDevice = (PFN_vkDestroyDevice)fn_.vkGetDeviceProcAddr(dev_, "vkDestroyDevice");
+        if (!fn_.vkDestroyDevice) throw std::runtime_error("the probe device has no vkDestroyDevice");
+        try {
+            build();
+        } catch (...) {
+            release();
+            throw;
+        }
+    }
+    QueueProbe(const QueueProbe&) = delete;
+    QueueProbe& operator=(const QueueProbe&) = delete;
+
+    // A chain that timed out may still run, so its objects are left to the process rather than freed under it.
+    ~QueueProbe() {
+        if (!lost_) release();
+    }
+
+    void build() {
+#define LLMX_VK_LOAD_PROBE(name) \
+        fn_.name = (PFN_##name)fn_.vkGetDeviceProcAddr(dev_, #name); \
+        if (!fn_.name) throw std::runtime_error("the probe device has no " #name);
+        LLMX_VK_DEVICE_FUNCTIONS(LLMX_VK_LOAD_PROBE)
+#undef LLMX_VK_LOAD_PROBE
+        push_ = (PFN_vkCmdPushDescriptorSetKHR)fn_.vkGetDeviceProcAddr(dev_, "vkCmdPushDescriptorSetKHR");
+        if (!push_) throw std::runtime_error("the probe device has no vkCmdPushDescriptorSetKHR");
+        build_pipelines();
+        for (Family& f : fams_) build_family(f);
+        VkSemaphoreTypeCreateInfo ti{};
+        ti.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        ti.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        VkSemaphoreCreateInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        si.pNext = &ti;
+        check(fn_.vkCreateSemaphore(dev_, &si, nullptr, &done_), "vkCreateSemaphore");
+    }
+    void release() {
+        if (!dev_) return;
+        for (Family& f : fams_) {
+            for (VkBuffer b : f.buf)
+                if (b) fn_.vkDestroyBuffer(dev_, b, nullptr);
+            if (f.mem) fn_.vkFreeMemory(dev_, f.mem, nullptr);
+            if (f.queries) fn_.vkDestroyQueryPool(dev_, f.queries, nullptr);
+            if (f.pool) fn_.vkDestroyCommandPool(dev_, f.pool, nullptr);
+        }
+        for (VkPipeline p : pipe_)
+            if (p) fn_.vkDestroyPipeline(dev_, p, nullptr);
+        for (VkShaderModule m : module_)
+            if (m) fn_.vkDestroyShaderModule(dev_, m, nullptr);
+        if (layout_) fn_.vkDestroyPipelineLayout(dev_, layout_, nullptr);
+        if (set_layout_) fn_.vkDestroyDescriptorSetLayout(dev_, set_layout_, nullptr);
+        if (done_) fn_.vkDestroySemaphore(dev_, done_, nullptr);
+        fn_.vkDestroyDevice(dev_, nullptr);
+        dev_ = VK_NULL_HANDLE;
+    }
+
+    // Every cell's ratios to cells[0], today's pair: the median over the timed reps of a cell's time against the mean of today's pair timed before and after it in the same rep.
+    // The one-pipeline chain runs first, and only cells within its limit are timed on the mixed chain; the others keep a NaN mixed ratio, which the rule never chooses.
+    std::vector<QueueCell> run(std::vector<QueueCell> cells) {
+        auto median = [](std::vector<double> v) { std::sort(v.begin(), v.end()); return v[v.size() / 2]; };
+        auto ratios = [&](bool one_pipeline, const std::vector<size_t>& timed) {
+            std::vector<std::vector<double>> r(timed.size());
+            for (uint32_t rep = 0; rep <= kReps; ++rep) {
+                const double before = time(cells[0].plan, one_pipeline);
+                std::vector<double> t(timed.size());
+                for (size_t i = 0; i < timed.size(); ++i) t[i] = time(cells[timed[i]].plan, one_pipeline);
+                const double base = 0.5 * (before + time(cells[0].plan, one_pipeline));
+                if (rep == 0) continue;
+                for (size_t i = 0; i < timed.size(); ++i) r[i].push_back(t[i] / base);
+            }
+            std::vector<double> m(timed.size());
+            for (size_t i = 0; i < timed.size(); ++i) m[i] = median(r[i]);
+            return m;
+        };
+        std::vector<size_t> all;
+        for (size_t c = 1; c < cells.size(); ++c) all.push_back(c);
+        const std::vector<double> one = ratios(true, all);
+        std::vector<size_t> within;
+        for (size_t i = 0; i < all.size(); ++i) {
+            cells[all[i]].one = one[i];
+            cells[all[i]].mixed = std::numeric_limits<double>::quiet_NaN();
+            if (one[i] <= 1.0 + kQueueMargin) within.push_back(all[i]);
+        }
+        if (within.empty()) return cells;
+        const std::vector<double> mixed = ratios(false, within);
+        for (size_t i = 0; i < within.size(); ++i) cells[within[i]].mixed = mixed[i];
+        return cells;
+    }
+
+private:
+    struct Family {
+        uint32_t index;
+        uint32_t ts_bits;
+        VkQueue queue = VK_NULL_HANDLE;
+        VkCommandPool pool = VK_NULL_HANDLE;
+        VkCommandBuffer cmd = VK_NULL_HANDLE;
+        VkQueryPool queries = VK_NULL_HANDLE;
+        VkDeviceMemory mem = VK_NULL_HANDLE;
+        VkBuffer buf[4] = {};   // x, y, z, w
+    };
+
+    // Two pipelines over two storage buffers from the kernels' own modules: add (dst += src) and gelu (dst = gelu(src)).
+    void build_pipelines() {
+        VkDescriptorSetLayoutBinding b[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {
+            b[i].binding = i;
+            b[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            b[i].descriptorCount = 1;
+            b[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        VkDescriptorSetLayoutCreateInfo li{};
+        li.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        li.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        li.bindingCount = 2;
+        li.pBindings = b;
+        check(fn_.vkCreateDescriptorSetLayout(dev_, &li, nullptr, &set_layout_), "vkCreateDescriptorSetLayout");
+        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, 2 * sizeof(uint32_t)};
+        VkPipelineLayoutCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pi.setLayoutCount = 1;
+        pi.pSetLayouts = &set_layout_;
+        pi.pushConstantRangeCount = 1;
+        pi.pPushConstantRanges = &range;
+        check(fn_.vkCreatePipelineLayout(dev_, &pi, nullptr, &layout_), "vkCreatePipelineLayout");
+        const KernelId ids[2] = {K_ADD, K_GELU};
+        for (int i = 0; i < 2; ++i) {
+            VkShaderModuleCreateInfo mi{};
+            mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            mi.codeSize = kKernels[ids[i]].bytes;
+            mi.pCode = kKernels[ids[i]].words;
+            check(fn_.vkCreateShaderModule(dev_, &mi, nullptr, &module_[i]), "vkCreateShaderModule");
+            VkComputePipelineCreateInfo ci{};
+            ci.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+            ci.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+            ci.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+            ci.stage.module = module_[i];
+            ci.stage.pName = "main";
+            ci.layout = layout_;
+            check(fn_.vkCreateComputePipelines(dev_, VK_NULL_HANDLE, 1, &ci, nullptr, &pipe_[i]), "vkCreateComputePipelines");
+        }
+    }
+
+    // A family's queue, command buffer, timestamps and four device-local buffers of its own, so no buffer changes family.
+    void build_family(Family& f) {
+        fn_.vkGetDeviceQueue(dev_, f.index, 0, &f.queue);
+        VkCommandPoolCreateInfo pi{};
+        pi.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        pi.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        pi.queueFamilyIndex = f.index;
+        check(fn_.vkCreateCommandPool(dev_, &pi, nullptr, &f.pool), "vkCreateCommandPool");
+        VkCommandBufferAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        ai.commandPool = f.pool;
+        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        ai.commandBufferCount = 1;
+        check(fn_.vkAllocateCommandBuffers(dev_, &ai, &f.cmd), "vkAllocateCommandBuffers");
+        if (timestamps_) {
+            VkQueryPoolCreateInfo qi{};
+            qi.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+            qi.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            qi.queryCount = 2;
+            check(fn_.vkCreateQueryPool(dev_, &qi, nullptr, &f.queries), "vkCreateQueryPool");
+        }
+        VkBufferCreateInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size = kFloats * sizeof(float);
+        bi.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        for (VkBuffer& b : f.buf) check(fn_.vkCreateBuffer(dev_, &bi, nullptr, &b), "vkCreateBuffer");
+        VkMemoryRequirements req{};
+        fn_.vkGetBufferMemoryRequirements(dev_, f.buf[0], &req);
+        const VkDeviceSize stride = (req.size + req.alignment - 1) / req.alignment * req.alignment;
+        uint32_t type = UINT32_MAX;
+        for (uint32_t i = 0; i < d_.memory.memoryTypeCount && type == UINT32_MAX; ++i)
+            if ((req.memoryTypeBits >> i & 1) && (d_.memory.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) type = i;
+        if (type == UINT32_MAX) throw std::runtime_error("the probe found no device-local memory");
+        VkMemoryAllocateInfo mi{};
+        mi.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        mi.allocationSize = 4 * stride;
+        mi.memoryTypeIndex = type;
+        check(fn_.vkAllocateMemory(dev_, &mi, nullptr, &f.mem), "vkAllocateMemory");
+        for (int i = 0; i < 4; ++i) check(fn_.vkBindBufferMemory(dev_, f.buf[i], f.mem, i * stride), "vkBindBufferMemory");
+    }
+
+    // Today's barrier, or one over the previous command's stage and the next's.
+    void barrier(VkCommandBuffer c, bool matched, bool prev_transfer, bool next_transfer) {
+        const VkPipelineStageFlags both = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
+        const VkPipelineStageFlags src = !matched ? both : VkPipelineStageFlags(prev_transfer ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        const VkPipelineStageFlags dst = !matched ? both : VkPipelineStageFlags(next_transfer ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        VkMemoryBarrier mb{};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        if (src & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) mb.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+        if (src & VK_PIPELINE_STAGE_TRANSFER_BIT) mb.srcAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        if (dst & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) mb.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        if (dst & VK_PIPELINE_STAGE_TRANSFER_BIT) mb.dstAccessMask |= VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        fn_.vkCmdPipelineBarrier(c, src, dst, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    }
+
+    void dispatch(VkCommandBuffer c, int pipe, VkBuffer dst, VkBuffer src) {
+        const VkDescriptorBufferInfo info[2] = {{dst, 0, VK_WHOLE_SIZE}, {src, 0, VK_WHOLE_SIZE}};
+        VkWriteDescriptorSet w[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {
+            w[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w[i].dstBinding = i;
+            w[i].descriptorCount = 1;
+            w[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            w[i].pBufferInfo = &info[i];
+        }
+        const uint32_t pc[2] = {kFloats, 0};
+        fn_.vkCmdBindPipeline(c, VK_PIPELINE_BIND_POINT_COMPUTE, pipe_[pipe]);
+        push_(c, VK_PIPELINE_BIND_POINT_COMPUTE, layout_, 0, 2, w);
+        fn_.vkCmdPushConstants(c, layout_, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), pc);
+        fn_.vkCmdDispatch(c, kFloats / 256, 1, 1);
+    }
+
+    // One chain under a plan, in microseconds: one pipeline (x += y, y += x, ...) or the mixed period add, gelu, add, gelu, fill, add, copy, gelu.
+    double time(const QueuePlan& plan, bool one_pipeline) {
+        Family* fp = &fams_[0];
+        for (Family& f : fams_)
+            if (f.index == plan.family) fp = &f;
+        Family& f = *fp;
+        const VkBuffer x = f.buf[0], y = f.buf[1], z = f.buf[2], w = f.buf[3];
+        const VkCommandBuffer c = f.cmd;
+        check(fn_.vkResetCommandBuffer(c, 0), "vkResetCommandBuffer");
+        VkCommandBufferBeginInfo bi{};
+        bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        check(fn_.vkBeginCommandBuffer(c, &bi), "vkBeginCommandBuffer");
+        if (timestamps_) fn_.vkCmdResetQueryPool(c, f.queries, 0, 2);
+        for (VkBuffer b : f.buf) fn_.vkCmdFillBuffer(c, b, 0, VK_WHOLE_SIZE, 0);
+        barrier(c, false, true, false);
+        if (timestamps_) fn_.vkCmdWriteTimestamp(c, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, f.queries, 0);
+        bool prev_transfer = false;
+        for (uint32_t i = 0; i < kLinks; ++i) {
+            const uint32_t k = one_pipeline ? 0 : i % 8;
+            const bool transfer = k == 4 || k == 6;
+            if (i) barrier(c, plan.matched, prev_transfer, transfer);
+            if (one_pipeline) {
+                dispatch(c, 0, i & 1 ? y : x, i & 1 ? x : y);
+            } else if (k == 4) {
+                fn_.vkCmdFillBuffer(c, z, 0, VK_WHOLE_SIZE, 0);
+            } else if (k == 6) {
+                const VkBufferCopy r{0, 0, kFloats * sizeof(float)};
+                fn_.vkCmdCopyBuffer(c, x, w, 1, &r);
+            } else if (k == 5) {
+                dispatch(c, 0, x, z);
+            } else if (k == 7) {
+                dispatch(c, 1, y, w);
+            } else {
+                dispatch(c, (int)(k & 1), k & 1 ? y : x, k & 1 ? x : y);
+            }
+            prev_transfer = transfer;
+        }
+        if (timestamps_) fn_.vkCmdWriteTimestamp(c, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, f.queries, 1);
+        check(fn_.vkEndCommandBuffer(c), "vkEndCommandBuffer");
+        const uint64_t value = ++value_;
+        VkTimelineSemaphoreSubmitInfo tsi{};
+        tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+        tsi.signalSemaphoreValueCount = 1;
+        tsi.pSignalSemaphoreValues = &value;
+        VkSubmitInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        si.pNext = &tsi;
+        si.commandBufferCount = 1;
+        si.pCommandBuffers = &c;
+        si.signalSemaphoreCount = 1;
+        si.pSignalSemaphores = &done_;
+        const auto start = std::chrono::steady_clock::now();
+        check(fn_.vkQueueSubmit(f.queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &done_;
+        wi.pValues = &value;
+        const VkResult r = fn_.vkWaitSemaphores(dev_, &wi, 2000000000ull);
+        if (r != VK_SUCCESS) {
+            lost_ = true;
+            check(r == VK_TIMEOUT ? VK_ERROR_DEVICE_LOST : r, "the probe's wait");
+        }
+        const double host = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
+        if (!timestamps_) return host;
+        uint64_t t[2] = {};
+        check(fn_.vkGetQueryPoolResults(dev_, f.queries, 0, 2, sizeof(t), t, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT),
+              "vkGetQueryPoolResults");
+        const uint64_t mask = f.ts_bits >= 64 ? ~0ull : (1ull << f.ts_bits) - 1;
+        return (double)((t[1] - t[0]) & mask) * d_.props.limits.timestampPeriod / 1000.0;
+    }
+
+    const Device& d_;
+    Fn fn_;
+    VkDevice dev_ = VK_NULL_HANDLE;
+    PFN_vkCmdPushDescriptorSetKHR push_ = nullptr;
+    std::vector<Family> fams_;
+    VkShaderModule module_[2] = {};
+    VkDescriptorSetLayout set_layout_ = VK_NULL_HANDLE;
+    VkPipelineLayout layout_ = VK_NULL_HANDLE;
+    VkPipeline pipe_[2] = {};
+    VkSemaphore done_ = VK_NULL_HANDLE;
+    uint64_t value_ = 0;
+    bool timestamps_ = true;
+    bool lost_ = false;
+};
+
+// The plan of every device this process opened, keyed by vendor, device, driver id and driver version, so identical cards probe once and two drivers over one card probe apart.
+struct QueuePlans {
+    std::mutex mu;
+    std::vector<std::pair<std::array<uint32_t, 4>, std::pair<QueuePlan, std::string>>> plans;
+};
+inline QueuePlans& queue_plans() {
+    static QueuePlans p;
+    return p;
+}
+
+// A plan a test forces on every device opened after it, in place of the probe's (backend-vulkan's forced cells).
+inline std::optional<QueuePlan>& forced_queue_plan() {
+    static std::optional<QueuePlan> p;
+    return p;
+}
+
+// The device's plan and its report: forced, shared, or probed once under the table's lock; a probe that fails keeps today's pair and says why.
+inline std::pair<QueuePlan, std::string> plan_queue(const Device& d, uint32_t driver_id, const VkDeviceCreateInfo& product, const std::vector<uint32_t>& families) {
+    if (const auto& forced = forced_queue_plan()) {
+        const bool listed = std::find(families.begin(), families.end(), forced->family) != families.end();
+        return {QueuePlan{listed ? forced->family : families[0], forced->matched}, "forced"};
+    }
+    QueuePlans& t = queue_plans();
+    std::lock_guard<std::mutex> lk(t.mu);
+    const std::array<uint32_t, 4> key{d.props.vendorID, d.props.deviceID, driver_id, d.props.driverVersion};
+    for (const auto& p : t.plans)
+        if (p.first == key) return p.second;
+    std::vector<QueueCell> cells;
+    for (const uint32_t f : families)
+        for (const bool matched : {false, true}) cells.push_back(QueueCell{QueuePlan{f, matched}});
+    std::pair<QueuePlan, std::string> out{QueuePlan{families[0], false}, {}};
+    const auto start = std::chrono::steady_clock::now();
+    try {
+        QueueProbe probe(d, product, families);
+        cells = probe.run(cells);
+        out.first = cells[choose_queue_plan(cells, 0)].plan;
+        char line[96];
+        for (const QueueCell& c : cells) {
+            if (c.mixed == c.mixed)
+                std::snprintf(line, sizeof(line), "family %u %s one %.3f mixed %.3f; ", c.plan.family, c.plan.matched ? "matched" : "full", c.one, c.mixed);
+            else
+                std::snprintf(line, sizeof(line), "family %u %s one %.3f mixed untimed; ", c.plan.family, c.plan.matched ? "matched" : "full", c.one);
+            out.second += line;
+        }
+    } catch (const std::exception& e) {
+        out.second = std::string("probe failed (") + e.what() + "), today's pair kept; ";
+    }
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    char tail[96];
+    std::snprintf(tail, sizeof(tail), "chose family %u %s, probe %.1f ms", out.first.family, out.first.matched ? "matched" : "full", ms);
+    out.second += tail;
+    t.plans.push_back({key, out});
+    return out;
+}
+
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
     friend struct VulkanQuantizationTest;
@@ -249,20 +636,13 @@ public:
         if (d.props.apiVersion < VK_API_VERSION_1_2)
             throw VulkanUnavailable("vulkan: " + d.caps.device + " is older than Vulkan 1.2");
 
-        // A compute family without graphics keeps the queue clear of the desktop; any compute family will do.
+        // The queue plan's candidates, today's family first (queue_candidates); the device's plan is chosen once its create info is whole.
         uint32_t families = 0;
         fn.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &families, nullptr);
         std::vector<VkQueueFamilyProperties> qf(families);
         fn.vkGetPhysicalDeviceQueueFamilyProperties(d.physical, &families, qf.data());
-        int chosen = -1;
-        for (uint32_t i = 0; i < families; ++i) {
-            const VkQueueFlags f = qf[i].queueFlags;
-            if (!(f & VK_QUEUE_COMPUTE_BIT)) continue;
-            if (chosen < 0 || (!(f & VK_QUEUE_GRAPHICS_BIT) && (qf[(size_t)chosen].queueFlags & VK_QUEUE_GRAPHICS_BIT)))
-                chosen = (int)i;
-        }
-        if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
-        d.queue_family = (uint32_t)chosen;
+        const std::vector<uint32_t> candidates = queue_candidates(qf);
+        if (candidates.empty()) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
 
         VkPhysicalDeviceVulkan12Features f12{};
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -401,19 +781,23 @@ public:
         d.timestamps = diagnostics && d.props.limits.timestampComputeAndGraphics;
         d.timestamp_ns = d.props.limits.timestampPeriod;
 
+        VkDeviceCreateInfo di{};
+        di.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        di.pNext = &e2;
+        di.enabledExtensionCount = (uint32_t)enabled.size();
+        di.ppEnabledExtensionNames = enabled.data();
+        const auto plan = plan_queue(d, (uint32_t)drv.driverID, di, candidates);
+        d.queue_family = plan.first.family;
+        d.matched_barriers = plan.first.matched;
+        d.queue_report = plan.second;
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo qi{};
         qi.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         qi.queueFamilyIndex = d.queue_family;
         qi.queueCount = 1;
         qi.pQueuePriorities = &priority;
-        VkDeviceCreateInfo di{};
-        di.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        di.pNext = &e2;
         di.queueCreateInfoCount = 1;
         di.pQueueCreateInfos = &qi;
-        di.enabledExtensionCount = (uint32_t)enabled.size();
-        di.ppEnabledExtensionNames = enabled.data();
         check(fn.vkCreateDevice(d.physical, &di, nullptr, &d.device), "vkCreateDevice");
 #define LLMX_VK_LOAD_DEVICE(name) \
         fn.name = (PFN_##name)fn.vkGetDeviceProcAddr(d.device, #name); \
@@ -530,6 +914,7 @@ public:
     }
     const std::string& name() const { return dev_->caps.device; }
     std::string identity() const override { return dev_->identity; }
+    std::string queue_report() const override { return dev_->queue_report; }
     const DeviceProfile& profile() const { return dev_->profile; }
     bool prefer_integer_dot() {
         if (!dev_->caps.integer_dot) return false;
@@ -759,6 +1144,7 @@ public:
         s.cmd = open();
         s.dispatches = chunk_ > 0;
         chunk_ = 0;
+        settle_all(s.cmd);
         check(dev_->fn.vkEndCommandBuffer(s.cmd), "vkEndCommandBuffer");
         s.signal.reserve(1 + signals.size());
         s.signal.push_back(timeline_);
@@ -1863,8 +2249,14 @@ private:
         return cmd;
     }
 
-    // Order compute and transfer writes before subsequent compute and transfer accesses.
+    // Order compute and transfer writes before subsequent compute and transfer accesses: the full barrier at once, or under matched barriers one owed, which settle records before the next command.
     void barrier(VkCommandBuffer cmd) {
+        if (dev_->matched_barriers) owed_ = true;
+        else full_barrier(cmd);
+        scratch_read_.clear();
+        scratch_written_.clear();
+    }
+    void full_barrier(VkCommandBuffer cmd) {
         VkMemoryBarrier mb{};
         mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
         mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1872,8 +2264,31 @@ private:
                            VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
         const VkPipelineStageFlags stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
         dev_->fn.vkCmdPipelineBarrier(cmd, stages, stages, 0, 1, &mb, 0, nullptr, 0, nullptr);
-        scratch_read_.clear();
-        scratch_written_.clear();
+    }
+    // Under matched barriers, before a command of stages `next`: an owed barrier from the stages used since the last one, or, with none owed, one from every stage before when `next` is outside the last barrier's second scope.
+    void settle(VkCommandBuffer cmd, VkPipelineStageFlags next) {
+        if (!dev_->matched_barriers) return;
+        if (!owed_ && !(next & ~covered_)) {
+            since_ |= next;
+            return;
+        }
+        VkPipelineStageFlags src = owed_ ? since_ : (since_ | before_);
+        if (!src) src = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        VkMemoryBarrier mb{};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        if (src & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) mb.srcAccessMask |= VK_ACCESS_SHADER_WRITE_BIT;
+        if (src & VK_PIPELINE_STAGE_TRANSFER_BIT) mb.srcAccessMask |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        if (next & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT) mb.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        if (next & VK_PIPELINE_STAGE_TRANSFER_BIT) mb.dstAccessMask |= VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
+        dev_->fn.vkCmdPipelineBarrier(cmd, src, next, 0, 1, &mb, 0, nullptr, 0, nullptr);
+        covered_ = owed_ ? next : (covered_ | next);
+        before_ = src;
+        since_ = next;
+        owed_ = false;
+    }
+    // An owed barrier as the full one, before a command buffer ends and before an ownership barrier.
+    void settle_all(VkCommandBuffer cmd) {
+        if (owed_) settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT);
     }
 
     VulkanBuffer& staging();
@@ -1898,6 +2313,8 @@ private:
     Ticket ring_ticket_[kRing] = {};
     uint32_t ring_index_ = 0;
     bool open_ = false;
+    bool owed_ = false;   // matched barriers: a barrier is owed before the next command
+    VkPipelineStageFlags since_ = 0, before_ = 0, covered_ = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     std::shared_ptr<VulkanSubmitter> submitter_;   // a tensor group's queue thread, which makes this backend's queue calls once set
     std::atomic<Ticket> made_ticket_{0};          // on a submitter, the last ticket whose queue call was made or given up

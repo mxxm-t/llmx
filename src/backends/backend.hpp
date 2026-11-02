@@ -470,6 +470,9 @@ public:
     // A backend that cannot say gives an identity no other backend shares.
     virtual std::string identity() const { return "unknown " + std::to_string((uintptr_t)this); }
 
+    // How the device's queue was chosen, for --verbose; empty where there was no choice.
+    virtual std::string queue_report() const { return {}; }
+
     // The class of rows of this RowRun extent: rows of two extents of one class take the same arithmetic in every op of this backend, so they give the same bits.
     // A backend claims only what it proves, so by default every extent is a class of its own (docs/SPECULATIVE.md, section 1).
     virtual size_t row_class(size_t extent) const { return extent; }

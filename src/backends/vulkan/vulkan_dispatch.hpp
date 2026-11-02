@@ -189,6 +189,7 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
         w.pBufferInfo = next;
         next += w.descriptorCount;
     }
+    settle(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
     dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
     dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0,
                                        (uint32_t)writes.size(), writes.data());

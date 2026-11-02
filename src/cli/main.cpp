@@ -600,6 +600,9 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
     // Beside the placement a command prints, so a quiet command stays quiet.
     if (exec.tensor_width > 1 && (progress || show_plan)) report_groups(specs, backends, (size_t)exec.tensor_width);
+    if (show_plan)
+        for (size_t i = 0; i < backends.size(); ++i)
+            if (const std::string q = backends[i]->queue_report(); !q.empty()) std::cerr << "queue: " << (i < specs.size() ? specs[i] : std::to_string(i)) << " " << q << "\n";
     if (profiled)
         for (const auto& b : backends) profiled->push_back(b.get());
     infer::PlacementRequest request;

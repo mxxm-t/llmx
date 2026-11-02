@@ -58,13 +58,30 @@ Memory heaps and the types this backend uses:
 | 2, device local and host visible | 256 MiB | not used | The BAR window; too small to matter and uncached on the host |
 
 Queue families: one compute-only family with transfer (two queues), one
-graphics family, one transfer-only. The backend takes one queue from the
-compute family. Everything, including copies, goes through that queue, so
+graphics family, one transfer-only. The backend takes one queue, from the
+family its queue plan chooses (Queue plan, below). Everything, including copies, goes through that queue, so
 the single implicit stream of the interface is literally one `VkQueue`.
 
 The Linux MI50 was validated after the workstation, through RADV. Nothing
 above is Windows-specific; the driver differs and the numbers are re-read
 there.
+
+## Queue plan
+
+The device open in `src/backends/vulkan/vulkan_backend.cpp` (`plan_queue`) is the one owner of a device's queue plan (`QueuePlan` in `vulkan_device.hpp`): the family its one queue comes from and the barrier form.
+The candidates (`queue_candidates`) are today's family, the first compute family without graphics, else the first compute family, then the first compute family with graphics if it is another; each takes both barrier forms.
+The full barrier orders compute and transfer writes before compute and transfer accesses at every op; the matched form records a barrier only where one is owed, from the stages used since the last one to the next command's stages (`VulkanBackend::settle`), and before a command buffer ends and before the collective's ownership barriers it records one only if one is owed, from the stages used since the last one to compute and transfer (`VulkanBackend::settle_all`).
+
+A probe (`QueueProbe`) on a throwaway device with one queue of each candidate family times, for every cell, a chain of 128 dependent tiny dispatches on one pipeline, one warm-up and three timed reps, then, for the cells within the one-pipeline limit below, a mixed chain of two pipelines, fills and copies the same way; a cell outside that limit is never chosen, so its mixed chain is not timed.
+Each cell's cost is the median over the reps of its time against the mean of today's pair (the first candidate, full barrier) timed before and after it in the same rep, so no absolute level is compared across startups or devices: absolute link costs moved about 35% between a cold card and one after benches.
+A cell other than today's pair is chosen only if its one-pipeline ratio is at most 1 + margin and its mixed ratio at most 1 - margin, the smallest mixed ratio winning (`choose_queue_plan`); with none eligible, today's pair stays.
+The mixed chain alone ranks the graphics family under the full barrier first, which lost 15% of Qwen3-0.6B Q8_0 decode on one MI50, and the one-pipeline limit rejects it.
+The margin, `kQueueMargin`, is 0.18: the widest spread of one cell's ratio over 20 startups of one MI50 under RADV, the graphics family's matched one-pipeline ratio from 0.960 to 1.140.
+Over 41 startups of the probe as it is, on four MI50s under RADV, every one chooses the graphics family with matched barriers, 0.081 inside the one-pipeline limit and 0.014 inside the mixed one at their worst, and the graphics family under the full barrier is never eligible (its one-pipeline ratio is at least 1.321).
+
+The plan is probed once per distinct device in a process, keyed by vendor, device, driver id and driver version, so identical cards probe once and two drivers over one card probe apart.
+A probe that fails keeps today's pair and says why; `--verbose` prints each device's cells, its choice and the probe's time as a `queue:` line.
+The probe takes 28.0 to 37.2 ms (median 30.6) on an MI50 with the shader cache warm and 66.7 to 86.9 ms (median 75.7) with it empty, over 20 startups each, against a bound of 50 ms: the cold time is the probe's two pipelines compiled without a cache, which no cut of the chains removes, so the bound stands and the figure is recorded (docs/STATUS.md, the queue plan).
 
 ## What the backend needs from the machine
 
@@ -149,7 +166,7 @@ option is on, one translation unit with a header per concern beside it
   `read` records a copy into staging, submits, waits, and copies out.
 - **Barriers.** A pass is a chain, so every op reads what the previous op
   wrote. The memory barrier orders compute and transfer writes before
-  subsequent compute and transfer reads or writes.
+  subsequent compute and transfer reads or writes, at once under the full form or, under the matched form, before the next command over the stages the two use (Queue plan, above).
   Tracking which buffers an op touches, to let independent dispatches
   overlap, is an optimization with its own measurement.
 - **Descriptors.** Every kernel takes a handful of storage buffer

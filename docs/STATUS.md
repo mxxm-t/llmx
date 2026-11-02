@@ -77,6 +77,40 @@ backend-rocm's decode columns of 1 to 64 rows now take 37 outputs, so each build
 - **The failing case first:** `server-resume`, `stalled_beside_prompt`: on four CPU stages of the synthetic Q8_0 model at one pass in flight and ubatch 16, capped X (400 tokens and 4) and uncapped Y (128) fill 7 blocks of 128, the last stage sleeping 50 ms a submission until the first stall; each reply must be its reply alone with a stall and no pause. Main with the test failed it 4 runs of 4 with the empty-pass error (`a request of 16 tokens was not ready, 2 active, blocks free 0 of 7`); the fix passes it.
 - **Gates:** see the gate post of 2026-11-02 in the devlog; filled at the landing head.
 - **Reviewed:** review requested from F2DEV and the coordinator; not landed.
+## The scheduler round's reuse question at a cost that does not grow with holders (2026-11-02, PDEV, branch perf/cache-round-cost on main d1686f69f, the owner's priority one of 2026-11-02)
+
+**Goal:** a request or job waiting for room costs the scheduler round little at any history length; production's 4-MI50 Qwen3.8-Flash-Next fell from 55-65 to 9-20 tok/s at 250k-315k tokens of context while a reread job waited, rounds taking 180-290 ms of server time against 30-90 ms of stage time, every gdb sample of the scheduler thread in `Cache::served`.
+
+**Cause:** `served` compared the asked tokens with every donor, host copy and boundary token by token, a boundary's rows took `holds` over every holder, and `rank` and `host_victims` asked `held_below` for each holder, which copied its history and asked `served` again, so each round of a waiting request redid holders times history, and holder pairs every round.
+
+**Done:** holders keep their tokens as `HeldTokens` (a generation no change reuses and their whole blocks' chained hashes); `served` compares tokens it is asked about with each holder by binary search over the hashes and then the answering holder token by token, asking every holder token by token where that holder shares less, so outputs are those of the token compare; two holders' shared length is remembered by generation (`Cache::common`), so `holds`, `held_below` and the ranks compare a pair once; `Stats::reuse_scans` (health `reuse.scans`) counts holders compared token by token.
+A new `server-resume` case holds it: a request waiting 900 rounds for room beside three donors sharing its prompt compares 1805 holders token by token (at most 3 a round allowed); the same tree with `served` forced token by token fails it at 5415.
+After review (2026-11-02): `Stats::reuse_scans` is an atomic the stats read from other threads; the pair memo (`PairMemo`) past its cap drops only pairs of generations no donor, host copy or boundary has and sets its cap to twice what stays, where it was wiped whole at 4096 pairs; `enter` and `prefetch` hash the asked history once for all their questions; the question is `reuse_answer` over listed holders, which `server-resume` holds to the token compare in 3000 random trials (prefixes, row classes and states on and off block edges, holders passed over, boundaries without rows, the state rule), with every block hashing to 0 and asked of a holder's own tokens, and the memo to a trimmed donor and to 20000 dead pairs beside a live one.
+The hash's mixing is unchanged: a collision costs only the token compare's fallback, which the zero-hash trials hold to the same answers.
+
+**Measured** (CPU microbench on the rig, synthetic: one conversation's 12 host copies, 6 other conversations' and 40 boundaries, kept out of the tree; per call after a warm-up, ms):
+
+| L tokens | asked + served | rank of every boundary | rank of every host copy | host_victims |
+|---|---|---|---|---|
+| 100k main | 1.082 | 0.188 | 3.971 | 4.411 |
+| 100k branch | 0.070 | 0.009 | 0.013 | 0.023 |
+| 300k main | 4.092 | 1.647 | 15.601 | 18.534 |
+| 300k branch | 0.197 | 0.008 | 0.012 | 0.022 |
+
+What is left grows with the asked history alone: its copy, its hashes and one compare, about 0.2 ms at 300k.
+
+Rounds of `host_victims` and `ranked`, the same microbench with 8 donors, after a warm-up, ms a round and holders compared token by token a round (12 rounds each, all alike):
+
+| L tokens, holders | live pairs | before review | after review |
+|---|---|---|---|
+| 300k, 8 donors, 30 host copies, 70 boundaries | 745 | 0.073-0.084 ms, 0 scans | 0.082-0.153 ms, 0 scans |
+| 300k, 8 donors, 100 host copies, 200 boundaries | 5950 | 978-998 ms, about 8480 scans | 0.97-1.05 ms, 0 scans |
+
+At the asked shape the live pairs stay under the old cap, so neither wipes; past it the old memo was wiped inside every round and recomputed about 8480 pairs, which the pruned memo keeps.
+
+**Gates:** on the rig, CPU, in the same image, the tree after review: CTest 78 of 78 pass; `server-resume`, `server-resume-cache`, `server-passes`, `server-passes-cpu`, `cache-scenario`, `cache-scenario-production`, `image-cache` and `kv-cache` pass 5 runs each; `docs` and `dead-code` pass; Qwen3-0.6B Q8_0 `generate --temp 0 -n 128` gives main's text byte for byte; `tools/server_mix_check.py` on Qwen3-0.6B Q8_0 passes with every phase's ids byte-equal to main's; the new trials fail with the fallback taken out (every block hashing to 0 gave 48 tokens against the token compare's 16). The `--uncapped` mix check and the CPU suite were still running at the push on a machine at load 34 of 16 CPUs (`/zpool1/llmx-pdev/gates-b2.log`); main's own `--uncapped` run in the same conditions ended with requests 7 to 11 getting error events in place of tokens, so that phase is load-bound there and is read against main.
+
+**Left:** a production measurement once landed; the reread job's room rule is SDEV-C's fix/reread-job-room, which touches `prefetch` apart from this change.
 
 ## Dashboard RoPE configuration (2026-11-02, XDEV)
 

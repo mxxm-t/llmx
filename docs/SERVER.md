@@ -345,6 +345,7 @@ A first admission of a prompt of 4096 tokens or more (`kMissTokens`) that forks 
 - **The limit.** `tokens`: the closest history differs at P, in its first block where P is under a block. `classes`: its rows were computed in other row classes from A. `state`: on a model that keeps a recurrent state, a history is forked only at a state it keeps, its checkpoint, a host entry's end or a boundary of the same tokens, and the furthest within the agreement is at A. `room`: the history held A rows the turn could have forked but did not, given up for room or out of the source's reach.
 - **K.** On the chat routes the message the difference falls in, from the end tokens' positions alone (`Api::message_spans`, no render); where a conversation has fewer end tokens than messages, as where tool results share one, and on `/v1/completions`, none.
 - **Health.** `reuse.misses`: `since_start`, the count, and `last`, the last one's `prompt`, `reused`, `agreed`, `limit`, `at`, `message` (counted from 1), `messages` and `role`, or null before the first.
+  `reuse.scans.since_start` counts the holders the reuse question compared token by token (`Stats::reuse_scans`); the others it compares by their blocks' hashes or by the length two holders were found to share, so it grows by about two a round while a request waits for room.
 
 ### Log-probabilities
 
@@ -671,7 +672,8 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
              "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
                              "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
     "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}},
-    "misses": {"since_start": 1, "last": {"prompt": 222191, "reused": 0, "agreed": 221984, "limit": "state", "at": 0, "message": 71, "messages": 72, "role": "assistant"}}
+    "misses": {"since_start": 1, "last": {"prompt": 222191, "reused": 0, "agreed": 221984, "limit": "state", "at": 0, "message": 71, "messages": 72, "role": "assistant"}},
+    "scans": {"since_start": 5120}
   },
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
   "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},

@@ -1,5 +1,80 @@
 # llmx - Development Status
 
+## ROCm many users (2026-11-03, DDEV, branch perf/rocm-many-users on main 7a46dd672, after perf/rocm-f16-decode-dot landed; DDEV's proposal of 02:28 and F2DEV's review of 02:30)
+
+**Goal:** ROCm decode of 2 to 16 sequences nearer Vulkan's on one MI50; on main Qwen3-8B Q8_0 int8 x16 gave 311 tok/s against Vulkan's 551, and the 0.6B 1579 against 2867.
+**Cause** (rocprofv3 kernel trace against Vulkan's profile, Qwen3-8B and 0.6B Q8_0, 16-token prompts and 32 tokens, rig `ddev/rocm/p82`): launches per step and their gaps were level with Vulkan's at 8B; the time was in the row builds, which reduced every (row, column) by its own six-level wave sum, R * C * 6 shuffles a wave, more than the products on the 0.6B's short rows.
+**Done:** every row build reduces its R * C sums by one transposed xor tree (`wave_sums` in `kernels/int16.hip`), each level halving the values a lane holds, own plus partner as the butterfly adds them, so every sum keeps its bits; each sum is written by its own lane, which takes its row's output from the wave's rows held in scalar registers, never reading the call's arguments again.
+A 32-lane wave (gfx1151, compile coverage) folds the int8 class's 64-sum sixteen-column builds in two parts of 32, each part the same tree, so `warpSize / NV` is never 0; on a 64-lane wave that branch folds away.
+A build of one column group issues its weights' and twin's loads before a scheduling barrier: without it the compiler put the scale loads behind a wait on the twin's, which cost the one-column F16 build 11% and the four-column build 22% on the 8B; the wider builds keep their order, which measured 3 to 5% faster for them than the barrier.
+F16's sixteen-column build loads its twin four columns at a time, where it took eight: per call on the gate and up projections 757 against 829 us on the 8B (main 776) and 1297 against 1335 on the 14B (main 1400), one group of sixteen 1801 (rocprofv3, renderD131, rig `ddev/rocm/p94`).
+The half-block order takes sixteen columns in one launch at four rows a wave (127 VGPRs on the dot module, two waves a SIMD), where it took two launches of eight.
+Rows a wave follow the call's rows (`row_build`, replacing the fixed `waves_rows` table): the builds of two to eight columns take four rows once a call launches the profile's `row_four_waves_per_cu` (8) waves a compute unit at four rows and two below it; F16's one- and sixteen-column builds take two at every count, the int8 builds of sixteen columns four, the int8 quarter layout's one-column build two, and the half-block order's one-column build keeps its stepped one-row build; only those builds are compiled.
+**Sweep** (rocprofv3, renderD131, synthetic Q8_0 rows 1024 to 12288, widths 1024, 3072, 4096 and 12288 and for the int8 quarter layout 1312, 3104, 4128 and 12320, 1 to 16 columns, every build at R 1, 2 and 4, 20 calls each, rig `ddev/rocm/rsw1` and `rsw2`): a threshold from 1.5 to 3 waves a SIMD keeps every pair within 0.0 to 1.7% of the best R summed over its cells, 4 or more loses 1 to 4%, so the profile takes 2 a SIMD; four rows at F16's sixteen columns lose 10 to 35% at every count and two rows at int8's lose up to 45%; the int8 two-column builds took one row, 7.7% (half-block order) and 18.4% (quarter layout) over the best.
+**Measured per launch** (us, rocprofv3, Qwen3 Q8_0 decode, renderD131, main / branch / Vulkan from p82, rig `ddev/rocm/p83`, `p86`, `p87`):
+
+| model, class, call | main | branch | Vulkan |
+|---|---:|---:|---:|
+| 8B int8 x16 gate+up | 2 x 302 | 500 | 304 |
+| 8B int8 x16 o+down | 2 x 116 | 210 | 131 |
+| 8B int8 x8 gate+up | 296 | 261 | - |
+| 0.6B int8 x16 qkv | 2 x 43 | 44 | 27 |
+| 0.6B int8 x4 gate+up | 26.8 | 17.8 | 17.0 |
+| 8B f16 x16 gate+up | 770 | 750 | 584 |
+| 0.6B f16 x16 gate+up | 106.6 | 59.6 | - |
+
+**Gate of the reviewed head** (c4189113b on main 044ca1305; renderD131, default clocks, main 044ca1305 and the branch at 12fa97173 built alike from tarballs, Vulkan built from main, the head differing from 12fa97173 only in comments; `bench --p 16`, tg128 for one sequence, tg64 for 4 and 8, tg32 for 16, total tok/s, one round of three runs an arm, host load average 6 to 14; rig `ddev/rocm/g88`):
+
+| model, class, sequences | main | branch | Vulkan | branch / main |
+|---|---:|---:|---:|---:|
+| Qwen3-8B Q8_0 int8 x1 | 81.6 | 81.5 | 77.9 | 1.00 |
+| Qwen3-8B Q8_0 int8 x4 | 252.8 | 259.9 | 272.9 | 1.03 |
+| Qwen3-8B Q8_0 int8 x8 | 304.0 | 363.0 | 438.7 | 1.19 |
+| Qwen3-8B Q8_0 int8 x16 | 309.1 | 351.6 | 546.4 | 1.14 |
+| Qwen3-8B Q8_0 f16 x1 | 68.9 | 66.6 | 76.6 | 0.97 |
+| Qwen3-8B Q8_0 f16 x4 | 167.6 | 200.2 | 238.9 | 1.19 |
+| Qwen3-8B Q8_0 f16 x8 | 210.6 | 263.2 | 310.5 | 1.25 |
+| Qwen3-8B Q8_0 f16 x16 | 216.8 | 235.0 | 323.8 | 1.08 |
+| Qwen3-14B Q8_0 int8 x1 | 43.1 | 42.7 | 40.0 | 0.99 |
+| Qwen3-14B Q8_0 int8 x4 | 149.8 | 155.4 | 148.5 | 1.04 |
+| Qwen3-14B Q8_0 int8 x8 | 176.6 | 223.4 | 248.7 | 1.27 |
+| Qwen3-14B Q8_0 int8 x16 | 180.8 | 215.4 | 309.4 | 1.19 |
+| Qwen3-14B Q8_0 f16 x1 | 39.7 | 37.3 | 37.7 | 0.94 |
+| Qwen3-14B Q8_0 f16 x4 | 100.2 | 119.5 | 125.4 | 1.19 |
+| Qwen3-14B Q8_0 f16 x8 | 131.9 | 149.2 | 160.1 | 1.13 |
+| Qwen3-14B Q8_0 f16 x16 | 133.7 | 122.0 | 168.8 | 0.91 |
+| Qwen3-0.6B Q8_0 int8 x1 | 279.5 | 285.3 | 387.2 | 1.02 |
+| Qwen3-0.6B Q8_0 int8 x4 | 788.0 | 1057.8 | 1283.0 | 1.34 |
+| Qwen3-0.6B Q8_0 int8 x8 | 1166.1 | 1607.0 | 2091.3 | 1.38 |
+| Qwen3-0.6B Q8_0 int8 x16 | 1406.1 | 2091.0 | 2776.9 | 1.49 |
+| Qwen3-0.6B Q8_0 f16 x1 | 309.5 | 295.4 | 378.7 | 0.95 |
+| Qwen3-0.6B Q8_0 f16 x4 | 604.7 | 947.4 | 1172.5 | 1.57 |
+| Qwen3-0.6B Q8_0 f16 x8 | 1109.3 | 1316.3 | 1835.6 | 1.19 |
+| Qwen3-0.6B Q8_0 f16 x16 | 1158.2 | 1834.2 | 2048.1 | 1.58 |
+
+The reference HIP build's tg128 at 8-bit activations on the same card: 8B 71.65, 14B 42.45, 0.6B 326.5 tok/s; it has no multi-sequence bench on the rig, so the cells of 4 to 16 sequences have no reference beside them.
+The one-sequence F16 cells were noisy in that round; an ABAB recheck (rig `ddev/rocm/g88b`, medians main / branch) gave 14B f16 x1 38.8/35.8 (-7.7%) and 14B f16 x16 130.7/128.4, which F2DEV's review of 05:02 sent back with a wave32 fault in the 64-sum builds.
+**Review fixes** (F2DEV, 2026-11-03 05:02): (1) on a 32-lane wave the int8 sixteen-column builds hold 64 sums, so `warpSize / NV` was 0; `store_sums` now folds them in parts of 32 where the target may run 32-lane waves, decided at compile time (`kWave64`, gfx9), and `wave_sums` asserts at most 64 values; a runtime `warpSize` test instead kept the dead path's registers (half8_16 129 VGPRs on the dot module, one wave a SIMD, 8B int8 x16 198 against 352 tok/s, rig `ddev/rocm/g90`); gfx1151 compiles in the build.
+(2) The writer lanes found their row's output by `row_of` on a lane's own row, a vector read of the call's arguments and a dependent load on every row pair; they now take it from the wave's rows in scalar registers by a loop over them.
+A rotated recheck (rig `ddev/rocm/g91`, three rounds, main 6f7698b07 / fix / reviewed head) then gave 14B f16 x1 39.2/39.2/39.7, 8B 69.2/67.8/67.3 and 0.6B 358.6/375.9/369.3: the reviewed head too was level this time, so g88b's -7.7% did not reproduce; issuing the one-column build's weights before its twin loads lost 11 to 15%.
+**Timing round of the fixed head** (renderD131, default clocks, main 7a46dd672 and dc1a5923e built alike from tarballs, `--version` 0.1.0+unknown both, sha256 bf6a4c6a048b4ff6 / 46b5dfb1d845ec23; three rotated rounds, medians, tg128 for one sequence, tg64 for 4 and 8, tg32 for 16, host load average 11 to 14; rig `ddev/rocm/g93`):
+
+| model, class, sequences | main | branch | branch / main |
+|---|---:|---:|---:|
+| Qwen3-0.6B Q8_0 f16 x1 | 383.0 | 380.2 | 0.99 |
+| Qwen3-8B Q8_0 f16 x1 | 71.7 | 71.2 | 0.99 |
+| Qwen3-14B Q8_0 f16 x1 | 40.2 | 40.2 | 1.00 |
+| Qwen3-0.6B Q8_0 f16 x16 | 1243.2 | 1919.5 | 1.54 |
+| Qwen3-8B Q8_0 f16 x16 | 231.7 | 261.3 | 1.13 |
+| Qwen3-14B Q8_0 f16 x16 | 140.8 | 149.8 | 1.06 |
+| Qwen3-0.6B Q8_0 int8 x4 | 1010.3 | 1313.6 | 1.30 |
+| Qwen3-14B Q8_0 int8 x8 | 178.4 | 224.8 | 1.26 |
+| Qwen3-8B Q8_0 int8 x16 | 309.5 | 359.2 | 1.16 |
+
+**Identity** (rig `ddev/rocm/g92`, dc1a5923e against main 7a46dd672): device byte identity on Qwen3-8B Q8_0 (256 tokens), Qwen3-14B Q8_0 (128) and Qwen3-0.6B Q8_0 (256) at f16 and int8, the 0.6B 16k raw and chat-template sequences at f16 and int8, and Qwen3-0.6B Q8_0 on the CPU, eleven lines identical; backend-rocm passes; CTest 80/80; the suite's baseline, server, split, f32, threads and perf on rocm:0 pass; docs and dead-code clean; the head differs from dc1a5923e only in this block.
+**Left:** F2DEV's diff-only re-review, the hosted run, landing by fast-forward; launch gaps on the 0.6B (2.6 us a launch at one sequence, 20% of a step) are step 4 of the plan, not built.
+**Gotchas:** the compiler's schedule of the one-group builds moves with unrelated changes to the kernel's epilogue; check `s_waitcnt` placement in the disassembly (the loads of a step before any wait) after any change there. Vulkan stays ahead at sixteen sequences on the 8B's gate and up (500 against 304 us): four rows of sixteen columns hold two waves a SIMD. A build of more than 32 sums must fold them in parts on a target that may run 32-lane waves, and that choice must be made at compile time: a runtime test on the wave's width keeps the dead path's registers, and one VGPR past 128 halves the waves a SIMD.
+
 ## ROCm wide decode rows (2026-11-02, DDEV, branch perf/rocm-f16-decode-dot on main 672b6d998, after perf/rocm-decode-run-launch landed; the coordinator's ask of 11:5x after DDEV's p74 FINDING)
 
 **Goal:** ROCm decode of 4 to 16 sequences nearer Vulkan's on one MI50; after perf/rocm-decode-run-launch, Qwen3-8B Q8_0 gave f16 x16 142 tok/s against Vulkan's 313, int8 x16 246 against 520.

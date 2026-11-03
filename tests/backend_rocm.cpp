@@ -510,6 +510,30 @@ void twin_products(Backend& g, Dtype dt) {
         require(added, form + ": every decode column of the residual add at 1 to 64 rows is the column alone, bit for bit");
         require(grouped, form + ": every decode column of a group of three projections at 1 to 64 rows is the column alone, bit for bit");
     }
+    // A row gives the same bits whatever rows a wave the call's output count takes: the first 37 rows of one matrix in calls of 37 to 16384 outputs, at 1 to 16 columns in one launch, 1280 wide and 1312 (the int8 quarter layout).
+    {
+        const size_t big = 16384, head = 37, cols = 16;
+        bool same = true;
+        for (size_t w : {size_t(1280), size_t(1312)}) {
+            const std::vector<uint8_t> mw = q8_matrix(w, big, 67);
+            const std::vector<float> xw = row_classes::values(w * cols, 68);
+            auto mwb = g.adopt(mw.data(), mw.size()), xwb = g.adopt(xw.data(), xw.size() * 4), yw = g.alloc(big * cols * 4);
+            const WeightView wv{quant::GGML_TYPE_Q8_0, {mwb.get(), 0}};
+            for (size_t n = 1; n <= cols; ++n) {
+                const RowRun run[1] = {{n, 1}};
+                std::vector<float> first;
+                for (size_t nout : {head, size_t(1024), size_t(2048), size_t(3072), size_t(4096), size_t(6144), size_t(8192), size_t(12288), big}) {
+                    g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {run, 1}, dt);
+                    const std::vector<float> y = read(g, *yw, nout * n);
+                    std::vector<float> rows;
+                    for (size_t r = 0; r < n; ++r) rows.insert(rows.end(), y.begin() + r * nout, y.begin() + r * nout + head);
+                    if (first.empty()) first = rows;
+                    same = same && std::memcmp(rows.data(), first.data(), rows.size() * 4) == 0;
+                }
+            }
+        }
+        require(same, form + ": a decode row gives the same bits in calls of 37 to 16384 outputs, whatever rows a wave they take, at 1 to 16 columns");
+    }
     // A decode group of three different projections in one launch gives each projection's own call, bit for bit; 1248 wide takes the int8 quarter layout.
     {
         const size_t outs[3] = {41, 104, 63};

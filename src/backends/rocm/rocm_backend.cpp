@@ -118,7 +118,7 @@ public:
         dev_.profile = profile_for(dev_.caps);
         // The prompt tiles and the row builds of four columns and more take the dot where there is one; the narrower quarter-layout builds measured faster on the plain module (docs/STATUS.md, ROCm wide decode rows).
         for (size_t k = 0; k < kKernels; ++k) {
-            const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows8x1 || k == kRows8x2 || k == kTileReduce;
+            const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows16x2r4 || k == kRows8x1 || k == kRows8x2 || k == kRows8x2r4 || k == kTileReduce;
             const hipModule_t m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
@@ -597,9 +597,9 @@ private:
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major,
-                  kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
-                  kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kTile16Tall, kTile8Tall, kKernels };
+                  kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
+                  kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
+                  kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -609,10 +609,12 @@ private:
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
                                                            "llmx_twin16_major", "llmx_twin8_major", "llmx_q8_0_rows16_1",
-                                                           "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
-                                                           "llmx_q8_0_tile16", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
-                                                           "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce",
-                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
+                                                           "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
+                                                           "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
+                                                           "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
+                                                           "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1",
+                                                           "llmx_q8_0_half8_2", "llmx_q8_0_half8_2_r4", "llmx_q8_0_half8_4", "llmx_q8_0_half8_4_r4", "llmx_q8_0_half8_8",
+                                                           "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
@@ -874,7 +876,7 @@ private:
         const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
         return std::min(kper, nblk);
     }
-    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time and eight in the half-block order, a prompt's rows on the tile.
+    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
     // Without runs a call of one row is a generated row and any other a prompt's.
     void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
         const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
@@ -910,9 +912,7 @@ private:
             for (size_t at = begin; at < end;) {
                 // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
                 const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
-                // The half-block order takes eight columns a launch: sixteen in one launch measured slower than two launches of eight (docs/STATUS.md, ROCm wide decode rows).
-                const size_t width = form == 2 ? 8 : kColumns;
-                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, width) : end - at;
+                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
                 size_t first = 0;
                 unsigned xrow = 0, xblock = 0;
                 map.locate(at, first, xrow, xblock);
@@ -932,14 +932,9 @@ private:
                     int ncols = (int)rows;
                     void* args[] = {&c, &q, &d, &ni, &ncols, &add};
                     const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                    // The half-block order has no sixteen-column build, its width being eight.
-                    static constexpr Kernel builds[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
-                                                            {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
-                                                            {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x8}};
-                    // Output rows a wave takes, R of each kernel build (kernels/int16.hip), so a twin load serves that many rows.
-                    static constexpr size_t waves_rows[3][5] = {{2, 2, 2, 2, 2}, {1, 1, 2, 2, 2}, {1, 1, 4, 2, 2}};
-                    const size_t per = waves_rows[form][build] * rows_per_block_;
-                    launch(builds[form][build], (unsigned)((c.total + per - 1) / per), 1, args);
+                    const RowBuild rb = row_build(form, build, c.total);
+                    const size_t per = rb.rows * rows_per_block_;
+                    launch(rb.kernel, (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
                     tile(proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
@@ -952,6 +947,24 @@ private:
         record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
         for (size_t pi = 0; pi < nproj; ++pi)
             if (kept_.x && proj[pi].y < kept_.x + kept_.values && kept_.x < proj[pi].y + proj[pi].nout * nbatch) kept_ = {};
+    }
+    // A row kernel build and the output rows a wave of it takes, R, so a twin load serves that many rows (kernels/int16.hip).
+    struct RowBuild {
+        Kernel kernel;
+        size_t rows;
+    };
+    // The build of a form and column count for a call of `total` rows: the four-row build once its waves give each compute unit row_four_waves_per_cu, else the two-row one.
+    // A row keeps its lanes and order in every build, so the choice changes no bits; the sweep behind it is in docs/STATUS.md (ROCm many users).
+    RowBuild row_build(int form, int build, size_t total) const {
+        static constexpr Kernel two[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
+                                             {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
+                                             {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
+        static constexpr size_t two_rows[3][5] = {{2, 2, 2, 2, 2}, {2, 2, 2, 2, 4}, {1, 2, 2, 2, 4}};
+        static constexpr Kernel four[3][5] = {{kKernels, kRows16x2r4, kRows16x4r4, kRows16x8r4, kKernels},
+                                              {kKernels, kRows8x2r4, kRows8x4r4, kRows8x8r4, kKernels},
+                                              {kKernels, kHalf8x2r4, kHalf8x4r4, kHalf8x8r4, kKernels}};
+        if (four[form][build] != kKernels && total / 4 >= size_t(dev_.profile.row_four_waves_per_cu) * dev_.caps.compute_units) return {four[form][build], 4};
+        return {two[form][build], two_rows[form][build]};
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     // The twin's rows lie `xrow` blocks apart and a row's blocks `xblock` apart (TwinMap).

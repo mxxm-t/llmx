@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
+#include "group_sums.hpp"
 #include "core/host_memory.hpp"
 #include "backends/vulkan/vulkan_backend.hpp"
 #include "model/kv_cache.hpp"
@@ -4771,6 +4772,11 @@ size_t check_collective(const backend::BackendPtr& first) {
         }
     };
     sums(members, *sum, width, {1, 7, 64, 64, 7, 1});
+    // The oracle each backend's collective is held to on the same inputs (group_sums.hpp), so the ROCm collective's bytes are these: signed zeros, tails and an unaligned residual.
+    {
+        std::unique_ptr<backend::Collective> shared = first->join(members, 64, 97);
+        checks += group_sums::check(members, *shared, 97, {1, 3, 64}, 101, [](bool ok, const std::string& what) { require(ok, what.c_str()); });
+    }
     // Summed in place, each member's partial rows become the sum in member order, at the width made for and at a quarter of it.
     auto in_place = [&](const std::vector<backend::Backend*>& group, backend::Collective& c, size_t wide, std::initializer_list<size_t> counts) {
         const size_t W = group.size();

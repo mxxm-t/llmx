@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Radeon tiled-attention pairing test control (2026-11-03, test-only cherry-pick e71dad0cc on published main d3a652cf9, branch fix/attention-pair-policy-20261103)
+
+**Cause:** `tile_split_cap_checks` forced `compute_units` to select the attention pairing, then left that fake value active during the following Q8_0 projection of the attention output. The projection could therefore use different tile/reduction geometry across the equality arms. The test now overrides the capability only for attention and restores the real value before Q8_0 matmul. It retains strict byte-for-byte equality for the complete outputs. No runtime code changed.
+
+**Evidence:** a clean Radeon VII build at published main `d3a652cf9d7c1477e6d456d74d8d1d4a5d44aadf` reproduced `tiled attention 100 rows after 2118 tokens, whole and cut into pieces of one tile, one and two rows a lane: differs`. The corrected test passes on the patch branch under the same Radeon VII environment. The 20,000-token/1252-part double-reference case remained within `1e-4`, with its short-prompt identity check passing. Retained pretest counters (`scratch/q2-attention-main-control-20261103/gpu-postpatch-pretest-summary.json`) show Radeon VII max engine use 0.495%, dedicated usage 1,380,859,904 bytes, and local usage 452,861,952 bytes; free VRAM was not recorded. This is local Radeon evidence, not MI50 coverage.
+
+**Checks:** `vulkan-lifetime` passes on the corrected test (25.54 s); `dead-code` passes with 8 known findings and 19 planted faults, and `docs` passes with zero findings and 21 planted faults. These focused checks used the fresh local Windows Vulkan build.
+
+**Hosted validation:** the scoped Vulkan job `125854912591` in GitHub run `41617620774` passed at `b9ed033f424c07b7ca3cfbe32dd6ca7a406e9c5b`. The final documentation update records that result and clarifies the Q8 projection control in `docs/TESTS.md`; the tested source is unchanged. This is a test-only correction, with no Q2 runtime changes and no claim of Q2 performance, model or HF qualification. The change lands by fast-forward after final documentation checks; the merge adds no commit.
+
 ## ROCm many users (2026-11-03, DDEV, branch perf/rocm-many-users on main 7a46dd672, after perf/rocm-f16-decode-dot landed; DDEV's proposal of 02:28 and F2DEV's review of 02:30)
 
 **Goal:** ROCm decode of 2 to 16 sequences nearer Vulkan's on one MI50; on main Qwen3-8B Q8_0 int8 x16 gave 311 tok/s against Vulkan's 551, and the 0.6B 1579 against 2867.

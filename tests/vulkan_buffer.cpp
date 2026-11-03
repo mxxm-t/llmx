@@ -2169,10 +2169,15 @@ int tile_split_cap_checks() {
     for (size_t blk = 0; blk < 32 * (qw / 32); ++blk) { w8[blk * quant::Q8_0_TYPESIZE] = 0x00; w8[blk * quant::Q8_0_TYPESIZE + 1] = 0x20; }
     auto w = b.adopt(w8.data(), w8.size());
     const std::vector<backend::RowRun> run{{nq, nq}};
+    const auto dev = backend::VulkanLifetimeTest::device(b);
+    const uint32_t units = dev->caps.compute_units;
     // The output, then a Q8_0 projection of it, which reads the output's twin where the call wrote one.
-    auto once = [&]() {
+    auto once = [&](uint32_t attention_units) {
         auto y = b.alloc(nq * qw * sizeof(float), backend::Memory::device), p = b.alloc(nq * 32 * sizeof(float), backend::Memory::device);
+        dev->caps.compute_units = attention_units;
         b.attention({q.get(), 0}, 0, &v, 1, {y.get(), 0}, n_head, n_head_kv, head_dim);
+        // Keep the projection's tile and reduction geometry fixed while varying attention pairing.
+        dev->caps.compute_units = units;
         b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {y.get(), 0}, {p.get(), 0}, qw, 32, nq, backend::RowRuns{run.data(), run.size()});
         std::vector<float> out(nq * qw + nq * 32);
         b.read(*y, 0, out.data(), nq * qw * sizeof(float));
@@ -2180,18 +2185,14 @@ int tile_split_cap_checks() {
         return out;
     };
     // Each run with one row a lane and with two, forced through the compute units the pairing rule reads; the last workgroup's second tile holds 4 live rows.
-    const auto dev = backend::VulkanLifetimeTest::device(b);
-    const uint32_t units = dev->caps.compute_units;
     const size_t cap = backend::VulkanLifetimeTest::attention_scratch_cap(b);
     std::vector<std::vector<float>> runs;
     for (uint32_t u : {uint32_t(1) << 30, uint32_t(1)}) {
-        dev->caps.compute_units = u;
-        runs.push_back(once());
+        runs.push_back(once(u));
         backend::VulkanLifetimeTest::attention_scratch_cap(b, 1);
-        runs.push_back(once());
+        runs.push_back(once(u));
         backend::VulkanLifetimeTest::attention_scratch_cap(b, cap);
     }
-    dev->caps.compute_units = units;
     bool same = true;
     for (const auto& r : runs) same = same && std::memcmp(runs[0].data(), r.data(), r.size() * sizeof(float)) == 0;
     std::cout << "tiled attention " << nq << " rows after " << hist << " tokens, whole and cut into pieces of one tile, one and two rows a lane: " << (same ? "same bytes PASS\n" : "differs FAIL\n");

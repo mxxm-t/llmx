@@ -27,6 +27,42 @@ The final tree carries only documentation changes after the tested runtime. It l
 
 **Hosted validation:** the scoped Vulkan job `125854912591` in GitHub run `41617620774` passed at `b9ed033f424c07b7ca3cfbe32dd6ca7a406e9c5b`. The final documentation update records that result and clarifies the Q8 projection control in `docs/TESTS.md`; the tested source is unchanged. This is a test-only correction, with no Q2 runtime changes and no claim of Q2 performance, model or HF qualification. The change lands by fast-forward after final documentation checks; the merge adds no commit.
 
+## ROCm tensor groups: the collective (2026-11-03, DDEV, branch feat/rocm-collective on main d36458312; docs/ROCM.md step 4, DDEV's proposal of 08:12 approved by F2DEV at 08:20 with six changes; gated, F2DEV's CHANGES (1) of 14:15 applied)
+
+**Goal:** tensor groups on ROCm through the one `Collective` interface, on the one-shot peer-write algorithm of the proposal, with the bytes of the Vulkan collective; ROCm `join` returned nothing before, so a ROCm tensor group was refused.
+**Done:** `rocm_collective.hpp` implements `partial`, `sum_into`, `sum_in_place` and `wait` (docs/src/backends-rocm.md), with F2DEV's six changes: the second meeting kept and two sums in flight tested with `wait(1)`; an atomic abort-word load and a one-second wait on the device's wall clock; a sum that gives up leaves NaN, throws once on its backend and turns the collective conservative for every later sum; epochs skip 0 on the wrap, tested from 0xfffffffc; the Vulkan sum's order held to one oracle with signed zeros, tails and residuals (`tests/group_sums.hpp`, shared with `backend-vulkan`); an acquire fence for every thread after each meeting; the signal block in `scratch_reserve`; no fine-grain prerequisite, `join` probing each group once and printing fast or conservative and why.
+Every launch now makes its device current, since HIP finds a module's function through it; without it a second device's launch failed with hipErrorInvalidHandle. `wrap_host` registers host memory for the head group's logits rows, and so the loader streams ROCm weights through its read ring's registered pages as it does Vulkan's.
+Its first form took the contract's lifetime wrong: a dropped view's `hipHostUnregister` waited in the graves past the caller's free, HIP keys a registration by address, so the next memory mapped there read as already registered and was taken as a view of the stale registration (a single-device `generate` faulted the GPU on a copy out of it), and a view of memory another device registered lost it when that device's view dropped (`--tensor-width 4` aborted in HIP, "Memobj map does not have ptr").
+Now one registration per address counts its views across devices, the last view dropped waits for its stream and unregisters at once, and a second span at a registered address is refused, so the caller writes through staging (`backend-rocm`'s `host_views`); HIP takes a second registration of a span and drops it at one unregister, so the count must be the backend's.
+**Measured** (rig `ddev/ar/out/gall` at 4d8d358ce and `out/gfin` at 1c1546dcb, renderD129,130,134,135, MI50, default clocks, one harness and image, HIP libraries of the reference's closure, 20 KiB sum, one call timed to every rank's completion, 120 warmups, 100 calls, three interleaved rounds; us p50 / p95):
+
+| Width | reference (fine-grain set) | llmx, fine-grain set | llmx, unset |
+| --- | --- | --- | --- |
+| W2 | 41.0-41.1 / 43.1-43.4 | 32.7-33.9 / 45.3-48.4 | 32.0-34.4 / 34.0-50.6 |
+| W4 | 76.9-77.5 / 78.6-81.5 | 70.2-75.9 / 97.0-125.4 | 67.1-70.5 / 72.3-108.0 |
+
+Gate g100/g101 at the rebased head (rig `ddev/ar/out/g100`, `g101`, renderD129,130,134,135, MI50, default clocks, no dmesg event in any phase): the single-device `generate` that faulted runs clean; backend-rocm passes on four MI50s (fast at widths 2, 3 and 4, conservative, two sums in flight, a sum whose peer never launched giving up in 1.0001 s, the epoch wrap, wrap_host, `host_views`); CTest; docs and dead-code clean.
+Qwen3-8B Q8_0, 256 greedy tokens: ROCm at widths 1, 2 and 4 and Vulkan at widths 1, 2 and 4 give the same bytes.
+Qwen3-8B Q8_0, `bench --p 512 --n 128`, tok/s, two rounds:
+
+| Arm | pp512 | tg128 |
+| --- | --- | --- |
+| main ROCm, one device | 866.9 / 866.0 | 71.13 / 71.10 |
+| branch ROCm, one device | 863.8 / 863.4 | 70.67 / 71.15 |
+| branch ROCm, width 2 | 1467.5 / 1470.4 | 103.76 / 103.64 |
+| branch ROCm, width 4 | 850.7 / 851.1 | 116.11 / 116.74 |
+| Vulkan, one device | 832.8 / 835.4 | 77.44 / 77.55 |
+| Vulkan, width 2 | 1190.9 / 1190.8 | 90.95 / 92.87 |
+| Vulkan, width 4 | 1306.8 / 1310.6 | 72.25 / 75.42 |
+
+The loader's registered path on one ROCm device against main's staging, same runs: read 1.60/1.57 s and upload 1.06/1.15 s against read 1.20/1.07 s and upload 2.07/1.91 s, so 2.66/2.72 s against 3.27/2.98 s, and it is kept.
+**Left:**
+1. ROCm width 4 prefill (851 tok/s) is below width 2 (1470) and Vulkan width 4 (1309): profile the prompt's sums at width 4 against width 2 with rocprofv3 (`ddev/ar/gprof2.sh`).
+2. F2DEV's two added checks (one view dropped then a copy through the other; member 0 dropped then member 1 copying and the last drop unregistering) pass on the branch and on the unfixed tree too: HIP 7.2 copies through memory a dropped view unregistered as pageable memory, so only the second-span check fails there; the fault itself needs freed memory remapped under a stale registration, which faults the GPU, so no test provokes it.
+3. F2DEV's note (not blocking): dropping a registered view waits for its whole stream under the graves lock; waiting only for the view's last copy would do.
+4. Open single-call cells (first support): p95 at W2 and W4 and p50 at W4 with the fine-grain setting against the reference; recovery is step 6: one sum per replayed graph, concurrent member launches, and the meetings' cost, measured in the same harness with kernel timestamps against host time.
+**Gotchas:** a fast sum's two phases must take the same units in the same blocks, or a block's meeting does not cover the rows it reads (the prototype's reduce took other units than its push); each member's zero fill of its signals must finish before any peer signals into them, so the collective drains its members once it is made; `sync` and the collective's `wait` record without the failure check (`record`), so a group fault is never swallowed.
+
 ## ROCm many users (2026-11-03, DDEV, branch perf/rocm-many-users on main 7a46dd672, after perf/rocm-f16-decode-dot landed; DDEV's proposal of 02:28 and F2DEV's review of 02:30)
 
 **Goal:** ROCm decode of 2 to 16 sequences nearer Vulkan's on one MI50; on main Qwen3-8B Q8_0 int8 x16 gave 311 tok/s against Vulkan's 551, and the 0.6B 1579 against 2867.

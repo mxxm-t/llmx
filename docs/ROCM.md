@@ -344,6 +344,11 @@ Test failures in isolated processes with bounded supervision; never reset shared
 test-system devices to recover a test. Select fallback before launch. Do not attempt to
 switch algorithms after some members have entered a barrier.
 
+The backend's collective (`src/backends/rocm/rocm_collective.hpp`, [backends-rocm](src/backends-rocm.md)) is the one-shot candidate: each member's kernel pushes its partial rows into every peer's uncached staging, meets its peers on device signals with a second meeting after the sum, and adds the rows in member order as the Vulkan collective does, so the two give the same bytes on the same inputs.
+Its conservative path pulls the peers' rows behind cross-stream events and adds them with the same kernel in the same order.
+`join` probes each group once, every directed pair's peer access and one fast sum of known rows, without the fine-grain setting, and reports fast or conservative and why on stderr; a fast sum that gives up after a second of the device clock leaves NaN, throws once on its backend and turns that collective conservative for good.
+The single-call timing against the reference is an open gate recorded in [STATUS](STATUS.md), with step 6 (one sum per replayed graph, barrier tuning, concurrent member launches) as its recovery.
+
 Keep actual wire precision in the evidence. mx can use BF16 RCCL reductions on
 large messages; matching its int8 matrix inputs does not make those collectives
 the same precision. That conversion is mx policy, not an RCCL requirement.

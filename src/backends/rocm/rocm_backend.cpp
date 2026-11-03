@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstring>
 #include <exception>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -37,8 +38,10 @@ constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
 constexpr size_t kEvents = 1024;           // tickets in flight before a submission waits for the oldest
 constexpr size_t kRingSlots = 4;           // a host ring's slots, each reused once the submission that last read it retires
 constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
+constexpr size_t kGroupSignalBytes = 4096;  // a group member's signal block before its staging (kernels/f32.hip, GroupSignal)
 
 class RocmBackend;
+class RocmCollective;
 
 // A free that fails has nothing left to act on.
 void free_memory(void* p, bool host) {
@@ -46,14 +49,51 @@ void free_memory(void* p, bool host) {
     (void)(host ? f.hipHostFree(p) : f.hipFree(p));
 }
 
+// Host memory wrap_host registered with HIP, which registers an address once for every device and drops it at one unregister however often it was registered: each view counts, and the last one dropped unregisters it.
+// HIP keys a registration by address, so one that outlived the caller's memory would be taken for the next memory mapped there, its pages long gone.
+struct Registrations {
+    std::mutex m;
+    std::map<void*, std::pair<size_t, size_t>> held;   // bytes and views of each address
+};
+Registrations& registrations() {
+    static Registrations r;
+    return r;
+}
+
+// Registers `bytes` at `memory` or counts one more view of a registration of the same span; false where HIP refuses it or another span holds the address.
+bool register_host(void* memory, size_t bytes) {
+    Registrations& r = registrations();
+    std::lock_guard<std::mutex> lock(r.m);
+    const auto it = r.held.find(memory);
+    if (it != r.held.end()) {
+        if (it->second.first != bytes) return false;
+        ++it->second.second;
+        return true;
+    }
+    if (hip().hipHostRegister(memory, bytes, hipHostRegisterDefault) != hipSuccess) return false;
+    r.held[memory] = {bytes, 1};
+    return true;
+}
+
+void unregister_host(void* memory) {
+    Registrations& r = registrations();
+    std::lock_guard<std::mutex> lock(r.m);
+    const auto it = r.held.find(memory);
+    if (it == r.held.end() || --it->second.second) return;
+    (void)hip().hipHostUnregister(memory);
+    r.held.erase(it);
+}
+
 // Memory of dropped buffers, freed once the work recorded before the drop retires, since hipFree does not wait for a launch or copy still queued that names it.
 struct Graves {
     std::mutex m;
     std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
     const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
+    hipStream_t stream = nullptr;                                   // the backend's stream, null once it is drained
 };
 
-// Device memory from hipMalloc, or pinned host memory the device reads in place (Memory::host_visible); dropped, its memory goes to the backend's graves.
+// Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible), or the caller's host memory registered with HIP (wrap_host).
+// Dropped, HIP's memory goes to the backend's graves, while the caller's is unregistered at once, once the stream's copies naming it retire, since the caller may free it as soon as the view is gone (Backend::wrap_host).
 class RocmBuffer final : public Buffer {
 public:
     RocmBuffer(size_t bytes, bool host, std::shared_ptr<Graves> graves) : size_(bytes), host_(host), graves_(std::move(graves)) {
@@ -64,8 +104,18 @@ public:
         if (host) hip_check(f.hipHostMalloc(&p_, words, hipHostMallocDefault), "hipHostMalloc");
         else hip_check(f.hipMalloc(&p_, words), "hipMalloc");
     }
+    // A view of memory register_host holds a count of.
+    RocmBuffer(void* memory, size_t bytes, std::shared_ptr<Graves> graves) : p_(memory), size_(bytes), host_(true), registered_(true), graves_(std::move(graves)) {}
     ~RocmBuffer() override {
         if (!p_) return;
+        if (registered_) {
+            {
+                std::lock_guard<std::mutex> lock(graves_->m);
+                if (graves_->stream) (void)hip().hipStreamSynchronize(graves_->stream);
+            }
+            unregister_host(p_);
+            return;
+        }
         {
             std::lock_guard<std::mutex> lock(graves_->m);
             if (graves_->tickets) {
@@ -83,7 +133,7 @@ public:
 private:
     void* p_ = nullptr;
     size_t size_;
-    bool host_;
+    bool host_, registered_ = false;
     std::shared_ptr<Graves> graves_;
 };
 
@@ -109,6 +159,9 @@ public:
         const HipFn& f = hip();
         hip_check(f.hipSetDevice(index), "hipSetDevice");
         hip_check(f.hipStreamCreateWithFlags(&stream_, hipStreamNonBlocking), "hipStreamCreateWithFlags");
+        graves_->stream = stream_;
+        hip_check(f.hipHostMalloc((void**)&fault_, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+        *fault_ = 0;
         for (auto& e : events_) hip_check(f.hipEventCreateWithFlags(&e, hipEventDisableTiming), "hipEventCreateWithFlags");
         hip_check(f.hipModuleLoadData(&module_, kF32Module), "hipModuleLoadData");
         hip_check(f.hipModuleLoadData(&int16_module_, kInt16Module), "hipModuleLoadData");
@@ -135,6 +188,7 @@ public:
         {
             std::lock_guard<std::mutex> lock(graves_->m);
             graves_->tickets = nullptr;
+            graves_->stream = nullptr;
             for (const auto& g : graves_->held) free_memory(g.second.first, g.second.second);
             graves_->held.clear();
         }
@@ -151,6 +205,7 @@ public:
         if (dot_module_) (void)f.hipModuleUnload(dot_module_);
         for (auto e : events_) if (e) (void)f.hipEventDestroy(e);
         if (stream_) (void)f.hipStreamDestroy(stream_);
+        if (fault_) (void)f.hipHostFree(fault_);
     }
 
     std::string identity() const override { return "rocm:" + std::to_string(dev_.index) + " " + dev_.caps.device + " " + dev_.pci_bus; }
@@ -163,7 +218,13 @@ public:
         return free;
     }
     // HIP rounds each device allocation to its pages (2 MiB past 1 MiB) and keeps memory of its own, and the kernels' scratch grows with a pass, so the fit leaves the share Vulkan leaves.
-    size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + free / 20; }
+    // A group's signal block is a fixed size beside the staging collective_bytes_per_row counts.
+    size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + kGroupSignalBytes + free / 20; }
+    std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+    // A member's partial rows and a staging slot for each member's (RocmCollective).
+    size_t collective_bytes_per_row(size_t members, size_t width) const override {
+        return members ? size_mul(members + 1, size_mul(width, sizeof(float))) : 0;
+    }
     bool supports_type(uint32_t type) const override { return type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_Q8_0; }
     bool implements(Op op) const override { return op == Op::norm_rope_partial; }
     // No kernel here chooses anything by a row's extent, so a generated token is a class and every prompt row another.
@@ -186,6 +247,13 @@ public:
         else launch_check(hip().hipMemsetAsync(b->data(), 0, bytes, stream_), "hipMemsetAsync");
         return b;
     }
+    // One registration serves every device's view of the memory; null where HIP refuses it, so the caller writes through staging.
+    BufferPtr wrap_host(void* memory, size_t bytes) override {
+        if (!memory || !bytes) return nullptr;
+        hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
+        if (!register_host(memory, bytes)) return nullptr;
+        return std::make_shared<RocmBuffer>(memory, bytes, graves_);
+    }
     BufferPtr adopt(const void* src, size_t bytes) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         auto b = std::make_shared<RocmBuffer>(bytes, false, graves_);
@@ -196,6 +264,10 @@ public:
     // The work launched since the last ticket gets the next one; a slot is reused once its earlier ticket retires, which waits only when kEvents tickets are in flight.
     Ticket submit() override {
         raise_failed();
+        return record();
+    }
+    // submit without the failure check, for the paths that cannot throw it to anyone: sync and a collective's wait.
+    Ticket record() {
         // The event is recorded before the ticket is handed out, so a waiter on another thread never reads a slot not yet recorded for it.
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
@@ -230,7 +302,7 @@ public:
     }
     void sync() noexcept override {
         if (opened_) {
-            try { submit(); } catch (const std::exception&) {}
+            try { record(); } catch (const std::exception&) {}
         }
         wait(tickets_.last());
     }
@@ -596,7 +668,7 @@ private:
     enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
@@ -608,7 +680,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -1066,6 +1138,8 @@ private:
         raise_failed();
         // Any kernel but a product may write the kept twin's input.
         if (k < kRows16x1) kept_ = {};
+        // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
+        hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, threads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
     }
     // A launch or copy refused as it is enqueued throws at once; the stream is still the caller's.
@@ -1090,10 +1164,22 @@ private:
         });
         held.erase(kept, held.end());
     }
+    // A group sum that gave up on this device (fault_) throws once, at the next call that checks; the collective's later sums take the conservative path, so the backend goes on.
     void raise_failed() {
-        std::lock_guard<std::mutex> lk(failed_mu_);
-        if (!failed_.empty()) throw std::runtime_error(failed_);
+        {
+            std::lock_guard<std::mutex> lk(failed_mu_);
+            if (!failed_.empty()) throw std::runtime_error(failed_);
+        }
+        if (__atomic_load_n(fault_, __ATOMIC_ACQUIRE) && __atomic_exchange_n(fault_, 0u, __ATOMIC_ACQ_REL))
+            throw std::runtime_error("rocm: a tensor group's sum on " + identity() + " gave up waiting for its peers; the group's later sums take the conservative path");
     }
+    // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
+    void group_launch(unsigned blocks, void** args) {
+        kept_ = {};
+        hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
+        launch_check(hip().hipModuleLaunchKernel(kernels_[kGroupSum], blocks, 1, 1, kThreads, 1, 1, 0, stream_, args, nullptr), "llmx_group_sum");
+    }
+    friend class RocmCollective;
 
     RocmDevice dev_;
     std::shared_ptr<Graves> graves_ = std::make_shared<Graves>();   // before every buffer member, so it outlives them
@@ -1121,6 +1207,8 @@ private:
     bool opened_ = false;
     std::mutex failed_mu_;
     std::string failed_;
+    unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.hip, llmx_group_sum)
+    std::map<std::vector<int>, std::string> group_paths_;   // per group of device indices led by this backend: empty for fast sums, else why sums are conservative
 };
 
 RocmKVStorage::RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
@@ -1131,6 +1219,11 @@ RocmKVStorage::RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, si
 void RocmKVStorage::retire(const BufferPtr&) {}
 
 } // namespace
+} // namespace backend
+
+#include "backends/rocm/rocm_collective.hpp"
+
+namespace backend {
 
 BackendPtr make_rocm_backend(int device) { return std::make_shared<RocmBackend>(device); }
 

@@ -4,17 +4,23 @@
 #include "backends/rocm/rocm_backend.hpp"
 #include "backends/rocm/rocm_runtime.hpp"
 #include "core/fp16.hpp"
+#include "core/host_memory.hpp"
 #include "model/kv_cache.hpp"
 #include "quant/types.hpp"
+#include "group_sums.hpp"
 #include "row_classes.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <dlfcn.h>
 
 using namespace backend;
 
@@ -111,6 +117,85 @@ void buffers(Backend& g) {
         g.sync();
         require(ok && g.done(handed), "tickets waited on from another thread while this one submits read as done");
     }
+}
+
+// Host memory a device copies from in place (Backend::wrap_host): the caller frees it once its views are gone, so a dropped view must leave it unregistered and the next memory at its address must read as itself.
+void host_views(Backend& g) {
+    HipFn& f = hip();
+    const size_t n = 1 << 16, bytes = n * sizeof(float);
+    std::vector<float> x(n);
+    for (size_t i = 0; i < n; ++i) x[i] = float(i) * 0.5f;
+    {
+        // A view dropped after its copy ran, with no backend wait since, must unregister at once: a raw device synchronize does not run the backend's deferred cleanup.
+        void* lib = dlopen("libamdhip64.so", RTLD_NOW | RTLD_LOCAL);
+        using SyncFn = hipError_t (*)();
+        const SyncFn device_sync = lib ? reinterpret_cast<SyncFn>(dlsym(lib, "hipDeviceSynchronize")) : nullptr;
+        require(device_sync != nullptr, "hipDeviceSynchronize was not found");
+        if (device_sync) {
+            core::HostPages pages(bytes);
+            std::memcpy(pages.data(), x.data(), bytes);
+            BufferPtr view = g.wrap_host(pages.data(), bytes), d = g.alloc(bytes);
+            g.copy(*d, 0, *view, 0, bytes);
+            g.submit();
+            require(device_sync() == hipSuccess, "hipDeviceSynchronize failed");
+            view.reset();
+            const hipError_t u = f.hipHostUnregister(pages.data());
+            require(u == hipErrorHostMemoryNotRegistered, std::string("host pages whose view dropped after a raw device synchronize stayed registered: ") + f.hipGetErrorName(u));
+            g.wait(g.submit());
+        }
+    }
+    void* first = nullptr;
+    {
+        core::HostPages pages(bytes);
+        first = pages.data();
+        std::memcpy(pages.data(), x.data(), bytes);
+        BufferPtr view = g.wrap_host(pages.data(), bytes), again = g.wrap_host(pages.data(), bytes);
+        require(view && again && view->host_ptr() == pages.data(), "host pages were not wrapped twice");
+        require(!g.wrap_host(pages.data(), bytes / 2), "a second span at a wrapped address was wrapped");
+        BufferPtr d = g.alloc(bytes), e = g.alloc(bytes);
+        g.copy(*d, 0, *view, 0, bytes);
+        g.wait(g.submit());
+        // One view dropped, and its stream moved on past the drop, leaves the other its registration.
+        view.reset();
+        g.wait(g.submit());
+        g.copy(*e, 0, *again, 0, bytes);
+        require(read(g, *e, n) == x, "a copy through a view after another view of its memory dropped is not its bytes");
+        require(read(g, *d, n) == x, "a copy out of wrapped host pages is not their bytes");
+        again.reset();
+        // HIP takes a second registration of a span and drops it at one unregister, so the probe is the unregister: it must find nothing left.
+        const hipError_t u = f.hipHostUnregister(pages.data());
+        require(u == hipErrorHostMemoryNotRegistered, std::string("host pages whose views were dropped stayed registered: ") + f.hipGetErrorName(u));
+        if (u != hipErrorHostMemoryNotRegistered) return;
+    }
+    core::HostPages pages(bytes);
+    for (size_t i = 0; i < n; ++i) x[i] = -float(i);
+    std::memcpy(pages.data(), x.data(), bytes);
+    BufferPtr view = g.wrap_host(pages.data(), bytes), d = g.alloc(bytes);
+    require(view != nullptr, "host pages mapped after others were freed were not wrapped");
+    g.copy(*d, 0, *view, 0, bytes);
+    require(read(g, *d, n) == x, "a copy out of host pages mapped after others were freed is not their bytes");
+    std::cout << "backend-rocm: wrapped host pages copy in place and drop their registration with their last view"
+              << (pages.data() == first ? ", the second at the first's address\n" : "\n");
+    int count = 0;
+    hip_check(f.hipGetDeviceCount(&count), "hipGetDeviceCount");
+    if (count < 2) return;
+    // Two members of a head group: member 0's view dropped, member 1 still copies into the memory, and once its view drops nothing is registered.
+    BackendPtr h = make_rocm_backend(1);
+    core::HostPages rows(bytes);
+    std::vector<BufferPtr> views = {g.wrap_host(rows.data(), bytes), h->wrap_host(rows.data(), bytes)};
+    require(views[0] && views[1], "two members did not wrap one host memory");
+    views[0].reset();
+    g.wait(g.submit());
+    BufferPtr src = h->alloc(bytes);
+    h->write(*src, 0, x.data(), bytes);
+    h->copy(*views[1], 0, *src, 0, bytes);
+    h->wait(h->submit());
+    require(std::memcmp(rows.data(), x.data(), bytes) == 0, "a member's copy into host memory after the other member's view dropped is not its rows");
+    views[1].reset();
+    h->wait(h->submit());
+    const hipError_t u = f.hipHostUnregister(rows.data());
+    require(u == hipErrorHostMemoryNotRegistered, std::string("host memory both members' views dropped stayed registered: ") + f.hipGetErrorName(u));
+    std::cout << "backend-rocm: a member copies into host memory after the other member's view dropped, and the last drop unregisters it\n";
 }
 
 void refusals(Backend& g) {
@@ -1027,6 +1112,258 @@ void failure() {
     require(throws([&] { g->add({buf.get(), 0}, {buf.get(), 0}, 1024); }), "a launch after the failure throws it");
 }
 
+// Counts of the group sum's launches and copies, and a launch to drop, read by the collective checks through the HIP call table.
+struct GroupCalls {
+    int launches = 0, copies = 0, drop = 0;   // drop: the launch, counted from 1, that is not made
+    std::vector<void*> areas;                 // every uncached allocation, in order
+};
+GroupCalls group_calls;
+decltype(HipFn::hipModuleLaunchKernel) real_launch = nullptr;
+decltype(HipFn::hipMemcpyAsync) real_copy = nullptr;
+decltype(HipFn::hipExtMallocWithFlags) real_uncached = nullptr;
+hipError_t counted_launch(hipFunction_t k, unsigned gx, unsigned gy, unsigned gz, unsigned tx, unsigned ty, unsigned tz, unsigned shared, hipStream_t s, void** args, void** extra) {
+    if (++group_calls.launches == group_calls.drop) return hipSuccess;
+    return real_launch(k, gx, gy, gz, tx, ty, tz, shared, s, args, extra);
+}
+hipError_t counted_copy(void* d, const void* s, size_t n, hipMemcpyKind kind, hipStream_t st) {
+    ++group_calls.copies;
+    return real_copy(d, s, n, kind, st);
+}
+hipError_t kept_uncached(void** p, size_t n, unsigned flags) {
+    const hipError_t e = real_uncached(p, n, flags);
+    if (e == hipSuccess) group_calls.areas.push_back(*p);
+    return e;
+}
+hipError_t no_peer(int* can, int, int) {
+    *can = 0;
+    return hipSuccess;
+}
+
+std::vector<BackendPtr> rocm_devices(size_t most) {
+    std::vector<BackendPtr> d;
+    for (size_t i = 0; i < most; ++i) {
+        try {
+            d.push_back(make_rocm_backend((int)i));
+        } catch (const RocmUnavailable&) {
+            break;
+        }
+    }
+    return d;
+}
+std::vector<Backend*> raw(const std::vector<BackendPtr>& d, size_t W) {
+    std::vector<Backend*> r;
+    for (size_t m = 0; m < W; ++m) r.push_back(d[m].get());
+    return r;
+}
+
+// A sum's launches and copies: one launch a member and no copy on the fast path, a copy for each peer on the conservative one.
+void sum_calls(Collective& c, size_t W, bool fast) {
+    HipFn& f = hip();
+    group_calls.launches = group_calls.copies = 0;
+    f.hipModuleLaunchKernel = counted_launch;
+    f.hipMemcpyAsync = counted_copy;
+    c.sum_in_place(1, 97);
+    f.hipModuleLaunchKernel = real_launch;
+    f.hipMemcpyAsync = real_copy;
+    require(group_calls.launches == (int)W && group_calls.copies == (fast ? 0 : (int)(W * (W - 1))),
+            fast ? "a fast group sum made other launches or copies than one launch a member" : "a conservative group sum made other launches or copies than a launch a member and a copy a peer");
+}
+
+// Two sequences of three sums, alone and then interleaved with and without waits between them, each ending with its bits alone (docs/TESTS.md).
+void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t width, uint32_t seed) {
+    const size_t W = group.size(), kSums = 3;
+    struct Seq {
+        size_t rows = 0;
+        std::vector<float> start, want;
+        std::vector<BufferPtr> x;
+        std::vector<std::vector<BufferPtr>> staged;   // per sum, per member
+    };
+    auto make = [&](size_t rows) {
+        Seq q;
+        q.rows = rows;
+        const size_t n = rows * width;
+        group_sums::Case k = group_sums::make(W, n, seed++);
+        q.start = k.start;
+        q.want = k.start;
+        for (size_t m = 0; m < W; ++m) q.x.push_back(group[m]->alloc(n * sizeof(float)));
+        for (size_t s = 0; s < kSums; ++s) {
+            if (s) {
+                k = group_sums::make(W, n, seed++);
+                k.start = q.want;
+            }
+            q.want = group_sums::oracle(k, false);
+            q.staged.emplace_back();
+            for (size_t m = 0; m < W; ++m) {
+                q.staged.back().push_back(group[m]->alloc(n * sizeof(float)));
+                group[m]->write(*q.staged.back().back(), 0, k.partial[m].data(), n * sizeof(float));
+            }
+        }
+        return q;
+    };
+    auto reset = [&](Seq& q) {
+        for (size_t m = 0; m < W; ++m) group[m]->write(*q.x[m], 0, q.start.data(), q.start.size() * sizeof(float));
+    };
+    auto step = [&](Seq& q, size_t s) {
+        std::vector<Slice> xs;
+        for (size_t m = 0; m < W; ++m) {
+            const Slice p = c.partial(m);
+            group[m]->copy(*p.buffer, 0, *q.staged[s][m], 0, q.rows * width * sizeof(float));
+            xs.push_back({q.x[m].get(), 0});
+        }
+        c.sum_into(xs, q.rows, width);
+    };
+    auto got = [&](Seq& q, size_t m) {
+        group[m]->submit();
+        return read(*group[m], *q.x[m], q.start.size());
+    };
+    Seq a = make(7), b = make(64);
+    for (Seq* q : {&a, &b}) {
+        reset(*q);
+        for (size_t s = 0; s < kSums; ++s) step(*q, s);
+        for (size_t m = 0; m < W; ++m) require(same(got(*q, m), q->want), "a sequence of group sums alone is not the oracle's");
+    }
+    for (const bool waits : {false, true}) {
+        reset(a);
+        reset(b);
+        for (size_t s = 0; s < kSums; ++s) {
+            step(a, s);
+            if (waits) c.wait(1);
+            step(b, s);
+            if (waits) c.wait(0);
+        }
+        for (size_t m = 0; m < W; ++m)
+            require(same(got(a, m), a.want) && same(got(b, m), b.want), "two sequences of group sums in flight on one collective differ from each alone");
+    }
+}
+
+// The collective over 2, 3 and 4 devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
+void collective() {
+    HipFn& f = hip();
+    real_launch = f.hipModuleLaunchKernel;
+    real_copy = f.hipMemcpyAsync;
+    real_uncached = f.hipExtMallocWithFlags;
+    std::vector<BackendPtr> d = rocm_devices(4);
+    if (d.size() < 2) {
+        std::cout << "backend-rocm: one device, so no collective\n";
+        return;
+    }
+    uint32_t seed = 101;
+    auto print = [](bool ok, const std::string& what) { require(ok, what); };
+    for (size_t W = 2; W <= d.size(); ++W) {
+        const std::vector<Backend*> group = raw(d, W);
+        std::unique_ptr<Collective> c = d[0]->join(group, 64, 97);
+        require(c != nullptr, "ROCm devices joined no collective");
+        if (!c) return;
+        sum_calls(*c, W, true);
+        group_sums::check(group, *c, 97, {1, 3, 64}, seed, print);
+        seed += 100;
+        sums_in_flight(group, *c, 97, seed);
+        seed += 100;
+        // A collective for fewer rows of the same group takes the cached path and its own signals.
+        std::unique_ptr<Collective> small = d[0]->join(group, 2, 97);
+        group_sums::check(group, *small, 97, {1, 2}, seed, print);
+        seed += 100;
+        std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight\n";
+    }
+    {
+        // Devices that cannot reach each other's memory sum by pulls, the same bytes.
+        std::vector<BackendPtr> e = rocm_devices(d.size());
+        const auto can = f.hipDeviceCanAccessPeer;
+        f.hipDeviceCanAccessPeer = no_peer;
+        std::unique_ptr<Collective> c = e[0]->join(raw(e, e.size()), 64, 97);
+        f.hipDeviceCanAccessPeer = can;
+        sum_calls(*c, e.size(), false);
+        group_sums::check(raw(e, e.size()), *c, 97, {1, 3, 64}, seed, print);
+        seed += 100;
+        sums_in_flight(raw(e, e.size()), *c, 97, seed);
+        seed += 100;
+        std::cout << "backend-rocm: a collective of " << e.size() << " devices without peer access sums by pulls, the same bytes\n";
+    }
+    {
+        // A member whose kernel never launches: its peer gives up within the timeout and leaves NaN, the failure throws once on that backend, and every later sum is conservative and exact.
+        std::vector<BackendPtr> e = rocm_devices(2);
+        std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
+        const std::vector<float> rows(97, 1.0f);
+        for (size_t m = 0; m < 2; ++m) e[m]->write(*c->partial(m).buffer, 0, rows.data(), rows.size() * sizeof(float));
+        group_calls.launches = 0;
+        group_calls.drop = 2;
+        f.hipModuleLaunchKernel = counted_launch;
+        const auto from = std::chrono::steady_clock::now();
+        c->sum_in_place(1, 97);
+        f.hipModuleLaunchKernel = real_launch;
+        group_calls.drop = 0;
+        c->wait(0);
+        const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - from).count();
+        require(s < 2.0, "a group sum whose peer never launched waited " + std::to_string(s) + " s, past 2 s");
+        require(throws([&] { e[0]->raise(0); }), "a group sum that gave up did not throw on its backend");
+        require(!throws([&] { e[0]->raise(0); }), "a group sum that gave up threw on its backend twice");
+        bool poisoned = true;
+        for (float v : read(*e[0], *c->partial(0).buffer, 97)) poisoned = poisoned && std::isnan(v);
+        require(poisoned, "a group sum that gave up left values other than NaN");
+        sum_calls(*c, 2, false);
+        group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
+        seed += 100;
+        std::cout << "backend-rocm: a group sum whose peer never launched gave up in " << s << " s; later sums conservative and exact\n";
+    }
+    {
+        // Epochs seeded below the 32-bit wrap: twelve sums cross it, skipping 0, each exact.
+        std::vector<BackendPtr> e = rocm_devices(2);
+        group_calls.areas.clear();
+        f.hipExtMallocWithFlags = kept_uncached;
+        std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
+        f.hipExtMallocWithFlags = real_uncached;
+        require(group_calls.areas.size() >= 2, "a fast collective made no uncached areas");
+        if (group_calls.areas.size() < 2) return;
+        const std::vector<void*> areas(group_calls.areas.end() - 2, group_calls.areas.end());
+        const std::vector<unsigned> seeded(16, 0xfffffffcu);
+        for (size_t m = 0; m < 2; ++m) {
+            e[m]->sync();
+            hip_check(f.hipSetDevice((int)m), "hipSetDevice");
+            hip_check(f.hipMemcpyAsync(areas[m], seeded.data(), seeded.size() * sizeof(unsigned), hipMemcpyHostToDevice, nullptr), "hipMemcpyAsync");
+            hip_check(f.hipStreamSynchronize(nullptr), "hipStreamSynchronize");
+        }
+        group_sums::check(raw(e, 2), *c, 97, {1, 1, 1}, seed, print);
+        for (size_t m = 0; m < 2; ++m) {
+            e[m]->sync();
+            unsigned epoch = 0;
+            hip_check(f.hipSetDevice((int)m), "hipSetDevice");
+            hip_check(f.hipMemcpyAsync(&epoch, areas[m], sizeof(epoch), hipMemcpyDeviceToHost, nullptr), "hipMemcpyAsync");
+            hip_check(f.hipStreamSynchronize(nullptr), "hipStreamSynchronize");
+            require(epoch == 9, "twelve group sums from epoch 0xfffffffc ended at epoch " + std::to_string(epoch) + ", not 9");
+        }
+        std::cout << "backend-rocm: twelve group sums across the epochs' wrap, skipping 0, each exact\n";
+    }
+    {
+        // A head group's logits rows: each member copies its slice into one host memory that every member wraps, the first registering it.
+        const size_t n = 4096, bytes = 2 * n * sizeof(float);
+        void* pages = std::aligned_alloc(4096, bytes);
+        std::vector<BufferPtr> views;
+        for (size_t m = 0; m < 2; ++m) views.push_back(d[m]->wrap_host(pages, bytes));
+        require(views[0] && views[1] && views[0]->host_ptr() == pages && views[1]->host_ptr() == pages, "ROCm members did not wrap one host memory");
+        std::vector<std::vector<float>> want(2, std::vector<float>(n));
+        for (size_t m = 0; m < 2; ++m) {
+            for (size_t i = 0; i < n; ++i) want[m][i] = float(m * n + i) * 0.25f;
+            BufferPtr src = d[m]->alloc(n * sizeof(float));
+            d[m]->write(*src, 0, want[m].data(), n * sizeof(float));
+            d[m]->copy(*views[m], m * n * sizeof(float), *src, 0, n * sizeof(float));
+            d[m]->wait(d[m]->submit());
+        }
+        for (size_t m = 0; m < 2; ++m)
+            require(std::memcmp((const float*)pages + m * n, want[m].data(), n * sizeof(float)) == 0, "a member's copy into wrapped host memory is not its rows");
+        views.clear();
+        for (size_t m = 0; m < 2; ++m) d[m]->sync();
+        std::free(pages);
+        std::cout << "backend-rocm: two members copy into one wrapped host memory\n";
+    }
+    auto cpu = make_cpu_backend();
+    require(throws([&] { d[0]->join({d[1].get(), d[0].get()}, 1, 1); }), "a ROCm collective joined by a member not first was made");
+    require(throws([&] { d[0]->join({d[0].get(), cpu.get()}, 1, 1); }), "a ROCm collective over the CPU was made");
+    require(throws([&] { d[0]->join({d[0].get(), d[0].get()}, 1, 1); }), "a ROCm collective over one device twice was made");
+    std::string why;
+    try { d[0]->join(std::vector<Backend*>(5, d[0].get()), 1, 1); } catch (const std::exception& e) { why = e.what(); }
+    require(why.find("more than 4 devices") != std::string::npos, "a ROCm collective of five devices was not refused for its size");
+}
+
 } // namespace
 
 int main() {
@@ -1041,6 +1378,7 @@ int main() {
     c->set_threads(4);
     try {
         buffers(*g);
+        host_views(*g);
         refusals(*g);
         ops(*g, *c);
         attention(*g, *c);
@@ -1057,6 +1395,7 @@ int main() {
         vec_bits(*g);
         pass_args(*g);
         failure();
+        collective();
     } catch (const std::exception& e) {
         std::cout << "FAIL threw: " << e.what() << "\n";
         ++failures;

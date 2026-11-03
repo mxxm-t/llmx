@@ -27,9 +27,15 @@ struct RocmUnavailable : std::runtime_error {
     X(hipDeviceGetPCIBusId, hipError_t(char*, int, int)) \
     X(hipSetDevice, hipError_t(int)) \
     X(hipMalloc, hipError_t(void**, size_t)) \
+    X(hipExtMallocWithFlags, hipError_t(void**, size_t, unsigned)) \
+    X(hipDeviceCanAccessPeer, hipError_t(int*, int, int)) \
+    X(hipDeviceEnablePeerAccess, hipError_t(int, unsigned)) \
+    X(hipDeviceGetAttribute, hipError_t(int*, hipDeviceAttribute_t, int)) \
     X(hipFree, hipError_t(void*)) \
     X(hipHostMalloc, hipError_t(void**, size_t, unsigned)) \
     X(hipHostFree, hipError_t(void*)) \
+    X(hipHostRegister, hipError_t(void*, size_t, unsigned)) \
+    X(hipHostUnregister, hipError_t(void*)) \
     X(hipMemcpyAsync, hipError_t(void*, const void*, size_t, hipMemcpyKind, hipStream_t)) \
     X(hipMemsetAsync, hipError_t(void*, int, size_t, hipStream_t)) \
     X(hipMemGetInfo, hipError_t(size_t*, size_t*)) \
@@ -45,6 +51,7 @@ struct RocmUnavailable : std::runtime_error {
     X(hipEventRecord, hipError_t(hipEvent_t, hipStream_t)) \
     X(hipEventQuery, hipError_t(hipEvent_t)) \
     X(hipEventSynchronize, hipError_t(hipEvent_t)) \
+    X(hipStreamWaitEvent, hipError_t(hipStream_t, hipEvent_t, unsigned)) \
     X(hipGetErrorName, const char*(hipError_t)) \
     X(hipGetErrorString, const char*(hipError_t))
 

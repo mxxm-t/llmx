@@ -1,0 +1,191 @@
+{
+  "status": "DONE",
+  "job_id": "20261102T124057Z-515243",
+  "pid": 515244,
+  "exit_code": 0,
+  "wall_seconds": 47.39799523353577,
+  "run_seconds": 45.24525761604309,
+  "removed": true,
+  "hashes": {
+    "terminal_sha256": "f5e07ac472a73500468920022edd8702cfc83b71f433bc90d8ac5e8c0e9056db",
+    "build_receipt_sha256": "b298891035a5207fff7266f9e4ee1cc907c476bbd5791262c7884b70b3e4c8c3",
+    "run_receipt_sha256": "8caf392d579260c83fc00b6af24e5cf3181a7b1b898e01c51d51761143ac2cc7",
+    "build_script_sha256": "e6fa66b93f22736c16acf9ee1174c5bd7768d5892c9d18db1c2777e25037f047",
+    "preparation_sha256": "b0a01eebfed74b8877d7ae4ca360ad025f59ef53444a960a6fdebdba0b5047c6",
+    "input_files_checked": 57,
+    "input_hashes_passed": 57,
+    "output_files_checked": 11,
+    "output_hashes_passed": 11,
+    "outputs": {
+      "build-out/base.spv": {
+        "sha256": "53f4d0bf32bad14c3511d16b0c3daa428e9827758566586fbd5eaabe4b1f6e73",
+        "expected": "53f4d0bf32bad14c3511d16b0c3daa428e9827758566586fbd5eaabe4b1f6e73",
+        "pass": true
+      },
+      "build-out/candidate.spv": {
+        "sha256": "b3781f62ba7ed89ac4e0536764671c580e98630540166855d5c79a5fd241d882",
+        "expected": "b3781f62ba7ed89ac4e0536764671c580e98630540166855d5c79a5fd241d882",
+        "pass": true
+      },
+      "build-out/probe": {
+        "sha256": "8f4b587280b94efd571390d046b090cadb66758e173abb2fd086855ac8b60e35",
+        "expected": "8f4b587280b94efd571390d046b090cadb66758e173abb2fd086855ac8b60e35",
+        "pass": true
+      },
+      "build-out/build.log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pass": true
+      },
+      "run-out/compile.stdout": {
+        "sha256": "7df4cd7f4d5fceb52d49425cde4d918d38003962fe1241133c0870200398c51d",
+        "expected": "7df4cd7f4d5fceb52d49425cde4d918d38003962fe1241133c0870200398c51d",
+        "pass": true
+      },
+      "run-out/compile.isa.stderr": {
+        "sha256": "ce058e93fb9102fb7ee98d1d80a98fc35ea4f006a801e0bf6619b49e789183b7",
+        "expected": "ce058e93fb9102fb7ee98d1d80a98fc35ea4f006a801e0bf6619b49e789183b7",
+        "pass": true
+      },
+      "run-out/samples.jsonl": {
+        "sha256": "1b4c7290bb163f58e8f754f61a6825d053800ae2c3e7b06783e9afac8ca0054d",
+        "expected": "1b4c7290bb163f58e8f754f61a6825d053800ae2c3e7b06783e9afac8ca0054d",
+        "pass": true
+      },
+      "run-out/samples.isa.stderr": {
+        "sha256": "ce058e93fb9102fb7ee98d1d80a98fc35ea4f006a801e0bf6619b49e789183b7",
+        "expected": "ce058e93fb9102fb7ee98d1d80a98fc35ea4f006a801e0bf6619b49e789183b7",
+        "pass": true
+      },
+      "run-out/driver-pins.txt": {
+        "sha256": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+        "expected": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+        "pass": true
+      },
+      "run-out/activity.jsonl": {
+        "sha256": "34b7b785c9438a4a360782778a5eebced757bb2e723a303ef929ec7f7bfc8913",
+        "expected": "34b7b785c9438a4a360782778a5eebced757bb2e723a303ef929ec7f7bfc8913",
+        "pass": true
+      },
+      "run-out/monitor.log": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pass": true
+      }
+    }
+  },
+  "environment": {
+    "gpu": "renderD128 / PCI 0000:c3:00.0",
+    "device": "AMD Instinct MI60 / MI50 RADV VEGA20",
+    "mesa": "25.0.7-2+deb13u1",
+    "cpu": 0,
+    "excluded_sibling": 8,
+    "memory_bytes": 2147483648,
+    "driver_pins_sha256": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069"
+  },
+  "screen": {
+    "shape_mnk": [
+      24576,
+      512,
+      4096
+    ],
+    "tile_rows": 128,
+    "parts": 1,
+    "kper": 128,
+    "calls": 10,
+    "call_order": [
+      "base",
+      "candidate",
+      "base",
+      "candidate",
+      "candidate",
+      "base",
+      "base",
+      "candidate",
+      "candidate",
+      "base"
+    ],
+    "warmups_per_arm": 1,
+    "timed_calls_per_arm": 4,
+    "exact_outputs_per_call": 12582912,
+    "all_calls_exact": true,
+    "timing": {
+      "base": {
+        "warmup_ms": [
+          16.90256
+        ],
+        "timed_ms": [
+          16.5504,
+          16.53984,
+          16.7752,
+          16.628
+        ],
+        "timed_median_ms": 16.589199999999998
+      },
+      "candidate": {
+        "warmup_ms": [
+          17.27984
+        ],
+        "timed_ms": [
+          17.3856,
+          17.156,
+          17.23616,
+          17.26352
+        ],
+        "timed_median_ms": 17.24984
+      }
+    },
+    "candidate_vs_base_median_pct": 3.982349962626297
+  },
+  "isa": {
+    "block_order": "pipeline index 0=shader arg1 base; index 1=shader arg2 candidate",
+    "capture_sha256": "ce058e93fb9102fb7ee98d1d80a98fc35ea4f006a801e0bf6619b49e789183b7",
+    "per_arm": [
+      {
+        "arm": "base",
+        "source_blake3": "{0x1aaa2df9, 0x34c9227a, 0x996d5647, 0xcd0c6cc4, 0x59fab742, 0x5bf208ac, 0xa8886050, 0x2821c902}",
+        "shared_bytes": 26624,
+        "ds_read_b128": 102,
+        "ds_read2_b64": 0,
+        "v_dot2_i32_i16": 1024,
+        "highest_referenced_vgpr": 127,
+        "explicit_spill_load_store_instructions": 0
+      },
+      {
+        "arm": "candidate",
+        "source_blake3": "{0xa19f971b, 0x3e03bbf5, 0x2d1a8de1, 0x4ef9711a, 0x7de60ac9, 0x0e4edce9, 0xe80bd233, 0xb865bf85}",
+        "shared_bytes": 26624,
+        "ds_read_b128": 38,
+        "ds_read2_b64": 64,
+        "v_dot2_i32_i16": 1024,
+        "highest_referenced_vgpr": 127,
+        "explicit_spill_load_store_instructions": 0
+      }
+    ],
+    "vgpr_note": "capture has no explicit allocated VGPR count; highest referenced physical VGPR index is reported, not an allocation count"
+  },
+  "activity": {
+    "sample_count": 44,
+    "first_at": "2026-11-02T12:41:00.432799+00:00",
+    "last_at": "2026-11-02T12:41:43.473535+00:00",
+    "target_card_busy_values": [
+      0,
+      98
+    ],
+    "target_card_busy_nonzero_samples": 1,
+    "loadavg1_min_median_max": [
+      14.82,
+      17.2,
+      19.25
+    ],
+    "monitor_exit": 0,
+    "monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "prior_attempts": {
+    "attempt1_build_failure": "FAIL before GPU dispatch: pinned image lacked spirv-val; exact generated SPIR-V modules validated locally and reused unchanged",
+    "cpu2_preflight": "admission refused because physical CPU2 overlaps the sdev-reread-build allocation; no GPU job launched",
+    "old_production_identity_preflight": "one transient guard refusal while llmx-serve was absent during replacement; refreshed production identity passed before retry; not a GPU experiment failure",
+    "attempt1_terminal_sha256": "e486f81e8f1056718e884fd084c76ba925baac0404a3b5af95b81a3e4ffcf967",
+    "attempt1_build_receipt_sha256": "8f1dc96b6024416c343977fd2016a6586261af164ca8bf9e99a59881a75807b4"
+  }
+}

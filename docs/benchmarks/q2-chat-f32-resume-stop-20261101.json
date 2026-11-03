@@ -1,0 +1,90 @@
+{
+  "scope": "Terminal resource stop, not a numerical failure or completed reference.",
+  "execution_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-v1/out-resume-002/execution.json",
+  "execution_sha256": "1ce4be803a155df34ab7d973872511cb03419331910dec6c4eecbb440025b360",
+  "complete": false,
+  "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-v1/supervise-resume.py\", line 321, in <module>\n    run_policy(policy)\n    ~~~~~~~~~~^^^^^^^^\n  File \"/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-v1/supervise-resume.py\", line 292, in run_policy\n    assert (stage['exit'] == stage['state']['ExitCode'] == 0 and not stage['state']['OOMKilled']\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n            and 'stopped_guard_reasons' not in stage)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+  "container_id": "e2b39b218d098a151fcdb9da265b25a168853e496843b450ae6ea61076fcc009",
+  "state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 137,
+    "Error": "",
+    "StartedAt": "2026-11-01T12:49:26.822469558Z",
+    "FinishedAt": "2026-11-01T13:00:26.377343205Z"
+  },
+  "removed": true,
+  "stop_reasons": [
+    "available_memory_below_peer_reserve"
+  ],
+  "last_sample": {
+    "unix": 1793538026.0751874,
+    "available": 15855337472,
+    "admission": {
+      "unix": 1793538016.985732,
+      "available": 16950439936,
+      "required": 16117051392,
+      "reserve": 16117051392,
+      "peers": [],
+      "own_runner": {
+        "id": "e2b39b218d098a151fcdb9da265b25a168853e496843b450ae6ea61076fcc009",
+        "name": "/llmx-xdev-q2-8b-chat-f32-resume-resume-002",
+        "state": "running",
+        "cpuset": "0-3",
+        "cap": 16106127360,
+        "used": 2136559616,
+        "unused": 13969567744
+      },
+      "idle_exclusions": [],
+      "active_owned_timing": [],
+      "disk_free": 305950359552,
+      "cpu_overlaps": [
+        {
+          "name": "/mdev-tr-card",
+          "cpuset": "8,9",
+          "physical_cores": [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        }
+      ],
+      "strict_cpu": false,
+      "passed": true
+    },
+    "memory_current": 2249904128,
+    "memory_peak": 4455837696,
+    "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "cpu_stat": "usage_usec 1676555239\nuser_usec 950968287\nsystem_usec 725586952\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 6591\nnr_throttled 61\nthrottled_usec 12395\nnr_bursts 0\nburst_usec 0\n",
+    "progress": {
+      "unix": 1793537982.4672801,
+      "elapsed": 612.8467433452606,
+      "policy": "F32-quality",
+      "phase": "layer-forward",
+      "memory_current": 1540419584,
+      "memory_peak": 4455837696,
+      "ru_maxrss_KiB": 4332600,
+      "layer": 2,
+      "phase_name": "prefill_512",
+      "end": 512
+    }
+  },
+  "checkpoint": {
+    "manifest_sha256": "99f433d6fef01200bc046581dc805634eefcd6565bf2e1367ff68b9b422b6de3",
+    "layer_completed": 1,
+    "sequence": 2,
+    "hidden_file": "hidden-0002.f32",
+    "hidden_bytes": 276807680,
+    "hidden_sha256": "4f2e47e9439ef4e1d653afa2ee085e8ae404c9a5b4d2d4b8372ad7d0d0efd3a2"
+  }
+}

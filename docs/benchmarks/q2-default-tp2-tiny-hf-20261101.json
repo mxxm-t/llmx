@@ -1,0 +1,97 @@
+{
+  "schema": "llmx.q2-default-tp2-tiny-hf.v1",
+  "date": "2026-11-01",
+  "scope": "Default Q2_0 tensor-parallel tiny-HF control; not released-file or performance qualification.",
+  "integration_context": {
+    "branch": "feat/q2-main-b7eef-20261101",
+    "docs_checkpoint_head_at_run": "c0b17ef0149a6f50d4ea20ace9c9d031b995e0e8",
+    "runtime_candidate": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "runtime_source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "runtime_source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "runtime_cli_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "runtime_vulkan_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "original_q1_build_base": "51eba5587ab1cecc10a16603feb5d3128771877a",
+    "q1_landed_main": "e2cea5113b882844aab378505042545e82d0c33d"
+  },
+  "method": {
+    "owner": "tests/block_fixture.py::run_family via tests/low_bits.py::fixture_q2",
+    "standard_owner_and_bounds_changed": false,
+    "device": "vulkan:0,vulkan:1",
+    "tensor_width": 2,
+    "layer_shares": 1,
+    "dtype": "runtime default; no explicit dtype flag",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "fixture_sha256": "23fe5a107c50441c9bbef2619370338cbd1e3d2314f281399272bc0e3ea68fed",
+    "source_hashes": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/low_bits.py": "89917e9b54bb059ef377f90c614d24ad37f4e347632796c4364f81589689bb2e",
+      "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+      "tests/raw_blocks.py": "34f5d7de24a2d647dd9bffd5284581d1cefb249587e5230e5f029d4988814ab8",
+      "tests/data/baseline_q2_0_split.json": "23fe5a107c50441c9bbef2619370338cbd1e3d2314f281399272bc0e3ea68fed"
+    }
+  },
+  "result": {
+    "passed": true,
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "full_logit_cases": 150,
+    "nll_checks": 12,
+    "skips": 0,
+    "max_errors": {
+      "dense-untied": {
+        "logit": 0.00244401,
+        "nll": 0.00037214
+      },
+      "dense-tied": {
+        "logit": 0.00196943,
+        "nll": 0.00018416
+      },
+      "moe": {
+        "logit": 0.00747619,
+        "nll": 0.00028318
+      }
+    },
+    "bounds": {
+      "logit": 0.4165916442871094,
+      "nll": 0.022201185994788375
+    },
+    "stdout_summary": "Q2-only TP2 result: True"
+  },
+  "execution": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-tp2-focused-v2-20261101",
+    "execution_sha256": "87ec468616eaa39e72a2c887636080276bf9ce6692eee5e4faccea954f7b8e7a",
+    "stdout_sha256": "64e6011c5919742f51d5be099dd973aff74fa75c2e2c398106789653eac57a63",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "container_id": "f37d8c2fc82fe40b2178ac94fcf67ba71702b3ba0814a55774df253cc8b44858",
+    "exit_code": 0,
+    "seconds": 88.29904866218567,
+    "removed": true,
+    "oom_killed": false,
+    "devices": [
+      {
+        "node": "renderD128",
+        "pci": "0000:c3:00.0",
+        "busy_before": 0,
+        "vram_bytes_before": 10919936
+      },
+      {
+        "node": "renderD129",
+        "pci": "0000:c6:00.0",
+        "busy_before": 0,
+        "vram_bytes_before": 10919936
+      }
+    ]
+  },
+  "superseded_attempt": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-tp2-focused-20261101",
+    "execution_sha256": "279bb815d4fb7502a98b641d81b6a6de9c143849dd1dfad08b34335b2799efa3",
+    "stop_reason_sha256": "92950929bead917aca7c2d99892be3db44bab30fa66abe155a3c923a2c57dd05",
+    "elapsed_seconds": 416.3559648990631,
+    "exit_code": 137,
+    "oom_killed": false,
+    "reason": "Repeated automatic-placement settle waits; stopped after only Q1 dense-untied output. No Q2 numerical comparison failed. Replaced by explicit one-group shares in v2; original files retained."
+  }
+}

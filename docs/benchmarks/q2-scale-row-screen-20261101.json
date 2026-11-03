@@ -1,0 +1,1369 @@
+{
+  "schema": "llmx.q2-scale-row-screen-evidence.v1",
+  "date": "2026-11-01",
+  "scope": "Isolated MI50 Q2_0 block-int16 row diagnostic for the reverted shared activation-scale shortcut; not model/HF qualification.",
+  "question": "Did the scale shortcut produce a decode-row improvement after the earlier prefill screens?",
+  "decision": "No decode-row gain was demonstrated. Preserve the experiment as reverted; no broader model gate was run.",
+  "pins": {
+    "frozen_runtime_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "base_source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "candidate_source_tree_sha256": "4bb81476831c8205c0bf2eda19e0ba3385d6b651aaf51f1d02fcd8ba784bc3d9",
+    "changed_candidate_source_path": "src/backends/vulkan/shaders/lookup_dot.glsl",
+    "changed_generated_modules": [
+      "generated/vulkan/matmul_row_q2_0_dot.inc",
+      "generated/vulkan/matmul_tile_q2_0_dot.inc"
+    ],
+    "base_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_library_sha256": "e3975c9ce257039bdafa272a270e93011bd483f2f17234a92d2f33556c2ded94",
+    "base_source_tree_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/source",
+    "candidate_source_tree_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-scale-check-micro-v1/candidate/source",
+    "base_library_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/build/libllmx-vulkan.a",
+    "candidate_library_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-scale-check-micro-v1/candidate/build/libllmx-vulkan.a",
+    "probe_path": "scratch/q2-scale-row-screen-20261101/probe.cpp",
+    "probe_sha256": "6b01d2ca6de17fc2df6145025d5b2b4ac0c733adb90e6da8272b528b31200a79",
+    "compile_script_sha256": "a52ec4f37f9b8c420b1e7832a403c88bf86c41b01828ed144f932c1ea8b87fad",
+    "compile_plan_sha256": "46ac69ea4695ae2ff94aa7289cbf849b431660fa5fc1d4900f35055224d6f47c",
+    "screen_plan_sha256": "b0dd017af4d1e62b4b1b65cc61f9be12ec61bc21c12bde405d19b250846ae95a",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "compiler": "g++ with -std=c++17 -O3 -mavx2 -mfma -mf16c; both helper arms used identical frozen 9ad headers and flags",
+    "helper_binaries": {
+      "base": {
+        "sha256": "3909e5d37b139f7ffe8d9c90199c81f24ebd465be42dfa372366d3a69584879b",
+        "bytes": 11193408
+      },
+      "candidate": {
+        "sha256": "9c53438711c13b87be203449a8cee22673bfeec3ca5a6a52d1bc454bb35d1dc6",
+        "bytes": 11193408
+      }
+    },
+    "no_library_rebuild": true,
+    "no_gpu_during_helper_compile": true,
+    "gpu_guard_sha256": "b654444a7dec063ebbca8b6c3783aed9ef48129c619e8cc9b553449f1c492907",
+    "admission_guard_sha256": "490a692b7245afbc3dc8003c70da39b603d65bdcf11c26529e03f7359749ed0a"
+  },
+  "compile": {
+    "receipt_path": "scratch/q2-scale-row-screen-20261101/compile-receipt.json",
+    "receipt_sha256": "faa8d49f4e187a54ab1cbf01d53b94f82392e71d094005df4adae5682c9144d2",
+    "build_log_path": "scratch/q2-scale-row-screen-20261101/compile-build.log",
+    "build_log_sha256": "48b69298e543ae2b4864fe1e31d6cf720afd7ae4ae4cb740cd7887fe9e69b8ef",
+    "exit_code": 0,
+    "container_removed": true,
+    "cpu_set": "6",
+    "cpu_quota": 1,
+    "memory_cap_bytes": 2147483648,
+    "peak_memory_bytes": 129257472,
+    "supervisor_path": "scratch/q2-scale-row-screen-20261101/compile_supervise.py",
+    "supervisor_sha256": "a0129b54ddd75edd1264521f99ca29878887b71406382acbe97a6919daa94df7"
+  },
+  "measurement": {
+    "rig_window_utc": {
+      "started": "2026-11-01T11:28:52.621655+00:00",
+      "activity_first": "2026-11-01T11:28:54.432078+00:00",
+      "activity_last": "2026-11-01T11:29:04.419572+00:00"
+    },
+    "target_gpu": {
+      "render_node": "renderD131",
+      "pci": "0000:cc:00.0",
+      "before": {
+        "pci": "0000:cc:00.0",
+        "node": "/dev/dri/renderD131",
+        "vendor": "0x1002",
+        "device": "0x66a1",
+        "busy": 0,
+        "vram_used": 10919936,
+        "performance_level": "auto",
+        "other_container_handles": [
+          {
+            "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "name": "/cdev-abc-run2",
+            "top": "PID                 COMMAND\n75100               sleep\n1759742             bash",
+            "target_handles": []
+          }
+        ],
+        "production_id": "bf9aba323abb5f2a432e850113573516cde1dc4b7481d78841ad3ad3510a61b2",
+        "protected": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/zpool1/llmx-serve/flash-int-lm3/disk",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-int-lm3",
+          "/zpool1/llmx-serve/flash-int-lm3",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-int-lm3/disk"
+        ],
+        "errors": []
+      },
+      "after": {
+        "pci": "0000:cc:00.0",
+        "node": "/dev/dri/renderD131",
+        "vendor": "0x1002",
+        "device": "0x66a1",
+        "busy": 0,
+        "vram_used": 10919936,
+        "performance_level": "auto",
+        "other_container_handles": [
+          {
+            "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "name": "/cdev-abc-run2",
+            "top": "PID                 COMMAND\n75100               sleep\n1759742             bash",
+            "target_handles": []
+          }
+        ],
+        "production_id": "bf9aba323abb5f2a432e850113573516cde1dc4b7481d78841ad3ad3510a61b2",
+        "protected": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/zpool1/llmx-serve/flash-int-lm3/disk",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-int-lm3",
+          "/zpool1/llmx-serve/flash-int-lm3",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-int-lm3/disk"
+        ],
+        "errors": []
+      }
+    },
+    "cpu_set": "6",
+    "cpu_quota": 1,
+    "memory_cap_bytes": 2147483648,
+    "network": "none",
+    "no_swap": true,
+    "order": [
+      "base",
+      "candidate",
+      "candidate",
+      "base"
+    ],
+    "processes": 4,
+    "calls_per_shape_per_arm": 8,
+    "cold_calls_per_shape_arm": 2,
+    "warm_calls_per_shape_arm": 6,
+    "planned_calls": 32,
+    "retained_calls": 32,
+    "exact_output_values": 262144,
+    "slow_samples_discarded": false,
+    "results_by_shape": {
+      "K4096_M12288_N1": {
+        "base": {
+          "calls": 8,
+          "warm_calls": 6,
+          "warm_row_gpu_ms": [
+            0.09392,
+            0.09392,
+            0.0952,
+            0.09552,
+            0.0952,
+            0.09328
+          ],
+          "warm_row_gpu_median_ms": 0.09456,
+          "warm_host_wall_ms": [
+            0.276068,
+            0.269169,
+            0.252958,
+            0.254288,
+            0.231687,
+            0.233097
+          ],
+          "warm_host_wall_median_ms": 0.25362300000000004,
+          "cold_calls": [
+            {
+              "sequence": 1,
+              "row_gpu_ms": 0.09296,
+              "producer_gpu_ms": 0.01248,
+              "host_wall_ms": 59.4545
+            },
+            {
+              "sequence": 4,
+              "row_gpu_ms": 0.0928,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 54.6048
+            }
+          ],
+          "path": "block-int16",
+          "all_outputs_bitwise_equal_to_integer_oracle": true,
+          "exact_output_values": 98304
+        },
+        "candidate": {
+          "calls": 8,
+          "warm_calls": 6,
+          "warm_row_gpu_ms": [
+            0.0976,
+            0.09536,
+            0.09552,
+            0.09616,
+            0.09648,
+            0.0952
+          ],
+          "warm_row_gpu_median_ms": 0.09584,
+          "warm_host_wall_ms": [
+            0.308319,
+            0.258918,
+            0.273099,
+            0.318089,
+            0.253948,
+            0.257458
+          ],
+          "warm_host_wall_median_ms": 0.2660085,
+          "cold_calls": [
+            {
+              "sequence": 2,
+              "row_gpu_ms": 0.09392,
+              "producer_gpu_ms": 0.01248,
+              "host_wall_ms": 59.4072
+            },
+            {
+              "sequence": 3,
+              "row_gpu_ms": 0.09408,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 55.3037
+            }
+          ],
+          "path": "block-int16",
+          "all_outputs_bitwise_equal_to_integer_oracle": true,
+          "exact_output_values": 98304
+        },
+        "candidate_vs_base_warm_row_median_percent": 1.3536379018612488
+      },
+      "K12288_M4096_N1": {
+        "base": {
+          "calls": 8,
+          "warm_calls": 6,
+          "warm_row_gpu_ms": [
+            0.112,
+            0.11248,
+            0.11296,
+            0.11264,
+            0.11408,
+            0.11312
+          ],
+          "warm_row_gpu_median_ms": 0.11280000000000001,
+          "warm_host_wall_ms": [
+            0.29909,
+            0.254468,
+            0.254198,
+            0.274559,
+            0.257028,
+            0.254258
+          ],
+          "warm_host_wall_median_ms": 0.255748,
+          "cold_calls": [
+            {
+              "sequence": 1,
+              "row_gpu_ms": 0.1144,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 93.5169
+            },
+            {
+              "sequence": 4,
+              "row_gpu_ms": 0.11104,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 49.8548
+            }
+          ],
+          "path": "block-int16",
+          "all_outputs_bitwise_equal_to_integer_oracle": true,
+          "exact_output_values": 32768
+        },
+        "candidate": {
+          "calls": 8,
+          "warm_calls": 6,
+          "warm_row_gpu_ms": [
+            0.1128,
+            0.11312,
+            0.1128,
+            0.11296,
+            0.11312,
+            0.11312
+          ],
+          "warm_row_gpu_median_ms": 0.11304,
+          "warm_host_wall_ms": [
+            0.281489,
+            0.248428,
+            0.245838,
+            0.265669,
+            0.246988,
+            0.256318
+          ],
+          "warm_host_wall_median_ms": 0.252373,
+          "cold_calls": [
+            {
+              "sequence": 2,
+              "row_gpu_ms": 0.11248,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 50.8156
+            },
+            {
+              "sequence": 3,
+              "row_gpu_ms": 0.11216,
+              "producer_gpu_ms": 0.01232,
+              "host_wall_ms": 47.0283
+            }
+          ],
+          "path": "block-int16",
+          "all_outputs_bitwise_equal_to_integer_oracle": true,
+          "exact_output_values": 32768
+        },
+        "candidate_vs_base_warm_row_median_percent": 0.21276595744679216
+      }
+    },
+    "all_calls": [
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 0,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 59.4545,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09296",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01248",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09296"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 0,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.276068,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09392",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09392"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 0,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.269169,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09392",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09392"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 0,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.252958,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.0952",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.0952"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 1,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 93.5169,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.1144",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.1144"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 1,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.29909,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.112",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.112"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 1,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.254468,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11248",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11248"
+        ]
+      },
+      {
+        "sequence": 1,
+        "arm": "base",
+        "run_id": "1-base",
+        "shape": 1,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.254198,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11296",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11296"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 0,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 59.4072,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09392",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01248",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09392"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 0,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.308319,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.0976",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.0976"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 0,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.258918,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09536",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09536"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 0,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.273099,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.09552",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.09552"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 1,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 50.8156,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11248",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11248"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 1,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.281489,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.1128",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.1128"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 1,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.248428,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11312",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11312"
+        ]
+      },
+      {
+        "sequence": 2,
+        "arm": "candidate",
+        "run_id": "2-candidate",
+        "shape": 1,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.245838,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.1128",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.1128"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 0,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 55.3037,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09408",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.09408"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 0,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.318089,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09616",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09616"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 0,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.253948,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09648",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.09648"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 0,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.257458,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.0952",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.0952"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 1,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 47.0283,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11216",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11216"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 1,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.265669,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.11296",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.11296"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 1,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.246988,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11312",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11312"
+        ]
+      },
+      {
+        "sequence": 3,
+        "arm": "candidate",
+        "run_id": "3-candidate",
+        "shape": 1,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.256318,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11312",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11312"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 0,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 54.6048,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.0928",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.0928"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 0,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.254288,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09552",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.09552"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 0,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.231687,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.0952",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.0952"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 0,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 4096,
+        "M": 12288,
+        "N": 1,
+        "wall_ms": 0.233097,
+        "exact_outputs": 12288,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.09328",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.09328"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 1,
+        "ordinal": 0,
+        "phase": "cold",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 49.8548,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11104",
+        "gpu_timestamps": [
+          "gpu_ms 0 quantize_x 0.01232",
+          "gpu_ms 0 matmul_row_q2_0_dot_1col_4row 0.11104"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 1,
+        "ordinal": 1,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.274559,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.11264",
+        "gpu_timestamps": [
+          "gpu_ms 1 matmul_row_q2_0_dot_1col_4row 0.11264"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 1,
+        "ordinal": 2,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.257028,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11408",
+        "gpu_timestamps": [
+          "gpu_ms 2 matmul_row_q2_0_dot_1col_4row 0.11408"
+        ]
+      },
+      {
+        "sequence": 4,
+        "arm": "base",
+        "run_id": "4-base",
+        "shape": 1,
+        "ordinal": 3,
+        "phase": "warm",
+        "K": 12288,
+        "M": 4096,
+        "N": 1,
+        "wall_ms": 0.254258,
+        "exact_outputs": 4096,
+        "path": "block-int16",
+        "row_timestamp": "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11312",
+        "gpu_timestamps": [
+          "gpu_ms 3 matmul_row_q2_0_dot_1col_4row 0.11312"
+        ]
+      }
+    ],
+    "pipeline_statistics": {
+      "base": [
+        "quantize_x: Driver pipeline hash=3615666993850426032 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3464 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3307795377 Instructions=652 Copies=91 Branches=45 Latency=1685 Inverse Throughput=703 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=19 Pre-Sched VGPRs=14 VALU=455 SALU=126 VMEM=3 SMEM=3 VOPD=0",
+        "matmul_row_q2_0_dot_1col_4row: Driver pipeline hash=3296283819677549755 SGPRs=80 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8200 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2097854313 Instructions=1480 Copies=60 Branches=26 Latency=307352 Inverse Throughput=237864 VMEM Clause=17 SMEM Clause=16 Pre-Sched SGPRs=49 Pre-Sched VGPRs=53 VALU=1162 SALU=151 VMEM=53 SMEM=24 VOPD=0"
+      ],
+      "candidate": [
+        "quantize_x: Driver pipeline hash=3615666993850426032 SGPRs=32 VGPRs=20 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3464 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=3307795377 Instructions=652 Copies=91 Branches=45 Latency=1685 Inverse Throughput=703 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=19 Pre-Sched VGPRs=14 VALU=455 SALU=126 VMEM=3 SMEM=3 VOPD=0",
+        "matmul_row_q2_0_dot_1col_4row: Driver pipeline hash=11328884386343048221 SGPRs=80 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8268 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=631471427 Instructions=1494 Copies=61 Branches=26 Latency=308696 Inverse Throughput=238152 VMEM Clause=17 SMEM Clause=16 Pre-Sched SGPRs=49 Pre-Sched VGPRs=53 VALU=1165 SALU=162 VMEM=53 SMEM=24 VOPD=0"
+      ]
+    },
+    "pipeline_statistics_note": "Static RADV pipeline statistics only; Subgroups per SIMD is not measured occupancy and instruction/throughput fields are not hardware execution counts.",
+    "runner_sha256": "c655d2925a4ca1f4a573f3e2fb895147b04fd8677960cc8e4855536b731fc55e"
+  },
+  "activity": {
+    "path": "scratch\\q2-scale-row-screen-20261101\\run-out-attempt2\\activity.jsonl",
+    "sha256": "16987cd4b2240e9b3d1d922384c9dd390af1f3f6d5a80c848959c334f9f5f249",
+    "monitor_header": {
+      "event": "start",
+      "pid": 359981,
+      "ticks_per_second": 100,
+      "logical_cpus": 16,
+      "interval": 1.0,
+      "benchmark_cgroups": [
+        "8606f924bbf5bac1d9316071bd1914387895d4e473ee59fb523f3ba153fe792c"
+      ],
+      "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+    },
+    "sample_records": 11,
+    "time_window_utc": {
+      "first": "2026-11-01T11:28:54.432078+00:00",
+      "last": "2026-11-01T11:29:04.419572+00:00"
+    },
+    "eligible_intervals": 10,
+    "first_sample_excluded_for_delta_flags": true,
+    "cpu_over_1_core_intervals": 10,
+    "single_device_over_100_mib_s_intervals": 0,
+    "other_gpu_active_intervals": 10,
+    "unknown_process_deltas": 54,
+    "missed_processes": 5,
+    "max_unrelated_cpu_cores_observed": 4.736,
+    "max_single_disk_device_mib_s": 4.087,
+    "whole_disk_aggregate_over_100_mib_s_intervals": 0,
+    "observed_whole_disk_names": [
+      "nvme0n1",
+      "sda",
+      "sdb",
+      "sdc",
+      "sdd",
+      "sde",
+      "sdf"
+    ],
+    "unsupported_disk_names_with_io": [],
+    "all_observed_disk_names": [
+      "loop0",
+      "loop1",
+      "loop2",
+      "loop3",
+      "loop4",
+      "loop5",
+      "loop6",
+      "loop7",
+      "nvme0n1",
+      "sda",
+      "sdb",
+      "sdc",
+      "sdd",
+      "sde",
+      "sdf"
+    ],
+    "excluded_disk_names": [
+      "loop0",
+      "loop1",
+      "loop2",
+      "loop3",
+      "loop4",
+      "loop5",
+      "loop6",
+      "loop7"
+    ],
+    "target_gpu_cards": [
+      "card3"
+    ],
+    "faulted_c9_counter_busy_intervals": 10,
+    "all_intervals": [
+      {
+        "at": "2026-11-01T11:28:55.406783+00:00",
+        "elapsed_seconds": 1.003827,
+        "unrelated_cpu_cores_observed": 4.025,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 0,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:28:56.455532+00:00",
+        "elapsed_seconds": 1.000877,
+        "unrelated_cpu_cores_observed": 4.736,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 12,
+        "missed_processes": 2,
+        "max_single_disk_device_mib_s": 1.081,
+        "whole_disk_aggregate_mib_s": 7.216,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:28:57.419515+00:00",
+        "elapsed_seconds": 1.000895,
+        "unrelated_cpu_cores_observed": 3.996,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 18,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 0.004,
+        "whole_disk_aggregate_mib_s": 0.008,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:28:58.474720+00:00",
+        "elapsed_seconds": 1.000684,
+        "unrelated_cpu_cores_observed": 4.487,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 1,
+        "missed_processes": 1,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:28:59.405186+00:00",
+        "elapsed_seconds": 1.000526,
+        "unrelated_cpu_cores_observed": 4.328,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 3,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 0.008,
+        "whole_disk_aggregate_mib_s": 0.047,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:29:00.485252+00:00",
+        "elapsed_seconds": 1.0008,
+        "unrelated_cpu_cores_observed": 4.576,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 3,
+        "missed_processes": 1,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:29:01.415693+00:00",
+        "elapsed_seconds": 1.003463,
+        "unrelated_cpu_cores_observed": 4.096,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 10,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 4.087,
+        "whole_disk_aggregate_mib_s": 7.178,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:29:02.426222+00:00",
+        "elapsed_seconds": 1.000613,
+        "unrelated_cpu_cores_observed": 4.377,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 5,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:29:03.418310+00:00",
+        "elapsed_seconds": 1.000455,
+        "unrelated_cpu_cores_observed": 4.068,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 1,
+        "missed_processes": 1,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      },
+      {
+        "at": "2026-11-01T11:29:04.419572+00:00",
+        "elapsed_seconds": 1.000578,
+        "unrelated_cpu_cores_observed": 4.357,
+        "cpu_over_1_core": true,
+        "unknown_process_deltas": 1,
+        "missed_processes": 0,
+        "max_single_disk_device_mib_s": 0.0,
+        "whole_disk_aggregate_mib_s": 0.0,
+        "single_device_over_100_mib_s": false,
+        "disk_aggregate_over_100_mib_s": false,
+        "observed_whole_disk_names": [
+          "nvme0n1",
+          "sda",
+          "sdb",
+          "sdc",
+          "sdd",
+          "sde",
+          "sdf"
+        ],
+        "unsupported_disk_names_with_io": [],
+        "target_gpu_cards": [
+          "card3"
+        ],
+        "active_other_gpus": [
+          "card4",
+          "card5",
+          "card8",
+          "card9"
+        ],
+        "faulted_c9_busy_counters": [
+          "card2"
+        ]
+      }
+    ],
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "faulted_counter_context": "PCI 0000:c9:00.0 was previously confirmed as a false busy=100 counter without device handles in the preceding Q2 scale-check activity audit; its samples are reported separately, not counted as other-GPU work."
+  },
+  "attempts": {
+    "prestart_failure": {
+      "path": "scratch/q2-scale-row-screen-20261101/prestart-failure-execution.json",
+      "sha256": "2d7b6da823e03bffbf0de2c4f25b57ade0ae3a1428aec94ed69edcbab9586795",
+      "calls_started": 0,
+      "exit_before_timing": true,
+      "container_removed": true,
+      "reason": "Admission tried to read /proc/0/cgroup for a created-but-not-started container. The wrapper was corrected to reserve its full unused cap when State.Status is created and Pid is 0."
+    },
+    "completed_attempt": {
+      "path": "scratch/q2-scale-row-screen-20261101/run-out-attempt2/execution.json",
+      "sha256": "922cf187cee853fcf1a5c22a8a4951d180aed24301c281a3ba7f75b2ccb43bf0",
+      "container_id": "8606f924bbf5bac1d9316071bd1914387895d4e473ee59fb523f3ba153fe792c",
+      "exit_complete": true,
+      "container_removed": true,
+      "monitor_returncode": 0
+    }
+  },
+  "raw_artifacts": {
+    "execution_path": "scratch/q2-scale-row-screen-20261101/run-out-attempt2/execution.json",
+    "activity_path": "scratch/q2-scale-row-screen-20261101/run-out-attempt2/activity.jsonl",
+    "sha256": {
+      "1-base.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "1-base.stdout": "5cb68234fbfb0e69951e7c1585b1dd6e2dd439fa600b167c76833f4e34daf761",
+      "2-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "2-candidate.stdout": "a586b3ee2daf5a23c8d6e2023cd8e6622c2c1ac4904217f593261bb44c6fd0df",
+      "3-candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "3-candidate.stdout": "9561fdf9eb0738ca5d524772bc00d23cac8dbffda447782e46ddba4987326914",
+      "4-base.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "4-base.stdout": "38f64d14d876a1d234bbf49036993def0737c147ff14bafe4b25f44085dd86b3",
+      "activity.jsonl": "16987cd4b2240e9b3d1d922384c9dd390af1f3f6d5a80c848959c334f9f5f249",
+      "monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+    }
+  },
+  "interpretation": [
+    "Warm row-kernel medians are 1.35% slower at K4096/M12288 and 0.21% slower at K12288/M4096. Warm host-wall medians are mixed; cold host-wall samples are highly variable.",
+    "The earlier prefill experiment did not establish a sustained gain: K4096 regressions were repeated and K12288 results varied. This row screen shows no decode improvement.",
+    "The experimental shader edit remains reverted. This result does not establish a universal regression or causal mechanism and is not a model/HF gate."
+  ],
+  "current_tree_effect": "Documentation only. No runtime, shader, test, build configuration or qualification claim changes."
+}

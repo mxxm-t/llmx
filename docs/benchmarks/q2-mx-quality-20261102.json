@@ -1,0 +1,254 @@
+{
+  "scope": "Diagnostic only. No performance result, gate exception or precision change.",
+  "status": "MMAP_REFERENCE_ROWS_AVAILABLE_DIO_ANOMALY_UNRESOLVED",
+  "model": {
+    "path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584,
+    "weights": "Same packed Q2_0 GGUF whose weights were independently decoded for the saved HF F32/block-int8 vectors. No new model conversion."
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "original_libraries": {
+    "bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677"
+  },
+  "driver_hashes": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+  "helper_binary_sha256": "531bc9459a673faecaa0ca35b2f900b41ae9c8e8efdbd0b9d1d68b059316bf84",
+  "receipt_sha256": "387e0611304562318bb43e3e6d5440860512db08b29fab46392914130e0fe66e",
+  "output_hashes": {
+    "results/DONE": "756e270d818535b87f7a98bbb3db19708963129f5fc7782d78a1176a6605d6e7",
+    "results/capture/case-2.f32": "acfa4825b6d65967b498e22b02cc91e01bd4473b29193c8eff28994f54fa3445",
+    "results/capture/case-4.f32": "0650abc3d79600ea9a394f5fb3bfb106493395ca8976b689f56522a7204e697a",
+    "results/capture/case-5.f32": "fa934ca407f92bab812d8885b758109eee4341e64c6c119c8a48889a70668e03",
+    "results/capture/rows.tsv": "a79ffc1ded96f1d612f89aed6da4c8271a4ae8aec36a196b05ddc4bb239ad768",
+    "results/output-sha256.txt": "fe432cac10243d7b7c692dfbe2910f1938ab57292ed1078bff3f0e7e127c76ec",
+    "results/stderr.txt": "acd8b2e2cabcdf9ca8b5092b7fe072b12b2656acfecceac2836e0742c3c76f49",
+    "results/stdout.txt": "41f381b42fdf63edd151e9b9461b05d12545f217a00821b7e95dabfbdf451c82",
+    "results/terminal.txt": "19eaf43821a7660ec323a87c8457bf74823beb296c39f5e01aa8a683aa50f061"
+  },
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-mx-quality-20261102/mmap-control",
+  "settings": {
+    "context": 512,
+    "batch": 512,
+    "ubatch": 512,
+    "threads": 1,
+    "kv": "F16",
+    "flash_attention": true,
+    "load_mode": "mmap",
+    "gpu_layers": 37,
+    "pci": "0000:c3:00.0",
+    "cpu": 0
+  },
+  "rows": [
+    {
+      "index": 2,
+      "direct_zero_count": 2663,
+      "mmap_zero_count": 0,
+      "mmap_zero_runs": [],
+      "bitwise_equal": false,
+      "equal_entries": 149270,
+      "both_nonzero": 149273,
+      "both_nonzero_equal": 149270,
+      "max_abs_change": 14.058248519897461,
+      "rankings": {
+        "mx-default-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_rule_overlap": 4
+        },
+        "hf-f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_rule_overlap": 5
+        },
+        "hf-block-int8": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_rule_overlap": 3
+        },
+        "llmx-native-int8-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_rule_overlap": 4
+        }
+      },
+      "mx_errors": {
+        "hf-f32": {
+          "max_abs": 2.292915105819702,
+          "max_abs_token": 67979,
+          "mean_abs": 0.4622967076378142,
+          "rms_abs": 0.5646586177685154,
+          "p95_abs": 1.076427310705185,
+          "mean_signed": -0.3882163547943458
+        },
+        "hf-block-int8": {
+          "max_abs": 1.5852880477905273,
+          "max_abs_token": 24463,
+          "mean_abs": 0.3224362616796545,
+          "rms_abs": 0.3961785917748744,
+          "p95_abs": 0.7593201398849487,
+          "mean_signed": -0.24857055143927964
+        },
+        "llmx-native-int8-f16kv": {
+          "max_abs": 1.8138079134826661,
+          "max_abs_token": 9708,
+          "mean_abs": 0.3700623589552091,
+          "rms_abs": 0.44656385498438345,
+          "p95_abs": 0.8347826803722381,
+          "mean_signed": -0.3212560709600771
+        }
+      }
+    },
+    {
+      "index": 4,
+      "direct_zero_count": 2663,
+      "mmap_zero_count": 0,
+      "mmap_zero_runs": [],
+      "bitwise_equal": false,
+      "equal_entries": 149270,
+      "both_nonzero": 149273,
+      "both_nonzero_equal": 149270,
+      "max_abs_change": 13.399407386779785,
+      "rankings": {
+        "mx-default-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_rule_overlap": 4
+        },
+        "hf-f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_rule_overlap": 5
+        },
+        "hf-block-int8": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_rule_overlap": 5
+        },
+        "llmx-native-int8-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_rule_overlap": 3
+        }
+      },
+      "mx_errors": {
+        "hf-f32": {
+          "max_abs": 1.7151694297790527,
+          "max_abs_token": 101239,
+          "mean_abs": 0.23850663585295384,
+          "rms_abs": 0.30508328898047965,
+          "p95_abs": 0.6077395081520081,
+          "mean_signed": -0.008984313479092336
+        },
+        "hf-block-int8": {
+          "max_abs": 1.7293673753738403,
+          "max_abs_token": 103297,
+          "mean_abs": 0.2502629645483327,
+          "rms_abs": 0.3177025422174138,
+          "p95_abs": 0.6308964490890503,
+          "mean_signed": 0.1050370328880103
+        },
+        "llmx-native-int8-f16kv": {
+          "max_abs": 1.1910228305892945,
+          "max_abs_token": 110013,
+          "mean_abs": 0.17538592581575183,
+          "rms_abs": 0.2228146886520082,
+          "p95_abs": 0.44250913853073126,
+          "mean_signed": 0.04535163921817701
+        }
+      }
+    },
+    {
+      "index": 5,
+      "direct_zero_count": 2663,
+      "mmap_zero_count": 0,
+      "mmap_zero_runs": [],
+      "bitwise_equal": false,
+      "equal_entries": 149270,
+      "both_nonzero": 149273,
+      "both_nonzero_equal": 149270,
+      "max_abs_change": 13.458525657653809,
+      "rankings": {
+        "mx-default-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_rule_overlap": 4
+        },
+        "hf-f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_rule_overlap": 5
+        },
+        "hf-block-int8": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_rule_overlap": 4
+        },
+        "llmx-native-int8-f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_rule_overlap": 3
+        }
+      },
+      "mx_errors": {
+        "hf-f32": {
+          "max_abs": 1.5289316177368164,
+          "max_abs_token": 1216,
+          "mean_abs": 0.23343653337521192,
+          "rms_abs": 0.29827042175874857,
+          "p95_abs": 0.5974692702293396,
+          "mean_signed": -0.09364484640927905
+        },
+        "hf-block-int8": {
+          "max_abs": 1.5983567237854004,
+          "max_abs_token": 5483,
+          "mean_abs": 0.22736795374364652,
+          "rms_abs": 0.29205325447991604,
+          "p95_abs": 0.585837222635746,
+          "mean_signed": -0.11606895220455109
+        },
+        "llmx-native-int8-f16kv": {
+          "max_abs": 1.2803987916259763,
+          "max_abs_token": 2719,
+          "mean_abs": 0.20667911529350894,
+          "rms_abs": 0.2634755127653502,
+          "p95_abs": 0.5261618495254516,
+          "mean_signed": -0.07529796715410031
+        }
+      }
+    }
+  ],
+  "load_mode_and_buffer_logs": {
+    "direct": [
+      "load_tensors: loading model tensors, this can take a while... (load_mode = dio)",
+      "load_tensors: offloaded 37/37 layers to GPU",
+      "load_tensors:      Vulkan0 model buffer size =  2031.10 MiB",
+      "load_tensors:  Vulkan_Host model buffer size =   166.92 MiB",
+      "llama_context: Vulkan_Host  output buffer size =     0.58 MiB"
+    ],
+    "mmap": [
+      "load_tensors: loading model tensors, this can take a while... (load_mode = mmap)",
+      "load_tensors: offloaded 37/37 layers to GPU",
+      "load_tensors:   CPU_Mapped model buffer size =   166.92 MiB",
+      "load_tensors:      Vulkan0 model buffer size =  2031.10 MiB",
+      "llama_context: Vulkan_Host  output buffer size =     0.58 MiB"
+    ]
+  },
+  "limitations": [
+    "mx Vulkan default: no internal dispatch witness proves Q8_1 at every operator.",
+    "HF uses eager attention and F32 KV. Runtime captures use F16 KV.",
+    "No NLL measured. llmx native-int8 ranking and NLL failures remain open.",
+    "Direct-I/O controls contained 3103/2663 exact-zero logits per prompt; mmap had zero.",
+    "One load-mode control associates that anomaly with loading; it does not identify its cause.",
+    "No equivalence of mx and llmx arithmetic or shared explanation of ranking misses established."
+  ],
+  "historical_timing_relation": {
+    "same_vulkan_library_sha256": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "plan_sha256": "058ead94feeacac4b6406c6db059b8d5273b6a9923192011891dec727d7a58c2",
+    "load_mode": "dio",
+    "conclusion": "Historical performance samples are preserved. The later small-prompt direct-I/O output anomaly is not proof that those benchmark calls were corrupt or that it explains the speed gap. Final matched timing must use a reference load whose output is checked, with the load mode recorded in both arms. No historical samples discarded and no gate waived."
+  }
+}

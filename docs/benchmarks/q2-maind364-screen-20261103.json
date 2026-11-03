@@ -1,0 +1,269 @@
+{
+  "status": "PASS_WITH_LIMITATIONS",
+  "execution_sha256": "683a41e194191334b292b3f93c18a2a8ba77de73be8512f33449a34bb486ba14",
+  "plan_sha256": "1ba8f36b879586c6da8e9c571271766798d4489ec9e6152c96a01bec54ed2a32",
+  "audit_script_sha256": "09f3405fe0ba09cbe9b0bd5473f6bad54985ca3a9dfdb20564c021652dd7ba0c",
+  "verified_result_file_pins": 21,
+  "local_provenance_pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-build/results/build-receipt.json": "0f71414f82f715049c2890db848b1fe1cf636453a1e331f64d62789f0489019a",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-receipt.json": "0b6bc0bcd52dc78ef84dde6df0d5cbd0050775143417f7b76b89d087d5b03212"
+  },
+  "externally_pinned_payloads_not_local": [
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-build/results/build-I/llmx",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-build/results/build-I/llmx-low-bits-test",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-J/llmx",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-J/llmx-low-bits-test"
+  ],
+  "samples": [
+    {
+      "tag": "0-I",
+      "arm": "I",
+      "rates": {
+        "pp4096": 693.92,
+        "tg256": 124.91
+      },
+      "duration_seconds": 22.303482055664062
+    },
+    {
+      "tag": "1-J",
+      "arm": "J",
+      "rates": {
+        "pp4096": 721.88,
+        "tg256": 125.77
+      },
+      "duration_seconds": 17.865649938583374
+    },
+    {
+      "tag": "2-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 720.276715,
+        "tg256": 132.089143
+      },
+      "duration_seconds": 26.90434741973877
+    },
+    {
+      "tag": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 724.661118,
+        "tg256": 129.637546
+      },
+      "duration_seconds": 27.054863691329956
+    },
+    {
+      "tag": "4-J",
+      "arm": "J",
+      "rates": {
+        "pp4096": 720.99,
+        "tg256": 125.02
+      },
+      "duration_seconds": 18.012505531311035
+    },
+    {
+      "tag": "5-I",
+      "arm": "I",
+      "rates": {
+        "pp4096": 690.52,
+        "tg256": 126.48
+      },
+      "duration_seconds": 17.9159574508667
+    }
+  ],
+  "medians_tok_s": {
+    "I": {
+      "pp4096": 692.22,
+      "tg256": 125.695
+    },
+    "J": {
+      "pp4096": 721.435,
+      "tg256": 125.395
+    },
+    "mx": {
+      "pp4096": 722.4689165,
+      "tg256": 130.86334449999998
+    }
+  },
+  "relative_percent": {
+    "J_vs_I": {
+      "pp4096": 4.220479038455971,
+      "tg256": -0.23867297824097244
+    },
+    "J_vs_mx": {
+      "pp4096": -0.14310878660480641,
+      "tg256": -4.178667846900385
+    },
+    "I_vs_mx": {
+      "pp4096": -4.186881374293694,
+      "tg256": -3.9494210695493748
+    }
+  },
+  "focused_witnesses_verified": [
+    "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]",
+    "Q2_0 one-column dense row witness: matmul_row_q2_0_dot_1col_4row",
+    "Q2_0 grouped two-row widths",
+    "Q2_0 routed row/narrow tile: one token, four selected experts",
+    "Q2_0 integer rows/tiles: grouped/routed/residual 65 rows",
+    "zero/tiny-scale range repair [ok]",
+    "Q2_0 Vulkan dispatches: timestamps=available, row+tile witnessed"
+  ],
+  "maximum_cgroup_memory_peak_bytes": 385990656,
+  "q2_modules_unchanged": 15,
+  "attention_modules_changed": 8,
+  "monitor": {
+    "samples": 134,
+    "intervals": 133,
+    "first_sample_unix": 1793693726.221914,
+    "last_sample_unix": 1793693859.298268,
+    "thresholds": {
+      "unrelated_cpu_core_equivalents": 1,
+      "disk_bytes_per_second": 104857600,
+      "non_target_gpu_busy_percent": 0,
+      "sample_gap_seconds": 3,
+      "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+    },
+    "recorded_annotations_present": false,
+    "annotation_method": "Independently derived from raw monitor counters; no annotation file was emitted by the runner.",
+    "maximum_gap_seconds": 1.0041201529966202,
+    "coverage": [
+      {
+        "tag": "0-I",
+        "call_seconds": 22.303482055664062,
+        "covered_seconds": 22.303482055664062,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 24,
+        "maximum_interval_seconds": 1.0011459900051705,
+        "flagged_seconds": {
+          "unrelated_cpu": 22.303482055664062,
+          "physical_disk": 0,
+          "non_target_gpu": 22.303482055664062,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 5.537401634914516,
+        "weighted_mean_system_cpu_nonidle_percent": 44.57897867843168,
+        "maximum_physical_disk_bytes_per_second": 64235005.43429285,
+        "unknown_process_deltas": 149,
+        "missed_process_observations": 10,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "1-J",
+        "call_seconds": 17.865649938583374,
+        "covered_seconds": 17.865649938583374,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 19,
+        "maximum_interval_seconds": 1.0010109659997397,
+        "flagged_seconds": {
+          "unrelated_cpu": 17.865649938583374,
+          "physical_disk": 0,
+          "non_target_gpu": 17.865649938583374,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 6.405112544646855,
+        "weighted_mean_system_cpu_nonidle_percent": 43.08623417279642,
+        "maximum_physical_disk_bytes_per_second": 57470219.56202522,
+        "unknown_process_deltas": 98,
+        "missed_process_observations": 2,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "2-mx",
+        "call_seconds": 26.90434741973877,
+        "covered_seconds": 26.90434741973877,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 27,
+        "maximum_interval_seconds": 1.0011624910039245,
+        "flagged_seconds": {
+          "unrelated_cpu": 26.90434741973877,
+          "physical_disk": 0.985274076461792,
+          "non_target_gpu": 26.90434741973877,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 6.806749748086176,
+        "weighted_mean_system_cpu_nonidle_percent": 47.21377711023149,
+        "maximum_physical_disk_bytes_per_second": 118490345.51173422,
+        "unknown_process_deltas": 98,
+        "missed_process_observations": 12,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "3-mx",
+        "call_seconds": 27.054863691329956,
+        "covered_seconds": 27.054863691329956,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 29,
+        "maximum_interval_seconds": 1.0011624910039245,
+        "flagged_seconds": {
+          "unrelated_cpu": 27.054863691329956,
+          "physical_disk": 2.0107715129852295,
+          "non_target_gpu": 21.988786220550537,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 6.459194947006931,
+        "weighted_mean_system_cpu_nonidle_percent": 46.38245825526688,
+        "maximum_physical_disk_bytes_per_second": 938928256.2848613,
+        "unknown_process_deltas": 163,
+        "missed_process_observations": 15,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "4-J",
+        "call_seconds": 18.012505531311035,
+        "covered_seconds": 18.012505531311035,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 19,
+        "maximum_interval_seconds": 1.0016614769992884,
+        "flagged_seconds": {
+          "unrelated_cpu": 18.012505531311035,
+          "physical_disk": 7.928283929824829,
+          "non_target_gpu": 16.074825525283813,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 7.338629547416977,
+        "weighted_mean_system_cpu_nonidle_percent": 51.106699443010974,
+        "maximum_physical_disk_bytes_per_second": 1163106298.101164,
+        "unknown_process_deltas": 94,
+        "missed_process_observations": 5,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "5-I",
+        "call_seconds": 17.9159574508667,
+        "covered_seconds": 17.9159574508667,
+        "coverage_fraction": 1.0,
+        "overlapping_intervals": 18,
+        "maximum_interval_seconds": 1.000821970999823,
+        "flagged_seconds": {
+          "unrelated_cpu": 17.9159574508667,
+          "physical_disk": 0,
+          "non_target_gpu": 17.9159574508667,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 6.277251992675515,
+        "weighted_mean_system_cpu_nonidle_percent": 44.76036946575299,
+        "maximum_physical_disk_bytes_per_second": 25442912.044210628,
+        "unknown_process_deltas": 55,
+        "missed_process_observations": 5,
+        "unknown_gpu_intervals": 0
+      }
+    ]
+  },
+  "limitations": [
+    "Two single-repetition samples per arm in one mirrored block; no confidence interval or repeat-block stability claim.",
+    "Host is active: interval annotations describe activity and imbalance; every planned sample is retained.",
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "Monitor covers complete benchmark process intervals, including loading and setup; logs do not timestamp exact PP/TG subphases.",
+    "Unrelated CPU is the sum of known process tick deltas; new/disappeared/inaccessible processes limit attribution.",
+    "Disk flag sums physical-device read/write sectors, including mirrored storage traffic; it is not unique application bytes.",
+    "No separate code-layout perturbation control, full HF gate, or landing claim is supplied by this screen.",
+    "Actual model, executable, mx library and remote helper files are not local; their pins were checked by the completed runner, and available build receipts are independently crosschecked here.",
+    "Runtime builds report unknown revision for no-git archive trees; committed-source identity is carried by pinned archive/manifest evidence.",
+    "The activity monitor starts after focused checks; its interval coverage claim applies to all six timed benchmark calls."
+  ],
+  "full_audit_sha256": "eb6f42ce6786fc6d184171c5ab5e7745c839993cb0695aa453d8c53aaa11657d",
+  "raw_local": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-screen",
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-screen",
+  "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "scope": "Short I/J/mx Vulkan screen, not full performance or correctness qualification",
+  "q2_modules_note": "15 named modules include Q2_0, TQ2_0 and shared reduction modules; not 15 exclusively Q2_0 modules."
+}

@@ -154,7 +154,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_row_nvfp4=matmul_row=LLMX_FLOAT_X+LLMX_NVFP4
         matmul_row_nvfp4_preserve=matmul_row=LLMX_FLOAT_X+LLMX_NVFP4+LLMX_PRESERVE_F32
         matmul_row_q1_0=matmul_row=LLMX_FLOAT_X+LLMX_Q1_0
+        matmul_row_q2_0=matmul_row=LLMX_FLOAT_X+LLMX_Q2_0
         matmul_row_q1_0_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q1_0+LLMX_PRESERVE_F32
+        matmul_row_q2_0_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q2_0+LLMX_PRESERVE_F32
         matmul_row_float_x_q2=matmul_row=LLMX_FLOAT_X+LLMX_Q2
         matmul_row_float_x_q2_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q2+LLMX_PRESERVE_F32
         matmul_row_float_x_q3=matmul_row=LLMX_FLOAT_X+LLMX_Q3
@@ -302,8 +304,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_wbf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_tq1_0_dot=matmul_tile_q=LLMX_Q8+LLMX_TQ+LLMX_TQ1_0+LLMX_PRESERVE_F32
         matmul_tile_tq2_0_dot=matmul_tile_q=LLMX_Q8+LLMX_TQ+LLMX_TQ2_0+LLMX_PRESERVE_F32
-        matmul_tile_q1_0_dot=matmul_tile_q=LLMX_Q8+LLMX_LOW_BITS_DOT+LLMX_PRESERVE_F32
+        matmul_tile_q1_0_dot=matmul_tile_q=LLMX_Q8+LLMX_LOW_BITS_DOT+LLMX_Q1_0+LLMX_PRESERVE_F32
+        matmul_tile_q2_0_dot=matmul_tile_q=LLMX_Q8+LLMX_LOW_BITS_DOT+LLMX_PRESERVE_F32
         matmul_row_q1_0_dot=matmul_row=LLMX_DOT+LLMX_LOW_BITS_DOT+LLMX_Q1_0+LLMX_PRESERVE_F32
+        matmul_row_q2_0_dot=matmul_row=LLMX_DOT+LLMX_LOW_BITS_DOT+LLMX_PRESERVE_F32
         matmul_row_tq1_0_dot=matmul_row=LLMX_TQ+LLMX_TQ1_0+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_tq2_0_dot=matmul_row=LLMX_TQ+LLMX_TQ2_0+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_tq1_0=matmul_row=LLMX_FLOAT_X+LLMX_TQ+LLMX_TQ1_0

@@ -1,0 +1,33 @@
+{
+  "status": "APPROVED_FOR_BOUNDED_MODEL_SCREEN",
+  "reviewer": "XDEV root",
+  "scope": "Exact native E/F pair, MI50 c3 with pinned Mesa, P4096/G256 exploratory model cohort. Not merge qualification.",
+  "finding": "Raw Q2 row SPIR-V differs, but the captured WG64 four-row driver machine code, full ISA text and resources are identical. Q2 tile code changes as intended. All other generated shader modules match.",
+  "original_build_status": "FAIL",
+  "original_failure_preserved": true,
+  "correctness_limits_changed": false,
+  "build_receipt_sha256": "b3b4f7c2df352a62a57bedfa9727639069307611c48ed383b89b08be98355e45",
+  "outer_receipt_sha256": "187f8f6e517a18dae832b48b1da0ab7ada445d0bb3b6d64c0c68b43ff39137f9",
+  "terminal_receipt_sha256": "e85d88cb0d102d72d24dda47c41813323ba462d9765756a726e19fd9d4d788d9",
+  "diagnostic_receipt_sha256": "f544634858ea8ded532189bb691adaba35b8582eb18c44957b0128abb1789806",
+  "review_script_sha256": "aa997000877313be52e265915b14ac65fac8e861b9071168ea36410f33620cbe",
+  "module_changes": [
+    "generated/vulkan/matmul_row_q2_0_dot.inc",
+    "generated/vulkan/matmul_tile_q2_0_dot.inc"
+  ],
+  "unchanged_module_count": 332,
+  "verified_raw_diagnostic_outputs": 19,
+  "row_physical_isa_sha256": "e88ee739a21fc5b06329c64ba9708216fed340b499a7b23aee2b17d65f373792",
+  "metadata_equal_except_true_numerics": true,
+  "numerics": {
+    "E": "\"24040553759057ba87ab4dfb6f7c184fbf00bcd8ad4f75f86788b4df525ebf1c\"",
+    "F": "\"9ba817e2ac030fa6f292516533067326203e0e675a0f1219330536459c423da4\""
+  },
+  "required_next": [
+    "E/F native low-bit checks with actual GPU path witnesses",
+    "Frozen D/E/F/mx matched cohort with all timings and activity retained"
+  ],
+  "limitations": "Driver equivalence was captured for the named row specialization on this device/driver only. It does not prove all model paths, model correctness, speed, or other devices.",
+  "geometry_correction_ref": "q2-geometry-correction-20261103.json",
+  "geometry_correction_summary": "Geometry is shape-dependent: for timed gate/down dimensions M=12288 and 4096 (both divisible by 32), the 64-based probe launches 4x the 256-local-size shader workgroups. M=37 checks use 2.5x; small tail cases can use the same group count. D LocalSize=64; E/F=256. See correction record; raw evidence is retained."
+}

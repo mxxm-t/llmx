@@ -1,0 +1,1609 @@
+{
+  "scope": "One paired case4 intermediate trace; numerical localization, not an implementation-defect or gate verdict.",
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "binary_sha256": "2762cc6de15df9a09d4740f14853ba3b3f3dec9bd33afcd42c63290e31420065",
+  "source_hash": "6a4483b856ce31f8c6ead05a91c26b3563bb6a45a93c4a772d3b48be59042b07",
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--name",
+    "llmx-xdev-q2-cuts-case4-20261102",
+    "--network",
+    "none",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,nosuid,nodev,size=256m",
+    "--cpuset-cpus",
+    "2,10",
+    "--cpus",
+    "2",
+    "--memory",
+    "8g",
+    "--memory-swap",
+    "8g",
+    "--pids-limit",
+    "128",
+    "--ulimit",
+    "core=0",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/cache",
+    "--device",
+    "/dev/dri/renderD131",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-case4-intermediate-20261102/out,dst=/out,readonly",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf,dst=/model.gguf,readonly",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-case4-intermediate-20261102/capture,dst=/capture",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=3s",
+    "180s",
+    "/out/llmx",
+    "logits",
+    "/model.gguf",
+    "In 1969, humans first walked on the",
+    "--top",
+    "151936",
+    "--dtype",
+    "int8",
+    "--cache-type-k",
+    "f32",
+    "--cache-type-v",
+    "f32",
+    "--threads",
+    "4",
+    "--load-mode",
+    "auto",
+    "--device",
+    "vulkan:0"
+  ],
+  "versions": {
+    "numpy": "2.2.6",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "tokenizers": "0.21.4"
+  },
+  "threads": 2,
+  "hf_hook_order": [
+    "observe_original",
+    "quantize_enter",
+    "quantize_exit",
+    "observe_rounded"
+  ],
+  "cuts": [
+    {
+      "layer": 0,
+      "phase": "input",
+      "max_abs": 0.0,
+      "rms": 0.0,
+      "relative_rms": 0.0,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 0
+    },
+    {
+      "layer": 0,
+      "phase": "mixer",
+      "max_abs": 0.0008864402770996094,
+      "rms": 5.4213309776883504e-05,
+      "relative_rms": 0.0009014596430516168,
+      "delta_rms_growth": 5.4213309776883504e-05,
+      "bit_differences": 48516
+    },
+    {
+      "layer": 0,
+      "phase": "output",
+      "max_abs": 0.0030221939086914062,
+      "rms": 0.0003375850545440083,
+      "relative_rms": 0.001986804793465242,
+      "delta_rms_growth": 0.0002833717447671248,
+      "bit_differences": 48668
+    },
+    {
+      "layer": 1,
+      "phase": "input",
+      "max_abs": 0.0030221939086914062,
+      "rms": 0.0003375850545440083,
+      "relative_rms": 0.001986804793465242,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 48668
+    },
+    {
+      "layer": 1,
+      "phase": "mixer",
+      "max_abs": 0.002977117896080017,
+      "rms": 0.0005066194505866432,
+      "relative_rms": 0.002821072289906647,
+      "delta_rms_growth": 0.00016903439604263492,
+      "bit_differences": 48693
+    },
+    {
+      "layer": 1,
+      "phase": "output",
+      "max_abs": 0.035213470458984375,
+      "rms": 0.0008431541020886474,
+      "relative_rms": 0.00243428660902876,
+      "delta_rms_growth": 0.00033653465150200413,
+      "bit_differences": 48678
+    },
+    {
+      "layer": 2,
+      "phase": "input",
+      "max_abs": 0.035213470458984375,
+      "rms": 0.0008431541020886474,
+      "relative_rms": 0.00243428660902876,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 48678
+    },
+    {
+      "layer": 2,
+      "phase": "mixer",
+      "max_abs": 0.03471946716308594,
+      "rms": 0.0009684591007711365,
+      "relative_rms": 0.002795247349675879,
+      "delta_rms_growth": 0.00012530499868248916,
+      "bit_differences": 48714
+    },
+    {
+      "layer": 2,
+      "phase": "output",
+      "max_abs": 0.055591583251953125,
+      "rms": 0.0015205623085858238,
+      "relative_rms": 0.003449921066560568,
+      "delta_rms_growth": 0.0005521032078146873,
+      "bit_differences": 48733
+    },
+    {
+      "layer": 3,
+      "phase": "input",
+      "max_abs": 0.055591583251953125,
+      "rms": 0.0015205623085858238,
+      "relative_rms": 0.003449921066560568,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 48733
+    },
+    {
+      "layer": 3,
+      "phase": "mixer",
+      "max_abs": 0.057491302490234375,
+      "rms": 0.0016492149977334557,
+      "relative_rms": 0.003758685719764188,
+      "delta_rms_growth": 0.0001286526891476319,
+      "bit_differences": 48787
+    },
+    {
+      "layer": 3,
+      "phase": "output",
+      "max_abs": 0.056308746337890625,
+      "rms": 0.0022368127467234902,
+      "relative_rms": 0.004938518256691518,
+      "delta_rms_growth": 0.0005875977489900345,
+      "bit_differences": 48989
+    },
+    {
+      "layer": 4,
+      "phase": "input",
+      "max_abs": 0.056308746337890625,
+      "rms": 0.0022368127467234902,
+      "relative_rms": 0.004938518256691518,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 48989
+    },
+    {
+      "layer": 4,
+      "phase": "mixer",
+      "max_abs": 0.0550999641418457,
+      "rms": 0.0024680387040492183,
+      "relative_rms": 0.005429830555425564,
+      "delta_rms_growth": 0.00023122595732572807,
+      "bit_differences": 49151
+    },
+    {
+      "layer": 4,
+      "phase": "output",
+      "max_abs": 0.08289909362792969,
+      "rms": 0.0035471951540151678,
+      "relative_rms": 0.007342253753622327,
+      "delta_rms_growth": 0.0010791564499659494,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 5,
+      "phase": "input",
+      "max_abs": 0.08289909362792969,
+      "rms": 0.0035471951540151678,
+      "relative_rms": 0.007342253753622327,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 5,
+      "phase": "mixer",
+      "max_abs": 0.09881019592285156,
+      "rms": 0.0037849580158444635,
+      "relative_rms": 0.008066462108618513,
+      "delta_rms_growth": 0.00023776286182929573,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 5,
+      "phase": "output",
+      "max_abs": 0.08655357360839844,
+      "rms": 0.005523726653885119,
+      "relative_rms": 0.011921715032677034,
+      "delta_rms_growth": 0.0017387686380406558,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 6,
+      "phase": "input",
+      "max_abs": 0.08655357360839844,
+      "rms": 0.005523726653885119,
+      "relative_rms": 0.011921715032677034,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 6,
+      "phase": "mixer",
+      "max_abs": 0.10651779174804688,
+      "rms": 0.005948831101692039,
+      "relative_rms": 0.014847339870943723,
+      "delta_rms_growth": 0.00042510444780691995,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 6,
+      "phase": "output",
+      "max_abs": 3.9873046875,
+      "rms": 0.02019899326121282,
+      "relative_rms": 0.0005240227850762082,
+      "delta_rms_growth": 0.014250162159520782,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 7,
+      "phase": "input",
+      "max_abs": 3.9873046875,
+      "rms": 0.02019899326121282,
+      "relative_rms": 0.0005240227850762082,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 7,
+      "phase": "mixer",
+      "max_abs": 3.9873046875,
+      "rms": 0.020492744187787713,
+      "relative_rms": 0.0005316372204267597,
+      "delta_rms_growth": 0.0002937509265748921,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 7,
+      "phase": "output",
+      "max_abs": 3.9873046875,
+      "rms": 0.021915652508044066,
+      "relative_rms": 0.0005685215534032699,
+      "delta_rms_growth": 0.0014229083202563532,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 8,
+      "phase": "input",
+      "max_abs": 3.9873046875,
+      "rms": 0.021915652508044066,
+      "relative_rms": 0.0005685215534032699,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 8,
+      "phase": "mixer",
+      "max_abs": 3.9873046875,
+      "rms": 0.02229852818050739,
+      "relative_rms": 0.0005784685377125435,
+      "delta_rms_growth": 0.0003828756724633224,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 8,
+      "phase": "output",
+      "max_abs": 3.9873046875,
+      "rms": 0.023874919271674226,
+      "relative_rms": 0.0006192952079819281,
+      "delta_rms_growth": 0.0015763910911668379,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 9,
+      "phase": "input",
+      "max_abs": 3.9873046875,
+      "rms": 0.023874919271674226,
+      "relative_rms": 0.0006192952079819281,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 9,
+      "phase": "mixer",
+      "max_abs": 3.9873046875,
+      "rms": 0.024318367987130645,
+      "relative_rms": 0.0006308180431567821,
+      "delta_rms_growth": 0.00044344871545641887,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 9,
+      "phase": "output",
+      "max_abs": 3.9873046875,
+      "rms": 0.025028384630298103,
+      "relative_rms": 0.0006491495648238519,
+      "delta_rms_growth": 0.0007100166431674576,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 10,
+      "phase": "input",
+      "max_abs": 3.9873046875,
+      "rms": 0.025028384630298103,
+      "relative_rms": 0.0006491495648238519,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 10,
+      "phase": "mixer",
+      "max_abs": 3.9873046875,
+      "rms": 0.025222534201406466,
+      "relative_rms": 0.0006542267696999681,
+      "delta_rms_growth": 0.0001941495711083631,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 10,
+      "phase": "output",
+      "max_abs": 3.986328125,
+      "rms": 0.025570279111125693,
+      "relative_rms": 0.0006632042946589465,
+      "delta_rms_growth": 0.00034774490971922756,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 11,
+      "phase": "input",
+      "max_abs": 3.986328125,
+      "rms": 0.025570279111125693,
+      "relative_rms": 0.0006632042946589465,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 11,
+      "phase": "mixer",
+      "max_abs": 3.9873046875,
+      "rms": 0.026397337101196985,
+      "relative_rms": 0.0006847161648033801,
+      "delta_rms_growth": 0.0008270579900712914,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 11,
+      "phase": "output",
+      "max_abs": 3.9873046875,
+      "rms": 0.027758003368932443,
+      "relative_rms": 0.0007199225997815658,
+      "delta_rms_growth": 0.0013606662677354588,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 12,
+      "phase": "input",
+      "max_abs": 3.9873046875,
+      "rms": 0.027758003368932443,
+      "relative_rms": 0.0007199225997815658,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 12,
+      "phase": "mixer",
+      "max_abs": 3.98828125,
+      "rms": 0.028439578669554415,
+      "relative_rms": 0.000737632693179144,
+      "delta_rms_growth": 0.000681575300621972,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 12,
+      "phase": "output",
+      "max_abs": 3.98828125,
+      "rms": 0.030554149259541783,
+      "relative_rms": 0.0007923001811147046,
+      "delta_rms_growth": 0.0021145705899873676,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 13,
+      "phase": "input",
+      "max_abs": 3.98828125,
+      "rms": 0.030554149259541783,
+      "relative_rms": 0.0007923001811147046,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 13,
+      "phase": "mixer",
+      "max_abs": 3.98828125,
+      "rms": 0.03149029994015379,
+      "relative_rms": 0.0008166184884721636,
+      "delta_rms_growth": 0.0009361506806120044,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 13,
+      "phase": "output",
+      "max_abs": 3.98828125,
+      "rms": 0.0340158268160019,
+      "relative_rms": 0.0008818437745792227,
+      "delta_rms_growth": 0.0025255268758481095,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 14,
+      "phase": "input",
+      "max_abs": 3.98828125,
+      "rms": 0.0340158268160019,
+      "relative_rms": 0.0008818437745792227,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 14,
+      "phase": "mixer",
+      "max_abs": 3.9892578125,
+      "rms": 0.036101774378982106,
+      "relative_rms": 0.0009359944004034738,
+      "delta_rms_growth": 0.0020859475629802088,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 14,
+      "phase": "output",
+      "max_abs": 3.9892578125,
+      "rms": 0.038127855996768455,
+      "relative_rms": 0.0009882713921896009,
+      "delta_rms_growth": 0.002026081617786349,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 15,
+      "phase": "input",
+      "max_abs": 3.9892578125,
+      "rms": 0.038127855996768455,
+      "relative_rms": 0.0009882713921896009,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 15,
+      "phase": "mixer",
+      "max_abs": 3.98828125,
+      "rms": 0.04086675565609804,
+      "relative_rms": 0.0010593899906679379,
+      "delta_rms_growth": 0.002738899659329587,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 15,
+      "phase": "output",
+      "max_abs": 3.98828125,
+      "rms": 0.04378173169973944,
+      "relative_rms": 0.0011345225627599103,
+      "delta_rms_growth": 0.0029149760436413957,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 16,
+      "phase": "input",
+      "max_abs": 3.98828125,
+      "rms": 0.04378173169973944,
+      "relative_rms": 0.0011345225627599103,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 16,
+      "phase": "mixer",
+      "max_abs": 3.9892578125,
+      "rms": 0.045806302010983055,
+      "relative_rms": 0.0011871862967592903,
+      "delta_rms_growth": 0.0020245703112436175,
+      "bit_differences": 49151
+    },
+    {
+      "layer": 16,
+      "phase": "output",
+      "max_abs": 3.982421875,
+      "rms": 0.04909211880187044,
+      "relative_rms": 0.001237810638824494,
+      "delta_rms_growth": 0.0032858167908873873,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 17,
+      "phase": "input",
+      "max_abs": 3.982421875,
+      "rms": 0.04909211880187044,
+      "relative_rms": 0.001237810638824494,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 17,
+      "phase": "mixer",
+      "max_abs": 3.9833984375,
+      "rms": 0.0528089140595052,
+      "relative_rms": 0.001331855948069418,
+      "delta_rms_growth": 0.0037167952576347557,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 17,
+      "phase": "output",
+      "max_abs": 3.9833984375,
+      "rms": 0.05666647094310738,
+      "relative_rms": 0.0014288935630425062,
+      "delta_rms_growth": 0.0038575568836021826,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 18,
+      "phase": "input",
+      "max_abs": 3.9833984375,
+      "rms": 0.05666647094310738,
+      "relative_rms": 0.0014288935630425062,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 18,
+      "phase": "mixer",
+      "max_abs": 3.9814453125,
+      "rms": 0.06190971614372086,
+      "relative_rms": 0.0015611469378538124,
+      "delta_rms_growth": 0.005243245200613478,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 18,
+      "phase": "output",
+      "max_abs": 3.9814453125,
+      "rms": 0.06755484437011186,
+      "relative_rms": 0.0017032641260297456,
+      "delta_rms_growth": 0.005645128226391002,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 19,
+      "phase": "input",
+      "max_abs": 3.9814453125,
+      "rms": 0.06755484437011186,
+      "relative_rms": 0.0017032641260297456,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 19,
+      "phase": "mixer",
+      "max_abs": 3.98046875,
+      "rms": 0.0744851317782548,
+      "relative_rms": 0.0018781325858763874,
+      "delta_rms_growth": 0.006930287408142943,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 19,
+      "phase": "output",
+      "max_abs": 3.98046875,
+      "rms": 0.08069018850613657,
+      "relative_rms": 0.002034519841075048,
+      "delta_rms_growth": 0.006205056727881769,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 20,
+      "phase": "input",
+      "max_abs": 3.98046875,
+      "rms": 0.08069018850613657,
+      "relative_rms": 0.002034519841075048,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 20,
+      "phase": "mixer",
+      "max_abs": 3.9794921875,
+      "rms": 0.08755278536851104,
+      "relative_rms": 0.0022081908048438054,
+      "delta_rms_growth": 0.006862596862374462,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 20,
+      "phase": "output",
+      "max_abs": 3.9794921875,
+      "rms": 0.09430393254573405,
+      "relative_rms": 0.002378103399506484,
+      "delta_rms_growth": 0.006751147177223013,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 21,
+      "phase": "input",
+      "max_abs": 3.9794921875,
+      "rms": 0.09430393254573405,
+      "relative_rms": 0.002378103399506484,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 21,
+      "phase": "mixer",
+      "max_abs": 3.9814453125,
+      "rms": 0.10112329941007504,
+      "relative_rms": 0.0025503589901764256,
+      "delta_rms_growth": 0.006819366864340995,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 21,
+      "phase": "output",
+      "max_abs": 3.9814453125,
+      "rms": 0.11201324929853522,
+      "relative_rms": 0.002824706846787469,
+      "delta_rms_growth": 0.010889949888460176,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 22,
+      "phase": "input",
+      "max_abs": 3.9814453125,
+      "rms": 0.11201324929853522,
+      "relative_rms": 0.002824706846787469,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 22,
+      "phase": "mixer",
+      "max_abs": 3.982421875,
+      "rms": 0.12083985005689267,
+      "relative_rms": 0.003048047096660396,
+      "delta_rms_growth": 0.00882660075835745,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 22,
+      "phase": "output",
+      "max_abs": 3.982421875,
+      "rms": 0.13807403048327863,
+      "relative_rms": 0.0034818254268281345,
+      "delta_rms_growth": 0.017234180426385956,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 23,
+      "phase": "input",
+      "max_abs": 3.982421875,
+      "rms": 0.13807403048327863,
+      "relative_rms": 0.0034818254268281345,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 23,
+      "phase": "mixer",
+      "max_abs": 3.9794921875,
+      "rms": 0.1550170942362419,
+      "relative_rms": 0.003909546265782985,
+      "delta_rms_growth": 0.016943063752963283,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 23,
+      "phase": "output",
+      "max_abs": 3.9794921875,
+      "rms": 0.17673836988865088,
+      "relative_rms": 0.00445560773515819,
+      "delta_rms_growth": 0.021721275652408972,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 24,
+      "phase": "input",
+      "max_abs": 3.9794921875,
+      "rms": 0.17673836988865088,
+      "relative_rms": 0.00445560773515819,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 24,
+      "phase": "mixer",
+      "max_abs": 3.98046875,
+      "rms": 0.19042107161872324,
+      "relative_rms": 0.004799598674598218,
+      "delta_rms_growth": 0.013682701730072355,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 24,
+      "phase": "output",
+      "max_abs": 3.98046875,
+      "rms": 0.2140060233904677,
+      "relative_rms": 0.005391831498915482,
+      "delta_rms_growth": 0.023584951771744467,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 25,
+      "phase": "input",
+      "max_abs": 3.98046875,
+      "rms": 0.2140060233904677,
+      "relative_rms": 0.005391831498915482,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 25,
+      "phase": "mixer",
+      "max_abs": 3.982421875,
+      "rms": 0.2238107569372874,
+      "relative_rms": 0.005638130655694588,
+      "delta_rms_growth": 0.009804733546819683,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 25,
+      "phase": "output",
+      "max_abs": 4.225341796875,
+      "rms": 0.25079758569080046,
+      "relative_rms": 0.006314716958349719,
+      "delta_rms_growth": 0.026986828753513076,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 26,
+      "phase": "input",
+      "max_abs": 4.225341796875,
+      "rms": 0.25079758569080046,
+      "relative_rms": 0.006314716958349719,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 26,
+      "phase": "mixer",
+      "max_abs": 4.675651550292969,
+      "rms": 0.26517489459601196,
+      "relative_rms": 0.006675050319030028,
+      "delta_rms_growth": 0.014377308905211494,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 26,
+      "phase": "output",
+      "max_abs": 5.418754577636719,
+      "rms": 0.29425645812723383,
+      "relative_rms": 0.007402003005671142,
+      "delta_rms_growth": 0.029081563531221877,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 27,
+      "phase": "input",
+      "max_abs": 5.418754577636719,
+      "rms": 0.29425645812723383,
+      "relative_rms": 0.007402003005671142,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 27,
+      "phase": "mixer",
+      "max_abs": 5.8108673095703125,
+      "rms": 0.30514858374191045,
+      "relative_rms": 0.007674500106804466,
+      "delta_rms_growth": 0.010892125614676618,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 27,
+      "phase": "output",
+      "max_abs": 5.3351898193359375,
+      "rms": 0.342317867603293,
+      "relative_rms": 0.00860123281425333,
+      "delta_rms_growth": 0.037169283861382574,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 28,
+      "phase": "input",
+      "max_abs": 5.3351898193359375,
+      "rms": 0.342317867603293,
+      "relative_rms": 0.00860123281425333,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 28,
+      "phase": "mixer",
+      "max_abs": 5.253150939941406,
+      "rms": 0.35653486345730095,
+      "relative_rms": 0.008953452456760878,
+      "delta_rms_growth": 0.01421699585400793,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 28,
+      "phase": "output",
+      "max_abs": 5.2248992919921875,
+      "rms": 0.40041845784594116,
+      "relative_rms": 0.010041208581174191,
+      "delta_rms_growth": 0.0438835943886402,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 29,
+      "phase": "input",
+      "max_abs": 5.2248992919921875,
+      "rms": 0.40041845784594116,
+      "relative_rms": 0.010041208581174191,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 29,
+      "phase": "mixer",
+      "max_abs": 5.369140625,
+      "rms": 0.41227737164536915,
+      "relative_rms": 0.010334602258208809,
+      "delta_rms_growth": 0.011858913799427995,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 29,
+      "phase": "output",
+      "max_abs": 5.8851776123046875,
+      "rms": 0.45874589671035004,
+      "relative_rms": 0.011479547370535755,
+      "delta_rms_growth": 0.04646852506498089,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 30,
+      "phase": "input",
+      "max_abs": 5.8851776123046875,
+      "rms": 0.45874589671035004,
+      "relative_rms": 0.011479547370535755,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 30,
+      "phase": "mixer",
+      "max_abs": 6.2464141845703125,
+      "rms": 0.49163154253785957,
+      "relative_rms": 0.012289363696369933,
+      "delta_rms_growth": 0.032885645827509524,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 30,
+      "phase": "output",
+      "max_abs": 7.198333740234375,
+      "rms": 0.550618507915215,
+      "relative_rms": 0.01372761224463143,
+      "delta_rms_growth": 0.05898696537735548,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 31,
+      "phase": "input",
+      "max_abs": 7.198333740234375,
+      "rms": 0.550618507915215,
+      "relative_rms": 0.01372761224463143,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 31,
+      "phase": "mixer",
+      "max_abs": 7.928070068359375,
+      "rms": 0.5751326027625318,
+      "relative_rms": 0.014322051247846485,
+      "delta_rms_growth": 0.024514094847316703,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 31,
+      "phase": "output",
+      "max_abs": 9.19708251953125,
+      "rms": 0.6362784100126528,
+      "relative_rms": 0.015794864933249296,
+      "delta_rms_growth": 0.06114580725012109,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 32,
+      "phase": "input",
+      "max_abs": 9.19708251953125,
+      "rms": 0.6362784100126528,
+      "relative_rms": 0.015794864933249296,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 32,
+      "phase": "mixer",
+      "max_abs": 9.00445556640625,
+      "rms": 0.6576647206436255,
+      "relative_rms": 0.016295557172034892,
+      "delta_rms_growth": 0.021386310630972627,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 32,
+      "phase": "output",
+      "max_abs": 11.97601318359375,
+      "rms": 0.7210110304330987,
+      "relative_rms": 0.017794446032437614,
+      "delta_rms_growth": 0.0633463097894732,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 33,
+      "phase": "input",
+      "max_abs": 11.97601318359375,
+      "rms": 0.7210110304330987,
+      "relative_rms": 0.017794446032437614,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 33,
+      "phase": "mixer",
+      "max_abs": 11.566986083984375,
+      "rms": 0.7313781244274515,
+      "relative_rms": 0.018033230146117483,
+      "delta_rms_growth": 0.010367093994352872,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 33,
+      "phase": "output",
+      "max_abs": 12.24395751953125,
+      "rms": 0.7968552422776775,
+      "relative_rms": 0.019559665602800775,
+      "delta_rms_growth": 0.06547711785022592,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 34,
+      "phase": "input",
+      "max_abs": 12.24395751953125,
+      "rms": 0.7968552422776775,
+      "relative_rms": 0.019559665602800775,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 34,
+      "phase": "mixer",
+      "max_abs": 14.1512451171875,
+      "rms": 0.8402531170731538,
+      "relative_rms": 0.020440820923456907,
+      "delta_rms_growth": 0.0433978747954763,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 34,
+      "phase": "output",
+      "max_abs": 19.16009521484375,
+      "rms": 0.9211287657674087,
+      "relative_rms": 0.022960809382219432,
+      "delta_rms_growth": 0.0808756486942549,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 35,
+      "phase": "input",
+      "max_abs": 19.16009521484375,
+      "rms": 0.9211287657674087,
+      "relative_rms": 0.022960809382219432,
+      "delta_rms_growth": 0.0,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 35,
+      "phase": "mixer",
+      "max_abs": 21.9365234375,
+      "rms": 0.9436336035706016,
+      "relative_rms": 0.02375147150864175,
+      "delta_rms_growth": 0.0225048378031929,
+      "bit_differences": 49152
+    },
+    {
+      "layer": 35,
+      "phase": "output",
+      "max_abs": 54.56829833984375,
+      "rms": 1.1891623321460831,
+      "relative_rms": 0.02918557350318193,
+      "delta_rms_growth": 0.24552872857548158,
+      "bit_differences": 49151
+    }
+  ],
+  "first_nonzero": {
+    "layer": 0,
+    "phase": "mixer",
+    "max_abs": 0.0008864402770996094,
+    "mean_abs": 3.616738992947196e-05,
+    "rms": 5.4213309776883504e-05,
+    "relative_rms": 0.0009014596430516168,
+    "vulkan_rms": 0.06013760559634116,
+    "hf_rms": 0.06013947512210405,
+    "worst_row_column": [
+      5,
+      1838
+    ],
+    "vulkan_at_worst": 2.1041815280914307,
+    "hf_at_worst": 2.1050679683685303,
+    "bit_differences": 48516,
+    "per_row_rms": [
+      1.0636688849161754e-08,
+      5.288385195419122e-05,
+      4.794306501621559e-05,
+      8.66973673204485e-05,
+      6.832513134266067e-05,
+      9.948899255466969e-05,
+      6.781307613612148e-05,
+      4.14265378063271e-05,
+      2.175633123516212e-05,
+      2.6096214078025224e-05,
+      1.5918820247650782e-05,
+      1.9193980076564167e-05
+    ],
+    "per_row_max_abs": [
+      1.4901161193847656e-07,
+      0.0002161264419555664,
+      0.0002810955047607422,
+      0.00043620169162750244,
+      0.00025430647656321526,
+      0.0008864402770996094,
+      0.0003533363342285156,
+      0.00014760345220565796,
+      0.00015604496002197266,
+      0.000164031982421875,
+      6.869062781333923e-05,
+      0.00010967254638671875
+    ],
+    "delta_rms_growth": 5.4213309776883504e-05,
+    "delta_rms_ratio": null,
+    "grows_from_zero": true
+  },
+  "first_diagnostic_threshold_crossing": {
+    "layer": 0,
+    "phase": "output",
+    "max_abs": 0.0030221939086914062,
+    "mean_abs": 0.0002443190216805391,
+    "rms": 0.0003375850545440083,
+    "relative_rms": 0.001986804793465242,
+    "vulkan_rms": 0.16991354946110068,
+    "hf_rms": 0.1699113756589277,
+    "worst_row_column": [
+      9,
+      1838
+    ],
+    "vulkan_at_worst": 4.123673439025879,
+    "hf_at_worst": 4.12669563293457,
+    "bit_differences": 48668,
+    "per_row_rms": [
+      5.673703013380206e-08,
+      0.00027009505022864875,
+      0.00024416827669340485,
+      0.0003511271782554697,
+      0.00031008196277298463,
+      0.0003387616580812244,
+      0.00024167539617260121,
+      0.0005278090505405533,
+      0.00032389612577828417,
+      0.0005028625946712439,
+      0.00042400095694291115,
+      0.0001620131788300474
+    ],
+    "per_row_max_abs": [
+      9.5367431640625e-07,
+      0.001248672604560852,
+      0.0010647177696228027,
+      0.0012426003813743591,
+      0.0011703073978424072,
+      0.0014448389410972595,
+      0.000964038074016571,
+      0.002037033438682556,
+      0.0013429373502731323,
+      0.0030221939086914062,
+      0.0021953582763671875,
+      0.0006357766687870026
+    ],
+    "delta_rms_growth": 0.0002833717447671248,
+    "delta_rms_ratio": 6.2269773960186106,
+    "grows_from_zero": false
+  },
+  "diagnostic_relative_rms_threshold": 0.001,
+  "largest_delta_rms_growth": {
+    "layer": 35,
+    "phase": "output",
+    "max_abs": 54.56829833984375,
+    "mean_abs": 0.7746579589739516,
+    "rms": 1.1891623321460831,
+    "relative_rms": 0.02918557350318193,
+    "vulkan_rms": 40.6032224917997,
+    "hf_rms": 40.744867734616754,
+    "worst_row_column": [
+      9,
+      2276
+    ],
+    "vulkan_at_worst": 788.9227905273438,
+    "hf_at_worst": 843.4910888671875,
+    "bit_differences": 49151,
+    "per_row_rms": [
+      0.05316369632787463,
+      1.1610051090656892,
+      1.0424989444805333,
+      0.8805507982212146,
+      0.962502411566607,
+      0.7783961835667067,
+      0.9076268198518568,
+      1.1616916985363712,
+      1.2806707337621106,
+      1.849762731915746,
+      1.4996841472287714,
+      1.655274549853432
+    ],
+    "per_row_max_abs": [
+      2.87548828125,
+      35.042327880859375,
+      13.570556640625,
+      11.082275390625,
+      10.18634033203125,
+      4.575439453125,
+      4.9476318359375,
+      11.9801025390625,
+      29.3621826171875,
+      54.56829833984375,
+      32.164794921875,
+      52.48150634765625
+    ],
+    "delta_rms_growth": 0.24552872857548158,
+    "delta_rms_ratio": 1.2601949820846026,
+    "grows_from_zero": false
+  },
+  "head_input_comparison": {
+    "max_abs": 1.7682113647460938,
+    "mean_abs": 0.11374975639434481,
+    "rms": 0.14932264495645964,
+    "relative_rms": 0.06051091663422326,
+    "vulkan_rms": 2.4589508844603425,
+    "hf_rms": 2.4676976199036287,
+    "worst_row_column": [
+      0,
+      2284
+    ],
+    "vulkan_at_worst": -74.54913330078125,
+    "hf_at_worst": -76.31734466552734,
+    "bit_differences": 4096,
+    "per_row_rms": [
+      0.14932264495645964
+    ],
+    "per_row_max_abs": [
+      1.7682113647460938
+    ]
+  },
+  "head_rows": [
+    {
+      "id": 320,
+      "vulkan": {
+        "actual": 16.376388549804688,
+        "unrounded_double": 16.323147175178775,
+        "actual_twin_exact_double": 16.37638742851823,
+        "f32_reconstructed_double": 16.376387404578736,
+        "head_quantization_effect": 0.05324025333945315,
+        "f32_reconstruction_effect": -2.3939492166391574e-08,
+        "own_head_reduction_residual": 1.1452259514044272e-06
+      },
+      "hf": {
+        "actual": 15.929438591003418,
+        "unrounded_double": 15.943898999828075,
+        "actual_twin_exact_double": 15.92944038458819,
+        "f32_reconstructed_double": 15.929440263624343,
+        "head_quantization_effect": -0.01445861523988512,
+        "f32_reconstruction_effect": -1.2096384693904838e-07,
+        "own_head_reduction_residual": -1.6726209253192792e-06
+      },
+      "total_runtime_minus_hf": 0.44694995880126953,
+      "upstream_unrounded_input_effect": 0.37924817535069977,
+      "head_quantization_amplification": 0.06769886857933827,
+      "f32_reconstruction_difference": 9.702435477265681e-08,
+      "head_reduction_difference": 2.8178468767237064e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 716,
+      "vulkan": {
+        "actual": 16.317440032958984,
+        "unrounded_double": 16.380333829079788,
+        "actual_twin_exact_double": 16.317440046784924,
+        "f32_reconstructed_double": 16.317440134263848,
+        "head_quantization_effect": -0.06289378229486431,
+        "f32_reconstruction_effect": 8.747892366045562e-08,
+        "own_head_reduction_residual": -1.0130486316484166e-07
+      },
+      "hf": {
+        "actual": 15.876379013061523,
+        "unrounded_double": 15.947511281122601,
+        "actual_twin_exact_double": 15.876378538522033,
+        "f32_reconstructed_double": 15.876378447103775,
+        "head_quantization_effect": -0.07113274260056812,
+        "f32_reconstruction_effect": -9.141825785263791e-08,
+        "own_head_reduction_residual": 5.659577482219902e-07
+      },
+      "total_runtime_minus_hf": 0.44106101989746094,
+      "upstream_unrounded_input_effect": 0.432822547957187,
+      "head_quantization_amplification": 0.008238960305703813,
+      "f32_reconstruction_difference": 1.7889718151309353e-07,
+      "head_reduction_difference": -6.672626113868318e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 949,
+      "vulkan": {
+        "actual": 16.247318267822266,
+        "unrounded_double": 16.245172747335474,
+        "actual_twin_exact_double": 16.24731775398149,
+        "f32_reconstructed_double": 16.247317815374345,
+        "head_quantization_effect": 0.0021450066460175776,
+        "f32_reconstruction_effect": 6.139285346762335e-08,
+        "own_head_reduction_residual": 4.524479209067067e-07
+      },
+      "hf": {
+        "actual": 16.30474853515625,
+        "unrounded_double": 16.349023037709998,
+        "actual_twin_exact_double": 16.304750363260297,
+        "f32_reconstructed_double": 16.304750559571403,
+        "head_quantization_effect": -0.044272674449700844,
+        "f32_reconstruction_effect": 1.963111060376832e-07,
+        "own_head_reduction_residual": -2.0244151528459042e-06
+      },
+      "total_runtime_minus_hf": -0.057430267333984375,
+      "upstream_unrounded_input_effect": -0.10385029037452398,
+      "head_quantization_amplification": 0.04641768109571842,
+      "f32_reconstruction_difference": -1.3491825257005985e-07,
+      "head_reduction_difference": 2.476863073752611e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 1273,
+      "vulkan": {
+        "actual": 16.464481353759766,
+        "unrounded_double": 16.469162465712866,
+        "actual_twin_exact_double": 16.464482170765734,
+        "f32_reconstructed_double": 16.464482287485964,
+        "head_quantization_effect": -0.004680294947132069,
+        "f32_reconstruction_effect": 1.1672022992570419e-07,
+        "own_head_reduction_residual": -9.337261985820078e-07
+      },
+      "hf": {
+        "actual": 16.351709365844727,
+        "unrounded_double": 16.34899818759949,
+        "actual_twin_exact_double": 16.35170966395893,
+        "f32_reconstructed_double": 16.35170973688807,
+        "head_quantization_effect": 0.002711476359436915,
+        "f32_reconstruction_effect": 7.292914006029605e-08,
+        "own_head_reduction_residual": -3.710433418291359e-07
+      },
+      "total_runtime_minus_hf": 0.11277198791503906,
+      "upstream_unrounded_input_effect": 0.12016427811337493,
+      "head_quantization_amplification": -0.007391771306568984,
+      "f32_reconstruction_difference": 4.379108986540814e-08,
+      "head_reduction_difference": -5.626828567528719e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 4910,
+      "vulkan": {
+        "actual": 16.076709747314453,
+        "unrounded_double": 15.982608393500652,
+        "actual_twin_exact_double": 16.076708547786495,
+        "f32_reconstructed_double": 16.07670867216069,
+        "head_quantization_effect": 0.09410015428584373,
+        "f32_reconstruction_effect": 1.24374196275312e-07,
+        "own_head_reduction_residual": 1.0751537615760753e-06
+      },
+      "hf": {
+        "actual": 16.310802459716797,
+        "unrounded_double": 16.296927769494594,
+        "actual_twin_exact_double": 16.310804665804,
+        "f32_reconstructed_double": 16.3108047442,
+        "head_quantization_effect": 0.01387689630940514,
+        "f32_reconstruction_effect": 7.83959990258154e-08,
+        "own_head_reduction_residual": -2.2844832017199224e-06
+      },
+      "total_runtime_minus_hf": -0.23409271240234375,
+      "upstream_unrounded_input_effect": -0.3143193759939429,
+      "head_quantization_amplification": 0.08022325797643859,
+      "f32_reconstruction_difference": 4.597819724949659e-08,
+      "head_reduction_difference": 3.3596369632959977e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 6200,
+      "vulkan": {
+        "actual": 16.168739318847656,
+        "unrounded_double": 16.13888520991535,
+        "actual_twin_exact_double": 16.168739637211672,
+        "f32_reconstructed_double": 16.168739825715022,
+        "head_quantization_effect": 0.029854427296321262,
+        "f32_reconstruction_effect": 1.885033498183475e-07,
+        "own_head_reduction_residual": -5.068673658570333e-07
+      },
+      "hf": {
+        "actual": 16.05637550354004,
+        "unrounded_double": 16.034406085401557,
+        "actual_twin_exact_double": 16.056376683687688,
+        "f32_reconstructed_double": 16.05637680036972,
+        "head_quantization_effect": 0.02197059828613135,
+        "f32_reconstruction_effect": 1.1668203114822973e-07,
+        "own_head_reduction_residual": -1.2968296800863754e-06
+      },
+      "total_runtime_minus_hf": 0.11236381530761719,
+      "upstream_unrounded_input_effect": 0.10447912451379437,
+      "head_quantization_amplification": 0.007883829010189913,
+      "f32_reconstruction_difference": 7.182131867011776e-08,
+      "head_reduction_difference": 7.899623142293422e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 11580,
+      "vulkan": {
+        "actual": 16.63458824157715,
+        "unrounded_double": 16.65608634046055,
+        "actual_twin_exact_double": 16.63458898537627,
+        "f32_reconstructed_double": 16.634589064728857,
+        "head_quantization_effect": -0.021497355084282077,
+        "f32_reconstruction_effect": 7.935258850011451e-08,
+        "own_head_reduction_residual": -8.231517085732776e-07
+      },
+      "hf": {
+        "actual": 16.149513244628906,
+        "unrounded_double": 16.07982422439219,
+        "actual_twin_exact_double": 16.14951402375533,
+        "f32_reconstructed_double": 16.149514179617483,
+        "head_quantization_effect": 0.06968979936313957,
+        "f32_reconstruction_effect": 1.558621534059057e-07,
+        "own_head_reduction_residual": -9.349885772280686e-07
+      },
+      "total_runtime_minus_hf": 0.4850749969482422,
+      "upstream_unrounded_input_effect": 0.5762621160683601,
+      "head_quantization_amplification": -0.09118715444742165,
+      "f32_reconstruction_difference": -7.65095649057912e-08,
+      "head_reduction_difference": 1.1183686865479103e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 15494,
+      "vulkan": {
+        "actual": 17.115676879882812,
+        "unrounded_double": 17.188698452446307,
+        "actual_twin_exact_double": 17.115677021734882,
+        "f32_reconstructed_double": 17.115677055872197,
+        "head_quantization_effect": -0.07302143071142453,
+        "f32_reconstruction_effect": 3.4137315196858253e-08,
+        "own_head_reduction_residual": -1.7598938484297832e-07
+      },
+      "hf": {
+        "actual": 17.09699821472168,
+        "unrounded_double": 17.088192533650524,
+        "actual_twin_exact_double": 17.096999774420198,
+        "f32_reconstructed_double": 17.09699980526679,
+        "head_quantization_effect": 0.008807240769673541,
+        "f32_reconstruction_effect": 3.0846592835587217e-08,
+        "own_head_reduction_residual": -1.5905451107300905e-06
+      },
+      "total_runtime_minus_hf": 0.018678665161132812,
+      "upstream_unrounded_input_effect": 0.10050591879578263,
+      "head_quantization_amplification": -0.08182867148109807,
+      "f32_reconstruction_difference": 3.2907223612710368e-09,
+      "head_reduction_difference": 1.4145557258871122e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 17330,
+      "vulkan": {
+        "actual": 17.447662353515625,
+        "unrounded_double": 17.370110847837196,
+        "actual_twin_exact_double": 17.447663879369713,
+        "f32_reconstructed_double": 17.447664003403702,
+        "head_quantization_effect": 0.07755303153251702,
+        "f32_reconstruction_effect": 1.2403398841343005e-07,
+        "own_head_reduction_residual": -1.6498880768267554e-06
+      },
+      "hf": {
+        "actual": 17.211669921875,
+        "unrounded_double": 17.216838448474277,
+        "actual_twin_exact_double": 17.211670594435873,
+        "f32_reconstructed_double": 17.2116706354102,
+        "head_quantization_effect": -0.005167854038404585,
+        "f32_reconstruction_effect": 4.097432793059852e-08,
+        "own_head_reduction_residual": -7.135352007026086e-07
+      },
+      "total_runtime_minus_hf": 0.235992431640625,
+      "upstream_unrounded_input_effect": 0.15327239936291903,
+      "head_quantization_amplification": 0.08272088557092161,
+      "f32_reconstruction_difference": 8.305966048283153e-08,
+      "head_reduction_difference": -9.363528761241469e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 17788,
+      "vulkan": {
+        "actual": 18.020259857177734,
+        "unrounded_double": 17.962159810963044,
+        "actual_twin_exact_double": 18.02025893825828,
+        "f32_reconstructed_double": 18.020259062514583,
+        "head_quantization_effect": 0.05809912729523603,
+        "f32_reconstruction_effect": 1.2425630302459467e-07,
+        "own_head_reduction_residual": 7.946631512822933e-07
+      },
+      "hf": {
+        "actual": 17.904579162597656,
+        "unrounded_double": 17.88224761433533,
+        "actual_twin_exact_double": 17.904579021987047,
+        "f32_reconstructed_double": 17.90457908042174,
+        "head_quantization_effect": 0.022331407651716262,
+        "f32_reconstruction_effect": 5.8434693528397474e-08,
+        "own_head_reduction_residual": 8.217591584980255e-08
+      },
+      "total_runtime_minus_hf": 0.11568069458007812,
+      "upstream_unrounded_input_effect": 0.07991219662771343,
+      "head_quantization_amplification": 0.03576771964351977,
+      "f32_reconstruction_difference": 6.58216094961972e-08,
+      "head_reduction_difference": 7.124872354324907e-07,
+      "closure_error": 0.0
+    },
+    {
+      "id": 23918,
+      "vulkan": {
+        "actual": 16.956218719482422,
+        "unrounded_double": 16.99406725843823,
+        "actual_twin_exact_double": 16.956219503296637,
+        "f32_reconstructed_double": 16.956219488871625,
+        "head_quantization_effect": -0.03784775514159122,
+        "f32_reconstruction_effect": -1.4425012295760098e-08,
+        "own_head_reduction_residual": -7.693892030147254e-07
+      },
+      "hf": {
+        "actual": 16.864315032958984,
+        "unrounded_double": 16.890112073414095,
+        "actual_twin_exact_double": 16.86431760201279,
+        "f32_reconstructed_double": 16.86431768667927,
+        "head_quantization_effect": -0.025794471401304975,
+        "f32_reconstruction_effect": 8.466648182547942e-08,
+        "own_head_reduction_residual": -2.6537202870713372e-06
+      },
+      "total_runtime_minus_hf": 0.0919036865234375,
+      "upstream_unrounded_input_effect": 0.10395518502413381,
+      "head_quantization_amplification": -0.012053283740286247,
+      "f32_reconstruction_difference": -9.909149412123952e-08,
+      "head_reduction_difference": 1.8843310840566119e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 28835,
+      "vulkan": {
+        "actual": 16.333078384399414,
+        "unrounded_double": 16.286062278489293,
+        "actual_twin_exact_double": 16.333079165820607,
+        "f32_reconstructed_double": 16.33307918821191,
+        "head_quantization_effect": 0.047016887331313484,
+        "f32_reconstruction_effect": 2.2391304810298607e-08,
+        "own_head_reduction_residual": -8.038124974518723e-07
+      },
+      "hf": {
+        "actual": 15.561980247497559,
+        "unrounded_double": 15.547302555154445,
+        "actual_twin_exact_double": 15.561977944208707,
+        "f32_reconstructed_double": 15.5619780992742,
+        "head_quantization_effect": 0.014675389054261245,
+        "f32_reconstruction_effect": 1.5506549289057148e-07,
+        "own_head_reduction_residual": 2.148223359199619e-06
+      },
+      "total_runtime_minus_hf": 0.7710981369018555,
+      "upstream_unrounded_input_effect": 0.738759723334848,
+      "head_quantization_amplification": 0.03234149827705224,
+      "f32_reconstruction_difference": -1.3267418808027287e-07,
+      "head_reduction_difference": -2.9520358566514915e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 33161,
+      "vulkan": {
+        "actual": 16.338783264160156,
+        "unrounded_double": 16.340606689355287,
+        "actual_twin_exact_double": 16.33878228177622,
+        "f32_reconstructed_double": 16.338782476864196,
+        "head_quantization_effect": -0.0018244075790683212,
+        "f32_reconstruction_effect": 1.9508797777234577e-07,
+        "own_head_reduction_residual": 7.872959599808382e-07
+      },
+      "hf": {
+        "actual": 16.339370727539062,
+        "unrounded_double": 16.21852304877389,
+        "actual_twin_exact_double": 16.33936814087798,
+        "f32_reconstructed_double": 16.33936818708756,
+        "head_quantization_effect": 0.12084509210409067,
+        "f32_reconstruction_effect": 4.620957838596951e-08,
+        "own_head_reduction_residual": 2.540451504273733e-06
+      },
+      "total_runtime_minus_hf": -0.00058746337890625,
+      "upstream_unrounded_input_effect": 0.12208364058139765,
+      "head_quantization_amplification": -0.12266949968315899,
+      "f32_reconstruction_difference": 1.4887839938637626e-07,
+      "head_reduction_difference": -1.7531555442928948e-06,
+      "closure_error": 0.0
+    },
+    {
+      "id": 56711,
+      "vulkan": {
+        "actual": 16.181869506835938,
+        "unrounded_double": 16.10647019258699,
+        "actual_twin_exact_double": 16.181868967884185,
+        "f32_reconstructed_double": 16.181869130765108,
+        "head_quantization_effect": 0.07539877529719519,
+        "f32_reconstruction_effect": 1.628809229714534e-07,
+        "own_head_reduction_residual": 3.7607082958857063e-07
+      },
+      "hf": {
+        "actual": 16.252046585083008,
+        "unrounded_double": 16.231643615860246,
+        "actual_twin_exact_double": 16.25204614978884,
+        "f32_reconstructed_double": 16.25204630167883,
+        "head_quantization_effect": 0.020402533928592703,
+        "f32_reconstruction_effect": 1.518899921393313e-07,
+        "own_head_reduction_residual": 2.8340417657091166e-07
+      },
+      "total_runtime_minus_hf": -0.07017707824707031,
+      "upstream_unrounded_input_effect": -0.12517342327325665,
+      "head_quantization_amplification": 0.05499624136860248,
+      "f32_reconstruction_difference": 1.0990930832122103e-08,
+      "head_reduction_difference": 9.266665301765897e-08,
+      "closure_error": 0.0
+    }
+  ],
+  "max_hf_own_head_reduction_residual": 2.6537202870713372e-06,
+  "max_vulkan_own_head_reduction_residual": 1.6498880768267554e-06,
+  "verified_capture_files": 227,
+  "gpu_receipt_sha256": "d9984bfc5a9e20d66e008a8c6519d298904621e0af8995fc3e22ce72efeaad7c",
+  "hf_summary_sha256": "217ca26c7e41289d6419dca154dc1422819ec8361f49f1506923a63eb7af704f",
+  "comparison_sha256": "7e56a5e400746cb5390fd530f2b25d248548573173179cac03c12fc81e33f8e3",
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-case4-intermediate-20261102",
+  "limits": [
+    "The 1e-3 relative RMS marker selects a diagnostic cut, never acceptance or proof of an operator defect.",
+    "Layer captures compare different trajectories. Same-input operator replay remains required before an implementation claim.",
+    "One Vulkan and one HF case4 forward only; no forced layer pass, NLL, cases2/5 or depth survey."
+  ],
+  "next": "Bounded block0 RMSNorm/QKV same-input replay. No later-layer, full-HF or NLL rerun."
+}

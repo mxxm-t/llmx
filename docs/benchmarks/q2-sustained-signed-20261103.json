@@ -1,0 +1,367 @@
+{
+  "status": "research checkpoint, not merge qualification",
+  "protocol": "sustained8-cached-staging-v1",
+  "primary_shape": [
+    24576,
+    512,
+    4096,
+    128,
+    1
+  ],
+  "secondary_shape": [
+    4096,
+    512,
+    12288,
+    64,
+    1
+  ],
+  "cases": {
+    "sustained-signed": {
+      "root_audit": {
+        "job": "20261103T025237Z-982151",
+        "raw_hash_count": 7,
+        "all_timestamp_arithmetic_verified": true,
+        "calls": 20,
+        "dispatches": 160,
+        "blocks_ms": [
+          {
+            "D": 8.691939999999999,
+            "signed": 8.61128
+          },
+          {
+            "D": 8.667860000000001,
+            "signed": 8.60597
+          }
+        ],
+        "pooled_ms": {
+          "D": 8.67375,
+          "signed": 8.61128
+        },
+        "spread_ms": {
+          "D": 0.02407999999999788,
+          "signed": 0.00531000000000148
+        },
+        "gain_ms": 0.06246999999999936,
+        "primary_advance": true,
+        "limits": "New cached-staging protocol; no cross-protocol absolute subtraction. Final overwrite exact oracle only. No model, HF or merge claim."
+      },
+      "elapsed_seconds": 10.84724736213684,
+      "run_receipt_sha256": "258b95ca0368abec134347fc5507fd80f76fc25eb5e22186da0f545c3d5c2e50",
+      "source_sha256": "bca2c8f4d16ec3892d06a6c39ad28bbf2d281b5975dbf1308a9af11c83a5c258",
+      "patch_sha256": "eaf27d202d46844227fd99820f65a5d0b85d13157b778141d1d8ef91eec12dc4",
+      "metrics": {
+        "whole_burst_per8": {
+          "samples_ms": {
+            "D": [
+              8.68658,
+              8.66982,
+              8.69892,
+              8.6973,
+              8.65548,
+              8.6731,
+              8.6744,
+              8.66262
+            ],
+            "signed": [
+              8.60998,
+              8.61258,
+              8.62174,
+              8.60608,
+              8.59306,
+              8.61888,
+              8.61952,
+              8.59238
+            ]
+          },
+          "pooled_medians_ms": {
+            "D": 8.67375,
+            "signed": 8.61128
+          },
+          "blocks": [
+            {
+              "tag": "block-0",
+              "medians_ms": {
+                "D": 8.691939999999999,
+                "signed": 8.61128
+              },
+              "signed_time_delta_percent": -0.9279861572905279
+            },
+            {
+              "tag": "block-1",
+              "medians_ms": {
+                "D": 8.667860000000001,
+                "signed": 8.60597
+              },
+              "signed_time_delta_percent": -0.7140170699573067
+            }
+          ],
+          "spread_ms": {
+            "D": 0.02407999999999788,
+            "signed": 0.00531000000000148
+          },
+          "gain_ms": 0.06246999999999936,
+          "delta_percent": -0.7202190517365592,
+          "advance": true
+        },
+        "steady_positions3_8": {
+          "samples_ms": {
+            "D": [
+              7.844373333333333,
+              7.849413333333333,
+              7.847706666666667,
+              7.850373333333333,
+              7.853093333333333,
+              7.86096,
+              7.849813333333333,
+              7.85072
+            ],
+            "signed": [
+              7.769733333333333,
+              7.78784,
+              7.773013333333333,
+              7.778053333333333,
+              7.78112,
+              7.7704,
+              7.77848,
+              7.771306666666667
+            ]
+          },
+          "pooled_medians_ms": {
+            "D": 7.850093333333333,
+            "signed": 7.775533333333334
+          },
+          "blocks": [
+            {
+              "tag": "block-0",
+              "medians_ms": {
+                "D": 7.84856,
+                "signed": 7.775533333333334
+              },
+              "signed_time_delta_percent": -0.9304466891591145
+            },
+            {
+              "tag": "block-1",
+              "medians_ms": {
+                "D": 7.851906666666666,
+                "signed": 7.774893333333333
+              },
+              "signed_time_delta_percent": -0.9808233414219547
+            }
+          ],
+          "spread_ms": {
+            "D": 0.003346666666666387,
+            "signed": 0.0006400000000006401
+          },
+          "gain_ms": 0.07455999999999907,
+          "delta_percent": -0.9497976244868256,
+          "advance": true
+        }
+      },
+      "raw_output_hashes": {
+        "activity.jsonl": "e8e4044d9204b53d02a686bcda544aca5a454c554badc075cc79d2b1f0da846c",
+        "block-0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "block-1.jsonl": "53e49371cca48af9865d2978203a5f225c11d0199a1ce4581d126c630c1faad2",
+        "block-0.jsonl": "7b29d632a3d0fc148313ce8edbc8e31130cb174f49d9b68b4357c55340174bd6",
+        "monitor.stop": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "block-1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "activity": {
+        "samples": 8,
+        "intervals": 7,
+        "cpu_percent": {
+          "min": 21.46433041301627,
+          "median": 23.857232310582344,
+          "max": 25.43859649122807
+        },
+        "unrelated_cores": {
+          "min": 3.031680607598359,
+          "median": 3.1087244002219445,
+          "max": 3.508253026819869
+        },
+        "flags": {
+          "system_saturated": 0,
+          "unrelated_cpu": 7,
+          "disk": 0,
+          "coverage": 0
+        },
+        "all_retained": true
+      },
+      "limits": "Cached staging protocol; do not compare absolute timings with prior mapped-VRAM readback. Final overwrite oracle only. Per-dispatch timestamp observer overhead uncalibrated. Synthetic repeated matrix; not model/HF qualification or clock-cause evidence."
+    },
+    "sustained-signed-down": {
+      "root_audit": {
+        "job": "20261103T031024Z-1023398",
+        "raw_hash_count": 7,
+        "all_timestamp_arithmetic_verified": true,
+        "calls": 20,
+        "dispatches": 160,
+        "blocks_ms": [
+          {
+            "D": 5.76723,
+            "signed": 5.73037
+          },
+          {
+            "D": 5.66086,
+            "signed": 5.52136
+          }
+        ],
+        "pooled_ms": {
+          "D": 5.76723,
+          "signed": 5.7265
+        },
+        "spread_ms": {
+          "D": 0.10637000000000008,
+          "signed": 0.20901000000000014
+        },
+        "gain_ms": 0.04072999999999993,
+        "primary_advance": false,
+        "decision": "Secondary gain inconclusive under frozen spread rule, not an observed regression. Primary shape separately passes; bounded model investigation may proceed without claiming a secondary win."
+      },
+      "elapsed_seconds": 9.10224175453186,
+      "run_receipt_sha256": "d779d918f775c97e47b4e9ab4d38866276a819821963655dd47a8236b943cc1e",
+      "source_sha256": "9cb1ce4c216cabfa3f51aca3783f0e0635dd2addf36b118eb71463cc35c920ab",
+      "patch_sha256": "1cfcd97e94780d613de8881a28f783be08ad15791ef7cd8b482cdc6f309da9e8",
+      "metrics": {
+        "whole_burst_per8": {
+          "samples_ms": {
+            "D": [
+              5.77704,
+              5.7686,
+              5.54666,
+              5.76586,
+              5.54492,
+              5.87754,
+              5.77214,
+              5.54958
+            ],
+            "signed": [
+              5.72866,
+              5.7862,
+              5.73208,
+              5.72434,
+              5.73064,
+              5.48148,
+              5.51118,
+              5.53154
+            ]
+          },
+          "pooled_medians_ms": {
+            "D": 5.76723,
+            "signed": 5.7265
+          },
+          "blocks": [
+            {
+              "tag": "block-0",
+              "medians_ms": {
+                "D": 5.76723,
+                "signed": 5.73037
+              },
+              "signed_time_delta_percent": -0.6391283163667771
+            },
+            {
+              "tag": "block-1",
+              "medians_ms": {
+                "D": 5.66086,
+                "signed": 5.52136
+              },
+              "signed_time_delta_percent": -2.464289878216386
+            }
+          ],
+          "spread_ms": {
+            "D": 0.10637000000000008,
+            "signed": 0.20901000000000014
+          },
+          "gain_ms": 0.04072999999999993,
+          "delta_percent": -0.706231587781303,
+          "advance": false
+        },
+        "steady_positions3_8": {
+          "samples_ms": {
+            "D": [
+              4.900373333333333,
+              4.895573333333333,
+              4.795733333333333,
+              4.8916,
+              4.799786666666667,
+              4.99136,
+              4.904586666666667,
+              4.803973333333333
+            ],
+            "signed": [
+              4.864213333333333,
+              4.9101333333333335,
+              4.866933333333333,
+              4.860266666666667,
+              4.86544,
+              4.768586666666667,
+              4.770266666666667,
+              4.77248
+            ]
+          },
+          "pooled_medians_ms": {
+            "D": 4.893586666666667,
+            "signed": 4.86224
+          },
+          "blocks": [
+            {
+              "tag": "block-0",
+              "medians_ms": {
+                "D": 4.893586666666667,
+                "signed": 4.865573333333333
+              },
+              "signed_time_delta_percent": -0.5724499276604345
+            },
+            {
+              "tag": "block-1",
+              "medians_ms": {
+                "D": 4.85428,
+                "signed": 4.771373333333333
+              },
+              "signed_time_delta_percent": -1.7079086222193007
+            }
+          ],
+          "spread_ms": {
+            "D": 0.0393066666666666,
+            "signed": 0.09419999999999984
+          },
+          "gain_ms": 0.031346666666666856,
+          "delta_percent": -0.6405662922083111,
+          "advance": false
+        }
+      },
+      "raw_output_hashes": {
+        "block-1.jsonl": "19de8da3605d57447a364340a395150013556688212f0ec8b70f5d9d4057e075",
+        "block-0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "activity.jsonl": "1b1308c1c79e9c8c076bef7e5758bdbc9faa419ec73a565acef104dcc2d6f5ad",
+        "block-0.jsonl": "951fa24417d1a090d5380ba13898dd55739dad6af20d124bef5c752b50397b02",
+        "monitor.stop": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "block-1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "activity": {
+        "samples": 6,
+        "intervals": 5,
+        "cpu_percent": {
+          "min": 46.25550660792952,
+          "median": 50.158127767235925,
+          "max": 51.835443037974684
+        },
+        "unrelated_cores": {
+          "min": 5.797388612681893,
+          "median": 7.206214225331247,
+          "max": 7.646741715708939
+        },
+        "flags": {
+          "system_saturated": 0,
+          "unrelated_cpu": 5,
+          "disk": 0,
+          "coverage": 0
+        },
+        "all_retained": true
+      },
+      "limits": "New staging protocol; no absolute comparison to old readback. Final overwrite oracle only, timestamp observer overhead uncalibrated. Synthetic repeated matrix, not model/HF qualification or clock-cause evidence. CPU copy, command recording/submission, and oracle medians are reported separately; oracle time increased for signed in this run. Historical results are not cross-shape controls."
+    }
+  },
+  "decision": "Primary improves beyond the frozen spread threshold. Both secondary block medians improve, but its pooled gain remains within spread. Retain it as inconclusive, not a regression. Permit bounded model investigation, not full qualification or integration by performance claim."
+}

@@ -1,0 +1,297 @@
+{
+  "scope": "Exploratory matched model ABBA; retain both prefill gain and decode loss.",
+  "execution_status": "DONE",
+  "queue_status": "FAIL",
+  "reporting_failure": "Copied runner passes flush=True to json.dumps in its final print after saving a DONE execution receipt. No retry; original FAIL and log preserved.",
+  "samples_tok_s": {
+    "baseline": {
+      "pp4096": [
+        576.07,
+        575.61
+      ],
+      "tg256": [
+        108.14,
+        107.27
+      ]
+    },
+    "candidate": {
+      "pp4096": [
+        600.33,
+        598.54
+      ],
+      "tg256": [
+        105.58,
+        106.08
+      ]
+    }
+  },
+  "median_tok_s": {
+    "baseline": {
+      "pp4096": 575.84,
+      "tg256": 107.705
+    },
+    "candidate": {
+      "pp4096": 599.435,
+      "tg256": 105.83
+    }
+  },
+  "candidate_rate_change_percent": {
+    "pp4096": 4.097492358988597,
+    "tg256": -1.7408662550485121
+  },
+  "arms": {
+    "baseline": {
+      "version": "llmx 0.1.0+unknown numerics 21445b8648ee85df",
+      "cli_sha256": "7f28cc0b68e9a16edcac0fa8c0d19127254959c8142d1b6652c2341d3c0f914a",
+      "library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+      "config_sha256": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+      "build_info_sha256": "bfe457df8ee4c1c1ea7b8b5b2c13ace306ec8dbd60bd92cfea33d77692e670cd",
+      "version_file_sha256": "0997a2beeaebfff8bb9d5dc4218699fce7189876690222feb58564f653beed84",
+      "mount": "/baseline"
+    },
+    "candidate": {
+      "version": "llmx 0.1.0+unknown numerics 4c047b36ad448639",
+      "cli_sha256": "eed31b1154c2c10c41b58d75aabf4476efff8daab24d188bf7668c2df47703b5",
+      "library_sha256": "bd293e7853afe5851f8cffbea118acdace04785b300003bfc60e25ba6b0bf839",
+      "config_sha256": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+      "build_info_sha256": "db2216313fb07cb04a7442254b2f68799c6ea44cf18f52a2b30553b112985a24",
+      "version_file_sha256": "0348e1cb8a6d9f08ad176c63263a234d257ef602384b1aa95265251c8f2dd9f8",
+      "mount": "/candidate"
+    }
+  },
+  "source_identity": {
+    "base": "2a67405084b0808177685497400b4af00f36fbc0",
+    "baseline_manifest_sha256": "84e5387dcf4c9dac49c70affb860dada6c07e8b78169ee28f8f8b317e93839a3",
+    "candidate_manifest_sha256": "9108584b98b5474940e92c0a1b20cc97d7547a14564d2474bdef8e8dbcb6ed09",
+    "changed_files": [
+      "src/backends/vulkan/shaders/low_bits.glsl",
+      "src/backends/vulkan/shaders/matmul_tile_q.comp"
+    ]
+  },
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584
+  },
+  "measurements": [
+    {
+      "call": "q2-packed-zero-p4096-g256-0-baseline",
+      "workload": "q2-packed-zero-p4096-g256",
+      "arm": "baseline",
+      "start": 1793634147.0189269,
+      "end": 1793634169.1829195,
+      "exit": 0,
+      "rates": {
+        "pp4096": 576.07,
+        "tg256": 108.14
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-1-candidate",
+      "workload": "q2-packed-zero-p4096-g256",
+      "arm": "candidate",
+      "start": 1793634170.707507,
+      "end": 1793634191.78397,
+      "exit": 0,
+      "rates": {
+        "pp4096": 600.33,
+        "tg256": 105.58
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-2-candidate",
+      "workload": "q2-packed-zero-p4096-g256",
+      "arm": "candidate",
+      "start": 1793634193.2922854,
+      "end": 1793634214.361707,
+      "exit": 0,
+      "rates": {
+        "pp4096": 598.54,
+        "tg256": 106.08
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-3-baseline",
+      "workload": "q2-packed-zero-p4096-g256",
+      "arm": "baseline",
+      "start": 1793634215.9050462,
+      "end": 1793634238.0362988,
+      "exit": 0,
+      "rates": {
+        "pp4096": 575.61,
+        "tg256": 107.27
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    }
+  ],
+  "row_module_classification": "ID renumbering only: validated SPIR-V binaries and disassembly are byte-identical after compact-ids.",
+  "activity": {
+    "raw_records": 52,
+    "samples": 50,
+    "intervals": 49,
+    "start": "2026-11-02T15:42:22.648880+00:00",
+    "end": "2026-11-02T15:44:00.683951+00:00",
+    "system_nonidle_percent_range": [
+      62.727864583333336,
+      74.59599224305107
+    ],
+    "unrelated_cpu_core_equivalents_range": [
+      9.260417006287604,
+      11.795483120843102
+    ],
+    "peak_total_disk_mib_s": 1014.9808607907502,
+    "flag_counts": {
+      "unrelated_cpu": 49,
+      "system_disk": 9,
+      "non_target_gpu": 49,
+      "sample_gap": 0
+    },
+    "retention": "Every planned call and monitor sample retained; no slow/affected sample discarded or replaced.",
+    "limits": [
+      "Activity is associated with the whole CLI call, including loading and warmups; phase-specific timing windows are unavailable.",
+      "Disk counters include benchmark loading and all system I/O; they do not isolate unrelated disk activity.",
+      "Shared Docker/wrapper CPU activity may be classified unrelated; short-lived processes can be missed by sampling."
+    ]
+  },
+  "call_activity": [
+    {
+      "call": "q2-packed-zero-p4096-g256-0-baseline",
+      "arm": "baseline",
+      "intervals": 12,
+      "flag_counts": {
+        "unrelated_cpu": 12,
+        "system_disk": 3,
+        "non_target_gpu": 12,
+        "sample_gap": 0
+      },
+      "system_nonidle_percent_range": [
+        68.71382636655949,
+        74.59599224305107
+      ],
+      "unrelated_cpu_core_equivalents_range": [
+        10.161235998747435,
+        11.795483120843102
+      ]
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-1-candidate",
+      "arm": "candidate",
+      "intervals": 11,
+      "flag_counts": {
+        "unrelated_cpu": 11,
+        "system_disk": 3,
+        "non_target_gpu": 11,
+        "sample_gap": 0
+      },
+      "system_nonidle_percent_range": [
+        62.727864583333336,
+        71.02053915275995
+      ],
+      "unrelated_cpu_core_equivalents_range": [
+        9.461134899810002,
+        11.030631946923492
+      ]
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-2-candidate",
+      "arm": "candidate",
+      "intervals": 11,
+      "flag_counts": {
+        "unrelated_cpu": 11,
+        "system_disk": 2,
+        "non_target_gpu": 11,
+        "sample_gap": 0
+      },
+      "system_nonidle_percent_range": [
+        66.15833874107722,
+        73.877030901561
+      ],
+      "unrelated_cpu_core_equivalents_range": [
+        9.640803556335761,
+        11.649921513710503
+      ]
+    },
+    {
+      "call": "q2-packed-zero-p4096-g256-3-baseline",
+      "arm": "baseline",
+      "intervals": 12,
+      "flag_counts": {
+        "unrelated_cpu": 12,
+        "system_disk": 1,
+        "non_target_gpu": 12,
+        "sample_gap": 0
+      },
+      "system_nonidle_percent_range": [
+        69.40418679549114,
+        73.52657004830918
+      ],
+      "unrelated_cpu_core_equivalents_range": [
+        9.260417006287604,
+        11.296431492838261
+      ]
+    }
+  ],
+  "receipt_sha256": "12fb0b770c14db1a9823168ce1764786f88f66998f766706e7ac359cb5012e0e",
+  "output_hashes": {
+    "baseline-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "container-id.txt": "f9dd387bec90fdbf7f3a541769f7a0c9fcf072d82e162163d426e7c910e78bf4",
+    "candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2-packed-zero-p4096-g256-3-baseline.stdout": "44901970b107082eee56979e68fce85480314cf95c8d6e9138060d9b666990a7",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "q2-packed-zero-p4096-g256-0-baseline.stdout": "f61837932adf76b3715b8410c13b21c588c43b17599d6a91d3378a813615b6fa",
+    "q2-packed-zero-p4096-g256-2-candidate.stdout": "4c41759a988b7dbd36d23504aa34e0f19ad8491b72e01292639bd332d0e294a6",
+    "q2-packed-zero-p4096-g256-1-candidate.stdout": "ccd5a940784f4c4f6d569aa444d9cb1de056f0b269cadaef2073dba68bb80ed4",
+    "q2-packed-zero-p4096-g256-3-baseline.stderr": "981c6636c3d5b083e7e825725d20e4feeece2b1dac768bf350e4b46dc69ed952",
+    "candidate-version.stdout": "0348e1cb8a6d9f08ad176c63263a234d257ef602384b1aa95265251c8f2dd9f8",
+    "baseline-version.stdout": "0997a2beeaebfff8bb9d5dc4218699fce7189876690222feb58564f653beed84",
+    "q2-packed-zero-p4096-g256-1-candidate.stderr": "cc20accdfe29bb4d74276afc0a91a2b7cfde59170795ae48a7d08219a540b429",
+    "driver-pins.txt": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+    "q2-packed-zero-p4096-g256-0-baseline.stderr": "fa160e8eeefb6345e0cb042476b1f3dd396e3ea923c6fb50a1d6837d44fe9661",
+    "activity.jsonl": "47db01a5a60146b2c40862174fbcd0311cb1c43925894b54aab3cc185387bf2c",
+    "q2-packed-zero-p4096-g256-2-candidate.stderr": "0465290c55151eb198ab95d705f590bcd5939fa7a9009a411a4b0bccaf2ecae2"
+  },
+  "limitations": [
+    "One ABBA block, two samples per arm; no noise/layout control or intrinsic decode-regression attribution.",
+    "No new full HF, long-context, PPL, output-hash or matched mx gate. Integration source remains untouched.",
+    "Q2 row SPIR-V differs only by IDs after compaction; actual driver row ISA and occupancy were not measured."
+  ],
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-paired-load-next-stage-20261102/model",
+  "decision": "Retain the candidate for its prefill gain with the measured decode tradeoff. No automatic rejection, promotion or merge; noise/layout and final qualification remain open."
+}

@@ -1,0 +1,102 @@
+{
+  "schema": "llmx.q2-layer-split-tiny-hf.v1",
+  "date": "2026-11-01",
+  "scope": "Focused Q2_0 two-device layer-split tiny-HF correctness check. No released-file qualification, speed result or SQTT diagnosis.",
+  "candidate": {
+    "integration_branch": "feat/q2-main-b7eef-20261101",
+    "docs_head_before_record": "df4114f20c413751f4de921d2b101bf8a8535ca0",
+    "runtime_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "cli_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "vulkan_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "test_owner": {
+    "call": "tests/low_bits.py::run_family",
+    "implementation": "tests/block_fixture.py::run_family",
+    "fixture": "tests/low_bits.py::fixture_q2",
+    "source_hashes": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/low_bits.py": "89917e9b54bb059ef377f90c614d24ad37f4e347632796c4364f81589689bb2e",
+      "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+      "tests/raw_blocks.py": "34f5d7de24a2d647dd9bffd5284581d1cefb249587e5230e5f029d4988814ab8",
+      "tests/data/baseline_q2_0_split.json": "23fe5a107c50441c9bbef2619370338cbd1e3d2314f281399272bc0e3ea68fed"
+    },
+    "fixtures_and_bounds_changed": false
+  },
+  "placement": {
+    "devices": "vulkan:0,vulkan:1",
+    "nodes": [
+      "renderD128",
+      "renderD129"
+    ],
+    "pci": [
+      "0000:c3:00.0",
+      "0000:c6:00.0"
+    ],
+    "layer_shares": "1,1",
+    "tensor_width_override": false,
+    "description": "Explicit equal 1:1 layer shares; no tensor-split width override."
+  },
+  "result": {
+    "exit_code": 0,
+    "passed": true,
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "full_logit_cases": 150,
+    "nll_checks": 12,
+    "skips": 0,
+    "bounds": {
+      "logit": 0.4165916442871094,
+      "nll": 0.022201185994788375
+    },
+    "max_errors": {
+      "dense-untied": {
+        "logit": 0.00137897,
+        "nll": 0.00018668
+      },
+      "dense-tied": {
+        "logit": 0.00131308,
+        "nll": 0.00016355
+      },
+      "moe": {
+        "logit": 0.00198473,
+        "nll": 0.0003359
+      }
+    },
+    "stdout_summary": "Q2-only layer-split result: True"
+  },
+  "execution": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-layer-split-focused-20261101",
+    "execution_sha256": "52fd9a08b0a43679ba81a6388780c887d38143bcc1ce99f85564cedb6743f52d",
+    "stdout_sha256": "1dd1c8976fe111177fd5decd4ecf091af20e42b4b1651a4620c102f11b33d625",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "container_id": "cf4cf15f3d735e209e1cce2bca5302897484e40db44afdf6fe9e4c5fc5412dd1",
+    "seconds": 38.27051138877869,
+    "memory_cap_bytes": 1073741824,
+    "cpu_set": "4-5",
+    "cpu_quota": 2,
+    "oom_killed": false,
+    "removed": true
+  },
+  "hosted_ci": {
+    "candidate_sha": "2c770f6e23686c91bc82d20e53843a533fc69a06",
+    "base_main_sha": "b45a44d4ba40c5fc9b0aa8943c3dd9b2bc8a3ed9",
+    "run_id": 41288915380,
+    "run_url": "https://github.com/mxxm-t/llmx/actions/runs/41288915380",
+    "run_branch": "gate/q2-current-20261101",
+    "status_at": "2026-11-01T09:32:07Z",
+    "status": "in_progress",
+    "conclusion": null,
+    "identity_note": "Root verified runtime, tests, fixtures and build inputs match docs head df4114; only documentation/current-main UI differs."
+  },
+  "limitations": [
+    "No full device suite result is added here.",
+    "This tiny-fixture check does not establish released-file HF quality.",
+    "This is not a timing result and contains no SQTT instruction trace."
+  ]
+}

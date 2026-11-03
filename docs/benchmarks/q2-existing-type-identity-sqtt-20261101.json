@@ -1,0 +1,85 @@
+{
+  "schema": "llmx.q2-existing-type-identity-and-sqtt.v1",
+  "date": "2026-11-01",
+  "candidate": {
+    "integration_branch": "feat/q2-main-b7eef-20261101",
+    "runtime_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "baseline_revision": "51eba5587ab1cecc10a16603feb5d3128771877a",
+    "source_manifests": {
+      "baseline": "c6e873c3f3ef4d977b64c5e5d2259015fcb6abedbd3e8e33ca3d1a19d5367dde",
+      "candidate": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b"
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "existing_type_identity": {
+    "scope": "Seven pinned existing GGUF files, each through batched prompt, decode, and 64-token greedy output; bytewise comparison of baseline and candidate on each device.",
+    "models": [
+      {"file": "Qwen3-0.6B-Q8_0.gguf", "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"},
+      {"file": "Qwen3-0.6B-Q4_0.gguf", "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"},
+      {"file": "Qwen3-0.6B-Q5_K_M.gguf", "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"},
+      {"file": "Qwen3-0.6B-Q4_K_M.gguf", "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"},
+      {"file": "Qwen3-0.6B-UD-Q8_K_XL.gguf", "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad"},
+      {"file": "Qwen3.5-0.8B-Q8_0.gguf", "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"},
+      {"file": "Qwen3.5-0.8B-Q4_K_M.gguf", "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"}
+    ],
+    "devices": {
+      "cpu": {
+        "status": "pass",
+        "device": "cpu",
+        "comparisons": 21,
+        "byte_identical": 21,
+        "output_bytes": 1045258240,
+        "matrix_path": "f32",
+        "execution_sha256": "ba3b2a17cc3ef0c54351490a5af0d14d0a42cc40d8c83323d007fc07d0399bf2"
+      },
+      "mi50": {
+        "status": "pass",
+        "device": "vulkan:0",
+        "comparisons": 21,
+        "byte_identical": 21,
+        "output_bytes": 1045258240,
+        "matrix_path": "block-int16",
+        "execution_sha256": "92be11659f6dc47aa51b8fe4d4ffd560accc725f73ea8080df27a7daf8c36543"
+      }
+    },
+    "history": {
+      "helper_compile_oom": "The first baseline-helper build, capped at 1 GiB, was OOM-killed (retained receipt SHA-256 c0eeac000a7b020ba6844128cc01fdf3b7a8e1358b4ae578269d689890f4e715 and build log SHA-256 5db542691df14a9a1e14a4435064f6c77e1e4ddd9bf5677afa3bcb333a2ac1ee). The helper was rebuilt separately with a 2 GiB cap; its retained SHA-256 is 65229816a9f7b79d22f1c451efa1da28e327221df42cb66e0024118ef58f1d62.",
+      "cpu_wrapper_recovery": "The outer wrapper first looked for out/identity/cpu/execution.json, while the child wrote out/cpu/execution.json. The original wrapper receipt is retained (SHA-256 3314f0bc2ce9bdcb289b878ef0631a4f401417bf213cb811f210b99ca0854762); the child pass was recovered without rerunning its outputs. Recovery record SHA-256 4efa24163b4f404777d61ad4dc0447a71b3d2babc7c2f76ab92374c048047811; recovered child execution SHA-256 ba3b2a17cc3ef0c54351490a5af0d14d0a42cc40d8c83323d007fc07d0399bf2.",
+      "plan_sha256": "fa6925da08378814d0237067d5c44d110250f4edb1384f54f49caa7f4c90b4a4"
+    },
+    "artifact_root": "scratch/q2-e72-existing-identity-20261101/"
+  },
+  "prefill_sqtt": {
+    "scope": "Offline interpretation of one instrumented Radeon capture; it is not ordinary performance evidence.",
+    "capture": "probe_2026.11.01_08.28.54.rgp",
+    "capture_sha256": "c88e53db3cbe0bd541b86ca054bef5ed7bcbebb04121dd7bf11152abdcf98193",
+    "capture_status": "Probe output checks passed, but the trace is fault-affected and ordinary-after was not completed.",
+    "target_event": 5,
+    "dispatch": [32, 16, 1],
+    "threads_per_group": [256, 1, 1],
+    "expected_pipeline_hash_matches": true,
+    "wavefronts": 2048,
+    "instruction_timing": "RGP 1.16 reported no wavefronts analyzed and insufficient wavefronts for analysis. No hardware instruction-timing diagnosis was obtained.",
+    "rgp_static_isa_export": {
+      "path": "scratch/q2-prefill-sqtt-20261101/isa.tsv",
+      "sha256": "cb9d8af17e841a8c214ccd5a9dd22d355834288a3611785774a425cab5c02550",
+      "opcode_counts_valid": false,
+      "limitation": "RGP's static export misparses gfx906 64-bit v_dot2_i32_i16 encodings as a .long first dword followed by a fabricated 32-bit instruction from the second dword. Its decoded-row and opcode counts are invalid and must not be used.",
+      "cross_check": {
+        "path": "scratch/q2-prefill-sqtt-20261101/driver-representation.txt",
+        "sha256": "64ce2b150cfb9f3c46db02e79bb121ad337a621464f202aed59fe0099168d9fe",
+        "valid_disassembly_example": "v_dot2_i32_i16 v100, v100, v87, v63 ; d3a64064 1cfeaf64"
+      }
+    },
+    "instrumented_duration_us": 1890.543,
+    "duration_is_performance_evidence": false,
+    "posttrace": "During the measured call the driver logged a ring timeout, successful ring reset, and recovered device wedge. Cleanup left renderD130 reported busy with no process file descriptors. No manual reset or rebind was performed; ordinary-after is absent.",
+    "posttrace_receipt_sha256": "a3465eb6124fa26e95cf3e5651e6e498239abc738bd8d47ec49038fded227815",
+    "summary_sha256": "47ad1199dbc258807a84815e2007b447a6c810a9ff49d2ffe07bcbcc2cf90cb3",
+    "artifact_root": "scratch/q2-prefill-sqtt-20261101/"
+  },
+  "qualification": {
+    "conclusion": "The existing-type byte-identity check passed on CPU and MI50 for this pinned runtime comparison. The SQTT attempt confirms the expected event/pipeline, but RGP analyzed no waves and its static ISA export has invalid instruction counts; there is no hardware timing diagnosis. A separate driver disassembly confirms dot2 instructions exist but has no dynamic hit counts or costs. Neither result closes the full device suite, released-file HF quality, raw/chat depth, performance, or hosted-CI gates.",
+    "unrelated_jobs_at_checkpoint": "Windows suite PID 35088 and HF process PID 3818369 were still active; no pass is claimed for either."
+  }
+}

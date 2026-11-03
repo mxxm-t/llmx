@@ -53,9 +53,23 @@ unsigned q1(const uint8_t* block, size_t i) {
     return (block[2 + i / 8] >> (i % 8)) & 1u;
 }
 
+void set_q2(uint8_t* block, size_t i, unsigned code) {
+    const unsigned shift = 2 * (i % 4);
+    const uint8_t mask = uint8_t(3u << shift);
+    block[2 + i / 4] = uint8_t((block[2 + i / 4] & uint8_t(~mask)) | (code << shift));
+}
+
+unsigned q2(const uint8_t* block, size_t i) {
+    return (block[2 + i / 4] >> (2 * (i % 4))) & 3u;
+}
+
 float expected_q1(const uint8_t* block, size_t i) {
     const float d = half_value(scale(block));
     return q1(block, i) ? d : -d;
+}
+
+float expected_q2(const uint8_t* block, size_t i) {
+    return float(int(q2(block, i)) - 1) * half_value(scale(block));
 }
 
 template<size_t N>
@@ -68,10 +82,11 @@ void check_bits(const std::array<float, N>& out, const uint8_t* raw, size_t nblo
 }
 
 void check_positions() {
-    for (uint32_t type : {quant::GGML_TYPE_Q1_0}) {
-        const size_t block_bytes = quant::Q1_0_TYPESIZE;
-        const size_t block_values = quant::Q1_0_BLOCK;
-        const size_t blocks = 2;
+    for (uint32_t type : {quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0}) {
+        const bool one = type == quant::GGML_TYPE_Q1_0;
+        const size_t block_bytes = one ? quant::Q1_0_TYPESIZE : quant::Q2_0_TYPESIZE;
+        const size_t block_values = one ? quant::Q1_0_BLOCK : quant::Q2_0_BLOCK;
+        const size_t blocks = one ? 2 : 4;
         std::vector<uint8_t> raw(1 + blocks * block_bytes + 1, 0xa5);
         std::array<float, 4 * quant::Q1_0_BLOCK + 2> out{};
         out.fill(guard);
@@ -80,7 +95,8 @@ void check_positions() {
             block[0] = uint8_t(0x01 + 2 * b);
             block[1] = uint8_t(0x3c);
             for (size_t i = 0; i < block_values; ++i) {
-                set_q1(block, i, unsigned((i + b) & 1));
+                if (one) set_q1(block, i, unsigned((i + b) & 1));
+                else set_q2(block, i, unsigned((i + b) & 3));
             }
         }
         const auto saved = raw;
@@ -90,22 +106,24 @@ void check_positions() {
         entry->dequantize(raw.data() + 1, out.data() + 1, blocks);
         require(raw == saved && out.front() == guard && out[1 + blocks * block_values] == guard,
                 "unaligned low-bit decoder changed source or crossed guards");
-        check_bits(out, raw.data(), blocks, block_bytes, block_values, expected_q1);
+        check_bits(out, raw.data(), blocks, block_bytes, block_values, one ? expected_q1 : expected_q2);
         require(quant::row_bytes(type, block_values * 2, 2) == 4 * block_bytes,
                 "low-bit row sizing differs");
     }
 }
 
 void check_all_finite_scales() {
-    for (uint32_t type : {quant::GGML_TYPE_Q1_0}) {
-        const size_t block_bytes = quant::Q1_0_TYPESIZE;
-        const size_t block_values = quant::Q1_0_BLOCK;
+    for (uint32_t type : {quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0}) {
+        const bool one = type == quant::GGML_TYPE_Q1_0;
+        const size_t block_bytes = one ? quant::Q1_0_TYPESIZE : quant::Q2_0_TYPESIZE;
+        const size_t block_values = one ? quant::Q1_0_BLOCK : quant::Q2_0_BLOCK;
         std::vector<uint8_t> raw(1 + block_bytes + 1, 0xa5);
         std::array<float, quant::Q1_0_BLOCK + 2> out{};
         out.fill(guard);
         uint8_t* block = raw.data() + 1;
         for (size_t i = 0; i < block_values; ++i) {
-            set_q1(block, i, unsigned(i & 1));
+            if (one) set_q1(block, i, unsigned(i & 1));
+            else set_q2(block, i, unsigned(i & 3));
         }
         const auto* entry = quant::Registry::instance().get(type);
         size_t checked = 0;
@@ -115,7 +133,7 @@ void check_all_finite_scales() {
             block[1] = uint8_t(h >> 8);
             entry->dequantize(block, out.data() + 1, 1);
             for (size_t i = 0; i < block_values; ++i) {
-                const float want = expected_q1(block, i);
+                const float want = one ? expected_q1(block, i) : expected_q2(block, i);
                 require(bits(out[1 + i]) == bits(want), "low-bit finite half scale differs");
                 ++checked;
             }
@@ -127,7 +145,7 @@ void check_all_finite_scales() {
 }
 
 void check_zero_blocks() {
-    for (uint32_t type : {quant::GGML_TYPE_Q1_0}) {
+    for (uint32_t type : {quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0}) {
         const auto* entry = quant::Registry::instance().get(type);
         entry->dequantize(nullptr, nullptr, 0);
     }
@@ -137,12 +155,52 @@ struct Format {
     uint32_t type;
     size_t block;
     size_t bytes;
+    bool one_bit;
     const char* name;
 };
 
 constexpr Format formats[] = {
-    {quant::GGML_TYPE_Q1_0, quant::Q1_0_BLOCK, quant::Q1_0_TYPESIZE, "Q1_0"},
+    {quant::GGML_TYPE_Q1_0, quant::Q1_0_BLOCK, quant::Q1_0_TYPESIZE, true, "Q1_0"},
+    {quant::GGML_TYPE_Q2_0, quant::Q2_0_BLOCK, quant::Q2_0_TYPESIZE, false, "Q2_0"},
 };
+
+#if LLMX_HAS_BACKEND_VULKAN
+bool q2_tree_rows_selected(const backend::DeviceProfile& profile, size_t width) {
+    if (!profile.row_decode_tree) return false;
+    uint32_t cluster = 1;
+    const size_t units = width / 32;
+    while (cluster < 32 && cluster < units) cluster *= 2;
+    return cluster == 32;
+}
+
+std::string low_bit_decode_row_name(const Format& f, size_t width, size_t rows,
+                                   const backend::DeviceProfile& profile) {
+    const std::string kernel = f.one_bit ? "matmul_row_q1_0_dot" : "matmul_row_q2_0_dot";
+    if (rows == 1) return kernel + "_1col";
+    std::string name = kernel + (f.one_bit ? "_1col_2row" : "_1col_4row");
+    if (!f.one_bit && q2_tree_rows_selected(profile, width)) name += "_tree";
+    return name;
+}
+
+void check_low_bit_decode_row_witness(backend::Backend& device, const Format& f, size_t width,
+                                      size_t rows, const char* message) {
+    const auto times = backend::vulkan_kernel_times(device);
+    if (!backend::vulkan_timed_dispatches(device)) return;
+    const auto profile = backend::vulkan_device_profile(device);
+    const std::string expected = low_bit_decode_row_name(f, width, rows, profile);
+    const bool seen = std::any_of(times.begin(), times.end(), [&](const auto& entry) {
+        return entry.first == expected;
+    });
+    require(seen, message);
+    if (!f.one_bit && rows >= 2) {
+        const std::string other = expected == "matmul_row_q2_0_dot_1col_4row_tree"
+                                      ? "matmul_row_q2_0_dot_1col_4row"
+                                      : "matmul_row_q2_0_dot_1col_4row_tree";
+        require(std::none_of(times.begin(), times.end(), [&](const auto& entry) { return entry.first == other; }),
+                "Q2 low-bit decode used both tree and non-tree row variants");
+    }
+}
+#endif
 
 uint8_t* block_at(const Format& f, std::vector<uint8_t>& raw, size_t row, size_t width, size_t i) {
     return raw.data() + row * (width / f.block) * f.bytes + (i / f.block) * f.bytes;
@@ -159,9 +217,15 @@ void make_weights(const Format& f, std::vector<uint8_t>& raw, size_t rows, size_
         p[0] = uint8_t(scales[(r + b) % 5]);
         p[1] = uint8_t(scales[(r + b) % 5] >> 8);
         for (size_t i = 0; i < f.block; ++i) {
-            const unsigned code = unsigned((i + r + 2 * b) % 2);
-            const uint8_t mask = uint8_t(1u << (i % 8));
-            p[2 + i / 8] = uint8_t((p[2 + i / 8] & uint8_t(~mask)) | ((code & 1u) << (i % 8)));
+            const unsigned code = unsigned((i + r + 2 * b) % (f.one_bit ? 2 : 4));
+            if (f.one_bit) {
+                const uint8_t mask = uint8_t(1u << (i % 8));
+                p[2 + i / 8] = uint8_t((p[2 + i / 8] & uint8_t(~mask)) | ((code & 1u) << (i % 8)));
+            } else {
+                const unsigned shift = 2 * (i % 4);
+                const uint8_t mask = uint8_t(3u << shift);
+                p[2 + i / 4] = uint8_t((p[2 + i / 4] & uint8_t(~mask)) | (code << shift));
+            }
         }
     }
 }
@@ -169,8 +233,12 @@ void make_weights(const Format& f, std::vector<uint8_t>& raw, size_t rows, size_
 double weight_value(const Format& f, const uint8_t* p, size_t i) {
     i %= f.block;
     const double d = half_value(uint16_t(p[0] | (uint16_t(p[1]) << 8)));
-    const int code = (p[2 + i / 8] >> (i % 8)) & 1u ? 1 : -1;
-    return double(code) * d;
+    if (f.one_bit) {
+        const int code = (p[2 + i / 8] >> (i % 8)) & 1u ? 1 : -1;
+        return double(code) * d;
+    }
+    const unsigned code = (p[2 + i / 4] >> (2 * (i % 4))) & 3u;
+    return double(int(code) - 1) * d;
 }
 
 double dot(const Format& f, const std::vector<uint8_t>& raw, size_t row, const float* x, size_t width) {
@@ -262,9 +330,9 @@ void check_products(backend::Backend& device, const Format& f, backend::Dtype dt
 }
 
 #if LLMX_HAS_BACKEND_VULKAN
-void check_q1_single_row_bits(backend::Backend& device, const Format& f, size_t rows, size_t blocks,
-                              const std::array<std::vector<float>, 3>& combined) {
-    require(rows >= 2, "Q1 single-row control received an invalid row shape");
+void check_low_bit_single_row_bits(backend::Backend& device, const Format& f, size_t rows, size_t blocks,
+                                   const std::array<std::vector<float>, 3>& combined) {
+    require(rows >= 2, "low-bit single-row control received an invalid row shape");
     const size_t width = blocks * f.block;
     const size_t row_bytes = (width / f.block) * f.bytes;
     std::vector<uint8_t> raw(rows * row_bytes);
@@ -284,36 +352,95 @@ void check_q1_single_row_bits(backend::Backend& device, const Format& f, size_t 
         else if (op == 1) device.matmul_logits(one, {x.get(), 0}, {y.get(), 1}, width, 1, 1, {}, backend::Dtype::f16);
         else device.matmul_add(one, {x.get(), 0}, {y.get(), 1}, width, 1, 1, {}, backend::Dtype::f16);
         require(testq::take_matrix_paths(device) == std::vector<std::string>{"block-int16"},
-                "Q1 single-row control left the integer decode path");
+                "low-bit single-row control left the integer decode path");
         device.read(*y, 0, output.data(), sizeof output);
-        require(output.front() == guard && output.back() == guard, "Q1 single-row control crossed guards");
-        require(bits(output[1]) == bits(combined[op][1 + r]), "Q1 batched and single-row outputs differ bitwise");
+        require(output.front() == guard && output.back() == guard, "low-bit single-row control crossed guards");
+        require(bits(output[1]) == bits(combined[op][1 + r]), "low-bit batched and single-row outputs differ bitwise");
     }
 }
 
-void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, size_t blocks) {
-    const size_t width = blocks * q1.block;
-    constexpr size_t rows_a = 3, rows_b = 5;
-    std::vector<uint8_t> raw_a(rows_a * (width / q1.block) * q1.bytes);
-    std::vector<uint8_t> raw_b(rows_b * (width / q1.block) * q1.bytes);
-    std::vector<uint8_t> raw_c(width / q1.block * q1.bytes);
-    make_weights(q1, raw_a, rows_a, width);
-    make_weights(q1, raw_b, rows_b, width);
-    make_weights(q1, raw_c, 1, width);
+void check_q2_decode_widths(backend::Backend& device, const Format& f) {
+    if (f.one_bit) return;
+    for (size_t width : {size_t(512), size_t(576), size_t(1024)}) {
+        require(width % f.block == 0, "Q2 decode width is not a whole format block");
+        const size_t blocks = width / f.block;
+        for (size_t rows : {size_t(4), size_t(5)}) {
+            (void)backend::vulkan_kernel_times(device);
+            std::array<std::vector<float>, 3> combined;
+            check_products(device, f, backend::Dtype::f16, 1, blocks, rows, &combined);
+            check_low_bit_decode_row_witness(device, f, width, rows,
+                                             "Q2 dense decode selected the wrong exact row kernel");
+            check_low_bit_single_row_bits(device, f, rows, blocks, combined);
+        }
+    }
+}
+
+void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& primary, const Format& other, size_t blocks) {
+    require(primary.one_bit != other.one_bit, "low-bit grouped two-row fixture received wrong formats");
+    const size_t width = blocks * std::max(primary.block, other.block);
+    const auto profile = backend::vulkan_device_profile(device);
+    const std::string primary_rows_kernel = low_bit_decode_row_name(primary, width, 3, profile);
+    const std::string primary_tail_kernel = low_bit_decode_row_name(primary, width, 5, profile);
+    const std::string other_rows_kernel = low_bit_decode_row_name(other, width, 3, profile);
+    constexpr size_t rows_a = 3, rows_b = 5, rows_other = 3;
+    std::vector<uint8_t> raw_a(rows_a * (width / primary.block) * primary.bytes);
+    std::vector<uint8_t> raw_b(rows_b * (width / primary.block) * primary.bytes);
+    std::vector<uint8_t> raw_c(width / primary.block * primary.bytes);
+    std::vector<uint8_t> raw_other(rows_other * (width / other.block) * other.bytes);
+    make_weights(primary, raw_a, rows_a, width);
+    make_weights(primary, raw_b, rows_b, width);
+    make_weights(primary, raw_c, 1, width);
+    make_weights(other, raw_other, rows_other, width);
     auto weights_a = device.adopt(raw_a.data(), raw_a.size());
     auto weights_b = device.adopt(raw_b.data(), raw_b.size());
     auto weights_c = device.adopt(raw_c.data(), raw_c.size());
-    const backend::WeightView wa{q1.type, {weights_a.get(), 0}};
-    const backend::WeightView wb{q1.type, {weights_b.get(), 0}};
-    const backend::WeightView wc{q1.type, {weights_c.get(), 0}};
+    auto weights_other = device.adopt(raw_other.data(), raw_other.size());
+    const backend::WeightView wa{primary.type, {weights_a.get(), 0}};
+    const backend::WeightView wb{primary.type, {weights_b.get(), 0}};
+    const backend::WeightView wc{primary.type, {weights_c.get(), 0}};
+    const backend::WeightView wother{other.type, {weights_other.get(), 0}};
     std::vector<float> input(width);
     for (size_t i = 0; i < width; ++i)
         input[i] = float(int((3 * i) % 9) - 4) * .137f + float(i % 3) * .00091f;
     const std::vector<float> oracle_input = testq::row_activations(input);
     auto x = device.adopt(input.data(), input.size() * sizeof(float));
-    std::vector<float> grouped_a(rows_a + 2, guard), grouped_b(rows_b + 2, guard);
+    std::vector<float> grouped_a(rows_a + 2, guard), grouped_b(rows_b + 2, guard), grouped_other(rows_other + 2, guard);
     auto ya = device.adopt(grouped_a.data(), grouped_a.size() * sizeof(float));
     auto yb = device.adopt(grouped_b.data(), grouped_b.size() * sizeof(float));
+    auto yother = device.adopt(grouped_other.data(), grouped_other.size() * sizeof(float));
+
+    (void)testq::take_matrix_paths(device);
+    (void)backend::vulkan_kernel_times(device);
+    device.matmul_group({{wa, {ya.get(), 1}, rows_a}, {wother, {yother.get(), 1}, rows_other}, {wb, {yb.get(), 1}, rows_b}},
+                        {x.get(), 0}, width, 1, {}, backend::Dtype::f16);
+    device.read(*ya, 0, grouped_a.data(), grouped_a.size() * sizeof(float));
+    device.read(*yb, 0, grouped_b.data(), grouped_b.size() * sizeof(float));
+    device.read(*yother, 0, grouped_other.data(), grouped_other.size() * sizeof(float));
+    require(grouped_a.front() == guard && grouped_a.back() == guard &&
+            grouped_b.front() == guard && grouped_b.back() == guard &&
+            grouped_other.front() == guard && grouped_other.back() == guard,
+            "low-bit grouped two-row output crossed guards");
+    require(testq::take_matrix_paths(device) == std::vector<std::string>{"block-int16"},
+            "low-bit mixed grouped call left the block-int16 path");
+    for (size_t r = 0; r < rows_a; ++r)
+        require(close(grouped_a[1 + r], dot(primary, raw_a, r, oracle_input.data(), width)),
+                "grouped low-bit projection differs from the existing double-dot oracle");
+    for (size_t r = 0; r < rows_b; ++r)
+        require(close(grouped_b[1 + r], dot(primary, raw_b, r, oracle_input.data(), width)),
+                "grouped low-bit projection with an odd tail differs from the existing double-dot oracle");
+    for (size_t r = 0; r < rows_other; ++r)
+        require(close(grouped_other[1 + r], dot(other, raw_other, r, oracle_input.data(), width)),
+                "mixed low-bit projection differs from the existing double-dot oracle");
+    const auto grouped_times = backend::vulkan_kernel_times(device);
+    if (backend::vulkan_timed_dispatches(device)) {
+        const auto saw = [&](const char* name) {
+            return std::any_of(grouped_times.begin(), grouped_times.end(), [&](const auto& entry) { return entry.first == name; });
+        };
+        require(saw(primary_rows_kernel.c_str()), "low-bit grouped projections missed the exact two-row kernel");
+        require(saw(other_rows_kernel.c_str()), "mixed low-bit projection missed the exact two-row kernel");
+    } else std::cout << "low-bit grouped two-row kernel timestamp unavailable\n";
+    const std::vector<float> mixed_a = grouped_a;
+    const std::vector<float> mixed_b = grouped_b;
 
     std::vector<float> grouped_c(3, guard);
     auto yc = device.adopt(grouped_c.data(), grouped_c.size() * sizeof(float));
@@ -327,30 +454,30 @@ void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, s
     require(grouped_a.front() == guard && grouped_a.back() == guard &&
             grouped_b.front() == guard && grouped_b.back() == guard &&
             grouped_c.front() == guard && grouped_c.back() == guard,
-            "homogeneous Q1 grouped output crossed guards");
+            "homogeneous low-bit grouped output crossed guards");
     require(testq::take_matrix_paths(device) == std::vector<std::string>{"block-int16"},
-            "homogeneous Q1 grouped call left the block-int16 path");
+            "homogeneous low-bit grouped call left the block-int16 path");
     for (size_t r = 0; r < rows_a; ++r)
-        require(close(grouped_a[1 + r], dot(q1, raw_a, r, oracle_input.data(), width)),
-                "homogeneous grouped Q1 projection differs from the existing double-dot oracle");
+        require(close(grouped_a[1 + r], dot(primary, raw_a, r, oracle_input.data(), width)),
+                "homogeneous grouped low-bit projection differs from the existing double-dot oracle");
     for (size_t r = 0; r < rows_b; ++r)
-        require(close(grouped_b[1 + r], dot(q1, raw_b, r, oracle_input.data(), width)),
-                "homogeneous grouped Q1 projection with an odd tail differs from the existing double-dot oracle");
-    require(close(grouped_c[1], dot(q1, raw_c, 0, oracle_input.data(), width)),
-            "single-row member of homogeneous Q1 group differs from the existing double-dot oracle");
+        require(close(grouped_b[1 + r], dot(primary, raw_b, r, oracle_input.data(), width)),
+                "homogeneous grouped low-bit projection with an odd tail differs from the existing double-dot oracle");
+    require(close(grouped_c[1], dot(primary, raw_c, 0, oracle_input.data(), width)),
+            "single-row member of homogeneous low-bit group differs from the existing double-dot oracle");
     const auto homogeneous_times = backend::vulkan_kernel_times(device);
     if (backend::vulkan_timed_dispatches(device)) {
-        const bool two_row = std::any_of(homogeneous_times.begin(), homogeneous_times.end(), [](const auto& entry) {
-            return entry.first == "matmul_row_q1_0_dot_1col_2row";
+        const bool two_row = std::any_of(homogeneous_times.begin(), homogeneous_times.end(), [&](const auto& entry) {
+            return entry.first == primary_rows_kernel;
         });
-        const bool one_row = std::any_of(homogeneous_times.begin(), homogeneous_times.end(), [](const auto& entry) {
-            return entry.first == "matmul_row_q1_0_dot_1col";
+        const bool one_row = std::any_of(homogeneous_times.begin(), homogeneous_times.end(), [&](const auto& entry) {
+            return entry.first == low_bit_decode_row_name(primary, width, 1, profile);
         });
-        require(two_row && !one_row, "homogeneous three-projection Q1 group missed variant 7");
+        require(two_row && !one_row, "homogeneous three-projection low-bit group missed its exact row kernel");
     }
 
     const auto compare_alone = [&](const backend::WeightView& weight, size_t rows,
-                                   const std::vector<float>& grouped,
+                                   const std::vector<float>& grouped, const std::vector<float>* second,
                                    const char* expected_kernel) {
         std::vector<float> alone(rows + 2, guard);
         auto y = device.adopt(alone.data(), alone.size() * sizeof(float));
@@ -360,7 +487,7 @@ void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, s
         device.read(*y, 0, alone.data(), alone.size() * sizeof(float));
         require(alone.front() == guard && alone.back() == guard, "isolated projection output crossed guards");
         require(testq::take_matrix_paths(device) == std::vector<std::string>{"block-int16"},
-                "Q1 isolated two-row call left block-int16");
+                "low-bit isolated two-row call left block-int16");
         const auto alone_times = backend::vulkan_kernel_times(device);
         if (backend::vulkan_timed_dispatches(device))
             require(std::any_of(alone_times.begin(), alone_times.end(), [&](const auto& entry) {
@@ -369,12 +496,17 @@ void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, s
         for (size_t row = 0; row < rows; ++row)
             require(bits(grouped[row + 1]) == bits(alone[row + 1]),
                     "grouped projection differs bitwise from that same projection run alone");
+        if (second)
+            for (size_t row = 0; row < rows; ++row)
+                require(bits((*second)[row + 1]) == bits(alone[row + 1]),
+                        "mixed grouped projection differs bitwise from that same projection run alone");
     };
-    compare_alone(wa, rows_a, grouped_a, "matmul_row_q1_0_dot_1col_2row");
-    compare_alone(wb, rows_b, grouped_b, "matmul_row_q1_0_dot_1col_2row");
-    compare_alone(wc, 1, grouped_c, "matmul_row_q1_0_dot_1col");
+    compare_alone(wa, rows_a, grouped_a, &mixed_a, primary_rows_kernel.c_str());
+    compare_alone(wb, rows_b, grouped_b, &mixed_b, primary_tail_kernel.c_str());
+    compare_alone(wother, rows_other, grouped_other, nullptr, other_rows_kernel.c_str());
+    compare_alone(wc, 1, grouped_c, nullptr, low_bit_decode_row_name(primary, width, 1, profile).c_str());
 
-    // Compare batched grouped Q1 outputs with each column's variant-7 result.
+    // Compare batched grouped low-bit outputs with each column's variant-7 result.
     constexpr size_t batch = 3;
     std::vector<float> batch_input(batch * width);
     for (size_t c = 0; c < batch; ++c)
@@ -393,7 +525,7 @@ void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, s
     device.read(*batch_yc, 0, batch_c.data(), batch_c.size() * sizeof(float));
     require(batch_a.front() == guard && batch_a.back() == guard && batch_b.front() == guard &&
             batch_b.back() == guard && batch_c.front() == guard && batch_c.back() == guard,
-            "batched Q1 variant-7 control crossed output guards");
+            "batched low-bit variant-7 control crossed output guards");
     for (size_t c = 0; c < batch; ++c) {
         std::vector<float> one_a(rows_a + 2, guard), one_b(rows_b + 2, guard), one_c(3, guard);
         auto one_ya = device.adopt(one_a.data(), one_a.size() * sizeof(float));
@@ -408,17 +540,19 @@ void check_q1_grouped_two_row_bits(backend::Backend& device, const Format& q1, s
         require(std::memcmp(batch_a.data() + 1 + c * rows_a, one_a.data() + 1, rows_a * sizeof(float)) == 0 &&
                 std::memcmp(batch_b.data() + 1 + c * rows_b, one_b.data() + 1, rows_b * sizeof(float)) == 0 &&
                 bits(batch_c[1 + c]) == bits(one_c[1]),
-                "batched Q1 grouped column differs from its one-column variant-7 result");
+                "batched low-bit grouped column differs from its one-column row-kernel result");
     }
 }
 
-void check_integer_witness(backend::Backend& device, const Format& f, bool mixed, bool tile, const char* operation, bool ungrouped = false, bool narrow = false, bool two_rows = false) {
+void check_integer_witness(backend::Backend& device, const Format& f, bool mixed, bool tile, const char* operation, bool ungrouped = false, bool narrow = false, bool two_rows = false, size_t width = 0) {
     const std::vector<std::string> expected = mixed ? std::vector<std::string>{"f32", "block-int16"}
                                                    : std::vector<std::string>{"block-int16"};
     require(testq::take_matrix_paths(device) == expected, "low-bit integer matrix-path witness differs");
     const auto times = backend::vulkan_kernel_times(device);
-    const std::string kernel = std::string(tile ? "matmul_tile_" : "matmul_row_") + "q1_0_dot" +
-                               (narrow ? "_tall_narrow" : two_rows ? "_1col_2row" : ungrouped ? "_1col" : "");
+    const std::string kernel = !tile && two_rows && width != 0
+                                   ? low_bit_decode_row_name(f, width, 4, backend::vulkan_device_profile(device))
+                                   : std::string(tile ? "matmul_tile_" : "matmul_row_") + (f.one_bit ? "q1_0_dot" : "q2_0_dot") +
+                                         (narrow ? "_tall_narrow" : two_rows ? (f.one_bit ? "_1col_2row" : "_1col_4row") : ungrouped ? "_1col" : "");
     const bool executed = std::any_of(times.begin(), times.end(), [&](const auto& entry) {
         return two_rows ? entry.first == kernel : entry.first.find(kernel) == 0;
     });
@@ -574,8 +708,9 @@ void check_range_and_cancellation(backend::Backend& device, const Format& f) {
         p[0] = uint8_t(scales[(r + b) % 5]);
         p[1] = uint8_t(scales[(r + b) % 5] >> 8);
         for (size_t i = 0; i < f.block; ++i) {
-            const unsigned code = unsigned((i / 2 + r + b) % 2);
-            set_q1(p, i, code);
+            const unsigned code = unsigned((i / 2 + r + b) % (f.one_bit ? 2 : 4));
+            if (f.one_bit) set_q1(p, i, code);
+            else set_q2(p, i, code);
         }
     }
     auto weights = device.adopt(raw.data(), raw.size());
@@ -605,7 +740,7 @@ void check_range_and_cancellation(backend::Backend& device, const Format& f) {
 void check_scale_after_range(backend::Backend& device, const Format& f) {
     // Summing four huge inputs first overflows, but these scaled products fit.
     for (uint16_t h : {uint16_t(0), uint16_t(0x8000), uint16_t(1), uint16_t(0x8001)}) {
-        std::vector<uint8_t> raw(f.bytes, 0xff);
+        std::vector<uint8_t> raw(f.bytes, f.one_bit ? 0xff : 0xaa);
         raw[0] = uint8_t(h);
         raw[1] = uint8_t(h >> 8);
         auto weights = device.adopt(raw.data(), raw.size());
@@ -691,17 +826,20 @@ void check_embeddings(backend::Backend& device, const Format& f) {
 
 #if LLMX_HAS_BACKEND_VULKAN
 void check_integer_range(backend::Backend& device, const Format& f, size_t extent,
-                         backend::Dtype dtype, size_t rows = 1) {
-    const size_t width = 3 * f.block;
+                         backend::Dtype dtype, size_t rows = 1, size_t block_count = 0) {
+    const size_t blocks = block_count ? block_count : rows == 4 ? 16 : 3;
+    const size_t width = blocks * f.block;
     const backend::RowRun run{1, extent};
     const bool tile = extent >= backend::tile_from_for(backend::vulkan_device_profile(device), false, width);
-    require(rows == 1 || (rows == 2 && extent == 1),
-            "integer range fixture only supports the Q1 two-row decode case");
+    require(rows == 1 || (extent == 1 && (rows == 2 || (rows == 4 && !f.one_bit))),
+            "integer range fixture requires one row or low-bit decode rows");
+    for (uint8_t packed : {uint8_t(0xaa), uint8_t(0xff)})
     for (uint16_t h : {uint16_t(0), uint16_t(0x8000), uint16_t(1), uint16_t(0x8001)}) {
-        std::vector<uint8_t> raw(rows * 3 * f.bytes, 0xaa);
-        for (size_t r = 0; r < rows; ++r) for (size_t b = 0; b < 3; ++b) {
-            const uint16_t row_scale = uint16_t(h ^ ((r & 1) ? 0x8000 : 0));
-            const size_t at = r * 3 * f.bytes + b * f.bytes;
+        std::vector<uint8_t> raw(rows * blocks * f.bytes, packed);
+        for (size_t r = 0; r < rows; ++r) for (size_t b = 0; b < blocks; ++b) {
+            uint16_t row_scale = uint16_t(h ^ ((r & 1) ? 0x8000 : 0));
+            if (rows == 4 && (r & 1)) row_scale = r == 1 ? 0x3c00 : 0xbc00;
+            const size_t at = (r * blocks + b) * f.bytes;
             raw[at] = uint8_t(row_scale);
             raw[at + 1] = uint8_t(row_scale >> 8);
         }
@@ -718,10 +856,10 @@ void check_integer_range(backend::Backend& device, const Format& f, size_t exten
             device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, 1,
                           {&run, 1}, dtype);
             device.read(*y, 0, result.data(), result.size() * sizeof(float));
-            check_integer_witness(device, f, false, tile, "finite range", false, false, rows == 2);
+            check_integer_witness(device, f, false, tile, "finite range", false, false, rows > 1, width);
             for (size_t r = 0; r < rows; ++r) {
-                const uint16_t row_scale = uint16_t(h ^ ((r & 1) ? 0x8000 : 0));
-                const double weight = half_value(row_scale), want = dot(f, raw, r, reconstructed.data(), width);
+                const double weight = weight_value(f, raw.data() + r * blocks * f.bytes, 0);
+                const double want = dot(f, raw, r, reconstructed.data(), width);
                 const double repair = std::fabs(double(value)) * 0x1p-22 +
                                       32767.0 * std::numeric_limits<float>::denorm_min();
                 const double bound = std::fabs(weight) * repair + std::fabs(want) * 0x1p-21 +
@@ -769,7 +907,7 @@ void check_integer_range(backend::Backend& device, const Format& f, size_t exten
 void check_vulkan_paths(backend::Backend& device, const Format& f) {
     const auto profile = backend::vulkan_device_profile(device);
     const size_t tile_columns = std::max(size_t(64), backend::tile_from_for(profile, false, 256));
-    const char* tile_name = "matmul_tile_q1_0";
+    const char* tile_name = f.type == quant::GGML_TYPE_Q1_0 ? "matmul_tile_q1_0" : "matmul_tile_q2_0";
     bool row = false, tile = false, timed = false;
     auto collect = [&] {
         const auto entries = backend::vulkan_kernel_times(device);
@@ -793,31 +931,33 @@ void check_vulkan_paths(backend::Backend& device, const Format& f) {
     collect();
     if (profile.prefer_integer_dot) {
         for (size_t blocks : {size_t(3), size_t(16), size_t(48)})
-        for (size_t rows : {size_t(1), size_t(2), size_t(3), size_t(5)}) {
+        for (size_t rows : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(5), size_t(7), size_t(33)}) {
             (void)backend::vulkan_kernel_times(device);
             std::array<std::vector<float>, 3> combined;
             check_products(device, f, backend::Dtype::f16, 1, blocks, rows, &combined);
             const auto entries = backend::vulkan_kernel_times(device);
-            const std::string expected = std::string("matmul_row_q1_0_dot") +
-                                         (rows == 1 ? "_1col" : "_1col_2row");
+            const std::string expected = low_bit_decode_row_name(f, blocks * f.block, rows, profile);
             if (backend::vulkan_timed_dispatches(device)) {
                 const bool expected_seen = std::any_of(entries.begin(), entries.end(), [&](const auto& entry) {
                     return entry.first == expected;
                 });
-                const std::string other = std::string("matmul_row_q1_0_dot") +
-                                          (rows == 1 ? "_1col_2row" : "_1col");
+                const std::string other = !f.one_bit && rows >= 2
+                    ? (expected == "matmul_row_q2_0_dot_1col_4row_tree"
+                           ? "matmul_row_q2_0_dot_1col_4row" : "matmul_row_q2_0_dot_1col_4row_tree")
+                    : std::string(f.one_bit ? "matmul_row_q1_0_dot" : "matmul_row_q2_0_dot") +
+                          (rows == 1 ? (f.one_bit ? "_1col_2row" : "_1col_4row") : "_1col");
                 const bool other_seen = std::any_of(entries.begin(), entries.end(), [&](const auto& entry) {
                     return entry.first == other;
                 });
-                require(expected_seen && !other_seen, "one-column Q1 row-count kernel witness differs");
+                require(expected_seen && !other_seen, "one-column low-bit row-count kernel witness differs");
                 std::cout << f.name << " one-column dense row witness: " << expected << '\n';
             } else std::cout << f.name << " one-column dense row witness unavailable (no timestamps)\n";
-            if (rows >= 2) check_q1_single_row_bits(device, f, rows, blocks, combined);
+            if (rows >= 2) check_low_bit_single_row_bits(device, f, rows, blocks, combined);
         }
         for (size_t blocks : {size_t(3), size_t(16), size_t(48)})
-            check_q1_grouped_two_row_bits(device, f, blocks);
-        std::cout << f.name << " grouped Q1 two-row blocks 3/16/48, odd projections 3/5, homogeneous groups: exact dispatch and same-projection-alone bits [ok]\n";
-        std::cout << f.name << " one-column blocks 3/16/48, row counts 1/2/3/5: baseline, variant 7, odd-tail dispatch [ok]\n";
+            check_low_bit_grouped_two_row_bits(device, f, formats[f.one_bit ? 1 : 0], blocks);
+        std::cout << f.name << " grouped two-row widths 384/2048/6144, odd projections 3/5, mixed and homogeneous groups: exact dispatch and same-projection-alone bits [ok]\n";
+        std::cout << f.name << " one-column blocks 3/16/48, row counts 1/2/3/5: baseline/tree row dispatch, odd-tail dispatch [ok]\n";
     }
     if (profile.prefer_integer_dot) {
         const size_t prompt_columns = std::max({size_t(129), tile_columns + 1, profile.moe_tile_from_q4 + 1});
@@ -825,10 +965,15 @@ void check_vulkan_paths(backend::Backend& device, const Format& f) {
             for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8}) {
                 check_grouped_routed(device, f, extent == 1 ? 3 : prompt_columns, 65, dtype, extent);
                 check_integer_range(device, f, extent, dtype, extent == 1 ? 2 : 1);
+                if (!f.one_bit && extent == 1) {
+                    check_integer_range(device, f, extent, dtype, 4, 8);
+                    check_integer_range(device, f, extent, dtype, 4, 16);
+                }
             }
         for (size_t extent : {size_t(1), prompt_columns})
             for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
                 check_grouped_routed(device, f, 1, 65, dtype, extent, true);
+        check_q2_decode_widths(device, f);
         std::cout << f.name << " routed row/narrow tile: one token, four selected experts, width " << 16 * f.block << " [ok]\n";
         std::cout << f.name << " integer rows/tiles: grouped/routed/residual 65 rows, logical extents 1/" << prompt_columns
                   << ", zero/tiny-scale range repair [ok]\n";
@@ -867,7 +1012,7 @@ int main(int argc, char** argv) {
                 check_row_classes(*device, f);
                 check_vulkan_paths(*device, f);
             }
-            std::cout << "low-bits Vulkan: Q1_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]\n";
+            std::cout << "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]\n";
             return 0;
         } catch (const backend::VulkanUnavailable& e) {
             std::cout << "low-bits Vulkan unavailable: " << e.what() << '\n';
@@ -891,7 +1036,7 @@ int main(int argc, char** argv) {
             cpu.set_threads(threads);
             check_backend(cpu);
         }
-        std::cout << "low-bits: independent Q1_0 blocks, finite scales, alignment and guards [ok]\n";
+        std::cout << "low-bits: independent Q1_0/Q2_0 blocks, finite scales, alignment and guards [ok]\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "low-bits: " << e.what() << '\n';

@@ -1,0 +1,550 @@
+{
+  "schema": "llmx.q2-default-mx-timing.v1",
+  "status": "Completed measurement; long-prompt prefill and decode remain below mx Vulkan. Not a merge pass.",
+  "source": {
+    "candidate_commit": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "build_mode": "Release, Vulkan ON, ROCm OFF",
+    "source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "build_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/logs/candidate-build-receipt.txt",
+    "build_receipt_sha256": "e36081903da23f5e8f1bf66197e92c6097a9c711194c257838a8a0c77fa383ef",
+    "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/build/llmx",
+    "binary_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "version": "llmx 0.1.0+unknown numerics 57f83d79972ae050",
+    "backend_library": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/build/libllmx-vulkan.a",
+      "sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+      "linkage": "static"
+    }
+  },
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "bytes": 2310747584,
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "conversion_receipt_sha256": "8ee25da96a64ba80845e84ee25f5bbc92105f37c3f2ecb76a0bd2e0bca367a46"
+  },
+  "mx": {
+    "root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1",
+    "pin_owner_plan_sha256": "94f8bd6a6e1a107b715d33185ac52e82e3f5a033a4fb7ee4ba5f376de7617f03",
+    "build_receipt_sha256": "efb662d07706f8b9100770d2d1c76ddcbd5a7253fd82083a3a361c3cd02a40f9",
+    "harness_source_sha256": "5394469f6393e607d54065ad243802227e5fb4ec1a9e72df406fcb8bf85b8a8c",
+    "llama_bench_sha256": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+    "vulkan_library_sha256": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "activation_format": "Q8_1"
+  },
+  "gpu": {
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130",
+    "vendor": "0x1002",
+    "device": "0x66a1",
+    "busy": 0,
+    "vram_used": 10932224,
+    "performance_level": "auto",
+    "other_container_handles": [
+      {
+        "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+        "name": "/cdev-abc-run2",
+        "top": "PID                 COMMAND\n75100               sleep\n1759742             bash",
+        "target_handles": []
+      }
+    ],
+    "production_id": "bf9aba323abb5f2a432e850113573516cde1dc4b7481d78841ad3ad3510a61b2",
+    "protected": [
+      "/dev/dri/renderD136",
+      "/dev/dri/renderD137",
+      "/dev/dri/renderD132",
+      "/dev/dri/renderD133",
+      "/zpool1/llmx-serve/flash-int-lm3/disk",
+      "/zpool1/models",
+      "/zpool1/llmx-serve/flash-int-lm3",
+      "/zpool1/llmx-serve/flash-int-lm3",
+      "/zpool1/models",
+      "/zpool1/llmx-serve/flash-int-lm3/disk"
+    ]
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "resources": {
+    "candidate_cpuset": "4-5",
+    "cpu_quota": 2,
+    "threads": 4,
+    "memory_GiB": 8,
+    "host_reserve_GiB": 2,
+    "minimum_free_disk_GiB": 2,
+    "mi50_pci": "0000:c9:00.0",
+    "render_node": "/dev/dri/renderD130",
+    "fresh_admission_required": true
+  },
+  "precision_note": "llmx default uses block-int16 activations; mx uses Q8_1. This is a throughput comparison on identical model bytes, not equal-arithmetic or a precision equivalence claim.",
+  "matrix": [
+    {
+      "workload": "q2-8b-primary-p4096-g256",
+      "phase": "pp4096",
+      "samples_tok_s": {
+        "llmx_default": [
+          560.99,
+          558.47,
+          558.0
+        ],
+        "mx": [
+          725.972546,
+          726.984589,
+          726.386963
+        ]
+      },
+      "median_tok_s": {
+        "llmx_default": 558.47,
+        "mx": 726.386963
+      },
+      "llmx_vs_mx_percent": -23.11673688449719
+    },
+    {
+      "workload": "q2-8b-primary-p4096-g256",
+      "phase": "tg256",
+      "samples_tok_s": {
+        "llmx_default": [
+          113.2,
+          113.41,
+          113.34
+        ],
+        "mx": [
+          133.070309,
+          132.86906,
+          133.078323
+        ]
+      },
+      "median_tok_s": {
+        "llmx_default": 113.34,
+        "mx": 133.070309
+      },
+      "llmx_vs_mx_percent": -14.826980675306023
+    },
+    {
+      "workload": "q2-8b-secondary-p128-g256",
+      "phase": "pp128",
+      "samples_tok_s": {
+        "llmx_default": [
+          601.07,
+          600.53,
+          600.75
+        ],
+        "mx": [
+          357.638279,
+          354.090562,
+          343.08658
+        ]
+      },
+      "median_tok_s": {
+        "llmx_default": 600.75,
+        "mx": 354.090562
+      },
+      "llmx_vs_mx_percent": 69.65998658840277
+    },
+    {
+      "workload": "q2-8b-secondary-p128-g256",
+      "phase": "tg256",
+      "samples_tok_s": {
+        "llmx_default": [
+          112.23,
+          112.9,
+          112.89
+        ],
+        "mx": [
+          132.972142,
+          133.129273,
+          132.898636
+        ]
+      },
+      "median_tok_s": {
+        "llmx_default": 112.89,
+        "mx": 132.972142
+      },
+      "llmx_vs_mx_percent": -15.102518240249141
+    }
+  ],
+  "calls": [
+    {
+      "call": "q2-8b-primary-p4096-g256-0-llmx_default",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "llmx_default",
+      "start": 1793513205.8966713,
+      "end": 1793513226.9559193,
+      "exit": 0,
+      "rates": {
+        "pp4096": 560.99,
+        "tg256": 113.2
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 12,
+        "unrelated_cpu_cores_range": [
+          0.8197859928075765,
+          1.3796911194994412
+        ],
+        "system_busy_fraction_range": [
+          0.05921259842519688,
+          0.10348101265822784
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-primary-p4096-g256-1-mx",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "mx",
+      "start": 1793513227.2132537,
+      "end": 1793513273.6676178,
+      "exit": 0,
+      "rates": {
+        "pp4096": 725.972546,
+        "tg256": 133.070309
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 24,
+        "unrelated_cpu_cores_range": [
+          0.22494101192592045,
+          3.284160084382396
+        ],
+        "system_busy_fraction_range": [
+          0.023219328522121163,
+          0.22147864882090507
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-primary-p4096-g256-2-mx",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "mx",
+      "start": 1793513273.91736,
+      "end": 1793513319.3188298,
+      "exit": 0,
+      "rates": {
+        "pp4096": 726.984589,
+        "tg256": 132.86906
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 24,
+        "unrelated_cpu_cores_range": [
+          0.20493863348608235,
+          0.6348148159396624
+        ],
+        "system_busy_fraction_range": [
+          0.014415543716703283,
+          0.09435153045124645
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-primary-p4096-g256-3-llmx_default",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "llmx_default",
+      "start": 1793513319.581934,
+      "end": 1793513340.6436179,
+      "exit": 0,
+      "rates": {
+        "pp4096": 558.47,
+        "tg256": 113.41
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 11,
+        "unrelated_cpu_cores_range": [
+          0.19494699439370772,
+          0.6348148159396624
+        ],
+        "system_busy_fraction_range": [
+          0.01941747572815533,
+          0.09435153045124645
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-primary-p4096-g256-4-llmx_default",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "llmx_default",
+      "start": 1793513340.9045782,
+      "end": 1793513362.0201952,
+      "exit": 0,
+      "rates": {
+        "pp4096": 558.0,
+        "tg256": 113.34
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 11,
+        "unrelated_cpu_cores_range": [
+          0.22993379676440853,
+          0.5648335105371655
+        ],
+        "system_busy_fraction_range": [
+          0.016280525986224204,
+          0.09580838323353291
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-primary-p4096-g256-5-mx",
+      "workload": "q2-8b-primary-p4096-g256",
+      "arm": "mx",
+      "start": 1793513362.2828715,
+      "end": 1793513407.754954,
+      "exit": 0,
+      "rates": {
+        "pp4096": 726.386963,
+        "tg256": 133.078323
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 24,
+        "unrelated_cpu_cores_range": [
+          0.2199316839365816,
+          0.39977686393802314
+        ],
+        "system_busy_fraction_range": [
+          0.01440200375704448,
+          0.06467817896389327
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-0-mx",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "mx",
+      "start": 1793513408.018705,
+      "end": 1793513437.7002544,
+      "exit": 0,
+      "rates": {
+        "pp128": 357.638279,
+        "tg256": 132.972142
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 16,
+        "unrelated_cpu_cores_range": [
+          0.254941041956934,
+          1.7746146317512
+        ],
+        "system_busy_fraction_range": [
+          0.022250078345346314,
+          0.1597839898348158
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-1-llmx_default",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "llmx_default",
+      "start": 1793513437.9452152,
+      "end": 1793513444.5313458,
+      "exit": 0,
+      "rates": {
+        "pp128": 601.07,
+        "tg256": 112.23
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 4,
+        "unrelated_cpu_cores_range": [
+          1.1197108437481593,
+          1.7746146317512
+        ],
+        "system_busy_fraction_range": [
+          0.10031645569620251,
+          0.1597839898348158
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-2-llmx_default",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "llmx_default",
+      "start": 1793513444.8022943,
+      "end": 1793513451.3345747,
+      "exit": 0,
+      "rates": {
+        "pp128": 600.53,
+        "tg256": 112.9
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 4,
+        "unrelated_cpu_cores_range": [
+          0.7048381977031369,
+          1.2597132451403712
+        ],
+        "system_busy_fraction_range": [
+          0.0638967579477494,
+          0.13146279949558637
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-3-mx",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "mx",
+      "start": 1793513451.5892854,
+      "end": 1793513481.3021688,
+      "exit": 0,
+      "rates": {
+        "pp128": 354.090562,
+        "tg256": 133.129273
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 16,
+        "unrelated_cpu_cores_range": [
+          0.6748487464678559,
+          1.6444532226061679
+        ],
+        "system_busy_fraction_range": [
+          0.04369695064445145,
+          0.14009508716323293
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-4-mx",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "mx",
+      "start": 1793513481.5794845,
+      "end": 1793513511.3398197,
+      "exit": 0,
+      "rates": {
+        "pp128": 343.08658,
+        "tg256": 132.898636
+      },
+      "matrix_paths": null,
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 16,
+        "unrelated_cpu_cores_range": [
+          0.4748955683425006,
+          1.5296688962833809
+        ],
+        "system_busy_fraction_range": [
+          0.030749921556322612,
+          0.13892405063291136
+        ]
+      }
+    },
+    {
+      "call": "q2-8b-secondary-p128-g256-5-llmx_default",
+      "workload": "q2-8b-secondary-p128-g256",
+      "arm": "llmx_default",
+      "start": 1793513511.5865233,
+      "end": 1793513518.1527777,
+      "exit": 0,
+      "rates": {
+        "pp128": 600.75,
+        "tg256": 112.89
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true,
+      "activity": {
+        "covered": true,
+        "intervals": 4,
+        "unrelated_cpu_cores_range": [
+          0.5798475632601461,
+          0.7548162660408487
+        ],
+        "system_busy_fraction_range": [
+          0.05579937304075233,
+          0.09571788413098237
+        ]
+      }
+    }
+  ],
+  "duration_seconds": 330.40408182144165,
+  "completed": true,
+  "container_removed": true,
+  "inputs_unchanged": true,
+  "raw_outputs": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/timing-q2-default-vs-mx",
+  "plan_sha256": "058ead94feeacac4b6406c6db059b8d5273b6a9923192011891dec727d7a58c2",
+  "execution_sha256": "9a9f41a36c07bab42b5264d3aeea53922f57529146829b11b616ae58f6b1665b",
+  "all_raw_file_hashes_verified": true,
+  "all_12_raw_calls_independently_reparsed": true,
+  "monitoring": {
+    "sample_count": 160,
+    "covered_calls": 12,
+    "unrelated_cpu_cores_range": [
+      0.19494699439370772,
+      3.284160084382396
+    ],
+    "system_busy_fraction_range": [
+      0.01440200375704448,
+      0.22147864882090507
+    ],
+    "maximum_sample_interval_seconds": 2.0027524949982762,
+    "missed_process_observations": 46,
+    "new_or_unknown_process_deltas": 1110,
+    "limitations": [
+      "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "Frozen plan retained all raw activity but omitted numeric flag thresholds. Continuous activity is reported without retrospective pass flags or sample rejection. Aggregate disk includes benchmark loading. Unknown process deltas are not zero activity."
+    ]
+  },
+  "next": "Profile representative default Q2 prefill and decode shapes with the existing timestamp/ISA owner. Keep native-int8 failures and original precision budgets unchanged. Defer broad landing checks until performance disposition."
+}

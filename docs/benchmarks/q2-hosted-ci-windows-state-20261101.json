@@ -1,0 +1,119 @@
+{
+  "schema": "llmx.q2-hosted-ci-and-windows-suite-observation.v1",
+  "date": "2026-11-01",
+  "hosted_ci": {
+    "run_id": 41288915380,
+    "run_url": "https://github.com/mxxm-t/llmx/actions/runs/41288915380",
+    "head_sha": "2c770f6e23686c91bc82d20e53843a533fc69a06",
+    "rig_utc_observation_interval": ["2026-11-01T08:59:43Z", "2026-11-01T08:59:44Z"],
+    "api_snapshot": "scratch/q2-ci-observation-rig-20261101-0900.json",
+    "api_snapshot_sha256": "cd89937cdaec40d2ce32777e33684a63f7ce7854eac5f1edf2349711a0cb1bc9",
+    "status_at_observation": {
+      "completed_success": ["ROCm backend (build only, Linux)", "CPU (Linux TSan)"],
+      "in_progress": [
+        "Vulkan backend (build, Linux)",
+        "HF reference (CPU)",
+        "CPU (ubuntu-24.04)",
+        "CPU (windows-2022)",
+        "CPU (macos-15-intel)",
+        "CPU (Linux UBSan)"
+      ],
+      "total_jobs": 8,
+      "full_run_pass": false
+    },
+    "latest_rig_utc_observation": {
+      "interval": ["2026-11-01T09:50:19Z", "2026-11-01T09:50:20Z"],
+      "api_snapshot": "scratch/q2-ci-observation-latest.json",
+      "api_snapshot_sha256": "0b5fa17ce9eeeed216e889945e358198abfbc85d945fd364a28b1f35e2bf9ce9",
+      "jobs": [
+        {"name": "Vulkan backend (build, Linux)", "status": "completed", "conclusion": "success"},
+        {"name": "HF reference (CPU)", "status": "completed", "conclusion": "success"},
+        {"name": "ROCm backend (build only, Linux)", "status": "completed", "conclusion": "success"},
+        {"name": "CPU (Linux TSan)", "status": "completed", "conclusion": "success"},
+        {"name": "CPU (ubuntu-24.04)", "status": "completed", "conclusion": "success"},
+        {"name": "CPU (windows-2022)", "status": "completed", "conclusion": "success"},
+        {"name": "CPU (macos-15-intel)", "status": "completed", "conclusion": "success"},
+        {"name": "CPU (Linux UBSan)", "status": "completed", "conclusion": "success"}
+      ],
+      "total_jobs": 8,
+      "full_run_pass": true
+    },
+    "clock_note": "The observation interval is bracketed by rig UTC. GitHub job timestamps are retained as returned by the API; they do not agree with the rig clock and are not used as the observation time."
+  },
+  "windows_device_suite": {
+    "pid": 35088,
+    "head_sha": "2c770f6e23686c91bc82d20e53843a533fc69a06",
+    "binary_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "execution": "scratch/q2-windows-device-suite-20261101/out/execution.json",
+    "execution_sha256": "b703ab0b22e3b06e7c493b2c7912281f7b4906c6ea34c1b833bb798706ba518c",
+    "stdout": "scratch/q2-windows-device-suite-20261101/out/stdout.log",
+    "stdout_sha256": "306fcefd6ea42532cc6cccf6d5dd52c2f177bcd59b6266a91b189056efbd21fc",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "controlled_stop": "host memory floor",
+    "elapsed_seconds": 895.4598200321198,
+    "host_memory_floor_bytes": 2147483648,
+    "passed": false,
+    "exit_code": 1,
+    "stdout_lines": 104,
+    "ok_markers": 37,
+    "terminal_suite_summary": false,
+    "interpretation": "The run stopped during NVFP4 processing when the host memory floor was reached. Retained output contains successful component lines but no terminal full-suite summary; this is not a full-suite pass or a reported numerical failure.",
+    "interrupted_prefix_audit": {
+      "path": "scratch/q2-windows-device-suite-20261101/continuation-v1/interrupted-prefix-audit.md",
+      "sha256": "60702df9302b085aac655c0fddb3e3f716fa87d4b67b3b0c550ffeea02450b0f87",
+      "audited_pass_components": 26,
+      "uncompleted_component": "nvfp4",
+      "later_components_not_run": ["qwen35", "vision", "image", "split", "tensor-split", "decode-probe", "drafters", "shards", "server", "server-load", "chat", "threads", "baseline"],
+      "continuation_plan": "scratch/q2-windows-device-suite-20261101/continuation-v1/plan.json",
+      "continuation_plan_sha256": "cfcd17c4b1af857d8691854d097ac5739e66ed62d90f12e75d61aad1fc7692eb",
+      "continuation_started": false
+    }
+  },
+  "windows_continuation": {
+    "execution": "scratch/q2-windows-device-suite-20261101/continuation-v1/out/execution.json",
+    "execution_sha256": "dfa40625cc56fc97ae8f521daf0f33ee02306c78b4d1d78b9399ed56137d0523",
+    "plan_sha256": "cfcd17c4b1af857d8691854d097ac5739e66ed62d90f12e75d61aad1fc7692eb",
+    "component_count": 14,
+    "passed_components": 13,
+    "pending_components": ["server"],
+    "server_preflight_checks": {
+      "count": 10,
+      "available_bytes_min": 3769040896,
+      "available_bytes_max": 5338447872,
+      "required_bytes": 6442450944,
+      "new_attempt_started": false
+    },
+    "interpretation": "The continuation completed NVFP4 and the remaining components except server. The server component remains blocked by available-memory admission; no limit was changed and no retry was started. Together with the audited 26-component prefix, 39 component checks passed; the device suite is still incomplete."
+  },
+  "chat_f32_quality": {
+    "first_attempt_snapshot": "scratch/q2-chat-hf-execution-20261101-1019.json",
+    "first_attempt_snapshot_sha256": "6f5fec391d56df9567569f9b3d0f29ec130b6656e151ef9a8b175bb91bfe58d7",
+    "first_attempt_selected_stage_passed": true,
+    "first_attempt_f32_stop": {
+      "exit_code": 137,
+      "oom_killed": false,
+      "last_layer": 19,
+      "phase": "prefill_512",
+      "end": 8704,
+      "reason": "The strict physical-core guard stopped the worker because /llmx-xdev-q2-scale-check-build-v5 overlapped its CPU set. This was not an OOM or a numerical failure."
+    },
+    "recovery_plan": "scratch/q2-chat-f32-recovery-20261101/plan.json",
+    "recovery_plan_sha256": "f2e4762da4fa7adff98981899fa20a5abd4f2d90de03350dba11058dd9c2d058",
+    "recovery_review": "scratch/q2-chat-f32-recovery-20261101/root-review.json",
+    "recovery_review_sha256": "ba6bbb234353bcbc3c45bfba0ec3e8995a8d742327f12e4d3670981ecce86e80",
+    "recovery_observation": {
+      "rig_utc": "2026-11-01T10:29:45Z",
+      "container_id": "150c710361c04f98b9e172a86890fca258b3a8681b222c2552b04a8b1ce811b2",
+      "pid": 195527,
+      "status": "running",
+      "oom_killed": false,
+      "progress_phase": "decode_1",
+      "progress_layer": 0,
+      "progress_end": 16513,
+      "memory_current_bytes": 1791791104,
+      "memory_peak_bytes": 4521598976
+    },
+    "interpretation": "F32-quality recovery is in progress from the embedding. The selected reference stage is already complete; no F32-quality result is claimed. Raw-F32 quality remains pending."
+  },
+  "other_active_work_at_rig_observation": "The recovery container state and progress were read from rig Docker and /out/progress.json at the recorded rig UTC. The original 09:22 snapshot and earlier 08:58 layer-32 observation are retained in the first-attempt snapshot."
+}

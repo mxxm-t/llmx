@@ -1,0 +1,2335 @@
+{
+  "scope": "Rejected default Q2 row experiment, no promotion or model gate",
+  "report_sha256": "2ab0b9a71c98a0d5b5df70a3c207d47d940a21533793ae943d7b3b8c96b7b882",
+  "root_raw_timing_audit": {
+    "gate": {
+      "shape": {
+        "M": 12288,
+        "N": 1,
+        "K": 4096,
+        "rows": 4,
+        "cluster": 32
+      },
+      "baseline_ms": 0.08848,
+      "candidate_ms": 0.09304,
+      "raw_sha256": "f04d138b5072273bdea1bb2592c8758982546f817a983df0a0b39bb47dbd024f",
+      "calls": [
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 0,
+          "fixture": 0,
+          "call": 0,
+          "warmup": true,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 91520
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 1,
+          "fixture": 0,
+          "call": 1,
+          "warmup": true,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 91840
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 0,
+          "fixture": 0,
+          "call": 2,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 88640
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 1,
+          "fixture": 0,
+          "call": 3,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 93760
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 1,
+          "fixture": 0,
+          "call": 4,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 92960
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 0,
+          "fixture": 0,
+          "call": 5,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 88640
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 0,
+          "fixture": 0,
+          "call": 6,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 88160
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 1,
+          "fixture": 0,
+          "call": 7,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 93120
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 1,
+          "fixture": 0,
+          "call": 8,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 91840
+        },
+        {
+          "event": "call",
+          "mode": "gate",
+          "arm": 0,
+          "fixture": 0,
+          "call": 9,
+          "warmup": false,
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 12288,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 88320
+        }
+      ]
+    },
+    "down": {
+      "shape": {
+        "M": 4096,
+        "N": 1,
+        "K": 12288,
+        "rows": 4,
+        "cluster": 32
+      },
+      "baseline_ms": 0.10632,
+      "candidate_ms": 0.1104,
+      "raw_sha256": "5bdbb811e333f4b6288d5841a5c67f7adb9c05acd3f501b6a34dbad348eee95c",
+      "calls": [
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 0,
+          "fixture": 0,
+          "call": 0,
+          "warmup": true,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 111360
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 1,
+          "fixture": 0,
+          "call": 1,
+          "warmup": true,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 110720
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 0,
+          "fixture": 0,
+          "call": 2,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 106080
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 1,
+          "fixture": 0,
+          "call": 3,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 110400
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 1,
+          "fixture": 0,
+          "call": 4,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 109280
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 0,
+          "fixture": 0,
+          "call": 5,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 107040
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 0,
+          "fixture": 0,
+          "call": 6,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 106400
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 1,
+          "fixture": 0,
+          "call": 7,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 111200
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 1,
+          "fixture": 0,
+          "call": 8,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 110400
+        },
+        {
+          "event": "call",
+          "mode": "down",
+          "arm": 0,
+          "fixture": 0,
+          "call": 9,
+          "warmup": false,
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "dx_bits": 1065353216,
+          "pattern": 0,
+          "finite_exact_outputs": 4096,
+          "nonfinite_class_outputs": 0,
+          "all_output_bits_match_device_baseline": true,
+          "guards_intact": true,
+          "inputs_unchanged": true,
+          "gpu_ns": 106240
+        }
+      ]
+    }
+  },
+  "retained_report": {
+    "status": "DONE_NO_ADVANCE",
+    "decision": "Guarded recovery candidate passes focused controls but regresses both short N1 latency screens. Preserve isolated source/proof/results; do not promote or run full model/HF. No further GPU job.",
+    "job_id": "20261102T173814Z-1524615",
+    "pid": 1524621,
+    "seconds": 23.24348735809326,
+    "source_diff": [
+      "matmul_row_two.glsl: guarded strict-F32 recovered integer center, original dot fallback otherwise"
+    ],
+    "spv": {
+      "base.spv": "d48e0ccc1f5f00b89eefa832f5a04f35f341111b7e4645138bff3a866c8151ed",
+      "candidate.spv": "8666b028799f0488b4347d65a584546b650dd28e792331dcde36c95e71d75aab"
+    },
+    "spirv_audit": {
+      "status": "PASS",
+      "optimized_spv_sha256": "8666b028799f0488b4347d65a584546b650dd28e792331dcde36c95e71d75aab",
+      "division_id": "%1037",
+      "division": "OpFDiv %float %1035 %1015",
+      "NoContraction": true,
+      "full_F32": true,
+      "no_relevant_RelaxedPrecision": true,
+      "no_explicit_fastmath_override": true,
+      "value_chain": {
+        "%1037": "OpFDiv %float %1035 %1015",
+        "%1035": "OpCompositeExtract %float %2031 1",
+        "%1015": "OpCompositeExtract %float %2031 0",
+        "%2031": "OpLoad %v2float %2030",
+        "%1039": "OpExtInst %float %1 RoundEven %1037",
+        "%1040": "OpConvertFToS %int %1039"
+      },
+      "same_vec2_loaded_for_d_and_dS": true,
+      "guard_bits": [
+        "0x17800000",
+        "0x67800000"
+      ],
+      "fallback_original_dot2_loop_present": true,
+      "proof_files_verified": {
+        "PROOF.md": "62b4d33113546ecba9a1d4afa36e3a29a8c66bc6bbc9fadedbad3d4f99cdcd50",
+        "cpu_control.py": "1f749291b0f8093e18b7ddec227d8133e617c594be69f14c2c5a0d08ee39ee5c",
+        "cpu-control.json": "6e89bc6be62c02003988d29048e529de418f1778ca45d4a326e69406489eec6f"
+      },
+      "unrelated_RelaxedPrecision": "Existing subgroup/index decorations remain; none on quotient/data pair/round/conversion chain."
+    },
+    "source_controls": {
+      "status": "PASS",
+      "q1_control": {
+        "base": {
+          "sha256": "4d0d469b31620683bf572f8bd18a0557e63c3ec8e139eace64b7f74d9a07cffb",
+          "argv": [
+            "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-DLLMX_DOT",
+            "-DLLMX_LOW_BITS_DOT",
+            "-DLLMX_Q1_0",
+            "-DLLMX_PRESERVE_F32",
+            "-Iscratch\\q2-decode-center-recovery-20261102\\experiment\\shaders-base",
+            "scratch\\q2-decode-center-recovery-20261102\\experiment\\shaders-base\\matmul_row.comp",
+            "-o",
+            "scratch\\q2-decode-center-recovery-20261102\\experiment\\prebuilt\\q1-base.spv"
+          ],
+          "exit": 0
+        },
+        "candidate": {
+          "sha256": "4d0d469b31620683bf572f8bd18a0557e63c3ec8e139eace64b7f74d9a07cffb",
+          "argv": [
+            "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-DLLMX_DOT",
+            "-DLLMX_LOW_BITS_DOT",
+            "-DLLMX_Q1_0",
+            "-DLLMX_PRESERVE_F32",
+            "-Iscratch\\q2-decode-center-recovery-20261102\\experiment\\shaders-candidate",
+            "scratch\\q2-decode-center-recovery-20261102\\experiment\\shaders-candidate\\matmul_row.comp",
+            "-o",
+            "scratch\\q2-decode-center-recovery-20261102\\experiment\\prebuilt\\q1-candidate.spv"
+          ],
+          "exit": 0
+        }
+      },
+      "source_only_diff": [
+        "matmul_row_two.glsl"
+      ]
+    },
+    "focused": [
+      {
+        "tag": "checks-four",
+        "calls": 384,
+        "finite_exact_outputs": 11660,
+        "nonfinite_class_outputs": 2548,
+        "guard_cases": [
+          0,
+          1,
+          8388607,
+          8388608,
+          394264575,
+          394264576,
+          394264577,
+          402653183,
+          1051372203,
+          1056964607,
+          1056964609,
+          1065353215,
+          1065353216,
+          1065353217,
+          1073741823,
+          1073741825,
+          1092830567,
+          1705758191,
+          1728053247,
+          1736441855,
+          1736441856,
+          1736441857,
+          1996488704,
+          2130706431,
+          2139095039,
+          2139095040,
+          2143363909,
+          2147483648,
+          2541748224,
+          3212836864,
+          3883925503,
+          4286578688
+        ],
+        "patterns": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "shape": {
+          "M": 37,
+          "N": 1,
+          "K": 192,
+          "rows": 4,
+          "cluster": 32
+        }
+      },
+      {
+        "tag": "tails-four",
+        "calls": 384,
+        "finite_exact_outputs": 1624,
+        "nonfinite_class_outputs": 296,
+        "guard_cases": [
+          0,
+          1,
+          8388607,
+          8388608,
+          394264575,
+          394264576,
+          394264577,
+          402653183,
+          1051372203,
+          1056964607,
+          1056964609,
+          1065353215,
+          1065353216,
+          1065353217,
+          1073741823,
+          1073741825,
+          1092830567,
+          1705758191,
+          1728053247,
+          1736441855,
+          1736441856,
+          1736441857,
+          1996488704,
+          2130706431,
+          2139095039,
+          2139095040,
+          2143363909,
+          2147483648,
+          2541748224,
+          3212836864,
+          3883925503,
+          4286578688
+        ],
+        "patterns": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "shape": {
+          "M": 5,
+          "N": 1,
+          "K": 64,
+          "rows": 4,
+          "cluster": 32
+        }
+      },
+      {
+        "tag": "checks-two",
+        "calls": 384,
+        "finite_exact_outputs": 11660,
+        "nonfinite_class_outputs": 2548,
+        "guard_cases": [
+          0,
+          1,
+          8388607,
+          8388608,
+          394264575,
+          394264576,
+          394264577,
+          402653183,
+          1051372203,
+          1056964607,
+          1056964609,
+          1065353215,
+          1065353216,
+          1065353217,
+          1073741823,
+          1073741825,
+          1092830567,
+          1705758191,
+          1728053247,
+          1736441855,
+          1736441856,
+          1736441857,
+          1996488704,
+          2130706431,
+          2139095039,
+          2139095040,
+          2143363909,
+          2147483648,
+          2541748224,
+          3212836864,
+          3883925503,
+          4286578688
+        ],
+        "patterns": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "shape": {
+          "M": 37,
+          "N": 1,
+          "K": 192,
+          "rows": 2,
+          "cluster": 32
+        }
+      },
+      {
+        "tag": "tails-two",
+        "calls": 384,
+        "finite_exact_outputs": 1624,
+        "nonfinite_class_outputs": 296,
+        "guard_cases": [
+          0,
+          1,
+          8388607,
+          8388608,
+          394264575,
+          394264576,
+          394264577,
+          402653183,
+          1051372203,
+          1056964607,
+          1056964609,
+          1065353215,
+          1065353216,
+          1065353217,
+          1073741823,
+          1073741825,
+          1092830567,
+          1705758191,
+          1728053247,
+          1736441855,
+          1736441856,
+          1736441857,
+          1996488704,
+          2130706431,
+          2139095039,
+          2139095040,
+          2143363909,
+          2147483648,
+          2541748224,
+          3212836864,
+          3883925503,
+          4286578688
+        ],
+        "patterns": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "shape": {
+          "M": 5,
+          "N": 1,
+          "K": 64,
+          "rows": 2,
+          "cluster": 32
+        }
+      },
+      {
+        "tag": "checks-cluster16",
+        "calls": 384,
+        "finite_exact_outputs": 11660,
+        "nonfinite_class_outputs": 2548,
+        "guard_cases": [
+          0,
+          1,
+          8388607,
+          8388608,
+          394264575,
+          394264576,
+          394264577,
+          402653183,
+          1051372203,
+          1056964607,
+          1056964609,
+          1065353215,
+          1065353216,
+          1065353217,
+          1073741823,
+          1073741825,
+          1092830567,
+          1705758191,
+          1728053247,
+          1736441855,
+          1736441856,
+          1736441857,
+          1996488704,
+          2130706431,
+          2139095039,
+          2139095040,
+          2143363909,
+          2147483648,
+          2541748224,
+          3212836864,
+          3883925503,
+          4286578688
+        ],
+        "patterns": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "shape": {
+          "M": 37,
+          "N": 1,
+          "K": 192,
+          "rows": 4,
+          "cluster": 16
+        }
+      }
+    ],
+    "focused_calls": 1920,
+    "finite_exact_outputs_focused": 38228,
+    "nonfinite_class_outputs_focused": 8236,
+    "timing": {
+      "gate": {
+        "shape": {
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32
+        },
+        "calls": [
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 0,
+            "fixture": 0,
+            "call": 0,
+            "warmup": true,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 91520
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 1,
+            "fixture": 0,
+            "call": 1,
+            "warmup": true,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 91840
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 0,
+            "fixture": 0,
+            "call": 2,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 88640
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 1,
+            "fixture": 0,
+            "call": 3,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 93760
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 1,
+            "fixture": 0,
+            "call": 4,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 92960
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 0,
+            "fixture": 0,
+            "call": 5,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 88640
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 0,
+            "fixture": 0,
+            "call": 6,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 88160
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 1,
+            "fixture": 0,
+            "call": 7,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 93120
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 1,
+            "fixture": 0,
+            "call": 8,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 91840
+          },
+          {
+            "event": "call",
+            "mode": "gate",
+            "arm": 0,
+            "fixture": 0,
+            "call": 9,
+            "warmup": false,
+            "M": 12288,
+            "N": 1,
+            "K": 4096,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 88320
+          }
+        ],
+        "timed_samples_ms": {
+          "0": [
+            0.08864,
+            0.08864,
+            0.08816,
+            0.08832
+          ],
+          "1": [
+            0.09376,
+            0.09296,
+            0.09312,
+            0.09184
+          ]
+        },
+        "medians_ms": {
+          "0": 0.08848,
+          "1": 0.09304
+        },
+        "candidate_time_change_percent": 5.153707052441225,
+        "statistics": [
+          {
+            "Driver pipeline hash": {
+              "value": 11685863675981908306,
+              "description": "Driver pipeline hash used by RGP"
+            },
+            "SGPRs": {
+              "value": 80,
+              "description": "Number of SGPR registers allocated per subgroup"
+            },
+            "VGPRs": {
+              "value": 64,
+              "description": "Number of VGPR registers allocated per subgroup"
+            },
+            "Spilled SGPRs": {
+              "value": 0,
+              "description": "Number of SGPR registers spilled per subgroup"
+            },
+            "Spilled VGPRs": {
+              "value": 0,
+              "description": "Number of VGPR registers spilled per subgroup"
+            },
+            "Code size": {
+              "value": 8200,
+              "description": "Code size in bytes"
+            },
+            "LDS size": {
+              "value": 0,
+              "description": "LDS size in bytes per workgroup"
+            },
+            "Scratch size": {
+              "value": 0,
+              "description": "Private memory in bytes per subgroup"
+            },
+            "Subgroups per SIMD": {
+              "value": 4,
+              "description": "The maximum number of subgroups in flight on a SIMD unit"
+            },
+            "Combined inputs": {
+              "value": 0,
+              "description": "Number of input slots reserved for the shader (including merged stages)"
+            },
+            "Combined outputs": {
+              "value": 0,
+              "description": "Number of output slots reserved for the shader (including merged stages)"
+            },
+            "Hash": {
+              "value": 2097854313,
+              "description": "CRC32 hash of code and constant data"
+            },
+            "Instructions": {
+              "value": 1480,
+              "description": "Instruction count"
+            },
+            "Copies": {
+              "value": 60,
+              "description": "Copy instructions created for pseudo-instructions"
+            },
+            "Branches": {
+              "value": 26,
+              "description": "Branch instructions"
+            },
+            "Latency": {
+              "value": 307352,
+              "description": "Issue cycles plus stall cycles"
+            },
+            "Inverse Throughput": {
+              "value": 237864,
+              "description": "Estimated busy cycles to execute one wave"
+            },
+            "VMEM Clause": {
+              "value": 17,
+              "description": "Number of VMEM clauses (includes 1-sized clauses)"
+            },
+            "SMEM Clause": {
+              "value": 16,
+              "description": "Number of SMEM clauses (includes 1-sized clauses)"
+            },
+            "Pre-Sched SGPRs": {
+              "value": 49,
+              "description": "SGPR usage before scheduling"
+            },
+            "Pre-Sched VGPRs": {
+              "value": 53,
+              "description": "VGPR usage before scheduling"
+            },
+            "VALU": {
+              "value": 1162,
+              "description": "Number of VALU instructions"
+            },
+            "SALU": {
+              "value": 151,
+              "description": "Number of SALU instructions"
+            },
+            "VMEM": {
+              "value": 53,
+              "description": "Number of VMEM instructions"
+            },
+            "SMEM": {
+              "value": 24,
+              "description": "Number of SMEM instructions"
+            },
+            "VOPD": {
+              "value": 0,
+              "description": "Number of VOPD instructions"
+            }
+          },
+          {
+            "Driver pipeline hash": {
+              "value": 8681195704338907125,
+              "description": "Driver pipeline hash used by RGP"
+            },
+            "SGPRs": {
+              "value": 80,
+              "description": "Number of SGPR registers allocated per subgroup"
+            },
+            "VGPRs": {
+              "value": 64,
+              "description": "Number of VGPR registers allocated per subgroup"
+            },
+            "Spilled SGPRs": {
+              "value": 0,
+              "description": "Number of SGPR registers spilled per subgroup"
+            },
+            "Spilled VGPRs": {
+              "value": 0,
+              "description": "Number of VGPR registers spilled per subgroup"
+            },
+            "Code size": {
+              "value": 8324,
+              "description": "Code size in bytes"
+            },
+            "LDS size": {
+              "value": 0,
+              "description": "LDS size in bytes per workgroup"
+            },
+            "Scratch size": {
+              "value": 0,
+              "description": "Private memory in bytes per subgroup"
+            },
+            "Subgroups per SIMD": {
+              "value": 4,
+              "description": "The maximum number of subgroups in flight on a SIMD unit"
+            },
+            "Combined inputs": {
+              "value": 0,
+              "description": "Number of input slots reserved for the shader (including merged stages)"
+            },
+            "Combined outputs": {
+              "value": 0,
+              "description": "Number of output slots reserved for the shader (including merged stages)"
+            },
+            "Hash": {
+              "value": 3177598465,
+              "description": "CRC32 hash of code and constant data"
+            },
+            "Instructions": {
+              "value": 1496,
+              "description": "Instruction count"
+            },
+            "Copies": {
+              "value": 63,
+              "description": "Copy instructions created for pseudo-instructions"
+            },
+            "Branches": {
+              "value": 28,
+              "description": "Branch instructions"
+            },
+            "Latency": {
+              "value": 317912,
+              "description": "Issue cycles plus stall cycles"
+            },
+            "Inverse Throughput": {
+              "value": 238464,
+              "description": "Estimated busy cycles to execute one wave"
+            },
+            "VMEM Clause": {
+              "value": 17,
+              "description": "Number of VMEM clauses (includes 1-sized clauses)"
+            },
+            "SMEM Clause": {
+              "value": 17,
+              "description": "Number of SMEM clauses (includes 1-sized clauses)"
+            },
+            "Pre-Sched SGPRs": {
+              "value": 49,
+              "description": "SGPR usage before scheduling"
+            },
+            "Pre-Sched VGPRs": {
+              "value": 53,
+              "description": "VGPR usage before scheduling"
+            },
+            "VALU": {
+              "value": 1172,
+              "description": "Number of VALU instructions"
+            },
+            "SALU": {
+              "value": 157,
+              "description": "Number of SALU instructions"
+            },
+            "VMEM": {
+              "value": 53,
+              "description": "Number of VMEM instructions"
+            },
+            "SMEM": {
+              "value": 24,
+              "description": "Number of SMEM instructions"
+            },
+            "VOPD": {
+              "value": 0,
+              "description": "Number of VOPD instructions"
+            }
+          }
+        ]
+      },
+      "down": {
+        "shape": {
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32
+        },
+        "calls": [
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 0,
+            "fixture": 0,
+            "call": 0,
+            "warmup": true,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 111360
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 1,
+            "fixture": 0,
+            "call": 1,
+            "warmup": true,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 110720
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 0,
+            "fixture": 0,
+            "call": 2,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 106080
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 1,
+            "fixture": 0,
+            "call": 3,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 110400
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 1,
+            "fixture": 0,
+            "call": 4,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 109280
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 0,
+            "fixture": 0,
+            "call": 5,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 107040
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 0,
+            "fixture": 0,
+            "call": 6,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 106400
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 1,
+            "fixture": 0,
+            "call": 7,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 111200
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 1,
+            "fixture": 0,
+            "call": 8,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 110400
+          },
+          {
+            "event": "call",
+            "mode": "down",
+            "arm": 0,
+            "fixture": 0,
+            "call": 9,
+            "warmup": false,
+            "M": 4096,
+            "N": 1,
+            "K": 12288,
+            "rows": 4,
+            "cluster": 32,
+            "dx_bits": 1065353216,
+            "pattern": 0,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "gpu_ns": 106240
+          }
+        ],
+        "timed_samples_ms": {
+          "0": [
+            0.10608,
+            0.10704,
+            0.1064,
+            0.10624
+          ],
+          "1": [
+            0.1104,
+            0.10928,
+            0.1112,
+            0.1104
+          ]
+        },
+        "medians_ms": {
+          "0": 0.10632,
+          "1": 0.1104
+        },
+        "candidate_time_change_percent": 3.8374717832957206,
+        "statistics": [
+          {
+            "Driver pipeline hash": {
+              "value": 11685863675981908306,
+              "description": "Driver pipeline hash used by RGP"
+            },
+            "SGPRs": {
+              "value": 80,
+              "description": "Number of SGPR registers allocated per subgroup"
+            },
+            "VGPRs": {
+              "value": 64,
+              "description": "Number of VGPR registers allocated per subgroup"
+            },
+            "Spilled SGPRs": {
+              "value": 0,
+              "description": "Number of SGPR registers spilled per subgroup"
+            },
+            "Spilled VGPRs": {
+              "value": 0,
+              "description": "Number of VGPR registers spilled per subgroup"
+            },
+            "Code size": {
+              "value": 8200,
+              "description": "Code size in bytes"
+            },
+            "LDS size": {
+              "value": 0,
+              "description": "LDS size in bytes per workgroup"
+            },
+            "Scratch size": {
+              "value": 0,
+              "description": "Private memory in bytes per subgroup"
+            },
+            "Subgroups per SIMD": {
+              "value": 4,
+              "description": "The maximum number of subgroups in flight on a SIMD unit"
+            },
+            "Combined inputs": {
+              "value": 0,
+              "description": "Number of input slots reserved for the shader (including merged stages)"
+            },
+            "Combined outputs": {
+              "value": 0,
+              "description": "Number of output slots reserved for the shader (including merged stages)"
+            },
+            "Hash": {
+              "value": 2097854313,
+              "description": "CRC32 hash of code and constant data"
+            },
+            "Instructions": {
+              "value": 1480,
+              "description": "Instruction count"
+            },
+            "Copies": {
+              "value": 60,
+              "description": "Copy instructions created for pseudo-instructions"
+            },
+            "Branches": {
+              "value": 26,
+              "description": "Branch instructions"
+            },
+            "Latency": {
+              "value": 307352,
+              "description": "Issue cycles plus stall cycles"
+            },
+            "Inverse Throughput": {
+              "value": 237864,
+              "description": "Estimated busy cycles to execute one wave"
+            },
+            "VMEM Clause": {
+              "value": 17,
+              "description": "Number of VMEM clauses (includes 1-sized clauses)"
+            },
+            "SMEM Clause": {
+              "value": 16,
+              "description": "Number of SMEM clauses (includes 1-sized clauses)"
+            },
+            "Pre-Sched SGPRs": {
+              "value": 49,
+              "description": "SGPR usage before scheduling"
+            },
+            "Pre-Sched VGPRs": {
+              "value": 53,
+              "description": "VGPR usage before scheduling"
+            },
+            "VALU": {
+              "value": 1162,
+              "description": "Number of VALU instructions"
+            },
+            "SALU": {
+              "value": 151,
+              "description": "Number of SALU instructions"
+            },
+            "VMEM": {
+              "value": 53,
+              "description": "Number of VMEM instructions"
+            },
+            "SMEM": {
+              "value": 24,
+              "description": "Number of SMEM instructions"
+            },
+            "VOPD": {
+              "value": 0,
+              "description": "Number of VOPD instructions"
+            }
+          },
+          {
+            "Driver pipeline hash": {
+              "value": 8681195704338907125,
+              "description": "Driver pipeline hash used by RGP"
+            },
+            "SGPRs": {
+              "value": 80,
+              "description": "Number of SGPR registers allocated per subgroup"
+            },
+            "VGPRs": {
+              "value": 64,
+              "description": "Number of VGPR registers allocated per subgroup"
+            },
+            "Spilled SGPRs": {
+              "value": 0,
+              "description": "Number of SGPR registers spilled per subgroup"
+            },
+            "Spilled VGPRs": {
+              "value": 0,
+              "description": "Number of VGPR registers spilled per subgroup"
+            },
+            "Code size": {
+              "value": 8324,
+              "description": "Code size in bytes"
+            },
+            "LDS size": {
+              "value": 0,
+              "description": "LDS size in bytes per workgroup"
+            },
+            "Scratch size": {
+              "value": 0,
+              "description": "Private memory in bytes per subgroup"
+            },
+            "Subgroups per SIMD": {
+              "value": 4,
+              "description": "The maximum number of subgroups in flight on a SIMD unit"
+            },
+            "Combined inputs": {
+              "value": 0,
+              "description": "Number of input slots reserved for the shader (including merged stages)"
+            },
+            "Combined outputs": {
+              "value": 0,
+              "description": "Number of output slots reserved for the shader (including merged stages)"
+            },
+            "Hash": {
+              "value": 3177598465,
+              "description": "CRC32 hash of code and constant data"
+            },
+            "Instructions": {
+              "value": 1496,
+              "description": "Instruction count"
+            },
+            "Copies": {
+              "value": 63,
+              "description": "Copy instructions created for pseudo-instructions"
+            },
+            "Branches": {
+              "value": 28,
+              "description": "Branch instructions"
+            },
+            "Latency": {
+              "value": 317912,
+              "description": "Issue cycles plus stall cycles"
+            },
+            "Inverse Throughput": {
+              "value": 238464,
+              "description": "Estimated busy cycles to execute one wave"
+            },
+            "VMEM Clause": {
+              "value": 17,
+              "description": "Number of VMEM clauses (includes 1-sized clauses)"
+            },
+            "SMEM Clause": {
+              "value": 17,
+              "description": "Number of SMEM clauses (includes 1-sized clauses)"
+            },
+            "Pre-Sched SGPRs": {
+              "value": 49,
+              "description": "SGPR usage before scheduling"
+            },
+            "Pre-Sched VGPRs": {
+              "value": 53,
+              "description": "VGPR usage before scheduling"
+            },
+            "VALU": {
+              "value": 1172,
+              "description": "Number of VALU instructions"
+            },
+            "SALU": {
+              "value": 157,
+              "description": "Number of SALU instructions"
+            },
+            "VMEM": {
+              "value": 53,
+              "description": "Number of VMEM instructions"
+            },
+            "SMEM": {
+              "value": 24,
+              "description": "Number of SMEM instructions"
+            },
+            "VOPD": {
+              "value": 0,
+              "description": "Number of VOPD instructions"
+            }
+          }
+        ]
+      }
+    },
+    "timed_process_calls_including_warmups": 20,
+    "finite_exact_outputs_timing_including_warmups": 163840,
+    "isa_opcode_delta": {
+      "buffer_load_dword": -1,
+      "buffer_load_dwordx2": 1,
+      "s_and_b64": 2,
+      "s_andn2_b64": 1,
+      "s_cbranch_execz": 2,
+      "s_mov_b32": 2,
+      "s_mov_b64": 1,
+      "s_nop": 1,
+      "s_waitcnt": -2,
+      "v_cmp_class_f32_e64": 1,
+      "v_cmp_gt_u32_e64": 1,
+      "v_cmp_le_u32_e32": 1,
+      "v_cndmask_b32_e64": 1,
+      "v_cvt_i32_f32_e32": 1,
+      "v_mul_f32_e32": 3,
+      "v_rcp_f32_e32": 1,
+      "v_rndne_f32_e32": 1
+    },
+    "isa": [
+      {
+        "arm": "base",
+        "opcode_counts": {
+          "buffer_load_dword": 34,
+          "buffer_load_dwordx2": 4,
+          "buffer_load_dwordx4": 4,
+          "buffer_load_ushort": 9,
+          "buffer_store_dword": 2,
+          "ds_bpermute_b32": 2,
+          "s_add_u32": 16,
+          "s_and_b64": 10,
+          "s_andn2_b64": 1,
+          "s_bfe_u32": 1,
+          "s_bfm_b32": 1,
+          "s_branch": 10,
+          "s_brev_b32": 1,
+          "s_buffer_load_dword": 2,
+          "s_buffer_load_dwordx16": 1,
+          "s_cbranch_execz": 3,
+          "s_cbranch_scc0": 9,
+          "s_cbranch_scc1": 4,
+          "s_cmp_eq_i32": 3,
+          "s_cmp_ge_u32": 9,
+          "s_cmp_lg_i32": 4,
+          "s_cmp_lt_i32": 3,
+          "s_cmp_lt_u32": 2,
+          "s_cselect_b32": 5,
+          "s_cselect_b64": 5,
+          "s_endpgm": 1,
+          "s_load_dword": 10,
+          "s_load_dwordx4": 11,
+          "s_lshl2_add_u32": 1,
+          "s_lshl3_add_u32": 1,
+          "s_lshl_b32": 7,
+          "s_lshr_b32": 8,
+          "s_min_u32": 1,
+          "s_mov_b32": 24,
+          "s_mov_b64": 8,
+          "s_movk_i32": 12,
+          "s_mul_hi_u32": 3,
+          "s_mul_i32": 14,
+          "s_or_b64": 6,
+          "s_sub_i32": 5,
+          "s_waitcnt": 61,
+          "v_add3_u32": 4,
+          "v_add_f32_e32": 2,
+          "v_add_lshl_u32": 3,
+          "v_add_u32_e32": 113,
+          "v_alignbit_b32": 8,
+          "v_and_b32_e32": 162,
+          "v_and_b32_sdwa": 32,
+          "v_and_or_b32": 48,
+          "v_bfe_u32": 77,
+          "v_bfi_b32": 32,
+          "v_bfrev_b32_e32": 1,
+          "v_cmp_class_f32_e32": 1,
+          "v_cmp_class_f32_e64": 5,
+          "v_cmp_eq_i32_e32": 4,
+          "v_cmp_eq_i32_e64": 6,
+          "v_cmp_gt_i32_e64": 32,
+          "v_cmp_le_u32_e32": 2,
+          "v_cmp_le_u32_e64": 1,
+          "v_cmp_ne_i32_e64": 1,
+          "v_cmp_neq_f32_e32": 3,
+          "v_cmp_neq_f32_e64": 2,
+          "v_cmpx_gt_u32_e32": 1,
+          "v_cmpx_le_u32_e32": 1,
+          "v_cndmask_b32_e32": 5,
+          "v_cndmask_b32_e64": 50,
+          "v_cvt_f32_f16_e32": 5,
+          "v_cvt_f32_i32_e32": 36,
+          "v_cvt_f32_i32_sdwa": 32,
+          "v_cvt_f32_u32_e32": 2,
+          "v_cvt_u32_f32_e32": 2,
+          "v_dot2_i32_i16": 80,
+          "v_fma_f32": 36,
+          "v_lshl_add_u32": 6,
+          "v_lshl_or_b32": 16,
+          "v_lshlrev_b32_e32": 126,
+          "v_lshrrev_b32_e32": 77,
+          "v_mbcnt_hi_u32_b32": 1,
+          "v_mbcnt_lo_u32_b32": 1,
+          "v_min_f32_e64": 4,
+          "v_min_u32_e32": 3,
+          "v_mov_b32_e32": 11,
+          "v_mul_f32_e32": 74,
+          "v_mul_f32_e64": 1,
+          "v_mul_hi_u32": 1,
+          "v_mul_lo_u32": 7,
+          "v_or_b32_e32": 1,
+          "v_rcp_f32_e32": 2,
+          "v_readfirstlane_b32": 2,
+          "v_sub_u32_e32": 5,
+          "v_subrev_u32_e32": 1,
+          "v_xor_b32_e32": 34
+        },
+        "explicit_spill_instructions": []
+      },
+      {
+        "arm": "candidate",
+        "opcode_counts": {
+          "buffer_load_dword": 33,
+          "buffer_load_dwordx2": 5,
+          "buffer_load_dwordx4": 4,
+          "buffer_load_ushort": 9,
+          "buffer_store_dword": 2,
+          "ds_bpermute_b32": 2,
+          "s_add_u32": 16,
+          "s_and_b64": 12,
+          "s_andn2_b64": 2,
+          "s_bfe_u32": 1,
+          "s_bfm_b32": 1,
+          "s_branch": 10,
+          "s_brev_b32": 1,
+          "s_buffer_load_dword": 2,
+          "s_buffer_load_dwordx16": 1,
+          "s_cbranch_execz": 5,
+          "s_cbranch_scc0": 9,
+          "s_cbranch_scc1": 4,
+          "s_cmp_eq_i32": 3,
+          "s_cmp_ge_u32": 9,
+          "s_cmp_lg_i32": 4,
+          "s_cmp_lt_i32": 3,
+          "s_cmp_lt_u32": 2,
+          "s_cselect_b32": 5,
+          "s_cselect_b64": 5,
+          "s_endpgm": 1,
+          "s_load_dword": 10,
+          "s_load_dwordx4": 11,
+          "s_lshl2_add_u32": 1,
+          "s_lshl3_add_u32": 1,
+          "s_lshl_b32": 7,
+          "s_lshr_b32": 8,
+          "s_min_u32": 1,
+          "s_mov_b32": 26,
+          "s_mov_b64": 9,
+          "s_movk_i32": 12,
+          "s_mul_hi_u32": 3,
+          "s_mul_i32": 14,
+          "s_nop": 1,
+          "s_or_b64": 6,
+          "s_sub_i32": 5,
+          "s_waitcnt": 59,
+          "v_add3_u32": 4,
+          "v_add_f32_e32": 2,
+          "v_add_lshl_u32": 3,
+          "v_add_u32_e32": 113,
+          "v_alignbit_b32": 8,
+          "v_and_b32_e32": 162,
+          "v_and_b32_sdwa": 32,
+          "v_and_or_b32": 48,
+          "v_bfe_u32": 77,
+          "v_bfi_b32": 32,
+          "v_bfrev_b32_e32": 1,
+          "v_cmp_class_f32_e32": 1,
+          "v_cmp_class_f32_e64": 6,
+          "v_cmp_eq_i32_e32": 4,
+          "v_cmp_eq_i32_e64": 6,
+          "v_cmp_gt_i32_e64": 32,
+          "v_cmp_gt_u32_e64": 1,
+          "v_cmp_le_u32_e32": 3,
+          "v_cmp_le_u32_e64": 1,
+          "v_cmp_ne_i32_e64": 1,
+          "v_cmp_neq_f32_e32": 3,
+          "v_cmp_neq_f32_e64": 2,
+          "v_cmpx_gt_u32_e32": 1,
+          "v_cmpx_le_u32_e32": 1,
+          "v_cndmask_b32_e32": 5,
+          "v_cndmask_b32_e64": 51,
+          "v_cvt_f32_f16_e32": 5,
+          "v_cvt_f32_i32_e32": 36,
+          "v_cvt_f32_i32_sdwa": 32,
+          "v_cvt_f32_u32_e32": 2,
+          "v_cvt_i32_f32_e32": 1,
+          "v_cvt_u32_f32_e32": 2,
+          "v_dot2_i32_i16": 80,
+          "v_fma_f32": 36,
+          "v_lshl_add_u32": 6,
+          "v_lshl_or_b32": 16,
+          "v_lshlrev_b32_e32": 126,
+          "v_lshrrev_b32_e32": 77,
+          "v_mbcnt_hi_u32_b32": 1,
+          "v_mbcnt_lo_u32_b32": 1,
+          "v_min_f32_e64": 4,
+          "v_min_u32_e32": 3,
+          "v_mov_b32_e32": 11,
+          "v_mul_f32_e32": 77,
+          "v_mul_f32_e64": 1,
+          "v_mul_hi_u32": 1,
+          "v_mul_lo_u32": 7,
+          "v_or_b32_e32": 1,
+          "v_rcp_f32_e32": 3,
+          "v_readfirstlane_b32": 2,
+          "v_rndne_f32_e32": 1,
+          "v_sub_u32_e32": 5,
+          "v_subrev_u32_e32": 1,
+          "v_xor_b32_e32": 34
+        },
+        "explicit_spill_instructions": []
+      }
+    ],
+    "activity": {
+      "samples": 16,
+      "intervals": [
+        {
+          "at": "2026-11-02T17:38:22.681085+00:00",
+          "system_cpu_percent": 72.98177083333333,
+          "unrelated_core_equivalents": 9.22033767592172,
+          "total_disk_mib_s": 4.523510359196544,
+          "seconds": 1.0043016129639
+        },
+        {
+          "at": "2026-11-02T17:38:23.678468+00:00",
+          "system_cpu_percent": 73.79713914174252,
+          "unrelated_core_equivalents": 10.685537029187095,
+          "total_disk_mib_s": 309.90866083043943,
+          "seconds": 1.0013535090256482
+        },
+        {
+          "at": "2026-11-02T17:38:24.683944+00:00",
+          "system_cpu_percent": 73.89896373056995,
+          "unrelated_core_equivalents": 10.603819086779598,
+          "total_disk_mib_s": 6.976402239954621,
+          "seconds": 1.0005828950088471
+        },
+        {
+          "at": "2026-11-02T17:38:25.831355+00:00",
+          "system_cpu_percent": 76.99346405228758,
+          "unrelated_core_equivalents": 12.769617267726176,
+          "total_disk_mib_s": 1.4207198397925007,
+          "seconds": 1.0008130809292197
+        },
+        {
+          "at": "2026-11-02T17:38:26.686780+00:00",
+          "system_cpu_percent": 75.1137102014295,
+          "unrelated_core_equivalents": 9.393355336975274,
+          "total_disk_mib_s": 0.04684186504475702,
+          "seconds": 1.0007073790766299
+        },
+        {
+          "at": "2026-11-02T17:38:27.677803+00:00",
+          "system_cpu_percent": 76.93811074918567,
+          "unrelated_core_equivalents": 10.970680605341553,
+          "total_disk_mib_s": 0.011708803583228263,
+          "seconds": 1.0008494819048792
+        },
+        {
+          "at": "2026-11-02T17:38:28.685525+00:00",
+          "system_cpu_percent": 74.61439588688945,
+          "unrelated_core_equivalents": 10.622341409124507,
+          "total_disk_mib_s": 1.0227001444873811,
+          "seconds": 1.000720988959074
+        },
+        {
+          "at": "2026-11-02T17:38:29.684420+00:00",
+          "system_cpu_percent": 77.11538461538461,
+          "unrelated_core_equivalents": 11.252598749205946,
+          "total_disk_mib_s": 2.814555012966768,
+          "seconds": 1.0006577370222658
+        },
+        {
+          "at": "2026-11-02T17:38:30.681346+00:00",
+          "system_cpu_percent": 79.07573812580232,
+          "unrelated_core_equivalents": 11.489764182040055,
+          "total_disk_mib_s": 0.0,
+          "seconds": 1.000890864059329
+        },
+        {
+          "at": "2026-11-02T17:38:31.686122+00:00",
+          "system_cpu_percent": 80.05148005148006,
+          "unrelated_core_equivalents": 11.687261106766565,
+          "total_disk_mib_s": 0.0,
+          "seconds": 1.0010899810586125
+        },
+        {
+          "at": "2026-11-02T17:38:32.687947+00:00",
+          "system_cpu_percent": 77.24002616088947,
+          "unrelated_core_equivalents": 11.22151664648244,
+          "total_disk_mib_s": 0.011709897435526811,
+          "seconds": 1.0007559899240732
+        },
+        {
+          "at": "2026-11-02T17:38:33.689625+00:00",
+          "system_cpu_percent": 76.69027688345139,
+          "unrelated_core_equivalents": 11.063035432598602,
+          "total_disk_mib_s": 1.4522107825650266,
+          "seconds": 1.000629534944892
+        },
+        {
+          "at": "2026-11-02T17:38:34.691041+00:00",
+          "system_cpu_percent": 75.24177949709865,
+          "unrelated_core_equivalents": 10.480742317881116,
+          "total_disk_mib_s": 2.3924180174798635,
+          "seconds": 1.0008833040483296
+        },
+        {
+          "at": "2026-11-02T17:38:35.696686+00:00",
+          "system_cpu_percent": 77.99352750809061,
+          "unrelated_core_equivalents": 11.51027251824772,
+          "total_disk_mib_s": 0.0,
+          "seconds": 1.0008451130706817
+        },
+        {
+          "at": "2026-11-02T17:38:36.692884+00:00",
+          "system_cpu_percent": 78.85862516212711,
+          "unrelated_core_equivalents": 11.439769712934337,
+          "total_disk_mib_s": 0.0,
+          "seconds": 1.0008942738641053
+        }
+      ],
+      "all_samples_retained": true,
+      "limits": "One-second activity cannot identify influence on individual sub-millisecond dispatches. Aggregate disk includes own work; unknown/disappeared process coverage retained raw."
+    },
+    "verified_checks": [
+      "build receipt/cleanup",
+      "run receipt/cleanup",
+      "input:probe.cpp",
+      "input:compile.sh",
+      "input:prebuilt/base.spv",
+      "input:prebuilt/candidate.spv",
+      "input:spirv-audit.json",
+      "input:candidate.patch",
+      "input:shaders-base/add.comp",
+      "input:shaders-base/add_bias.comp",
+      "input:shaders-base/argmax_rows.comp",
+      "input:shaders-base/attention.comp",
+      "input:shaders-base/attention_flash.comp",
+      "input:shaders-base/attention_merge.comp",
+      "input:shaders-base/attention_tile.comp",
+      "input:shaders-base/attention_vec.comp",
+      "input:shaders-base/causal_conv_silu.comp",
+      "input:shaders-base/copy_mxfp4.comp",
+      "input:shaders-base/delta_rule.comp",
+      "input:shaders-base/dilated_conv_silu_add.comp",
+      "input:shaders-base/dot16.glsl",
+      "input:shaders-base/embed.comp",
+      "input:shaders-base/f16.glsl",
+      "input:shaders-base/float_controls.glsl",
+      "input:shaders-base/gated_rms_norm.comp",
+      "input:shaders-base/gather_rows.comp",
+      "input:shaders-base/gelu.comp",
+      "input:shaders-base/group_rms_norm.comp",
+      "input:shaders-base/hold.comp",
+      "input:shaders-base/inject_streams.comp",
+      "input:shaders-base/iq1.glsl",
+      "input:shaders-base/iq1_dot.glsl",
+      "input:shaders-base/iq1_layout.glsl",
+      "input:shaders-base/iq2_dot.glsl",
+      "input:shaders-base/iq2_layout.glsl",
+      "input:shaders-base/iq2_s.glsl",
+      "input:shaders-base/iq2_small.glsl",
+      "input:shaders-base/iq3_dot.glsl",
+      "input:shaders-base/iq3_s.glsl",
+      "input:shaders-base/iq3_xxs.glsl",
+      "input:shaders-base/iq3_xxs_dot.glsl",
+      "input:shaders-base/iq4_dot.glsl",
+      "input:shaders-base/k23_dot.glsl",
+      "input:shaders-base/kv_index_pool.comp",
+      "input:shaders-base/kv_index_scores_tile.comp",
+      "input:shaders-base/kv_index_select.comp",
+      "input:shaders-base/kv_index_select_wide.comp",
+      "input:shaders-base/kv_write.comp",
+      "input:shaders-base/layer_norm_rows.comp",
+      "input:shaders-base/lookup_cache.glsl",
+      "input:shaders-base/lookup_dot.glsl",
+      "input:shaders-base/low_bits.glsl",
+      "input:shaders-base/matmul_reduce.comp",
+      "input:shaders-base/matmul_row.comp",
+      "input:shaders-base/matmul_row.glsl",
+      "input:shaders-base/matmul_row_one.glsl",
+      "input:shaders-base/matmul_row_two.glsl",
+      "input:shaders-base/matmul_tile.comp",
+      "input:shaders-base/matmul_tile_q.comp",
+      "input:shaders-base/matmul_tile_wide.comp",
+      "input:shaders-base/matmul_vec_q8.comp",
+      "input:shaders-base/matmul_vec_q8.glsl",
+      "input:shaders-base/matmul_vec_q8_one.glsl",
+      "input:shaders-base/mix_rows.comp",
+      "input:shaders-base/mix_streams.comp",
+      "input:shaders-base/moe_combine.comp",
+      "input:shaders-base/moe_combine.glsl",
+      "input:shaders-base/moe_group.comp",
+      "input:shaders-base/moe_route.comp",
+      "input:shaders-base/moe_route.glsl",
+      "input:shaders-base/moe_step_act.comp",
+      "input:shaders-base/moe_step_down.comp",
+      "input:shaders-base/moe_step_route.comp",
+      "input:shaders-base/moe_step_up.comp",
+      "input:shaders-base/norm_rope_kv.comp",
+      "input:shaders-base/norm_rope_partial.comp",
+      "input:shaders-base/q.glsl",
+      "input:shaders-base/qdecode.glsl",
+      "input:shaders-base/quantize_x.comp",
+      "input:shaders-base/quantize_xw.comp",
+      "input:shaders-base/rms_norm_rows.comp",
+      "input:shaders-base/sigmoid_mul.comp",
+      "input:shaders-base/sigmoid_mul.glsl",
+      "input:shaders-base/signed_sqrt_gate.comp",
+      "input:shaders-base/silu_mul.comp",
+      "input:shaders-base/silu_mul.glsl",
+      "input:shaders-base/silu_scaled.comp",
+      "input:shaders-base/sum_rows.comp",
+      "input:shaders-base/tq.glsl",
+      "input:shaders-base/tq_dot.glsl",
+      "input:shaders-base/tq_layout.glsl",
+      "input:shaders-base/tq_packed.glsl",
+      "input:shaders-base/views.glsl",
+      "input:shaders-base/xquant.glsl",
+      "input:shaders-candidate/add.comp",
+      "input:shaders-candidate/add_bias.comp",
+      "input:shaders-candidate/argmax_rows.comp",
+      "input:shaders-candidate/attention.comp",
+      "input:shaders-candidate/attention_flash.comp",
+      "input:shaders-candidate/attention_merge.comp",
+      "input:shaders-candidate/attention_tile.comp",
+      "input:shaders-candidate/attention_vec.comp",
+      "input:shaders-candidate/causal_conv_silu.comp",
+      "input:shaders-candidate/copy_mxfp4.comp",
+      "input:shaders-candidate/delta_rule.comp",
+      "input:shaders-candidate/dilated_conv_silu_add.comp",
+      "input:shaders-candidate/dot16.glsl",
+      "input:shaders-candidate/embed.comp",
+      "input:shaders-candidate/f16.glsl",
+      "input:shaders-candidate/float_controls.glsl",
+      "input:shaders-candidate/gated_rms_norm.comp",
+      "input:shaders-candidate/gather_rows.comp",
+      "input:shaders-candidate/gelu.comp",
+      "input:shaders-candidate/group_rms_norm.comp",
+      "input:shaders-candidate/hold.comp",
+      "input:shaders-candidate/inject_streams.comp",
+      "input:shaders-candidate/iq1.glsl",
+      "input:shaders-candidate/iq1_dot.glsl",
+      "input:shaders-candidate/iq1_layout.glsl",
+      "input:shaders-candidate/iq2_dot.glsl",
+      "input:shaders-candidate/iq2_layout.glsl",
+      "input:shaders-candidate/iq2_s.glsl",
+      "input:shaders-candidate/iq2_small.glsl",
+      "input:shaders-candidate/iq3_dot.glsl",
+      "input:shaders-candidate/iq3_s.glsl",
+      "input:shaders-candidate/iq3_xxs.glsl",
+      "input:shaders-candidate/iq3_xxs_dot.glsl",
+      "input:shaders-candidate/iq4_dot.glsl",
+      "input:shaders-candidate/k23_dot.glsl",
+      "input:shaders-candidate/kv_index_pool.comp",
+      "input:shaders-candidate/kv_index_scores_tile.comp",
+      "input:shaders-candidate/kv_index_select.comp",
+      "input:shaders-candidate/kv_index_select_wide.comp",
+      "input:shaders-candidate/kv_write.comp",
+      "input:shaders-candidate/layer_norm_rows.comp",
+      "input:shaders-candidate/lookup_cache.glsl",
+      "input:shaders-candidate/lookup_dot.glsl",
+      "input:shaders-candidate/low_bits.glsl",
+      "input:shaders-candidate/matmul_reduce.comp",
+      "input:shaders-candidate/matmul_row.comp",
+      "input:shaders-candidate/matmul_row.glsl",
+      "input:shaders-candidate/matmul_row_one.glsl",
+      "input:shaders-candidate/matmul_row_two.glsl",
+      "input:shaders-candidate/matmul_tile.comp",
+      "input:shaders-candidate/matmul_tile_q.comp",
+      "input:shaders-candidate/matmul_tile_wide.comp",
+      "input:shaders-candidate/matmul_vec_q8.comp",
+      "input:shaders-candidate/matmul_vec_q8.glsl",
+      "input:shaders-candidate/matmul_vec_q8_one.glsl",
+      "input:shaders-candidate/mix_rows.comp",
+      "input:shaders-candidate/mix_streams.comp",
+      "input:shaders-candidate/moe_combine.comp",
+      "input:shaders-candidate/moe_combine.glsl",
+      "input:shaders-candidate/moe_group.comp",
+      "input:shaders-candidate/moe_route.comp",
+      "input:shaders-candidate/moe_route.glsl",
+      "input:shaders-candidate/moe_step_act.comp",
+      "input:shaders-candidate/moe_step_down.comp",
+      "input:shaders-candidate/moe_step_route.comp",
+      "input:shaders-candidate/moe_step_up.comp",
+      "input:shaders-candidate/norm_rope_kv.comp",
+      "input:shaders-candidate/norm_rope_partial.comp",
+      "input:shaders-candidate/q.glsl",
+      "input:shaders-candidate/qdecode.glsl",
+      "input:shaders-candidate/quantize_x.comp",
+      "input:shaders-candidate/quantize_xw.comp",
+      "input:shaders-candidate/rms_norm_rows.comp",
+      "input:shaders-candidate/sigmoid_mul.comp",
+      "input:shaders-candidate/sigmoid_mul.glsl",
+      "input:shaders-candidate/signed_sqrt_gate.comp",
+      "input:shaders-candidate/silu_mul.comp",
+      "input:shaders-candidate/silu_mul.glsl",
+      "input:shaders-candidate/silu_scaled.comp",
+      "input:shaders-candidate/sum_rows.comp",
+      "input:shaders-candidate/tq.glsl",
+      "input:shaders-candidate/tq_dot.glsl",
+      "input:shaders-candidate/tq_layout.glsl",
+      "input:shaders-candidate/tq_packed.glsl",
+      "input:shaders-candidate/views.glsl",
+      "input:shaders-candidate/xquant.glsl",
+      "input:build-run.py",
+      "input:start.py",
+      "build output:base.spv",
+      "build output:candidate.spv",
+      "build output:probe",
+      "build output:build.log",
+      "run output:activity.jsonl",
+      "run output:base-physical.isa",
+      "run output:candidate-physical.isa",
+      "run output:checks-cluster16.jsonl",
+      "run output:checks-cluster16.stderr",
+      "run output:checks-four.jsonl",
+      "run output:checks-four.stderr",
+      "run output:checks-two.jsonl",
+      "run output:checks-two.stderr",
+      "run output:compile.jsonl",
+      "run output:compile.stderr",
+      "run output:down.jsonl",
+      "run output:down.stderr",
+      "run output:driver-pins.txt",
+      "run output:gate.jsonl",
+      "run output:gate.stderr",
+      "run output:isa-summary.json",
+      "run output:monitor.log",
+      "run output:monitor.stop",
+      "run output:tails-four.jsonl",
+      "run output:tails-four.stderr",
+      "run output:tails-two.jsonl",
+      "run output:tails-two.stderr"
+    ],
+    "run_receipt_sha256": "1f56f8b7144bc89bae188ff2c3814b77a7c8d277a5b9f3b8903694189ee019f2",
+    "postrun_guard": {
+      "timestamp": 1793641284.7205312,
+      "gpu": {
+        "pci": "0000:c3:00.0",
+        "node": "/dev/dri/renderD128",
+        "vendor": "0x1002",
+        "device": "0x66a1",
+        "busy": 0,
+        "vram_used": 10919936,
+        "performance_level": "auto",
+        "other_container_handles": [
+          {
+            "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "name": "/cdev-abc-run2",
+            "top": "PID                 COMMAND\n75100               sleep\n1759742             bash",
+            "target_handles": []
+          }
+        ],
+        "production_id": "d521e8182dd70c79005304de6ddbef1bf085b8655904858dac97a35556ec0fc9",
+        "protected": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-preview-c0ea3f346",
+          "/zpool1/llmx-serve/flash-preview-c0ea3f346",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk"
+        ],
+        "errors": []
+      },
+      "owned_container_inspect_exit": 1,
+      "owned_container_inspect_stderr": "error: no such object: 6a42f894aad076532e08170d8d38bf0c4a864a1322b58bcb24ee3600bcb2dffc\n",
+      "production_id_matches": true,
+      "passed": true
+    },
+    "kernel_window_sha256": "ec72fcbbd8d63134dbed944b508f38e2685ae327c8f3c78022dd155734d78e42",
+    "coordination_stop": {
+      "at": 1793641120.4210055,
+      "reason": "Root coordination: ADEV raw-KFD reset on c3/renderD128; stop GPU use pending COORD clearance",
+      "pid": 1524621,
+      "actions": [
+        {
+          "already_terminal": true
+        }
+      ]
+    },
+    "incident_context": "Root warned against c3 retries after ADEV queue-only reset. Retry was already terminal before exact-owned stop audit. Bounded journal records kfd_ar PID1520277 faults19:36:41/reset19:36:45 and PID1528449 faults19:39:19, outside our run19:38:19.027-19:38:38.020; no log event inside run. No attribution or discarded samples. No further GPU use.",
+    "initial_failure": "Attempt1 host compile only: timestamp local shadowed float bit helper, no pipeline/GPU work. Original inputs/FAIL/build log retained. Corrected timestamp local only; numerical shader/SPVs unchanged.",
+    "limitations": [
+      "Standalone probe descriptor/pipeline plumbing differs from full runtime; no model regression claim.",
+      "Prepared int16 twins isolate the row kernel; actual activation producers were not dispatched. Shifted/extreme scale representatives use injected pairs; producer source/layout unchanged.",
+      "CPU proof includes S=0; six GPU code patterns emphasize nonzero/extreme centers and do not explicitly include an all-zero integer-center fixture. No broader correctness claim; candidate is not advanced.",
+      "Finite outputs match independent ordered F32 oracle bitwise including zeros. Nonfinite class/sign is independently checked, and all candidate/device-baseline bits match; host NaN payload equality is not asserted.",
+      "No full model/HF/PPL/long-context/mx gate or source integration promotion."
+    ]
+  }
+}

@@ -1,0 +1,326 @@
+{
+  "scope": "One block0 prefix diagnosis. No end-to-end qualification or gate amendment.",
+  "report_sha256": "a838a8cb845bd8d14c3410687f2b2c1a8d078dedd5e52ffcea5dec4971469a95",
+  "verified_artifact_hashes": 38,
+  "bit_identical_same_input_qkv_outputs": 73728,
+  "exact_fraction_classification": {
+    "both_exact_ties": 13,
+    "strict_crossings": 6,
+    "other": 0
+  },
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "normalization": {
+    "vulkan_vs_hf": {
+      "count": 49152,
+      "max_abs": 2.9802322387695312e-08,
+      "rms": 6.713761610973086e-10,
+      "mean_abs": 1.3425112873240627e-10,
+      "worst_index": [
+        0,
+        1,
+        1838
+      ],
+      "actual_at_worst": 0.26009127497673035,
+      "reference_at_worst": 0.26009130477905273
+    },
+    "max_ulp_difference": 3,
+    "vulkan_vs_double_math": {
+      "count": 49152,
+      "max_abs": 2.6948159592699028e-08,
+      "rms": 5.757237080355718e-10,
+      "mean_abs": 2.386296207108364e-10,
+      "worst_index": [
+        0,
+        6,
+        971
+      ],
+      "actual_at_worst": 0.5621967315673828,
+      "reference_at_worst": 0.5621967046192232
+    },
+    "hf_vs_double_math": {
+      "count": 49152,
+      "max_abs": 2.6948159592699028e-08,
+      "rms": 7.117359036455899e-10,
+      "mean_abs": 2.9948477899868663e-10,
+      "worst_index": [
+        0,
+        6,
+        971
+      ],
+      "actual_at_worst": 0.5621967315673828,
+      "reference_at_worst": 0.5621967046192232
+    }
+  },
+  "projection_matrix": [
+    {
+      "role": "q",
+      "shape": [
+        12,
+        4096
+      ],
+      "outputs": 49152,
+      "runtime_vs_exact_reduction_replay_bits_different": 0,
+      "runtime_vs_same_actual_twin_double": {
+        "count": 49152,
+        "max_abs": 3.8762180132323465e-08,
+        "rms": 2.25593836821306e-09,
+        "mean_abs": 1.4123994421102717e-09,
+        "worst_index": [
+          2,
+          3797
+        ],
+        "actual_at_worst": 0.5038127899169922,
+        "reference_at_worst": 0.503812751154812
+      },
+      "runtime_vs_hf_on_same_f32_reconstructed_input": {
+        "count": 49152,
+        "max_abs": 8.940696716308594e-08,
+        "rms": 4.915845426399393e-09,
+        "mean_abs": 2.953769488260131e-09,
+        "worst_index": [
+          0,
+          3797
+        ],
+        "actual_at_worst": 0.37372952699661255,
+        "reference_at_worst": 0.3737294375896454
+      },
+      "hf_same_input_vs_double": {
+        "count": 49152,
+        "max_abs": 9.728620398163912e-08,
+        "rms": 4.3682930860100454e-09,
+        "mean_abs": 2.726281889297843e-09,
+        "worst_index": [
+          0,
+          3797
+        ],
+        "actual_at_worst": 0.3737294375896454,
+        "reference_at_worst": 0.37372953487584937
+      },
+      "hf_own_input_vs_double": {
+        "count": 49152,
+        "max_abs": 9.728620398163912e-08,
+        "rms": 4.358750019229799e-09,
+        "mean_abs": 2.720072880242243e-09,
+        "worst_index": [
+          0,
+          3797
+        ],
+        "actual_at_worst": 0.3737294375896454,
+        "reference_at_worst": 0.37372953487584937
+      },
+      "runtime_vs_hf_own_input": {
+        "count": 49152,
+        "max_abs": 7.829815149307251e-05,
+        "rms": 7.942192395770203e-06,
+        "mean_abs": 2.9658297601153905e-06,
+        "worst_index": [
+          3,
+          899
+        ],
+        "actual_at_worst": 0.042786575853824615,
+        "reference_at_worst": 0.04286487400531769
+      },
+      "different_input_double_projection_effect": {
+        "count": 49152,
+        "max_abs": 7.829728187402907e-05,
+        "rms": 7.942179947419998e-06,
+        "mean_abs": 2.9638586609347594e-06,
+        "worst_index": [
+          3,
+          899
+        ],
+        "actual_at_worst": 0.04278657245640716,
+        "reference_at_worst": 0.042864869738281186
+      },
+      "remaining_after_different_input_effect_max_abs": 8.940696716308594e-08,
+      "analytic_roundoff_exceedances": 0,
+      "max_analytic_bound": 4.500346775881366e-07,
+      "max_scale_rounding_effect": 9.188595662124044e-09,
+      "max_error_after_scale_rounding": 3.577133611543104e-08
+    },
+    {
+      "role": "k",
+      "shape": [
+        12,
+        1024
+      ],
+      "outputs": 12288,
+      "runtime_vs_exact_reduction_replay_bits_different": 0,
+      "runtime_vs_same_actual_twin_double": {
+        "count": 12288,
+        "max_abs": 6.524853257694474e-08,
+        "rms": 2.7921095558266863e-09,
+        "mean_abs": 1.6525783732902956e-09,
+        "worst_index": [
+          11,
+          990
+        ],
+        "actual_at_worst": -0.5048619508743286,
+        "reference_at_worst": -0.5048620161228612
+      },
+      "runtime_vs_hf_on_same_f32_reconstructed_input": {
+        "count": 12288,
+        "max_abs": 5.960464477539063e-08,
+        "rms": 5.884303441250677e-09,
+        "mean_abs": 3.4547034862460655e-09,
+        "worst_index": [
+          1,
+          207
+        ],
+        "actual_at_worst": -0.518311083316803,
+        "reference_at_worst": -0.5183110237121582
+      },
+      "hf_same_input_vs_double": {
+        "count": 12288,
+        "max_abs": 6.81377656519544e-08,
+        "rms": 5.0962551798660674e-09,
+        "mean_abs": 3.163490768858026e-09,
+        "worst_index": [
+          11,
+          990
+        ],
+        "actual_at_worst": -0.5048619508743286,
+        "reference_at_worst": -0.5048620190120943
+      },
+      "hf_own_input_vs_double": {
+        "count": 12288,
+        "max_abs": 6.81377656519544e-08,
+        "rms": 5.1229446179381365e-09,
+        "mean_abs": 3.1584240075752112e-09,
+        "worst_index": [
+          11,
+          990
+        ],
+        "actual_at_worst": -0.5048619508743286,
+        "reference_at_worst": -0.5048620190120943
+      },
+      "runtime_vs_hf_own_input": {
+        "count": 12288,
+        "max_abs": 7.600896060466766e-05,
+        "rms": 9.332533382482384e-06,
+        "mean_abs": 3.511583173872642e-06,
+        "worst_index": [
+          3,
+          350
+        ],
+        "actual_at_worst": 0.02273881621658802,
+        "reference_at_worst": 0.022662807255983353
+      },
+      "different_input_double_projection_effect": {
+        "count": 12288,
+        "max_abs": 7.600740401514372e-05,
+        "rms": 9.332490379475324e-06,
+        "mean_abs": 3.5092273433003185e-06,
+        "worst_index": [
+          3,
+          350
+        ],
+        "actual_at_worst": 0.022738815149146774,
+        "reference_at_worst": 0.02266280774513163
+      },
+      "remaining_after_different_input_effect_max_abs": 6.345172209876182e-08,
+      "analytic_roundoff_exceedances": 0,
+      "max_analytic_bound": 3.3261824058971963e-07,
+      "max_scale_rounding_effect": 9.57543488944168e-09,
+      "max_error_after_scale_rounding": 6.263360319280764e-08
+    },
+    {
+      "role": "v",
+      "shape": [
+        12,
+        1024
+      ],
+      "outputs": 12288,
+      "runtime_vs_exact_reduction_replay_bits_different": 0,
+      "runtime_vs_same_actual_twin_double": {
+        "count": 12288,
+        "max_abs": 1.7407448038575524e-08,
+        "rms": 1.335650912963143e-09,
+        "mean_abs": 9.163684385911985e-10,
+        "worst_index": [
+          1,
+          331
+        ],
+        "actual_at_worst": 0.1729758381843567,
+        "reference_at_worst": 0.17297582077690865
+      },
+      "runtime_vs_hf_on_same_f32_reconstructed_input": {
+        "count": 12288,
+        "max_abs": 2.9802322387695312e-08,
+        "rms": 3.0605347272468205e-09,
+        "mean_abs": 2.01857641712877e-09,
+        "worst_index": [
+          3,
+          99
+        ],
+        "actual_at_worst": -0.20178036391735077,
+        "reference_at_worst": -0.20178039371967316
+      },
+      "hf_same_input_vs_double": {
+        "count": 12288,
+        "max_abs": 3.348401378389099e-08,
+        "rms": 2.7355792184162647e-09,
+        "mean_abs": 1.8425694780707658e-09,
+        "worst_index": [
+          7,
+          84
+        ],
+        "actual_at_worst": 0.15670497715473175,
+        "reference_at_worst": 0.15670501063874553
+      },
+      "hf_own_input_vs_double": {
+        "count": 12288,
+        "max_abs": 3.348401378389099e-08,
+        "rms": 2.7204518084291477e-09,
+        "mean_abs": 1.8399480476542773e-09,
+        "worst_index": [
+          7,
+          84
+        ],
+        "actual_at_worst": 0.15670497715473175,
+        "reference_at_worst": 0.15670501063874553
+      },
+      "runtime_vs_hf_own_input": {
+        "count": 12288,
+        "max_abs": 7.819384336471558e-05,
+        "rms": 8.197485334018533e-06,
+        "mean_abs": 3.0899570419388547e-06,
+        "worst_index": [
+          3,
+          913
+        ],
+        "actual_at_worst": 0.029699260368943214,
+        "reference_at_worst": 0.0296210665255785
+      },
+      "different_input_double_projection_effect": {
+        "count": 12288,
+        "max_abs": 7.819448592627509e-05,
+        "rms": 8.19746750955527e-06,
+        "mean_abs": 3.0885139997917075e-06,
+        "worst_index": [
+          3,
+          913
+        ],
+        "actual_at_worst": 0.029699260547253914,
+        "reference_at_worst": 0.02962106606132764
+      },
+      "remaining_after_different_input_effect_max_abs": 3.064378972794657e-08,
+      "analytic_roundoff_exceedances": 0,
+      "max_analytic_bound": 1.451175705190875e-07,
+      "max_scale_rounding_effect": 2.213095984249236e-09,
+      "max_error_after_scale_rounding": 1.6481180864502676e-08
+    }
+  ],
+  "quantizers": {
+    "vulkan_codes_scales_sums_exact": true,
+    "hf_reconstruction_exact": true,
+    "independent_ordinary_fields_exact_both": true,
+    "vulkan_vs_mathematical_nearest_code_differences": 102,
+    "hf_vs_mathematical_nearest_code_differences": 97,
+    "vulkan_exact_halfways": 253,
+    "hf_exact_halfways": 253
+  },
+  "precision_contract": "PRECISION.md allows either neighbor within float rounding of half a step. Fixed device rules still apply.",
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-block0-prefix-20261102",
+  "remaining": "Released-model ranking/NLL failures and other merge gates remain open. One HF-only first-norm reduction control is proposed, not yet run."
+}

@@ -1,0 +1,114 @@
+{
+  "scope": "Frozen Q2 int16 tile geometry microbenchmarks, not model or mx qualification",
+  "environment": "MI50 renderD128, pinned Mesa25.0.7, same SPIR-V and exact prepared int16 activations",
+  "records": [
+    {
+      "shape": {
+        "M": 4096,
+        "N": 512,
+        "K": 4096
+      },
+      "summary": {
+        "row128_split2": {
+          "total_ms": 3.65336,
+          "tile_ms": 3.55808,
+          "samples_ms": [
+            3.65264,
+            3.65056,
+            3.65408,
+            3.66208
+          ]
+        },
+        "row64_split1": {
+          "total_ms": 3.44944,
+          "tile_ms": 3.44944,
+          "samples_ms": [
+            3.44912,
+            3.44752,
+            3.45664,
+            3.44976
+          ]
+        },
+        "row128_split1": {
+          "total_ms": 3.91024,
+          "tile_ms": 3.91024,
+          "samples_ms": [
+            3.90704,
+            3.91136,
+            3.90992,
+            3.91056
+          ]
+        },
+        "checks": {
+          "calls": 15,
+          "exact": true,
+          "seconds": 12.650047540664673
+        }
+      },
+      "sources": {
+        "scratch\\q2-int16-row64-unsplit-20261102\\run-receipt.json": "55385e9d1bdb9f6f9d88fb2800717840d3d90b8a346805a63d960407c2a118e2",
+        "scratch\\q2-int16-row64-unsplit-20261102\\terminal-receipt.json": "a44644dd440a78de8798a9005e49780fed27ce99ee968f02c2438efc9c5b0e03",
+        "scratch\\q2-int16-row64-unsplit-20261102\\RESULT.md": "086025dbf4039ad3c8040bae0c0dd5456dac1700b4b3eebc57867d1b682d35a4",
+        "scratch\\q2-int16-row64-unsplit-20261102\\activity-summary.json": "a19c7e00e3b0a61e373fc3ec69143cb5695a88a75a0ba28a37c5a5d57ed3352e"
+      }
+    },
+    {
+      "shape": {
+        "M": 4096,
+        "N": 512,
+        "K": 12288
+      },
+      "summary": {
+        "row128_split2": {
+          "samples_ms": [
+            10.10944,
+            10.0952,
+            10.11792,
+            10.1152
+          ],
+          "median_ms": 10.11232
+        },
+        "row64_split1": {
+          "samples_ms": [
+            10.12752,
+            10.11712,
+            10.12016,
+            10.13216
+          ],
+          "median_ms": 10.123840000000001
+        },
+        "row128_split1": {
+          "samples_ms": [
+            11.272,
+            11.27664,
+            11.27552,
+            11.2536
+          ],
+          "median_ms": 11.27376
+        },
+        "exact_calls": 15,
+        "candidate_time_change_percent": 0.1139204455555376
+      },
+      "sources": {
+        "scratch\\q2-int16-row64-longk-20261102\\run-receipt.json": "16517767e98a0a982fe7d32c77f25ee3800ada48301a797f44c98fa03774b42b",
+        "scratch\\q2-int16-row64-longk-20261102\\terminal-receipt.json": "bbda11b2b0b2ff9e264d2ede3cb06d7aca4caa879d5b05689ecd8649edc09a34",
+        "scratch\\q2-int16-row64-longk-20261102\\RESULT.md": "f63b2cd24b78a69fdefba89f2fddb3dcf60e99d2f86543bb4ef5f5ad35212c60",
+        "scratch\\q2-int16-row64-longk-20261102\\activity-summary.json": "64c993054b23b41617c1cd9f965c64b617846144ce611c5f78ae0097c5fc2373"
+      }
+    }
+  ],
+  "decision": "Short-K candidate reduces total latency 5.58%; long-K candidate differs +0.114%. Review a narrow chooser change and row-class correctness before runtime promotion. No runtime change made.",
+  "activity": "All planned samples retained. Short-K unrelated CPU flag11/11 intervals and disk1/11; long-K unrelated CPU11/11 and disk4/11; system CPU0/11 in both. One-second sampling cannot resolve individual dispatch effects.",
+  "limits": [
+    "Synthetic exact integer fixture does not establish general F32 reduction equivalence.",
+    "Preparation excluded in all arms.",
+    "Baseline includes split reduction; unsplit arms write final output.",
+    "No comparison against different Mesa versions or whole-model throughput."
+  ],
+  "prior_related_screen": {
+    "source": "q2-shorttile-model-screen-20261101.json",
+    "difference": "Prior short-tile runtime candidate retained original K partition; new micro candidate removes split as well.",
+    "prior_model_result": "P4096 prefill -0.717%, decode +0.368%; no material gain demonstrated and not promoted.",
+    "implication": "Do not rerun old candidate or infer whole-model benefit from new single-matrix screen. Check actual affected grouped shapes before full model tests."
+  }
+}

@@ -280,8 +280,13 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
     const VkDescriptorBufferInfo xqi = row_twin(X, plan, nbatch * nin, dtype);
     size_t rows = 0;
     for (const Projection* pr : live) rows += pr->rows;
-    if (plan.kernel == K_MATMUL_ROW_Q1_0_DOT && nbatch == 1 && rows >= 2) {
-        row_dispatch(plan, live, X, xqi, nin, 1, 0, 1, accumulate, kQ1TwoRows);
+    if (low_bits_dot_row(plan.kernel) && nbatch == 1 && rows >= 2) {
+        int variant = kLowBitsRows;
+        if (plan.kernel == K_MATMUL_ROW_Q2_0_DOT) {
+            const uint32_t tree = row_tree_cluster(plan.kernel, kQ2TreeRows, dev_->profile, dev_->caps.subgroup_size);
+            if (tree && tree == plan.cluster) variant = kQ2TreeRows;
+        }
+        row_dispatch(plan, live, X, xqi, nin, 1, 0, 1, accumulate, variant);
         return;
     }
     for_each_column_chunk(plan.kernel, nbatch, nin, rows, plan.cluster, [&](size_t col0, size_t ncols, int variant, size_t chunks) {
@@ -435,7 +440,7 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
     if (dtype == Dtype::int8 && dev_->profile.prefer_integer_dot && format.int8_row != K_COUNT) kernel = format.int8_row;
     if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT || kernel == K_MATMUL_ROW_K4_I8 || kernel == K_MATMUL_ROW_K5_I8)
         cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
-    if (kernel == K_MATMUL_ROW_Q1_0_DOT) cluster = std::min(cluster, kQ1RowLanes);
+    if (low_bits_dot_row(kernel)) cluster = std::min(cluster, kLowBitsRowLanes);
     // Where the integer dot is native, Q8_0 rows take the integer dot over the 16-bit twin (shaders/matmul_vec_q8.comp).
     if (dtype == Dtype::f16 && type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
     return RowPlan{kernel, type, wide, cluster};
@@ -453,7 +458,8 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
                                         uint32_t per, size_t entries, VkDescriptorBufferInfo ids,
                                         uint32_t order0, VkDescriptorBufferInfo tab, size_t routed) {
     // A Q8_0 decode build whose column groups take the same rows gives each workgroup's rows that many adjacent workgroups.
-    const uint32_t per_group = (256 / dev_->caps.subgroup_size) * sg_rows(plan, variant);
+    const uint32_t threads = plan.kernel == K_MATMUL_ROW_Q2_0_DOT ? 64 : 256;
+    const uint32_t per_group = (threads / dev_->caps.subgroup_size) * sg_rows(plan, variant);
     const uint32_t span = is_vec_kernel(plan.kernel) ? kVecBuilds[variant].span : 1;
     uint32_t nout[3] = {0, 0, 0}, start[3] = {0, 0, 0};
     uint32_t total = 0;

@@ -1,0 +1,14 @@
+{
+  "scope": "Independent binary32 arithmetic counterexample, not a GPU run. The inspected Q2 int16 producer consumes F32 even under the F16 policy. No runtime or precision budget change.",
+  "x_bits": "0x8800000",
+  "weight_scale_half_bits": "0x0400",
+  "weight_scale_bits": "0x38800000",
+  "activation_scale_bits": "0x1000100",
+  "q": 32767,
+  "combined_scale_bits": "0x400",
+  "fast_sum_bits": "0x3fffe00",
+  "repaired_sum_bits": "0x4000000",
+  "relative_difference": 3.0517578125e-05,
+  "count": 32,
+  "decision": "F16 policy alone cannot justify removing the combined-scale repair. Both outputs are finite normal, so final nonfinite repair is insufficient."
+}

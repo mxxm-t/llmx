@@ -1,0 +1,80 @@
+{
+  "scope": "Live progress only. Not a completed reference or correctness pass.",
+  "captured_unix": 1793537656.5699868,
+  "remote_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-v1/out-resume-002",
+  "container_id": "e2b39b218d098a151fcdb9da265b25a168853e496843b450ae6ea61076fcc009",
+  "container_state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 678960,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-11-01T12:49:26.822469558Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "image": "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+  "cpuset": "0-3",
+  "memory_cap_bytes": 16106127360,
+  "complete": false,
+  "error": null,
+  "latest_sample": {
+    "unix": 1793537653.6940076,
+    "available": 19028430848,
+    "admission": {
+      "unix": 1793537644.563467,
+      "available": 19386105856,
+      "required": 16710664192,
+      "reserve": 16710664192,
+      "peers": [],
+      "own_runner": {
+        "id": "e2b39b218d098a151fcdb9da265b25a168853e496843b450ae6ea61076fcc009",
+        "name": "/llmx-xdev-q2-8b-chat-f32-resume-resume-002",
+        "state": "running",
+        "cpuset": "0-3",
+        "cap": 16106127360,
+        "used": 1542946816,
+        "unused": 14563180544
+      },
+      "idle_exclusions": [],
+      "active_owned_timing": [],
+      "disk_free": 306018516992,
+      "cpu_overlaps": [],
+      "strict_cpu": false,
+      "passed": true
+    },
+    "memory_current": 1879371776,
+    "memory_peak": 4455837696,
+    "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "cpu_stat": "usage_usec 745355415\nuser_usec 403167931\nsystem_usec 342187484\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 2867\nnr_throttled 51\nthrottled_usec 11290\nnr_bursts 0\nburst_usec 0\n",
+    "progress": {
+      "unix": 1793537644.0709484,
+      "elapsed": 274.45041131973267,
+      "policy": "F32-quality",
+      "phase": "layer-forward",
+      "memory_current": 1526394880,
+      "memory_peak": 4455837696,
+      "ru_maxrss_KiB": 4332600,
+      "layer": 1,
+      "phase_name": "prefill_512",
+      "end": 512
+    }
+  },
+  "checkpoint": {
+    "sequence": 1,
+    "layer_completed": 0,
+    "hidden_bytes": 276807680,
+    "hidden_sha256": "c1d90f0ddb7f86fdf69f47438119160bdf3fc1f5284b79d6471dde622a74f017"
+  },
+  "pins": {
+    "plan.json": "e38919b90f1238cd7f714ea28dbeaff9c164e05949074e472fe5ec841609ba41",
+    "resume-plan.json": "310078579fd156e74c62e0ea5bfd2f802be16cbccc692a96491c5dccd44aed6e",
+    "payload-hashes.json": "4d5bc21738e70b69b9f932e99f24e2190d3a15c5f88f5a5515e312f773a1e040",
+    "supervise-resume.py": "8a13007fa755a44b9e773d082c0024d6fda203461b0b559aba7640671b207731",
+    "root-review-resume.json": "a482c7a60c683794676a534403c97681889c94d4dda489bd6eeee174f601d7eb"
+  },
+  "execution_sha256": "79214e3bd1c5e8a4aac76346a01f8e366b58b99b41a04b4823aa44b3082cabd6"
+}

@@ -1,0 +1,48 @@
+{
+  "source_head": "143d548b7f5fba9f0f10668d897e5824fb3e7cb7",
+  "gpu": "AMD Radeon VII",
+  "driver": "31.0.21925.1001",
+  "command": "ctest --test-dir build-q2-tree32 -C Release -R ^low-bits-vulkan$ --output-on-failure",
+  "started_utc": "2026-11-03T15:12:20.8141970Z",
+  "finished_utc": "2026-11-03T15:12:23.2313339Z",
+  "exit_code": 0,
+  "build_receipt": "build-receipt.json",
+  "test_log": "low-bits-vulkan.log",
+  "test_log_sha256": "0B284EA29227E2D690E909BB2D7220EEE0766C23443AD5E5A17A9561FF79A3C5",
+  "binary": "build-q2-tree32/Release/llmx-low-bits-test.exe",
+  "binary_sha256": "0415B0D56B56ACE979577153BB47E9E23ECE14F5EBD245940190AE728DA247B8",
+  "source_sha256": {
+    "vulkan_matmul": "9929B18D7C3707D998399D536CB64715BCF924CA0358DA2EEE5023584F47A195",
+    "vulkan_backend": "974BE4E90976B845B165C29AC8CB427B668183329D28130523D0CD7333EDF9BF",
+    "vulkan_kernels": "DCE6B2F2993D26358508F8678BD5769889053AD04001110FC9148F30CA6F51C5",
+    "low_bits_cpp": "585E317AD2E53C1B084FCFB73FCA0B1A85B9AFFE9FBCBCB043467D657D8435BF"
+  },
+  "gpu_activity_pretest": "Present: low-level GPU Engine usage observed on Code.exe, RuneLite.exe and system copy engine; no llmx process",
+  "status": "PASS",
+  "build_log_sha256": "09816856ABFF28FF1590EEBD2E8F649CAA5F7F55D0D46FBB54972A8CC3AAB87D",
+  "build_log": "build.log",
+  "dispatch_witness": "dispatch-witness.txt",
+  "dispatch_witness_sha256": "EDA0B125D4BC30D2D7729E19F5DE5B3D7227B1F104ED27549B72AC066C3C3269",
+  "compile_verification": "build.log confirms full glslc shader generation, vulkan_backend.cpp compile, low_bits.cpp compile and llmx-low-bits-test.exe link; tests/low_bits.cpp SHA256 unchanged before/after clean-first build.",
+  "build_warning": "Existing C4456 shadow warning in vulkan_matmul.hpp:158.",
+  "activity_limit": "GPU counters showed low nonzero usage from VS Code and RuneLite plus system copy activity; no llmx process. Activity was not treated as zero.",
+  "build": {
+    "command": "cmake --build build-q2-tree32 --config Release --target llmx-low-bits-test --clean-first --parallel 2",
+    "started_utc": "2026-11-03T15:09:25.6840940Z",
+    "finished_utc": "2026-11-03T15:11:52.3414564Z",
+    "exit_code": 0,
+    "source_before": "585E317AD2E53C1B084FCFB73FCA0B1A85B9AFFE9FBCBCB043467D657D8435BF",
+    "source_after": "585E317AD2E53C1B084FCFB73FCA0B1A85B9AFFE9FBCBCB043467D657D8435BF",
+    "source_unchanged": true,
+    "target": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\build-q2-tree32\\Release\\llmx-low-bits-test.exe",
+    "target_sha256": "0415B0D56B56ACE979577153BB47E9E23ECE14F5EBD245940190AE728DA247B8",
+    "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\scratch\\q2-current-radeon-20261103\\build.log",
+    "log_sha256": {
+      "Algorithm": "SHA256",
+      "Hash": "09816856ABFF28FF1590EEBD2E8F649CAA5F7F55D0D46FBB54972A8CC3AAB87D",
+      "Path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\scratch\\q2-current-radeon-20261103\\build.log"
+    }
+  },
+  "scope": "Focused current Radeon VII Q1/Q2 device checks; other model, dtype and split gates retain their separate evidence.",
+  "scope_carry": "Radeon proprietary profile leaves row_decode_tree disabled; new MI50 tree32 dispatch is covered separately by its threshold witnesses."
+}

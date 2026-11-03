@@ -1,0 +1,135 @@
+{
+  "schema": "llmx.q2.profile-audit.v1",
+  "scope": "one H then I diagnostic profile screen; not a performance gate",
+  "plan_sha256": "90a3a40c64008a7b6a0fbbafcefc5c2f5df4aad1a63eac4a2e94e33fe24f310c",
+  "plan_expected_sha256": "90a3a40c64008a7b6a0fbbafcefc5c2f5df4aad1a63eac4a2e94e33fe24f310c",
+  "execution_sha256": "1d57174cadc889c88b7e925bbf1a4fd94d12444fa1d320270e1e686f83a4860b",
+  "activity_sha256": "ba18b34d4ce80d8a2f570d077dabf1004b3a49dcdf006e3c6cf85602bee139bc",
+  "parsed_profile_sha256": "f712f8208882a375e6a30f4e605a8749a7bb295d1ea92323f108ec7800b386ad",
+  "execution_files_verified": true,
+  "execution_files": {
+    "H-version.stdout": "2c524e4b981d5871ab2f2dde1f33bfccd94b7721a1fa8a361573aeafa983a2ba",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "0-H.stdout": "86543123ee5fdfc1fd2b1dddad141d1e517b97096f50d6b540153e06c9c18f3f",
+    "I-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "1-I.stderr": "3ee346738a7dc288007b5876ee48f8717fec00cb3f3a5daecaecd1fb7df9687d",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "H-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "1-I.stdout": "4e69ed99b1c486edce5a50bbac9846d4787685c391b3198367f92b9190436422",
+    "activity.jsonl": "ba18b34d4ce80d8a2f570d077dabf1004b3a49dcdf006e3c6cf85602bee139bc",
+    "I-version.stdout": "1cd89f4e84984bd801835ee96652150bc2228b95aa66446b14d49dfd2ab37cbe",
+    "0-H.stderr": "cdfb5825c1e8d7c0c3c64405c703bb0284f86b1b9d40e17e86d10bdd3133fd3d"
+  },
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "model_bytes": 2310747584,
+  "target_pci": "0000:c3:00.0",
+  "device": "0x66a1",
+  "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+  "activity_thresholds": {
+    "unrelated_cpu_core_equivalents": 1,
+    "disk_bytes_per_second": 104857600,
+    "non_target_gpu_busy_percent": 0,
+    "sample_gap_seconds": 3,
+    "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+  },
+  "calls": [
+    {
+      "tag": "0-H",
+      "arm": "H",
+      "start_unix": 1793691052.9367118,
+      "end_unix": 1793691079.4720526,
+      "intervals": 28,
+      "covered_start_unix": 1793691052.088381,
+      "covered_end_unix": 1793691080.125704,
+      "flags": {
+        "unrelated_cpu": 28,
+        "disk": 0,
+        "non_target_gpu": 0,
+        "sample_gap": 0
+      },
+      "maxima": {
+        "unrelated_cpu_core_equivalents": 4.465174066668847,
+        "disk_bytes_per_second": 12449132.324032959,
+        "non_target_gpu_busy_percent": 0
+      },
+      "missed_process_observations": 49,
+      "inaccessible_role_observations": 0,
+      "status": "retain; activity flags annotate this single diagnostic call"
+    },
+    {
+      "tag": "1-I",
+      "arm": "I",
+      "start_unix": 1793691079.4974678,
+      "end_unix": 1793691106.2210984,
+      "intervals": 27,
+      "covered_start_unix": 1793691079.115754,
+      "covered_end_unix": 1793691106.133776,
+      "flags": {
+        "unrelated_cpu": 27,
+        "disk": 0,
+        "non_target_gpu": 0,
+        "sample_gap": 0
+      },
+      "maxima": {
+        "unrelated_cpu_core_equivalents": 4.465174066668847,
+        "disk_bytes_per_second": 6945630.792409274,
+        "non_target_gpu_busy_percent": 0
+      },
+      "missed_process_observations": 31,
+      "inaccessible_role_observations": 0,
+      "status": "retain; activity flags annotate this single diagnostic call"
+    }
+  ],
+  "rates": {
+    "H": {
+      "pp4096_tok_s": 704.75,
+      "tg256_tok_s": 111.69,
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      }
+    },
+    "I": {
+      "pp4096_tok_s": 689.93,
+      "tg256_tok_s": 111.23,
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      }
+    }
+  },
+  "profile_pp_ms": {
+    "H": {
+      "pp_profile_ms": 5825.49,
+      "q2_tile_ms": 4637.0,
+      "attention_tile_ms": 1030.61,
+      "attention_merge_ms": 0.0
+    },
+    "I": {
+      "pp_profile_ms": 5943.47,
+      "q2_tile_ms": 4638.47,
+      "attention_tile_ms": 1108.64,
+      "attention_merge_ms": 40.9677
+    }
+  },
+  "profile_deltas_I_vs_H": {
+    "pp_total_percent": 2.025237362007326,
+    "q2_tile_percent": 0.03170153116238694,
+    "attention_tile_percent": 7.571244214591388,
+    "attention_merge_H_ms": 0.0,
+    "attention_merge_I_ms": 40.9677
+  },
+  "profile_limits": "Profile parser reports per_kernel_counts_shapes unavailable. This is one H then I run; no repeats/interleaving and no gate decision. Activity threshold flags are annotations, not discard rules.",
+  "gpu_busy_counter_samples": 57,
+  "gpu_busy_counter_samples_unknown": 0,
+  "artifact_root": "scratch\\q2-prefill-code-table-20261103\\model-integration-ef\\current-main7a46-profile-v2",
+  "decision": "Share measured attention regression with its owner. Q2 matrix time unchanged; do not modify Q2 to compensate without an independent measured gain."
+}

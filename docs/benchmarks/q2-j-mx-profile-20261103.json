@@ -1,0 +1,1060 @@
+{
+  "status": "AUDIT_PASS_WITH_LIMITATIONS",
+  "diagnostic_only": true,
+  "hash_audit": {
+    "status": "PASS",
+    "result_pins_verified": {
+      "mx-profile.stdout": "f8f1742b619675668d0731fd4d493295a37eb6edffe31a7c50d5358d3244180a",
+      "J-profile.stdout": "7b1063be4e3b46a84a2336ed4da2c4305232b9de3216ed5c5abfb88effec0974",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "mx-profile.stderr": "a014d7617ad186689d6631da534181b2daecaa7eebed60a496309b214fce7d42",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "J-profile.stderr": "ad3653f477d9ba24250ffaf47794cd2519704d49082909b60190d4b8c3e1f00e",
+      "activity.jsonl": "30ad21eefef26185f02d15f700864b0e2204fe4426f4a40dd301bdbdb06a0699"
+    },
+    "execution_sha256": "354923f8dcaaba88271deea548f2ee1c684ad71aac9a5ccc28b6eeef33aa6c72",
+    "plan_sha256": "72cb07188d0ee6e1e7c379943e0d4481896b2b5b4c37f386deddee70c26bbd16",
+    "artifacts": {
+      "parse_offline.py": "60101ec491df9a90f7c8adf466fffc10535c243b9d9922edadf616fda0dc9ba9",
+      "parsed-profile.json": "24190c6545c1e9c1903c3c8064c8d42fecee77c128001717e7635fc654899d20",
+      "AUDIT.md": "fb5bbcdf940ac713a10c0123c5e19957a0957238eeffdbb7e5108bd310288eee",
+      "mx-source-inspection.json": "fece14718a2e20702402370e0c6990dabc27eccae518efc641dca79e99d8d62c"
+    },
+    "source_pins": {
+      "source/tools/llama-bench/llama-bench.cpp": "5394469f6393e607d54065ad243802227e5fb4ec1a9e72df406fcb8bf85b8a8c",
+      "source/ggml/src/ggml-vulkan/ggml-vulkan.cpp": "8df2c8f52fc59d19d3dda8a0198cc2bcf00dcb29d81eb428e43a68bb68068815",
+      "source/ggml/src/ggml-vulkan/ggml-vulkan-debug.cpp": "22cff7313128339386bb36361a3f06983faa84114c56a7273a07bdf298781f96"
+    },
+    "J_cli_main_source_sha256": "1b0e03f589e16ca5dcbc2ad2b362f49a129d74110fb342f4f671704929d84720",
+    "MX_benchmark_source_matches_build_receipt": true,
+    "MX_binary_sha256_matches_plan": true,
+    "limitations": "Rig payload hashes were validated by the completed runner. This offline audit rehashes local results, plan, source evidence and downloaded build metadata; it does not reread the model or runtime binaries."
+  },
+  "J": {
+    "phases": {
+      "pp": {
+        "device_ms": 5681.75,
+        "sampled_dispatches": 3683,
+        "kernels": [
+          {
+            "kernel": "matmul_tile_q2_0_dot_tall",
+            "device_ms": 4626.7,
+            "reported_share_percent": 81.4309,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "attention_tile_kv16",
+            "device_ms": 857.78,
+            "reported_share_percent": 15.0971,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "matmul_reduce",
+            "device_ms": 45.7075,
+            "reported_share_percent": 0.804462,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "norm_rope_kv_kv16",
+            "device_ms": 42.5938,
+            "reported_share_percent": 0.749659,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "attention_merge",
+            "device_ms": 41.6718,
+            "reported_share_percent": 0.733433,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "silu_mul",
+            "device_ms": 36.4122,
+            "reported_share_percent": 0.640862,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "rms_norm_rows",
+            "device_ms": 30.1557,
+            "reported_share_percent": 0.530746,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "matmul_row_q2_0_dot_1col_4row head",
+            "device_ms": 0.39008,
+            "reported_share_percent": 0.00686549,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "embed",
+            "device_ms": 0.33248,
+            "reported_share_percent": 0.00585172,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "gather_rows",
+            "device_ms": 0.00656,
+            "reported_share_percent": 0.000115457,
+            "per_decode_token_us": null,
+            "measured_dispatch_count": null
+          }
+        ],
+        "sum_rounded_kernel_ms": 5681.75012,
+        "per_decode_token_us": null
+      },
+      "tg": {
+        "device_ms": 2185.83,
+        "sampled_dispatches": 92032,
+        "kernels": [
+          {
+            "kernel": "matmul_row_q2_0_dot_1col_4row",
+            "device_ms": 1581.72,
+            "reported_share_percent": 72.3628,
+            "per_decode_token_us": 6178.59375,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "rms_norm_rows",
+            "device_ms": 160.44,
+            "reported_share_percent": 7.34004,
+            "per_decode_token_us": 626.71875,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "attention_vec_kv16",
+            "device_ms": 114.891,
+            "reported_share_percent": 5.25618,
+            "per_decode_token_us": 448.79296875,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "matmul_row_q2_0_dot_1col_4row head",
+            "device_ms": 99.0477,
+            "reported_share_percent": 4.53136,
+            "per_decode_token_us": 386.90507812500005,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "norm_rope_kv_kv16",
+            "device_ms": 89.3456,
+            "reported_share_percent": 4.0875,
+            "per_decode_token_us": 349.00625,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "attention_merge",
+            "device_ms": 80.2693,
+            "reported_share_percent": 3.67226,
+            "per_decode_token_us": 313.551953125,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "silu_mul",
+            "device_ms": 54.5613,
+            "reported_share_percent": 2.49614,
+            "per_decode_token_us": 213.130078125,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "embed",
+            "device_ms": 3.91728,
+            "reported_share_percent": 0.179213,
+            "per_decode_token_us": 15.301874999999999,
+            "measured_dispatch_count": null
+          },
+          {
+            "kernel": "gather_rows",
+            "device_ms": 1.62928,
+            "reported_share_percent": 0.0745384,
+            "per_decode_token_us": 6.364375,
+            "measured_dispatch_count": null
+          }
+        ],
+        "sum_rounded_kernel_ms": 2185.82146,
+        "per_decode_token_us": 8538.3984375
+      }
+    },
+    "kernel_statistics": {
+      "silu_mul": {
+        "Driver pipeline hash": 10473213312968798074,
+        "SGPRs": 32,
+        "VGPRs": 20,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 8544,
+        "LDS size": 0,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 1420073941,
+        "Instructions": 1549,
+        "Copies": 225,
+        "Branches": 105,
+        "Latency": 1909,
+        "Inverse Throughput": 894,
+        "VMEM Clause": 10,
+        "SMEM Clause": 5,
+        "Pre-Sched SGPRs": 20,
+        "Pre-Sched VGPRs": 16,
+        "VALU": 1072,
+        "SALU": 321,
+        "VMEM": 10,
+        "SMEM": 9,
+        "VOPD": 0
+      },
+      "gather_rows": {
+        "Driver pipeline hash": 9295308049034911199,
+        "SGPRs": 16,
+        "VGPRs": 8,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 220,
+        "LDS size": 0,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 3318367392,
+        "Instructions": 42,
+        "Copies": 3,
+        "Branches": 1,
+        "Latency": 967,
+        "Inverse Throughput": 119,
+        "VMEM Clause": 3,
+        "SMEM Clause": 2,
+        "Pre-Sched SGPRs": 8,
+        "Pre-Sched VGPRs": 4,
+        "VALU": 24,
+        "SALU": 7,
+        "VMEM": 3,
+        "SMEM": 3,
+        "VOPD": 0
+      },
+      "rms_norm_rows": {
+        "Driver pipeline hash": 11239134106236104136,
+        "SGPRs": 64,
+        "VGPRs": 24,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 10028,
+        "LDS size": 1024,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 2969957905,
+        "Instructions": 1864,
+        "Copies": 288,
+        "Branches": 127,
+        "Latency": 18705,
+        "Inverse Throughput": 7868,
+        "VMEM Clause": 27,
+        "SMEM Clause": 22,
+        "Pre-Sched SGPRs": 46,
+        "Pre-Sched VGPRs": 18,
+        "VALU": 1196,
+        "SALU": 405,
+        "VMEM": 27,
+        "SMEM": 26,
+        "VOPD": 0
+      },
+      "embed": {
+        "Driver pipeline hash": 9732418468552590250,
+        "SGPRs": 32,
+        "VGPRs": 24,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7296,
+        "LDS size": 0,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 1359466145,
+        "Instructions": 1335,
+        "Copies": 109,
+        "Branches": 114,
+        "Latency": 2207,
+        "Inverse Throughput": 363,
+        "VMEM Clause": 44,
+        "SMEM Clause": 32,
+        "Pre-Sched SGPRs": 18,
+        "Pre-Sched VGPRs": 10,
+        "VALU": 731,
+        "SALU": 210,
+        "VMEM": 127,
+        "SMEM": 36,
+        "VOPD": 0
+      },
+      "attention_merge": {
+        "Driver pipeline hash": 15595484658889049192,
+        "SGPRs": 48,
+        "VGPRs": 20,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 5188,
+        "LDS size": 9216,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 8,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 3891408389,
+        "Instructions": 992,
+        "Copies": 129,
+        "Branches": 76,
+        "Latency": 31071,
+        "Inverse Throughput": 5834,
+        "VMEM Clause": 13,
+        "SMEM Clause": 11,
+        "Pre-Sched SGPRs": 42,
+        "Pre-Sched VGPRs": 14,
+        "VALU": 550,
+        "SALU": 254,
+        "VMEM": 13,
+        "SMEM": 11,
+        "VOPD": 0
+      },
+      "attention_tile_kv16": {
+        "Driver pipeline hash": 5981954102340517502,
+        "SGPRs": 48,
+        "VGPRs": 128,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 28164,
+        "LDS size": 20480,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 2,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 4079559507,
+        "Instructions": 5423,
+        "Copies": 550,
+        "Branches": 227,
+        "Latency": 77769,
+        "Inverse Throughput": 41032,
+        "VMEM Clause": 23,
+        "SMEM Clause": 26,
+        "Pre-Sched SGPRs": 35,
+        "Pre-Sched VGPRs": 104,
+        "VALU": 3721,
+        "SALU": 846,
+        "VMEM": 42,
+        "SMEM": 26,
+        "VOPD": 0
+      },
+      "norm_rope_kv_kv16": {
+        "Driver pipeline hash": 513765263067814193,
+        "SGPRs": 32,
+        "VGPRs": 12,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 2564,
+        "LDS size": 1024,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 458089573,
+        "Instructions": 498,
+        "Copies": 71,
+        "Branches": 43,
+        "Latency": 10963,
+        "Inverse Throughput": 1138,
+        "VMEM Clause": 14,
+        "SMEM Clause": 17,
+        "Pre-Sched SGPRs": 23,
+        "Pre-Sched VGPRs": 10,
+        "VALU": 183,
+        "SALU": 161,
+        "VMEM": 18,
+        "SMEM": 20,
+        "VOPD": 0
+      },
+      "matmul_reduce": {
+        "Driver pipeline hash": 3302677942202480660,
+        "SGPRs": 17,
+        "VGPRs": 4,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 292,
+        "LDS size": 0,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 10,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 1332827041,
+        "Instructions": 55,
+        "Copies": 9,
+        "Branches": 5,
+        "Latency": 3028,
+        "Inverse Throughput": 303,
+        "VMEM Clause": 3,
+        "SMEM Clause": 3,
+        "Pre-Sched SGPRs": 13,
+        "Pre-Sched VGPRs": 4,
+        "VALU": 8,
+        "SALU": 31,
+        "VMEM": 3,
+        "SMEM": 3,
+        "VOPD": 0
+      },
+      "attention_vec_kv16": {
+        "Driver pipeline hash": 6879492720000812819,
+        "SGPRs": 64,
+        "VGPRs": 40,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 6664,
+        "LDS size": 9728,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 6,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 2375660031,
+        "Instructions": 1273,
+        "Copies": 134,
+        "Branches": 76,
+        "Latency": 12210,
+        "Inverse Throughput": 3066,
+        "VMEM Clause": 9,
+        "SMEM Clause": 12,
+        "Pre-Sched SGPRs": 34,
+        "Pre-Sched VGPRs": 32,
+        "VALU": 755,
+        "SALU": 300,
+        "VMEM": 9,
+        "SMEM": 13,
+        "VOPD": 0
+      },
+      "matmul_tile_q2_0_dot_tall": {
+        "Driver pipeline hash": 5540084435027409933,
+        "SGPRs": 64,
+        "VGPRs": 128,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 24492,
+        "LDS size": 28672,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 2,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 14729530,
+        "Instructions": 4022,
+        "Copies": 155,
+        "Branches": 110,
+        "Latency": 519050,
+        "Inverse Throughput": 390052,
+        "VMEM Clause": 26,
+        "SMEM Clause": 15,
+        "Pre-Sched SGPRs": 56,
+        "Pre-Sched VGPRs": 98,
+        "VALU": 2890,
+        "SALU": 678,
+        "VMEM": 52,
+        "SMEM": 22,
+        "VOPD": 0
+      },
+      "matmul_row_q2_0_dot_1col_4row": {
+        "Driver pipeline hash": 17475797788400930854,
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4,
+        "Combined inputs": 0,
+        "Combined outputs": 0,
+        "Hash": 1057829838,
+        "Instructions": 1366,
+        "Copies": 64,
+        "Branches": 30,
+        "Latency": 173044,
+        "Inverse Throughput": 123380,
+        "VMEM Clause": 17,
+        "SMEM Clause": 16,
+        "Pre-Sched SGPRs": 48,
+        "Pre-Sched VGPRs": 52,
+        "VALU": 978,
+        "SALU": 152,
+        "VMEM": 53,
+        "SMEM": 24,
+        "VOPD": 0
+      }
+    },
+    "count_limit": "Only total phase sampled dispatch counts are printed. Per-kernel/category counts are unavailable; do not infer a measured mean per J node."
+  },
+  "MX": {
+    "progress_markers": [
+      {
+        "line": 3,
+        "text": "llama-bench: benchmark 1/2: starting"
+      },
+      {
+        "line": 4473,
+        "text": "llama-bench: benchmark 1/2: prompt run 1/1"
+      },
+      {
+        "line": 4591,
+        "text": "llama-bench: benchmark 2/2: starting"
+      },
+      {
+        "line": 9061,
+        "text": "llama-bench: benchmark 2/2: generation run 1/1"
+      }
+    ],
+    "phase_section_counts": {
+      "warmup_1_pp": 8,
+      "warmup_1_tg": 256,
+      "measured_pp": 8,
+      "warmup_2_pp": 8,
+      "warmup_2_tg": 256,
+      "measured_tg": 256
+    },
+    "phase_summaries": {
+      "measured_pp": {
+        "sections": 8,
+        "first_section": 264,
+        "last_section": 271,
+        "sum_node_us": 5812277.88,
+        "sum_printed_section_us": 5812279.0,
+        "node_counts": 4562,
+        "labels": [
+          {
+            "count": 560,
+            "total_us": 1822872.0,
+            "matrix": {
+              "type": "q2_0",
+              "m": 12288,
+              "n": 512,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT q2_0 m=12288 n=512 k=4096",
+            "mean_node_us": 3255.1285714285714,
+            "share_percent": 31.362437199922727
+          },
+          {
+            "count": 280,
+            "total_us": 975265.0,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 512,
+              "k": 12288,
+              "fused_add": false
+            },
+            "label": "MUL_MAT q2_0 m=4096 n=512 k=12288",
+            "mean_node_us": 3483.089285714286,
+            "share_percent": 16.77939389917813
+          },
+          {
+            "count": 576,
+            "total_us": 697483.0,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 512,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT q2_0 m=4096 n=512 k=4096",
+            "mean_node_us": 1210.907986111111,
+            "share_percent": 12.000166103551814
+          },
+          {
+            "count": 36,
+            "total_us": 437838.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,4096,8,1),  v(128,4096,8,1),  m(4096,512,1,1)",
+            "mean_node_us": 12162.166666666666,
+            "share_percent": 7.532984641126622
+          },
+          {
+            "count": 36,
+            "total_us": 378777.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3584,8,1),  v(128,3584,8,1),  m(3584,512,1,1)",
+            "mean_node_us": 10521.583333333334,
+            "share_percent": 6.516842584270937
+          },
+          {
+            "count": 36,
+            "total_us": 316802.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3072,8,1),  v(128,3072,8,1),  m(3072,512,1,1)",
+            "mean_node_us": 8800.055555555555,
+            "share_percent": 5.450565278203801
+          },
+          {
+            "count": 36,
+            "total_us": 258789.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2560,8,1),  v(128,2560,8,1),  m(2560,512,1,1)",
+            "mean_node_us": 7188.583333333333,
+            "share_percent": 4.452454017907348
+          },
+          {
+            "count": 576,
+            "total_us": 236336.19999999998,
+            "matrix": {
+              "type": "q2_0",
+              "m": 1024,
+              "n": 512,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT q2_0 m=1024 n=512 k=4096",
+            "mean_node_us": 410.30590277777776,
+            "share_percent": 4.066154524600947
+          },
+          {
+            "count": 36,
+            "total_us": 197189.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2048,8,1),  v(128,2048,8,1),  m(2048,512,1,1)",
+            "mean_node_us": 5477.472222222223,
+            "share_percent": 3.392628571296044
+          },
+          {
+            "count": 36,
+            "total_us": 144249.0,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1536,8,1),  v(128,1536,8,1),  m(1536,512,1,1)",
+            "mean_node_us": 4006.9166666666665,
+            "share_percent": 2.481798065718083
+          },
+          {
+            "count": 36,
+            "total_us": 88597.6,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1024,8,1),  v(128,1024,8,1),  m(1024,512,1,1)",
+            "mean_node_us": 2461.0444444444447,
+            "share_percent": 1.5243180355306756
+          },
+          {
+            "count": 288,
+            "total_us": 86732.4,
+            "label": "RMS_NORM_MUL_ROPE RMS_NORM(128,32,512,1)",
+            "mean_node_us": 301.15416666666664,
+            "share_percent": 1.4922273468452958
+          },
+          {
+            "count": 36,
+            "total_us": 45808.8,
+            "label": "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,512,8,1),  v(128,512,8,1),  m(512,512,1,1)",
+            "mean_node_us": 1272.4666666666667,
+            "share_percent": 0.7881385051741538
+          },
+          {
+            "count": 568,
+            "total_us": 32431.52,
+            "label": "RMS_NORM_MUL RMS_NORM(4096,512,1,1)",
+            "mean_node_us": 57.09774647887324,
+            "share_percent": 0.5579829572773283
+          },
+          {
+            "count": 281,
+            "total_us": 31618.239999999998,
+            "label": "GLU",
+            "mean_node_us": 112.52042704626334,
+            "share_percent": 0.5439905085886912
+          },
+          {
+            "count": 561,
+            "total_us": 30425.120000000003,
+            "label": "ADD",
+            "mean_node_us": 54.233725490196086,
+            "share_percent": 0.5234629284448459
+          },
+          {
+            "count": 288,
+            "total_us": 24820.800000000003,
+            "label": "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,512,1)",
+            "mean_node_us": 86.18333333333334,
+            "share_percent": 0.42704083515015984
+          },
+          {
+            "count": 288,
+            "total_us": 5191.68,
+            "label": "SET_ROWS",
+            "mean_node_us": 18.026666666666667,
+            "share_percent": 0.08932263919907422
+          },
+          {
+            "count": 1,
+            "total_us": 805.28,
+            "matrix": {
+              "type": "q2_0",
+              "m": 151936,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096",
+            "mean_node_us": 805.28,
+            "share_percent": 0.013854809020245948
+          },
+          {
+            "count": 2,
+            "total_us": 143.04,
+            "matrix": {
+              "type": "q2_0",
+              "m": 12288,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096",
+            "mean_node_us": 71.52,
+            "share_percent": 0.0024609972708324814
+          },
+          {
+            "count": 1,
+            "total_us": 74.08,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 1,
+              "k": 12288,
+              "fused_add": true
+            },
+            "label": "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288",
+            "mean_node_us": 74.08,
+            "share_percent": 0.0012745433293013858
+          },
+          {
+            "count": 2,
+            "total_us": 20.16,
+            "label": "RMS_NORM_MUL RMS_NORM(4096,1,1,1)",
+            "mean_node_us": 10.08,
+            "share_percent": 0.0003468519643455175
+          },
+          {
+            "count": 2,
+            "total_us": 8.96,
+            "label": "GET_ROWS",
+            "mean_node_us": 4.48,
+            "share_percent": 0.0001541564285980078
+          }
+        ]
+      },
+      "measured_tg": {
+        "sections": 256,
+        "first_section": 536,
+        "last_section": 791,
+        "sum_node_us": 2404655.499999999,
+        "sum_printed_section_us": 2404655.3,
+        "node_counts": 130304,
+        "labels": [
+          {
+            "count": 18432,
+            "total_us": 708136.1199999995,
+            "matrix": {
+              "type": "q2_0",
+              "m": 12288,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096",
+            "mean_node_us": 38.4188433159722,
+            "share_percent": 29.44854761939911,
+            "nodes_per_token": 72.0,
+            "per_decode_token_us": 2766.156718749998
+          },
+          {
+            "count": 9216,
+            "total_us": 379930.5599999999,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 1,
+              "k": 12288,
+              "fused_add": true
+            },
+            "label": "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288",
+            "mean_node_us": 41.225104166666654,
+            "share_percent": 15.799791695733546,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 1484.1037499999995
+          },
+          {
+            "count": 9472,
+            "total_us": 268214.2200000001,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=4096 n=1 k=4096",
+            "mean_node_us": 28.316535050675686,
+            "share_percent": 11.153956148812176,
+            "nodes_per_token": 37.0,
+            "per_decode_token_us": 1047.7117968750003
+          },
+          {
+            "count": 18688,
+            "total_us": 220883.35999999987,
+            "label": "RMS_NORM_MUL RMS_NORM(4096,1,1,1)",
+            "mean_node_us": 11.819529109589034,
+            "share_percent": 9.185655076163714,
+            "nodes_per_token": 73.0,
+            "per_decode_token_us": 862.8256249999995
+          },
+          {
+            "count": 8960,
+            "total_us": 170035.67999999993,
+            "matrix": {
+              "type": "q2_0",
+              "m": 4096,
+              "n": 1,
+              "k": 4096,
+              "fused_add": true
+            },
+            "label": "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=4096",
+            "mean_node_us": 18.97719642857142,
+            "share_percent": 7.071103532293919,
+            "nodes_per_token": 35.0,
+            "per_decode_token_us": 664.2018749999997
+          },
+          {
+            "count": 9216,
+            "total_us": 166520.15999999992,
+            "label": "FLASH_ATTN_EXT dst(128,32,1,1),  q(128,1,32,1),  k(128,256,8,1),  v(128,256,8,1),  m(256,1,1,1)",
+            "mean_node_us": 18.06859374999999,
+            "share_percent": 6.924907122870614,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 650.4693749999997
+          },
+          {
+            "count": 18432,
+            "total_us": 137437.43999999997,
+            "matrix": {
+              "type": "q2_0",
+              "m": 1024,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=1024 n=1 k=4096",
+            "mean_node_us": 7.456458333333332,
+            "share_percent": 5.715473172768409,
+            "nodes_per_token": 72.0,
+            "per_decode_token_us": 536.8649999999999
+          },
+          {
+            "count": 256,
+            "total_us": 96459.51999999996,
+            "matrix": {
+              "type": "q2_0",
+              "m": 151936,
+              "n": 1,
+              "k": 4096,
+              "fused_add": false
+            },
+            "label": "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096",
+            "mean_node_us": 376.79499999999985,
+            "share_percent": 4.01136545338823,
+            "nodes_per_token": 1.0,
+            "per_decode_token_us": 376.79499999999985
+          },
+          {
+            "count": 9216,
+            "total_us": 72887.04000000005,
+            "label": "RMS_NORM_MUL_ROPE RMS_NORM(128,32,1,1)",
+            "mean_node_us": 7.908750000000006,
+            "share_percent": 3.031080335623963,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 284.7150000000002
+          },
+          {
+            "count": 9216,
+            "total_us": 70801.31999999998,
+            "label": "GLU",
+            "mean_node_us": 7.682434895833331,
+            "share_percent": 2.9443435868464323,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 276.5676562499999
+          },
+          {
+            "count": 9216,
+            "total_us": 68729.43999999999,
+            "label": "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,1,1)",
+            "mean_node_us": 7.457621527777777,
+            "share_percent": 2.8581823882880526,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 268.47437499999995
+          },
+          {
+            "count": 9216,
+            "total_us": 41263.99999999996,
+            "label": "SET_ROWS",
+            "mean_node_us": 4.477430555555552,
+            "share_percent": 1.716004641829151,
+            "nodes_per_token": 36.0,
+            "per_decode_token_us": 161.18749999999986
+          },
+          {
+            "count": 512,
+            "total_us": 2213.1199999999994,
+            "label": "GET_ROWS",
+            "mean_node_us": 4.322499999999999,
+            "share_percent": 0.09203480498557903,
+            "nodes_per_token": 2.0,
+            "per_decode_token_us": 8.644999999999998
+          },
+          {
+            "count": 256,
+            "total_us": 1143.5200000000016,
+            "label": "ADD",
+            "mean_node_us": 4.466875000000006,
+            "share_percent": 0.047554420997103414,
+            "nodes_per_token": 1.0,
+            "per_decode_token_us": 4.466875000000006
+          }
+        ],
+        "per_decode_token_us": 9393.185546874996,
+        "nodes_per_token": 509.0
+      }
+    },
+    "runner_progress_markers_metric": 0,
+    "progress_metric_correction": "Runner searched the literal word progress, yielding0; actual llama-bench markers total4 and are parsed above.",
+    "logger_measure": "Timestamp deltas between graph node/fusion boundaries, including forced fence and query read. Count is logged node/fusion interval count, not physical dispatch count.",
+    "dimension_measure": "m=node.ne0, n=node.ne1, k=node.src1.ne0; dimensions and fusion tags retained verbatim."
+  },
+  "comparisons": {
+    "J_decode_body_per_token_us": 6178.59375,
+    "MX_decode_body_per_token_us": 6499.039140624997,
+    "MX_body_matvec_nodes_per_token": 252,
+    "MX_head_nodes_per_token": 1,
+    "boundary_category_table_us_per_decode_token": {
+      "row_body": {
+        "J": 6178.59375,
+        "MX": 6499.039140624997
+      },
+      "row_head": {
+        "J": 386.90507812500005,
+        "MX": 376.79499999999985
+      },
+      "row_body_and_head": {
+        "J": 6565.498828125,
+        "MX": 6875.834140624997
+      },
+      "attention": {
+        "J": 762.344921875,
+        "MX": 650.4693749999997
+      },
+      "rms_norm": {
+        "J": 626.71875,
+        "MX": 862.8256249999995
+      },
+      "norm_rope": {
+        "J": 349.00625,
+        "MX": 553.1893750000002
+      },
+      "MX_separate_set_rows": {
+        "J": null,
+        "MX": 161.18749999999986
+      },
+      "all_norm_rope_and_KV_write": {
+        "J": 975.725,
+        "MX": 1577.2024999999994
+      },
+      "GLU_or_silu": {
+        "J": 213.130078125,
+        "MX": 276.5676562499999
+      },
+      "all_sampled_or_logged_device_work": {
+        "J": 8538.3984375,
+        "MX": 9393.185546874996
+      }
+    }
+  },
+  "observer_differences": {
+    "J": {
+      "instrumented_process_rates": {
+        "pp4096": 722.98,
+        "tg256": 102.35
+      },
+      "earlier_uninstrumented_medians": {
+        "pp4096": 721.435,
+        "tg256": 125.395
+      },
+      "descriptive_rate_change_percent": {
+        "pp4096": 0.21415650751628323,
+        "tg256": -18.377925754615422
+      }
+    },
+    "mx": {
+      "instrumented_process_rates": {
+        "pp4096": 684.629856,
+        "tg256": 88.843466
+      },
+      "earlier_uninstrumented_medians": {
+        "pp4096": 722.4689165,
+        "tg256": 130.86334449999998
+      },
+      "descriptive_rate_change_percent": {
+        "pp4096": -5.237465534615837,
+        "tg256": -32.10973910268661
+      }
+    },
+    "MX_timed_decode_wall_us": 2881472.456,
+    "MX_timed_decode_node_sum_us": 2404655.499999999,
+    "MX_wall_minus_node_sum_us": 476816.9560000007
+  },
+  "monitor": {
+    "samples": 63,
+    "intervals": 62,
+    "maximum_gap_seconds": 1.0027182410049136,
+    "coverage": [
+      {
+        "tag": "J-profile",
+        "process_seconds": 27.190574645996094,
+        "covered_seconds": 27.190574645996094,
+        "coverage_fraction": 1.0,
+        "uncovered_tail_seconds": 0,
+        "flagged_seconds": {
+          "unrelated_cpu": 27.190574645996094,
+          "physical_disk": 0,
+          "non_target_gpu": 26.091795682907104,
+          "sample_gap": 0
+        }
+      },
+      {
+        "tag": "mx-profile",
+        "process_seconds": 31.902840852737427,
+        "covered_seconds": 31.883060932159424,
+        "coverage_fraction": 0.9993799950083033,
+        "uncovered_tail_seconds": 0.01977992057800293,
+        "flagged_seconds": {
+          "unrelated_cpu": 31.883060932159424,
+          "physical_disk": 17.00799298286438,
+          "non_target_gpu": 9.98807430267334,
+          "sample_gap": 0
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "Instrumented throughput is not a gate. Descriptive differences versus an earlier screen do not isolate profiler overhead from run/order/contention differences.",
+    "J reports separately cleared extra profile passes after its regular bench passes. MX timestamps/logs the same measured passes as its printed instrumented TPS.",
+    "MX contains two full PP+TG warmups, one for each benchmark. Only measured_pp and measured_tg are compared with J phase profiles.",
+    "MX includes explicit fence/query read and per-node/fusion logger output. J reports grouped-kernel device samples. Fusion/grouping boundaries and counts differ.",
+    "No m,n,k dimensions or measured per-kernel counts are printed by J. Do not manufacture J matrix-level means from the MX table.",
+    "Log totals and means have decimal printing rounding. Summaries sum printed node totals, preserving printed section totals separately.",
+    "There are no per-section absolute timestamps: activity coverage applies to whole profile processes, not independently to PP/TG phases or tokens.",
+    "Unknown new/disappeared/inaccessible process usage remains a coverage limit. Physical disk rates include mirrored storage traffic.",
+    "Some plan description fields still describe the parent six-call screen/focused gate; actual order/argv/results contain only J-profile then mx-profile, with no focused test in this job."
+  ],
+  "full_parsed_profile_sha256": "24190c6545c1e9c1903c3c8064c8d42fecee77c128001717e7635fc654899d20",
+  "scope": "Kernel attribution with different instrumentation boundaries, not a matched latency or throughput gate",
+  "raw_local": "scratch/q2-prefill-code-table-20261103/model-integration-ef/row-profile-j-mx",
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/row-profile-j-mx"
+}

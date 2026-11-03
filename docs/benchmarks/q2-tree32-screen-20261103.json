@@ -1,0 +1,664 @@
+{
+  "status": "PASS_WITH_LIMITATIONS",
+  "execution_sha256": "98b582af5fac638a7fc125db978d7d6f3cf2b55024638b3abd612bcb1cf881a1",
+  "plan_sha256": "5281e323bde780db7aebb76fb70b3f0e98c43296ea564133b85f85dcf1e9a836",
+  "audit_script_sha256": "3967427c74c9ed0bf5aee93dea426147dc139b6265b6252ec6acdcae060fda2b",
+  "verified_result_file_pins": 22,
+  "local_provenance_pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-receipt.json": "0b6bc0bcd52dc78ef84dde6df0d5cbd0050775143417f7b76b89d087d5b03212",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/candidate-build-receipt.json": "6a9ac7ee72183a69e2befa02e9121aee01dba32eda57b985fef6cb521376df08",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-build-receipt.json": "195a4b64e26955c5e6e4b14d728a681464c61b5b884a20ff93de760152303118",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-source/low_bits.cpp": "ef48c59b33404d77febc85e2703f2c801f65f92893791c07d022b6fb367e0257"
+  },
+  "externally_pinned_payloads_not_local": [
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-J/llmx",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/build-J/llmx",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-test-fix/results/build-J/llmx-low-bits-test"
+  ],
+  "samples": [
+    {
+      "tag": "0-J",
+      "arm": "J",
+      "rates": {
+        "pp4096": 724.14,
+        "tg256": 126.58
+      },
+      "duration_seconds": 23.575291395187378,
+      "cgroup_peak_bytes": 386596864
+    },
+    {
+      "tag": "1-T",
+      "arm": "T",
+      "rates": {
+        "pp4096": 722.13,
+        "tg256": 133.56
+      },
+      "duration_seconds": 17.927234888076782,
+      "cgroup_peak_bytes": 398761984
+    },
+    {
+      "tag": "2-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 719.582306,
+        "tg256": 112.07015
+      },
+      "duration_seconds": 38.18137454986572,
+      "cgroup_peak_bytes": 2471276544
+    },
+    {
+      "tag": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 719.615431,
+        "tg256": 98.217502
+      },
+      "duration_seconds": 29.236501932144165,
+      "cgroup_peak_bytes": 2471276544
+    },
+    {
+      "tag": "4-T",
+      "arm": "T",
+      "rates": {
+        "pp4096": 720.64,
+        "tg256": 134.21
+      },
+      "duration_seconds": 18.40398406982422,
+      "cgroup_peak_bytes": 2724073472
+    },
+    {
+      "tag": "5-J",
+      "arm": "J",
+      "rates": {
+        "pp4096": 720.37,
+        "tg256": 126.55
+      },
+      "duration_seconds": 17.942923307418823,
+      "cgroup_peak_bytes": 2724220928
+    }
+  ],
+  "medians_tok_s": {
+    "J": {
+      "pp4096": 722.255,
+      "tg256": 126.565
+    },
+    "T": {
+      "pp4096": 721.385,
+      "tg256": 133.885
+    },
+    "mx": {
+      "pp4096": 719.5988685,
+      "tg256": 105.14382599999999
+    }
+  },
+  "relative_percent": {
+    "T_vs_J": {
+      "pp4096": -0.12045607160905414,
+      "tg256": 5.783589459961269
+    },
+    "T_vs_mx": {
+      "pp4096": 0.24821210513061853,
+      "tg256": 27.335103822453632
+    },
+    "J_vs_mx": {
+      "pp4096": 0.3691127955129714,
+      "tg256": 20.373211452282526
+    }
+  },
+  "focused_witnesses_verified": [
+    "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]",
+    "Q2_0 one-column dense row witness: matmul_row_q2_0_dot_1col_4row_tree",
+    "Q2_0 grouped two-row widths",
+    "Q2_0 routed row/narrow tile: one token, four selected experts",
+    "Q2_0 integer rows/tiles: grouped/routed/residual 65 rows",
+    "Q2_0 Vulkan dispatches: timestamps=available, row+tile witnessed"
+  ],
+  "within_arm_two_sample_spread_percent": {
+    "J": {
+      "pp4096": 0.5233421713841446,
+      "tg256": 0.023706045041493873
+    },
+    "T": {
+      "pp4096": 0.20676065719360537,
+      "tg256": 0.4866726564839885
+    },
+    "mx": {
+      "pp4096": 0.004603364997124437,
+      "tg256": 14.104052452891747
+    }
+  },
+  "maximum_cgroup_memory_peak_bytes": 2724220928,
+  "memory_watch": {
+    "samples": 671,
+    "minimum_available_bytes": 24256503808,
+    "maximum_own_used_bytes": 2724220928,
+    "maximum_own_unused_cap_reserved_bytes": 4293902336,
+    "maximum_required_bytes": 6441385984,
+    "maximum_full_psi_avg10": 0.0
+  },
+  "build_identities": {
+    "J": {
+      "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+      "main_commit": "d36458312cd1cb47b6032df4afe96508612423cc"
+    },
+    "T": {
+      "source_commit": "487ca07958c086bac1e7995db386d0f60faab2b1",
+      "main_commit": "5b25c3acf67bea9e2bf20e75c5853b6d35454991"
+    }
+  },
+  "changed_runtime_source_paths": [
+    "src/backends/vulkan/vulkan_backend.cpp",
+    "src/backends/vulkan/vulkan_kernels.hpp",
+    "src/backends/vulkan/vulkan_matmul.hpp"
+  ],
+  "candidate_unchanged_shader_modules": 334,
+  "candidate_q2_matrix_modules_verified_unchanged": 15,
+  "monitor": {
+    "samples": 149,
+    "intervals": 148,
+    "first_sample_unix": 1793713179.407154,
+    "last_sample_unix": 1793713327.366862,
+    "thresholds": {
+      "unrelated_cpu_core_equivalents": 1,
+      "disk_bytes_per_second": 104857600,
+      "non_target_gpu_busy_percent": 0,
+      "sample_gap_seconds": 3,
+      "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+    },
+    "maximum_gap_seconds": 1.0085465610027313,
+    "coverage": [
+      {
+        "tag": "0-J",
+        "call_seconds": 23.575291395187378,
+        "covered_seconds": 23.575291395187378,
+        "coverage_fraction": 1.0,
+        "unobserved_seconds": 0.0,
+        "overlapping_intervals": 25,
+        "maximum_interval_seconds": 1.002779542002827,
+        "flagged_seconds": {
+          "unrelated_cpu": 14.155914783477783,
+          "physical_disk": 11.147915601730347,
+          "non_target_gpu": 21.38544774055481,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 4.991390465770298,
+        "weighted_mean_system_cpu_nonidle_percent": 35.64809573748764,
+        "maximum_physical_disk_bytes_per_second": 2531389968.2509465,
+        "unknown_process_deltas": 96,
+        "missed_process_observations": 16,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "1-T",
+        "call_seconds": 17.927234888076782,
+        "covered_seconds": 17.927234888076782,
+        "coverage_fraction": 1.0,
+        "unobserved_seconds": 0.0,
+        "overlapping_intervals": 19,
+        "maximum_interval_seconds": 1.000699677002558,
+        "flagged_seconds": {
+          "unrelated_cpu": 1.0004189014434814,
+          "physical_disk": 1.003018856048584,
+          "non_target_gpu": 17.927234888076782,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 0.587794483752834,
+        "weighted_mean_system_cpu_nonidle_percent": 5.423024645393521,
+        "maximum_physical_disk_bytes_per_second": 2239453861.019271,
+        "unknown_process_deltas": 61,
+        "missed_process_observations": 9,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "2-mx",
+        "call_seconds": 38.18137454986572,
+        "covered_seconds": 38.18137454986572,
+        "coverage_fraction": 1.0,
+        "unobserved_seconds": 0.0,
+        "overlapping_intervals": 39,
+        "maximum_interval_seconds": 1.0029777180025121,
+        "flagged_seconds": {
+          "unrelated_cpu": 30.500285387039185,
+          "physical_disk": 29.501333475112915,
+          "non_target_gpu": 31.073484420776367,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 8.030613657130488,
+        "weighted_mean_system_cpu_nonidle_percent": 57.25226238488281,
+        "maximum_physical_disk_bytes_per_second": 1661005795.8067343,
+        "unknown_process_deltas": 749,
+        "missed_process_observations": 31,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "3-mx",
+        "call_seconds": 29.236501932144165,
+        "covered_seconds": 29.236501932144165,
+        "coverage_fraction": 1.0,
+        "unobserved_seconds": 0.0,
+        "overlapping_intervals": 30,
+        "maximum_interval_seconds": 1.0024792530020932,
+        "flagged_seconds": {
+          "unrelated_cpu": 29.236501932144165,
+          "physical_disk": 29.236501932144165,
+          "non_target_gpu": 26.1406888961792,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 10.03814269033668,
+        "weighted_mean_system_cpu_nonidle_percent": 70.7415297936171,
+        "maximum_physical_disk_bytes_per_second": 1570393748.113298,
+        "unknown_process_deltas": 110,
+        "missed_process_observations": 25,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "4-T",
+        "call_seconds": 18.40398406982422,
+        "covered_seconds": 18.40398406982422,
+        "coverage_fraction": 1.0,
+        "unobserved_seconds": 0.0,
+        "overlapping_intervals": 20,
+        "maximum_interval_seconds": 1.0010679480037652,
+        "flagged_seconds": {
+          "unrelated_cpu": 7.232568025588989,
+          "physical_disk": 2.212263822555542,
+          "non_target_gpu": 17.489910125732422,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 1.3831301103309646,
+        "weighted_mean_system_cpu_nonidle_percent": 11.70364758152441,
+        "maximum_physical_disk_bytes_per_second": 1512084366.874583,
+        "unknown_process_deltas": 87,
+        "missed_process_observations": 9,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "tag": "5-J",
+        "call_seconds": 17.942923307418823,
+        "covered_seconds": 17.803497076034546,
+        "coverage_fraction": 0.9922294584335303,
+        "unobserved_seconds": 0.13942623138427734,
+        "overlapping_intervals": 18,
+        "maximum_interval_seconds": 1.0012608039978659,
+        "flagged_seconds": {
+          "unrelated_cpu": 0,
+          "physical_disk": 0,
+          "non_target_gpu": 15.806471109390259,
+          "sample_gap": 0
+        },
+        "weighted_mean_unrelated_cpu_cores": 0.30040326480500285,
+        "weighted_mean_system_cpu_nonidle_percent": 4.294543863335118,
+        "maximum_physical_disk_bytes_per_second": 3172634.834798331,
+        "unknown_process_deltas": 69,
+        "missed_process_observations": 8,
+        "unknown_gpu_intervals": 0
+      }
+    ],
+    "target_clock_samples": {
+      "0-J": {
+        "active_dpm_sclk_mhz": {
+          "count": 25,
+          "min_mhz": 930,
+          "median_mhz": 1725,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 25,
+          "min_mhz": 350,
+          "median_mhz": 1000,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 25,
+          "min_mhz": 925.0,
+          "median_mhz": 1630.0,
+          "max_mhz": 1692.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 25,
+          "min_mhz": 350.0,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      },
+      "1-T": {
+        "active_dpm_sclk_mhz": {
+          "count": 19,
+          "min_mhz": 930,
+          "median_mhz": 1606,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 19,
+          "min_mhz": 350,
+          "median_mhz": 1000,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 19,
+          "min_mhz": 926.0,
+          "median_mhz": 1634.0,
+          "max_mhz": 1690.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 19,
+          "min_mhz": 350.0,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      },
+      "2-mx": {
+        "active_dpm_sclk_mhz": {
+          "count": 39,
+          "min_mhz": 930,
+          "median_mhz": 1725,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 39,
+          "min_mhz": 350,
+          "median_mhz": 800,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 39,
+          "min_mhz": 925.0,
+          "median_mhz": 1682.0,
+          "max_mhz": 1697.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 39,
+          "min_mhz": 350.0,
+          "median_mhz": 800.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      },
+      "3-mx": {
+        "active_dpm_sclk_mhz": {
+          "count": 30,
+          "min_mhz": 930,
+          "median_mhz": 1725.0,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 30,
+          "min_mhz": 350,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 30,
+          "min_mhz": 925.0,
+          "median_mhz": 1684.5,
+          "max_mhz": 1699.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 30,
+          "min_mhz": 350.0,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      },
+      "4-T": {
+        "active_dpm_sclk_mhz": {
+          "count": 20,
+          "min_mhz": 930,
+          "median_mhz": 1725.0,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 20,
+          "min_mhz": 350,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 20,
+          "min_mhz": 926.0,
+          "median_mhz": 1623.5,
+          "max_mhz": 1686.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 20,
+          "min_mhz": 350.0,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      },
+      "5-J": {
+        "active_dpm_sclk_mhz": {
+          "count": 18,
+          "min_mhz": 930,
+          "median_mhz": 1665.5,
+          "max_mhz": 1725
+        },
+        "active_dpm_mclk_mhz": {
+          "count": 18,
+          "min_mhz": 350,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000
+        },
+        "hwmon_sclk_mhz": {
+          "count": 18,
+          "min_mhz": 926.0,
+          "median_mhz": 1625.0,
+          "max_mhz": 1688.0
+        },
+        "hwmon_mclk_mhz": {
+          "count": 18,
+          "min_mhz": 350.0,
+          "median_mhz": 1000.0,
+          "max_mhz": 1000.0
+        },
+        "interpretation": "DPM star is active level, not an instantaneous clock; hwmon is sampled raw input."
+      }
+    }
+  },
+  "limitations": [
+    "Two single-repetition samples per arm in one mirrored block; no confidence interval or repeat-block stability claim.",
+    "Host is active; interval annotations describe activity and imbalance. All planned samples are retained.",
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "Activity samples cover benchmark process intervals except explicitly reported unsampled tails/gaps; monitor data does not time exact PP/TG subphases.",
+    "Unrelated CPU sums known process tick deltas; new, disappeared or inaccessible processes limit attribution.",
+    "Disk activity sums physical-device read/write sectors, including mirrored storage; it is not unique application bytes.",
+    "No full HF gate, code-layout perturbation control, or landing claim is supplied by this screen.",
+    "Model, runtime binaries, focused executable and mx libraries remain rig payloads; completed runner input pins and copied build receipts are crosschecked here.",
+    "The activity monitor starts after focused checks; its coverage claim applies to the six timed calls only."
+  ],
+  "scope": "Q2 tree32 focused GPU operator checks and short model viability screen, not final reference/merge gate",
+  "elapsed_seconds": 175.88190078735352,
+  "disposition": "Proceed to affected HF qualification. Retain all mx samples; their 14.10% decode spread and activity imbalance require repeated matched measurement before a reference-gate claim.",
+  "raw_receipt": "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/results/execution.json",
+  "full_audit": {
+    "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/audit.json",
+    "sha256": "b2c4e6df4dd4dee9ab54d3e0bdde82e19c20cde2dc9d46870d24a3c37151b791",
+    "note": "Per-second activity annotations remain in the full audit and raw monitor. This record retains every timed result and per-call coverage/clock summaries."
+  },
+  "plan": {
+    "ready": true,
+    "stage": "Q2 TREE32 model screen; frozen J vs native candidate T vs pinned mx Vulkan",
+    "source_commit": "487ca07958c086bac1e7995db386d0f60faab2b1",
+    "main_commit": "5b25c3acf67bea9e2bf20e75c5853b6d35454991",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "arms": {
+      "J": {
+        "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-J/llmx",
+        "version": "llmx 0.1.0+unknown numerics f80e8ccb8ac1dbe0",
+        "sha256": "6d44d52b0ca06952de19aaa95489ee33d8b64b3318e2c3e955b6acb5bc6baa6d"
+      },
+      "T": {
+        "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/build-J/llmx",
+        "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b",
+        "sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a"
+      },
+      "mx": {
+        "root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1",
+        "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/llama-bench"
+      }
+    },
+    "focused_test": {
+      "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-test-fix/results/build-J/llmx-low-bits-test",
+      "sha256": "5d98af6cdf33d4f09b9efc08acbbd7f858889a9880c921e816a184160f13d9dc",
+      "source_sha256": "ef48c59b33404d77febc85e2703f2c801f65f92893791c07d022b6fb367e0257",
+      "build_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-build-receipt.json",
+      "source_file": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-source/low_bits.cpp",
+      "build_recipe": [
+        "cmake --build /out/build-J --parallel 2 --verbose --target llmx-low-bits-test",
+        "compile-only against copied candidate build tree; runtime llmx hash unchanged"
+      ]
+    },
+    "candidate_build_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/candidate-build-receipt.json",
+    "model": {
+      "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+      "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+      "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+      "bytes": 2310747584
+    },
+    "mx_pins": {
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0.6.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0.26.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0.26.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/llama-bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0.26.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0.26.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-bench-impl.so": "debea6a1da948375ce974bbf6f0b3161e69c2d15b17de3668a2393002f051724",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0.6.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6"
+    },
+    "input_pins": {
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-J/llmx": "6d44d52b0ca06952de19aaa95489ee33d8b64b3318e2c3e955b6acb5bc6baa6d",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/current-maind364-build/results/build-receipt.json": "0b6bc0bcd52dc78ef84dde6df0d5cbd0050775143417f7b76b89d087d5b03212",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/build-J/llmx": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/candidate-build-receipt.json": "6a9ac7ee72183a69e2befa02e9121aee01dba32eda57b985fef6cb521376df08",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-test-fix/results/build-J/llmx-low-bits-test": "5d98af6cdf33d4f09b9efc08acbbd7f858889a9880c921e816a184160f13d9dc",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-build-receipt.json": "195a4b64e26955c5e6e4b14d728a681464c61b5b884a20ff93de760152303118",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-screen/focused-test-source/low_bits.cpp": "ef48c59b33404d77febc85e2703f2c801f65f92893791c07d022b6fb367e0257"
+    },
+    "versions": {
+      "J": "llmx 0.1.0+unknown numerics f80e8ccb8ac1dbe0",
+      "T": "llmx 0.1.0+unknown numerics cd781581f6a20c9b"
+    },
+    "order": [
+      "J",
+      "T",
+      "mx",
+      "mx",
+      "T",
+      "J"
+    ],
+    "llmx_flags": [
+      "--p",
+      "4096",
+      "--n",
+      "256",
+      "--r",
+      "1",
+      "--threads",
+      "1",
+      "--ubatch",
+      "512",
+      "--seqs",
+      "1",
+      "--depth",
+      "0",
+      "--dtype",
+      "f16",
+      "--cache-type-k",
+      "f16",
+      "--cache-type-v",
+      "f16",
+      "--load-mode",
+      "direct",
+      "--drafter",
+      "off",
+      "--device",
+      "vulkan:0"
+    ],
+    "mx_flags": [
+      "-p",
+      "4096",
+      "-n",
+      "256",
+      "-d",
+      "0",
+      "-r",
+      "1",
+      "-t",
+      "1",
+      "-ngl",
+      "99",
+      "-b",
+      "4096",
+      "-ub",
+      "512",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "-fa",
+      "on",
+      "-lm",
+      "mmap",
+      "-o",
+      "json"
+    ],
+    "expected_path": {
+      "dtype": "f16",
+      "devices": [
+        [
+          "block-int16"
+        ]
+      ]
+    },
+    "native_witnesses": [
+      "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]",
+      "Q2_0 one-column dense row witness: matmul_row_q2_0_dot_1col_4row_tree",
+      "Q2_0 grouped two-row widths",
+      "Q2_0 routed row/narrow tile: one token, four selected experts",
+      "Q2_0 integer rows/tiles: grouped/routed/residual 65 rows",
+      "Q2_0 Vulkan dispatches: timestamps=available, row+tile witnessed"
+    ],
+    "native_focused": "Corrected candidate low-bits checks Q2 dense widths 512/576/1024, exact tree/fallback witnesses, grouped tails, mixed-scale repair at fallback/tree widths, and independent oracle/bit-equality coverage.",
+    "resources": {
+      "cpuset": "4",
+      "cpu_quota": 1,
+      "memory_GiB": 4,
+      "host_reserve_GiB": 2,
+      "minimum_free_disk_GiB": 2,
+      "mi50_pci": "0000:c3:00.0",
+      "render_node": "/dev/dri/renderD128",
+      "exclude_sibling": 12,
+      "card_lock": "/run/llmx-cards/renderD128.lock"
+    },
+    "activity_thresholds": {
+      "unrelated_cpu_core_equivalents": 1,
+      "disk_bytes_per_second": 104857600,
+      "non_target_gpu_busy_percent": 0,
+      "sample_gap_seconds": 3,
+      "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+    },
+    "memory_policy": {
+      "guard": "local memory_guard.py copied byte-for-byte from row-tree-cluster32-actual-memory",
+      "admission": "actual MemAvailable >= 2 GiB headroom + this screen container unused cap; PSI full avg10 < 10; retain upstream CPU admission failures",
+      "watchdog": "0.25 s samples; low RAM or observation error kills only this exact newly-created CID; normal stop does not kill",
+      "peer_docker_ceilings": "informational and never summed as reservations"
+    },
+    "scope_limit": "No widened matrix: only P4096/G256, one decode sequence, f16 weights/f16 KV, repeated mirrored order; no model-HF or broader performance claim."
+  }
+}

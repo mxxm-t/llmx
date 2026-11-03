@@ -1,0 +1,780 @@
+{
+  "status": "DONE_EXPLORATORY_SIGNED_TILE_MODEL_SCREEN",
+  "scope": "Bounded Qwen3-8B Q2_0 E/G/H lineage and mx model timing, focused H native/build checks, and zero-dispatch row ISA control. Not full HF or landing qualification.",
+  "provenance": {
+    "screen_source": "scratch/q2-prefill-code-table-20261103/model-integration-ef/workgroup-signed-screen/results",
+    "execution_sha256": "c1f6e54bd3b764d3df26cf72325db4c1b6a909fa85b3e64ba94563e71573a0b8",
+    "plan_sha256": "41819ef1d364bf181d01aea6867f3eb728c5cdf2ce471cef43d0aa0a13317c6f",
+    "plan_file_sha256": "41819ef1d364bf181d01aea6867f3eb728c5cdf2ce471cef43d0aa0a13317c6f",
+    "container_id": "a8efbcf2c13e9dcd2d2c3c7ecb006b3cc139910c22715b828c4817aff57d0d0e",
+    "elapsed_seconds": 144.95687794685364,
+    "container_removed": true,
+    "monitor_exit": 0,
+    "oom_killed": false,
+    "model": {
+      "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+      "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+      "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+      "bytes": 2310747584
+    },
+    "device": {
+      "pci": "0000:c3:00.0",
+      "node": "/dev/dri/renderD128",
+      "vendor": "0x1002",
+      "device": "0x66a1",
+      "busy": 0,
+      "vram_used": 10932224,
+      "performance_level": "auto",
+      "other_container_handles": [
+        {
+          "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+          "name": "/cdev-abc-run2",
+          "top": "PID                 COMMAND\n5607                sleep",
+          "target_handles": []
+        }
+      ],
+      "production_id": "5393a1f438ebc0ae320340099c66ca7134c502dbd97c51a48c87cf491aebde22",
+      "protected": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-58efd82a7",
+        "/zpool1/llmx-serve/flash-preview-58efd82a7",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk"
+      ],
+      "errors": []
+    },
+    "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+    "order": [
+      "G",
+      "H",
+      "mx",
+      "mx",
+      "H",
+      "G"
+    ],
+    "versions": {
+      "G": "llmx 0.1.0+unknown numerics 76311c0040cd85e2",
+      "H": "llmx 0.1.0+unknown numerics 968f125d02dfad4a"
+    },
+    "llmx_flags": [
+      "--p",
+      "4096",
+      "--n",
+      "256",
+      "--r",
+      "1",
+      "--threads",
+      "1",
+      "--ubatch",
+      "512",
+      "--seqs",
+      "1",
+      "--depth",
+      "0",
+      "--dtype",
+      "f16",
+      "--cache-type-k",
+      "f16",
+      "--cache-type-v",
+      "f16",
+      "--load-mode",
+      "direct",
+      "--drafter",
+      "off",
+      "--device",
+      "vulkan:0"
+    ],
+    "mx_flags": [
+      "-p",
+      "4096",
+      "-n",
+      "256",
+      "-d",
+      "0",
+      "-r",
+      "1",
+      "-t",
+      "1",
+      "-ngl",
+      "99",
+      "-b",
+      "4096",
+      "-ub",
+      "512",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "-fa",
+      "on",
+      "-lm",
+      "mmap",
+      "-o",
+      "json"
+    ]
+  },
+  "measurements_reparsed_from_raw_stdout": [
+    {
+      "tag": "0-G",
+      "arm": "G",
+      "rates": {
+        "pp4096": 701.23,
+        "tg256": 127.4
+      },
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exit": 0
+    },
+    {
+      "tag": "1-H",
+      "arm": "H",
+      "rates": {
+        "pp4096": 704.02,
+        "tg256": 127.2
+      },
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exit": 0
+    },
+    {
+      "tag": "2-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 724.116617,
+        "tg256": 132.628029
+      },
+      "path": [
+        {
+          "build_commit": "unknown",
+          "build_number": 0,
+          "cpu_info": "AMD EPYC 7262 8-Core Processor",
+          "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backends": "Vulkan",
+          "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+          "model_type": "qwen3 8B (guessed) Q2_0",
+          "model_size": 2304790528,
+          "model_n_params": 8190735360,
+          "n_batch": 4096,
+          "n_ubatch": 512,
+          "n_threads": 1,
+          "cpu_mask": "0x0",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 99,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "tensor_parallel_size": 0,
+          "main_gpu": 0,
+          "no_kv_offload": false,
+          "flash_attn": 1,
+          "devices": "auto",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "lazy_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 0,
+          "no_host": false,
+          "repack": true,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 4096,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-11-03T05:41:59Z",
+          "avg_ns": 5656547449,
+          "stddev_ns": 0,
+          "avg_ts": 724.116617,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            5656547449
+          ],
+          "samples_ts": [
+            724.117
+          ]
+        },
+        {
+          "build_commit": "unknown",
+          "build_number": 0,
+          "cpu_info": "AMD EPYC 7262 8-Core Processor",
+          "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backends": "Vulkan",
+          "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+          "model_type": "qwen3 8B (guessed) Q2_0",
+          "model_size": 2304790528,
+          "model_n_params": 8190735360,
+          "n_batch": 4096,
+          "n_ubatch": 512,
+          "n_threads": 1,
+          "cpu_mask": "0x0",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 99,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "tensor_parallel_size": 0,
+          "main_gpu": 0,
+          "no_kv_offload": false,
+          "flash_attn": 1,
+          "devices": "auto",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "lazy_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 0,
+          "no_host": false,
+          "repack": true,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 256,
+          "n_depth": 0,
+          "test_time": "2026-11-03T05:42:14Z",
+          "avg_ns": 1930210392,
+          "stddev_ns": 0,
+          "avg_ts": 132.628029,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            1930210392
+          ],
+          "samples_ts": [
+            132.628
+          ]
+        }
+      ],
+      "exit": 0
+    },
+    {
+      "tag": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp4096": 722.589697,
+        "tg256": 130.087804
+      },
+      "path": [
+        {
+          "build_commit": "unknown",
+          "build_number": 0,
+          "cpu_info": "AMD EPYC 7262 8-Core Processor",
+          "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backends": "Vulkan",
+          "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+          "model_type": "qwen3 8B (guessed) Q2_0",
+          "model_size": 2304790528,
+          "model_n_params": 8190735360,
+          "n_batch": 4096,
+          "n_ubatch": 512,
+          "n_threads": 1,
+          "cpu_mask": "0x0",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 99,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "tensor_parallel_size": 0,
+          "main_gpu": 0,
+          "no_kv_offload": false,
+          "flash_attn": 1,
+          "devices": "auto",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "lazy_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 0,
+          "no_host": false,
+          "repack": true,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 4096,
+          "n_gen": 0,
+          "n_depth": 0,
+          "test_time": "2026-11-03T05:42:26Z",
+          "avg_ns": 5668500415,
+          "stddev_ns": 0,
+          "avg_ts": 722.589697,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            5668500415
+          ],
+          "samples_ts": [
+            722.59
+          ]
+        },
+        {
+          "build_commit": "unknown",
+          "build_number": 0,
+          "cpu_info": "AMD EPYC 7262 8-Core Processor",
+          "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+          "backends": "Vulkan",
+          "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+          "model_type": "qwen3 8B (guessed) Q2_0",
+          "model_size": 2304790528,
+          "model_n_params": 8190735360,
+          "n_batch": 4096,
+          "n_ubatch": 512,
+          "n_threads": 1,
+          "cpu_mask": "0x0",
+          "cpu_strict": false,
+          "poll": 50,
+          "type_k": "f16",
+          "type_v": "f16",
+          "n_gpu_layers": 99,
+          "n_cpu_moe": 0,
+          "split_mode": "layer",
+          "tensor_parallel_size": 0,
+          "main_gpu": 0,
+          "no_kv_offload": false,
+          "flash_attn": 1,
+          "devices": "auto",
+          "tensor_split": "0.00",
+          "tensor_buft_overrides": "none",
+          "load_mode": "mmap",
+          "lazy_mode": "auto",
+          "embeddings": false,
+          "no_op_offload": 0,
+          "no_host": false,
+          "repack": true,
+          "fit_target": 0,
+          "fit_min_ctx": 0,
+          "n_prompt": 0,
+          "n_gen": 256,
+          "n_depth": 0,
+          "test_time": "2026-11-03T05:42:39Z",
+          "avg_ns": 1967901617,
+          "stddev_ns": 0,
+          "avg_ts": 130.087804,
+          "stddev_ts": 0.0,
+          "samples_ns": [
+            1967901617
+          ],
+          "samples_ts": [
+            130.088
+          ]
+        }
+      ],
+      "exit": 0
+    },
+    {
+      "tag": "4-H",
+      "arm": "H",
+      "rates": {
+        "pp4096": 703.22,
+        "tg256": 127.36
+      },
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exit": 0
+    },
+    {
+      "tag": "5-G",
+      "arm": "G",
+      "rates": {
+        "pp4096": 698.51,
+        "tg256": 127.16
+      },
+      "path": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exit": 0
+    }
+  ],
+  "blocks": [
+    {
+      "block": 1,
+      "rates": {
+        "G": {
+          "pp4096": 701.23,
+          "tg256": 127.4
+        },
+        "H": {
+          "pp4096": 704.02,
+          "tg256": 127.2
+        },
+        "mx": {
+          "pp4096": 724.116617,
+          "tg256": 132.628029
+        }
+      },
+      "H_vs_G_percent": {
+        "pp4096": 0.3978723100837023,
+        "tg256": -0.15698587127158659
+      },
+      "H_vs_mx_percent": {
+        "pp4096": -2.7753287976265306,
+        "tg256": -4.092671089909661
+      }
+    },
+    {
+      "block": 2,
+      "rates": {
+        "mx": {
+          "pp4096": 722.589697,
+          "tg256": 130.087804
+        },
+        "H": {
+          "pp4096": 703.22,
+          "tg256": 127.36
+        },
+        "G": {
+          "pp4096": 698.51,
+          "tg256": 127.16
+        }
+      },
+      "H_vs_G_percent": {
+        "pp4096": 0.6742924224420577,
+        "tg256": 0.1572821642025879
+      },
+      "H_vs_mx_percent": {
+        "pp4096": -2.680594129755487,
+        "tg256": -2.0968944944293244
+      }
+    }
+  ],
+  "pooled_medians": {
+    "G": {
+      "pp4096": 699.87,
+      "tg256": 127.28
+    },
+    "H": {
+      "pp4096": 703.62,
+      "tg256": 127.28
+    },
+    "mx": {
+      "pp4096": 723.353157,
+      "tg256": 131.3579165
+    }
+  },
+  "activity": {
+    "thresholds": {
+      "unrelated_cpu_core_equivalents": 1,
+      "disk_bytes_per_second": 104857600,
+      "non_target_gpu_busy_percent": 0,
+      "sample_gap_seconds": 3,
+      "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+    },
+    "samples": 127,
+    "missed_process_samples": 22,
+    "monitor_elapsed_seconds": 127.06794029499724,
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "per_call": [
+      {
+        "tag": "0-G",
+        "samples_in_window": 18,
+        "adjacent_intervals": 18,
+        "max_interval_seconds": 1.005,
+        "intervals_touching_missed_reads": 4,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": false,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      {
+        "tag": "1-H",
+        "samples_in_window": 18,
+        "adjacent_intervals": 18,
+        "max_interval_seconds": 1.004,
+        "intervals_touching_missed_reads": 6,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      {
+        "tag": "2-mx",
+        "samples_in_window": 26,
+        "adjacent_intervals": 26,
+        "max_interval_seconds": 1.004,
+        "intervals_touching_missed_reads": 8,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": false,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      {
+        "tag": "3-mx",
+        "samples_in_window": 26,
+        "adjacent_intervals": 26,
+        "max_interval_seconds": 1.004,
+        "intervals_touching_missed_reads": 8,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": false,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      {
+        "tag": "4-H",
+        "samples_in_window": 18,
+        "adjacent_intervals": 18,
+        "max_interval_seconds": 1.014,
+        "intervals_touching_missed_reads": 4,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": false,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      {
+        "tag": "5-G",
+        "samples_in_window": 18,
+        "adjacent_intervals": 18,
+        "max_interval_seconds": 1.016,
+        "intervals_touching_missed_reads": 10,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": false,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      }
+    ],
+    "flagged_calls_of_six": {
+      "unrelated_cpu_core_equivalents_gt_1": 6,
+      "disk_MiB_s_ge_100": 1,
+      "other_gpu_busy_gt_0": 6,
+      "sample_gap_seconds_gt_3": 0,
+      "unknown_activity": 6
+    },
+    "interpretation": "Every call has interval coverage. Unrelated CPU >1 core on 6/6; disk >=100 MiB/s on 1/6; non-target GPU busy >0 on 6/6; no >3s gaps; missed process reads make activity unknown in 6/6. Flags are annotations; all samples retained."
+  },
+  "H_build": {
+    "receipt": "scratch/q2-prefill-code-table-20261103/model-integration-ef/workgroup-signed-runtime/build-receipt.json",
+    "receipt_sha256": "9cb9be3354fec423f482f88e6747ad2b117ec07a55adfe18f89708c309926058",
+    "status": "DONE",
+    "seconds": 183.15543508529663,
+    "source_manifest_entries": 938,
+    "local_source_hash_mismatches": 0,
+    "binary_version": "llmx 0.1.0+unknown numerics 968f125d02dfad4a",
+    "binary_hashes": {
+      "llmx": "45c5d97815c6fd536c76978d28a13c2aed9e1518e6c93552cb4790f32591c709",
+      "llmx-low-bits-test": "a196be7d980142cfe11d72bcc7b307a7712188b3c59fe2c25b11a7a57d94baac"
+    },
+    "changed_generated_modules": {
+      "generated/vulkan/matmul_row_q2_0_dot.inc": {
+        "G": "6c82262aabebb57ee8d0c082dcffcf2192054f126c193bdd14dbedec53a43c7f",
+        "H": "173e8c4aeb44f3a5dcb7af591cf9df940f5c3f92689d0a71c77d21b7a3480a07"
+      },
+      "generated/vulkan/matmul_tile_q2_0_dot.inc": {
+        "G": "bb024fa891303cc08370b8509a1545ca9e0f44bb697e878cae87772a91cc8a82",
+        "H": "51e6358180e16059bbe8e41704a09ddc6e66a4e576faab8ea4a220fe34205257"
+      }
+    },
+    "unchanged_shader_modules": 332,
+    "non_numerics_build_fields_equal_G": {
+      "LLMX_BUILD_FLAGS": true,
+      "LLMX_GLSLC_VERSION": true,
+      "LLMX_BUILD_REVISION": true
+    }
+  },
+  "H_native": {
+    "focused_passed": true,
+    "focused_stdout_sha256": "c3bbde990dd6eaaabe3f16650cead92256d95ba827a64e8d07789fae69f507e6",
+    "witnesses": [
+      "low-bits Vulkan: Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses [ok]",
+      "Q2_0 one-column dense row witness: matmul_row_q2_0_dot_1col_4row",
+      "Q2_0 grouped two-row widths",
+      "Q2_0 routed row/narrow tile: one token, four selected experts",
+      "Q2_0 integer rows/tiles: grouped/routed/residual 65 rows",
+      "zero/tiny-scale range repair [ok]",
+      "Q2_0 Vulkan dispatches: timestamps=available, row+tile witnessed"
+    ],
+    "scope": "Focused MI50 low-bits suite only; 18 Q2 four-row witnesses and grouped/routed/range checks. No full HF."
+  },
+  "row_isa_control": {
+    "receipt": "scratch/q2-prefill-code-table-20261103/model-integration-ef/workgroup-signed-row-control/results/execution.json",
+    "execution_sha256": "81a1b565f18e96006595ca98a5077f515779f9ae1510f058ce565eb1ca09bde2",
+    "status": "DONE",
+    "mode": "compile only; zero dispatches; no timing result",
+    "actual_geometry_events": [
+      {
+        "event": "geometry",
+        "arm": 0,
+        "workgroup_threads": 64
+      },
+      {
+        "event": "geometry",
+        "arm": 1,
+        "workgroup_threads": 64
+      }
+    ],
+    "G_H_SPIRV_sha256": {
+      "G.spv": "29e0958bbfa4b7afdf960a7fe94839002ffcd24484340bdea8f88acc87e54b0b",
+      "H.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208"
+    },
+    "G_H_LocalSize": {
+      "G.spv": [
+        [
+          64,
+          1,
+          1
+        ]
+      ],
+      "H.spv": [
+        [
+          64,
+          1,
+          1
+        ]
+      ]
+    },
+    "physical_ISA_sha256": {
+      "G.physical.isa": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce",
+      "H.physical.isa": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce"
+    },
+    "physical_ISA_bytes_each": 105746,
+    "physical_ISA_text_equal": true,
+    "machine_code_equal": true,
+    "resources_per_arm": {
+      "0": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      },
+      "1": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      }
+    },
+    "verified_raw_file_count": 10,
+    "raw_file_hashes": {
+      "compile.stderr": "1f933cedd909d2c274e01442bebc8b84cab11e707495cb91fcdbeed72080f668",
+      "H.physical.isa": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce",
+      "G.spv": "29e0958bbfa4b7afdf960a7fe94839002ffcd24484340bdea8f88acc87e54b0b",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "G.physical.isa": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "H.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+      "compile.stdout": "eb4020a849a55328ca931d853bdd5f13800e8081e244b8f52be23b2afca0d2ee",
+      "probe": "ed8e3f6e10f8a7a53e40362d437fffe8e570b7b868a2753b4c431cf4880a9621",
+      "activity.jsonl": "95bdb3a92db67214cd02e116711a74ea3ee2f08661019cb994b9521dbc7e4050"
+    },
+    "legacy_plan_metadata": {
+      "fields": [
+        "primary_shape",
+        "secondary_shape",
+        "source_sha256",
+        "candidate_sha256",
+        "probe_source",
+        "analysis",
+        "new_probe_source_sha256",
+        "candidate_entry_sha256",
+        "baseline_entry_sha256"
+      ],
+      "disposition": "Inherited from the microprobe template and unused for this compile-only row control. Use execution.module_hashes, actual geometry events and captured ISA/statistics as authoritative. Do not infer timing.",
+      "values": {
+        "primary_shape": "M12288 N1 K4096 ROWS4 cluster32 E WG256 candidate WG64",
+        "secondary_shape": "M4096 N1 K12288 ROWS4 cluster32 E WG256 candidate WG64",
+        "source_sha256": "4b61b1c7433736acc162e9f0980b8df74b5aaa0febdceb3815259bee34193a6b",
+        "candidate_sha256": "266099dd1c484dc6c342280f6bea2132977e30ddcc4d0478550c4ad074e93852",
+        "probe_source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/workgroup-restore-micro-v2/results/probe",
+        "new_probe_source_sha256": "6b792059603e029405cc771ebd4c596ee30fb8f27ce01fd543510f976eabdbb2",
+        "candidate_entry_sha256": "f5e26a8be267882850d18f338b5bc39e2b0d06c9b4be5162a8c943580661ad6e",
+        "baseline_entry_sha256": "43de7118e63c48822470a5647939f708edec5715fbebba22838ddea5d5187add"
+      },
+      "modes": [
+        "compile"
+      ]
+    }
+  },
+  "windows": {
+    "status": "NO_H_WINDOWS_RUN",
+    "existing_receipt": "scratch/wg64-windows-receipt.txt",
+    "interpretation": "The existing clean-first Windows/low-bits receipt is for G, not H. Radeon VII uses generic Q2 rows and skips integer-preferred checks; it is not H validation.",
+    "receipt_sha256": "40ab35a3f593260bfa4496274c26f52abaa0738509246786b0537a3cb8bffa38",
+    "receipt_version": "llmx 0.1.0+g4f4ee6cd327c.dirty numerics 76311c0040cd85e2 (G)"
+  },
+  "screen_raw_file_hashes": {
+    "activity.jsonl": "40825f544825be3d1b45ef132db2f3e0d62d12813fa932612ae5f85dbc46f2ac",
+    "4-H.stdout": "1b6fcadde1015998b9c2301b0cd9b808d47fa0f3fdaa70c83ac91ccabc1fb6de",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "H-version.stdout": "2c524e4b981d5871ab2f2dde1f33bfccd94b7721a1fa8a361573aeafa983a2ba",
+    "1-H.stderr": "d6d14a65d3537d3181fdf945fe82a274afce7da983f8a01293ee900a5de4a577",
+    "0-G.stderr": "5b0b9e63a8d9d778a163168a62c501e659b4c271572c96af336fbffb695b1daf",
+    "3-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "2-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "H-focused.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "G-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "5-G.stdout": "14ad735976f92c8121541377e791fb22c57952756aa7a245d328764ad14bb3d0",
+    "H-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "1-H.stdout": "4915a86e6b969156ec4464af8651994052210ca5303cbdcf94044a954f55ca92",
+    "4-H.stderr": "3ec6035a53f6383b0bac415c558825dc26ff52815161e1d0f82f50b94cf33914",
+    "5-G.stderr": "796f9cf98092257f1411b673515547c788eb1b1aaf1f81215850575aa297e122",
+    "3-mx.stdout": "4e4767e7c9ff278ba6b038af0237ac1dedde5ffcc07a747d5944b48855115b43",
+    "0-G.stdout": "b9ecdee6f40fd72a445406aa5fc4737038b5c103c41b4488f2b172af4166702c",
+    "2-mx.stdout": "7fc6dd54b30b9734801261b57d7b1de6c7b7b52250bf15dfae1483c26db54577",
+    "H-focused.stdout": "c3bbde990dd6eaaabe3f16650cead92256d95ba827a64e8d07789fae69f507e6",
+    "G-version.stdout": "e2b05b88d791f637f21c33efd54ba78ddeb34470ee218b37c659c4af02b7d137"
+  },
+  "build_source_manifest_validation": {
+    "entries": 938,
+    "matched_current_worktree_files": 938,
+    "mismatches": []
+  },
+  "limits": [
+    "Six single-run calls across two mirrored blocks only. H prefill rate is modestly above G; decode medians are identical.",
+    "H is below mx in both phases on both blocks. The remaining speed gap is open.",
+    "No full HF, released-file/depth, split, hosted CI or Windows H check.",
+    "Activity flags and missed process coverage are retained; root-cause/performance attribution is not established."
+  ],
+  "next": "Complete full H correctness and landing gates, then address the remaining matched mx speed gap."
+}

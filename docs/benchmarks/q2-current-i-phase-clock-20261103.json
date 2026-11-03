@@ -1,0 +1,302 @@
+{
+  "schema": "llmx.q2.current-i-phase-clock-audit.v1",
+  "scope": "Current native I phase-clock diagnostic. Fixed24576x512x4096 unsplit matching gate/up combined extent, singleprojection not exactruntimegroup. No product change.",
+  "plan_sha256": "09c7c313bb3d3580308068193fc9606a291acbecf9d2da3f1bf1d3440bd5c8ec",
+  "execution_sha256": "830684d342105e51cfc99b578a97c43754c03d14cbea737ba54aa0146881792d",
+  "run_receipt_sha256": "2893963428d4742779e347ad1378665483bf21426fe81f41312d6b1f6605b1b0",
+  "compile_receipt_sha256": "371ee521dbcc76151886c55c2c616869a9127fb7d3eaee94e2b73d6704096a1d",
+  "validation_sha256": "0b7aca7c8cba63b6ddcf9d6cad6dcf2dfa95a493958879687c104214dbdbaab7",
+  "result_files": {
+    "arm0.isa": {
+      "expected": "3cc1dbe2ef5edda1af346fff78480239ad3feffe99af34fb0bbff1a11d9bcdd8",
+      "actual": "3cc1dbe2ef5edda1af346fff78480239ad3feffe99af34fb0bbff1a11d9bcdd8",
+      "matches": true
+    },
+    "monitor.stop": {
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    "block-0.stdout": {
+      "expected": "fac1a7541cd48662f6e763e1ce19ba05136e2129f5f0171cbbda53f285beef97",
+      "actual": "fac1a7541cd48662f6e763e1ce19ba05136e2129f5f0171cbbda53f285beef97",
+      "matches": true
+    },
+    "compile-isa.stderr": {
+      "expected": "7aaf7c4b4bc80fbcd33699ff550015fce5b76cb46fde1cdaf0ba680c55634161",
+      "actual": "7aaf7c4b4bc80fbcd33699ff550015fce5b76cb46fde1cdaf0ba680c55634161",
+      "matches": true
+    },
+    "probe": {
+      "expected": "2a662f34294fbc23e33525e823039d8cdddd344557308a077083c7e835cbdf43",
+      "actual": "2a662f34294fbc23e33525e823039d8cdddd344557308a077083c7e835cbdf43",
+      "matches": true
+    },
+    "arm1.isa": {
+      "expected": "927d522caa4cc21777003ccebb1da5222f346efe1c601ccb9e08f5f17b16806c",
+      "actual": "927d522caa4cc21777003ccebb1da5222f346efe1c601ccb9e08f5f17b16806c",
+      "matches": true
+    },
+    "monitor.log": {
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    "block-1.stderr": {
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    "block-0.stderr": {
+      "expected": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "actual": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "matches": true
+    },
+    "compile-isa.stdout": {
+      "expected": "792633e30f57aa03987422f880b2f02352ca3a37ebacd6a48b84f80a306e9598",
+      "actual": "792633e30f57aa03987422f880b2f02352ca3a37ebacd6a48b84f80a306e9598",
+      "matches": true
+    },
+    "activity.jsonl": {
+      "expected": "ac3011072d36fac1788f05e987221aa1739b275e5ecdee490872468e933ab316",
+      "actual": "ac3011072d36fac1788f05e987221aa1739b275e5ecdee490872468e933ab316",
+      "matches": true
+    },
+    "clock.spv": {
+      "expected": "10fc338d92405d294e6b4943214f1ec8ccb3d05c649d65c0025928d96e840ddf",
+      "actual": "10fc338d92405d294e6b4943214f1ec8ccb3d05c649d65c0025928d96e840ddf",
+      "matches": true
+    },
+    "base.spv": {
+      "expected": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+      "actual": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+      "matches": true
+    },
+    "block-1.stdout": {
+      "expected": "6d216cd5c05ee641b23ca4c8c5d2697035beaee0b3ef474cee7d1b38ca7a6f6c",
+      "actual": "6d216cd5c05ee641b23ca4c8c5d2697035beaee0b3ef474cee7d1b38ca7a6f6c",
+      "matches": true
+    }
+  },
+  "result_file_count_verified": 14,
+  "result_file_count": 14,
+  "launch_inputs": {
+    "receipt_entries": 90,
+    "verified": 90,
+    "mismatches": [],
+    "receipt_input_manifest_sha256": "d1b998d2700137ae847a6f529c1a3538f6cd0b99931455ea72c182c9a423ee75"
+  },
+  "build_and_validation": {
+    "compile_status": "DONE",
+    "base_i_spv_sha256": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+    "instrumented_spv_sha256": "10fc338d92405d294e6b4943214f1ec8ccb3d05c649d65c0025928d96e840ddf",
+    "base_matches_expected_native_i": true,
+    "validation_status": "PASS",
+    "validation_modules": {
+      "base.spv": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+      "clock.spv": "10fc338d92405d294e6b4943214f1ec8ccb3d05c649d65c0025928d96e840ddf"
+    },
+    "run_status": "DONE",
+    "completed": true,
+    "removed": true,
+    "monitor_exit": 0,
+    "wall_seconds": 85.1639404296875,
+    "container_state_snapshot": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 1809620,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-11-03T07:55:51.596694624Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "container_state_snapshot_is_pre_removal": true
+  },
+  "fixed_shape": {
+    "M": 24576,
+    "N": 512,
+    "K": 4096,
+    "tile_rows": 128,
+    "parts": 1
+  },
+  "timing_ms": {
+    "base_plain_I": {
+      "count": 8,
+      "mean": 13.6752,
+      "median": 13.655360000000002,
+      "min": 13.54976,
+      "max": 13.84208
+    },
+    "phase_clock_instrumented": {
+      "count": 8,
+      "mean": 14.70428,
+      "median": 14.72896,
+      "min": 14.55856,
+      "max": 14.7808
+    },
+    "mean_observer_overhead_percent": 7.525155025155028,
+    "median_observer_overhead_percent": 7.862114217420846,
+    "blocks": [
+      {
+        "block": 0,
+        "base_mean_ms": 13.66232,
+        "instrumented_mean_ms": 14.66776,
+        "mean_overhead_percent": 7.359218639294052,
+        "base_calls": 4,
+        "instrumented_calls": 4
+      },
+      {
+        "block": 1,
+        "base_mean_ms": 13.68808,
+        "instrumented_mean_ms": 14.7408,
+        "mean_overhead_percent": 7.690779130455128,
+        "base_calls": 4,
+        "instrumented_calls": 4
+      }
+    ]
+  },
+  "phase_clock": {
+    "measured_clock_calls": 8,
+    "records_each": [
+      1536
+    ],
+    "valid_sums_each": [
+      1536
+    ],
+    "steps_each": [
+      98304
+    ],
+    "blocks_each": [
+      196608
+    ],
+    "phase_aggregate_sums": {
+      "staging": 93294380,
+      "dot": 174930188,
+      "scale_and_block_checks": 46503872,
+      "residual": 11751048,
+      "steps": 786432,
+      "blocks": 1572864,
+      "valid_records": 12288,
+      "total": 326479488
+    },
+    "shares": {
+      "staging": {
+        "aggregate_share_percent": 28.575877943057787,
+        "mean_call_share_percent": 28.575708728063674,
+        "min_call_share_percent": 28.27690598889706,
+        "max_call_share_percent": 28.941354146064196
+      },
+      "dot": {
+        "aggregate_share_percent": 53.58075910729191,
+        "mean_call_share_percent": 53.58087193310313,
+        "min_call_share_percent": 53.31728098194668,
+        "max_call_share_percent": 53.81132660096808
+      },
+      "scale_and_block_checks": {
+        "aggregate_share_percent": 14.244040961005183,
+        "mean_call_share_percent": 14.244091193382896,
+        "min_call_share_percent": 14.163495782489989,
+        "max_call_share_percent": 14.296692930161187
+      },
+      "residual": {
+        "aggregate_share_percent": 3.5993219886451184,
+        "mean_call_share_percent": 3.5993281454502988,
+        "min_call_share_percent": 3.577869089499133,
+        "max_call_share_percent": 3.6150744799736727
+      }
+    }
+  },
+  "resource_classes": {
+    "base": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2,
+      "Code size": 24492
+    },
+    "instrumented": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2,
+      "Code size": 25544
+    },
+    "classes_match": true
+  },
+  "monitor_activity": {
+    "sample_points": 82,
+    "sample_intervals": 81,
+    "span_start": "2026-11-03T07:55:51.933863+00:00",
+    "span_end": "2026-11-03T07:57:12.947919+00:00",
+    "max_sample_interval_seconds": 1.002795223997964,
+    "missed_process_reads": 25,
+    "disappeared_process_records": 330,
+    "thresholds": {
+      "unrelated_cpu_ticks_per_second": 25,
+      "system_cpu_nonidle_percent": 75,
+      "physical_disk_bytes_per_second": 104857600,
+      "policy": "retain and report every call and flag; do not discard samples"
+    },
+    "per_command": {
+      "compile-isa": {
+        "intervals": 4,
+        "bracketed": true,
+        "flagged": {
+          "cpu": 4,
+          "system": 0,
+          "disk": 4
+        },
+        "max": {
+          "cpu_ticks_s": 572.6730809823491,
+          "system_nonidle_percent": 40.11479591836735,
+          "disk_bytes_s": 1189408597.9902818
+        }
+      },
+      "block-0": {
+        "intervals": 38,
+        "bracketed": true,
+        "flagged": {
+          "cpu": 38,
+          "system": 0,
+          "disk": 38
+        },
+        "max": {
+          "cpu_ticks_s": 449.8003327304883,
+          "system_nonidle_percent": 37.37373737373738,
+          "disk_bytes_s": 1222196151.1014285
+        }
+      },
+      "block-1": {
+        "intervals": 37,
+        "bracketed": false,
+        "flagged": {
+          "cpu": 37,
+          "system": 0,
+          "disk": 37
+        },
+        "max": {
+          "cpu_ticks_s": 447.7277202069201,
+          "system_nonidle_percent": 36.1128526645768,
+          "disk_bytes_s": 1226354803.2250998
+        }
+      }
+    },
+    "policy": "Retain and report all calls and flags; no sample rejection."
+  },
+  "interpretation_limits": [
+    "Observer overhead exceeds preregistered 5 percent threshold; phase shares are qualitative only.",
+    "Clock phase counters do not establish hardware stalls.",
+    "Single projection has M=24576 matching combined gate/up extent but is not the exact two-projection grouped dispatch (up-group2) and is not whole-model attribution.",
+    "Old D phase profile is not equivalent and is excluded."
+  ]
+}

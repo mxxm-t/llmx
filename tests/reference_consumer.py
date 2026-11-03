@@ -854,10 +854,13 @@ class MXFP4Consumer(unittest.TestCase):
         tight = {"logit": 2e-5, "nll": 1e-5}
         approved = {("q1-0", False, "dense-untied"): 5.647804260253906e-5,
                     ("q1-0", False, "dense-tied"): 5.647804260253906e-5,
+                    ("q2-0", True, "dense-untied"): 9.82012939453125e-5,
                     ("q1-0", True, "dense-untied"): 0.0001020159912109375,
                     ("q1-0", True, "dense-tied"): 0.0001020159912109375,
-                    ("q1-0", True, "moe"): 0.0001020159912109375}
-        for family in ("q1-0",):
+                    ("q1-0", True, "moe"): 0.0001020159912109375,
+                    ("q2-0", True, "dense-tied"): 9.82012939453125e-5,
+                    ("q2-0", True, "moe"): 9.82012939453125e-5}
+        for family in ("q1-0", "q2-0"):
             for split in (False, True):
                 path = directory / ("baseline_" + family.replace("-", "_") + ("_split" if split else "") + ".json")
                 for golden in json.loads(path.read_text())["fixtures"]:
@@ -882,7 +885,8 @@ class MXFP4Consumer(unittest.TestCase):
         import low_bits
         with patch.object(low_bits, "run_family", return_value=True) as run:
             self.assertTrue(low_bits.run())
-        self.assertEqual(run.call_args_list, [unittest.mock.call("q1-0", "Q1_0", low_bits.fixture_q1, family="q1-0")])
+        self.assertEqual(run.call_args_list, [unittest.mock.call("q1-0", "Q1_0", low_bits.fixture_q1, family="q1-0"),
+                                             unittest.mock.call("q2-0", "Q2_0", low_bits.fixture_q2, family="q2-0")])
 
     def test_q3_family_changes_only_witnessed_bf16(self):
         doc = json.loads((Path(common.ROOT) / "tests/data/dtype_budget.json").read_text())

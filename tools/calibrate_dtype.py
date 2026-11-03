@@ -10,6 +10,7 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
     python tools/calibrate_dtype.py --family q5-1 --output FILE
     python tools/calibrate_dtype.py --family q5-0 --output FILE
     python tools/calibrate_dtype.py --family q1-0 --output FILE
+    python tools/calibrate_dtype.py --family q2-0 --output FILE
     python tools/calibrate_dtype.py --family q3-k --output FILE
     python tools/calibrate_dtype.py --family iq4-xs --output FILE
     python tools/calibrate_dtype.py --family iq3-s --output FILE
@@ -20,7 +21,7 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
     python tools/calibrate_dtype.py --family iq1-s --output FILE
     python tools/calibrate_dtype.py --family iq1-m --output FILE
 
-Q1_0 also measure prospective F16 costs; each existing BF16 entry
+Q1_0 and Q2_0 also measure prospective F16 costs; each existing BF16 entry
 must reproduce unchanged before its missing F16 entry can be added.
 This reference tool does not qualify a runtime path.
 """
@@ -161,14 +162,15 @@ def family_models(family):
     import iq3_xxs
     import iq2_small
     import low_bits
-    assert family in ("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m", "tq1-0", "tq2-0", "nvfp4", "q1-0"), "unknown calibration family"
+    assert family in ("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m", "tq1-0", "tq2-0", "nvfp4", "q1-0", "q2-0"), "unknown calibration family"
     fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture, "q3-k": q3_k.fixture, "iq4-xs": iq4_xs.fixture,
                "iq3-s": iq3_s.fixture, "iq2-s": iq2_s.fixture, "iq3-xxs": iq3_xxs.fixture,
                "iq2-xxs": iq2_small.fixture_xxs, "iq2-xs": iq2_small.fixture_xs,
                "iq1-s": partial(iq1.fixture, IQ1_S), "iq1-m": partial(iq1.fixture, IQ1_M),
                "tq1-0": tq.fixture_tq1, "tq2-0": tq.fixture_tq2, "nvfp4": nvfp4.fixture,
-               "q1-0": low_bits.fixture_q1}[family]
-    own_seed = tq.TQ2_SEED if family == "tq2-0" else nvfp4.NVFP4_SEED if family == "nvfp4" else 12345
+               "q1-0": low_bits.fixture_q1, "q2-0": low_bits.fixture_q2}[family]
+    own_seed = (tq.TQ2_SEED if family == "tq2-0" else nvfp4.NVFP4_SEED if family == "nvfp4" else
+                12346 if family == "q2-0" else 12345)
     for split in (False, True):
         for name, tied, moe in VARIANTS:
             for seed in (own_seed,) + SEEDS:
@@ -204,7 +206,7 @@ def family_budget(family, torch, transformers):
         doc = json.load(f)
     # Q3_K uses the generic F16 budget; Q1/Q2 measure F16 prospectively before candidate execution.
     dtypes = (("bf16",) if family == "q3-k" else
-              ("f16", "bf16") if family in ("tq1-0", "tq2-0", "nvfp4", "q1-0") else DTYPES)
+              ("f16", "bf16") if family in ("tq1-0", "tq2-0", "nvfp4", "q1-0", "q2-0") else DTYPES)
     runs = {d: [] for d in dtypes}
     for model, identity in family_models(family):
         for dtype in dtypes:
@@ -223,7 +225,7 @@ def family_budget(family, torch, transformers):
     if family in families and families[family] != measured:
         prior = families[family]
         bf16_only = dict(measured, dtypes={"bf16": measured["dtypes"]["bf16"]})
-        if family not in ("q1-0",) or set(prior.get("dtypes", {})) != {"bf16"} or prior != bf16_only:
+        if family not in ("q1-0", "q2-0") or set(prior.get("dtypes", {})) != {"bf16"} or prior != bf16_only:
             raise ValueError("reference differs from frozen family budget: " + family)
     families[family] = measured
     return doc
@@ -232,7 +234,7 @@ def family_budget(family, torch, transformers):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--output", required=True, help="new result file; never overwrites a frozen budget")
-    parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m", "tq1-0", "tq2-0", "nvfp4", "q1-0"), help="measure this raw-block fixture family; Q3_K measures BF16 only, Q1_0 F16 and BF16")
+    parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m", "tq1-0", "tq2-0", "nvfp4", "q1-0", "q2-0"), help="measure this raw-block fixture family; Q3_K measures BF16 only, Q1_0/Q2_0 F16 and BF16")
     args = parser.parse_args(argv)
     import torch
     import transformers

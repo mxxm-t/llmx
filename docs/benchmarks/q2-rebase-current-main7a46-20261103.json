@@ -1,0 +1,91 @@
+{
+  "schema": "llmx.q2.rebase-current-main-evidence.v1",
+  "source": {
+    "head": "4c3c997d4",
+    "base": "7a46dd672",
+    "prior_checkpoint": "d9c5abf01",
+    "range_diff": "All six Q2 patches are identical across the rebase.",
+    "upstream_delta": "Published tiled prompt-attention history split; includes attention tile/merge and xquant producer changes.",
+    "build_receipt": {
+      "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-build/build-receipt.json",
+      "sha256": "0f71414f82f715049c2890db848b1fe1cf636453a1e331f64d62789f0489019a",
+      "status": "DONE",
+      "seconds": 188.81677198410034,
+      "version": "llmx 0.1.0+unknown numerics c01b8e532df51828",
+      "verified_build_inputs": 938,
+      "unchanged_shader_modules": 277,
+      "changed_attention_xquant_producer_spv_modules": 57,
+      "q2_matrix_modules": "byte-identical to H"
+    }
+  },
+  "screen": {
+    "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen/results/execution.json",
+    "sha256": "51c867c195bab91f0e77d111037850dc8578de6b253af5750b600ed52b069358",
+    "status": "FAIL at memory admission before matched cohort completion",
+    "focused_i_low_bits": "PASS",
+    "first_h_observation": {
+      "stdout_path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen/results/0-H.stdout",
+      "stdout_sha256": "ddcd853cbfa233292fa7750f39170caee8badc46f3901f5016ae14465e9680e0",
+      "pp_tok_s": 698.39,
+      "tg_tok_s": 126.65,
+      "classification": "single interrupted-cohort observation; not a comparison or performance gate"
+    },
+    "memory_guard": {
+      "available_bytes": 30187954176,
+      "required_bytes": 36078051328
+    },
+    "focused_stdout_path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen/results/I-focused.stdout",
+    "focused_stdout_sha256": "c3bbde990dd6eaaabe3e16650cead92256d95ba827a64e8d07789fae69f507e6",
+    "next_cohort": "4g follow-up is recorded separately below."
+  },
+  "screen_4g": {
+    "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen-4g/results/execution.json",
+    "sha256": "23d8c0e51e58615a08924917808c778e2631c787c24b595ba01d7cb197d242d3",
+    "plan_path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen-4g/plan.json",
+    "plan_sha256": "9b99a678de3a2dc65e09a84c6cfdaa58cad8996f21bec831a8cdfd6843b3069b",
+    "activity_path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/current-main7a46-screen-4g/results/activity.jsonl",
+    "activity_sha256": "efd03a076903d1bfe2e36c548e7289109abd9a858bd1003c4fbf5c6b31e54780",
+    "status": "DONE",
+    "duration_seconds": 147.5431,
+    "calls": 6,
+    "raw_artifact_hashes_verified": "21/21 execution.json file pins matched; plan hash matched.",
+    "rates_tok_s": {
+      "H": {"pp4096": [705.68, 702.75], "tg256": [127.18, 127.28], "median": {"pp4096": 704.215, "tg256": 127.23}},
+      "I": {"pp4096": [691.66, 690.62], "tg256": [127.11, 126.93], "median": {"pp4096": 691.14, "tg256": 127.02}},
+      "mx": {"pp4096": [724.592445, 725.081914], "tg256": [127.986069, 128.663489], "median": {"pp4096": 724.8371795, "tg256": 128.324779}}
+    },
+    "pooled_median_comparison_percent": {
+      "I_vs_H_pp4096": -1.857,
+      "I_vs_H_tg256": -0.165,
+      "I_vs_mx_pp4096": -4.649,
+      "I_vs_mx_tg256": -1.017
+    },
+    "activity_thresholds": {
+      "source": "Frozen plan: unrelated CPU >1 core, disk >=100 MiB/s, non-target GPU busy >0, sample gap >3 s; annotations only.",
+      "H_0-H_and_5-H": {"cpu": "2/2 flagged", "disk": "2/2 flagged", "other_gpu": "0/2 flagged", "gap": "0/2 flagged", "unknown_process_coverage": "2/2 flagged"},
+      "I_1-I_and_4-I": {"cpu": "2/2 flagged", "disk": "2/2 flagged", "other_gpu": "0/2 flagged", "gap": "0/2 flagged", "unknown_process_coverage": "2/2 flagged"},
+      "mx_2-mx_and_3-mx": {"cpu": "2/2 flagged", "disk": "2/2 flagged", "other_gpu": "0/2 flagged", "gap": "0/2 flagged", "unknown_process_coverage": "2/2 flagged"},
+      "limitation": "Missed process reads leave activity coverage incomplete on all calls; all planned calls remain included."
+    },
+    "focused_i_low_bits": "PASS; Q2 dense/grouped/routed/residual row/tile and range-repair witnesses present.",
+    "interpretation": "Short diagnostic screen only. I trails H and mx in both phase medians; the decode medians are close, while all arms have CPU/disk activity flags and unknown process coverage. No full-HF, correctness, or landing qualification is claimed.",
+    "stdout_sha256": {
+      "0-H.stdout": "6fcc91e6d0cad5c37d8dfbadc72bbe27d27635a117888da4190bed8893e9cc66",
+      "1-I.stdout": "445c4d4ce36f76b3a206536ad044aa556551159dcc71286c43201ec50d7fc35c",
+      "2-mx.stdout": "6ee42e0f36ba41dd01c50c9326d402890297036efa2b8bfb088d85eac434ef55",
+      "3-mx.stdout": "9f89ef9b920a055f5ca2a37ec7abd0ef7e15e02b479b947c7a6afdafa64647cd",
+      "4-I.stdout": "a9298d430cc13d211a1a3f4ec750b90134d6eae8ad71917fb20dccbde59086cd",
+      "5-H.stdout": "e9e35becf284daff6b611662338dabdb08bc8bb5a4ab963945ff500881749289"
+    }
+  },
+  "qualification_limit": "Build identity and Q2 matrix SPIR-V equality do not establish numerical carry-forward. Assess each prior correctness result against whether its path exercises the rebased attention/xquant changes; rerun affected paths as needed. No full HF, depth, split, Windows I, hosted, or landing gate is certified here.",
+  "documentation_checks": {
+    "dead_code": "PASS; 8 findings match the existing list and 19 planted faults were detected.",
+    "docs": "PASS; zero findings and 21 planted faults.",
+    "docs_help_binary": {
+      "path": "worktrees/q2-main6f769-20261103/build-q2-current/Release/llmx.exe",
+      "sha256": "f3e08e97bca2ba9fd63ad24e35108dde6d88075f13dc846af317f8408600ecbd",
+      "identity": "prior G Windows binary, not current I"
+    }
+  }
+}

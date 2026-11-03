@@ -319,6 +319,12 @@ class ReferenceGenerator(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             generator.parse_args(["q1-q2"])
 
+    def test_q2_generator_uses_only_q2_raw_blocks(self):
+        import low_bits
+        with patch.object(generator, "gen_block_family") as generate:
+            generator.main(["q2-0"])
+        generate.assert_called_once_with("q2-0", "Q2_0", low_bits.fixture_q2, generator.parse_args(["q2-0"]).output_dir)
+
     def test_defaults_and_invalid_selection(self):
         default = generator.parse_args([])
         self.assertEqual(default.repo, "Qwen/Qwen3-0.6B")
@@ -1928,12 +1934,13 @@ class DtypeCalibration(unittest.TestCase):
         self.assertEqual(set(identities), expected)
         self.assertEqual(source.call_count, len(expected))
 
-    def test_q1_family_policies_and_their_canonical_seeds(self):
+    def test_q1_q2_family_policies_and_their_canonical_seeds(self):
         import low_bits
         torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
         transformers = SimpleNamespace(__version__="4.55.2")
         fixture_stub = ({"context_length": 16}, [], [])
-        for family, method, own_seed in (("q1-0", "fixture_q1", 12345),):
+        for family, method, own_seed in (("q1-0", "fixture_q1", 12345),
+                                         ("q2-0", "fixture_q2", 12346)):
             expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                         for split in (False, True) for seed in (own_seed, 0, 1, 2, 3)}
             with self.subTest(family=family), \
@@ -1959,7 +1966,7 @@ class DtypeCalibration(unittest.TestCase):
             self.assertEqual(set(result["families"][family]["dtypes"]), set(policies))
             self.assertEqual(result["families"][family]["dtypes"]["bf16"]["logit_budget"], 0.02)
 
-    def test_q1_add_only_missing_f16_without_replacing_frozen_entries(self):
+    def test_q1_q2_add_only_missing_f16_without_replacing_frozen_entries(self):
         torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
         transformers = SimpleNamespace(__version__="4.55.2")
         identity = {"fixture": "dense-tied", "split": True, "seed": 12346}
@@ -1968,7 +1975,7 @@ class DtypeCalibration(unittest.TestCase):
         def measured(model, torch, dtype, routing):
             routing.update(stable=True, calls=0)
             return (0.01, 0.001) if dtype == "f16" else (0.02, 0.002)
-        for family in ("q1-0",):
+        for family in ("q1-0", "q2-0"):
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "budget.json"
                 path.write_text(json.dumps(original))
@@ -1997,10 +2004,10 @@ class DtypeCalibration(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "frozen family"):
                         self.calibration.family_budget(family, torch, transformers)
 
-    def test_q1_family_cli_selectors(self):
+    def test_q1_q2_family_cli_selectors(self):
         torch = SimpleNamespace(__version__="2.5.1+cpu", set_num_threads=MagicMock())
         transformers = SimpleNamespace(__version__="4.55.2")
-        for family in ("q1-0",):
+        for family in ("q1-0", "q2-0"):
             with self.subTest(family=family), tempfile.TemporaryDirectory() as directory, \
                     patch.dict(sys.modules, {"torch": torch, "transformers": transformers}), \
                     patch.object(self.calibration, "family_budget", return_value={"family": family}) as measure:
@@ -2008,7 +2015,7 @@ class DtypeCalibration(unittest.TestCase):
                 self.calibration.main(["--family", family, "--output", str(target)])
                 measure.assert_called_once_with(family, torch, transformers)
                 self.assertEqual(json.loads(target.read_text()), {"family": family})
-        torch.set_num_threads.assert_has_calls([call(1)])
+        torch.set_num_threads.assert_has_calls([call(1), call(1)])
 
     def test_invalid_reference_cannot_freeze_a_budget(self):
         for value in (-1.0, float("nan"), float("inf")):

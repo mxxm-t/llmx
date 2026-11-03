@@ -1,0 +1,103 @@
+{
+  "schema": "llmx.q2.cpu-model-checkpoint.v1",
+  "execution_source_head": "8cf6f7f2e255f77c5ee81043864ffcc0bac7313c",
+  "cli_build_head": "feb7e9feb63c36b62e8c9fd9f5a098915a28bd73",
+  "runtime": "I4c3c997d4 unchanged; full938-input verification in q2-windows-i-focused-20261103.json",
+  "dtype": "f32",
+  "cache": "f32",
+  "devices": "CPU only",
+  "ordinary_hf": {
+    "status": "PASS",
+    "fixtures": [
+      "dense-untied",
+      "dense-tied",
+      "MoE"
+    ],
+    "full_logit_comparisons": 150,
+    "nll_checks": 12,
+    "max_reported_logit_error": 1.897e-05,
+    "logit_bound": 2e-05,
+    "max_reported_nll_error": 2.42e-06,
+    "nll_bound": 1e-05,
+    "skips": 0,
+    "root_argv_audit": "163calls:151logits including capability probe,12perplexity; all explicit CPU/F32. Uses pinned committed HF references, not freshly generated HF results."
+  },
+  "split_identity": {
+    "status": "PASS",
+    "tool": "llmx-split-check",
+    "short_calls": 12,
+    "fixtures": [
+      "dense-untied",
+      "dense-tied",
+      "MoE"
+    ],
+    "ubatches": [
+      1,
+      16
+    ],
+    "prompt_tokens": 13,
+    "steps": 3,
+    "topologies": [
+      "one CPU vs two CPU layer stages",
+      "one CPU TP2 group vs two stages of CPU TP2 groups"
+    ],
+    "comparison": "all prompt/decode/mixed/in-flight outputs bit-identical",
+    "forks_and_verify_rounds": 0
+  },
+  "context256_identity": {
+    "status": "PASS",
+    "fixture": "dense-untied only, same raw and packed weights as short split fixture; context256 is a distinct model identity",
+    "calls": 4,
+    "ubatch": 16,
+    "cases": [
+      {
+        "prompt": 100,
+        "steps": 40,
+        "topologies": 2,
+        "reported_forks_per_call": 2,
+        "reported_verify_rounds_per_call": 9
+      },
+      {
+        "prompt": 150,
+        "steps": 8,
+        "topologies": 2,
+        "reported_forks_per_call": 2,
+        "reported_verify_rounds_per_call": 0
+      }
+    ],
+    "comparison": "all prompt/decode/replay/verify/mixed/in-flight outputs bit-identical",
+    "fork_scope": "one block fork from each compared model"
+  },
+  "retained_setup_refusal": "Earlier attempt to run HF split through CLI --device cpu,cpu was rejected as duplicate device before comparisons. The test tool intentionally constructs independent CPU backends; identity comparisons through that tool do not substitute for HF TP2 checks.",
+  "root_audit": {
+    "verified_source_reference_runner_artifact_pins": 50,
+    "parsed_successful_short_tool_calls": 12,
+    "parsed_successful_long_tool_calls": 4,
+    "historical_runner_relocation": {
+      "declared_path": "scratch/wg64-i-q2-split-runner.py",
+      "preserved_path": "scratch/wg64-i-q2-hf-split-refused-runner.py",
+      "sha256": "ff154755bf92b429efdd0964660032d158758f4b326b72c15a05b7d99c1c6410",
+      "reason": "Worker reused the old filename for the tool runner. Root reconstructed and preserved the exact old bytes, matching the pre-existing hash. Original manifests and failed outputs remain unchanged."
+    }
+  },
+  "limits": [
+    "F32 CPU tiny-fixture coverage only, no performance claim.",
+    "Does not close released-model HF/depth, GPU split/dtype or hosted CI gates.",
+    "Zero limits changed."
+  ],
+  "raw_sha256": {
+    "scratch/wg64-i-q2-receipt.txt": "27b5f9c2194a82a82008886c8342b1a48aa8fd9dd961cab30dce04cd5a4c9008",
+    "scratch/wg64-i-q2-source-pins.json": "5f644fdd01a6c227b0543824497f2b2ee99d9babf47d598433eec178fd5ed1de",
+    "scratch/wg64-i-q2-ordinary.log": "bfd42c9337a430f66e50b5b42ee84ef56d9caea50058976e8080cf078d647735",
+    "scratch/wg64-i-q2-ordinary-argv.jsonl": "b544e19b649998ab6d0e587ab1ecca6266aab49d6de1276eb990143020b6264b",
+    "scratch/wg64-i-q2-hf-split-refused-runner.py": "ff154755bf92b429efdd0964660032d158758f4b326b72c15a05b7d99c1c6410",
+    "scratch/wg64-i-q2-split.log": "65b5e2f89843f636b7452ec1f3deacf90ab58e7eaa0fac25cf866483801f343d",
+    "scratch/wg64-i-q2-split-argv.jsonl": "acfe8337f1936ea68f12f4d4a2100b80eaeba4774e40c1611ee435eab951b0dc",
+    "scratch/wg64-i-q2-split-receipt.txt": "51927d48cc0cd69a3feadb5f8efed4761b1c60f79b229261ff80f28ff9fca2a2",
+    "scratch/wg64-i-q2-split-source-pins.json": "e8e64c41d47b3eea838654810d0f4ec3a221552afb93cb5245a2d61a7c989f20",
+    "scratch/wg64-i-q2-split-tool-output.jsonl": "a42f2e513081b7c2c4044394dea530287015b814835c9eba10a04781a15777d6",
+    "scratch/wg64-i-q2-context256-receipt.txt": "65187a26de145f60bdd8552ab8b64933e4643a77ff421bfcd42dba6b9c2eacfd",
+    "scratch/wg64-i-q2-context256-pins.json": "764fcb4fd6cc3efec8888df473b8a2948a5416518133380f454ae34724d1d5de",
+    "scratch/wg64-i-q2-context256-tool-output.jsonl": "32d93eabd54d05143f5da1d1da7aca510d7970853e6abd016fa11276240aad29"
+  }
+}

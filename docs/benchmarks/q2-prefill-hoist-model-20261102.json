@@ -1,0 +1,285 @@
+{
+  "scope": "Exploratory same-device ABBA model screen, not a correctness or merge gate",
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584
+  },
+  "receipt_sha256": "f06519180a0350047bb5ec70cb3fc03ee0f2b2bc1f984b2e6e2fe7cb218aac4c",
+  "receipt_rig": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-repair-hoist-20261102/model/model-run-out/execution.json",
+  "plan_sha256": "adedb317824ff369c8bba0c9c10851fc8871fd9f4dd27a13ec5fa77bd4d1238a",
+  "arms": {
+    "baseline": {
+      "version": "llmx 0.1.0+unknown numerics 4c047b36ad448639",
+      "cli_sha256": "eed31b1154c2c10c41b58d75aabf4476efff8daab24d188bf7668c2df47703b5",
+      "library_sha256": "bd293e7853afe5851f8cffbea118acdace04785b300003bfc60e25ba6b0bf839",
+      "config_sha256": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+      "build_info_sha256": "db2216313fb07cb04a7442254b2f68799c6ea44cf18f52a2b30553b112985a24",
+      "version_file_sha256": "0348e1cb8a6d9f08ad176c63263a234d257ef602384b1aa95265251c8f2dd9f8",
+      "mount": "/baseline"
+    },
+    "candidate": {
+      "version": "llmx 0.1.0+unknown numerics c4fb50f8fdc18937",
+      "cli_sha256": "8f1d044cbf9010fdbf6d2ca616fb3060b905522b0a81f1cb08f616337ce7ad81",
+      "library_sha256": "a85ffdcffc1c179491f6a9b06105952aec054b6820f37ac94257d5b71e32fc36",
+      "config_sha256": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+      "build_info_sha256": "c169fbe0636d6b6de9b56c4d7dd56487595ee21668f1a17a764ca38b1e69c60f",
+      "version_file_sha256": "a4b50b5d5b1e52e646edf2f1f7428c0bc9a17334b4508a26ed28439ad77dd66a",
+      "mount": "/candidate"
+    }
+  },
+  "changed_generated_modules": [
+    "generated/vulkan/matmul_tile_q2_0_dot.inc"
+  ],
+  "samples": [
+    {
+      "call": "q2-prefill-hoist-p4096-g256-0-baseline",
+      "workload": "q2-prefill-hoist-p4096-g256",
+      "arm": "baseline",
+      "start": 1793643594.089368,
+      "end": 1793643615.550965,
+      "exit": 0,
+      "rates": {
+        "pp4096": 599.47,
+        "tg256": 104.4
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-prefill-hoist-p4096-g256-1-candidate",
+      "workload": "q2-prefill-hoist-p4096-g256",
+      "arm": "candidate",
+      "start": 1793643617.1412663,
+      "end": 1793643636.6214237,
+      "exit": 0,
+      "rates": {
+        "pp4096": 697.66,
+        "tg256": 92.56
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-prefill-hoist-p4096-g256-2-candidate",
+      "workload": "q2-prefill-hoist-p4096-g256",
+      "arm": "candidate",
+      "start": 1793643638.1903207,
+      "end": 1793643657.5701284,
+      "exit": 0,
+      "rates": {
+        "pp4096": 695.94,
+        "tg256": 95.52
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-prefill-hoist-p4096-g256-3-baseline",
+      "workload": "q2-prefill-hoist-p4096-g256",
+      "arm": "baseline",
+      "start": 1793643659.1538286,
+      "end": 1793643680.499343,
+      "exit": 0,
+      "rates": {
+        "pp4096": 591.84,
+        "tg256": 105.78
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    }
+  ],
+  "median_tok_s": {
+    "baseline": {
+      "pp4096": 595.655,
+      "tg256": 105.09
+    },
+    "candidate": {
+      "pp4096": 696.8,
+      "tg256": 94.03999999999999
+    }
+  },
+  "throughput_change_percent": {
+    "pp4096": 16.98046688099655,
+    "tg256": -10.51479684080313
+  },
+  "activity": {
+    "status": "corrected offline activity extraction",
+    "receipt_sha256": "f06519180a0350047bb5ec70cb3fc03ee0f2b2bc1f984b2e6e2fe7cb218aac4c",
+    "file_hashes_verified": 17,
+    "all_file_hashes_match": true,
+    "calls_retained": 4,
+    "call_activity": [
+      {
+        "call": "q2-prefill-hoist-p4096-g256-0-baseline",
+        "arm": "baseline",
+        "rates": {
+          "pp4096": 599.47,
+          "tg256": 104.4
+        },
+        "intervals": 11,
+        "unrelated_cpu_core_eq_range": [
+          10.520429725188782,
+          11.345223961136222
+        ],
+        "system_nonidle_percent_range": [
+          68.06009144350098,
+          73.67055771725032
+        ],
+        "system_nonidle_core_eq_bound_range": [
+          10.889614630960157,
+          11.787289234760053
+        ],
+        "process_sum_exceeds_system_bound_intervals": 0,
+        "mi50_busy_percent_range": [
+          0,
+          100
+        ],
+        "system_disk_MiB_s_peak": 799.0334976764285
+      },
+      {
+        "call": "q2-prefill-hoist-p4096-g256-1-candidate",
+        "arm": "candidate",
+        "rates": {
+          "pp4096": 697.66,
+          "tg256": 92.56
+        },
+        "intervals": 11,
+        "unrelated_cpu_core_eq_range": [
+          10.830100529394473,
+          12.265532236397187
+        ],
+        "system_nonidle_percent_range": [
+          73.17073170731707,
+          77.86675208199871
+        ],
+        "system_nonidle_core_eq_bound_range": [
+          11.707317073170731,
+          12.458680333119794
+        ],
+        "process_sum_exceeds_system_bound_intervals": 0,
+        "mi50_busy_percent_range": [
+          0,
+          100
+        ],
+        "system_disk_MiB_s_peak": 1095.1864228842808
+      },
+      {
+        "call": "q2-prefill-hoist-p4096-g256-2-candidate",
+        "arm": "candidate",
+        "rates": {
+          "pp4096": 695.94,
+          "tg256": 95.52
+        },
+        "intervals": 10,
+        "unrelated_cpu_core_eq_range": [
+          10.549540433704738,
+          12.259076653057864
+        ],
+        "system_nonidle_percent_range": [
+          72.41715399610136,
+          77.39102147039688
+        ],
+        "system_nonidle_core_eq_bound_range": [
+          11.586744639376219,
+          12.382563435263501
+        ],
+        "process_sum_exceeds_system_bound_intervals": 0,
+        "mi50_busy_percent_range": [
+          0,
+          100
+        ],
+        "system_disk_MiB_s_peak": 655.4233671214002
+      },
+      {
+        "call": "q2-prefill-hoist-p4096-g256-3-baseline",
+        "arm": "baseline",
+        "rates": {
+          "pp4096": 591.84,
+          "tg256": 105.78
+        },
+        "intervals": 12,
+        "unrelated_cpu_core_eq_range": [
+          10.97826121973134,
+          11.785293336456204
+        ],
+        "system_nonidle_percent_range": [
+          72.66558966074314,
+          74.93514915693903
+        ],
+        "system_nonidle_core_eq_bound_range": [
+          11.626494345718902,
+          11.989623865110246
+        ],
+        "process_sum_exceeds_system_bound_intervals": 0,
+        "mi50_busy_percent_range": [
+          0,
+          100
+        ],
+        "system_disk_MiB_s_peak": 1099.2920190373156
+      }
+    ],
+    "results": {
+      "pp4096_baseline": 595.655,
+      "pp4096_candidate": 696.8,
+      "tg256_baseline": 105.09,
+      "tg256_candidate": 94.03999999999999
+    },
+    "activity_samples": 47,
+    "activity_records": 49,
+    "unrelated_cpu_core_eq_range_all_intervals": [
+      10.520429725188782,
+      12.265532236397187
+    ],
+    "system_nonidle_core_eq_bound_range_all_intervals": [
+      10.889614630960157,
+      12.458680333119794
+    ],
+    "process_sum_over_system_bound_interval_count": 0,
+    "raw_record_schema": "system_cpu contains aggregate CPU counters only; no per-core cpuN entries. GPU monitor fields include busy/VRAM only; no clocks, temperature, or power.",
+    "limitations": [
+      "Call association overlaps whole CLI calls including load and warmup; no PP/TG phase timestamps.",
+      "Disk counters include all system IO.",
+      "GPU busy samples are coarse and whole-call-associated."
+    ],
+    "superseded_error": "Prior report divided unrelated process tick deltas by 100 but omitted division by the sample interval duration (about 2 s), doubling core-equivalent figures. Corrected here; raw files unchanged."
+  },
+  "limits": [
+    "All four planned samples retained. No attribution from coarse activity alone.",
+    "Prefill and decode are separate bench phases. Depth-zero single-sequence decode starts fresh, not after the 4096-token prompt.",
+    "No GPU clock, power or temperature samples; no per-core activity or exact PP/TG activity boundaries.",
+    "Earlier mx results on a different physical card are not a matched reference for this run.",
+    "Row modules are unchanged. Host executable text and profile attribution require separate evidence.",
+    "No runtime source promoted. Prefill gain and decode loss must be assessed together."
+  ],
+  "next": "Compare per-phase GPU profiles, then decide on candidate before broader correctness qualification."
+}

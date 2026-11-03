@@ -1,0 +1,89 @@
+{
+  "schema": "llmx.q2-compact-lds-screen.v1",
+  "date_utc": "2026-11-01",
+  "scope": "Scratch-only Q2_0 block-int16 tile microexperiment; stage the packed weight byte as one uint in LDS, then use the existing Q2 decoder. No released runtime or qualification change.",
+  "base": {
+    "revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "probe_sha256": "a9cba8c20bcde9d5a457215c79e3594b8b069e7fc77f4de3e755571a19e0dc1e",
+    "shader_module_sha256": "22097258588665f9f45bc9d55a8d71c77d8adcd976de3921a1b7981c42647dc5"
+  },
+  "candidate": {
+    "source_tree_sha256": "90728d87ba29bd9ea13eaa6a02c835daa7679a52078194b1c0b8b6c6da31aaf4",
+    "overlay": {
+      "src/backends/vulkan/shaders/low_bits.glsl": "ba2674cab415e3f6fd07999e24041e507f2d45a74c5eccd1fbaa74cbea1547ba",
+      "src/backends/vulkan/shaders/matmul_tile_q.comp": "c041abd3bdcee5a96add2829512da2b0c8133b6d78b8ced737085f3bc5ce899d"
+    },
+    "library_sha256": "16411b05e8fa0e3a237b957b6235a379ee67086212ca32a7c94d194fef8f49b1",
+    "probe_sha256": "ede11b1308ea7e18f28ec6c1469e2496dc391af4bb8c5484f30fb11a769fa2c6",
+    "changed_generated_modules": 1,
+    "generated_module_count_each_arm": 334,
+    "changed_module": "generated/vulkan/matmul_tile_q2_0_dot.inc",
+    "changed_module_sha256": "d6450289e357ca3de63bb3a44b78e9a8f4b5f669d70205eb33c040295256ca03"
+  },
+  "build": {
+    "receipt_path": "scratch/q2-compact-lds-micro-v1/build-receipt.json",
+    "receipt_sha256": "7bc4f1fdc0d08da178370674bf5a4c623671638109a32905fecc022671a8fd50",
+    "log_path": "scratch/q2-compact-lds-micro-v1/build.log",
+    "log_sha256": "5f0a108df7dbc39653f63127d66014a6c8ffabd28def664bbbbc1b6b1644041b",
+    "exit_code": 0,
+    "container_removed": true,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "resources": "CPU 5, quota 1, 2 GiB memory and swap cap; no GPU exposed during build"
+  },
+  "screen": {
+    "plan_sha256": "449257f05d4c1f6fc243e05c04f05e44bba844b1b29d26b64dbccd7eec466c95",
+    "runner_sha256": "cc8283c807748d5defbd24de20eb0e71933e81ce9d8c2d9c5e7ed798749a5147",
+    "execution_path_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-compact-lds-micro-v1/run-out-v1/execution.json",
+    "raw_artifacts_path_local": "scratch/q2-compact-lds-micro-v1/raw-out",
+    "execution_sha256": "0ccecd5477ee6a6820ea68a7bd69214939e96ae60648b5c9f0f5650f680134ed",
+    "activity_path": "scratch/q2-compact-lds-micro-v1/raw-out/activity.jsonl",
+    "activity_sha256": "f8d360d21f5c658011f2a654c98b85bf5f55b773e2afd5c5f8f6e2b8e051bbe0",
+    "device": "MI50 renderD128, PCI 0000:c3:00.0",
+    "order": ["base", "candidate", "candidate", "base"],
+    "processes": 4,
+    "calls": 32,
+    "calls_per_process": 8,
+    "shapes_k_m_n": [[4096, 4096, 512], [12288, 4096, 512]],
+    "outputs_per_call_each_shape": 2097152,
+    "total_output_checks": 67108864,
+    "calls_per_shape_per_process": "one warmup and three measured",
+    "exact_output_oracle_and_path_witness": "All calls passed the independent exact integer oracle and reported block-int16 plus Q2 tall-tile execution.",
+    "container_removed": true,
+    "monitor_exit_code": 0,
+    "base_pins_unchanged": true,
+    "gpu_before_after_errors": [],
+    "measured_tile_ms": {
+      "K4096_base": [3.58048, 3.59216, 3.61024, 3.57904, 3.57520, 3.56816],
+      "K4096_candidate": [4.94064, 4.93856, 4.94144, 4.94704, 4.94160, 4.93856],
+      "K4096_median_ms": {"base": 3.57976, "candidate": 4.94104, "candidate_change_percent": 38.03},
+      "K12288_base": [9.83776, 7.54608, 7.48864, 9.78640, 8.19760, 6.84400],
+      "K12288_candidate": [10.85040, 8.36016, 8.37168, 11.36560, 8.05824, 8.23216],
+      "K12288_median_ms": {"base": 7.87184, "candidate": 8.36592, "candidate_change_percent": 6.28}
+    },
+    "driver_pipeline_statistics_static": {
+      "base_tile": {"instructions": 4025, "lds_bytes": 26624, "sgpr": 64, "vgpr": 128, "subgroups_per_simd": 2, "spills": 0, "scratch_bytes": 0},
+      "candidate_tile": {"instructions": 5263, "lds_bytes": 18432, "sgpr": 64, "vgpr": 128, "subgroups_per_simd": 2, "spills": 0, "scratch_bytes": 0},
+      "change": {"instructions": 1238, "lds_bytes": -8192},
+      "limitation": "Compiler resource/instruction statistics; not dynamic occupancy, stall, or bandwidth measurements."
+    },
+    "activity": {
+      "samples": 16,
+      "sample_period_seconds": 1,
+      "target_gpu_busy_percent_sampled": [0],
+      "transient_process_sampling_gaps": "FileNotFoundError for short-lived PIDs in several samples; retained by monitor.",
+      "other_gpu_activity": "High sampled utilization on other cards, including 0000:83:00.0, 0000:86:00.0, 0000:03:00.0 and 0000:44:00.0.",
+      "limitation": "One-second samples do not resolve individual short GPU calls; do not infer target-device idleness or a cause for timing differences from sampled utilization."
+    }
+  },
+  "docs_dead_checks": {
+    "binary": "worktrees/q2-main-b7eef-20261101/build-q2-integration/Release/llmx.exe",
+    "binary_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "dead_code": "8 expected findings, 19 planted faults, pass",
+    "docs": "0 findings, 21 planted faults, pass",
+    "log": "scratch/q2-compact-lds-micro-v1/docs-dead-check-final.log",
+    "log_sha256": "54fbd296bd2751057d166306230aa6438c8a5c950db17581ea43b1afd4ef5143"
+  },
+  "outcome": "No benefit: the candidate is 38.03% slower at K4096 and 6.28% slower at K12288 by measured tile medians. The latter has substantial within-arm spread. Reject this staging change; do not infer a whole-model effect or dynamic bottleneck from this micro screen."
+}

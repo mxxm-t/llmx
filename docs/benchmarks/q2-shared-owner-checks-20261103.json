@@ -1,0 +1,179 @@
+{
+  "status": "OPERATOR_AND_ISA_PASS_ORIGINAL_TERMINAL_FAIL_CLEANUP_RECOVERED",
+  "job_id": "20261102T234332Z-452927",
+  "original_terminal_status": "FAIL",
+  "original_terminal_seconds": 8.484867811203003,
+  "failure_class": "Runner cleanup name shadowing, not parser/kernel/operator failure",
+  "cause": "run_screen reused variable name for ISA keys; cleanup received tile64-owner instead of recorded owned container name. Identity guard correctly refused.",
+  "isa_comparisons": {
+    "row": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "all_opcode_counts_equal": true
+    },
+    "tile128": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "all_opcode_counts_equal": true
+    },
+    "tile64": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "all_opcode_counts_equal": true
+    }
+  },
+  "resources": {
+    "row-base": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "row-owner": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "tile128-base": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-base": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 19968,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    },
+    "tile128-owner": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-owner": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 19968,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    }
+  },
+  "zero_dispatch_processes": 3,
+  "operator_processes": 4,
+  "operator_calls": 390,
+  "row_calls": 384,
+  "row_finite_exact_outputs": 1624,
+  "row_nonfinite_class_outputs": 296,
+  "tile_exact_outputs": 61238,
+  "all_guards_inputs_pass": true,
+  "all_row_output_bits_match": true,
+  "monitor_exit": 0,
+  "supplemental_cleanup_status": "CLEANUP_RECOVERED",
+  "container_removed": true,
+  "postguard_errors": [],
+  "supplemental_cleanup_sha256": "75aa359b3b2eccef2f5645f88203502b24cb200fa69dafdf2e2e7592074c1e56",
+  "original_terminal_sha256": "2fbea569b6620522b9bde723233a6b5fd37e151bd100c4c093afd8838219cd0c",
+  "original_run_receipt_sha256": "9b0cd443a4a5dba89b24f389f8952b998bcc3f54db64bb1110f874e8c841db55",
+  "verified_artifacts": [
+    "run-out/device-limits.txt",
+    "run-out/isa-1.jsonl",
+    "run-out/isa-2.stderr",
+    "run-out/isa-0.jsonl",
+    "run-out/row-tail5.stderr",
+    "run-out/tile64-tail.stderr",
+    "run-out/tile-narrow-routed.stderr",
+    "run-out/isa-0.stderr",
+    "run-out/row-tail5.jsonl",
+    "run-out/tile128-base-physical.isa",
+    "run-out/monitor.stop",
+    "run-out/device-limits.stderr",
+    "run-out/activity.jsonl",
+    "run-out/tile-narrow-routed.jsonl",
+    "run-out/isa-2.jsonl",
+    "run-out/tile128-owner-physical.isa",
+    "run-out/tile64-tail.jsonl",
+    "run-out/tile64-base-physical.isa",
+    "run-out/row-owner-physical.isa",
+    "run-out/tile64-owner-physical.isa",
+    "run-out/tile128-tail.stderr",
+    "run-out/monitor.log",
+    "run-out/tile128-tail.jsonl",
+    "run-out/driver-pins.txt",
+    "run-out/row-base-physical.isa",
+    "run-out/isa-1.stderr",
+    "build-out/row-q2-owner.spv",
+    "build-out/tile-safety",
+    "build-out/row-q1-owner.spv",
+    "build-out/tile-q2-base.spv",
+    "build-out/row-q2-base.spv",
+    "build-out/row-probe",
+    "build-out/narrow-safety",
+    "build-out/tile-q2-owner.spv",
+    "build-out/tile-q1-owner.spv",
+    "build-out/tile-q1-base.spv",
+    "build-out/row-q1-base.spv",
+    "build-out/stats-probe"
+  ],
+  "activity": {
+    "samples": 6,
+    "intervals": 5,
+    "first": "2026-11-02T23:43:35.286947+00:00",
+    "last": "2026-11-02T23:43:40.260919+00:00",
+    "system_cpu_percent": {
+      "min": 20.933165195460276,
+      "median": 25.845564773452455,
+      "max": 29.539641943734015
+    },
+    "unrelated_cpu_cores": {
+      "min": 2.4289259532298395,
+      "median": 2.6988434133554535,
+      "max": 3.7470467239072414
+    },
+    "aggregate_disk_mib_s": {
+      "min": 1087.1653498327992,
+      "median": 1150.9170672670696,
+      "max": 1160.8819131505122
+    },
+    "flag_intervals": {
+      "system_saturated": 0,
+      "unrelated_cpu": 5,
+      "disk": 5,
+      "gap": 0
+    },
+    "process_snapshot_misses": 2,
+    "all_retained": true,
+    "limitations": "Native per-dispatch UTC timestamps unavailable; whole-process spans cannot reliably label individual dispatch activity. Aggregate disk counters may count multiple layers; unavailable GPU counters remain unknown."
+  },
+  "native_compilation": false,
+  "rerun": false,
+  "limits": [
+    "Original FAIL receipt and runner remain untouched; cleanup recovery is supplemental, not a rewritten DONE.",
+    "Exact driver ISA applies to captured row WG64/ROWS4/one-column and tile128/64 specializations; bounded operator checks include tails and narrow/routed, not full model/HF/CI qualification.",
+    "No next build/test or source integration performed pending root review."
+  ],
+  "root_verification": {
+    "raw_hashes": 26,
+    "physical_isa_pairs_byte_identical": 3,
+    "original_failure_and_recovery_hashes_verified": true
+  }
+}

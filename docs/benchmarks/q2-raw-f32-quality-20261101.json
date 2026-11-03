@@ -1,0 +1,90 @@
+{
+  "scope": "Completed raw16K full-vector descriptive F32 quality comparison for the prior 9ad runtime capture. No inference rerun, changed cutoff, combined producer receipt, or current integration qualification claim.",
+  "status": "complete-descriptive",
+  "acceptance_decision": null,
+  "overall_qualification_complete": false,
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "input_u32le_sha256": "9acae76cae017a4821f8e9f276dbeffd10d3834206ed9e94d97e420a3e30bf86",
+  "candidate": {
+    "candidate_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "candidate_CLI_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "candidate_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_pins_sha256": "808127326943dba4ee6d327c35e682f4d7a593bd535e24dfb43de0971b782c0e",
+    "candidate_source_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/source"
+  },
+  "runtime_scores_sha256": "ba75e53a8838fd8bd5607695ce61d7e49e57d7b4199c59e8561767a8d773d8cf",
+  "shape": [
+    512,
+    151936
+  ],
+  "scores_dtype": "<f4",
+  "score_positions": [
+    16383,
+    16894
+  ],
+  "arms": {
+    "original_F32_HF": {
+      "mean_nll": 4.944142244379151,
+      "mean_nll_delta_from_original_F32_HF": 0.0
+    },
+    "selected_policy_HF": {
+      "mean_nll": 4.944249487624389,
+      "descriptive_top1_counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "mean_nll_delta_from_original_F32_HF": 0.00010724324523803119,
+      "max_abs_logit_difference_from_F32_HF": 0.032763004302978516
+    },
+    "runtime_selected_policy": {
+      "mean_nll": 4.9444181208141185,
+      "descriptive_top1_counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "mean_nll_delta_from_original_F32_HF": 0.0002758764349675147,
+      "max_abs_logit_difference_from_F32_HF": 0.032161712646484375
+    }
+  },
+  "selected_policy_outcome": {
+    "counts": {
+      "exact": 512,
+      "accepted-tie": 0,
+      "miss": 0
+    },
+    "passed": true,
+    "original_document_sha256": "f8fc1beaf447997f170b130cda97ed57047f0b49aef228a4a88a56cc5a2a3247"
+  },
+  "identities": {
+    "contract_sha256": "0c79be21c017f4826a882834ce2ec49c84b71ea682c21818559d2a0623098050",
+    "consumer_sha256": "b74bf7018facc9064bf48fa5e127dbb0e92b80016d86daf24a3ac977c7b558a8",
+    "numeric_owner_sha256": "c8157d9356a3aca23624dcb54f75b84644fae1f045a176c56d6a0c1e2bc5797c",
+    "rule_owner_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "F32_execution_sha256": "154bda1e17e34bdc1a6ede7626f993d37465e40b3ea413de82f04d5a0a3ea736",
+    "F32_report_sha256": "f2116d5bd00ddda914ea7524a0908742f8ff379ffe5c5ba57aae12e66836be9e",
+    "F32_scores_sha256": "79f6c9dd53ede133e58efe317c7d9d9e74cc7a8b30bfe7cc2601dfbb5e38cee8",
+    "selected_reference_execution_sha256": "19d3b0e9042e9120c63b41e6962678bb016b0ae3dfcb5bd003bd5cb61abc7992",
+    "capture_execution_sha256": "be5c3dc662c613301086bb8d5fe9faba431a3524d6ec79cc1cb9132df023919c",
+    "selected_comparison_execution_sha256": "110a895391744279307f8040b84d6d27cadfa05bb634ea55a6a9fb79067aa16c",
+    "numpy_version": "2.2.6"
+  },
+  "comparison_execution": {
+    "sha256": "b4fb003de330b1dbcba71a836f113cb6e84000ddc104c64629a0bc6527e86731",
+    "result_sha256": "41518537a2b4d50609e1d0c9622bcdb5318260ccd0a651510e1146b999d22941",
+    "consumer_exit_code": 0,
+    "seconds": 13.469542503356934,
+    "memory_peak_bytes": 1009770496,
+    "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "cpu_stat": "usage_usec 10267730\nuser_usec 6125511\nsystem_usec 4142219\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 116\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+    "monitor_samples": 5,
+    "container_removed": true,
+    "remote_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-raw-depth-f32-compare-v1/run-out-e72"
+  },
+  "remaining": [
+    "Chat F32-quality comparison",
+    "Current integration validation and hosted checks",
+    "Open mx Vulkan performance deficits and existing-path layout control"
+  ]
+}

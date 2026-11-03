@@ -1,0 +1,61 @@
+{
+  "schema": "llmx.q2-chat-f32-quality.v1",
+  "recorded_utc": "2026-11-02",
+  "scope": "Descriptive comparison only; no acceptance decision or overall qualification claim.",
+  "capture_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+  "integration_head": "2a67405084b0808177685497400b4af00f36fbc0",
+  "integration_execution_claim": false,
+  "chat_comparison": {
+    "positions": 512,
+    "top1": {
+      "exact": 511,
+      "accepted_tie": 1,
+      "miss": 0
+    },
+    "original_f32_hf_mean_nll": 5.075472973677111,
+    "chat_runtime_mean_nll": 5.076071604564515,
+    "mean_nll_delta_from_original_f32_hf": 0.0005986308874037505,
+    "acceptance_decision": null,
+    "overall_qualification_complete": false
+  },
+  "artifacts": {
+    "execution_receipt": {
+      "path": "scratch/q2-chat-f32-final-compare-20261101/run-out-v3/execution.json",
+      "sha256": "7e52506a7c21f44e8947ad30f8c939b671ecccb3a0ca8d4bf7a74e3c8e92e8ab",
+      "exit_code": 0,
+      "removed": true
+    },
+    "comparison": {
+      "path": "scratch/q2-chat-f32-final-compare-20261101/run-out-v3/result/f32-comparison.json",
+      "sha256": "c779b4c553b1ab3d7685a0a0d307e2857257e7329664240121310ffdce7bfc37"
+    },
+    "f32_execution_snapshot": {
+      "path": "scratch/q2-chat-f32-final-compare-20261101/run-out-v3/result/f32-execution.snapshot.json",
+      "sha256": "0ddd542e7713484b24cafdc217311b56004f27c8991e941b5b9402eeb961c5a0"
+    },
+    "contract_sha256": "dac4e69d32e535ee0ec16f6e78f61e736899bf6b0a13c080b129667d3d081a9a",
+    "hf_report_sha256": "2daa459fcd08aa5a5e0f0e1ec6f359077dd9d2487a2d461cf1b1e4347b68f097",
+    "capture_execution_sha256": "be5c3dc662c613301086bb8d5fe9faba431a3524d6ec79cc1cb9132df023919c",
+    "scores_sha256": "2e3f753dacfba1e99c4cffc969f86b62aa8c1d7e570c05e1e32222bf158eeeef"
+  },
+  "capture_applicability": {
+    "receipt_path": "scratch/q2-capture-applicability-20261102.json",
+    "receipt_sha256": "4a0933facf5b9e2fe4bd311561312a339fd5f26211661d154269576d26a46c82",
+    "captured_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "staged_candidate_head": "2a67405084b0808177685497400b4af00f36fbc0",
+    "tracked_source_build_paths_checked": 211,
+    "identical_paths": 206,
+    "different_paths": 5,
+    "different_paths_list": [
+      "src/backends/rocm/kernels/f32.hip",
+      "src/backends/rocm/kernels/int16.hip",
+      "src/backends/rocm/rocm_backend.cpp",
+      "src/server/cache.hpp",
+      "src/server/scheduler.hpp"
+    ],
+    "non_server_non_rocm_sources_identical": true,
+    "working_tree_matches_index_after_crlf_normalization": true,
+    "limit": "Does not establish generated shader, binary identity or execution of the staged candidate."
+  },
+  "precision_budget_changed": false
+}

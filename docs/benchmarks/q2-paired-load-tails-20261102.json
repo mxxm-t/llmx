@@ -1,0 +1,296 @@
+{
+  "scope": "Focused operator tail checks, no performance or full-model correctness claim.",
+  "job_id": "20261102T152131Z-1095286",
+  "cases": [
+    {
+      "case": 0,
+      "arm": "base",
+      "M": 31,
+      "N": 3,
+      "K": 64,
+      "tile_rows": 32,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 93,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 0,
+      "arm": "candidate",
+      "M": 31,
+      "N": 3,
+      "K": 64,
+      "tile_rows": 32,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 93,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 1,
+      "arm": "base",
+      "M": 35,
+      "N": 65,
+      "K": 192,
+      "tile_rows": 32,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 4550,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 1,
+      "arm": "candidate",
+      "M": 35,
+      "N": 65,
+      "K": 192,
+      "tile_rows": 32,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 4550,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 2,
+      "arm": "base",
+      "M": 63,
+      "N": 5,
+      "K": 64,
+      "tile_rows": 64,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 315,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 2,
+      "arm": "candidate",
+      "M": 63,
+      "N": 5,
+      "K": 64,
+      "tile_rows": 64,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 315,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 3,
+      "arm": "base",
+      "M": 67,
+      "N": 65,
+      "K": 192,
+      "tile_rows": 64,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 8710,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 3,
+      "arm": "candidate",
+      "M": 67,
+      "N": 65,
+      "K": 192,
+      "tile_rows": 64,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 8710,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 4,
+      "arm": "base",
+      "M": 127,
+      "N": 63,
+      "K": 64,
+      "tile_rows": 128,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 8001,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 4,
+      "arm": "candidate",
+      "M": 127,
+      "N": 63,
+      "K": 64,
+      "tile_rows": 128,
+      "groups_x": 1,
+      "groups_y": 1,
+      "groups_z": 1,
+      "column_groups": 1,
+      "kper": 2,
+      "parts": 1,
+      "exact_outputs": 8001,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 5,
+      "arm": "base",
+      "M": 131,
+      "N": 67,
+      "K": 192,
+      "tile_rows": 128,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 17554,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    },
+    {
+      "case": 5,
+      "arm": "candidate",
+      "M": 131,
+      "N": 67,
+      "K": 192,
+      "tile_rows": 128,
+      "groups_x": 2,
+      "groups_y": 4,
+      "groups_z": 1,
+      "column_groups": 2,
+      "kper": 3,
+      "parts": 2,
+      "exact_outputs": 17554,
+      "guards_intact": true,
+      "inputs_unchanged": true,
+      "signed_zero_checked": true
+    }
+  ],
+  "exact_output_total": 78446,
+  "receipt_sha256": "0f4c493fca31cc020ca6a44169799e581b59789d82a94947501683517b00399b",
+  "outputs": {
+    "case-3.jsonl": {
+      "bytes": 1956,
+      "sha256": "bc85ca246a6f71a73ffa6b81136cbd7dc178632bb97b7edc2b89cfb9c1ac85ab"
+    },
+    "driver-pins.txt": {
+      "bytes": 219,
+      "sha256": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069"
+    },
+    "case-2.jsonl": {
+      "bytes": 1935,
+      "sha256": "26081ede1a700d3493ffb53d7d3294da9df6370d09f0aefc0a352690c9e899a1"
+    },
+    "case-4.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "activity.jsonl": {
+      "bytes": 320169,
+      "sha256": "d1713c46d6cbe81dadf592840db8755749df1dced1abd71bea2135ff53c7af51"
+    },
+    "case-2.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "monitor.stop": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case-1.jsonl": {
+      "bytes": 1956,
+      "sha256": "a7928cfc848d50cd80f5ed3e93c584031cd127ba9971b3216d898a119065489b"
+    },
+    "case-0.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case-0.jsonl": {
+      "bytes": 1928,
+      "sha256": "55a86f5efa67e5b10e451031bfce8e39c38036504710d41865b9bebaf9cd71e7"
+    },
+    "case-3.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "monitor.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case-1.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case-5.jsonl": {
+      "bytes": 1969,
+      "sha256": "41a1976317a1a13136eb91018d7e647b2f3234506a846e493391b7ed366f04b3"
+    },
+    "case-5.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case-4.jsonl": {
+      "bytes": 1960,
+      "sha256": "c5cdcc562babab5fe9454aecd60dec5f88f2e9c13d8036f682864fdcee92b505"
+    }
+  },
+  "limitations": "Device oracle covers each partial output for odd kper; reduction and model/HF correctness not established. Timings are incidental and carry no speed claim.",
+  "earlier_attempts": [
+    "attempt1: pre-container admission refusal; incorrect Z dispatch never reached GPU",
+    "attempt2: CRLF shell failure before C++ compilation; container removed"
+  ],
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-paired-load-next-stage-20261102/operator/jobs/20261102T152131Z-1095286"
+}

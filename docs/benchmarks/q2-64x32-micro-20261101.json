@@ -1,0 +1,232 @@
+{
+  "schema": "llmx.q2-64x32-micro.v1",
+  "status": "closed-no-demonstrated-speed-gain",
+  "purpose": "Compare the current Q2_0 block-int16 128x64 tile, the retained 128x32 trial, and a 64x32 geometry trial. Operator microbenchmark only.",
+  "source": {
+    "base_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "experiment_worktree_base": "19b4ff4a19c5861958777840e4e85acd6fec18e5",
+    "candidate_overlay_patch_sha256": "febec0fc98d468f492a4868da767c8c038a97f741f0d9222ea1739427f266190",
+    "candidate_patch_path": "scratch/q2-64x32-micro-v1/candidate.patch",
+    "overlay_sha256": {
+      "src/backends/vulkan/shaders/matmul_tile_q.comp": "2e18fa0b14a7ce091345c84aed1b1033a63473febbe479f42db93fa391e34f29",
+      "src/backends/vulkan/vulkan_backend.cpp": "5c5a21387f3e115c8112d0d038bfe5994055788bacfe40f3c39f4cc7537f7a17",
+      "src/backends/vulkan/vulkan_dispatch.hpp": "4964b203256ac26956631493b5c1250e05c9e426aae12fdc669f6fa820ffc184",
+      "src/backends/vulkan/vulkan_kernels.hpp": "0ab316bad25c40544c21b020040fbc313e23ba331557bf0803b088375720594e",
+      "src/backends/vulkan/vulkan_matmul.hpp": "0ac8dfa6e302f173382e29f1615e218a50ccb341f84d42d3fee0cdf200f9a1b2"
+    },
+    "overlay_preserved_at": "scratch/q2-64x32-micro-v1/overlay/",
+    "worktree_runtime_state": "All five temporary runtime edits were reverted; the experiment worktree is runtime-clean."
+  },
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": [
+      5
+    ],
+    "cpu_quota": 1,
+    "memory_bytes": 2147483648,
+    "memory_swap_bytes": 2147483648,
+    "gpu_exposed": false,
+    "base_source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "candidate_source_tree_sha256": "6b0e0c22cf39dd2c9b7e928b93f678f9c20c60e64d9f78df7f5b5925f8267ef8",
+    "base_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_library_sha256": "863b7642584be3842b42f06d9f86758826eb01595344dd8b07fdb36b26d7ebfa",
+    "candidate_helper_sha256": "490c95f15cc647a576bf9d25b4aeac8ccc80d85d9ec74c4bd3023b47d29af754",
+    "receipt_sha256": "e53b02fb2d41053ede119db6fdace2f44231374efc6f90ac8c1e8244bf33806c",
+    "receipt_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-64x32-micro-v1/build-out/receipt.json",
+    "generated_module_count_per_arm": 334,
+    "changed_modules": [
+      "generated/vulkan/matmul_tile_q2_0_dot.inc"
+    ],
+    "build_exit_code": 0,
+    "container_removed": true
+  },
+  "arms": {
+    "base_128x64": {
+      "library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+      "helper_sha256": "a9cba8c20bcde9d5a457215c79e3594b8b069e7fc77f4de3e755571a19e0dc1e",
+      "kernel_witness": "matmul_tile_q2_0_dot_tall"
+    },
+    "retained_128x32": {
+      "library_sha256": "6f98772f3f08ffd6bbd8943dd5114518e25ee7d871ecbbad7dc8372a34431854",
+      "helper_sha256": "21304395a4346495c118f11eb9cdea4392ba656f5937ab840662882424629ae0",
+      "kernel_witness": "matmul_tile_q2_0_dot_tall_32col"
+    },
+    "candidate_64x32": {
+      "library_sha256": "863b7642584be3842b42f06d9f86758826eb01595344dd8b07fdb36b26d7ebfa",
+      "helper_sha256": "490c95f15cc647a576bf9d25b4aeac8ccc80d85d9ec74c4bd3023b47d29af754",
+      "kernel_witness": "matmul_tile_q2_0_dot_32col_64row"
+    }
+  },
+  "run": {
+    "gpu": {
+      "render_node": "renderD131",
+      "pci": "0000:cc:00.0",
+      "before_busy_percent": 0,
+      "after_busy_percent": 0
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": [
+      5
+    ],
+    "cpu_quota": 1,
+    "memory_bytes": 2147483648,
+    "memory_swap_bytes": 2147483648,
+    "order": [
+      "base_128x64",
+      "retained_128x32",
+      "candidate_64x32",
+      "candidate_64x32",
+      "retained_128x32",
+      "base_128x64"
+    ],
+    "shapes": [
+      {
+        "K": 4096,
+        "M": 4096,
+        "N": 512,
+        "calls": 6,
+        "tile_gpu_ms_samples": {
+          "base_128x64": [
+            3.57168,
+            3.55936,
+            3.58784,
+            3.56896,
+            3.5776,
+            3.56176
+          ],
+          "retained_128x32": [
+            4.26112,
+            4.27504,
+            4.27072,
+            4.27968,
+            4.26704,
+            4.27184
+          ],
+          "candidate_64x32": [
+            4.2088,
+            4.20224,
+            4.20704,
+            4.20336,
+            4.20448,
+            4.2064
+          ]
+        },
+        "tile_gpu_median_ms": {
+          "base_128x64": 3.57032,
+          "retained_128x32": 4.27128,
+          "candidate_64x32": 4.20544
+        },
+        "candidate_percent_vs_base": 17.7888816689,
+        "wall_median_ms": {
+          "base_128x64": 5.453995,
+          "retained_128x32": 6.14377,
+          "candidate_64x32": 6.280785
+        }
+      },
+      {
+        "K": 12288,
+        "M": 4096,
+        "N": 512,
+        "calls": 6,
+        "tile_gpu_ms_samples": {
+          "base_128x64": [
+            9.57744,
+            6.79248,
+            6.13184,
+            9.66768,
+            7.45792,
+            7.49472
+          ],
+          "retained_128x32": [
+            11.7938,
+            8.10192,
+            7.4696,
+            11.132,
+            7.42496,
+            7.33312
+          ],
+          "candidate_64x32": [
+            10.6718,
+            8.24112,
+            7.35472,
+            11.6117,
+            7.50336,
+            7.00144
+          ]
+        },
+        "tile_gpu_median_ms": {
+          "base_128x64": 7.47632,
+          "retained_128x32": 7.78576,
+          "candidate_64x32": 7.87224
+        },
+        "candidate_percent_vs_base": 5.2956534766,
+        "wall_median_ms": {
+          "base_128x64": 9.58927,
+          "retained_128x32": 9.87978,
+          "candidate_64x32": 9.90139
+        }
+      }
+    ],
+    "exact_calls": 48,
+    "matrix_path": "block-int16",
+    "exact_integer_oracle_passed": true,
+    "slow_samples_discarded": false,
+    "execution_sha256": "0dd47b2b1246565eb924a67b85b0721857ed44c6570702ea2239ff2a1fa19f1c",
+    "activity_sha256": "873466debf7c9b59eff780338fe8567ec3686ac31d8e2a9d4c2ea476b7cc914b",
+    "plan_sha256": "1be8d6f379d91921d8902be5d5508f7b55275dc0f73601cb0453d51b2a0640b7",
+    "runner_sha256": "2b5f94fd269810305cf4eeb8999abfe5ffe18333681c57245f019889840e7c66",
+    "remote_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-64x32-micro-v1/run-out-v1/",
+    "local_raw_output": "scratch/q2-64x32-micro-v1/raw-out/"
+  },
+  "driver_pipeline_statistics": {
+    "base_128x64": {
+      "sgprs": 64,
+      "vgprs": 128,
+      "lds_bytes": 26624,
+      "spilled_sgprs": 0,
+      "spilled_vgprs": 0,
+      "reported_subgroups_per_simd": 2,
+      "static_instruction_estimate": 4025
+    },
+    "retained_128x32": {
+      "sgprs": 64,
+      "vgprs": 128,
+      "lds_bytes": 22016,
+      "spilled_sgprs": 0,
+      "spilled_vgprs": 0,
+      "reported_subgroups_per_simd": 2,
+      "static_instruction_estimate": 2775
+    },
+    "candidate_64x32": {
+      "sgprs": 64,
+      "vgprs": 64,
+      "lds_bytes": 13312,
+      "spilled_sgprs": 0,
+      "spilled_vgprs": 0,
+      "reported_subgroups_per_simd": 4,
+      "static_instruction_estimate": 2023
+    },
+    "interpretation_limit": "RADV executable statistics are static pipeline estimates. Reported subgroup limits are not measured achieved occupancy or a causal performance explanation."
+  },
+  "activity": {
+    "samples": 21,
+    "lines": 23,
+    "monitor_returncode": 0,
+    "unrelated_cpu_cores_max": 4.7079625822,
+    "unrelated_cpu_samples_over_one_core": 20,
+    "other_gpu_busy_samples": 21,
+    "system_disk_samples_over_100_MiB_s": 2,
+    "system_disk_max_MiB_s": 751.9363,
+    "missed_process_records": 10,
+    "limitations": "Short-lived processes may be missed; disappeared/new and inaccessible process observations are retained as coverage limits. Unavailable GPU counters are not zero. All samples and calls are retained."
+  },
+  "interpretation": "The 64x32 tile reduces reported static VGPR/LDS estimates versus 128x32, but both candidate widths are slower than 128x64 on both measured shapes. 64x32 is 1.54% faster than 128x32 at K4096 and 1.11% slower at K12288. No broad speed benefit was demonstrated, so no model/HF gate or runtime advancement followed. The high unrelated CPU, other-GPU and disk activity limits the precision of this short screen; no attribution is made.",
+  "qualification": "This is not model throughput, mx comparison, HF correctness, or a support qualification.",
+  "documentation_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-main-b7eef-20261101/build-q2-integration/Release/llmx.exe --only docs,dead-code",
+    "cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "dead_code": "PASS; 8 listed findings (1 unused, 7 test-only), 19 planted faults",
+    "docs": "PASS; 0 findings, 21 planted faults",
+    "log": "scratch/q2-64x32-micro-v1/docs-dead-check-final.log"
+  }
+}

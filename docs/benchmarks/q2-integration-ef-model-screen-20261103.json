@@ -1,0 +1,106 @@
+{
+  "scope": "Exploratory Q2_0 integration and signed tile screen. Not final merge qualification.",
+  "status": "COMPLETE_MX_VULKAN_GATE_OPEN",
+  "integration_base": "6f7698b07618edb52a5ce45bd91a6bc6c3de5e1a",
+  "device": "MI50 c3/renderD128, RADV VEGA20",
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584
+  },
+  "execution_sha256": "c8b89341d2fc3bb325acde2d81e607fccb047e124ee47e83fe77a0288ffe077b",
+  "plan_sha256": "df50c2d2d7d10b35b78f7205e3c218dcbd9c4536672d8a674b8ad0a81adf0683",
+  "raw_files_verified": 47,
+  "raw_calls_reparsed": 16,
+  "samples_discarded": 0,
+  "pre_timing_native_low_bits_complete": true,
+  "summaries": {
+    "pp4096": {
+      "block_medians": {
+        "ef-d-mx-p4096-g256-a": {
+          "D": 700.02,
+          "E": 699.095,
+          "F": 703.04,
+          "mx": 720.9770125
+        },
+        "ef-d-mx-p4096-g256-b": {
+          "D": 698.7449999999999,
+          "E": 698.64,
+          "F": 702.845,
+          "mx": 723.3410665
+        }
+      },
+      "pooled_medians": {
+        "D": 698.79,
+        "E": 698.69,
+        "F": 703.005,
+        "mx": 722.3681045
+      },
+      "within_arm_block_median_spread": {
+        "D": 1.275000000000091,
+        "E": 0.4550000000000409,
+        "F": 0.19499999999993634,
+        "mx": 2.36405400000001
+      },
+      "D_to_E_percent": -0.01431045092229466,
+      "E_to_F_percent": 0.6175843364009781,
+      "llmx_to_mx_ratio": {
+        "D": 0.967359986753125,
+        "E": 0.9672215531769788,
+        "F": 0.973194961987694
+      }
+    },
+    "tg256": {
+      "block_medians": {
+        "ef-d-mx-p4096-g256-a": {
+          "D": 110.465,
+          "E": 110.42,
+          "F": 111.38499999999999,
+          "mx": 131.475328
+        },
+        "ef-d-mx-p4096-g256-b": {
+          "D": 114.32,
+          "E": 106.055,
+          "F": 104.85499999999999,
+          "mx": 130.481218
+        }
+      },
+      "pooled_medians": {
+        "D": 111.935,
+        "E": 106.82,
+        "F": 108.945,
+        "mx": 131.0586495
+      },
+      "within_arm_block_median_spread": {
+        "D": 3.8549999999999898,
+        "E": 4.364999999999995,
+        "F": 6.530000000000001,
+        "mx": 0.9941099999999778
+      },
+      "D_to_E_percent": -4.569616295171308,
+      "E_to_F_percent": 1.9893278412282278,
+      "llmx_to_mx_ratio": {
+        "D": 0.8540832705589569,
+        "E": 0.8150549422531627,
+        "F": 0.8312690571407116
+      }
+    }
+  },
+  "disposition": {
+    "prefill": "Signed tile improves both blocks and exceeds frozen spread rule.",
+    "decode": "Pooled signed-tile gain is within spread. Block B regresses; no demonstrated decode gain.",
+    "overall": "No combined phase rejection rule. Keep signed tile as a prefill candidate. Both integration and candidate remain below mx Vulkan.",
+    "next": "Existing-binary native and mx profiles plus cgroup counters to locate decode gap. No full HF or CI rerun yet."
+  },
+  "limitations": [
+    "Activity flags on all calls retained; missing coverage unknown.",
+    "E/F matched builds. D is old integration, not same-source control.",
+    "Data/code layout not separately controlled.",
+    "llmx direct versus mx mmap; rates exclude loading.",
+    "mx actual context/offload counts lack independent runtime witnesses.",
+    "Original RESULT.md misstates TG block B and invents combined rejection. CORRECTED-DISPOSITION.md supersedes interpretation only."
+  ],
+  "evidence_root": "scratch/q2-prefill-code-table-20261103/model-integration-ef/model-screen/results/20261103T041000Z-p4096-g256",
+  "correction_sha256": "e8b9bd8776713761b39acd15651a7ab7ebc4f9f75febf071ea91dbf2bacf0d61"
+}

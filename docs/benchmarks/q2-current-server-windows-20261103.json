@@ -1,0 +1,117 @@
+{
+  "scope": "Windows CPU server component only; partial platform evidence",
+  "revision": "b6545e9724088982ff7c34131fc6ae11681c4db3",
+  "source": {
+    "binary_source_revision": "9cd51acb7394b6028c17fd2ab818ef7f345291fc",
+    "source_carry": "runtime/tests identical across latest documentation-only rebase",
+    "runtime_and_tests_revision": "b6545e9724088982ff7c34131fc6ae11681c4db3"
+  },
+  "binary": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\build-q2-j-current\\Release\\llmx.exe",
+    "sha256": "dbe3136ab3bb518c09b7fa3feaa087c2fd842c1441fad173247404dae50b0f52",
+    "version": "llmx 0.1.0+g9cd51acb7394 numerics f80e8ccb8ac1dbe0"
+  },
+  "command": [
+    "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    "-X",
+    "utf8",
+    "-u",
+    "tests/run_tests.py",
+    "--exe",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\build-q2-j-current\\Release\\llmx.exe",
+    "--only",
+    "server"
+  ],
+  "working_directory": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103",
+  "started_at": "2026-11-03T11:14:20.656732+00:00",
+  "finished_at": "2026-11-03T11:39:11.913469+00:00",
+  "elapsed_seconds": 1491.256737,
+  "exit_code": 0,
+  "test_summary": "server component PASS; 10 unittest tests passed",
+  "completed_scenarios": [
+    "synthetic F32 model, 4 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, logprobs on the generate and completions routes, its file name as UTF-8 in every reply ",
+    "synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat ",
+    "conversations with tool calls as a client sends them, 74 renders under the pinned templates, are the reference's as the server hands them on, a refusal where the reference raises, answered on the chat routes, malformed calls refused with 400, and a template variable written 1.0 a float ",
+    "a reply of a tool call in the JSON and the function format given in the compatible shape whole and streamed with finish_reason tool_calls, as text on /v1/chat, tool_choice none the request without tools, the loop's second request reusing the reply, the refusals, a list argument as a list under six schemas and a string under a string's, and 32 renders with tools as the reference's ",
+    "an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; /v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400 ",
+    "the compatible routes refuse tools, tool_choice, response_format, logit_bias, best_of, echo, suffix, reasoning_effort, n and a prompt array of several, ignore the fields with a harmless default, read presence_penalty, frequency_penalty and min_p alike on the server and the CLI with neutral values changing nothing, leave a stop text out of the reply whole and streamed, accept null content beside tool_calls and the developer role, and report cached tokens ",
+    "synthetic MoE model, on the CPU, 6 prompts alone and four at a time ",
+    "a server without host memory for evicted prefixes says at its start that uncapped requests filling the pool do not take turns, with the flag and both sizes, and one given a tier that holds a history, or on the CPU at its default, says nothing ",
+    "a request limit past the model's context refused at start with both numbers and the pool's flag ",
+    "with --context-overflow shift, an agent turn past the pool cut at its exchanges, kept from messages [13, 13, 17, 17, 21] as it grows, its calls and results together and its reply that of the kept messages, and refused where its system and user messages or its newest exchange alone do not fit ",
+    "a prompt past the pool refused with its numbers on the four routes, and with --context-overflow shift a chat of six turns cut by [0, 0, 4, 4, 6, 8] messages, each reply and prompt those of the kept messages sent alone, and a text prompt cut by a step after its first rows ",
+    "with --context-overflow shift, message ends placed by the end tokens and one render under a template with a system block of its own, a chat under a template that raises without a user message cut by [0, 0, 4, 6, 8, 10] messages without end tokens and by [0, 4, 8, 12, 16, 20] with tool results sharing an end token, as without the raise, a chat of 238 messages cut after [11, 11] renders, and the time to first token counting the render and the cut ",
+    "MXFP4 dense tied/untied and MoE, first-token HF logprobs (max error 0.00008910, witnessed bounds [0.006609439849853516]), server/CLI logprob error 0.000000780, concurrent and streamed replies exact, no donor hits or pauses ",
+    "two models of three shards that share their first shard and differ in their tensors have different disk identities, each naming every file's digest ",
+    "ignore_eos on the synthetic model, a greedy reply that ends at its end token after 9 tokens running to 12 through the CLI and the server, greedy and seeded, uncapped to the context, which the CLI given the room also fills, beside requests without it, and refused unless a boolean ",
+    "Qwen3-0.6B-Q8_0.gguf, asked for the weather with a weather tool, calls it with {\"city\": \"Paris\"} whole and streamed, finish_reason tool_calls, and answers its result: 'The current weather in Paris is 21\u00b0C with clear skies.' ",
+    "Qwen3-0.6B-Q8_0.gguf, a chat past a 2048-token pool with --context-overflow shift cut by [0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10, 10] messages at turn ends, the turn after a cut reusing it, and a text prompt in the chat format cut at a turn end ",
+    "Qwen3-0.6B-Q8_0.gguf, two conversations alternating on a pool that holds one, each follow-up promoting its donor from host memory (896 tokens reused) with the CLI's greedy text, none without the host tier ",
+    "Qwen3-0.6B-Q8_0.gguf, a chat follow-up reusing 640 tokens of a 531-token first turn and its reply, read again while idle, with its reply on a fresh server ",
+    "Qwen3-0.6B-Q8_0.gguf, 48 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, logprobs on every route, a reused prefix, the limits, uncapped requests paused and resumed with their values alone, a prompt paused while prefilling with its values alone, a 6-turn conversation past half the pool reusing its history on every follow-up, a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side ",
+    "ignore_eos on Qwen3-0.6B-Q8_0.gguf, a greedy reply that ends at its end token after 13 tokens running to 48 through generate, chat and the four routes, greedy and seeded, a stop text still ending it, beside requests without it "
+  ],
+  "skips": [
+    "SKIP Flash HTTP - build llmx-server-spec-test beside the executable",
+    "SKIP the startup checks - no pipes or SIGTERM on Windows",
+    "SKIP the disk tier's exit checks - no SIGTERM on Windows",
+    "SKIP the disk tier's keep check - no SIGTERM on Windows"
+  ],
+  "raw_artifacts": [
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\job\\receipt.json",
+      "sha256": "09177e998ce9c8da64f9f1010fd714424f29cb2e4744953e66a0a4a3e65ed1a7"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\job\\stdout.log",
+      "sha256": "a2868569796576c187374e06dc121588551caa4c207e3feb7012cefdba1733a7"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\job\\stderr.log",
+      "sha256": "8c20accb7a0064c406c417cfc727f0816a245f2195f1a980c79142dd6e703875"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\failed-launch.json",
+      "sha256": "c7fc54c12f6057edf54d2b3173cf2b85822c34e78064e981088ab5c457bf7bd1"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\supervisor.stderr.log",
+      "sha256": "c868fdc1f64549e50032ce7f4a527d4bc10f90e605d1bb6a4a35d9753b5af2d5"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\supervisor.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_inputs": [
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\tests\\server.py",
+      "sha256": "2fe3f8f32ed464187146f3ed5e20b48debd17d6e467c4f5ed1a3690e11a3213a"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\tests\\run_tests.py",
+      "sha256": "2e983d73939a13b9333302ef63718ab8a6c79079dcded9eadf623492521a1e8a"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\build-q2-j-current\\Release\\llmx.exe",
+      "sha256": "dbe3136ab3bb518c09b7fa3feaa087c2fd842c1441fad173247404dae50b0f52"
+    },
+    {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q2-maind364-20261103\\build-q2-j-current\\Release\\llmx.exe",
+      "sha256": "dbe3136ab3bb518c09b7fa3feaa087c2fd842c1441fad173247404dae50b0f52"
+    }
+  ],
+  "launcher_attempt": {
+    "classification": "pre-test launcher failure, not server failure",
+    "reason": "Wrapper --metadata expects a file path although help says JSON object. No job directory or child test was created.",
+    "artifact_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-current-server-20261103\\failed-launch.json",
+    "sha256": "c7fc54c12f6057edf54d2b3173cf2b85822c34e78064e981088ab5c457bf7bd1"
+  },
+  "claims_not_established": [
+    "Linux signal paths",
+    "native cache CTests",
+    "GPU serving",
+    "Q2 model-HF correctness",
+    "performance"
+  ]
+}

@@ -128,9 +128,10 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
         }
     } else if (type == quant::GGML_TYPE_MXFP4) {
         bytes = testq::mxfp4_matrix(rows * in, seed);
-    } else if (type == quant::GGML_TYPE_Q1_0) {
-        const size_t block_values = quant::Q1_0_BLOCK;
-        const size_t block_bytes = quant::Q1_0_TYPESIZE;
+    } else if (type == quant::GGML_TYPE_Q1_0 || type == quant::GGML_TYPE_Q2_0) {
+        const bool one_bit = type == quant::GGML_TYPE_Q1_0;
+        const size_t block_values = one_bit ? quant::Q1_0_BLOCK : quant::Q2_0_BLOCK;
+        const size_t block_bytes = one_bit ? quant::Q1_0_TYPESIZE : quant::Q2_0_TYPESIZE;
         bytes.assign(rows * (in / block_values) * block_bytes, 0);
         constexpr uint16_t scales[] = {0x3c00, 0xbc00, 0x0001, 0x8001, 0x7bff, 0xfbff};
         for (size_t r = 0; r < rows; ++r) for (size_t b = 0; b < in / block_values; ++b) {
@@ -139,8 +140,9 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
             block[0] = uint8_t(scale);
             block[1] = uint8_t(scale >> 8);
             for (size_t i = 0; i < block_values; ++i) {
-                const unsigned code = unsigned(i * 7 + b * 3 + r + seed) & 1u;
-                block[2 + i / 8] |= uint8_t(code << (i % 8));
+                const unsigned code = unsigned(i * 7 + b * 3 + r + seed) & (one_bit ? 1u : 3u);
+                if (one_bit) block[2 + i / 8] |= uint8_t(code << (i % 8));
+                else block[2 + i / 4] |= uint8_t(code << (2 * (i % 4)));
             }
         }
     } else if (type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0) {
@@ -413,11 +415,11 @@ size_t check_matrix_witness(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
-    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q1_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
+    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q1_0/Q2_0/Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q1_0/Q2_0/Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
             "device int8 catalog omits a low-bit path");
     const std::string half_paths = integer
         ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
-        : "block-int16 (quantized rows except Q1_0/Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q1_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+        : "block-int16 (quantized rows except Q1_0/Q2_0/Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q1_0/Q2_0/Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths ||
             vk.dtype_path(backend::Dtype::f16) == "f16 (NVFP4 tile inputs), " + half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
@@ -718,6 +720,8 @@ size_t check_write_sets() {
     sources["matmul_row_nvfp4"] = "matmul_row";
     sources["matmul_tile_q1_0"] = "matmul_tile";
     sources["matmul_tile_q1_0_bf16"] = "matmul_tile";
+    sources["matmul_tile_q2_0"] = "matmul_tile";
+    sources["matmul_tile_q2_0_bf16"] = "matmul_tile";
     // A shader with its includes, each read once.
     std::function<void(const std::string&, std::string&, std::vector<std::string>&)> read =
         [&](const std::string& file, std::string& text, std::vector<std::string>& seen) {
@@ -2588,7 +2592,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, const De
     // Q8_0 rows 320 to 5120 and F32 rows 48 to 512 tall reach, on 60 compute units, every build and cut a call of 2 to 8 columns takes (VulkanBackend::filling_build).
     std::vector<Case> cases = {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{f32, 2560, 48}, Case{f32, 2560, 96}, Case{f32, 2560, 256}, Case{f32, 2560, 512},
                                Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224}, Case{q8, 2560, 320}, Case{q8, 2560, 640}, Case{q8, 2560, 1280}, Case{q8, 2560, 5120},
-                               Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows}, Case{quant::GGML_TYPE_Q1_0, 2048},
+                               Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows}, Case{quant::GGML_TYPE_Q1_0, 2048}, Case{quant::GGML_TYPE_Q2_0, 2048},
                                Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}};
     // Q1_0 rows 2048 wide reach its two-row build; other types take rows 4096, 1280 and 224 wide where they hold whole blocks, so lanes take every count of steps.
     const size_t listed = cases.size();
@@ -3427,7 +3431,7 @@ size_t check_weight_dispatch() {
             checks += nout;
         }
     }
-    for (uint32_t type : {4u, 25u, 42u, 43u, UINT32_MAX}) {
+    for (uint32_t type : {4u, 25u, 43u, UINT32_MAX}) {
         require(!vk.supports_type(type), "metadata-only or unknown weight type acquired a kernel");
         const std::string expected = "vulkan: unsupported matrix type " + std::to_string(type) +
                                      " (docs/VULKAN.md lists the types the kernels decode)";
@@ -3860,7 +3864,7 @@ bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
 size_t check_row_classes(backend::Backend& vk) {
     return row_classes::check(vk,
                               {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
-                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0,
+                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0,
                                quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0},
                               [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
 }
@@ -4652,7 +4656,7 @@ size_t check_bf16_batch_split(backend::Backend& vk) {
     const auto yd = vk.alloc(2 * columns * nout * sizeof(float));
     size_t checked = 0;
     for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1,
-                          quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0}) {
+                          quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0}) {
         if (!vk.supports_type(type)) {
             std::cout << "backend-vulkan: BF16 batch type " << type << " unsupported, skipped\n";
             continue;

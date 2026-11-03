@@ -1,0 +1,102 @@
+{
+  "scope": "Offline profile attribution only; baseline from interrupted paired run, candidate from later candidate-only continuation; no matched speed claim.",
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5"
+  },
+  "arms": {
+    "baseline": {
+      "version": "llmx 0.1.0+unknown numerics 21445b8648ee85df",
+      "cli_sha256": "7f28cc0b68e9a16edcac0fa8c0d19127254959c8142d1b6652c2341d3c0f914a",
+      "execution_receipt_sha256": "f935907ab31c43193f8533f19afaf591cd2d089b3b53b3a08c7a1796387ad159",
+      "profile_stdout_sha256": "6786252b59041586e332971efb3031c3ff9dae1893a5c260cd4f7e275cc73f83",
+      "profile": {
+        "prefill": {
+          "dispatches": 3467,
+          "device_ms": 7196.71,
+          "kernels_ms": {
+            "matmul_tile_q2_0_dot_tall": 5936.0,
+            "attention_tile_kv16": 1038.5,
+            "matmul_reduce": 75.8344,
+            "silu_mul": 54.645,
+            "norm_rope_kv_kv16": 47.8976,
+            "rms_norm_rows": 43.0646
+          }
+        },
+        "decode": {
+          "dispatches": 92032,
+          "device_ms": 2437.52,
+          "kernels_ms": {
+            "matmul_row_q2_0_dot_1col_4row": 1828.53,
+            "rms_norm_rows": 159.706,
+            "attention_vec_kv16": 114.582,
+            "matmul_row_q2_0_dot_1col_4row head": 108.39,
+            "norm_rope_kv_kv16": 89.455,
+            "attention_merge": 77.2971,
+            "silu_mul": 54.1299
+          }
+        }
+      }
+    },
+    "candidate": {
+      "version": "llmx 0.1.0+unknown numerics b1f1425c420ac40e",
+      "cli_sha256": "21fb3dbda934a71dc56a85400179e0d549ad61fafe23f7db6968122dd23e7deb",
+      "execution_receipt_sha256": "5e298a1f7b5f82d2309ef16dfd46bdddbb2cd4ea469acbbdc2f5b9c2cb3ecd70",
+      "profile_stdout_sha256": "d649b1fe50a94799f542276ba9caab5221db491613473393514678a726782287",
+      "profile": {
+        "prefill": {
+          "dispatches": 2603,
+          "device_ms": 7231.25,
+          "kernels_ms": {
+            "matmul_tile_q2_0_dot_tall": 3030.22,
+            "matmul_tile_q2_0_dot": 2995.14,
+            "attention_tile_kv16": 1045.21,
+            "rms_norm_rows": 62.0811,
+            "silu_mul": 51.2994,
+            "norm_rope_kv_kv16": 46.5069
+          }
+        },
+        "decode": {
+          "dispatches": 92032,
+          "device_ms": 2440.95,
+          "kernels_ms": {
+            "matmul_row_q2_0_dot_1col_4row": 1829.74,
+            "rms_norm_rows": 160.004,
+            "attention_vec_kv16": 114.808,
+            "matmul_row_q2_0_dot_1col_4row head": 108.404,
+            "norm_rope_kv_kv16": 89.7659,
+            "attention_merge": 77.8461,
+            "silu_mul": 54.9496
+          }
+        }
+      }
+    }
+  },
+  "profile_deltas": {
+    "prefill_dispatches": -864,
+    "prefill_device_ms": 34.54,
+    "decode_dispatches": 0,
+    "decode_device_ms": 3.43
+  },
+  "matching_observations": {
+    "per_arm_cli_hash_and_version_match_own_receipt": true,
+    "arms_have_distinct_cli_hashes_and_versions": true,
+    "cache_dtype": "f16",
+    "matrix_path": "block-int16",
+    "gpu_pci": "0000:c3:00.0",
+    "driver_pins_sha256": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+    "candidate_queue_status": "DONE",
+    "original_queue_status": "FAIL; baseline completed, candidate did not"
+  },
+  "other_verified_hashes": {
+    "candidate_queue_terminal_sha256": "e23aa79b152925805e67b613985793d2c4c82271831d7cc54f534d8c82fcac1"
+  },
+  "hash_recomputation": {
+    "scope": "Both execution receipts' files maps and candidate queue receipt_sha256 compared against local file bytes",
+    "checked": 25,
+    "passed": 25,
+    "failed": 0,
+    "status": "PASS",
+    "includes_both_profile_stdout_files": true
+  }
+}

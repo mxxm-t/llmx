@@ -1,0 +1,120 @@
+{
+  "status": "PASS",
+  "scope": "Released Qwen3-8B Q2_0 short file-exact logits and PPL on MI50 Vulkan; no chat or 16K claim",
+  "checkpoint": "595116cad",
+  "candidate": {
+    "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/build-J/llmx",
+    "sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+    "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b",
+    "build_receipt_sha256": "6a9ac7ee72183a69e2befa02e9121aee01dba32eda57b985fef6cb521376df08",
+    "build_plan_sha256": "742d51526a5320c01a6888ec7a027e60bd40242e8dc930a638f9efdccdc30133",
+    "build_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-file-exact-short/candidate-build-receipt.json",
+    "build_plan": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-file-exact-short/candidate-build-plan.json"
+  },
+  "source": {
+    "root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/source-J",
+    "archive_sha256": "e73ac81bd1ebd49ca87e5be49d5bbceb86ab154d8da515bca775d22f11097afe",
+    "source_manifest_sha256": "c29931d68be0dd87dff77a299120381a4132f2100c05478cf34626b34dfdc0aa",
+    "consumer_pins": {
+      "tests/baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/baseline_8b.py": "9000af246c2327ed825053b8e1d5633ecafe99288ca859d9c1871dc0d626f9fd",
+      "tests/baseline_qwen35.py": "be3b3554938716d8c05c4d32cd366986a2ad84b714df422b49aee16c41773c80",
+      "tests/vision.py": "bafc99b4b7c66542644af6efb4a7a24fabf4054a6078cfd10e55756e2b04b65a",
+      "tests/spec_decode.py": "24c73f91d5b9a5000e38c2d356e632fd94624f2b7bda8645d3c688038e3900be",
+      "tests/data/fixtures.json": "fe77caf81d7f34690d18ad2a859406f99d127c6a9ef2a51088e3dc21b7a9aa4e",
+      "tests/data/q2-0-8b-file-exact/baseline_logits.json": "07f0eafcf5b784192b1b70db6a8a846b87243b596d8187af60811f9ab1efc9dc",
+      "tests/data/q2-0-8b-file-exact/baseline_perplexity.json": "017955555ca73ec59d66f661d33f77a0721c1bd6154a9451823617f1abd5597a"
+    },
+    "json_line_ending_note": "Use these candidate manifest raw-byte hashes (CRLF): logits 07f0eafc... and PPL 01795555...; LF-normalized hashes c1cf.../5891... are not the bytes mounted here."
+  },
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584
+  },
+  "argv": [
+    "env",
+    "LLMX_DTYPE=f16",
+    "LLMX_CACHE_TYPE=f16",
+    "LLMX_LOAD_MODE=direct",
+    "python3",
+    "/source/tests/baseline.py",
+    "--exe",
+    "/t/llmx",
+    "--device",
+    "vulkan:0",
+    "--file-exact",
+    "/source/tests/data/q2-0-8b-file-exact",
+    "--model",
+    "/models/Qwen3-8B-Q2_0-grid-mse.gguf"
+  ],
+  "seconds": 43.788716077804565,
+  "logits": {
+    "top1_matches": 6,
+    "cases": 6,
+    "top5_set_matches": 6,
+    "top5_exact_order_matches": 6
+  },
+  "ppl": [
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=0 chunks=1 batched]: PPL 244.6100 vs HF 244.6306, NLL delta 0.000082 <= 0.010  [ok]",
+      "nll_delta": 8.2e-05,
+      "limit": 0.01
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=0 chunks=1 per-token]: PPL 244.6040 vs HF 244.6306, NLL delta 0.000110 <= 0.010  [ok]",
+      "nll_delta": 0.00011,
+      "limit": 0.01
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=64 chunks=4 batched]: PPL 586.9510 vs HF 587.0204, NLL delta 0.000119 <= 0.020  [ok]",
+      "nll_delta": 0.000119,
+      "limit": 0.02
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=64 chunks=4 per-token]: PPL 586.9940 vs HF 587.0204, NLL delta 0.000046 <= 0.020  [ok]",
+      "nll_delta": 4.6e-05,
+      "limit": 0.02
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=64 chunks=2 batched]: PPL 291.0620 vs HF 291.0993, NLL delta 0.000130 <= 0.020  [ok]",
+      "nll_delta": 0.00013,
+      "limit": 0.02
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=64 chunks=2 per-token]: PPL 291.0910 vs HF 291.0993, NLL delta 0.000030 <= 0.020  [ok]",
+      "nll_delta": 3e-05,
+      "limit": 0.02
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=123 chunks=2 batched]: PPL 409.2670 vs HF 409.1851, NLL delta 0.000201 <= 0.020  [ok]",
+      "nll_delta": 0.000201,
+      "limit": 0.02
+    },
+    {
+      "line": "file-exact-ppl[Qwen3-8B-Q2_0-grid-mse.gguf c=123 chunks=2 per-token]: PPL 409.1140 vs HF 409.1851, NLL delta 0.000175 <= 0.020  [ok]",
+      "nll_delta": 0.000175,
+      "limit": 0.02
+    }
+  ],
+  "maximum_continuous_nll_delta": 0.00011,
+  "maximum_window_nll_delta": 0.000201,
+  "references_or_limits_changed": false,
+  "memory_peak_bytes": 431104000,
+  "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+  "monitor_exit": 0,
+  "container_removed": true,
+  "receipt": "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-file-exact-short/results/execution.json",
+  "receipt_sha256": "bda5e697aa94f64d02c46b08884e0ea2f06cd7adadcaac7d131997e3e78e4795",
+  "raw_file_sha256": {
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "activity.jsonl": "7d200d518f240634df4af095a06e64ea712ebba3122af96110f3b2e5b92628f1",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "Q2-file-exact.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "memory-watch.jsonl": "734b7fe0599c203df43560840d246208c8fc497c0ce13d1736617e98bd5b0604",
+    "Q2-file-exact.stdout": "a363d40d1ba2dde0f90ccf1379391c03fbc883505ff5ddd88711032de31ad304"
+  },
+  "remaining": "Chat/depth, affected split/dtype/serving, repeated matched performance with layout control and hosted CI remain; not a merge pass."
+}

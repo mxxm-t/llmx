@@ -1,0 +1,71 @@
+{
+  "schema": "llmx.q2-default-carryforward.v1",
+  "status": "old released-file default-F16 result carries forward across native-int8-only source changes; no new model run",
+  "scope": {
+    "claim": "The completed default-auto F16/block-int16 Q2_0 released-file check remains applicable to the 91e36cf native-int8 source snapshot.",
+    "not_claimed": [
+      "a new run on source 91e36cf",
+      "explicit-int8 released-file correctness",
+      "current-source split or raw/chat 16K qualification",
+      "Q2 support already landed on public main"
+    ]
+  },
+  "original_file_exact_result": {
+    "record": "worktrees/q2-int8-20261101/docs/benchmarks/q2-int8-file-exact-20261101.json",
+    "device": "MI50, RADV, vulkan:0",
+    "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "source_tree_sha256": "80dfb113c7a1ce9d895b4552a85715d8019577cad178e45c42d337ce66a4dec0",
+    "cli_sha256": "303ce81bef71d965c22a34b3635c6d436e20b777588db20af327f237208e8c73",
+    "vulkan_library_sha256": "617142ae178b9a8324a72f23bd74392b209e4b3dbc6266582c7419ba23d4b3cc",
+    "default_auto": {
+      "effective_dtype": "f16",
+      "matrix_path": "block-int16",
+      "path_witnesses": 14,
+      "top1": "6/6",
+      "top5": "6/6",
+      "nll": "8/8",
+      "passed": true
+    },
+    "separate_explicit_int8_arm": "failed top-5; retained unchanged in the original record"
+  },
+  "artifact_comparison": {
+    "old_tested_generated_modules": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-int8-center-2row-validation-v1/cli-out/generated/vulkan",
+    "new_native_int8_generated_modules": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-int8-build-v1/out/generated/vulkan",
+    "old_source_tree_sha256": "80dfb113c7a1ce9d895b4552a85715d8019577cad178e45c42d337ce66a4dec0",
+    "new_source_base": "91e36cf6fa8eba4a55696f775a376f5da731be23",
+    "new_source_archive_sha256": "824facc08be0ab8ba96e63ecbc0d3b13d16c0049fb3ece4329242a3cdc53ea30",
+    "new_vulkan_library_sha256": "3ea784d8eaa8bca9886c3fa0acf905cac043fcc89125538707b47fcf423dcab2",
+    "new_build_receipt_sha256": "cc8e4539d33025ce0f42dccc8fd5f81e206c82d426b8512f0d2798c22834a7f0",
+    "module_counts": {
+      "old": 336,
+      "new": 336,
+      "byte_identical": 334,
+      "different": [
+        "matmul_row_q2_0_i8.inc",
+        "matmul_tile_q2_0_i8.inc"
+      ]
+    },
+    "default_f16_q2_modules": {
+      "matmul_row_q2_0_dot.inc": "af0bf28668af1c42b42631f68633db691a8aba6399d5fdb3757de02237053b12",
+      "matmul_tile_q2_0_dot.inc": "22097258588665f9f45bc9d55a8d71c77d8adcd976de3921a1b7981c42647dc5"
+    },
+    "source_comparison": {
+      "byte_identical": [
+        "src/backends/vulkan/vulkan_backend.cpp",
+        "src/backends/vulkan/vulkan_dispatch.hpp",
+        "src/backends/vulkan/vulkan_matmul.hpp"
+      ],
+      "host_dispatch_delta": "One build_rows condition in vulkan_kernels.hpp changes row width for the Q2 I8 kernel ID; the F16 Q2 DOT row remains four rows.",
+      "shader_deltas": {
+        "src/backends/vulkan/shaders/low_bits.glsl": "Changes the Q2 byte decoder inside LLMX_I8 to return signed code-minus-one bytes; the F16 pair decoder is unchanged.",
+        "src/backends/vulkan/shaders/matmul_row_two.glsl": "Changes Q2 I8 byte lookup and excludes LLMX_I8 from the shared-center block; the F16 dot_pairs center path is unchanged."
+      }
+    },
+    "conclusion": "Source edits in the low-bits shaders are confined to the I8 branches; generated output confirms the default block-int16 path's row/tile modules are byte-identical between the tested 80df source and 91e native-int8 build, with unchanged F16 dispatch row width. Original result keeps its original pins; it is not relabeled as a 91e execution."
+  },
+  "decision": {
+    "q2_default_path": "Ship the default-auto F16/block-int16 path as planned, subject to the remaining Q2 integration gates.",
+    "native_int8": "Keep the explicit-int8 implementation and failed released-file arm private; it is not part of this Q2 landing and has no support claim.",
+    "precision_budgets_changed": false
+  }
+}

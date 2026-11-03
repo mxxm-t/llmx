@@ -1,0 +1,198 @@
+{
+  "status": "DONE_ALL_SIX_NATIVE_WINDOWS_PAIRS_IDENTICAL",
+  "job_id": "20261103T005136Z-637601",
+  "seconds": 8.878631114959717,
+  "comparisons": {
+    "row-C": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    },
+    "row-D": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    },
+    "tile128-C": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    },
+    "tile128-D": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    },
+    "tile64-C": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    },
+    "tile64-D": {
+      "exact_text_equal": true,
+      "instruction_encodings_equal": true,
+      "resources_equal": true,
+      "opcode_differences": {}
+    }
+  },
+  "resources": {
+    "row-windows-C": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "row-windows-D": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "tile128-windows-D": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-windows-D": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 19968,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    },
+    "row-native-C": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "row-native-D": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4
+    },
+    "tile128-native-C": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 26624,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-native-C": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 17920,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    },
+    "tile128-native-D": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-native-D": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 19968,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    },
+    "tile128-windows-C": {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 26624,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2
+    },
+    "tile64-windows-C": {
+      "SGPRs": 64,
+      "VGPRs": 84,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "LDS size": 17920,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 3
+    }
+  },
+  "zero_dispatch_processes": 4,
+  "total_gpu_dispatches": 0,
+  "scope": "Same c3/renderD128 and pinned RADV25 driver; rowWG64/ROWS4/one-column and wide tile128/64 specializations only",
+  "conclusion": "SPIR-V compiler-byte differences do not explain the prior micro/model performance gap for these captured specializations; final driver ISA/resources carry across the two toolchains.",
+  "limits": [
+    "Exact codegen is not a new performance measurement or full model numerical gate.",
+    "Model C/D native affected checks passed separately. No new shader edit, native build, operator dispatch, timing or model rerun occurred.",
+    "Future micro shaders should use the pinned model glslc to avoid cross-compiler proxy ambiguity before interpretation."
+  ],
+  "cleanup": {
+    "container_removed": true,
+    "monitor_exit": 0,
+    "postguard_errors": []
+  },
+  "verified_raw_files": [
+    "tile128-windows-D.isa",
+    "tile128-windows-C.isa",
+    "monitor.log",
+    "capture-1.stderr",
+    "row-windows-C.isa",
+    "row-windows-D.isa",
+    "capture-3.stderr",
+    "capture-0.stderr",
+    "capture-0.jsonl",
+    "tile64-windows-C.isa",
+    "tile64-windows-D.isa",
+    "tile64-native-C.isa",
+    "tile128-native-D.isa",
+    "tile128-native-C.isa",
+    "tile64-native-D.isa",
+    "capture-2.stderr",
+    "capture-1.jsonl",
+    "monitor.stop",
+    "row-native-D.isa",
+    "capture-2.jsonl",
+    "row-native-C.isa",
+    "activity.jsonl",
+    "capture-3.jsonl"
+  ],
+  "execution_sha256": "2dd21a58538147653c68894801c8c5743e24d914b2058b99e3ccfed4caa875d1",
+  "terminal_sha256": "13fb147ddafe8b69aa780fef6b81d61580d6021dc7cbaafb674403d249c055c8",
+  "plan_sha256": "529fa7821b4967dba3ed9797ab9193bac7a37d44bffadd9009871836edde43fa",
+  "next_action": "Root decides any profiling route; no further runner prepared or run authorized automatically.",
+  "root_raw_hashes_verified": 23,
+  "root_byte_equal_isa_pairs": 6
+}

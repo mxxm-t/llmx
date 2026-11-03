@@ -1,0 +1,181 @@
+{
+  "status": "BUILT_PENDING_FOCUSED_AND_PERFORMANCE_CHECKS",
+  "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "published_main": "d36458312cd1cb47b6032df4afe96508612423cc",
+  "source_archive_sha256": "f44f1972ff272ca7e4285d74dee1fdf4f31c64a9674516d0340f39b262391b76",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "version": "llmx 0.1.0+unknown numerics f80e8ccb8ac1dbe0",
+  "binaries": {
+    "llmx": "6d44d52b0ca06952de19aaa95489ee33d8b64b3318e2c3e955b6acb5bc6baa6d",
+    "llmx-low-bits-test": "84e474286f469e30635812a3792659a18ed30ee856e46a026385e326c0e199ec"
+  },
+  "seconds": 228.42249536514282,
+  "removed": true,
+  "q2_matrix_modules_unchanged": {
+    "generated/vulkan/matmul_reduce.inc": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391",
+    "generated/vulkan/matmul_reduce_mxfp4.inc": "31af6a257c20a01b7fa3616c2f80fffa828c44b18fea64d7afd1aa38ff2f2500",
+    "generated/vulkan/matmul_reduce_preserve.inc": "7e8053aa5f7f3139ff8a3f53fff4bf856c21a3475413fc933fb1634d12ba1632",
+    "generated/vulkan/matmul_row_q2_0.inc": "cf4702a869830fef8cc5c41d30afc92bef8f9ce9376522c2a2e0bc5e62d1e3e0",
+    "generated/vulkan/matmul_row_q2_0_dot.inc": "173e8c4aeb44f3a5dcb7af591cf9df940f5c3f92689d0a71c77d21b7a3480a07",
+    "generated/vulkan/matmul_row_q2_0_preserve.inc": "78beba5a2814d58aa240f113b31f359c4dac65540cd4aae158c6e9c3f5e70c6b",
+    "generated/vulkan/matmul_row_tq2_0.inc": "8f1593a04e7e95f5c10f48da866c595da10f33d1f419c4d5a71021677cd06bc1",
+    "generated/vulkan/matmul_row_tq2_0_dot.inc": "3d301af99db95aac5a6434989d862e7bab4eb6f09b49bd57b6f00cd2799b6b09",
+    "generated/vulkan/matmul_row_tq2_0_preserve.inc": "32d0ac54df62b66c6bbe6831ceb53c3c76bf123f1a83dad5ea50265e3efaec7c",
+    "generated/vulkan/matmul_tile_q2_0_dot.inc": "51e6358180e16059bbe8e41704a09ddc6e66a4e576faab8ea4a220fe34205257",
+    "generated/vulkan/matmul_tile_tq2_0.inc": "43c15c09b1849e89abbd6858f8506aecdb17ca18de72486a4693313ae36555a0",
+    "generated/vulkan/matmul_tile_tq2_0_bf16.inc": "07b67ffe657728d8c2125731e005254f135e186708c3fd8c139db39c2551a78b",
+    "generated/vulkan/matmul_tile_tq2_0_bf16_preserve.inc": "753e35a87298940ba2ff4bc4fa74e874f21d5100bf186cd3843fb7c7878e31e4",
+    "generated/vulkan/matmul_tile_tq2_0_dot.inc": "1d0bc0f8d9f310e8a4f0dc2abd1a65afc6d44c410258ab84292bd32ca0788132",
+    "generated/vulkan/matmul_tile_tq2_0_preserve.inc": "b666a4e6b90fe65c56352d277212e3ae9f46b03d0569656da3406171de61c4f2"
+  },
+  "shader_changes": {
+    "generated/vulkan/attention_tile_k16.inc": {
+      "I": "a4259089df0b8463a32146bef6be0ae55192fe3ca25e04ea75e531554d032621",
+      "J": "310fe16a118d01ad2ff979a6ba317cdc4dd3eb72f52c740ac74b2efd426eaa9f"
+    },
+    "generated/vulkan/attention_tile.inc": {
+      "I": "34244b0705798b5ecca8eaaaa333087c2a835b4e5db2dd45fee17512f7bc482e",
+      "J": "cd7526fe36e0f9bd42d5ae0d3584ce87c034e4f335c79ee0974fe95bd0cb685e"
+    },
+    "generated/vulkan/attention_tile_d256_v16.inc": {
+      "I": "525507e97c5e350e3ea96df4fe11818dd389109bbfdc5f55bb5d7529ab2ee67a",
+      "J": "bca6be7d778cc506da16595220b356f89933a90600ca7401891f7df91620a36b"
+    },
+    "generated/vulkan/attention_tile_d256.inc": {
+      "I": "4cb6963e05e6b8ae65ed4be0036c7b8d40ef2e63c6b5b2e1f6bece47fdcd7d6c",
+      "J": "0ddf29b9bf36452d4018c97b76fc0092a7b02613dc4ce5578b1fe5d6312446dd"
+    },
+    "generated/vulkan/attention_tile_d256_k16.inc": {
+      "I": "4b1596404ecd324441771c65ba12505a1374c6e889bbc4a867d167a95a513c3f",
+      "J": "23a39a505455ca3f14c63c12a65d166229f3d61b7b7451d0c49a0117d8117b73"
+    },
+    "generated/vulkan/attention_tile_d256_kv16.inc": {
+      "I": "8a2ac84756a65a84b67d451901449cc392c3f160a0c0a6e250488619b7eaa6d8",
+      "J": "6d9cfd34d6f80e76e6bb38129b3be3e79e18d2ce863d7d6a33dae1f47002d71d"
+    },
+    "generated/vulkan/attention_tile_kv16.inc": {
+      "I": "aa41b04b4f3046a2a249e7656e651bfa83e9bff5257caf8f49f51d0f1793946a",
+      "J": "e744ec18e4137ec31bb769b3a1972f761f984ab8ee5b5c5048d73569b3daca5e"
+    },
+    "generated/vulkan/attention_tile_v16.inc": {
+      "I": "29ce8b80eae0e30576c94f6765963273b6f0ffadb27a0cd745942a5649687427",
+      "J": "110406174aed9ca4ef603ec83208230bb8812a626feb378c62aaec67b6bcea12"
+    }
+  },
+  "unchanged_shader_count": 326,
+  "source_audit": {
+    "status": "PASS_WITH_LINE_ENDING_NOTE",
+    "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+    "checked_inputs": 3376,
+    "raw_matches": 3375,
+    "line_ending_only": [
+      {
+        "path": "src/backends/vulkan/vulkan_kernels.hpp",
+        "archive_sha256": "4edcbc9a54b715668698b15672221dddb93107a61a48e3cf43418642586da53f",
+        "git_blob_and_local_sha256": "e2e1214910477f48fff00d55d11bf4fc2840b7ee30668378b0ea3391dfccd3b8",
+        "crlf_count": 1873,
+        "normalized_identical": true
+      }
+    ],
+    "note": "No semantic source differences. One locally resolved LF file is exported as CRLF in git archive; all other raw hashes match the build manifest."
+  },
+  "rebase_audit": {
+    "status": "PASS",
+    "base_main": "d36458312cd1cb47b6032df4afe96508612423cc",
+    "new_head": "a04a408e81e9afc5892ecc3570cf298467927a64",
+    "old_head": "5680defae628fc62385b1f46afb17b3e435e82b7",
+    "scope": "All source/test/build-file additions and deletions in I->J exactly match published-main delta. Context-independent line audit, not runtime qualification.",
+    "files": [
+      {
+        "path": "src/backends/device_profile.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "005edc57cc897e27941e8d69b2bc51dcb19e3ad0cdf206b23d85976b1234b675"
+      },
+      {
+        "path": "src/backends/rocm/kernels/int16.hip",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "5c0caced0f19b10f3d19b62ce1c58ba957bbab23a96c3bf7d24f988c0318635c"
+      },
+      {
+        "path": "src/backends/rocm/rocm_backend.cpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "f81ee24211c66bc4ad00957b44644babc0ff5370ce60112e86b00ec30c4b6925"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/attention_tile.comp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "7a68068a73df91066bb80d2ce6e58147378fb8884e6d8711ea7ebcf533372421"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/attention_tile_rows.glsl",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "a89844da70f5635386203ba533118541c9cbe414dbcc7811fe7982782250e1b5"
+      },
+      {
+        "path": "src/backends/vulkan/vulkan_attention.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "25bd935da55f2a745d41fa197932cb138779b119eec894190181ff8611eacb05"
+      },
+      {
+        "path": "src/backends/vulkan/vulkan_kernels.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "e2e1214910477f48fff00d55d11bf4fc2840b7ee30668378b0ea3391dfccd3b8"
+      },
+      {
+        "path": "src/server/api.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "3e120442b116c2078c2004bdb0936c21374ee0fe4dc61499f3fdaf2bbf81d124"
+      },
+      {
+        "path": "src/server/cache.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "98dc80f0f788e427434a807c9b9262818e1ceb1338dee5bc15d52e07357d1ed4"
+      },
+      {
+        "path": "src/server/disk_tier.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "7556cee5cb230583afa380cdd7a6f3b050e14bdcf68f548a0ea260e9538ade83"
+      },
+      {
+        "path": "src/server/scheduler.hpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "7bb266e3327cc6820491d69abadcb645cfff15ea9cdeba7162a5cb8a78bd3336"
+      },
+      {
+        "path": "tests/backend_rocm.cpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "3302eef6b7f8b9e40d2a4d89d4466f76139933051d4a591ce9caefe54bfc5445"
+      },
+      {
+        "path": "tests/backend_vulkan.cpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "527ee21016d5bdb038289c02f36aae53b20ccf2dcc88b6fe71e4d972440513e8"
+      },
+      {
+        "path": "tests/data/known_findings.txt",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "698d53be94f29dcdbef1b274bc0d4d3c1f183934fc7568e55466b74ae182ccc4"
+      },
+      {
+        "path": "tests/server.py",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "9ccdd01bce6304d7b81b619e2a69117279630d127127d64ed5e8fd7fa8d8160f"
+      },
+      {
+        "path": "tests/server_resume.cpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "ef69ec5a52a79d05ab3acb918284551250301800f0351aee1d2d247ab109af98"
+      },
+      {
+        "path": "tests/vulkan_buffer.cpp",
+        "upstream_edits_preserved": true,
+        "blob_sha256": "ffb4bc1aa52057e5e8cc7bf56853d27d3d4e72502f3de903821a01de74dd932c"
+      }
+    ]
+  },
+  "limits": [
+    "Build only; no new performance or HF qualification claimed.",
+    "Archive builds I and J both report unknown revision; committed archive and binary hashes carry identity.",
+    "Existing I results remain historical and are not relabeled J."
+  ]
+}

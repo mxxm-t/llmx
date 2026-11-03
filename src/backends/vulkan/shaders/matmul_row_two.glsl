@@ -1,7 +1,7 @@
-// Two-row builds (ROWS > 1): a cluster computes adjacent rows and hands each sum to ROW_STORE2; this body returns from the including function.
+// Multi-row builds (ROWS > 1): a cluster computes adjacent rows and hands each sum to ROW_STORE2; this body returns from the including function.
 // The including function supplies row, nout, l, wrow, type, wide, ncols and the XCOL and OCOL column maps, as for matmul_row_one.glsl.
     if (ROWS > 1u) {
-        // The two-row builds: cluster `row` takes rows r0 .. r0 + ROWS - 1, those past the matrix's last read as its last and written by no lane.
+        // Cluster `row` takes rows r0 .. r0 + ROWS - 1, those past the matrix's last read as its last and written by no lane.
         uint r0 = row * ROWS, w0 = wrow - row + r0;
         if (r0 >= nout) return;
         uint rlast = nout - 1u - r0;
@@ -17,7 +17,37 @@
         uint repair[ROWS][MAX_COLS];
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) repair[r][c] = 0u;
 #endif
-#ifdef LLMX_LOOKUP_DOT
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
+        {
+        uint nblocks = p.nin / 32u;
+        uint wbr[ROWS];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
+        for (uint b = l; b < nblocks; b += p.cluster) {
+            for (uint c = 0u; c < MAX_COLS; ++c) {
+                if (c >= ncols) break;
+                uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
+                uvec2 activations[8];
+                [[unroll]] for (uint j = 0u; j < 8u; ++j) activations[j] = xq2[a2 + j];
+                float dx = xq_block(col, b).x;
+                int center = 0;
+                [[unroll]] for (uint j = 0u; j < 8u; ++j) center = dot_pairs(uvec2(0x00010001u), activations[j], center);
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    float dw;
+                    uint codes = lookup_group(wbr[r], p.nin, b, dw);
+                    uvec2 weights[8];
+                    uvec2 words = lookup_q2_row_words(codes);
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j)
+                        weights[j] = lookup_q2_cached_entry(words[j / 4u] >> ((j & 3u) * 8u));
+                    int sum = -center;
+                    for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], activations[j], sum);
+                    float scale = dw * dx;
+                    if (lookup_unsafe_scale(dw, dx, scale)) repair[r][c] = 1u;
+                    accr[r][c] = fma(scale, float(sum), accr[r][c]);
+                }
+            }
+        }
+        }
+#elif defined(LLMX_LOOKUP_DOT)
         // Every 32-value group a lane's in the one-column build's order, whatever block holds it (lookup_group), so a type plugs in by its group decode alone.
         {
             uint nblocks = p.nin / 32u;

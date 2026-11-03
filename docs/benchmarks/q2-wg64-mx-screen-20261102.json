@@ -1,0 +1,1843 @@
+{
+  "status": "DONE",
+  "boot_id": "71d7f33f-ff6d-4528-a184-8868b92368de",
+  "plan_sha256": "1b5cda6c33ef95b0331766bfaaecba77b72b1f5b259b6787674597df644ea615",
+  "execution_sha256": "dd16e85834df68340de43b454274bd7860bc0523240db8f6dccdcb9667b7cb3c",
+  "terminal_sha256": "580c413566a44f3f38cf85eda5e15526e4c6536e8788316b2e30f44a840b7830",
+  "samples": [
+    {
+      "call": "q2-wg64-mx-p4096-g256-0-baseline",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "baseline",
+      "start": 1793653879.7343333,
+      "end": 1793653901.102407,
+      "exit": 0,
+      "rates": {
+        "pp4096": 597.54,
+        "tg256": 105.8
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-1-candidate",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "candidate",
+      "start": 1793653902.6784923,
+      "end": 1793653923.9022548,
+      "exit": 0,
+      "rates": {
+        "pp4096": 593.76,
+        "tg256": 109.51
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-2-mx",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "mx",
+      "start": 1793653925.4300153,
+      "end": 1793653962.6101177,
+      "exit": 0,
+      "rates": {
+        "pp4096": 723.151329,
+        "tg256": 105.800039
+      },
+      "matrix_paths": {
+        "mx_config": [
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 4096,
+            "n_gen": 0,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:12:14Z",
+            "avg_ns": 5664098008,
+            "stddev_ns": 0,
+            "avg_ts": 723.151329,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              5664098008
+            ],
+            "samples_ts": [
+              723.151
+            ]
+          },
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 0,
+            "n_gen": 256,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:12:31Z",
+            "avg_ns": 2419658845,
+            "stddev_ns": 0,
+            "avg_ts": 105.800039,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              2419658845
+            ],
+            "samples_ts": [
+              105.8
+            ]
+          }
+        ],
+        "runtime_context_witness": false,
+        "actual_offload_count_witness": false
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-3-mx",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "mx",
+      "start": 1793653964.1747832,
+      "end": 1793653991.2349482,
+      "exit": 0,
+      "rates": {
+        "pp4096": 723.382646,
+        "tg256": 119.083853
+      },
+      "matrix_paths": {
+        "mx_config": [
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 4096,
+            "n_gen": 0,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:12:46Z",
+            "avg_ns": 5662286788,
+            "stddev_ns": 0,
+            "avg_ts": 723.382646,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              5662286788
+            ],
+            "samples_ts": [
+              723.383
+            ]
+          },
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 0,
+            "n_gen": 256,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:13:00Z",
+            "avg_ns": 2149745691,
+            "stddev_ns": 0,
+            "avg_ts": 119.083853,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              2149745691
+            ],
+            "samples_ts": [
+              119.084
+            ]
+          }
+        ],
+        "runtime_context_witness": false,
+        "actual_offload_count_witness": false
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-4-candidate",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "candidate",
+      "start": 1793653992.7946932,
+      "end": 1793654015.0824146,
+      "exit": 0,
+      "rates": {
+        "pp4096": 580.43,
+        "tg256": 109.75
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-5-baseline",
+      "workload": "q2-wg64-mx-p4096-g256",
+      "arm": "baseline",
+      "start": 1793654016.6802733,
+      "end": 1793654038.014433,
+      "exit": 0,
+      "rates": {
+        "pp4096": 584.72,
+        "tg256": 103.62
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    }
+  ],
+  "reference_limits": [
+    "mx quiet JSON validates requested ngl99/Vulkan, F16KV, batch4096/ubatch512, threads1, mmap, flash-attention and depths; lacks current runtime context/offloaded-layer-count witnesses.",
+    "Pinned mx source configures40960context; no current runtime context witness.",
+    "mx and llmx use different activation arithmetic; comparison is speed, not precision equivalence.",
+    "Different input-loading modes: llmx direct and mx mmap, established pinned reference flags; model load excluded from timed rates.",
+    "Two timed samples/arm, shared-host activity and no CPU layout/noise control."
+  ],
+  "phases": {
+    "pp4096": {
+      "samples": {
+        "baseline": [
+          597.54,
+          584.72
+        ],
+        "candidate": [
+          593.76,
+          580.43
+        ],
+        "mx": [
+          723.151329,
+          723.382646
+        ]
+      },
+      "median": {
+        "baseline": 591.13,
+        "candidate": 587.095,
+        "mx": 723.2669875
+      },
+      "candidate_rate_change_percent": -0.6825909698374266,
+      "paired_rate_changes_percent": [
+        -0.6325936338989813,
+        -0.733684498563425
+      ],
+      "wg256_relative_to_mx_percent": -18.26946200831543,
+      "wg64_relative_to_mx_percent": -18.827347280246222
+    },
+    "tg256": {
+      "samples": {
+        "baseline": [
+          105.8,
+          103.62
+        ],
+        "candidate": [
+          109.51,
+          109.75
+        ],
+        "mx": [
+          105.800039,
+          119.083853
+        ]
+      },
+      "median": {
+        "baseline": 104.71000000000001,
+        "candidate": 109.63,
+        "mx": 112.441946
+      },
+      "candidate_rate_change_percent": 4.698691624486662,
+      "paired_rate_changes_percent": [
+        3.506616257088857,
+        5.915846361706234
+      ],
+      "wg256_relative_to_mx_percent": -6.876389350287471,
+      "wg64_relative_to_mx_percent": -2.5007980562698595
+    }
+  },
+  "activity_intervals": [
+    {
+      "at": "2026-11-02T21:11:17.274161+00:00",
+      "unix": 1793653877.274161,
+      "interval": 2.0034905059997072,
+      "cpu_percent": 72.20971373431972,
+      "unrelated_cpu_cores": 11.225408821579554,
+      "aggregate_disk_bytes_per_second": 3195447.1362995,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:19.274125+00:00",
+      "unix": 1793653879.274125,
+      "interval": 2.0013139060001777,
+      "cpu_percent": 75.47534643893007,
+      "unrelated_cpu_cores": 11.727295717895199,
+      "aggregate_disk_bytes_per_second": 2026188.889130539,
+      "non_target_gpu_busy_max": 8.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:21.284179+00:00",
+      "unix": 1793653881.284179,
+      "interval": 2.0011802620001617,
+      "cpu_percent": 77.95149968091896,
+      "unrelated_cpu_cores": 11.718084794900951,
+      "aggregate_disk_bytes_per_second": 754064826.9695346,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:23.281079+00:00",
+      "unix": 1793653883.281079,
+      "interval": 2.0015168009999798,
+      "cpu_percent": 76.3302160593357,
+      "unrelated_cpu_cores": 11.611194064615916,
+      "aggregate_disk_bytes_per_second": 234921995.0415019,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:25.280969+00:00",
+      "unix": 1793653885.280969,
+      "interval": 2.0008715539997866,
+      "cpu_percent": 73.58000649139889,
+      "unrelated_cpu_cores": 11.609940654892473,
+      "aggregate_disk_bytes_per_second": 445268490.23317915,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:27.287773+00:00",
+      "unix": 1793653887.287773,
+      "interval": 2.0009708160000628,
+      "cpu_percent": 73.7785016286645,
+      "unrelated_cpu_cores": 11.599369573213842,
+      "aggregate_disk_bytes_per_second": 774624055.2865472,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:29.287747+00:00",
+      "unix": 1793653889.287747,
+      "interval": 2.0008968739998636,
+      "cpu_percent": 73.72990353697749,
+      "unrelated_cpu_cores": 11.434872180224897,
+      "aggregate_disk_bytes_per_second": 890222743.1837757,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:31.368500+00:00",
+      "unix": 1793653891.3685,
+      "interval": 2.004245596000146,
+      "cpu_percent": 71.62685603615236,
+      "unrelated_cpu_cores": 11.360883139991362,
+      "aggregate_disk_bytes_per_second": 855730209.6224114,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:33.287356+00:00",
+      "unix": 1793653893.287356,
+      "interval": 2.0011853430000883,
+      "cpu_percent": 74.74878444084278,
+      "unrelated_cpu_cores": 11.358268278101713,
+      "aggregate_disk_bytes_per_second": 857734717.0785891,
+      "non_target_gpu_busy_max": 6.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:35.289068+00:00",
+      "unix": 1793653895.289068,
+      "interval": 2.0007098179999048,
+      "cpu_percent": 73.26478149100257,
+      "unrelated_cpu_cores": 9.946469908311784,
+      "aggregate_disk_bytes_per_second": 855373348.3003688,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:37.290396+00:00",
+      "unix": 1793653897.290396,
+      "interval": 2.0009579259999555,
+      "cpu_percent": 71.76925555913633,
+      "unrelated_cpu_cores": 11.064700417893992,
+      "aggregate_disk_bytes_per_second": 794771717.7537673,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:39.301241+00:00",
+      "unix": 1793653899.301241,
+      "interval": 2.0009131550000347,
+      "cpu_percent": 70.28164454516025,
+      "unrelated_cpu_cores": 10.935007321694389,
+      "aggregate_disk_bytes_per_second": 855525930.1096305,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:41.335450+00:00",
+      "unix": 1793653901.33545,
+      "interval": 2.0011230400000386,
+      "cpu_percent": 70.53658536585365,
+      "unrelated_cpu_cores": 10.998823940380786,
+      "aggregate_disk_bytes_per_second": 855687962.0955076,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:43.298623+00:00",
+      "unix": 1793653903.298623,
+      "interval": 2.0019965249998677,
+      "cpu_percent": 71.5569823434992,
+      "unrelated_cpu_cores": 10.769249462109542,
+      "aggregate_disk_bytes_per_second": 839906512.8247968,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:45.300556+00:00",
+      "unix": 1793653905.300556,
+      "interval": 2.0008721730000616,
+      "cpu_percent": 70.71895424836602,
+      "unrelated_cpu_cores": 10.43544924146404,
+      "aggregate_disk_bytes_per_second": 1619865758.4108949,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:47.291790+00:00",
+      "unix": 1793653907.29179,
+      "interval": 2.0008368730000257,
+      "cpu_percent": 71.80242067386327,
+      "unrelated_cpu_cores": 11.295273645229203,
+      "aggregate_disk_bytes_per_second": 795890458.382201,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:49.294409+00:00",
+      "unix": 1793653909.294409,
+      "interval": 2.000983056000223,
+      "cpu_percent": 69.71169420149012,
+      "unrelated_cpu_cores": 10.91463515121218,
+      "aggregate_disk_bytes_per_second": 850419499.0043986,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:51.303273+00:00",
+      "unix": 1793653911.303273,
+      "interval": 2.000819932000013,
+      "cpu_percent": 71.2253475590042,
+      "unrelated_cpu_cores": 11.225397968496374,
+      "aggregate_disk_bytes_per_second": 809793324.270017,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:53.307687+00:00",
+      "unix": 1793653913.307687,
+      "interval": 2.0016710449999664,
+      "cpu_percent": 70.30087350372048,
+      "unrelated_cpu_cores": 10.860925452413868,
+      "aggregate_disk_bytes_per_second": 886098940.3980861,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:55.325824+00:00",
+      "unix": 1793653915.325824,
+      "interval": 2.001012327999888,
+      "cpu_percent": 69.65157929013351,
+      "unrelated_cpu_cores": 10.009933332105449,
+      "aggregate_disk_bytes_per_second": 891493717.9737855,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:57.302547+00:00",
+      "unix": 1793653917.302547,
+      "interval": 2.001031887999943,
+      "cpu_percent": 72.7770618556701,
+      "unrelated_cpu_cores": 11.449092909208376,
+      "aggregate_disk_bytes_per_second": 825317542.365945,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:11:59.299984+00:00",
+      "unix": 1793653919.299984,
+      "interval": 2.0010600479999994,
+      "cpu_percent": 71.33116883116882,
+      "unrelated_cpu_cores": 10.349514508921926,
+      "aggregate_disk_bytes_per_second": 919570461.5856688,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:01.315130+00:00",
+      "unix": 1793653921.31513,
+      "interval": 2.0011698719999913,
+      "cpu_percent": 69.76893453145058,
+      "unrelated_cpu_cores": 10.813674692380186,
+      "aggregate_disk_bytes_per_second": 868640572.8578786,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:03.308007+00:00",
+      "unix": 1793653923.308007,
+      "interval": 2.0009191250001095,
+      "cpu_percent": 68.14646791963708,
+      "unrelated_cpu_cores": 10.460192887605517,
+      "aggregate_disk_bytes_per_second": 891543432.0714499,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:05.305994+00:00",
+      "unix": 1793653925.305994,
+      "interval": 2.001001026999802,
+      "cpu_percent": 71.95869635366248,
+      "unrelated_cpu_cores": 11.169409559729433,
+      "aggregate_disk_bytes_per_second": 852290984.8562355,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:07.319093+00:00",
+      "unix": 1793653927.319093,
+      "interval": 2.000981015999969,
+      "cpu_percent": 72.16461438755671,
+      "unrelated_cpu_cores": 10.599800712952057,
+      "aggregate_disk_bytes_per_second": 792656187.7986476,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:09.319828+00:00",
+      "unix": 1793653929.319828,
+      "interval": 2.001307264999923,
+      "cpu_percent": 73.81960273526539,
+      "unrelated_cpu_cores": 10.757968242323264,
+      "aggregate_disk_bytes_per_second": 819978851.1735919,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:11.394028+00:00",
+      "unix": 1793653931.394028,
+      "interval": 2.001383358000112,
+      "cpu_percent": 73.68080284881839,
+      "unrelated_cpu_cores": 11.002389877970979,
+      "aggregate_disk_bytes_per_second": 809301343.2561526,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:13.334400+00:00",
+      "unix": 1793653933.3344,
+      "interval": 2.006470507999893,
+      "cpu_percent": 73.61963190184049,
+      "unrelated_cpu_cores": 10.456171628913431,
+      "aggregate_disk_bytes_per_second": 807488306.2273679,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:15.322839+00:00",
+      "unix": 1793653935.322839,
+      "interval": 2.002005215000281,
+      "cpu_percent": 73.27336973980084,
+      "unrelated_cpu_cores": 10.424548269719203,
+      "aggregate_disk_bytes_per_second": 826636935.6084657,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:17.312741+00:00",
+      "unix": 1793653937.312741,
+      "interval": 2.00105720800002,
+      "cpu_percent": 71.94730077120822,
+      "unrelated_cpu_cores": 10.69934428381409,
+      "aggregate_disk_bytes_per_second": 799247786.4230975,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:19.315616+00:00",
+      "unix": 1793653939.315616,
+      "interval": 2.001359726999908,
+      "cpu_percent": 70.38113695090439,
+      "unrelated_cpu_cores": 10.937563949492327,
+      "aggregate_disk_bytes_per_second": 826932198.9809761,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:21.321509+00:00",
+      "unix": 1793653941.321509,
+      "interval": 2.001188082000226,
+      "cpu_percent": 69.12337662337663,
+      "unrelated_cpu_cores": 10.443795957004724,
+      "aggregate_disk_bytes_per_second": 816849030.1851674,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:23.330683+00:00",
+      "unix": 1793653943.330683,
+      "interval": 2.001179941999908,
+      "cpu_percent": 70.54062803496277,
+      "unrelated_cpu_cores": 9.37446933495242,
+      "aggregate_disk_bytes_per_second": 858426801.0817785,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:25.326477+00:00",
+      "unix": 1793653945.326477,
+      "interval": 2.0009582560001036,
+      "cpu_percent": 70.23195876288659,
+      "unrelated_cpu_cores": 10.554942831350555,
+      "aggregate_disk_bytes_per_second": 824328497.1357816,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:27.323341+00:00",
+      "unix": 1793653947.323341,
+      "interval": 2.001045578999765,
+      "cpu_percent": 70.60162601626017,
+      "unrelated_cpu_cores": 10.939281058726234,
+      "aggregate_disk_bytes_per_second": 853360975.8422202,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:29.352796+00:00",
+      "unix": 1793653949.352796,
+      "interval": 2.0009155040002042,
+      "cpu_percent": 70.42345276872965,
+      "unrelated_cpu_cores": 10.939992196690863,
+      "aggregate_disk_bytes_per_second": 842919112.0905162,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:31.338934+00:00",
+      "unix": 1793653951.338934,
+      "interval": 2.0010931699998764,
+      "cpu_percent": 71.05348460291734,
+      "unrelated_cpu_cores": 11.03396899805588,
+      "aggregate_disk_bytes_per_second": 784534769.0633,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:33.329382+00:00",
+      "unix": 1793653953.329382,
+      "interval": 2.0008343219997187,
+      "cpu_percent": 71.10032362459548,
+      "unrelated_cpu_cores": 10.965425652071099,
+      "aggregate_disk_bytes_per_second": 842238858.7955445,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:35.329749+00:00",
+      "unix": 1793653955.329749,
+      "interval": 2.0011560810003175,
+      "cpu_percent": 68.03623422840505,
+      "unrelated_cpu_cores": 10.094165163720078,
+      "aggregate_disk_bytes_per_second": 832250061.7580442,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:37.335661+00:00",
+      "unix": 1793653957.335661,
+      "interval": 2.0016902059996937,
+      "cpu_percent": 73.2090284592738,
+      "unrelated_cpu_cores": 10.406205684359124,
+      "aggregate_disk_bytes_per_second": 814955950.2816739,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:39.415228+00:00",
+      "unix": 1793653959.415228,
+      "interval": 2.0020550260001073,
+      "cpu_percent": 70.38007863695937,
+      "unrelated_cpu_cores": 11.008688429525122,
+      "aggregate_disk_bytes_per_second": 820934910.7070506,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:41.346002+00:00",
+      "unix": 1793653961.346002,
+      "interval": 2.0021745500002908,
+      "cpu_percent": 69.85413290113452,
+      "unrelated_cpu_cores": 9.92920422447539,
+      "aggregate_disk_bytes_per_second": 810528141.0153596,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:43.331107+00:00",
+      "unix": 1793653963.331107,
+      "interval": 2.000906983999812,
+      "cpu_percent": 70.808871493803,
+      "unrelated_cpu_cores": 10.77511357219693,
+      "aggregate_disk_bytes_per_second": 819031327.8451499,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:45.345614+00:00",
+      "unix": 1793653965.345614,
+      "interval": 2.001247784000043,
+      "cpu_percent": 73.46079066753079,
+      "unrelated_cpu_cores": 11.222998061293303,
+      "aggregate_disk_bytes_per_second": 842742315.8110859,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:47.336711+00:00",
+      "unix": 1793653967.336711,
+      "interval": 2.0014178379997247,
+      "cpu_percent": 72.82398452611218,
+      "unrelated_cpu_cores": 10.807338472418959,
+      "aggregate_disk_bytes_per_second": 807034150.1574156,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:49.343113+00:00",
+      "unix": 1793653969.343113,
+      "interval": 2.0010063280001305,
+      "cpu_percent": 71.66284027550016,
+      "unrelated_cpu_cores": 11.184372426431697,
+      "aggregate_disk_bytes_per_second": 803710034.0443777,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:51.393824+00:00",
+      "unix": 1793653971.393824,
+      "interval": 2.00117469099996,
+      "cpu_percent": 72.41267787839585,
+      "unrelated_cpu_cores": 9.734282612911771,
+      "aggregate_disk_bytes_per_second": 823864778.729621,
+      "non_target_gpu_busy_max": 9.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:53.350388+00:00",
+      "unix": 1793653973.350388,
+      "interval": 2.000791482000295,
+      "cpu_percent": 72.19890216338392,
+      "unrelated_cpu_cores": 9.541224146413665,
+      "aggregate_disk_bytes_per_second": 865424939.8687437,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:55.353323+00:00",
+      "unix": 1793653975.353323,
+      "interval": 2.0012711039998976,
+      "cpu_percent": 70.13029315960912,
+      "unrelated_cpu_cores": 10.488334118274999,
+      "aggregate_disk_bytes_per_second": 833366800.0635287,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:57.354807+00:00",
+      "unix": 1793653977.354807,
+      "interval": 2.0022025099997336,
+      "cpu_percent": 72.8395061728395,
+      "unrelated_cpu_cores": 11.237624509821933,
+      "aggregate_disk_bytes_per_second": 886796594.8160939,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:12:59.349915+00:00",
+      "unix": 1793653979.349915,
+      "interval": 2.001075669000329,
+      "cpu_percent": 72.49432371067142,
+      "unrelated_cpu_cores": 10.28946597021295,
+      "aggregate_disk_bytes_per_second": 876451494.1487261,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:01.415481+00:00",
+      "unix": 1793653981.415481,
+      "interval": 2.000992646999748,
+      "cpu_percent": 71.57523259544433,
+      "unrelated_cpu_cores": 10.259907766668862,
+      "aggregate_disk_bytes_per_second": 796661622.1154963,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:03.347619+00:00",
+      "unix": 1793653983.347619,
+      "interval": 2.0014283390000855,
+      "cpu_percent": 73.44559585492227,
+      "unrelated_cpu_cores": 11.027124763820513,
+      "aggregate_disk_bytes_per_second": 825049686.6777549,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:05.347754+00:00",
+      "unix": 1793653985.347754,
+      "interval": 2.0014983810001468,
+      "cpu_percent": 72.19543555126968,
+      "unrelated_cpu_cores": 10.382221738104157,
+      "aggregate_disk_bytes_per_second": 845778127.0620353,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:07.366673+00:00",
+      "unix": 1793653987.366673,
+      "interval": 2.0014534389997607,
+      "cpu_percent": 70.09162303664921,
+      "unrelated_cpu_cores": 10.412433081838229,
+      "aggregate_disk_bytes_per_second": 897606635.7545751,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:09.370474+00:00",
+      "unix": 1793653989.370474,
+      "interval": 2.001267454000299,
+      "cpu_percent": 68.55670103092784,
+      "unrelated_cpu_cores": 10.338448246206731,
+      "aggregate_disk_bytes_per_second": 10470932.28749268,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:11.379668+00:00",
+      "unix": 1793653991.379668,
+      "interval": 2.001435558999674,
+      "cpu_percent": 70.69857697283312,
+      "unrelated_cpu_cores": 10.932153124598084,
+      "aggregate_disk_bytes_per_second": 2202067.4011621866,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:13.418592+00:00",
+      "unix": 1793653993.418592,
+      "interval": 2.0016566450003666,
+      "cpu_percent": 76.47058823529412,
+      "unrelated_cpu_cores": 11.90014284392698,
+      "aggregate_disk_bytes_per_second": 1749590.7745952897,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:15.354454+00:00",
+      "unix": 1793653995.354454,
+      "interval": 2.0011936329997297,
+      "cpu_percent": 76.8383543893748,
+      "unrelated_cpu_cores": 10.83353436793736,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:17.359151+00:00",
+      "unix": 1793653997.359151,
+      "interval": 2.0012948349999533,
+      "cpu_percent": 72.73022049286641,
+      "unrelated_cpu_cores": 11.467575690815458,
+      "aggregate_disk_bytes_per_second": 476875.26260968053,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:19.358492+00:00",
+      "unix": 1793653999.358492,
+      "interval": 2.001278045000163,
+      "cpu_percent": 69.21318968331701,
+      "unrelated_cpu_cores": 10.70316043965708,
+      "aggregate_disk_bytes_per_second": 8209282.084038784,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:21.364587+00:00",
+      "unix": 1793654001.364587,
+      "interval": 2.001312644999871,
+      "cpu_percent": 68.13614262560777,
+      "unrelated_cpu_cores": 10.85287701262758,
+      "aggregate_disk_bytes_per_second": 8563211.77144269,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:23.373484+00:00",
+      "unix": 1793654003.373484,
+      "interval": 2.0007703510000283,
+      "cpu_percent": 66.4600326264274,
+      "unrelated_cpu_cores": 10.266045770687107,
+      "aggregate_disk_bytes_per_second": 10426447.987682972,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:25.362711+00:00",
+      "unix": 1793654005.362711,
+      "interval": 2.00139494799987,
+      "cpu_percent": 68.01048836447066,
+      "unrelated_cpu_cores": 10.457706021950726,
+      "aggregate_disk_bytes_per_second": 8435972.128776003,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:27.360759+00:00",
+      "unix": 1793654007.360759,
+      "interval": 2.001119660000313,
+      "cpu_percent": 68.1656421869945,
+      "unrelated_cpu_cores": 10.833934838257802,
+      "aggregate_disk_bytes_per_second": 8451460.618800454,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:29.363495+00:00",
+      "unix": 1793654009.363495,
+      "interval": 2.001333071999852,
+      "cpu_percent": 67.23071916693785,
+      "unrelated_cpu_cores": 10.572952746369028,
+      "aggregate_disk_bytes_per_second": 7157085.54482982,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:31.369533+00:00",
+      "unix": 1793654011.369533,
+      "interval": 2.001147562999904,
+      "cpu_percent": 68.02212101496421,
+      "unrelated_cpu_cores": 10.643892731263328,
+      "aggregate_disk_bytes_per_second": 6811835.49481236,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:33.384918+00:00",
+      "unix": 1793654013.384918,
+      "interval": 2.0011275130000286,
+      "cpu_percent": 66.39504563233376,
+      "unrelated_cpu_cores": 9.91940786933737,
+      "aggregate_disk_bytes_per_second": 9659066.638398532,
+      "non_target_gpu_busy_max": 98.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:35.432755+00:00",
+      "unix": 1793654015.432755,
+      "interval": 2.0019743220000237,
+      "cpu_percent": 70.64010450685826,
+      "unrelated_cpu_cores": 11.07406811184851,
+      "aggregate_disk_bytes_per_second": 13235446.48341383,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:37.371828+00:00",
+      "unix": 1793654017.371828,
+      "interval": 2.0009990889998335,
+      "cpu_percent": 70.35456336178595,
+      "unrelated_cpu_cores": 10.404802338219222,
+      "aggregate_disk_bytes_per_second": 6288314.706974385,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:39.370510+00:00",
+      "unix": 1793654019.37051,
+      "interval": 2.0017305240003225,
+      "cpu_percent": 71.06119791666667,
+      "unrelated_cpu_cores": 10.540879377626258,
+      "aggregate_disk_bytes_per_second": 9572261.48588066,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:41.370780+00:00",
+      "unix": 1793654021.37078,
+      "interval": 2.000897703999726,
+      "cpu_percent": 72.27852239293887,
+      "unrelated_cpu_cores": 11.369896599173224,
+      "aggregate_disk_bytes_per_second": 2996926.8234018725,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:43.377827+00:00",
+      "unix": 1793654023.377827,
+      "interval": 2.001160235000043,
+      "cpu_percent": 74.21138211382114,
+      "unrelated_cpu_cores": 9.624416707440515,
+      "aggregate_disk_bytes_per_second": 730712.1011226613,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:45.374328+00:00",
+      "unix": 1793654025.374328,
+      "interval": 2.000890984000307,
+      "cpu_percent": 72.49919588292056,
+      "unrelated_cpu_cores": 11.264981540841678,
+      "aggregate_disk_bytes_per_second": 2354151.2444534446,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:47.388395+00:00",
+      "unix": 1793654027.388395,
+      "interval": 2.001493415999903,
+      "cpu_percent": 67.20078482668411,
+      "unrelated_cpu_cores": 10.472180339163812,
+      "aggregate_disk_bytes_per_second": 3421700.9884984465,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:49.438562+00:00",
+      "unix": 1793654029.438562,
+      "interval": 2.0012125759999435,
+      "cpu_percent": 66.79777122254998,
+      "unrelated_cpu_cores": 9.31435281965794,
+      "aggregate_disk_bytes_per_second": 13537264.518969705,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:51.384948+00:00",
+      "unix": 1793654031.384948,
+      "interval": 2.0009355060001326,
+      "cpu_percent": 71.86584174535982,
+      "unrelated_cpu_cores": 10.719985694530715,
+      "aggregate_disk_bytes_per_second": 1750221.32872271,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:53.401941+00:00",
+      "unix": 1793654033.401941,
+      "interval": 2.001235085999724,
+      "cpu_percent": 72.74490785645006,
+      "unrelated_cpu_cores": 11.18309395860906,
+      "aggregate_disk_bytes_per_second": 5910973.719557119,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:55.391151+00:00",
+      "unix": 1793654035.391151,
+      "interval": 2.001279208000142,
+      "cpu_percent": 70.0919238345371,
+      "unrelated_cpu_cores": 8.95926961531633,
+      "aggregate_disk_bytes_per_second": 9222389.322898863,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:57.394006+00:00",
+      "unix": 1793654037.394006,
+      "interval": 2.0013410410001597,
+      "cpu_percent": 66.05080831408776,
+      "unrelated_cpu_cores": 10.188168624079285,
+      "aggregate_disk_bytes_per_second": 9942517.33830227,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:13:59.381914+00:00",
+      "unix": 1793654039.381914,
+      "interval": 2.000977086999683,
+      "cpu_percent": 67.8791815524521,
+      "unrelated_cpu_cores": 9.625297623412044,
+      "aggregate_disk_bytes_per_second": 12718010.698542314,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    }
+  ],
+  "limits": [
+    "Two timed samples per arm, exploratory same-recovered-environment model screen.",
+    "All six samples retained; benchmark default warmup enabled in each arm; shared-host activity annotated, not discarded.",
+    "Host dispatch header and numerics identity changes may perturb CPU layout; no separate layout control.",
+    "No full HF/CI, model-logit exactness or promotion claim; current short reference screen only."
+  ],
+  "activity_by_call": [
+    {
+      "call": "q2-wg64-mx-p4096-g256-0-baseline",
+      "samples": 10,
+      "system_cpu_median": 73.65495501418819,
+      "unrelated_cpu_cores_median": 11.39787766010813,
+      "flags": {
+        "unrelated_cpu": 10,
+        "disk": 10,
+        "other_gpu": 2,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-1-candidate",
+      "samples": 11,
+      "system_cpu_median": 70.71895424836602,
+      "unrelated_cpu_cores_median": 10.813674692380186,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 11,
+        "other_gpu": 0,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-2-mx",
+      "samples": 18,
+      "system_cpu_median": 70.82755530958875,
+      "unrelated_cpu_cores_median": 10.649572498383073,
+      "flags": {
+        "unrelated_cpu": 18,
+        "disk": 18,
+        "other_gpu": 0,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-3-mx",
+      "samples": 13,
+      "system_cpu_median": 72.19890216338392,
+      "unrelated_cpu_cores_median": 10.412433081838229,
+      "flags": {
+        "unrelated_cpu": 13,
+        "disk": 12,
+        "other_gpu": 7,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-4-candidate",
+      "samples": 11,
+      "system_cpu_median": 68.13614262560777,
+      "unrelated_cpu_cores_median": 10.70316043965708,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 0,
+        "other_gpu": 11,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-wg64-mx-p4096-g256-5-baseline",
+      "samples": 11,
+      "system_cpu_median": 71.06119791666667,
+      "unrelated_cpu_cores_median": 10.472180339163812,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 0,
+        "other_gpu": 11,
+        "gap": 0
+      }
+    }
+  ],
+  "root_recomputed": {
+    "pp4096": {
+      "samples": {
+        "baseline": [
+          597.54,
+          584.72
+        ],
+        "candidate": [
+          593.76,
+          580.43
+        ],
+        "mx": [
+          723.151329,
+          723.382646
+        ]
+      },
+      "medians": {
+        "baseline": 591.13,
+        "candidate": 587.095,
+        "mx": 723.2669875
+      },
+      "candidate_vs_baseline_percent": -0.6825909698374266,
+      "candidate_vs_mx_percent": -18.827347280246222
+    },
+    "tg256": {
+      "samples": {
+        "baseline": [
+          105.8,
+          103.62
+        ],
+        "candidate": [
+          109.51,
+          109.75
+        ],
+        "mx": [
+          105.800039,
+          119.083853
+        ]
+      },
+      "medians": {
+        "baseline": 104.71000000000001,
+        "candidate": 109.63,
+        "mx": 112.441946
+      },
+      "candidate_vs_baseline_percent": 4.698691624486662,
+      "candidate_vs_mx_percent": -2.5007980562698595
+    }
+  },
+  "disposition": "Keep WG64 as a candidate. PP remains behind mx. Retain both mx TG samples, including the slower first sample; spread and host activity preclude a parity or final-gate claim. Continue measured optimization before broad qualification."
+}

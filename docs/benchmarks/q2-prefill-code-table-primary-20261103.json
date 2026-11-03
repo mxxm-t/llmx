@@ -1,0 +1,285 @@
+{
+  "status": "DONE",
+  "job_id": "20261102T231926Z-379825",
+  "seconds": 161.90769577026367,
+  "plan_sha256": "8c0a4c5c44b0bf94e4ca02b95523494697d8b674547b395c9e360e91453cdb4a",
+  "scope": "No-build exploratory primary operator comparison only; not whole-model qualification",
+  "comparisons": {
+    "first": {
+      "blocks": [
+        {
+          "tag": "timing-0-first",
+          "raw_ms": {
+            "base": [
+              14.04576,
+              14.13744,
+              13.82144,
+              14.0312
+            ],
+            "candidate": [
+              13.84768,
+              14.0584,
+              14.00496,
+              13.93392
+            ]
+          },
+          "median_ms": {
+            "base": 14.03848,
+            "candidate": 13.96944
+          },
+          "time_change_percent": -0.4917911340828862
+        },
+        {
+          "tag": "timing-3-first",
+          "raw_ms": {
+            "base": [
+              13.9848,
+              13.89696,
+              13.96624,
+              13.8024
+            ],
+            "candidate": [
+              13.82128,
+              13.8432,
+              14.01648,
+              13.98032
+            ]
+          },
+          "median_ms": {
+            "base": 13.9316,
+            "candidate": 13.911760000000001
+          },
+          "time_change_percent": -0.14241006058168804
+        }
+      ],
+      "pooled_median_ms": {
+        "base": 13.97552,
+        "candidate": 13.95712
+      },
+      "pooled_time_change_percent": -0.13165878622047877,
+      "equivalent_rate_change_percent": 0.13183235509903746,
+      "pooled_gain_ms": 0.01839999999999975,
+      "within_arm_block_median_spread_ms": {
+        "base": 0.10688000000000031,
+        "candidate": 0.05767999999999951
+      },
+      "frozen_cross_block_rule_pass": false,
+      "frozen_gain_exceeds_spread_pass": false,
+      "frozen_advance_rule_pass": false
+    },
+    "revision2": {
+      "blocks": [
+        {
+          "tag": "timing-1-revision2",
+          "raw_ms": {
+            "base": [
+              14.03008,
+              14.0064,
+              13.89472,
+              14.05232
+            ],
+            "candidate": [
+              13.78992,
+              13.68656,
+              13.76144,
+              13.76112
+            ]
+          },
+          "median_ms": {
+            "base": 14.018239999999999,
+            "candidate": 13.76128
+          },
+          "time_change_percent": -1.8330403816741558
+        },
+        {
+          "tag": "timing-2-revision2",
+          "raw_ms": {
+            "base": [
+              13.96048,
+              13.90032,
+              14.04288,
+              13.80992
+            ],
+            "candidate": [
+              13.85312,
+              13.92,
+              13.98512,
+              13.68432
+            ]
+          },
+          "median_ms": {
+            "base": 13.9304,
+            "candidate": 13.88656
+          },
+          "time_change_percent": -0.31470740251536844
+        }
+      ],
+      "pooled_median_ms": {
+        "base": 13.98344,
+        "candidate": 13.775680000000001
+      },
+      "pooled_time_change_percent": -1.485757438799029,
+      "equivalent_rate_change_percent": 1.5081651141722219,
+      "pooled_gain_ms": 0.2077599999999986,
+      "within_arm_block_median_spread_ms": {
+        "base": 0.08783999999999814,
+        "candidate": 0.12528000000000006
+      },
+      "frozen_cross_block_rule_pass": true,
+      "frozen_gain_exceeds_spread_pass": true,
+      "frozen_advance_rule_pass": true
+    }
+  },
+  "timing_calls": 40,
+  "warmups": 8,
+  "measured_calls": 32,
+  "timing_exact_outputs_including_warmups": 503316480,
+  "smoke_calls": 8,
+  "smoke_exact_outputs": 70588,
+  "guards_inputs_signed_zero_pass": true,
+  "actual_resources": [
+    {
+      "arm": "base",
+      "by_height": {
+        "128": {
+          "SGPRs": 64,
+          "VGPRs": 128,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 26624,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 2
+        },
+        "64": {
+          "SGPRs": 64,
+          "VGPRs": 84,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 17920,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 3
+        }
+      }
+    },
+    {
+      "arm": "first",
+      "by_height": {
+        "128": {
+          "SGPRs": 64,
+          "VGPRs": 128,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 28672,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 2
+        },
+        "64": {
+          "SGPRs": 64,
+          "VGPRs": 84,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 19968,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 3
+        }
+      }
+    },
+    {
+      "arm": "revision2",
+      "by_height": {
+        "128": {
+          "SGPRs": 64,
+          "VGPRs": 128,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 28672,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 2
+        },
+        "64": {
+          "SGPRs": 64,
+          "VGPRs": 84,
+          "Spilled SGPRs": 0,
+          "Spilled VGPRs": 0,
+          "LDS size": 19968,
+          "Scratch size": 0,
+          "Subgroups per SIMD": 3
+        }
+      }
+    }
+  ],
+  "activity": {
+    "samples": 158,
+    "intervals": 157,
+    "first": "2026-11-02T23:19:29.842547+00:00",
+    "last": "2026-11-02T23:22:07.005880+00:00",
+    "system_cpu_percent": {
+      "min": 32.581453634085214,
+      "median": 81.77150192554556,
+      "max": 86.07188703465982
+    },
+    "unrelated_cpu_cores": {
+      "min": 2.4583362938730438,
+      "median": 11.039955208420173,
+      "max": 12.77778788478504
+    },
+    "aggregate_disk_mib_s": {
+      "min": 0.0,
+      "median": 1.5300744071110908,
+      "max": 167.14961321251087
+    },
+    "flag_intervals": {
+      "system_saturated": 0,
+      "unrelated_cpu": 157,
+      "disk": 6,
+      "gap": 0
+    },
+    "process_snapshot_misses": 87,
+    "all_retained": true,
+    "limitations": "Native per-dispatch UTC timestamps unavailable; whole-process spans cannot reliably label individual dispatch activity. Aggregate disk counters may count multiple layers; unavailable GPU counters remain unknown."
+  },
+  "cleanup": {
+    "container_removed": true,
+    "monitor_exit": 0,
+    "postrun_gpu_errors": []
+  },
+  "verified_artifacts": [
+    "run-out/timing-1-revision2.jsonl",
+    "run-out/smoke-revision2-0.jsonl",
+    "run-out/driver-pins.txt",
+    "run-out/device-limits.txt",
+    "run-out/device-limits.stderr",
+    "run-out/timing-0-first.stderr",
+    "run-out/smoke-revision2-0.stderr",
+    "run-out/timing-3-first.stderr",
+    "run-out/activity.jsonl",
+    "run-out/smoke-first-0.jsonl",
+    "run-out/timing-3-first.jsonl",
+    "run-out/smoke-first-0.stderr",
+    "run-out/timing-2-revision2.jsonl",
+    "run-out/monitor.stop",
+    "run-out/timing-0-first.jsonl",
+    "run-out/smoke-revision2-5.stderr",
+    "run-out/smoke-revision2-5.jsonl",
+    "run-out/smoke-first-5.jsonl",
+    "run-out/monitor.log",
+    "run-out/timing-1-revision2.stderr",
+    "run-out/timing-2-revision2.stderr",
+    "run-out/smoke-first-5.stderr",
+    "build-out/base.spv",
+    "build-out/first.spv",
+    "build-out/stats-probe",
+    "build-out/probe",
+    "build-out/candidate.spv",
+    "build-out/safety-probe"
+  ],
+  "terminal_sha256": "004a315c8dcf7db66dcd999b468f36659780cbe9936f00cf8c750cb04bca03d6",
+  "run_receipt_sha256": "88c7e195a54aae83dba5f9d7df25374aa669b2f4632ad889e23ee879d9b241d9",
+  "build_receipt_sha256": "66b397546c710d07a80b39d4499e23243bc26ae3eecd68d1618fc37255fa7f3e",
+  "limits": [
+    "Prepared int16 twin and synthetic exact-integer fixture; activation preparation excluded in every arm.",
+    "A 1.49 percent operator time gain does not establish the requested whole-model performance target.",
+    "No down, full focused range, model/HF/CI, integration change or promotion."
+  ],
+  "next_action": "Root decides whether the small revision2 primary gain merits further scoped work. No job remains active."
+}

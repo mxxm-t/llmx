@@ -322,6 +322,7 @@ C:\Users\Marko\.lmstudio\models\
 The [quant registry](src/quant-quant.md) lists the implemented tensor decoders.
 The [README support matrix](../README.md#quantization-types) separates qualified CPU and Vulkan inference from quantize writers.
 Q1_0 read support is qualified on CPU and Vulkan; [Q1](Q1.md) and [STATUS](STATUS.md) link the current-main evidence and hosted run.
+Q2_0 (GGML type 42, 64 values in 18 bytes) has qualified read-only CPU and Vulkan inference support. [STATUS](STATUS.md) records the file-exact HF, device, split, performance and hosted checks, including the retained performance tradeoffs and earlier failures.
 GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
 IQ2_XXS, IQ2_XS and IQ3_XXS have published read-only CPU/Vulkan inference support; completed qualification and remaining follow-ups are recorded in [STATUS](STATUS.md).
 TQ1_0 and TQ2_0 support read-only CPU/Vulkan inference, with completed applicable qualification and the approved scoped default Vulkan chat baseline exception in PRECISION. The [candidate inventory](benchmarks/tq-candidate-headers-20261024.json) records their revisions, verified complete payload hashes and companion tensor types.
@@ -526,7 +527,8 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q1-0`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q1-0`, `q2-0`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
+`q2-0` is a separate selector for raw-block Q2_0 tiny-HF fixtures; it is not part of `all`. The ordinary and whole-block split references are committed as [`baseline_q2_0.json`](../tests/data/baseline_q2_0.json) and [`baseline_q2_0_split.json`](../tests/data/baseline_q2_0_split.json). Hosted tests consume these frozen files and do not regenerate them.
 `moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.

@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -1043,6 +1043,11 @@ def gen_q1(output_dir=OUT_DIR):
         gen_block_family("q1-0", label, fixture, output_dir)
 
 
+def gen_q2(output_dir=OUT_DIR):
+    from low_bits import fixture_q2
+    gen_block_family("q2-0", "Q2_0", fixture_q2, output_dir)
+
+
 def gen_nvfp4(output_dir=OUT_DIR):
     from nvfp4 import fixture, PROMPT_TEXTS
     from block_fixture import VARIANTS
@@ -1700,6 +1705,7 @@ FIXED_KINDS = {
     "iq1": "uses fixed synthetic raw blocks and one thread",
     "tq": "uses fixed synthetic raw blocks and one thread",
     "q1-0": "uses fixed synthetic raw blocks and one thread",
+    "q2-0": "uses fixed synthetic raw blocks and one thread",
     "nvfp4": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
@@ -1714,7 +1720,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1859,6 +1865,8 @@ def main(argv=None):
         gen_tq(args.output_dir)
     if args.kind == "q1-0":
         gen_q1(args.output_dir)
+    if args.kind == "q2-0":
+        gen_q2(args.output_dir)
     if args.kind == "nvfp4":
         gen_nvfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":

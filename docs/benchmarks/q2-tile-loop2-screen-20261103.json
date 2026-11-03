@@ -1,0 +1,120 @@
+{
+  "status": "REJECTED_PERFORMANCE",
+  "base_commit": "625127474",
+  "scope": "Scratch Q2 H tile loop scheduling only. Four outer iterations with two unrolled words preserve integer sum order and F32 work. No product edit.",
+  "evidence": "scratch/q2-prefill-code-table-20261103/model-integration-ef/tile-loop2-h-v2",
+  "execution_sha256": "3ff2c6ab43da80afd9ca8c8ea65e5354fc3e594a17567936f429483b2d111e08",
+  "files_verified": 15,
+  "raw_hashes": {
+    "native-H.spv": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+    "shape-4096.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "df52da14bd9b01d5beb4e9f3dc4e4e4833799e84ba66865a11eb620862c63f05",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "shape-12288.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "activity.jsonl": "9ab9970c35bc8346cc6a72f6c143f070a551a00775c45e9e895fa4710f421a23",
+    "candidate.spv": "481081a257d7d35ce1a2ad64b746659bdc392080656e59dacbd9844258304a0b",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "shape-4096.stdout": "33cd5f466a7ad92c0c5a8ba4676fd204494ba0bac1cffaa6db13830a9e79ff7c",
+    "compile.stderr": "2bc3ffc93a60c716b8602007f2f124e6d094b59334ea4ecb840e0ffcb1c89e37",
+    "probe.cpp": "5c6c18b4e1b075769b6e0733181d668e6d498004a849d38e11f6fa7171140991",
+    "base.spv": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+    "shape-12288.stdout": "32011d0f17cac924245c1f0c20d59f0e9ea88c6b41ffc76da2d01a9d942c2241",
+    "candidate.comp": "2b466c261caa47b726017d65ebf9e4d2760e35001a6818e651bce36e74896e77",
+    "probe": "c1f4c7cacb692794f58d32812981936650266eb6561bc15c64f41765217b76c5"
+  },
+  "module_hashes": {
+    "native-H.spv": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+    "base.spv": "cd1c9786a6bb5e677830f7cf8caade6859405660dabedbdd5f4750771e2a7ef2",
+    "candidate.spv": "481081a257d7d35ce1a2ad64b746659bdc392080656e59dacbd9844258304a0b"
+  },
+  "baseline_matches_native_H": true,
+  "shape_contract": "M4096 and12288,N512,K4096,tile128,unsplit,oneprojection. Not grouped model traffic.",
+  "timings": {
+    "4096": {
+      "base": {
+        "samples_ns": [
+          2945920,
+          2964480,
+          2965760,
+          2957920
+        ],
+        "median_ns": 2961200.0
+      },
+      "candidate": {
+        "samples_ns": [
+          3391200,
+          3387680,
+          3391040,
+          3394880
+        ],
+        "median_ns": 3391120.0
+      },
+      "candidate_time_change_percent": 14.518438470890182
+    },
+    "12288": {
+      "base": {
+        "samples_ns": [
+          7267840,
+          7286080,
+          7263680,
+          7276800
+        ],
+        "median_ns": 7272320.0
+      },
+      "candidate": {
+        "samples_ns": [
+          8411680,
+          8389600,
+          8349120,
+          8390240
+        ],
+        "median_ns": 8389920.0
+      },
+      "candidate_time_change_percent": 15.367860600193616
+    }
+  },
+  "checks": "20 exact-output calls pass the independent integer-derived oracle; four retained warmups. No boundary/range/HF/full-model claim. SPIR-V validation2/2 passes.",
+  "stats": [
+    {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 24492,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2,
+      "Instructions": 4022
+    },
+    {
+      "SGPRs": 64,
+      "VGPRs": 128,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 18092,
+      "LDS size": 28672,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 2,
+      "Instructions": 3256
+    }
+  ],
+  "observation": "Code shrank24492->18092bytes but VGPR128,SGPR64,LDS28672,zero spills/scratch and2 theoretical subgroups/SIMD remain unchanged. This did not reduce resources and was slower in both shapes. Static instruction counts are not dynamic costs.",
+  "activity": {
+    "records": 30,
+    "samples": 28,
+    "all_raw_preserved": true,
+    "load1_range": [
+      15.07,
+      19.07
+    ],
+    "limitation": "Concurrent shared-host work was recorded. No isolation or per-instruction stall attribution. Missed process reads remain unknown coverage. No samples excluded or replaced."
+  },
+  "cleanup": {
+    "container_removed": true,
+    "monitor_exit": 0,
+    "seconds": 30.457412481307983
+  },
+  "failed_attempt": "tile-loop2-h first stopped before GPU work because the image lacks spirv-val. Both compiled modules were validated with local pinned SPIR-V Tools before v2 timing. The initial2GiB compiler-only admission failed during other work; a512MiB compiler container then passed the same host reserve and completed. Full GPU probe retained2GiB cap. Original failure retained.",
+  "decision": "Reject candidate; keep H. No full qualification runs for this losing change. RGP1.16 capture also not repeated because prior Q2 event could not decode int16 instructions.",
+  "next": "Published main advanced from6f7698b07 to7a46dd672 with prompt-attention splitting. Reconcile Q2 with it and measure before further kernel changes."
+}

@@ -84,6 +84,9 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #if defined(LLMX_Q8MX) || defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"
 #endif
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0) && !defined(LLMX_I8)
+#include "low_bits_cache.glsl"
+#endif
 #if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)
 layout(set = 0, binding = 5) readonly buffer GRID { uint grid[]; };
 #define LOOKUP_GRID_SOURCE(i) grid[i]
@@ -258,6 +261,9 @@ void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], 
 }
 
 void main() {
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0) && !defined(LLMX_I8)
+    lookup_q2_cache_init(true);
+#endif
 #if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)
     lookup_init();
 #endif
@@ -408,10 +414,25 @@ void main() {
                 bool ok = row < nout && kb < kend;
                 float scale;
                 uint codes = lookup_group(ok ? wr : 0u, p.nin, ok ? kb : 0u, scale);
-                for (uint m = 0u; m < WW; ++m) {
-                    uint word = wseg * WW + m;
-                    uvec2 packed = lookup_pairs(codes, word);
-                    wq[s * 8u + word][wrow] = ok ? packed : uvec2(0u);
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0) && !defined(LLMX_I8)
+                if (WW >= 2u) {
+                    for (uint m = 0u; m < WW; m += 2u) {
+                        uint word = wseg * WW + m;
+                        uint raw = lookup_q2_half(codes, word);
+                        raw = ok ? raw : 0x5555u;
+                        uvec2 first = lookup_q2_cached_entry(raw);
+                        uvec2 second = lookup_q2_cached_entry(raw >> 8u);
+                        wq[s * 8u + word][wrow] = first;
+                        wq[s * 8u + word + 1u][wrow] = second;
+                    }
+                } else
+#endif
+                {
+                    for (uint m = 0u; m < WW; ++m) {
+                        uint word = wseg * WW + m;
+                        uvec2 packed = lookup_pairs(codes, word);
+                        wq[s * 8u + word][wrow] = ok ? packed : uvec2(0u);
+                    }
                 }
                 if (wseg == 0u) wsc[s * TILE_ROWS + wrow] = ok ? scale : 0.0;
             }
@@ -604,6 +625,21 @@ void main() {
                 t[i][3] = dot_word(a, b3, t[i][3]);
             }
         }
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0) && !defined(LLMX_I8) && defined(LLMX_PRESERVE_F32)
+        // Q2's finite nonzero half scales keep these four activation products finite and normal; zero is exact.
+        // Nonfinite weights still take the unchanged final nonfinite-result repair.
+        uvec4 ca = floatBitsToUint(vec4(c0, c1, c2, c3)) & uvec4(0x7fffffffu);
+        if (any(lessThan(ca, uvec4(0x17800000u))) || any(greaterThanEqual(ca, uvec4(0x67800000u)))) {
+            for (uint i = 0u; i < MROWS; ++i) {
+                float d = wsc[s * TILE_ROWS + tr * MROWS + i];
+                precise float d0 = d * c0, d1 = d * c1, d2 = d * c2, d3 = d * c3;
+                if (lookup_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
+                if (lookup_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
+                if (lookup_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
+                if (lookup_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
+            }
+        }
+#endif
         for (uint i = 0u; i < MROWS; ++i) {
 #ifdef LLMX_Q8
             // The scales' product, then its product with the sum, each rounded before the add.
@@ -615,10 +651,12 @@ void main() {
 #ifdef LLMX_LOOKUP
             // Lookup magnitudes are at most 127, bounding each integer block sum by 32 * 127 * 32767 = 133165088.
             float d0 = d * c0, d1 = d * c1, d2 = d * c2, d3 = d * c3;
+#if !(defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0) && !defined(LLMX_I8) && defined(LLMX_PRESERVE_F32))
             if (lookup_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
             if (lookup_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
             if (lookup_unsafe_scale(d, c2, d2)) repair[i] |= 4u;
             if (lookup_unsafe_scale(d, c3, d3)) repair[i] |= 8u;
+#endif
             precise float p0 = d0 * float(t[i][0]), p1 = d1 * float(t[i][1]);
             precise float p2 = d2 * float(t[i][2]), p3 = d3 * float(t[i][3]);
 #else

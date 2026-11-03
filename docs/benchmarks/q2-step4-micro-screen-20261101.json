@@ -1,0 +1,76 @@
+{
+  "schema": "llmx.q2-step4-micro-screen.v1",
+  "date": "2026-11-01",
+  "scope": "Isolated Q2_0 block-int16 tile experiment: STEP4 shader against the frozen STEP2 shader. No native suite, model/HF gate, or SQTT run.",
+  "candidate": {
+    "runtime_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "base_source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "candidate_source_tree_sha256": "ed53ef36cf4e64fac8929aa87205998c9e12a6d809d134243bbfdbbe9895b1d5",
+    "only_source_path_changed": "src/backends/vulkan/shaders/matmul_tile_q.comp",
+    "base_shader_sha256": "720fce996f7580afd293ef1665c4c7de2aa4b7fccdb08520f86c9dc3064f1557",
+    "candidate_shader_sha256": "cee7af0faf1cba2de5baa77cdb1cdee3b9f2c67cd81dd9d01e8e084fc6268424",
+    "base_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_library_sha256": "bc42658416a7f3a81268063ee425ee94817efbeb876a89bd67ad415c0ceba50e",
+    "base_probe_sha256": "a9cba8c20bcde9d5a457215c79e3594b8b069e7fc77f4de3e755571a19e0dc1e",
+    "candidate_probe_sha256": "44616a3671c3013cc970ba31baf4f6b97a6681c21e17e3f0784ebba436be4027",
+    "probe_source_sha256": "60a923b73d15e432b7578dd1bc6f394902d97a2d8c54bb13ccf19a2c9c44bb9e",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "run": {
+    "order": ["base", "candidate", "candidate", "base"],
+    "processes": 4,
+    "calls_per_process": 8,
+    "calls_total": 32,
+    "per_shape_process_calls": "One warmup and three measured calls per process; six measured calls per arm and shape.",
+    "shapes_k_m_n": [[4096, 4096, 512], [12288, 4096, 512]],
+    "elapsed_seconds": 17.270389,
+    "full_output_checks": "32/32 processes/calls returned success; every output element was compared bitwise with the exact integer oracle. Each call reports 2,097,152 checked outputs and the block-int16 path.",
+    "slow_samples_discarded": false,
+    "gpu_container_removed": true,
+    "base_pins_unchanged": true
+  },
+  "warm_results": [
+    {
+      "shape_k_m_n": [4096, 4096, 512],
+      "base_row_kernel_ms": [3.56416, 3.55872, 3.57616, 3.59136, 3.57376, 3.56848],
+      "candidate_row_kernel_ms": [5.22464, 5.23216, 5.28368, 5.22368, 5.14064, 5.1272],
+      "row_kernel_median_ms": {"base": 3.57112, "candidate": 5.22416, "change_percent": 46.29},
+      "wall_ms": {"base_samples": [5.5378, 5.51888, 5.46334, 5.63706, 5.53879, 5.47072], "candidate_samples": [7.19842, 7.40937, 7.19426, 7.40082, 7.14351, 7.07995], "base_median": 5.52834, "candidate_median": 7.19634}
+    },
+    {
+      "shape_k_m_n": [12288, 4096, 512],
+      "base_row_kernel_ms": [9.84112, 8.23824, 7.44896, 9.43744, 7.00576, 6.24032],
+      "candidate_row_kernel_ms": [10.4304, 8.76384, 8.95552, 9.87888, 8.93264, 8.87808],
+      "row_kernel_median_ms": {"base": 7.8436, "candidate": 8.94408, "change_percent": 14.03},
+      "wall_ms": {"base_samples": [12.0411, 10.3542, 9.67322, 11.5502, 9.01954, 8.22854], "candidate_samples": [12.356, 10.6239, 11.512, 11.7214, 10.7616, 11.093], "base_median": 10.01371, "candidate_median": 11.3025}
+    }
+  ],
+  "compiled_shader_resources": {
+    "changed_module": "generated/vulkan/matmul_tile_q2_0_dot.inc",
+    "base_vgpr": 128,
+    "candidate_vgpr": 256,
+    "base_lds_bytes": 26624,
+    "candidate_lds_bytes": 52224,
+    "spills": 0,
+    "interpretation": "Reported pipeline resource values only. They do not measure occupancy or dynamic instruction behavior."
+  },
+  "activity": {
+    "path": "scratch/q2-step4-micro-v1/run-out-v1/activity.jsonl",
+    "sha256": "1ad57ecb158957a3837d275db103e4e799714cdddc53fe20abd62a6e274ace3f",
+    "sample_snapshots": 15,
+    "sample_intervals": 14,
+    "unrelated_cpu_mean_cores": 4.40,
+    "process_stat_gaps": 6,
+    "coverage_note": "The process monitor reports missing process-stat entries and may miss short-lived processes. All activity samples are retained; no slow call was censored."
+  },
+  "artifacts": {
+    "scratch_root": "scratch/q2-step4-micro-v1/",
+    "build_receipt": "scratch/q2-step4-micro-v1/build-receipt.json",
+    "build_receipt_sha256": "210a020ad6c4f591b2a1c6182c6c87305268251fc89106bec55cdde223e4ad79",
+    "run_plan": "scratch/q2-step4-micro-v1/run-plan.json",
+    "run_plan_sha256": "a6a2e3bfe7705886cd058b7e2574b53af775db6fc43a065af8b06a3725996df4",
+    "execution": "scratch/q2-step4-micro-v1/run-out-v1/execution.json",
+    "execution_sha256": "13afb831e2ba7bd7f8bc31bf2e03c6936e8ed36cf161d50661294f746616cae8"
+  },
+  "conclusion": "STEP4 is slower on both measured shapes and increases reported VGPR/LDS use. It is not promoted. This bounded exact micro screen is not a model result or a Q2 qualification gate."
+}

@@ -1,0 +1,60 @@
+{
+  "scope": "Q2_0 chat F32 quality attempt interruption; no completed reference or numerical qualification",
+  "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-recovery-20261101",
+  "complete": false,
+  "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-recovery-20261101/supervise.py\", line 229, in <module>\n    run_policy(policy)\n    ~~~~~~~~~~^^^^^^^^\n  File \"/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-recovery-20261101/supervise.py\", line 170, in run_policy\n    last_admission = admission(exclude=cid)\n  File \"/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-recovery-20261101/supervise.py\", line 81, in admission\n    assert not selected & {topology[cpu] for cpu in cpu_set(cpuset)}, 'physical CPU overlap: ' + info['Name']\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: physical CPU overlap: /mdev-tr-build\n",
+  "seconds": 6305.466705083847,
+  "stage_terminal": {
+    "policy": "F32-quality",
+    "started": 1793528837.1620274,
+    "cid": "150c710361c04f98b9e172a86890fca258b3a8681b222c2552b04a8b1ce811b2",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 137,
+      "Error": "",
+      "StartedAt": "2026-11-01T10:27:17.295938598Z",
+      "FinishedAt": "2026-11-01T12:12:17.093752646Z"
+    },
+    "removed": true,
+    "seconds": 6300.178408622742
+  },
+  "last_progress": {
+    "unix": 1793535122.1740131,
+    "elapsed": 6282.5303864479065,
+    "policy": "F32-quality",
+    "phase": "layer-forward",
+    "memory_current": 1687203840,
+    "memory_peak": 4548063232,
+    "ru_maxrss_KiB": 4420544,
+    "layer": 31,
+    "phase_name": "prefill_512",
+    "end": 8704
+  },
+  "completed_model_layers": 31,
+  "completed_logit_rows": 0,
+  "files": {
+    "out/execution.json": {
+      "bytes": 2578169,
+      "sha256": "0ebf3d2a577b98956f78d93998caacf452265e044a942f7a341b8b3d72290863"
+    },
+    "out/F32-quality/report.json": {
+      "bytes": 6184,
+      "sha256": "ad452200678a6aae53e8133b5dd28dfd2aca7b6b7e795b5cde5aed27c811b066"
+    },
+    "out/F32-quality/progress.json": {
+      "bytes": 271,
+      "sha256": "f8260922d3a124367970a7c0affd420152fae947368562ffd1d8aa39ac82350b"
+    },
+    "supervisor-host.log": {
+      "bytes": 70334,
+      "sha256": "1ac5bfb6d80e7cf21be71807306b268f8912d10ed93ae3ef4b9c96acc496e161"
+    }
+  },
+  "decision": "Preserve failure. Add identity-checked layer checkpoints and record newly arriving CPU contention without aborting correctness-only work. Initial CPU admission, memory guards, deadlines and numerical limits remain unchanged."
+}

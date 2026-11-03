@@ -1,0 +1,139 @@
+{
+  "schema": "llmx.q2-integration-native-checks.v1",
+  "scope": "Targeted integration and native/operator checks only. This record makes no released-file, split, depth, or performance qualification claim.",
+  "source": {
+    "worktree": "worktrees/q2-main-b7eef-20261101",
+    "test_fix_commit": "189ba628982d4ed423c4b524e9ac244d08375610",
+    "test_fix_parent": "b3ca62bebd2a0bccf4b840c45e1d8c991672feb7",
+    "test_fix": "tests/backend_vulkan.cpp removes supported GGML type 42 (Q2_0) from the expected-unsupported type list; no runtime code or numerical bound changed.",
+    "runtime_candidate": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "integrated_cli_version": "llmx 0.1.0+gb3ca62bebd2a numerics 57f83d79972ae050",
+    "integrated_cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "note": "The CLI binary predates the test-only 189ba commit; it is identified by its own embedded revision and is not relabeled."
+  },
+  "windows_radeon": {
+    "build_root": "build-q2-integration",
+    "cli_version": "llmx 0.1.0+gb3ca62bebd2a numerics 57f83d79972ae050",
+    "cli_sha256": "e70b3035ac07c6c85d7ef98359a3aad807a0889c36ff519a6531c1a988baa15e",
+    "cpu_ctest": {
+      "result": "pass",
+      "passed": 79,
+      "total": 79,
+      "log": "build-q2-integration/ctest-cpu.log",
+      "log_sha256": "df95544efab6e17a1210588ccc6659aa5dac3583c64e306b585ab34f2b1e4dbb"
+    },
+    "vulkan_ctest": {
+      "result": "pass",
+      "passed": 17,
+      "total": 17,
+      "device": "AMD Radeon VII",
+      "driver": "AMD proprietary 26.5.2",
+      "log": "build-q2-integration/ctest-vulkan-other.log",
+      "log_sha256": "a9865d157f802641b52c03c0a70d9d0d8f05e27a395d8e23ec46a026aa3251b9"
+    },
+    "low_bits_binaries": {
+      "backend_vulkan_test_sha256": "cb950f67ca4fa159f70f21d897c86fcab36942b08097c84287d1351513ddde67",
+      "low_bits_test_sha256": "fcbbd701aedafac92929c0b09f2e3aea941b4dbe7e9d18ce6ebdc05fa4e39519"
+    },
+    "focused_python": {
+      "result": "pass",
+      "terminal_exit_code": 0,
+      "components": [
+        "reference-generator",
+        "reference-consumer",
+        "raw-blocks",
+        "roundtrip",
+        "low-bits"
+      ],
+      "log": "build-q2-integration/cpu-focused.log",
+      "log_sha256": "c47f11e0149a1555f708a885a807f71bc6833890eda8cb56dd267f062c45c280"
+    },
+    "radeon_low_bits_python": {
+      "result": "pass",
+      "terminal_exit_code": 0,
+      "log": "build-q2-integration/radeon-low-bits.log",
+      "log_sha256": "49c2ca257c07552f8a0587d2b2dbbb4a1fc53b44ebf903a265726f56ab86cfed",
+      "scope": "Q1_0 and Q2_0 dense tied/untied and MoE HF; 150 full-logit and 12 NLL cases per type."
+    },
+    "unsupported_type_expectation": {
+      "initial_failure": {
+        "binary_sha256": "622f8a964401b24990a9ae6e0e3a1258558a0c0587c19b707e5f2693b7039708",
+        "exit_code": 1,
+        "stderr": "metadata-only or unknown weight type acquired a kernel",
+        "execution": "build-q2-integration/radeon-isa-20261101/execution.json",
+        "execution_sha256": "159ae570d39c0ee8b2654c97edb37b0e8c85c7b53789d1827d1d3f29770f9013"
+      },
+      "corrected_run": {
+        "binary_sha256": "cb950f67ca4fa159f70f21d897c86fcab36942b08097c84287d1351513ddde67",
+        "exit_code": 0,
+        "execution": "build-q2-integration/radeon-isa-fixed-20261101/execution.json",
+        "execution_sha256": "0f7c393e6b54c9f1e24157f26d8a62f4db2ebf5726d1b87c8b7281bdb4ae3502",
+        "fix_commit": "189ba628982d4ed423c4b524e9ac244d08375610",
+        "isa_output_files": 0,
+        "stdout_sha256": "1ca86b3ed74901a56f9e1e81e3b4216b58c6adde764e23130552f69ba3845303",
+        "caveat": "The corrected Radeon --isa process exited 0, but the requested output directory did not exist, so no disassembly files were produced. This is not evidence of a driver ISA limitation and does not close Radeon ISA coverage."
+      },
+      "corrected_run_with_output_directory": {
+        "binary_sha256": "cb950f67ca4fa159f70f21d897c86fcab36942b08097c84287d1351513ddde67",
+        "exit_code": 0,
+        "execution": "build-q2-integration/radeon-isa-artifacts-20261101/execution.json",
+        "execution_sha256": "6d0a71aa44a50a226e385a7200789f41bb51a220e668601f4c19edd129a74beb",
+        "fix_commit": "189ba628982d4ed423c4b524e9ac244d08375610",
+        "duration_seconds": 150.3241,
+        "gpu_admission_samples": 1226,
+        "gpu_admission_invalid_samples": 0,
+        "artifact_count": 209,
+        "q2_artifact_sha256": {
+          "matmul_row_q2_0.txt": "ae8e823b664ad236b579c61bd71c99adcc7b3e491955363e85a87b71b9784b76",
+          "matmul_row_q2_0_1col.txt": "f20cea87a51131f43c1701a3791ba1ec462d5e19345669752ddd3c36d422dbf6",
+          "matmul_row_q2_0_grouped.txt": "b8ab8baf123366ac3dfe101969d43edc6dddfb50eb120481e6add6db0724a7a6"
+        },
+        "output_directory": "build-q2-integration/radeon-isa-artifacts-20261101/isa",
+        "note": "Fresh executable path and explicitly created output directory; the earlier missing-directory run remains retained separately."
+      }
+    }
+  },
+  "mi50_frozen_candidate": {
+    "source_commit": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "cli_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "vulkan_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "generated_config_sha256": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+    "low_bits_vulkan": {
+      "command": "/work/candidate/build/llmx-low-bits-test --vulkan",
+      "exit_code": 0,
+      "test_binary_sha256": "743087dbcf6784358d4db5f703c83073c5c0125dcb9a2252a4fcfbd5c3a477bc",
+      "exit_receipt_sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "artifacts_before_sha256": "2d1481e9ced8ef3db01e25fce32aa2dd2a6a5cd32d285e0a68ea5e9f78d040d9",
+      "artifacts_before_after": "CLI, low-bits test binary, backend test binary, static Vulkan library and generated config hashes matched."
+    },
+    "corrected_backend_isa": {
+      "device": "AMD Instinct MI60 / MI50 on RADV Mesa 25.0.7-2+deb13u1",
+      "command": "/out/fixed-backend/llmx-backend-vulkan-test --isa /out/fixed-backend/isa-v2",
+      "container_exit_code": 0,
+      "container_inspect_sha256": "547de32050a4670e14cc1087eac941b68dc8bf18d7c6cca25c35d6451a824183",
+      "test_binary_sha256": "f1bb15d43ae979306dee509c3368bbe1b19544617499c1b558c5b62bfb7465a6",
+      "corrected_temporary_test_source_sha256": "33859471742797b17712191576cde3bb2d4513362482b8466a00341ec45e608a",
+      "original_test_source_sha256": "c8e4594fee507cff57f0fd3124572f5a013c1cb99947d05b79c9ffc1bb459520",
+      "source_diff_sha256": "a8b277d329a7f8a1429afcbd168d3d98279494cfe7784b92beb57e203dcea4ec",
+      "source_diff_summary": "Test-only removal of type 42 from an unsupported-type expectation; frozen runtime library unchanged.",
+      "isa_manifest_sha256": "203b9678f81873ff4b1c8034108959f0c869a9391a4f8c9b6a42b2a80158a040",
+      "isa_manifest_entries": 336,
+      "q2_artifact_sha256": {
+        "matmul_row_q2_0_dot.txt": "c4ea7deae1e1095c005fbab3b3f8eff45661b9791c0b2cf33ea4387590e82cf9",
+        "matmul_row_q2_0_dot_1col_4row.txt": "0218e243bb9fe037db1ffa424ee75671cb7a9038badfbdea3abb34f888108580",
+        "matmul_tile_q2_0_dot_small.txt": "07d4fcfabf09a4b3de25f5be51bfbdf008fcf6b9d51f9e72242b70016791bf9c",
+        "matmul_tile_q2_0_dot_tall_narrow.txt": "4a4ce732deace94d2036d5368f5ad194f94d7cb317d4d03d0d3f3efa294f0213"
+      },
+      "artifacts_before_after_manifest_sha256": "a9e7fe21cfc797dd7fd8242685197b4785f0afbf7eb8f8872131c64ef20da770",
+      "qualification": "Frozen 9ad native and ISA evidence only; not rerun against the Windows integrated binary."
+    }
+  },
+  "not_closed_by_this_record": [
+    "current-source split checks",
+    "raw/chat 16K released-file depth",
+    "default-vs-mx prefill deficit and final performance disposition",
+    "exact-head hosted CI"
+  ]
+}

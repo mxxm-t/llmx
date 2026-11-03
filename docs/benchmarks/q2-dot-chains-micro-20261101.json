@@ -1,0 +1,113 @@
+{
+  "schema": "llmx.q2-dot-chains-micro-checkpoint.v1",
+  "date": "2026-11-01",
+  "scope": "Q2 default block-int16 row only; bounded diagnostic micro, no native/model/HF qualification",
+  "status": "No demonstrated gain in short kernel screen; experiment not integrated; no model/native/HF qualification.",
+  "base": {
+    "revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "helper_sha256": "144a11673a11518471d55b7ba88aa0579c4ac151ba1a6937dd98cc67b880f718"
+  },
+  "candidate": {
+    "worktree_head": "189ba628982d4ed423c4b524e9ac244d08375610",
+    "changed_file": "src/backends/vulkan/shaders/matmul_row_two.glsl",
+    "source_tree_sha256": "8d302c727f002e0126bc4e82a8f599746ff7cbb4c0bf70535de041e62d8f5f6f",
+    "overlay_sha256": "b6b680109ae6a673a9499c111b6760d3dedb8a3ca72d69bb152e161a34a7be34",
+    "library_sha256": "0c28975dde0a9d87f7a39996aa7a32dab2504345c2cbfd005a39b4af2f18293e",
+    "helper_sha256": "e5239b144e914e8b087ca23084efd662aa1ab338e83b9f148b8ee430680aeef7",
+    "probe_sha256": "34865123ce38a1bd3ab22e7b2bd56bfe1a0d5b1607b99d0b25a80b5324aa084a"
+  },
+  "measurement": {
+    "gpu": "MI50 renderD130 PCI 0000:c9:00.0",
+    "order": [
+      "base",
+      "candidate",
+      "candidate",
+      "base"
+    ],
+    "shapes": [
+      [
+        4096,
+        12288,
+        1
+      ],
+      [
+        12288,
+        4096,
+        1
+      ]
+    ],
+    "calls": 72,
+    "calls_per_process_shape": {
+      "cold": 1,
+      "warm": 8
+    },
+    "exact_outputs": "All 72 outputs matched independent int64-derived F32 values bitwise; block-int16 path witnessed; no retries or discarded samples.",
+    "all_samples_retained": true,
+    "warm_row_gpu_ms": {
+      "K4096_M12288": {
+        "base_median": 0.09544,
+        "candidate_median": 0.09608,
+        "candidate_change_percent": 0.6705783738474524
+      },
+      "K12288_M4096": {
+        "base_median": 0.11368,
+        "candidate_median": 0.11448,
+        "candidate_change_percent": 0.703729767769179
+      }
+    },
+    "cold_row_change_percent": {
+      "K4096_M12288": 1.8072289156626509,
+      "K12288_M4096": 0.5681818181818121
+    }
+  },
+  "isa_observation": {
+    "base": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "spilled_SGPRs": 0,
+      "spilled_VGPRs": 0,
+      "code_size_bytes": 8200,
+      "instructions": 1480,
+      "latency_estimate": 307352,
+      "inverse_throughput_estimate": 237864,
+      "subgroups_per_SIMD": 4
+    },
+    "candidate": {
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "spilled_SGPRs": 0,
+      "spilled_VGPRs": 0,
+      "code_size_bytes": 8272,
+      "instructions": 1493,
+      "latency_estimate": 308504,
+      "inverse_throughput_estimate": 239112,
+      "subgroups_per_SIMD": 4
+    },
+    "note": "Driver compiler statistics and textual representation, not measured occupancy or a hardware instruction count."
+  },
+  "activity": {
+    "monitor_exit": 0,
+    "monitor_duration_s": 8.009015454910696,
+    "sample_count": 0,
+    "missed_process_samples": 0,
+    "missed_detail": "FileNotFoundError pids disappeared during sampling; monitor documents short-lived processes can be missed.",
+    "gpu_before_after_busy": [
+      0,
+      0
+    ],
+    "note": "No sampled GPU-busy entries; short-lived process sampling was incomplete, so this is not evidence of no contention."
+  },
+  "provenance": {
+    "execution_sha256": "b799261b793e7f4a553f19c0275642873641cbe99c0fb821061a0b370a493b08",
+    "build_receipt_sha256": "cfd83bf098d3f837f263cc7874f65774417a654ea93b13dcbafa41d9caa93a94",
+    "plan_sha256": "3fd20908ea839a653c5067ef214b3139691b63ca0a35d1dc3b1c89e00fdca04f",
+    "runner_sha256": "9fab9afcb5e51443224aee871ed10453cd393e51407a85230b9ecb59b0aab9e7",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "rig_raw_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-dot-chains-micro-v1/run-out-v1",
+    "local_summary": "scratch/q2-dot-chains-micro-v1/summary.json",
+    "container_id": "31eeb5af58235c194047f6badf0e4240b67f29c376d45fdb03342ca1e460008d",
+    "container_removed": true
+  }
+}

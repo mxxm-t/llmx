@@ -1,0 +1,712 @@
+{
+  "scope": "Exploratory interrupted ABC+CBA screen, not a merge pass",
+  "report_sha256": "fecee5f5391c9b064160feee0e5bdcf58808739e1e00032331cd4d3d13dcedc3",
+  "root_raw_rate_audit": {
+    "run-out\\q2-packed-zero-p4096-g256-0-baseline.stdout": "b190f4a076c2024034309d613b2b2f4d20a2885635d926206af3711bf0d03f7e",
+    "run-out\\q2-packed-zero-p4096-g256-1-candidate.stdout": "79272dfb7b6240d668c6b0119fe295b64f7fb1b133d149a033d8ed4985e6f6f8",
+    "run-out\\q2-packed-zero-p4096-g256-2-mx.stdout": "9435ac60bd46cf8a7d1d1c34448539aff07dafdaac531a74cb2858f769b9ec35",
+    "continuation\\run-out\\q2-packed-zero-p4096-g256-0-mx.stdout": "5e45ef031f465a86ae9aebcce4fccd36cd8da6e4496279ed2b1b741457422ad1",
+    "continuation\\run-out\\q2-packed-zero-p4096-g256-1-candidate.stdout": "522916a35e05cd8341908e600634cd3cf5f1d063243521a0279195fc5ae74d3e",
+    "continuation\\run-out\\q2-packed-zero-p4096-g256-2-baseline.stdout": "57d67855340ff650761f9d1928e316dcacca0677c65a286591f1fd5dcd65940d"
+  },
+  "recomputed_medians": {
+    "pp4096": {
+      "baseline": 575.885,
+      "candidate": 600.185,
+      "mx": 716.0702655
+    },
+    "tg256": {
+      "baseline": 101.725,
+      "candidate": 102.955,
+      "mx": 123.1548145
+    }
+  },
+  "retained_report": {
+    "status": "INTERRUPTED_EXPLORATORY_BLOCK_COMPLETE",
+    "checks": {
+      "initial:receipt": true,
+      "initial:plan": true,
+      "initial:runner": true,
+      "initial:authorization": true,
+      "initial:baseline-version.stdout": true,
+      "initial:container-id.txt": true,
+      "initial:q2-packed-zero-p4096-g256-1-candidate.stderr": true,
+      "initial:q2-packed-zero-p4096-g256-2-mx.stderr": true,
+      "initial:q2-packed-zero-p4096-g256-0-baseline.stderr": true,
+      "initial:monitor.stop": true,
+      "initial:candidate-version.stdout": true,
+      "initial:monitor.log": true,
+      "initial:activity.jsonl": true,
+      "initial:baseline-version.stderr": true,
+      "initial:q2-packed-zero-p4096-g256-0-baseline.stdout": true,
+      "initial:candidate-version.stderr": true,
+      "initial:q2-packed-zero-p4096-g256-2-mx.stdout": true,
+      "initial:driver-pins.txt": true,
+      "initial:q2-packed-zero-p4096-g256-1-candidate.stdout": true,
+      "continuation:receipt": true,
+      "continuation:plan": true,
+      "continuation:runner": true,
+      "continuation:authorization": true,
+      "continuation:driver-pins.txt": true,
+      "continuation:monitor.stop": true,
+      "continuation:q2-packed-zero-p4096-g256-0-mx.stderr": true,
+      "continuation:candidate-version.stderr": true,
+      "continuation:q2-packed-zero-p4096-g256-2-baseline.stdout": true,
+      "continuation:q2-packed-zero-p4096-g256-1-candidate.stdout": true,
+      "continuation:baseline-version.stderr": true,
+      "continuation:container-id.txt": true,
+      "continuation:activity.jsonl": true,
+      "continuation:q2-packed-zero-p4096-g256-1-candidate.stderr": true,
+      "continuation:baseline-version.stdout": true,
+      "continuation:monitor.log": true,
+      "continuation:q2-packed-zero-p4096-g256-0-mx.stdout": true,
+      "continuation:q2-packed-zero-p4096-g256-2-baseline.stderr": true,
+      "continuation:candidate-version.stdout": true
+    },
+    "all_hash_checks_passed": true,
+    "measurements": [
+      {
+        "call": "q2-packed-zero-p4096-g256-0-baseline",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "baseline",
+        "start": 1793639108.8251786,
+        "end": 1793639131.4936996,
+        "exit": 0,
+        "rates": {
+          "pp4096": 575.86,
+          "tg256": 100.51
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "valid": true,
+        "segment": "initial",
+        "offline_validated": true
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-1-candidate",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "candidate",
+        "start": 1793639133.1406114,
+        "end": 1793639154.7183716,
+        "exit": 0,
+        "rates": {
+          "pp4096": 599.8,
+          "tg256": 100.46
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "valid": true,
+        "segment": "initial",
+        "offline_validated": true
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-2-mx",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "mx",
+        "start": 1793639156.4012263,
+        "end": 1793639190.524646,
+        "exit": 0,
+        "rates": {
+          "pp4096": 718.7453,
+          "tg256": 123.666443
+        },
+        "matrix_paths": {
+          "mx_config": [
+            {
+              "build_commit": "unknown",
+              "build_number": 0,
+              "cpu_info": "AMD EPYC 7262 8-Core Processor",
+              "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+              "backends": "Vulkan",
+              "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+              "model_type": "qwen3 8B (guessed) Q2_0",
+              "model_size": 2304790528,
+              "model_n_params": 8190735360,
+              "n_batch": 4096,
+              "n_ubatch": 512,
+              "n_threads": 1,
+              "cpu_mask": "0x0",
+              "cpu_strict": false,
+              "poll": 50,
+              "type_k": "f16",
+              "type_v": "f16",
+              "n_gpu_layers": 99,
+              "n_cpu_moe": 0,
+              "split_mode": "layer",
+              "tensor_parallel_size": 0,
+              "main_gpu": 0,
+              "no_kv_offload": false,
+              "flash_attn": 1,
+              "devices": "auto",
+              "tensor_split": "0.00",
+              "tensor_buft_overrides": "none",
+              "load_mode": "mmap",
+              "lazy_mode": "auto",
+              "embeddings": false,
+              "no_op_offload": 0,
+              "no_host": false,
+              "repack": true,
+              "fit_target": 0,
+              "fit_min_ctx": 0,
+              "n_prompt": 4096,
+              "n_gen": 0,
+              "n_depth": 0,
+              "test_time": "2026-11-02T17:06:05Z",
+              "avg_ns": 5698819874,
+              "stddev_ns": 0,
+              "avg_ts": 718.7453,
+              "stddev_ts": 0.0,
+              "samples_ns": [
+                5698819874
+              ],
+              "samples_ts": [
+                718.745
+              ]
+            },
+            {
+              "build_commit": "unknown",
+              "build_number": 0,
+              "cpu_info": "AMD EPYC 7262 8-Core Processor",
+              "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+              "backends": "Vulkan",
+              "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+              "model_type": "qwen3 8B (guessed) Q2_0",
+              "model_size": 2304790528,
+              "model_n_params": 8190735360,
+              "n_batch": 4096,
+              "n_ubatch": 512,
+              "n_threads": 1,
+              "cpu_mask": "0x0",
+              "cpu_strict": false,
+              "poll": 50,
+              "type_k": "f16",
+              "type_v": "f16",
+              "n_gpu_layers": 99,
+              "n_cpu_moe": 0,
+              "split_mode": "layer",
+              "tensor_parallel_size": 0,
+              "main_gpu": 0,
+              "no_kv_offload": false,
+              "flash_attn": 1,
+              "devices": "auto",
+              "tensor_split": "0.00",
+              "tensor_buft_overrides": "none",
+              "load_mode": "mmap",
+              "lazy_mode": "auto",
+              "embeddings": false,
+              "no_op_offload": 0,
+              "no_host": false,
+              "repack": true,
+              "fit_target": 0,
+              "fit_min_ctx": 0,
+              "n_prompt": 0,
+              "n_gen": 256,
+              "n_depth": 0,
+              "test_time": "2026-11-02T17:06:20Z",
+              "avg_ns": 2070084612,
+              "stddev_ns": 0,
+              "avg_ts": 123.666443,
+              "stddev_ts": 0.0,
+              "samples_ns": [
+                2070084612
+              ],
+              "samples_ts": [
+                123.666
+              ]
+            }
+          ]
+        },
+        "valid": false,
+        "segment": "initial",
+        "offline_validated": true
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-0-mx",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "mx",
+        "start": 1793639576.6492062,
+        "end": 1793639604.8522866,
+        "exit": 0,
+        "rates": {
+          "pp4096": 713.395231,
+          "tg256": 122.643186
+        },
+        "matrix_paths": {
+          "mx_config": [
+            {
+              "build_commit": "unknown",
+              "build_number": 0,
+              "cpu_info": "AMD EPYC 7262 8-Core Processor",
+              "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+              "backends": "Vulkan",
+              "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+              "model_type": "qwen3 8B (guessed) Q2_0",
+              "model_size": 2304790528,
+              "model_n_params": 8190735360,
+              "n_batch": 4096,
+              "n_ubatch": 512,
+              "n_threads": 1,
+              "cpu_mask": "0x0",
+              "cpu_strict": false,
+              "poll": 50,
+              "type_k": "f16",
+              "type_v": "f16",
+              "n_gpu_layers": 99,
+              "n_cpu_moe": 0,
+              "split_mode": "layer",
+              "tensor_parallel_size": 0,
+              "main_gpu": 0,
+              "no_kv_offload": false,
+              "flash_attn": 1,
+              "devices": "auto",
+              "tensor_split": "0.00",
+              "tensor_buft_overrides": "none",
+              "load_mode": "mmap",
+              "lazy_mode": "auto",
+              "embeddings": false,
+              "no_op_offload": 0,
+              "no_host": false,
+              "repack": true,
+              "fit_target": 0,
+              "fit_min_ctx": 0,
+              "n_prompt": 4096,
+              "n_gen": 0,
+              "n_depth": 0,
+              "test_time": "2026-11-02T17:12:59Z",
+              "avg_ns": 5741557862,
+              "stddev_ns": 0,
+              "avg_ts": 713.395231,
+              "stddev_ts": 0.0,
+              "samples_ns": [
+                5741557862
+              ],
+              "samples_ts": [
+                713.395
+              ]
+            },
+            {
+              "build_commit": "unknown",
+              "build_number": 0,
+              "cpu_info": "AMD EPYC 7262 8-Core Processor",
+              "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+              "backends": "Vulkan",
+              "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+              "model_type": "qwen3 8B (guessed) Q2_0",
+              "model_size": 2304790528,
+              "model_n_params": 8190735360,
+              "n_batch": 4096,
+              "n_ubatch": 512,
+              "n_threads": 1,
+              "cpu_mask": "0x0",
+              "cpu_strict": false,
+              "poll": 50,
+              "type_k": "f16",
+              "type_v": "f16",
+              "n_gpu_layers": 99,
+              "n_cpu_moe": 0,
+              "split_mode": "layer",
+              "tensor_parallel_size": 0,
+              "main_gpu": 0,
+              "no_kv_offload": false,
+              "flash_attn": 1,
+              "devices": "auto",
+              "tensor_split": "0.00",
+              "tensor_buft_overrides": "none",
+              "load_mode": "mmap",
+              "lazy_mode": "auto",
+              "embeddings": false,
+              "no_op_offload": 0,
+              "no_host": false,
+              "repack": true,
+              "fit_target": 0,
+              "fit_min_ctx": 0,
+              "n_prompt": 0,
+              "n_gen": 256,
+              "n_depth": 0,
+              "test_time": "2026-11-02T17:13:13Z",
+              "avg_ns": 2087356080,
+              "stddev_ns": 0,
+              "avg_ts": 122.643186,
+              "stddev_ts": 0.0,
+              "samples_ns": [
+                2087356080
+              ],
+              "samples_ts": [
+                122.643
+              ]
+            }
+          ]
+        },
+        "valid": true,
+        "segment": "continuation",
+        "offline_validated": true
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-1-candidate",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "candidate",
+        "start": 1793639606.4739368,
+        "end": 1793639628.0695753,
+        "exit": 0,
+        "rates": {
+          "pp4096": 600.57,
+          "tg256": 105.45
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "valid": true,
+        "segment": "continuation",
+        "offline_validated": true
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-2-baseline",
+        "workload": "q2-packed-zero-p4096-g256",
+        "arm": "baseline",
+        "start": 1793639629.6758988,
+        "end": 1793639652.0741255,
+        "exit": 0,
+        "rates": {
+          "pp4096": 575.91,
+          "tg256": 102.94
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "valid": true,
+        "segment": "continuation",
+        "offline_validated": true
+      }
+    ],
+    "rates": {
+      "pp4096": {
+        "samples": {
+          "baseline": [
+            575.86,
+            575.91
+          ],
+          "candidate": [
+            599.8,
+            600.57
+          ],
+          "mx": [
+            718.7453,
+            713.395231
+          ]
+        },
+        "medians": {
+          "baseline": 575.885,
+          "candidate": 600.185,
+          "mx": 716.0702655
+        },
+        "candidate_vs_baseline_percent": 4.219592453354393,
+        "candidate_vs_mx_percent": -16.18350475970155
+      },
+      "tg256": {
+        "samples": {
+          "baseline": [
+            100.51,
+            102.94
+          ],
+          "candidate": [
+            100.46,
+            105.45
+          ],
+          "mx": [
+            123.666443,
+            122.643186
+          ]
+        },
+        "medians": {
+          "baseline": 101.725,
+          "candidate": 102.955,
+          "mx": 123.1548145
+        },
+        "candidate_vs_baseline_percent": 1.2091422954042752,
+        "candidate_vs_mx_percent": -16.40196900300638
+      }
+    },
+    "segments": [
+      {
+        "label": "initial",
+        "status": "FAIL",
+        "started": 1793639093.89834,
+        "seconds": 103.01495361328125,
+        "terminal_sha256": "a3560ef0b8627208a91f54107a41a77cabccf0d4f0df0c9aef25ebd376e91dec",
+        "execution_sha256": "289889061174a1b77b42e8189dbcfe1748f9b08a57719806f9300a7187b4e8dd"
+      },
+      {
+        "label": "continuation",
+        "status": "DONE",
+        "started": 1793639561.8499947,
+        "seconds": 98.94084525108337,
+        "terminal_sha256": "d3ec6de157422df247ef8c21c075531e3d0a9178a16ac9422acedae32bd450b2",
+        "execution_sha256": "22a0194156894d6cf2ac575509c9d5e54d5a13641dff70dc8dd8a5ccc3c4f7e9"
+      }
+    ],
+    "gap_between_model_calls_seconds": 386.12456011772156,
+    "activity": [
+      {
+        "raw_records": 46,
+        "samples": 44,
+        "intervals": 43,
+        "start": "2026-11-02T17:05:04.315724+00:00",
+        "end": "2026-11-02T17:06:30.350586+00:00",
+        "system_nonidle_percent_range": [
+          72.49432371067142,
+          82.90105667627282
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          10.584027379358297,
+          13.145033753130186
+        ],
+        "peak_total_disk_mib_s": 832.0838236311281,
+        "flag_counts": {
+          "unrelated_cpu": 43,
+          "system_disk": 4,
+          "non_target_gpu": 43,
+          "sample_gap": 0
+        },
+        "retention": "Every planned call and monitor sample retained; no slow/affected sample discarded or replaced.",
+        "limits": [
+          "Activity is associated with the whole CLI call, including loading and warmups; phase-specific timing windows are unavailable.",
+          "Disk counters include benchmark loading and all system I/O; they do not isolate unrelated disk activity.",
+          "Shared Docker/wrapper CPU activity may be classified unrelated; short-lived processes can be missed by sampling."
+        ],
+        "segment": "initial"
+      },
+      {
+        "raw_records": 44,
+        "samples": 42,
+        "intervals": 41,
+        "start": "2026-11-02T17:12:52.188697+00:00",
+        "end": "2026-11-02T17:14:14.213035+00:00",
+        "system_nonidle_percent_range": [
+          73.70801033591731,
+          79.27811795037061
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.008068765547442,
+          12.389769652810104
+        ],
+        "peak_total_disk_mib_s": 9.402476222305246,
+        "flag_counts": {
+          "unrelated_cpu": 41,
+          "system_disk": 0,
+          "non_target_gpu": 41,
+          "sample_gap": 0
+        },
+        "retention": "Every planned call and monitor sample retained; no slow/affected sample discarded or replaced.",
+        "limits": [
+          "Activity is associated with the whole CLI call, including loading and warmups; phase-specific timing windows are unavailable.",
+          "Disk counters include benchmark loading and all system I/O; they do not isolate unrelated disk activity.",
+          "Shared Docker/wrapper CPU activity may be classified unrelated; short-lived processes can be missed by sampling."
+        ],
+        "segment": "continuation"
+      }
+    ],
+    "call_activity": [
+      {
+        "call": "q2-packed-zero-p4096-g256-0-baseline",
+        "arm": "baseline",
+        "intervals": 12,
+        "flag_counts": {
+          "unrelated_cpu": 12,
+          "system_disk": 2,
+          "non_target_gpu": 12,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          76.25040335592126,
+          80.56002574831027
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.610535116476335,
+          12.54557876855154
+        ],
+        "segment": "initial"
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-1-candidate",
+        "arm": "candidate",
+        "intervals": 12,
+        "flag_counts": {
+          "unrelated_cpu": 12,
+          "system_disk": 2,
+          "non_target_gpu": 12,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          76.03626943005182,
+          82.90105667627282
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.214548854817599,
+          13.145033753130186
+        ],
+        "segment": "initial"
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-2-mx",
+        "arm": "mx",
+        "intervals": 17,
+        "flag_counts": {
+          "unrelated_cpu": 17,
+          "system_disk": 0,
+          "non_target_gpu": 17,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          72.49432371067142,
+          79.71061093247589
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          10.584027379358297,
+          12.702834837210801
+        ],
+        "segment": "initial"
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-0-mx",
+        "arm": "mx",
+        "intervals": 15,
+        "flag_counts": {
+          "unrelated_cpu": 15,
+          "system_disk": 0,
+          "non_target_gpu": 15,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          75.94324411480167,
+          79.27811795037061
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.59534609209205,
+          12.069619943507563
+        ],
+        "segment": "continuation"
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-1-candidate",
+        "arm": "candidate",
+        "intervals": 11,
+        "flag_counts": {
+          "unrelated_cpu": 11,
+          "system_disk": 0,
+          "non_target_gpu": 11,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          73.70801033591731,
+          78.61958266452649
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.008068765547442,
+          12.389769652810104
+        ],
+        "segment": "continuation"
+      },
+      {
+        "call": "q2-packed-zero-p4096-g256-2-baseline",
+        "arm": "baseline",
+        "intervals": 12,
+        "flag_counts": {
+          "unrelated_cpu": 12,
+          "system_disk": 0,
+          "non_target_gpu": 12,
+          "sample_gap": 0
+        },
+        "system_nonidle_percent_range": [
+          76.27936916639845,
+          78.44330557335041
+        ],
+        "unrelated_cpu_core_equivalents_range": [
+          11.229284535632008,
+          12.347486227181603
+        ],
+        "segment": "continuation"
+      }
+    ],
+    "context": {
+      "configured_source": 40960,
+      "runtime_log_witness": null
+    },
+    "offload": {
+      "JSON_requested_layers": 99,
+      "runtime_log_witness": null,
+      "prior_quality_capture_layers": "37/37; separate prior mmap capture"
+    },
+    "limitations": [
+      "Interrupted ABC+CBA block; original FAIL retained; no uninterrupted final gate or promotion",
+      "Every original sample retained; no noise/layout control",
+      "Activity overlaps whole calls including loading/warmup, not phase timing; sampling misses short-lived processes",
+      "mx Vulkan default and llmx block-int16 use differing arithmetic; no equivalence claim"
+    ],
+    "postrun_guard": {
+      "timestamp": 1793639968.564003,
+      "gpu": {
+        "pci": "0000:c3:00.0",
+        "node": "/dev/dri/renderD128",
+        "vendor": "0x1002",
+        "device": "0x66a1",
+        "busy": 0,
+        "vram_used": 10919936,
+        "performance_level": "auto",
+        "other_container_handles": [
+          {
+            "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "name": "/cdev-abc-run2",
+            "top": "PID                 COMMAND\n75100               sleep\n1759742             bash",
+            "target_handles": []
+          }
+        ],
+        "production_id": "d521e8182dd70c79005304de6ddbef1bf085b8655904858dac97a35556ec0fc9",
+        "protected": [
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-preview-c0ea3f346",
+          "/zpool1/llmx-serve/flash-preview-c0ea3f346",
+          "/zpool1/models",
+          "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk"
+        ],
+        "errors": []
+      },
+      "owned_container_inspect_exit": 1,
+      "owned_container_inspect_stderr": "error: no such object: 51486977ad125b3c5cadfe9016170bba9a1a81402edafea2c7516649d4be2c21\n",
+      "production_id_matches": false,
+      "passed": false
+    },
+    "production_change": {
+      "new_container": "d521e8182dd70c79005304de6ddbef1bf085b8655904858dac97a35556ec0fc9",
+      "created_utc": "2026-11-02T17:14:25.380803387Z",
+      "last_model_call_end_utc": "2026-11-02T17:14:12.074126+00:00",
+      "interpretation": "Fresh identity check false; new production container created after all model calls and monitor completed. No attribution of restart cause."
+    }
+  }
+}

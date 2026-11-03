@@ -1,0 +1,73 @@
+{
+  "scope": "Q2 ordinary int16 short-unsplit development candidate. Matched build complete; runtime tests pending.",
+  "runtime_change": "QTile owns canonical split height. Prefer short for Q2 int16 only if it avoids the existing split; retain whole-prompt planning. Routed and other formats unchanged.",
+  "source_base": "2a67405084b0808177685497400b4af00f36fbc0",
+  "build": {
+    "completed": true,
+    "removed": true,
+    "seconds": 114.93249344825745,
+    "cpus": "6-7",
+    "same_shader_modules": true,
+    "module_count": 334,
+    "binary_sha256": {
+      "baseline": "803c4bf93f694c62cad3372266ecd3ea32fdd83c35f613b95fd67abf8705839b",
+      "candidate": "eeaac1a6a2851ba4f51ffa15c219c7089580b6fe9b86da8db900facf724f8c63"
+    }
+  },
+  "evidence": {
+    "scratch\\q2-short-unsplit-runtime-20261102\\build-plan.json": "b449cf02584d187b76316515e21ed0e7fd5e20e15f4a5153c23e2a1a871f07a3",
+    "scratch\\q2-short-unsplit-runtime-20261102\\build-receipt.json": "a3cbe3c867e4d4d2ba7dffee68299405bb462d6657e08d56dd4fc66b8829eed6",
+    "scratch\\q2-short-unsplit-runtime-20261102\\artifact-pins.json": "86566df2f58884685b87ccd2c9a39682f0acfc5ec2bd984be9a2045ec92f10ec",
+    "scratch\\q2-short-unsplit-runtime-20261102\\readiness-receipt.json": "d667f0fb20bdbd397137d7022c8f8510b8fce10a64e3b8e240cee66e76a2238e",
+    "scratch\\q2-short-unsplit-runtime-20261102\\candidate.diff": "9870715805ab1ca57319a3111e2d50f1c5fd43a2c56776f29a6a80e4c8ef6e56",
+    "scratch\\q2-short-unsplit-runtime-20261102\\gpu-run-verification.json": "34770e765d6dd141055b2b2fdf7d7d764e235d765355780e0fd3091f248e70ce",
+    "scratch\\q2-short-unsplit-cli-20261102\\audit-inputs-20261102\\offline-verification.json": "3fcb742980f7f7e50a965d7c8f7d5da764f9ffad011c507845f28f0b923bdfae",
+    "scratch\\q2-short-unsplit-cli-20261102\\RESULT.md": "b04476b8b970b6ab2b3ad0b3c58c3b195ae0c65ca7f1c46daa372cdc0dc60643"
+  },
+  "gpu_result": {
+    "kernel_sum_median_ms": {
+      "baseline": 5.31432,
+      "candidate": 4.96328
+    },
+    "wall_median_ms": {
+      "baseline": 5.5739825,
+      "candidate": 5.243157
+    },
+    "exact_calls": 20,
+    "exact_outputs_per_call": 3145728,
+    "warm_calls_per_arm": 8,
+    "focused_checks": "Both arms emitted the whole/sliced RowRuns completion marker with empty stderr. The runner reached its final binary hash check after the check subprocess assertions. Individual exit codes were not retained.",
+    "runner_status": "FAIL after test execution: final sha(str) call raised AttributeError. Original receipt preserved. Separate offline verification checks actual binary hashes and retained outputs. No GPU repetition.",
+    "scope": "Synthetic grouped operator screen only; not model or merge qualification."
+  },
+  "next": "Profile continuation completed. No promotion or broad HF rerun. Inspect the dominant wider-int16 tile for the next arithmetic-preserving micro experiment.",
+  "model_screen": {
+    "scope": "Four-call unprofiled ABBA P4096/G256 screen, two samples per arm; no intrinsic regression or model-gain claim.",
+    "prefill_tok_s": {
+      "baseline": [
+        576.05,
+        575.25
+      ],
+      "candidate": [
+        568.16,
+        570.31
+      ]
+    },
+    "decode_tok_s": {
+      "baseline": [
+        113.2,
+        113.01
+      ],
+      "candidate": [
+        112.34,
+        112.95
+      ]
+    },
+    "execution_completed": true,
+    "container_removed": true,
+    "all_four_exit_zero_and_paths_valid": true,
+    "queue_status": "FAIL from final json.dumps(flush=True) report after execution DONE was saved. Original failure retained.",
+    "activity": "Substantial imbalanced activity flags, all samples retained. See offline audit.",
+    "decision": "No demonstrated whole-model gain. The completed profile continuation confirms 864 fewer prefill dispatches, but matrix kernels still dominate. Profiles were captured separately after the paired attempt was interrupted, so their times are attribution evidence only. See q2-short-unsplit-profile-20261102.json."
+  }
+}

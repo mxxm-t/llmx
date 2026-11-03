@@ -1,0 +1,86 @@
+{
+  "scope": "Intrusive diagnostic: D/E partial then F/mx continuation. Not a matched performance gate.",
+  "provenance": [
+    {
+      "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/host-device-diagnostic/jobs/20261103T044626Z-profile4-r1/collected/20261103T044626Z-profile4-r1",
+      "execution_sha256": "a0ce61b03dd277c69fa1d80dce38fb03b20b6199dae9210095e902807a20f9c1",
+      "status": "FAIL",
+      "hashes_verified": 9
+    },
+    {
+      "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/host-device-continuation-v2/collected/results/20261103T045521Z-Fmx",
+      "execution_sha256": "70b87f346b56dedbf695aabe05b89aa6a6617b263e3485411e4c6278e81aee4b",
+      "status": "DONE",
+      "hashes_verified": 9
+    }
+  ],
+  "summary": {
+    "D": {
+      "pp_device_ms": 5860.49,
+      "tg_device_ms": 2240.06,
+      "tg_dispatches": 92032,
+      "q2_row_ms": 1634.67
+    },
+    "E": {
+      "pp_device_ms": 5872.52,
+      "tg_device_ms": 2339.62,
+      "tg_dispatches": 92032,
+      "q2_row_ms": 1733.85
+    },
+    "F": {
+      "pp_device_ms": 5828.76,
+      "tg_device_ms": 2338.25,
+      "tg_dispatches": 92032,
+      "q2_row_ms": 1735.17
+    },
+    "mx": {
+      "pp": {
+        "logged_blocks": 8,
+        "logged_ms": 5782.111
+      },
+      "tg": {
+        "logged_blocks": 256,
+        "logged_ms": 2086.94688
+      }
+    }
+  },
+  "whole_call_cpu_quota_throttling": "Zero nr_throttled and throttled_usec deltas in all four calls. Does not exclude other host scheduling delays.",
+  "observation": "D/E same TG dispatch count. Row duration rises99.18ms, total99.56ms. This localizes the observed difference but one sample per arm does not prove a causal shader regression.",
+  "next": "Compare pinned D/E row ISA/resources; test a bounded shader-only candidate if evidence supports it.",
+  "failures_preserved": [
+    "First launch Linux path serialization failed before container.",
+    "Four-call r1 stopped on full-memory PSI avg10=18.60 after D/E. No samples discarded.",
+    "Bad continuation wrapper invoked old supervisor and overwrote its terminal. Original terminal had already been collected; recovered byte-exact as new artifact. Raw execution and its nine files remain unchanged. Wrong terminal preserved separately.",
+    "Root corrected wrapper in isolated v2 directory; F/mx only completed."
+  ],
+  "limits": [
+    "Profile observers alter throughput and scopes differ between runtimes.",
+    "No unmatched elapsed-minus-GPU subtraction.",
+    "All diagnostics include activity monitoring.",
+    "Original unprofiled16call cohort remains the timing comparison."
+  ],
+  "isa_comparison": {
+    "D": {
+      "vgpr": 64,
+      "sgpr": 80,
+      "lds": 2048,
+      "scratch": 0,
+      "instructions": 1357,
+      "branches": 28
+    },
+    "E": {
+      "vgpr": 64,
+      "sgpr": 80,
+      "lds": 2048,
+      "scratch": 0,
+      "instructions": 1370,
+      "branches": 30
+    },
+    "scope": "Zero-dispatch c3 ROWS4 compile. No new spills or occupancy change; broader source differences prevent attributing timing to epilogue alone.",
+    "evidence": "scratch/q2-prefill-code-table-20261103/model-integration-ef/decode-repair-isa/jobs/20261103T045941Z-1407650",
+    "comparison_sha256": "dea02f98c2f194ea6e50dd1d8cf142af84e648bf45ba1b13ea593156ee408559"
+  },
+  "candidate": "Shader-only experiment: perform combined repair-flag reduction only for TREE_CLUSTER>1; use unconditional per-row flags for non-tree reduction. Existing shared owner and numerical repair preserved. Product not changed.",
+  "geometry_correction_ref": "q2-geometry-correction-20261103.json",
+  "geometry_correction_summary": "Geometry is shape-dependent: for timed gate/down dimensions M=12288 and 4096 (both divisible by 32), the 64-based probe launches 4x the 256-local-size shader workgroups. M=37 checks use 2.5x; small tail cases can use the same group count. D LocalSize=64; E/F=256. See correction record; raw evidence is retained."
+}

@@ -57,7 +57,12 @@ const bool AFFINE_Q5 = false;
 #extension GL_ARB_gpu_shader_fp64 : require
 #endif
 #include "float_controls.glsl"
-layout(local_size_x = 256) in;
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
+#define LLMX_ROW_THREADS 64
+#else
+#define LLMX_ROW_THREADS 256
+#endif
+layout(local_size_x = LLMX_ROW_THREADS) in;
 // Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
 layout(constant_id = 0) const uint MAX_COLS = 8;
 layout(constant_id = 15) const uint WEIGHT_TYPE = 0xffffffffu;
@@ -103,7 +108,7 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
-// Rows a cluster takes, specialization constant 9: Q4/K-quant builds reuse activation loads across two rows, four in the 16-column build; Q1's one-column build takes two rows.
+// Rows a cluster takes, specialization constant 9: wide builds reuse activation loads across two or four rows; Q1's one-column build takes two rows and Q2's takes four.
 // A row's lanes, blocks, products and reduction are the one-row builds', and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 layout(constant_id = 9) const uint ROWS = 1;
 // The cluster width whose reduction the two-row builds transpose, specialization constant 17, or 0 for the butterfly alone (matmul_row_two.glsl).
@@ -189,6 +194,19 @@ vec4 weight4(uint i) {
 #include "iq2_s.glsl"
 #endif
 #include "qdecode.glsl"
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
+#include "low_bits_cache.glsl"
+// The first two aligned words and the final code halfword stay inside
+// the row even when its last 18-byte block ends halfway through a word.
+uvec2 lookup_q2_row_words(uint group) {
+    uint bytes = (group / 2u) * Q2_0_BYTES + 2u + (group & 1u) * 8u;
+    uint word = bytes / 4u;
+    uvec2 lo = uvec2(w32s[pi].w32[word], w32s[pi].w32[word + 1u]);
+    uint tail = LOW_BITS_HALF(bytes + 6u);
+    uvec2 shifted = uvec2((lo.x >> 16u) | (lo.y << 16u), (lo.y >> 16u) | (tail << 16u));
+    return (bytes & 2u) != 0u ? shifted : lo;
+}
+#endif
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
 shared uint mxfp4_pairs[256];
 #endif

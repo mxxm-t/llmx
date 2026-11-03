@@ -1,0 +1,468 @@
+{
+  "schema": "llmx.q2.streamed-row4.micro.v1",
+  "date": "2026-11-02",
+  "job_id": "20261102T210301Z-74175",
+  "status": "DONE",
+  "disposition": "Reject runtime integration and model/HF follow-up: both micro shapes are slower despite lower VGPR allocation. This disproves VGPR-count reduction alone as a sufficient performance explanation for this kernel; it does not identify the cause.",
+  "geometry_correction": {
+    "before_launch": true,
+    "incorrect_witness": "ceil(M/(32*4)) (128 rows/group)",
+    "correct_witness": "ceil(M/32) = 32 rows/group for WG256, ROWS4, cluster32",
+    "fixture_validator": "PASS, 1930 recorded WG256 calls; tail rows 1..9"
+  },
+  "focused_correctness": {
+    "calls": 3840,
+    "pass": true,
+    "output_bits_match": true,
+    "guards_and_inputs_unchanged": true,
+    "fixture_validation": {
+      "status": "PASS",
+      "recorded_wg256_calls_checked": 1930,
+      "checked_by_file": {
+        "gate.jsonl": 5,
+        "down.jsonl": 5,
+        "checks-four-eight.jsonl": 192,
+        "tails-1.jsonl": 192,
+        "tails-2.jsonl": 192,
+        "tails-3.jsonl": 192,
+        "tails-4.jsonl": 192,
+        "tails-5.jsonl": 192,
+        "tails-6.jsonl": 192,
+        "tails-7.jsonl": 192,
+        "tails-8.jsonl": 192,
+        "tails-9.jsonl": 192
+      },
+      "tail_rows_covered": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "rows_per_group": 32,
+      "sources_sha256": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\timing\\20261102T203811Z-29513\\run-out\\gate.jsonl": "a373bffa8a6b60c5a568b1cb465314af3fdf36e3d4172bf07cdad926bbbc6644",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\timing\\20261102T203811Z-29513\\run-out\\down.jsonl": "497d1e718af3a5e2ee01a71646cf48f3dd345992bd210360bd3048295020e9d8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\checks-four-eight.jsonl": "81e4a4a1a51a686b6362e4c8186f9d9b05ece986499225c2e010f1e5a013a0e6",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-1.jsonl": "0e199a3a61009dbd44238c4dc55f408bb14b7be448d0c658984d7cda3e7425f6",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-2.jsonl": "a142c50de0af507f6dfbaf12cf7c1ebd2083831f24daed8c2dad19defcda567a",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-3.jsonl": "92069a4db456ebdc097ecc2aeb336b7b0f458d92e01d4722474445664b3be86b",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-4.jsonl": "c9167cea0bc596621473dcf74a335ec01a22c5ee7fafca25db352593e36c2a12",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-5.jsonl": "6fe2b6d7ecffaf6d19f5d7c2dbb7a821ffc96d630a087c735a6106750c901d71",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-6.jsonl": "f5c763d980791cd528949ac01bf343af53a9c6a1813c5d652870a927e82d52b9",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-7.jsonl": "8e2c062de58eaed76e99ff7255d3d04f21caf82f903952424feab50164f889cc",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-8.jsonl": "37bba2a56e1ba22e452c9ef97c86de2021168bc4b85419bc397fb16f4b6a9a58",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-wg64-20261102\\experiment\\20261102T203450Z-23741\\run-out\\tails-9.jsonl": "370fb2487e1a0ba034371500529f45be8c0d64ae9cf26b0cdfcd5bbf376b9d27"
+      }
+    }
+  },
+  "timing": {
+    "call_order_per_shape": [
+      "base warmup",
+      "candidate warmup",
+      "base",
+      "candidate",
+      "candidate",
+      "base",
+      "base",
+      "candidate",
+      "candidate",
+      "base"
+    ],
+    "shapes": [
+      {
+        "shape": "gate",
+        "M": 12288,
+        "K": 4096,
+        "workgroup_threads": 256,
+        "rows_per_workgroup": 4,
+        "cluster": 32,
+        "rows_per_group": 32,
+        "groups_x": 384,
+        "all_10_calls": [
+          {
+            "call": 0,
+            "arm": "base",
+            "warmup": true,
+            "gpu_ns": 91200,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 1,
+            "arm": "candidate",
+            "warmup": true,
+            "gpu_ns": 92640,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 2,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 89280,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 3,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 93600,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 4,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 93920,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 5,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 87360,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 6,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 88480,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 7,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 92000,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 8,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 93440,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 9,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 88160,
+            "finite_outputs": 12288,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          }
+        ],
+        "timed_medians": {
+          "base": {
+            "samples_ns": [
+              89280,
+              87360,
+              88480,
+              88160
+            ],
+            "median_ns": 88320.0,
+            "median_us": 88.32
+          },
+          "candidate": {
+            "samples_ns": [
+              93600,
+              93920,
+              92000,
+              93440
+            ],
+            "median_ns": 93520.0,
+            "median_us": 93.52
+          },
+          "candidate_delta_percent": 5.887681159420288
+        }
+      },
+      {
+        "shape": "down",
+        "M": 4096,
+        "K": 12288,
+        "workgroup_threads": 256,
+        "rows_per_workgroup": 4,
+        "cluster": 32,
+        "rows_per_group": 32,
+        "groups_x": 128,
+        "all_10_calls": [
+          {
+            "call": 0,
+            "arm": "base",
+            "warmup": true,
+            "gpu_ns": 111680,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 1,
+            "arm": "candidate",
+            "warmup": true,
+            "gpu_ns": 118880,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 2,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 106080,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 3,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 118080,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 4,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 119520,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 5,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 106240,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 6,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 106720,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 7,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 119360,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 8,
+            "arm": "candidate",
+            "warmup": false,
+            "gpu_ns": 119040,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          },
+          {
+            "call": 9,
+            "arm": "base",
+            "warmup": false,
+            "gpu_ns": 107360,
+            "finite_outputs": 4096,
+            "nonfinite_outputs": 0,
+            "bits_match": true,
+            "guards_intact": true,
+            "inputs_unchanged": true,
+            "rows_per_group": 32
+          }
+        ],
+        "timed_medians": {
+          "base": {
+            "samples_ns": [
+              106080,
+              106240,
+              106720,
+              107360
+            ],
+            "median_ns": 106480.0,
+            "median_us": 106.48
+          },
+          "candidate": {
+            "samples_ns": [
+              118080,
+              119520,
+              119360,
+              119040
+            ],
+            "median_ns": 119200.0,
+            "median_us": 119.2
+          },
+          "candidate_delta_percent": 11.945905334335084
+        }
+      }
+    ]
+  },
+  "physical_resources": {
+    "base": {
+      "SGPR": 80,
+      "VGPR": 64,
+      "spills": 0,
+      "scratch_bytes": 0,
+      "subgroups_per_SIMD": 4
+    },
+    "candidate": {
+      "SGPR": 80,
+      "VGPR": 48,
+      "spills": 0,
+      "scratch_bytes": 0,
+      "subgroups_per_SIMD": 5
+    },
+    "delta": {
+      "VGPR": -16,
+      "subgroups_per_SIMD": 1,
+      "explicit_spill_instructions": 0,
+      "v_dot2_i32_i16": 80,
+      "v_fma_f32": 36
+    }
+  },
+  "hardware": {
+    "gpu": "AMD Instinct MI50 / RADV VEGA20",
+    "pci": "0000:c3:00.0",
+    "device": "/dev/dri/renderD128",
+    "Mesa": "25.0.7-2+deb13u1",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "radv_sha256": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1",
+    "vulkan_loader_sha256": "bbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc"
+  },
+  "spirv_sha256": {
+    "base_q2": "d48e0ccc1f5f00b89eefa832f5a04f35f341111b7e4645138bff3a866c8151ed",
+    "candidate_q2": "c5c9ef150e50b6c002d802471824560a8ff7606d65e767d1479b489370591950",
+    "q1_unchanged": "4d0d469b31620683bf572f8bd18a0557e63c3ec8e139eace64b7f74d9a07cffb"
+  },
+  "receipt_sha256": {
+    "build": "d1acc41517f64ec0f08d8b6338458f09446cb75ed56f75d7e3afa932032c0104",
+    "run": "5753cd2f43609cda859203325880eda735680ff317c6657649ce82234a9ba689",
+    "terminal": "939254c13707103e55df04e59878db08115b8b16ffff7d6244c7065da82eb02b"
+  },
+  "artifact_sha256": {
+    "baseline_source": "af8afb192cae5e19884f01b38e19689eec53ade4c7071bd553dcb4ecb2ca1832",
+    "candidate_source": "03c34510a1cf2d15fa9712a33a9dce28bcabbff52f7790626721a971d46d8a39",
+    "candidate_patch": "a2eb38577cc116160f4aa7598ee67712bb42b58f691dee74d4f852e5bd4dd3fd",
+    "probe": "42945aba418190264512e38d4ab855e4911f01d5dffd2c07f0e1ce0f97da321f",
+    "geometry_patch": "6a17911c7956ce8e9db2b6bbb5205bfd13f26eb5b4a739f3b44c1e57d8f5fa55",
+    "runner": "46e00015ab3f90cdd3e848c9875613ab49526ad3180add6d5b94f25313dc7197",
+    "fixture_validation": "7b09eabe67761ab67144d9450e09487ade3b62d672d98af0af1d93944b9e5728",
+    "base_spirv": "d48e0ccc1f5f00b89eefa832f5a04f35f341111b7e4645138bff3a866c8151ed",
+    "candidate_spirv": "c5c9ef150e50b6c002d802471824560a8ff7606d65e767d1479b489370591950",
+    "probe_binary": "cb00e529670d908368b3debd74121c083847c94873f8930b3c24b197f682d8d8",
+    "activity": "53b12adc16360178caa08b23eeff9d6c25917a77abab74de979e517429a8d06c",
+    "isa_summary": "aa64db4c7da16ed9d96590825eb2dbe714131c2742406b45759756ba72220e24",
+    "base_isa": "a472996c923835e6b8699de7f971f98ff3775d6d78097b6262fadae82631c761",
+    "candidate_isa": "1054ab838131b4c02256c4aea36b5e7510accbb4a00bbe7473ad1d81b261cfc1",
+    "gate_calls": "1ad60c80e43567f09b8f4e3a9bac8cc136878912ca655da75730b30a4fce4d63",
+    "down_calls": "d1186d7cf8f4eaec26655bb697cec267dc1c370b21261512750363c5962baf12",
+    "extremes": "4dd3a138f91a64e2749693990d0da032b68aacc6c65eb9c22cdac1b568116a7b"
+  },
+  "monitoring": {
+    "activity_samples": 21,
+    "seconds": 21,
+    "system_load_average_range": [
+      27.31,
+      29.87
+    ],
+    "system_cpu_busy_percent_range": [
+      73.9,
+      80.7
+    ],
+    "target_gpu_busy_percent_range": [
+      0,
+      1
+    ],
+    "limitation": "One-second monitor cannot resolve short kernels; activity observed. All planned samples retained."
+  },
+  "coordination_notification": "GO/DONE succeeded. This run flocked the devlog file itself, not canonical devlog.md.lock; future bundles should use the canonical lock."
+}

@@ -3,6 +3,9 @@
 #define LLMX_ROW_PUSH uint longer;
 #include "matmul_row.glsl"
 void main() {
+#if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
+    lookup_q2_cache_init(false);
+#endif
 #if defined(LLMX_IQ1) || defined(LLMX_IQ3_S) || ((defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)) && !defined(LLMX_DOT))
     // Every invocation reaches the cache barrier, including inactive rows and empty routed groups.
     lookup_init();
@@ -34,11 +37,11 @@ void main() {
 #if defined(LLMX_FLOAT_X) && (defined(LLMX_Q2) || defined(LLMX_Q3))
     // Float rows contain whole 256-value blocks, so row_plan always assigns a whole subgroup to each row.
     uint l = lane;
-    uint row = local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID;
+    uint row = local_wg * (LLMX_ROW_THREADS / gl_SubgroupSize) + gl_SubgroupID;
 #else
     uint rsub = lane / p.cluster;      // which of the subgroup's rows
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
-    uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
+    uint row = (local_wg * (LLMX_ROW_THREADS / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
 #endif
     // A plain call's workgroups in y take its chunks side by side, the first p.longer of them a column more than p.ncols.
     uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols + min(gl_WorkGroupID.y, p.longer), out0 = col0, wrow = row, g_first = 0u, g_cnt = 0u;

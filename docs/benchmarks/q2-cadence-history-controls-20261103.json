@@ -1,0 +1,645 @@
+{
+  "scope": "Q2 frozen-J diagnostic controls, not correctness or performance qualification",
+  "runtime": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "cadence": {
+    "terminal": {
+      "status": "DONE",
+      "seconds": 22.384252548217773,
+      "removed": true,
+      "monitor_exit": 0
+    },
+    "shape": {
+      "M": 12288,
+      "N": 1,
+      "K": 4096,
+      "rows": 4,
+      "cluster": 32,
+      "workgroup_threads": 64,
+      "groups_x": 1536,
+      "dispatches_isolated": 1,
+      "dispatches_burst": 64
+    },
+    "isolated_before_us": 80.4,
+    "burst_dispatches": 64,
+    "burst_total_us": 4903.04,
+    "burst_per_dispatch_us": 76.61,
+    "isolated_after_us": 79.36,
+    "result_files_verified": 12,
+    "source_audit": {
+      "path": "scratch/row-cadence-control-admitted-v2/results/AUDIT.json",
+      "sha256": "9c46d90d42a553c3966e210771f1ddea602e1a79b6629ec5a1d2791a6fa1eec2"
+    },
+    "remote_results": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/row-cadence-control-admitted-v2/results",
+    "limits": [
+      "One burst only, lasting about 4.9 ms. This does not establish sustained steady-state clocks.",
+      "Burst includes 63 compute write-after-write barriers. Only its final output is checked.",
+      "Repeated inputs and weights, different cadence and possible cache reuse prevent causal attribution.",
+      "DPM states around commands are not instantaneous clocks. Background CPU activity and unrelated benchmark activity were observed.",
+      "Source audit after the run found different queue selection policies: probe picks first compute-capable timestamp family, native J prefers a compute family without graphics. These receipts do not identify the selected family. A same-shader queue-policy control is pending."
+    ]
+  },
+  "prefill_history": {
+    "terminal": {
+      "status": "DONE",
+      "removed": true,
+      "monitor_exit": 0,
+      "seconds": 66.377525806427,
+      "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+      "model_context_tokens_from_header": 40960
+    },
+    "samples": [
+      {
+        "tag": "0-P4096",
+        "arm": "P4096",
+        "prompt": 4096,
+        "TG_tok_s": 122.6,
+        "PP_tok_s": 723.5,
+        "PP_diagnostic_only": false,
+        "matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "process_seconds": 17.826645851135254
+      },
+      {
+        "tag": "1-P1",
+        "arm": "P1",
+        "prompt": 1,
+        "TG_tok_s": 125.35,
+        "PP_tok_s": 130.54,
+        "PP_diagnostic_only": true,
+        "matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "process_seconds": 9.067595481872559
+      },
+      {
+        "tag": "2-P1",
+        "arm": "P1",
+        "prompt": 1,
+        "TG_tok_s": 122.11,
+        "PP_tok_s": 130.51,
+        "PP_diagnostic_only": true,
+        "matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "process_seconds": 9.033662557601929
+      },
+      {
+        "tag": "3-P4096",
+        "arm": "P4096",
+        "prompt": 4096,
+        "TG_tok_s": 126.37,
+        "PP_tok_s": 721.34,
+        "PP_diagnostic_only": false,
+        "matrix_path": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "process_seconds": 17.72656273841858
+      }
+    ],
+    "TG_medians_tok_s": {
+      "P4096": 124.485,
+      "P1": 123.72999999999999
+    },
+    "P1_vs_P4096_TG_percent": -0.6064987749528128,
+    "sampled_target_vram_peak_P4096_minus_P1_bytes": 225648640,
+    "result_files_verified": 13,
+    "input_files_verified": 7,
+    "source_audit": {
+      "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/warmup-control-J/AUDIT.json",
+      "sha256": "e1337732c7aae830e4b2c05effa47602188cee231a5dc4e79bcf463419905963"
+    },
+    "limits": [
+      "P4096 prefill ensures min(512,4096)=512-row ExecContext scratch; P1 ensures1-row scratch. Context scratch grows and is retained, and different prefill kernels/pipelines/twins may be initialized. These are deliberate control differences, not ruled out observer effects.",
+      "ModelOptions.kv_tokens0 selects model context; history_tokens raises insufficient budget but never shrinks it; fitted_kv keeps the requested context where it fits. Target starts empty; ordinary budget fits pinned model on32GiB card. Numeric pool budget is not printed by this CLI.",
+      "TG tokens/reset depth0/seq1/drafteroff and model/binary/device/flags except P are identical. Preceding prefill length, persistent context scratch, backend twin/pipeline history may differ.",
+      "P1 PP is diagnostic and is never compared to PP4096 as a gate. No MX control is run and the original matched floor is untouched.",
+      "Only two single-repetition samples per arm in one mirrored block; ranges overlap and no statistical or causal claim follows.",
+      "No per-PP/TG absolute timestamps: monitor coverage and activity flags describe whole benchmark processes.",
+      "The final P4096 process extends beyond the last counter snapshot; a monitor stop event is not a final snapshot.",
+      "GPU VRAM peaks are sampled whole-process totals, not a direct separate KV allocation measurement. Cgroup memory.peak is cumulative across calls in the shared container.",
+      "Pinned header reports context40960; budget sameness follows authenticated source fit/default rules, not a directly printed runtime pool-capacity line.",
+      "New/disappeared/inaccessible process deltas remain unknown. Physical disk rates include mirrored storage traffic.",
+      "Sampled target VRAM peaks are 225648640 bytes lower for both P1 calls; consistent with a changed retained-allocation footprint, not proof that only clocks changed."
+    ],
+    "monitor": {
+      "samples": 57,
+      "intervals": 56,
+      "maximum_gap_seconds": 1.0051032730043516,
+      "coverage": [
+        {
+          "tag": "0-P4096",
+          "process_seconds": 17.826645851135254,
+          "covered_seconds": 17.826645851135254,
+          "coverage_fraction": 1.0,
+          "uncovered_start_seconds": 0,
+          "uncovered_tail_seconds": 0,
+          "known_unrelated_cpu_weighted_mean_cores": 2.061446069939117,
+          "flagged_seconds": {
+            "unrelated_cpu": 14.718488931655884,
+            "physical_disk": 2.0010409355163574,
+            "non_target_gpu": 5.117727041244507,
+            "sample_gap": 0
+          },
+          "observed_target_vram_peak_bytes": 8606064640,
+          "unknown_gpu_intervals": 0
+        },
+        {
+          "tag": "1-P1",
+          "process_seconds": 9.067595481872559,
+          "covered_seconds": 9.067595481872559,
+          "coverage_fraction": 1.0,
+          "uncovered_start_seconds": 0,
+          "uncovered_tail_seconds": 0,
+          "known_unrelated_cpu_weighted_mean_cores": 0.855269829668567,
+          "flagged_seconds": {
+            "unrelated_cpu": 3.0656614303588867,
+            "physical_disk": 2.0044989585876465,
+            "non_target_gpu": 0,
+            "sample_gap": 0
+          },
+          "observed_target_vram_peak_bytes": 8380416000,
+          "unknown_gpu_intervals": 0
+        },
+        {
+          "tag": "2-P1",
+          "process_seconds": 9.033662557601929,
+          "covered_seconds": 9.033662557601929,
+          "coverage_fraction": 1.0,
+          "uncovered_start_seconds": 0,
+          "uncovered_tail_seconds": 0,
+          "known_unrelated_cpu_weighted_mean_cores": 1.8939144575751272,
+          "flagged_seconds": {
+            "unrelated_cpu": 7.038114547729492,
+            "physical_disk": 2.0010950565338135,
+            "non_target_gpu": 8.894134044647217,
+            "sample_gap": 0
+          },
+          "observed_target_vram_peak_bytes": 8380416000,
+          "unknown_gpu_intervals": 0
+        },
+        {
+          "tag": "3-P4096",
+          "process_seconds": 17.72656273841858,
+          "covered_seconds": 17.099506855010986,
+          "coverage_fraction": 0.9646262000896213,
+          "uncovered_start_seconds": 0,
+          "uncovered_tail_seconds": 0.6270558834075928,
+          "known_unrelated_cpu_weighted_mean_cores": 2.083225365001894,
+          "flagged_seconds": {
+            "unrelated_cpu": 17.099506855010986,
+            "physical_disk": 2.002047061920166,
+            "non_target_gpu": 16.094871759414673,
+            "sample_gap": 0
+          },
+          "observed_target_vram_peak_bytes": 8606064640,
+          "unknown_gpu_intervals": 0
+        }
+      ]
+    },
+    "decision": "No repeatable P1 benefit. Preserve original P4096/G256 comparison."
+  },
+  "next": "Test the probe versus native queue selection policies with explicit family logging before treating isolated micro timing as representative of the runtime. The integer-chain candidate has no useful micro gain and is not promoted. No numerical limits changed.",
+  "integer_chain_screen": {
+    "source": "Scratch-only Q2 shader overlay, not promoted",
+    "source_audit": {
+      "path": "scratch/q2-prefill-code-table-20261103/model-integration-ef/row-dot-chains/results/AUDIT.json",
+      "sha256": "97b1dec5b3f02277cf6c71d6c6560c3cd058f29dcf49f397acf5c79990513067"
+    },
+    "overlay_sha256": "65909b7cdd8ff3bf826664ac09b18d50b0f3756e8c74157f2321205b959307df",
+    "receipt": {
+      "outer_status": "DONE",
+      "outer_exit": 0,
+      "outer_receipt_sha256": "07c0f1f2e41aff8e2a5e6a186305b32286d877348573c7be043c0d1d9294b7c5",
+      "execution_status": "DONE",
+      "completed": true,
+      "mode_exit_codes": {
+        "compile": 0,
+        "gate": 0,
+        "down": 0
+      },
+      "seconds": 17.960707902908325,
+      "container_id": "d7d8482911461736c58b8ecfcad65a65c1d72da9d9f9fa20c46aa8af696173e4",
+      "removed": true,
+      "monitor_exit": 0,
+      "postrun_container_absent": true,
+      "tui_entry_found": true,
+      "tui_entry": "[XQ2RUN ... DONE re:q2-row-dot-chains @XDEV] focused native J Q2 row integer-chain screen terminal."
+    },
+    "timing": {
+      "gate": {
+        "geometry": {
+          "M": 12288,
+          "N": 1,
+          "K": 4096,
+          "rows": 4,
+          "cluster": 32,
+          "workgroup_threads": 64,
+          "groups_x": 1536
+        },
+        "calls": [
+          {
+            "arm": 0,
+            "call": 0,
+            "warmup": true,
+            "gpu_ns": 80960,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 1,
+            "warmup": true,
+            "gpu_ns": 80480,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 2,
+            "warmup": false,
+            "gpu_ns": 79680,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 3,
+            "warmup": false,
+            "gpu_ns": 83200,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 4,
+            "warmup": false,
+            "gpu_ns": 81120,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 5,
+            "warmup": false,
+            "gpu_ns": 81440,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 6,
+            "warmup": false,
+            "gpu_ns": 80640,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 7,
+            "warmup": false,
+            "gpu_ns": 80800,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 8,
+            "warmup": false,
+            "gpu_ns": 79680,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 9,
+            "warmup": false,
+            "gpu_ns": 81440,
+            "finite_exact_outputs": 12288,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          }
+        ],
+        "by_arm": {
+          "0": {
+            "label": "baseline",
+            "calls": 5,
+            "warmups": 1,
+            "measured_gpu_ns": [
+              79680,
+              81440,
+              80640,
+              81440
+            ],
+            "median_gpu_ns": 81040.0,
+            "mean_gpu_ns": 80800,
+            "min_gpu_ns": 79680,
+            "max_gpu_ns": 81440
+          },
+          "1": {
+            "label": "candidate",
+            "calls": 5,
+            "warmups": 1,
+            "measured_gpu_ns": [
+              83200,
+              81120,
+              80800,
+              79680
+            ],
+            "median_gpu_ns": 80960.0,
+            "mean_gpu_ns": 81200,
+            "min_gpu_ns": 79680,
+            "max_gpu_ns": 83200
+          }
+        },
+        "all_outputs_guards_inputs_verified": true,
+        "candidate_vs_baseline_median_percent": -0.09871668311944859
+      },
+      "down": {
+        "geometry": {
+          "M": 4096,
+          "N": 1,
+          "K": 12288,
+          "rows": 4,
+          "cluster": 32,
+          "workgroup_threads": 64,
+          "groups_x": 512
+        },
+        "calls": [
+          {
+            "arm": 0,
+            "call": 0,
+            "warmup": true,
+            "gpu_ns": 92640,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 1,
+            "warmup": true,
+            "gpu_ns": 88000,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 2,
+            "warmup": false,
+            "gpu_ns": 87360,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 3,
+            "warmup": false,
+            "gpu_ns": 88000,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 4,
+            "warmup": false,
+            "gpu_ns": 89120,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 5,
+            "warmup": false,
+            "gpu_ns": 87680,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 6,
+            "warmup": false,
+            "gpu_ns": 87040,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 7,
+            "warmup": false,
+            "gpu_ns": 88160,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 1,
+            "call": 8,
+            "warmup": false,
+            "gpu_ns": 88320,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          },
+          {
+            "arm": 0,
+            "call": 9,
+            "warmup": false,
+            "gpu_ns": 88320,
+            "finite_exact_outputs": 4096,
+            "nonfinite_class_outputs": 0,
+            "all_output_bits_match_device_baseline": true,
+            "guards_intact": true,
+            "inputs_unchanged": true
+          }
+        ],
+        "by_arm": {
+          "0": {
+            "label": "baseline",
+            "calls": 5,
+            "warmups": 1,
+            "measured_gpu_ns": [
+              87360,
+              87680,
+              87040,
+              88320
+            ],
+            "median_gpu_ns": 87520.0,
+            "mean_gpu_ns": 87600,
+            "min_gpu_ns": 87040,
+            "max_gpu_ns": 88320
+          },
+          "1": {
+            "label": "candidate",
+            "calls": 5,
+            "warmups": 1,
+            "measured_gpu_ns": [
+              88000,
+              89120,
+              88160,
+              88320
+            ],
+            "median_gpu_ns": 88240.0,
+            "mean_gpu_ns": 88400,
+            "min_gpu_ns": 88000,
+            "max_gpu_ns": 89120
+          }
+        },
+        "all_outputs_guards_inputs_verified": true,
+        "candidate_vs_baseline_median_percent": 0.8226691042047429
+      }
+    },
+    "compiler_stats": {
+      "arm0_baseline": {
+        "Driver pipeline hash": 13065778262660007069,
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4,
+        "Hash": 1057829838,
+        "Instructions": 1366,
+        "Latency": 173044,
+        "Inverse Throughput": 123380,
+        "VALU": 978,
+        "SALU": 152,
+        "VMEM": 53,
+        "SMEM": 24,
+        "VOPD": 0
+      },
+      "arm1_candidate": {
+        "Driver pipeline hash": 4454913907565272097,
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7736,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4,
+        "Hash": 2605832791,
+        "Instructions": 1377,
+        "Latency": 174196,
+        "Inverse Throughput": 124820,
+        "VALU": 993,
+        "SALU": 152,
+        "VMEM": 53,
+        "SMEM": 24,
+        "VOPD": 0
+      },
+      "delta_candidate_minus_baseline": {
+        "Driver pipeline hash": -8610864355094734972,
+        "SGPRs": 0,
+        "VGPRs": 0,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 64,
+        "LDS size": 0,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 0,
+        "Hash": 1548002953,
+        "Instructions": 11,
+        "Latency": 1152,
+        "Inverse Throughput": 1440,
+        "VALU": 15,
+        "SALU": 0,
+        "VMEM": 0,
+        "SMEM": 0,
+        "VOPD": 0
+      }
+    },
+    "arithmetic_bound": {
+      "unsigned_dot_abs_max": 3145728,
+      "center_abs_max": 1048576,
+      "conservative_combined_bound": 4194304,
+      "centered_codes_abs_max": 2097152,
+      "all_fit_int32": true,
+      "float_scale_fma_repair_reduction_order_unchanged": true
+    },
+    "queue_relevance_limit": "The reused probe selects the first compute-capable queue family with timestampValidBits (workgroup-restore-micro-v2/probe.cpp:164-167); the J Vulkan backend prefers a compute family without graphics (worktrees/q2-maind364-20261103/src/backends/vulkan/vulkan_backend.cpp:252-263). No queueFamilyIndex is recorded in these results. Exact shader/SPV and final ISA are pinned, but queue-policy/runtime-environment equivalence is not established.",
+    "decision": "No useful micro gain. Generated integer dependency chains shorten, registers and spills unchanged, but this does not establish the runtime impact on its different queue policy."
+  },
+  "validation": {
+    "command": "python -X utf8 tests/run_tests.py --only docs,dead-code --exe ../q2-main7a46-20261103/build-q2-i-current/Release/llmx.exe",
+    "worktree": "worktrees/q2-maind364-20261103",
+    "dead_code": "PASS, 8 existing findings, 19 planted faults, 20.1 seconds",
+    "docs": "PASS, 0 findings, 21 planted faults, 15.4 seconds",
+    "scope": "Source and docs checks using prior I executable for unchanged help. Not J runtime qualification."
+  }
+}

@@ -1,0 +1,245 @@
+{
+  "status": "PASS",
+  "scope": "Current Q2_0 F16 execution on TP2 and two-device layer split, F32 KV as required by independent tiny HF fixture owner",
+  "runtime_commit": "595116cad",
+  "candidate_sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+  "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "source_archive_sha256": "e73ac81bd1ebd49ca87e5be49d5bbceb86ab154d8da515bca775d22f11097afe",
+  "source_pins": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/low_bits.py": "89917e9b54bb059ef377f90c614d24ad37f4e347632796c4364f81589689bb2e",
+    "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests/raw_blocks.py": "376c5bcf922d8993dfe57f208c74600eedbc7b05343b31ef56b8e9395927a730",
+    "tests/data/baseline_q2_0_split.json": "23fe5a107c50441c9bbef2619370338cbd1e3d2314f281399272bc0e3ea68fed",
+    "tests/data/baseline_q2_0.json": "4c3a3fadc97d04b296846a23a2bfc7ddb8946a25d905386c61c2780d87f7157d"
+  },
+  "probe_sha256": "eef145a72cb9f443d98153a2c0e9b2ae73f7cdc058f0e2987e698e0e9cff9c2d",
+  "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+  "gpu": [
+    {
+      "pci": "0000:c3:00.0",
+      "node": "/dev/dri/renderD128",
+      "vendor": "0x1002",
+      "device": "0x66a1",
+      "busy": 0,
+      "vram_used": 10932224,
+      "performance_level": "auto",
+      "other_container_handles": [
+        {
+          "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+          "name": "/cdev-abc-run2",
+          "top": "PID                 COMMAND\n5607                sleep",
+          "target_handles": []
+        }
+      ],
+      "production_id": "1c460c346bdb948bc91bdf6f19827cb87f6e259e04eef294266a8adf39ce60a5",
+      "protected": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk"
+      ],
+      "errors": []
+    },
+    {
+      "pci": "0000:cc:00.0",
+      "node": "/dev/dri/renderD131",
+      "vendor": "0x1002",
+      "device": "0x66a1",
+      "busy": 0,
+      "vram_used": 10932224,
+      "performance_level": "auto",
+      "other_container_handles": [
+        {
+          "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+          "name": "/cdev-abc-run2",
+          "top": "PID                 COMMAND\n5607                sleep",
+          "target_handles": []
+        }
+      ],
+      "production_id": "1c460c346bdb948bc91bdf6f19827cb87f6e259e04eef294266a8adf39ce60a5",
+      "protected": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk"
+      ],
+      "errors": []
+    }
+  ],
+  "resources": {
+    "container_memory_bytes": 2147483648,
+    "cpu_set": "5",
+    "cpu_quota": 1,
+    "wall_seconds": 240,
+    "gpu_nodes": [
+      "renderD128",
+      "renderD131"
+    ],
+    "gpu_pci": "discover/read and record at launch; refuse if occupied or guard reports errors"
+  },
+  "create_argv": [
+    "docker",
+    "create",
+    "--init",
+    "--name",
+    "llmx-xdev-q2-tree32-split-hf-v4-20261103",
+    "--network",
+    "none",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,nosuid,nodev,size=512m",
+    "--cpuset-cpus",
+    "5",
+    "--cpus",
+    "1",
+    "--memory",
+    "2g",
+    "--memory-swap",
+    "2g",
+    "--pids-limit",
+    "128",
+    "--ulimit",
+    "core=0",
+    "-e",
+    "PYTHONDONTWRITEBYTECODE=1",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/cache",
+    "--device",
+    "/dev/dri/renderD128",
+    "--device",
+    "/dev/dri/renderD131",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-split-hf-v4/results/source:/source:ro",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/results/build-J/llmx,dst=/candidate/llmx,readonly",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/tree32-split-hf-v4/q2_split_probe.py,dst=/probe.py,readonly",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "sleep",
+    "infinity"
+  ],
+  "seconds": 141.0170636177063,
+  "arms": [
+    {
+      "name": "tp2",
+      "logit_cases": 150,
+      "nll_checks": 12,
+      "skips": 0,
+      "observed_f16_f32kv_calls": 163,
+      "errors": [
+        {
+          "variant": "dense-untied",
+          "max_logit_error": 0.00244401,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.00037214,
+          "nll_bound": 0.022201185994788375
+        },
+        {
+          "variant": "dense-tied",
+          "max_logit_error": 0.00196943,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.00018416,
+          "nll_bound": 0.022201185994788375
+        },
+        {
+          "variant": "moe",
+          "max_logit_error": 0.00747619,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.00028318,
+          "nll_bound": 0.022201185994788375
+        }
+      ],
+      "argv": [
+        "docker",
+        "exec",
+        "1914638a3c63f79c1fa5e642be15c8cda41000b7b9b93945eb7f5777378c3f6a",
+        "env",
+        "-u",
+        "LLMX_CACHE_TYPE",
+        "LLMX_DTYPE=f16",
+        "LLMX_DEVICE=vulkan:0,vulkan:1",
+        "LLMX_TENSOR_WIDTH=2",
+        "LLMX_LAYER_SHARES=1",
+        "python3",
+        "-B",
+        "/probe.py"
+      ],
+      "stdout_sha256": "39b71c1b9e2cd8b9878d269b09f37761da0443015d8ada620c5db07c03d705d3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "layer-split",
+      "logit_cases": 150,
+      "nll_checks": 12,
+      "skips": 0,
+      "observed_f16_f32kv_calls": 163,
+      "errors": [
+        {
+          "variant": "dense-untied",
+          "max_logit_error": 0.00137897,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.00018668,
+          "nll_bound": 0.022201185994788375
+        },
+        {
+          "variant": "dense-tied",
+          "max_logit_error": 0.00131308,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.00016355,
+          "nll_bound": 0.022201185994788375
+        },
+        {
+          "variant": "moe",
+          "max_logit_error": 0.00198473,
+          "logit_bound": 0.4165916442871094,
+          "max_nll_error": 0.0003359,
+          "nll_bound": 0.022201185994788375
+        }
+      ],
+      "argv": [
+        "docker",
+        "exec",
+        "1914638a3c63f79c1fa5e642be15c8cda41000b7b9b93945eb7f5777378c3f6a",
+        "env",
+        "-u",
+        "LLMX_CACHE_TYPE",
+        "LLMX_DTYPE=f16",
+        "LLMX_DEVICE=vulkan:0,vulkan:1",
+        "LLMX_TENSOR_WIDTH=1",
+        "LLMX_LAYER_SHARES=1,1",
+        "python3",
+        "-B",
+        "/probe.py"
+      ],
+      "stdout_sha256": "7da4e1a73e25a60efd3ded2dd39261c1a959000d9595196e36d412b22020d2c3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limits_or_goldens_changed": false,
+  "container_removed": true,
+  "monitor_exit": 0,
+  "prior_attempts": [
+    "tree32-split-hf/results/execution.json",
+    "tree32-split-hf-v2/results/execution.json",
+    "tree32-split-hf-v3/results/execution.json"
+  ],
+  "source_pin_correction": "Raw archive bytes differ from historical fixture pin by one comment link and from current Git blob by CRLF line endings only. Verified all fixture pins directly against the exact native archive before launch. Full Python AST unchanged; packed weights and goldens remain enforced by standard owner.",
+  "resource_policy": "Actual MemAvailable must cover own unused cap plus 2 GiB. Preserve 250 ms exact-owned-CID watchdog, observation errors, cap and no-swap limits. PSI full avg10 >= 10 is recorded as contention, not an automatic kill with ample RAM. Prior stopped attempts remain reported.",
+  "receipt": "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-split-hf-v4/results/execution.json",
+  "receipt_sha256": "97aa5d2f9bf261818a313f3dfc218f413058fef667cf20148bd84e95bdc64a89",
+  "overall_qualification_complete": false
+}

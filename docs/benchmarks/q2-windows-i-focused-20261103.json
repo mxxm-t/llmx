@@ -1,0 +1,58 @@
+{
+  "schema": "llmx.q2.windows-focused.v1",
+  "source_head": "feb7e9feb63c36b62e8c9fd9f5a098915a28bd73",
+  "runtime": "I, same938inputhashes as frozen nativeI4c3c997d4",
+  "source_verification": "Worker manifest pins ten paths. Root post-build audit verifies all938 native I build inputs against the clean Windows runtime source tree. The native I numerics identifier matches.",
+  "build": "Fresh build-q2-i-current, Release, Vulkan enabled, --parallel2; llmx, llmx-low-bits-test, llmx-vulkan-lifetime-test. Compile log records Vulkan TU and generated shaders.",
+  "version": "llmx 0.1.0+gfeb7e9feb63c numerics c01b8e532df51828",
+  "tests": [
+    {
+      "name": "low-bits",
+      "scope": "CPU",
+      "status": "PASS",
+      "seconds": 0.39
+    },
+    {
+      "name": "vulkan-buffer",
+      "scope": "fake API, no physical device",
+      "status": "PASS",
+      "seconds": 0.04,
+      "cases": 30
+    },
+    {
+      "name": "vulkan-lifetime",
+      "scope": "physical Vulkan backend0, --queue",
+      "status": "PASS",
+      "seconds": 29.23,
+      "device_name": "not logged",
+      "skipped": "collective checks needing a second device",
+      "attention_witnesses": [
+        "100rows after2118tokens, cap one tile: output+Q8 projection same bytes",
+        "32rows after20000tokens,1252parts of16: maxerror4.97573e-7 within1e-4 double oracle; short prompt beside it bit-identical"
+      ]
+    }
+  ],
+  "scope_deviation": "Worker ran physical-device lifetime check despite CPU-only task brief. Receipt retains the actual invocation. No benchmark or further device run followed.",
+  "limits": [
+    "Focused checks only, not full CPU suite or hosted CI.",
+    "Does not establish MI50 integer-preferred Q2 path or released-model HF/depth correctness.",
+    "No cross-machine performance comparison."
+  ],
+  "binary_sha256": {
+    "llmx.exe": "9fb8ea927443cf732a8fb6ccc4f0130d1b86034bd1a12407c34d27cc4f206991",
+    "llmx-low-bits-test.exe": "69a15b4c9886b363b32075555a637b48a4f193122b5378496ceaa87c84219981",
+    "llmx-vulkan-lifetime-test.exe": "f4db4790518d0512ed46e475aff2c962b2f1d1130a1d9a089d7336e56b6900fc"
+  },
+  "raw_sha256": {
+    "scratch/wg64-i-receipt.txt": "df5bdd0c58bd10d0d08e3580a195ccfa40762e88ff7bf5e1a5e5f61e56eb2280",
+    "scratch/wg64-i-source-manifest.json": "4fed3f346ac4c86692a897a2e5539d8ac3bcd265b161e2cb766cee941ef3f9b9",
+    "scratch/q2-i-windows-full-source-audit.json": "86672a67ccfb42c9a68dd62db13f09dffaac1de7984d5830fe07e8c4b156eed3",
+    "scratch/wg64-i-configure.log": "cf9677a60239ee02520ffea7073a98bffc8e55b14a456e445f87f314f9f18418",
+    "scratch/wg64-i-build.log": "deb4834cd2a493ee2435f333c04c3959f0755778a944ee731c3bce29b247843b",
+    "scratch/wg64-i-ctest.log": "2bcb771b11f6d4b0bd2fcdd640cc4cc601e3aeec2fa9f0c073246929b5890810",
+    "build-q2-i-current/Testing/Temporary/LastTest.log": "bd11011a528a14b003469d33e5119ee3f6cc0a9149808d41dd8e14ab4982df16",
+    "build-q2-i-current/CMakeCache.txt": "ec847a83b9e0c77babfbf688d5d038454bc948166c2b08b542090abbd3268f5e",
+    "build-q2-i-current/generated/llmx-build-info.hpp": "5fb6c504c2624e377e0ce76f284104f7124b449fb9eb281882dbb1b6b966481f"
+  },
+  "docs_check": "PASS using fresh Windows I executable; 0 findings, 21 planted faults."
+}

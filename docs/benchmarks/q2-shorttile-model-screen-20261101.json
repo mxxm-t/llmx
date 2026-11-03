@@ -1,0 +1,112 @@
+{
+  "schema": "llmx.q2-shorttile-model-screen.v1",
+  "scope": "Unprofiled diagnostic A/B of Q2_0 block-int16 tall versus short tile selection; not a qualification gate.",
+  "candidate_source_commit": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+  "source_difference": "src/backends/vulkan/vulkan_matmul.hpp shorttile selection only; K partitions unchanged",
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "build_receipt_sha256": "d43a171a694245090118f49646f6965fdac5ccfe6a7c4351ab1514126f8165ef",
+    "build_receipt_path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-shorttile-build-20261101/cli-v1/out/receipt.json",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "source_files": 3275,
+    "source_manifest_sha256": {
+      "baseline_tall": "8115d9c94331e3101b1fe8956cd804baf5c71212d8294353b2cd26d297b21379",
+      "shorttile": "6766fdb6a370ff233a726a2082d4e7d710b02ff1cbbb01e15c5feaeac93fa64f"
+    },
+    "baseline_cli_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "baseline_cli_version": "llmx 0.1.0+unknown numerics 57f83d79972ae050",
+    "baseline_vulkan_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "shorttile_cli_sha256": "f97e43f6e1fc6c073a956e95e462d6e502ea3f6146a185f624d47dc18d107e9a",
+    "shorttile_cli_version": "llmx 0.1.0+unknown numerics 3b8fa205d3f57580",
+    "shorttile_vulkan_library_sha256": "0070ca87f418bdfe7714e1446e89df10d6bb4a745536371fa07444eeb90063c9",
+    "generated_config_sha256_both": "5ba80138e7837945e9efb3b01c211c511573186b844050ef128e686082fbecd6",
+    "build_receipt_local": "scratch/q2-shorttile-cli-build-20261101/receipt.json"
+  },
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "bytes": 2310747584,
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "conversion_receipt_sha256": "8ee25da96a64ba80845e84ee25f5bbc92105f37c3f2ecb76a0bd2e0bca367a46"
+  },
+  "protocol": {
+    "backend": "Vulkan 0 on MI50 PCI 0000:c9:00.0, /dev/dri/renderD130",
+    "dtype_request": "omitted; effective default F16",
+    "path_witness": {"dtype": "f16", "devices": [["block-int16"]]},
+    "flags": ["--r 1", "--threads 4", "--ubatch 512", "--seqs 1", "--depth 0", "--cache-type-k f16", "--cache-type-v f16", "--load-mode direct", "--drafter off", "--device vulkan:0"],
+    "orders": [
+      {"prompt": 4096, "generation": 256, "arms": ["baseline_tall", "shorttile", "shorttile", "baseline_tall"]},
+      {"prompt": 128, "generation": 256, "arms": ["shorttile", "baseline_tall", "baseline_tall", "shorttile"]}
+    ],
+    "profile": false,
+    "hf": false
+  },
+  "calls": [
+    {"workload": "P4096/G256", "arm": "baseline_tall", "pp_tok_s": 561.19, "tg_tok_s": 112.95, "exit": 0, "path_valid": true, "stdout_sha256": "9ba44d167886da9aff9ff4465621c23ece0dda2631215a3a6c53f65269699a4b", "stderr_sha256": "4c098e8c0fdb71931fca787b7c6b364a5f13ba10a2c31117027f624b09d51ced"},
+    {"workload": "P4096/G256", "arm": "shorttile", "pp_tok_s": 552.93, "tg_tok_s": 113.39, "exit": 0, "path_valid": true, "stdout_sha256": "d5f42244eff9ad2247915eab80696f7c9c374e827798c56df76a2cd2d5f75954", "stderr_sha256": "9d1f56d69c2992fb8965d4fe0755300d655bedf11c4c69a0083c86662075bfc9"},
+    {"workload": "P4096/G256", "arm": "shorttile", "pp_tok_s": 550.58, "tg_tok_s": 113.27, "exit": 0, "path_valid": true, "stdout_sha256": "4a0f660e64aa86341627830c82285a7d6d20afbff3e7a68f067e49b63697f333", "stderr_sha256": "ccbc703520f9e4fa4d2ea2afff4b0eceafcd34c1626c5c8bfa66a1b174e74f02"},
+    {"workload": "P4096/G256", "arm": "baseline_tall", "pp_tok_s": 550.29, "tg_tok_s": 112.88, "exit": 0, "path_valid": true, "stdout_sha256": "92a414fefe1405cece1cec54a97ee5493a85cb9c6dc46bae23bcea62a23d58d1", "stderr_sha256": "9cf6f65ddace18118bd07aa3ff105095976f3a3f12759444700bde98b6a685c0"},
+    {"workload": "P128/G256", "arm": "shorttile", "pp_tok_s": 601.11, "tg_tok_s": 112.5, "exit": 0, "path_valid": true, "stdout_sha256": "2b6e9eddc0e60b113f4c2b34b656fae318971629d74d5fdaeea2b19080079a03", "stderr_sha256": "9c731b2d8a25f93d0ec88d96b00d64bfadeb4e2c9f4498beabf46c91819cf4e5"},
+    {"workload": "P128/G256", "arm": "baseline_tall", "pp_tok_s": 597.36, "tg_tok_s": 112.76, "exit": 0, "path_valid": true, "stdout_sha256": "76cab0feac3ebed95eea304f4dc1499f662f82b3d76ff0a7657285ed197bd2c7", "stderr_sha256": "a1b8ea86c2d267ed5407be409e70a53c0c2cdcdcec17e866f7c2fa1294d8114a"},
+    {"workload": "P128/G256", "arm": "baseline_tall", "pp_tok_s": 598.56, "tg_tok_s": 112.8, "exit": 0, "path_valid": true, "stdout_sha256": "35865dbece1a76e9230c2858488ffae70eabcce3fe84adecbf9d384896ee40e6", "stderr_sha256": "339e245ca50d989cdb620d5fa6304ff036323ab1867667dfbbca6f96655b5bd5"},
+    {"workload": "P128/G256", "arm": "shorttile", "pp_tok_s": 603.45, "tg_tok_s": 112.97, "exit": 0, "path_valid": true, "stdout_sha256": "b06b163c8feaecc49bc3a9c47e6ec5ac162e69634a46d73fa53de9779cec9280", "stderr_sha256": "60c1d80da70742b0ae871aa53c33a0bcf7814e97b141e6301b5e4c277f0feaba"}
+  ],
+  "results": {
+    "P4096_G256_tok_s": {"baseline_tall": {"pp": [561.19, 550.29], "tg": [112.95, 112.88]}, "shorttile": {"pp": [552.93, 550.58], "tg": [113.39, 113.27]}, "median_delta_percent": {"pp": -0.717, "tg": 0.368}, "baseline_pp_range": [550.29, 561.19]},
+    "P128_G256_tok_s": {"baseline_tall": {"pp": [597.36, 598.56], "tg": [112.76, 112.8]}, "shorttile": {"pp": [601.11, 603.45], "tg": [112.5, 112.97]}, "median_delta_percent": {"pp": 0.722, "tg": -0.040}}
+  },
+  "monitoring": {
+    "monitor_source_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "admission_guard_source_sha256": "07f48494d1fab6f9b1580cbda324ce6a88385713debc346c2c13cf437dbf972",
+    "monitor_exit": 0,
+    "samples": 60,
+    "intervals": 59,
+    "call_coverage": "8/8",
+    "thresholds_prospective": {"other_gpu_busy_percent": 0, "unrelated_cpu_cores": 1, "disk_bytes_per_second": 104857600, "sample_gap_seconds": 3},
+    "flagged_intervals": {"other_gpu": 59, "unrelated_cpu": 40, "disk": 10, "sample_gap": 0, "unknown_gpu": 0},
+    "observed_ranges": {"unrelated_cpu_cores": [0.315, 2.019], "disk_bytes_per_second": [0, 994175656], "other_gpu_busy_percent": [98, 100]},
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero. Disk activity includes model loading."
+  },
+  "execution": {
+    "completed": true,
+    "planned_calls_complete": true,
+    "removed": true,
+    "inputs_unchanged": true,
+    "container_name": "llmx-xdev-q2-shorttile-model-screen-20261101",
+    "plan_sha256": "ff1498fc621d9c5007c093fd831b4078d31e3c80007c124fd34a78d3f17379b0",
+    "authorization_sha256": "a0f0e91dd8d372e1a35cccb5820c9b42b5e62d6f34f7f0007bcac2e2b86899c9",
+    "fresh_admission_sha256": "de5dc2420d416bfe34f6a201f9191f53e9a3e2680fa79bdbfae0516e9606b844",
+    "execution_json_sha256": "55bd229828850706168ae7942d85a5bca15b1a42bb68ef99d35d49cff36bfe47",
+    "summary_json_sha256": "cb5fb025381524db93be0c3b97150719388df4eab3fcad30e8d06c22d30cdc41",
+    "activity_jsonl_sha256": "f53798309b4672cab22ce1da78545e711f6d13be2b81b8e9e7dca1c7fb0a82fd",
+    "retained_file_sha256": {
+      "activity.jsonl": "f53798309b4672cab22ce1da78545e711f6d13be2b81b8e9e7dca1c7fb0a82fd",
+      "baseline_tall-version.stdout": "c2d7fc4c81e178862dde39cd37bf1b34ad7f97b5381971e5c85f942c68cc28df",
+      "baseline_tall-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "shorttile-version.stdout": "98b6272e5149ef9aafd2ed360045c2ad275a6006c2e51f28d4078ec5ebc0c391",
+      "shorttile-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "q2-8b-primary-p4096-g256-0-baseline_tall.stdout": "9ba44d167886da9aff9ff4465621c23ece0dda2631215a3a6c53f65269699a4b",
+      "q2-8b-primary-p4096-g256-0-baseline_tall.stderr": "4c098e8c0fdb71931fca787b7c6b364a5f13ba10a2c31117027f624b09d51ced",
+      "q2-8b-primary-p4096-g256-1-shorttile.stdout": "d5f42244eff9ad2247915eab80696f7c9c374e827798c56df76a2cd2d5f75954",
+      "q2-8b-primary-p4096-g256-1-shorttile.stderr": "9d1f56d69c2992fb8965d4fe0755300d655bedf11c4c69a0083c86662075bfc9",
+      "q2-8b-primary-p4096-g256-2-shorttile.stdout": "4a0f660e64aa86341627830c82285a7d6d20afbff3e7a68f067e49b63697f333",
+      "q2-8b-primary-p4096-g256-2-shorttile.stderr": "ccbc703520f9e4fa4d2ea2afff4b0eceafcd34c1626c5c8bfa66a1b174e74f02",
+      "q2-8b-primary-p4096-g256-3-baseline_tall.stdout": "92a414fefe1405cece1cec54a97ee5493a85cb9c6dc46bae23bcea62a23d58d1",
+      "q2-8b-primary-p4096-g256-3-baseline_tall.stderr": "9cf6f65ddace18118bd07aa3ff105095976f3a3f12759444700bde98b6a685c0",
+      "q2-8b-secondary-p128-g256-0-shorttile.stdout": "2b6e9eddc0e60b113f4c2b34b656fae318971629d74d5fdaeea2b19080079a03",
+      "q2-8b-secondary-p128-g256-0-shorttile.stderr": "9c731b2d8a25f93d0ec88d96b00d64bfadeb4e2c9f4498beabf46c91819cf4e5",
+      "q2-8b-secondary-p128-g256-1-baseline_tall.stdout": "76cab0feac3ebed95eea304f4dc1499f662f82b3d76ff0a7657285ed197bd2c7",
+      "q2-8b-secondary-p128-g256-1-baseline_tall.stderr": "a1b8ea86c2d267ed5407be409e70a53c0c2cdcdcec17e866f7c2fa1294d8114a",
+      "q2-8b-secondary-p128-g256-2-baseline_tall.stdout": "35865dbece1a76e9230c2858488ffae70eabcce3fe84adecbf9d384896ee40e6",
+      "q2-8b-secondary-p128-g256-2-baseline_tall.stderr": "339e245ca50d989cdb620d5fa6304ff036323ab1867667dfbbca6f96655b5bd5",
+      "q2-8b-secondary-p128-g256-3-shorttile.stdout": "b06b163c8feaecc49bc3a9c47e6ec5ac162e69634a46d73fa53de9779cec9280",
+      "q2-8b-secondary-p128-g256-3-shorttile.stderr": "60c1d80da70742b0ae871aa53c33a0bcf7814e97b141e6301b5e4c277f0feaba"
+    },
+    "local_raw_root": "scratch/q2-e72-timing-20261101/shorttile-model-screen-v1/raw-out",
+    "rig_raw_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-shorttile-build-20261101/model-screen-v1/raw-out",
+    "wrapper_exit": {"ssh_exit": 1, "sha256": "5b76916600c4a87b856ea422c81050111fb52e88d1a8eb9dd27fa32623f5f7e0", "reason": "The final diagnostic print passed flush=True to json.dumps after the completed receipt, measurements, input checks, and container cleanup had been saved. No re-run occurred."},
+    "raw_sha_source": "These per-file values are copied from the completed execution receipt's files map; execution.json itself is pinned above."
+  },
+  "interpretation": "No material shorttile gain is demonstrated. The primary prefill change (-0.717%) is smaller than the baseline's two-sample spread; all 59 intervals showed other-GPU activity and activity was present on CPU and disk. Do not promote this experiment or run broad HF on it. Earlier default-versus-mx values are separate runs, not this screen."
+}

@@ -1,0 +1,37 @@
+{
+  "source": {
+    "repo": "unsloth/Qwen3-8B-GGUF",
+    "revision": "a6adef130ffb23ddaf1a62fec9dced968c9bc482",
+    "file": "Qwen3-8B-BF16.gguf",
+    "sha256": "5e416a2020fe63e76ea13c8979be35fc6070aaf3578f7876400c55c2f5c3eb30",
+    "size": 16388044384
+  },
+  "writer": {
+    "path": "tools/write_q2_0.py",
+    "sha256": "710cf93a0f96d4d3d6a9dae81907212251d1e40a51a8179a8a3f6e997106993e",
+    "rule": "grid-mse"
+  },
+  "output": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "size": 2310747584
+  },
+  "reference": {
+    "repo": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "weights": "file-exact",
+    "bound_owner": "tests/baseline.py::FILE_EXACT_BOUNDS",
+    "goldens": "tests/data/q2-0-8b-file-exact",
+    "files": {
+      "baseline_logits.json": {
+        "bytes": 3882,
+        "sha256": "c1cf12e840c608e7196f8980cb4a32151495deecb3323c76548b2084d445ea67"
+      },
+      "baseline_perplexity.json": {
+        "bytes": 5299,
+        "sha256": "5891bc57e10ea8493156fe20b8b8cd7531db1fad053c69630f4b58dbc916395d"
+      }
+    }
+  },
+  "scope": "Generated local fixture with frozen short HF goldens. Runtime short and raw 16K qualification pending. Not an HF download."
+}

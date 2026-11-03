@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "scope": "Q2 paired-half fixed-warmup kernel micro, not model qualification or mx comparison",
+  "date": "2026-11-01",
+  "device": "MI50 PCI 0000:c3:00.0, renderD128",
+  "cpuset": "6",
+  "default_clocks": true,
+  "protocol": "ABBA, 20 warmup + 10 measured calls per shape per process",
+  "calls": 240,
+  "exact_outputs_per_call": 2097152,
+  "all_calls_exact": true,
+  "slow_samples_discarded": false,
+  "results": [
+    {
+      "process": "1-base",
+      "arm": "base",
+      "K": 4096,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 3.57704,
+      "wall_ms_median": 5.6838
+    },
+    {
+      "process": "1-base",
+      "arm": "base",
+      "K": 12288,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 5.95304,
+      "wall_ms_median": 7.902875
+    },
+    {
+      "process": "2-candidate",
+      "arm": "candidate",
+      "K": 4096,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 3.64648,
+      "wall_ms_median": 5.495315
+    },
+    {
+      "process": "2-candidate",
+      "arm": "candidate",
+      "K": 12288,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 6.061999999999999,
+      "wall_ms_median": 8.00563
+    },
+    {
+      "process": "3-candidate",
+      "arm": "candidate",
+      "K": 4096,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 3.36,
+      "wall_ms_median": 5.110195
+    },
+    {
+      "process": "3-candidate",
+      "arm": "candidate",
+      "K": 12288,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 6.04768,
+      "wall_ms_median": 8.05704
+    },
+    {
+      "process": "4-base",
+      "arm": "base",
+      "K": 4096,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 3.57456,
+      "wall_ms_median": 6.807230000000001
+    },
+    {
+      "process": "4-base",
+      "arm": "base",
+      "K": 12288,
+      "M": 4096,
+      "N": 512,
+      "gpu_ms_median": 6.04,
+      "wall_ms_median": 7.86476
+    }
+  ],
+  "execution_sha256": "8ff69602e7d0113867b2ddcca4c54ba0aa7188f2176d86cec5e478950aab3486",
+  "activity_sha256": "791c4d1ae93b28e4a282712de1497e718bb20af455670627c884c032345a7b51",
+  "remote_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-paired-half-stability-v1/run-out-final-cpu6-render128",
+  "artifacts": {
+    "base_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_library_sha256": "945d271b8f4fea35dce785416f059996904e75d9acd160021b9cbafab7449ba3",
+    "base_helper_sha256": "e851044d0af5e06fb88e4edc7ccd78f4b7e2f9c44aa2b7bda935ac6c51513aa0",
+    "candidate_helper_sha256": "ca6966146221507bb31849fa51e6ed524291c997ab0dad7e9c79a9ae3edcb9e8",
+    "plan_sha256": "d35b198ffa31d2fc14ff1f238b2c45bac59525e3092a16daab02613529690893",
+    "runner_sha256": "6fd7b918705df98fe08c14e5596adf0bec6b2103d1125a3c8ddb8f857afc2262"
+  },
+  "cpu_overlap_samples": 8,
+  "observed_physical_cpu_overlap_samples": 0,
+  "interpretation": "No stable benefit established. Candidate K4096 medians differ by about 8.5 percent between processes. Do not collapse them into one claimed speedup. No numerical or performance acceptance limit changed.",
+  "monitor_limits": "One-second sampling cannot establish the cause of millisecond GPU timing changes. Short-lived process transitions may be missed. All raw activity, warmups, measured calls, shader statistics and ISA exports remain retained."
+}

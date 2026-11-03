@@ -1,0 +1,1041 @@
+{
+  "scope": "Unpromoted Q2 native-half micro experiment, not model qualification",
+  "date": "2026-11-02",
+  "device": "MI50, renderD128, PCI c3",
+  "environment": "Isolated Mesa26.1, default clocks, M4096/N512/K4096, split2",
+  "median_total_ms": {
+    "current_int16_row128": 3.85336,
+    "native_half_row128": 3.62456,
+    "native_half_row64": 3.82976
+  },
+  "all_calls": [
+    {
+      "arm": "current",
+      "call": 0,
+      "warmup": true,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3860800,
+      "tile_gpu_ns": 3764320,
+      "reduce_gpu_ns": 96480,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native128",
+      "call": 1,
+      "warmup": true,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3625600,
+      "tile_gpu_ns": 3531840,
+      "reduce_gpu_ns": 93760,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native64",
+      "call": 2,
+      "warmup": true,
+      "tile_rows": 64,
+      "groups_x": 64,
+      "groups_y": 16,
+      "gpu_ns": 3826720,
+      "tile_gpu_ns": 3731840,
+      "reduce_gpu_ns": 94880,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "current",
+      "call": 3,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3850240,
+      "tile_gpu_ns": 3754880,
+      "reduce_gpu_ns": 95360,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native128",
+      "call": 4,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3640960,
+      "tile_gpu_ns": 3547840,
+      "reduce_gpu_ns": 93120,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native64",
+      "call": 5,
+      "warmup": false,
+      "tile_rows": 64,
+      "groups_x": 64,
+      "groups_y": 16,
+      "gpu_ns": 3829440,
+      "tile_gpu_ns": 3733600,
+      "reduce_gpu_ns": 95840,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native64",
+      "call": 6,
+      "warmup": false,
+      "tile_rows": 64,
+      "groups_x": 64,
+      "groups_y": 16,
+      "gpu_ns": 3824800,
+      "tile_gpu_ns": 3729120,
+      "reduce_gpu_ns": 95680,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native128",
+      "call": 7,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3608160,
+      "tile_gpu_ns": 3515360,
+      "reduce_gpu_ns": 92800,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "current",
+      "call": 8,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3869920,
+      "tile_gpu_ns": 3775840,
+      "reduce_gpu_ns": 94080,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "current",
+      "call": 9,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3852640,
+      "tile_gpu_ns": 3758240,
+      "reduce_gpu_ns": 94400,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native128",
+      "call": 10,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3646560,
+      "tile_gpu_ns": 3553920,
+      "reduce_gpu_ns": 92640,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native64",
+      "call": 11,
+      "warmup": false,
+      "tile_rows": 64,
+      "groups_x": 64,
+      "groups_y": 16,
+      "gpu_ns": 3832480,
+      "tile_gpu_ns": 3736960,
+      "reduce_gpu_ns": 95520,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native64",
+      "call": 12,
+      "warmup": false,
+      "tile_rows": 64,
+      "groups_x": 64,
+      "groups_y": 16,
+      "gpu_ns": 3830080,
+      "tile_gpu_ns": 3735200,
+      "reduce_gpu_ns": 94880,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "native128",
+      "call": 13,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3607520,
+      "tile_gpu_ns": 3514720,
+      "reduce_gpu_ns": 92800,
+      "exact_outputs": 2097152
+    },
+    {
+      "arm": "current",
+      "call": 14,
+      "warmup": false,
+      "tile_rows": 128,
+      "groups_x": 32,
+      "groups_y": 16,
+      "gpu_ns": 3854080,
+      "tile_gpu_ns": 3759840,
+      "reduce_gpu_ns": 94240,
+      "exact_outputs": 2097152
+    }
+  ],
+  "decision": "Retain native row128 for investigation; reject row64 for this split workload",
+  "runtime_promoted": false,
+  "correctness_qualified": false,
+  "limits": [
+    "Current arm uses preprepared exact int16 activations; preparation cost is excluded.",
+    "Native conversion is included. Exact ordinary outputs do not prove range or rounding behavior.",
+    "Two Docker-host CPU activity intervals retained; no samples excluded.",
+    "Do not compare these latencies directly with the Mesa25 mx model profile.",
+    "Host exhaustive half-scale control is not GPU preservation or activation correctness."
+  ],
+  "next": "Completed current-int16 geometry screens at K4096 and K12288; see q2-int16-geometry-screen-20261102.json. Review narrow tile chooser and row-class invariants before runtime changes. Existing native-int8 and unguarded native-half remain excluded under recorded decisions.",
+  "sources": [
+    {
+      "path": "scratch/q2-mixed-split-row64-20261102/RESULT.md",
+      "sha256": "a803cf91334859ced3c5c42fbefbceaeab05f06de6ae38bd1f23627a72c682fa"
+    },
+    {
+      "path": "scratch/q2-mixed-split-row64-20261102/analysis.json",
+      "sha256": "0b993f0668df9bc362490e42b88149166d0ad418cb653d7cd7b3a0a891382c0b"
+    },
+    {
+      "path": "scratch/q2-mixed-split-row64-20261102/stable-hashes.json",
+      "sha256": "eddde8dd8dbe03a9576b0b280a024221e7be930ad3a1311787743926fa8ea7cc"
+    },
+    {
+      "path": "scratch/q2-mixed-split-row64-20261102/terminal-receipt.json",
+      "sha256": "d93a55960cb91b34ddc6a1cca632eb881b37fe9f8e97c26d89a7502f5c141f73"
+    },
+    {
+      "path": "scratch/q2-half-weight-range-20261102.json",
+      "sha256": "39f39eac634bcd61bb074af1fc8e00b12a83bee731da965d750c1444b74ef8ee"
+    },
+    {
+      "path": "scratch/q2-native-range-control-20261102/run-receipt.json",
+      "sha256": "1496dddfcf481ca97cff287b2d836c2e4c30b8fb135513e32e53518d49363827"
+    },
+    {
+      "path": "scratch/q2-mx-dispatch-observer-20261102/witness-receipt.json",
+      "sha256": "6f5aad58271a35c5f458869eb05ee50252c2cb0a4cf21f30a4570b93dc3fa8c7"
+    }
+  ],
+  "range_diagnostic": {
+    "shape": [
+      4096,
+      512,
+      4096
+    ],
+    "tile_rows": 128,
+    "split_k": 2,
+    "ordinary_controls_exact": true,
+    "all_case_bits_match": false,
+    "case_records": [
+      {
+        "event": "case",
+        "name": "ordinary_negative_p0",
+        "row": 0,
+        "col": 0,
+        "k": 7,
+        "part": 0,
+        "code": 0,
+        "scale_bits": 15360,
+        "activation": 3,
+        "expected_f32": -3,
+        "expected_bits": 3225419776,
+        "observed_class": "finite",
+        "observed_bits": 3225419776,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 1
+      },
+      {
+        "event": "case",
+        "name": "ordinary_zero_p1",
+        "row": 1,
+        "col": 1,
+        "k": 2055,
+        "part": 1,
+        "code": 1,
+        "scale_bits": 15360,
+        "activation": 3,
+        "expected_f32": 0,
+        "expected_bits": 0,
+        "observed_class": "finite",
+        "observed_bits": 0,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "ordinary_positive_p0",
+        "row": 2,
+        "col": 2,
+        "k": 64,
+        "part": 0,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 1.5,
+        "expected_f32": 1.5,
+        "expected_bits": 1069547520,
+        "observed_class": "finite",
+        "observed_bits": 1069547520,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "ordinary_double_p1",
+        "row": 3,
+        "col": 3,
+        "k": 2112,
+        "part": 1,
+        "code": 3,
+        "scale_bits": 15360,
+        "activation": 1.5,
+        "expected_f32": 3,
+        "expected_bits": 1077936128,
+        "observed_class": "finite",
+        "observed_bits": 1077936128,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_overflow_p0",
+        "row": 4,
+        "col": 4,
+        "k": 10,
+        "part": 0,
+        "code": 3,
+        "scale_bits": 14336,
+        "activation": 65536,
+        "expected_f32": 65536,
+        "expected_bits": 1199570944,
+        "observed_class": "+inf",
+        "observed_bits": 2139095040,
+        "is_finite": 0,
+        "is_nan": 0,
+        "is_inf": 1,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_overflow_p1",
+        "row": 5,
+        "col": 5,
+        "k": 2058,
+        "part": 1,
+        "code": 0,
+        "scale_bits": 14336,
+        "activation": -65536,
+        "expected_f32": 32768,
+        "expected_bits": 1191182336,
+        "observed_class": "+inf",
+        "observed_bits": 2139095040,
+        "is_finite": 0,
+        "is_nan": 0,
+        "is_inf": 1,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_half_subnormal_p0",
+        "row": 6,
+        "col": 6,
+        "k": 20,
+        "part": 0,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 5.96046448e-08,
+        "expected_f32": 5.96046448e-08,
+        "expected_bits": 864026624,
+        "observed_class": "finite",
+        "observed_bits": 864026624,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_underflow_p1",
+        "row": 7,
+        "col": 7,
+        "k": 2068,
+        "part": 1,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 1.49011612e-08,
+        "expected_f32": 1.49011612e-08,
+        "expected_bits": 847249408,
+        "observed_class": "finite",
+        "observed_bits": 0,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_tie_even_low_p0",
+        "row": 8,
+        "col": 8,
+        "k": 30,
+        "part": 0,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 1.00048828,
+        "expected_f32": 1.00048828,
+        "expected_bits": 1065357312,
+        "observed_class": "finite",
+        "observed_bits": 1065353216,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_tie_even_high_p1",
+        "row": 9,
+        "col": 9,
+        "k": 2078,
+        "part": 1,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 1.00146484,
+        "expected_f32": 1.00146484,
+        "expected_bits": 1065365504,
+        "observed_class": "finite",
+        "observed_bits": 1065369600,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "weight_overflow_p0",
+        "row": 10,
+        "col": 10,
+        "k": 500,
+        "part": 0,
+        "code": 3,
+        "scale_bits": 30720,
+        "activation": 1,
+        "expected_f32": 65536,
+        "expected_bits": 1199570944,
+        "observed_class": "+inf",
+        "observed_bits": 2139095040,
+        "is_finite": 0,
+        "is_nan": 0,
+        "is_inf": 1,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "weight_overflow_p1",
+        "row": 11,
+        "col": 11,
+        "k": 2548,
+        "part": 1,
+        "code": 3,
+        "scale_bits": 31743,
+        "activation": 1,
+        "expected_f32": 131008,
+        "expected_bits": 1207951360,
+        "observed_class": "+inf",
+        "observed_bits": 2139095040,
+        "is_finite": 0,
+        "is_nan": 0,
+        "is_inf": 1,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "weight_subnormal_p0",
+        "row": 12,
+        "col": 12,
+        "k": 700,
+        "part": 0,
+        "code": 0,
+        "scale_bits": 1,
+        "activation": 1,
+        "expected_f32": -5.96046448e-08,
+        "expected_bits": 3011510272,
+        "observed_class": "finite",
+        "observed_bits": 3011510272,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 1
+      },
+      {
+        "event": "case",
+        "name": "weight_subnormal_double_p1",
+        "row": 13,
+        "col": 13,
+        "k": 2748,
+        "part": 1,
+        "code": 3,
+        "scale_bits": 1,
+        "activation": 1,
+        "expected_f32": 1.1920929e-07,
+        "expected_bits": 872415232,
+        "observed_class": "finite",
+        "observed_bits": 872415232,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_f32_subnormal_p0",
+        "row": 14,
+        "col": 14,
+        "k": 900,
+        "part": 0,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 1.40129846e-45,
+        "expected_f32": 1.40129846e-45,
+        "expected_bits": 1,
+        "observed_class": "finite",
+        "observed_bits": 0,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_subnormal_tie_zero_p0",
+        "row": 15,
+        "col": 15,
+        "k": 920,
+        "part": 0,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 2.98023224e-08,
+        "expected_f32": 2.98023224e-08,
+        "expected_bits": 855638016,
+        "observed_class": "finite",
+        "observed_bits": 0,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      },
+      {
+        "event": "case",
+        "name": "activation_subnormal_tie_up_p1",
+        "row": 16,
+        "col": 16,
+        "k": 2970,
+        "part": 1,
+        "code": 2,
+        "scale_bits": 15360,
+        "activation": 8.94069672e-08,
+        "expected_f32": 8.94069672e-08,
+        "expected_bits": 868220928,
+        "observed_class": "finite",
+        "observed_bits": 872415232,
+        "is_finite": 1,
+        "is_nan": 0,
+        "is_inf": 0,
+        "signbit": 0
+      }
+    ],
+    "output_classes": {
+      "event": "output_classes",
+      "finite": 2087940,
+      "nan": 9208,
+      "inf": 4
+    },
+    "decision": "Do not promote the unguarded native-half candidate. Finite operands can overflow during half conversion.",
+    "qualification": false
+  },
+  "mx_dispatch_witness": {
+    "scope": "Instrumented pinned mx reference, Mesa25; runtime path witness only, no performance comparison",
+    "records": [
+      {
+        "op": "MUL_MAT",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          4096,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          512,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "matmul_q2_0_q8_1_1",
+        "wg_denoms": [
+          64,
+          64,
+          1
+        ],
+        "align": 1,
+        "m": 4096,
+        "n": 512,
+        "k": 4096,
+        "split_k": 1,
+        "aligned": 0,
+        "padded_n": 512
+      },
+      {
+        "op": "MUL_MAT",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          1024,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          512,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_cache_reused",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "matmul_q2_0_q8_1_1",
+        "wg_denoms": [
+          64,
+          64,
+          1
+        ],
+        "align": 1,
+        "m": 1024,
+        "n": 512,
+        "k": 4096,
+        "split_k": 1,
+        "aligned": 0,
+        "padded_n": 512
+      },
+      {
+        "op": "MUL_MAT",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          12288,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          512,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "matmul_q2_0_q8_1_1",
+        "wg_denoms": [
+          64,
+          64,
+          1
+        ],
+        "align": 1,
+        "m": 12288,
+        "n": 512,
+        "k": 4096,
+        "split_k": 1,
+        "aligned": 0,
+        "padded_n": 512
+      },
+      {
+        "op": "MUL_MAT",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          12288,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          512,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_cache_reused",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "matmul_q2_0_q8_1_1",
+        "wg_denoms": [
+          64,
+          64,
+          1
+        ],
+        "align": 1,
+        "m": 12288,
+        "n": 512,
+        "k": 4096,
+        "split_k": 1,
+        "aligned": 0,
+        "padded_n": 512
+      },
+      {
+        "op": "MUL_MAT",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          12288,
+          4096,
+          1,
+          1
+        ],
+        "b_ne": [
+          12288,
+          512,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "matmul_q2_0_q8_1_1",
+        "wg_denoms": [
+          64,
+          64,
+          1
+        ],
+        "align": 1,
+        "m": 4096,
+        "n": 512,
+        "k": 12288,
+        "split_k": 1,
+        "aligned": 0,
+        "padded_n": 512
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          12288,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 12288,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          12288,
+          1,
+          1
+        ],
+        "fusion_flags": 0,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          12288,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_cache_reused",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 12288,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          12288,
+          1,
+          1
+        ],
+        "fusion_flags": 0,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          12288,
+          4096,
+          1,
+          1
+        ],
+        "b_ne": [
+          12288,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 4096,
+        "n": 1,
+        "k": 12288,
+        "dispatch_arguments": [
+          4096,
+          1,
+          1
+        ],
+        "fusion_flags": 1,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          151936,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 151936,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          151936,
+          1,
+          1
+        ],
+        "fusion_flags": 0,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          4096,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 4096,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          4096,
+          1,
+          1
+        ],
+        "fusion_flags": 0,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          1024,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_cache_reused",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 1024,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          1024,
+          1,
+          1
+        ],
+        "fusion_flags": 0,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      },
+      {
+        "op": "MUL_MAT_VEC",
+        "a_type": "q2_0",
+        "b_type": "f32",
+        "a_ne": [
+          4096,
+          4096,
+          1,
+          1
+        ],
+        "b_ne": [
+          4096,
+          1,
+          1,
+          1
+        ],
+        "quantize_y": 1,
+        "qx_needs_dequant": 0,
+        "qy_needs_dequant": 0,
+        "conversion_action": "quantize_dispatched",
+        "conversion_pipeline": "quantize_q8_1_x4",
+        "pipeline": "mul_mat_vec_q2_0_q8_1_f32",
+        "wg_denoms": [
+          2,
+          1,
+          1
+        ],
+        "align": 1,
+        "m": 4096,
+        "n": 1,
+        "k": 4096,
+        "dispatch_arguments": [
+          4096,
+          1,
+          1
+        ],
+        "fusion_flags": 1,
+        "base_work_group_y": 0,
+        "swap_inputs": 0
+      }
+    ],
+    "interpretation": "Observed Q8_1 prefill and decode, fresh activation conversions and cache reuse; no out-of-band weight dequantization in these records.",
+    "failed_attempts_retained": "First build refused CPU admission; first witness aborted when another container claimed its CPU. Neither is a numerical failure or timing sample."
+  },
+  "prior_native_int8_disposition": "scratch/q2-int8-sum-order-control-20261101/shipping-decision-ack.txt"
+}

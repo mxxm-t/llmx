@@ -1,0 +1,231 @@
+{
+  "scope": "Short isolated Q2 operator performance discriminators, not model or merge qualification",
+  "compact_table": {
+    "baseline_spv": "a8eb874592a3722446cf7aed19de527892d537a4fdf26f6548443e0352293b30",
+    "candidate_spv": "1247c30fd5b2ac8571dca1c9f6d6bfbd589a93e302fb1ed67cb977a7ddf0b310",
+    "run_receipt_sha256": "f43aa884fc67126715429b95126bbdf6c634a72b2248c1dc444da709afae16eb",
+    "job": "20261102T215624Z-164495",
+    "gate_us": [
+      [
+        82.56,
+        81.76,
+        82.24,
+        81.76
+      ],
+      [
+        91.04,
+        90.88,
+        91.52,
+        90.56
+      ]
+    ],
+    "down_us": [
+      [
+        88.48,
+        88.64,
+        89.76,
+        89.12
+      ],
+      [
+        101.6,
+        103.2,
+        101.28,
+        102.24
+      ]
+    ],
+    "focused_calls_passed": 3840,
+    "timing_calls_including_warmups": 20,
+    "resource_change": "LDS 2048 to 1024 bytes, VGPR 64 to 48, no spills. Extra unpack instructions outweigh any measured benefit.",
+    "disposition": "Reject runtime/model follow-up. Both shapes slower.",
+    "evidence": "scratch/q2-compact-code-table-20261102/micro/RESULT.json"
+  },
+  "current_hoist_tile_rows": {
+    "same_spv_both_arms": "135dbfccb2b0937c25122b7bcd4ab64ba4721ad0cecff8d6f02875acb07d5e37",
+    "rows": [
+      128,
+      64
+    ],
+    "run_receipt_sha256": "1a905515f82163a041593b1a3b19f04357c98e579282a66af345a6a04e958e42",
+    "job": "20261102T215154Z-158718",
+    "gate_ms": [
+      [
+        14.07696,
+        14.0536,
+        13.9984,
+        14.0152
+      ],
+      [
+        14.8024,
+        14.6104,
+        14.7424,
+        14.56288
+      ]
+    ],
+    "down_ms": [
+      [
+        2.98288,
+        2.99472,
+        2.98496,
+        2.9992
+      ],
+      [
+        2.93168,
+        2.94032,
+        2.93728,
+        2.92816
+      ]
+    ],
+    "focused_exact_outputs_per_arm": [
+      8001,
+      17554
+    ],
+    "timing_calls_including_warmups": 20,
+    "resource_change": "VGPR 128 to 84, LDS 26624 to 17920 bytes, no spills.",
+    "disposition": "Retain 128 default. A blanket 64-row switch slows the large projection; shape-specific routing is not model-qualified.",
+    "prior_failure": "Job 20261102T214811Z-151067 failed before GPU execution because a trailing CR created focused-probe followed by a carriage return as its filename. Original script, build artifacts and receipt retained. Corrected script uses LF.",
+    "evidence": "scratch/q2-hoist-tile-geometry-20261102/RESULT.json"
+  },
+  "limits": [
+    "Root recomputed every listed timing sample from retained raw JSON output.",
+    "Warmups and all raw outputs are retained in each job; the arrays here list the four timed calls per arm.",
+    "Background activity was monitored and retained. Short dispatches can fall between one-second GPU activity samples.",
+    "Lower register/shared-memory use does not establish a speed improvement or identify the dynamic bottleneck.",
+    "No numerical limits changed; no model, HF or CI rerun follows rejected short candidates."
+  ],
+  "p1_diagnostic": {
+    "job": "20261102T220211Z-173959",
+    "receipt_sha256": "82c92046072d186a5168f12c3bdf2861a341c5bf27249558fb147ea5f0ca24b1",
+    "samples": [
+      {
+        "arm": "candidate",
+        "rates": {
+          "pp1": 118.89,
+          "tg256": 102.57
+        },
+        "valid": true
+      },
+      {
+        "arm": "combined",
+        "rates": {
+          "pp1": 123.76,
+          "tg256": 101.97
+        },
+        "valid": true
+      },
+      {
+        "arm": "combined",
+        "rates": {
+          "pp1": 123.13,
+          "tg256": 100.1
+        },
+        "valid": true
+      },
+      {
+        "arm": "candidate",
+        "rates": {
+          "pp1": 123.55,
+          "tg256": 104.01
+        },
+        "valid": true
+      }
+    ],
+    "tg_medians": {
+      "candidate": 103.28999999999999,
+      "combined": 101.035
+    },
+    "interpretation": "The C/B decode gap is 2.18 percent at P1, smaller than the prior P4096 cohort gap. Different cohorts and whole-call sensors do not prove a cause. No comparison of P1 rates with old mx P4096 rates.",
+    "scope": "Existing exact B/C binaries, only P4096 changed to P1. No build, mx, operator or HF rerun.",
+    "evidence": "scratch\\q2-code-table-p1-diagnostic-20261102\\RESULT.json"
+  },
+  "warmup_order_diagnostic": {
+    "job": "20261102T221620Z-196169",
+    "receipt_sha256": "08f9a9ca540e2259dcdc6a9e5725572ee1d66f684b2fe35ab1244cec91c34e04",
+    "samples": [
+      {
+        "arm": "old_b",
+        "rates": {
+          "pp4096": 597.49,
+          "tg256": 117.5
+        },
+        "valid": true
+      },
+      {
+        "arm": "old_c",
+        "rates": {
+          "pp4096": 696.2,
+          "tg256": 105.39
+        },
+        "valid": true
+      },
+      {
+        "arm": "new_b",
+        "rates": {
+          "pp4096": 591.25,
+          "tg256": 116.1
+        },
+        "valid": true
+      },
+      {
+        "arm": "new_c",
+        "rates": {
+          "pp4096": 686.57,
+          "tg256": 101.52
+        },
+        "valid": true
+      },
+      {
+        "arm": "new_c",
+        "rates": {
+          "pp4096": 668.44,
+          "tg256": 101.6
+        },
+        "valid": true
+      },
+      {
+        "arm": "new_b",
+        "rates": {
+          "pp4096": 560.47,
+          "tg256": 118.22
+        },
+        "valid": true
+      },
+      {
+        "arm": "old_c",
+        "rates": {
+          "pp4096": 647.73,
+          "tg256": 101.48
+        },
+        "valid": true
+      },
+      {
+        "arm": "old_b",
+        "rates": {
+          "pp4096": 568.03,
+          "tg256": 118.05
+        },
+        "valid": true
+      }
+    ],
+    "medians": {
+      "old_b": {
+        "pp4096": 582.76,
+        "tg256": 117.775
+      },
+      "old_c": {
+        "pp4096": 671.965,
+        "tg256": 103.435
+      },
+      "new_b": {
+        "pp4096": 575.86,
+        "tg256": 117.16
+      },
+      "new_c": {
+        "pp4096": 677.5050000000001,
+        "tg256": 101.56
+      }
+    },
+    "interpretation": "Warming decode before prefill did not remove the C/B decode gap. This diagnostic does not justify changing benchmark warmup or promoting a runtime workaround.",
+    "scope": "Only CLI warmup call order changed, identical original Vulkan libraries/generated shaders. All eight calls retained.",
+    "evidence": "scratch\\q2-warmup-order-20261103\\RESULT.json"
+  }
+}

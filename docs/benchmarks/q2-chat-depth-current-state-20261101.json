@@ -1,0 +1,74 @@
+{
+  "schema": "llmx.q2-chat-depth-current-state.v1",
+  "date": "2026-11-01",
+  "scope": "Timestamped observation of the chat selected-stage capture and the still-running F32-quality stage; not a completed candidate comparison or full HF qualification.",
+  "source": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-layer-major-chat-depth-v1/out/",
+    "snapshot_root": "scratch/q2-chat-quality-observation-20261101-0921z/",
+    "container_state_observed_utc": "2026-11-01T09:21:57Z",
+    "execution_snapshot_saved_utc": "2026-11-01T09:22:17Z",
+    "execution_snapshot_sha256": "91dee72acc5684af5cde8604b47df0cf329b7aee0a9f85a3d970d8754dace499",
+    "execution_snapshot_bytes": 3372587,
+    "execution_complete": false
+  },
+  "model": {
+    "variant": "chat",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "selected_input_u32le_sha256": "f5bfc26c4f3e47f24aa8875f7ab09bebf41f20c3d1c0d0eb11d124813bec6ff5"
+  },
+  "mi50_selected_stage": {
+    "status": "pass",
+    "exit_code": 0,
+    "container_id": "e55c112d5f022ef5cebe3eb9500633a3bcc27af24ad65cd9666502653d6ee05d",
+    "container_removed": true,
+    "report": "MI50-selected/report.json",
+    "report_sha256": "4bd6c8e72f6bea7b460a4af5980fc6f3076e35ae6b4f696fc25ef2b1de3ce1e9",
+    "positions": 512,
+    "logits_sha256": "61f545d027ee60e2d3caf87742baba482cc35aff042d6aa9ee4e69a23ea9151a",
+    "candidate_comparison": false,
+    "interpretation": "The selected-stage capture/report completed successfully and was removed. Its initial report is capture-only (candidate_comparison=false); a separate provisional selected-only comparator is recorded below."
+  },
+  "selected_only_comparison": {
+    "status": "provisional_pass",
+    "comparison_mode": "provisional-selected-only",
+    "passed": true,
+    "margin": 0.1,
+    "exact_top1": 512,
+    "accepted_ties": 0,
+    "misses": 0,
+    "result": "scratch/q2-e72-chat-depth-compare-v1/runner-out-attempt-2/chat-selected-only/selected-comparison.provisional.json",
+    "result_sha256": "3f4e787c337f534b8e538a7700b6ee78674f838875a11062877f3075020dadaa",
+    "execution": "scratch/q2-e72-chat-depth-compare-v1/runner-out-attempt-2/execution.json",
+    "execution_sha256": "53fccdde9501e924c5cc2acaf1b800f416e55bf95660e0f10477eda97072a02c",
+    "plan_sha256": "8a3b891e7c5c79a0a9a715990bc80e61c3a530ac9f4d7893f913c622e5db3818",
+    "reference_execution_sha256": "dd11c4670df6736ec4eeefe8fc42e51124f8fe95aa9e24c5c358fdb98cb4f877",
+    "capture_execution_sha256": "be5c3dc662c613301086bb8d5fe9faba431a3524d6ec79cc1cb9132df023919c",
+    "selected_scores_sha256": "61f545d027ee60e2d3caf87742baba482cc35aff042d6aa9ee4e69a23ea9151a",
+    "runner": {"exit_code": 0, "container_removed": true, "memory_cap_bytes": 1073741824, "memory_peak_bytes": 351313920, "oom_events": 0, "gpu_exposed": false},
+    "attempt_1": {"path": "scratch/q2-e72-chat-depth-compare-v1/attempt-1-setup-failure.json", "inference_started": false, "failure": "Stale raw_scores_sha256 receipt key; attempt 2 changed the receipt key and used a new attempt directory."},
+    "limitation": "This checks selected top-1 rows only, not full logits or F32 quality. Final combined comparison is still required."
+  },
+  "f32_quality_stage": {
+    "container_id": "1b81982915678d5b1f549eb81edc38f83def3e5269a87901750209f2dfa53923",
+    "state_at_observation": "running",
+    "liveness_observed_utc": "2026-11-01T09:21:57Z",
+    "execution_snapshot_saved_utc": "2026-11-01T09:22:17Z",
+    "exit_code": null,
+    "passed": null,
+    "removed": false,
+    "report_available": false,
+    "execution_stage_started_unix": 1793524209.9375207,
+    "last_progress_sample": {
+      "unix": 1793524933.289534,
+      "elapsed_seconds": 720.9827795028687,
+      "phase": "layer-forward",
+      "phase_name": "decode_1",
+      "layer": 3
+    },
+    "quality_status_sha256": "412a08b7b5c2c07342c5f0a838fb71d840ab2d9cd4480785e004521a4397c48c",
+    "interpretation": "The F32-quality stage was still running at the latest observation. No F32-quality result or full chat-depth qualification is claimed."
+  },
+  "raw_f32_quality_status": "pending",
+  "overall_qualification_complete": false,
+  "final_combined_comparison_required": true
+}

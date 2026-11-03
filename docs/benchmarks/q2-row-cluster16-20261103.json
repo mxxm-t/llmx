@@ -1,0 +1,419 @@
+{
+  "status": "DONE_NO_ADVANCE",
+  "audit_status": "PASS_WITH_LIMITATIONS",
+  "decision": "Cluster16 regresses both short synthetic shapes; reject this candidate, no promotion or further gates.",
+  "execution_sha256": "47d221b738e55dea49883430cced9b1e9a43eaf74b208f6fd6d258f4b7201ece",
+  "plan_sha256": "87ac17fe5693a0d1fa1448780c2670d8eccd42513d780ccd20575c9887216efa",
+  "verified_file_pins": {
+    "compile.stdout": "56c95a69a92d0ea452165ae7b7edaf73ce7e03861820f4f71a5879c2d914de84",
+    "down.stdout": "b21ceb36e59353ca13b0d25a9dd537b751ef2153dd11788b4d1e74aaa693c96a",
+    "gate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "activity.jsonl": "8b2dc195b3b67ad8c5de5d6cf03665a69530a9c4ab8e62cfc8fd6bc67d6003dc",
+    "compile.stderr": "5ae696dfc7468bc3fe0f3a5c7460c8c723cf7f394507801a3987cc80a1fd0889",
+    "probe.cpp": "6c11d23a1faf1a8b8ed040ccef1ff2fb899eb9d15eec1256f1cbe3432b92fd3f",
+    "probe": "99b8320320b4cf88ed4262b8a46646f8c2f460c81b3518875a8c6c9f50c38a37",
+    "gate.stdout": "6c8d104682bfffe2cae89ef2e5ba1a8ff0392b216c55b2a34ba8e844abcb6034",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "down.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-row.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208"
+  },
+  "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "module_sha256": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+  "probe_sha256": "99b8320320b4cf88ed4262b8a46646f8c2f460c81b3518875a8c6c9f50c38a37",
+  "completed_seconds": 20.073969841003418,
+  "container_removed": true,
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "resources": {
+    "cpu": "4",
+    "memory_GiB": 2,
+    "monitor_cpu": "1",
+    "gpu": "0000:c3:00.0",
+    "render_node": "/dev/dri/renderD128",
+    "card_lock": "/run/llmx-cards/renderD128.lock"
+  },
+  "resource_checks": {
+    "admission_passed": true,
+    "gpu_guard_errors": [],
+    "container_OOMKilled": false,
+    "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+    "monitor_exit": 0
+  },
+  "timing": {
+    "gate": {
+      "shape": {
+        "M": 12288,
+        "N": 1,
+        "K": 4096
+      },
+      "medians_us": {
+        "32": 80.47999999999999,
+        "16": 83.28
+      },
+      "cluster16_time_change_percent": 3.479125248508952,
+      "samples": [
+        {
+          "arm": 0,
+          "call": 0,
+          "warmup": true,
+          "gpu_ns": 84000,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00584583998644
+        },
+        {
+          "arm": 1,
+          "call": 1,
+          "warmup": true,
+          "gpu_ns": 84000,
+          "different_output_bits": 7561,
+          "maximum_operator_error_over_bound": 0.00830207527487
+        },
+        {
+          "arm": 0,
+          "call": 2,
+          "warmup": false,
+          "gpu_ns": 80160,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00584583998644
+        },
+        {
+          "arm": 1,
+          "call": 3,
+          "warmup": false,
+          "gpu_ns": 82080,
+          "different_output_bits": 7561,
+          "maximum_operator_error_over_bound": 0.00830207527487
+        },
+        {
+          "arm": 1,
+          "call": 4,
+          "warmup": false,
+          "gpu_ns": 82560,
+          "different_output_bits": 7561,
+          "maximum_operator_error_over_bound": 0.00830207527487
+        },
+        {
+          "arm": 0,
+          "call": 5,
+          "warmup": false,
+          "gpu_ns": 80800,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00584583998644
+        },
+        {
+          "arm": 0,
+          "call": 6,
+          "warmup": false,
+          "gpu_ns": 79680,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00584583998644
+        },
+        {
+          "arm": 1,
+          "call": 7,
+          "warmup": false,
+          "gpu_ns": 84480,
+          "different_output_bits": 7561,
+          "maximum_operator_error_over_bound": 0.00830207527487
+        },
+        {
+          "arm": 1,
+          "call": 8,
+          "warmup": false,
+          "gpu_ns": 84000,
+          "different_output_bits": 7561,
+          "maximum_operator_error_over_bound": 0.00830207527487
+        },
+        {
+          "arm": 0,
+          "call": 9,
+          "warmup": false,
+          "gpu_ns": 81600,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00584583998644
+        }
+      ]
+    },
+    "down": {
+      "shape": {
+        "M": 4096,
+        "N": 1,
+        "K": 12288
+      },
+      "medians_us": {
+        "32": 88.4,
+        "16": 92.63999999999999
+      },
+      "cluster16_time_change_percent": 4.7963800904977205,
+      "samples": [
+        {
+          "arm": 0,
+          "call": 0,
+          "warmup": true,
+          "gpu_ns": 93760,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00399978525388
+        },
+        {
+          "arm": 1,
+          "call": 1,
+          "warmup": true,
+          "gpu_ns": 92960,
+          "different_output_bits": 3702,
+          "maximum_operator_error_over_bound": 0.00804662680487
+        },
+        {
+          "arm": 0,
+          "call": 2,
+          "warmup": false,
+          "gpu_ns": 88640,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00399978525388
+        },
+        {
+          "arm": 1,
+          "call": 3,
+          "warmup": false,
+          "gpu_ns": 92320,
+          "different_output_bits": 3702,
+          "maximum_operator_error_over_bound": 0.00804662680487
+        },
+        {
+          "arm": 1,
+          "call": 4,
+          "warmup": false,
+          "gpu_ns": 92320,
+          "different_output_bits": 3702,
+          "maximum_operator_error_over_bound": 0.00804662680487
+        },
+        {
+          "arm": 0,
+          "call": 5,
+          "warmup": false,
+          "gpu_ns": 88320,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00399978525388
+        },
+        {
+          "arm": 0,
+          "call": 6,
+          "warmup": false,
+          "gpu_ns": 86400,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00399978525388
+        },
+        {
+          "arm": 1,
+          "call": 7,
+          "warmup": false,
+          "gpu_ns": 93440,
+          "different_output_bits": 3702,
+          "maximum_operator_error_over_bound": 0.00804662680487
+        },
+        {
+          "arm": 1,
+          "call": 8,
+          "warmup": false,
+          "gpu_ns": 92960,
+          "different_output_bits": 3702,
+          "maximum_operator_error_over_bound": 0.00804662680487
+        },
+        {
+          "arm": 0,
+          "call": 9,
+          "warmup": false,
+          "gpu_ns": 88480,
+          "different_output_bits": 0,
+          "maximum_operator_error_over_bound": 0.00399978525388
+        }
+      ]
+    }
+  },
+  "finite_exact_outputs_including_warmups": 163840,
+  "maximum_operator_error_over_unchanged_bound": 0.00830207527487,
+  "isa": {
+    "physical_text_sha256": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce",
+    "physical_text_identical": true,
+    "full_shader_dump_identical": true,
+    "opcode_counts": {
+      "buffer_load_dword": 34,
+      "buffer_load_dwordx2": 4,
+      "buffer_load_dwordx4": 4,
+      "buffer_load_ushort": 9,
+      "buffer_store_dword": 2,
+      "ds_bpermute_b32": 3,
+      "ds_read_b64": 32,
+      "ds_write_b64": 1,
+      "s_add_u32": 12,
+      "s_and_b64": 11,
+      "s_andn2_b64": 2,
+      "s_bfm_b32": 1,
+      "s_branch": 12,
+      "s_brev_b32": 1,
+      "s_buffer_load_dword": 2,
+      "s_buffer_load_dwordx16": 1,
+      "s_cbranch_execz": 4,
+      "s_cbranch_scc0": 9,
+      "s_cbranch_scc1": 5,
+      "s_cmp_eq_i32": 3,
+      "s_cmp_ge_u32": 10,
+      "s_cmp_lg_i32": 3,
+      "s_cmp_lt_i32": 3,
+      "s_cmp_lt_u32": 2,
+      "s_cselect_b32": 5,
+      "s_cselect_b64": 5,
+      "s_endpgm": 1,
+      "s_load_dword": 10,
+      "s_load_dwordx4": 11,
+      "s_lshl3_add_u32": 1,
+      "s_lshl_b32": 7,
+      "s_lshr_b32": 9,
+      "s_min_u32": 1,
+      "s_mov_b32": 24,
+      "s_mov_b64": 12,
+      "s_movk_i32": 12,
+      "s_mul_hi_u32": 3,
+      "s_mul_i32": 14,
+      "s_nop": 2,
+      "s_or_b64": 6,
+      "s_sub_i32": 5,
+      "s_waitcnt": 92,
+      "v_add3_u32": 4,
+      "v_add_f32_e32": 2,
+      "v_add_lshl_u32": 3,
+      "v_add_u32_e32": 114,
+      "v_alignbit_b32": 8,
+      "v_and_b32_e32": 116,
+      "v_and_or_b32": 2,
+      "v_bfe_u32": 77,
+      "v_bfi_b32": 32,
+      "v_bfrev_b32_e32": 1,
+      "v_cmp_class_f32_e32": 1,
+      "v_cmp_class_f32_e64": 5,
+      "v_cmp_eq_i32_e32": 3,
+      "v_cmp_eq_i32_e64": 7,
+      "v_cmp_gt_i32_e64": 32,
+      "v_cmp_le_u32_e32": 2,
+      "v_cmp_le_u32_e64": 1,
+      "v_cmp_ne_i32_e32": 1,
+      "v_cmp_ne_i32_e64": 1,
+      "v_cmp_neq_f32_e32": 3,
+      "v_cmp_neq_f32_e64": 2,
+      "v_cmpx_gt_u32_e32": 1,
+      "v_cmpx_le_u32_e32": 2,
+      "v_cndmask_b32_e32": 5,
+      "v_cndmask_b32_e64": 50,
+      "v_cvt_f32_f16_e32": 5,
+      "v_cvt_f32_i32_e32": 36,
+      "v_cvt_f32_i32_sdwa": 32,
+      "v_cvt_f32_u32_e32": 2,
+      "v_cvt_u32_f32_e32": 2,
+      "v_dot2_i32_i16": 80,
+      "v_fma_f32": 36,
+      "v_lshl_add_u32": 6,
+      "v_lshlrev_b32_e32": 82,
+      "v_lshlrev_b32_sdwa": 32,
+      "v_lshrrev_b32_e32": 38,
+      "v_mbcnt_hi_u32_b32": 1,
+      "v_mbcnt_lo_u32_b32": 1,
+      "v_min_f32_e64": 4,
+      "v_min_u32_e32": 3,
+      "v_mov_b32_e32": 11,
+      "v_mul_f32_e32": 74,
+      "v_mul_f32_e64": 1,
+      "v_mul_hi_u32": 1,
+      "v_mul_lo_u32": 7,
+      "v_or3_b32": 1,
+      "v_or_b32_e32": 3,
+      "v_rcp_f32_e32": 2,
+      "v_readfirstlane_b32": 2,
+      "v_sub_u32_e32": 5,
+      "v_subrev_u32_e32": 1,
+      "v_xor_b32_e32": 35
+    },
+    "statistics": {
+      "Driver pipeline hash": 13065778262660007069,
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 7672,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 4,
+      "Combined inputs": 0,
+      "Combined outputs": 0,
+      "Hash": 1057829838,
+      "Instructions": 1366,
+      "Copies": 64,
+      "Branches": 30,
+      "Latency": 173044,
+      "Inverse Throughput": 123380,
+      "VMEM Clause": 17,
+      "SMEM Clause": 16,
+      "Pre-Sched SGPRs": 48,
+      "Pre-Sched VGPRs": 52,
+      "VALU": 978,
+      "SALU": 152,
+      "VMEM": 53,
+      "SMEM": 24,
+      "VOPD": 0
+    }
+  },
+  "monitor": {
+    "sample_count": 15,
+    "interval_count": 14,
+    "maximum_gap_seconds": 1.0055977939991863,
+    "coverage": [
+      {
+        "mode": "compile",
+        "process_seconds": 0.5675549507141113,
+        "covered_seconds": 0.5675549507141113,
+        "coverage_fraction": 1.0,
+        "uncovered_start_seconds": 0,
+        "uncovered_tail_seconds": 0,
+        "known_unrelated_cpu_weighted_mean_cores": 9.59027515409567
+      },
+      {
+        "mode": "gate",
+        "process_seconds": 4.77699875831604,
+        "covered_seconds": 4.77699875831604,
+        "coverage_fraction": 1.0,
+        "uncovered_start_seconds": 0,
+        "uncovered_tail_seconds": 0,
+        "known_unrelated_cpu_weighted_mean_cores": 8.984549746849833
+      },
+      {
+        "mode": "down",
+        "process_seconds": 4.827740430831909,
+        "covered_seconds": 4.163321495056152,
+        "coverage_fraction": 0.8623747599327197,
+        "uncovered_start_seconds": 0,
+        "uncovered_tail_seconds": 0.6644189357757568,
+        "known_unrelated_cpu_weighted_mean_cores": 8.430530967227456
+      }
+    ],
+    "system_cpu_nonidle_range_percent": [
+      58.83458646616541,
+      70.25157232704403
+    ],
+    "known_unrelated_cpu_range_cores": [
+      8.201316659127109,
+      10.302956363307725
+    ],
+    "physical_disk_peak_bytes_per_second": 929680709.9261321,
+    "intervals_with_non_target_gpu_activity": 5
+  },
+  "limitations": [
+    "Only one short mirrored block per shape, four measured calls per arm; all20 calls including warmups retained.",
+    "Prepared one-hot twins and one projection; no activation producer or model/HF/range gate.",
+    "Per-arm exact ordered oracle and unchanged 2e-5*max(1,abs(double_dot)) bound pass; cross-arm bit identity is neither required nor claimed.",
+    "Calls have process-level start/end timestamps only. No per-dispatch absolute timestamps; activity cannot be attributed separately to individual microcalls.",
+    "Final down process extends beyond the final activity sample. Report uncovered tail explicitly; monitor stop event is not a final counter snapshot.",
+    "Known process tick deltas omit unknown new/disappeared/inaccessible process usage; physical-disk totals include mirrored traffic.",
+    "Resource cap/initial guard evidence and OOMKilled=false retained; this micro runner does not persist per-call memory.events/peak or intermediate admission snapshots."
+  ],
+  "full_audit_sha256": "299e577494bbd7c82ea88efaf380304bb690967cd30cab210217d4543c9228a4",
+  "raw_local": "scratch/q2-prefill-code-table-20261103/model-integration-ef/row-cluster16",
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/row-cluster16"
+}

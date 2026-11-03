@@ -1,0 +1,156 @@
+{
+  "scope": "Recovery mechanics for the interrupted Q2 chat F32 reference. Not model qualification or a runtime change.",
+  "status": "tiny control passed; resume-002 stopped on memory reserve after two saved layers, incomplete",
+  "control": {
+    "scope": "Tiny CPU-only checkpoint/resume control in the pinned HF container; not a Qwen3-8B run or qualification.",
+    "status": "pass",
+    "container": {
+      "id": "2ceb88f40cc24f8edfb7a263d49cb1a46c5c6f43fb75a3cd3deda2ba116005c7",
+      "image": "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+      "cpuset": "3",
+      "cpu_quota": 1,
+      "memory_cap_bytes": 2147483648,
+      "memory_swap_cap_bytes": 2147483648,
+      "network": "none",
+      "gpu_exposed": false,
+      "exit_code": 0,
+      "oom_killed": false,
+      "removed": true,
+      "elapsed_seconds": 9.145804,
+      "memory_peak_bytes": 296304640,
+      "started_utc": "2026-11-01T12:33:58.486083694Z",
+      "finished_utc": "2026-11-01T12:34:07.631887018Z"
+    },
+    "source_pins": {
+      "control_qwen3.py": "3cddf1f97282ee1668b9c6540dbcfc48348a8df30eab24214f973a1bc59f5d91",
+      "checkpoint_io.py": "a54134161121fe8f9c2360fd3253117a633034a7434afe03c35059ede9c045c4",
+      "control.py": "c2c31d061905c954ab906c05140f08fe748a8f34b169e34d7aaf2f2d07b9847b",
+      "run_controls.py": "de766491618c89f3faf2a890f06c1e3fb3e17b63440c84ad4f3dff9b64313cff",
+      "cache_owner.py": "a4547e4bfa7449c3396db819b03fa9bc40c0693a35eb580bb9e7ad9416d4e566",
+      "reference_policy.py": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8",
+      "payload_sha256": "acd4273c9b38ee568f20b73ae0052bfbce22d9205f9f0101f176836732b7ad8e"
+    },
+    "qwen3_control": {
+      "architecture": "Qwen3ForCausalLM",
+      "layers": 2,
+      "threads": 1,
+      "input_tokens": 7,
+      "prefill_slices": [
+        3,
+        2
+      ],
+      "decode_steps": 2,
+      "full_logits_shape": [
+        7,
+        32
+      ],
+      "full_logits_sha256": "2ad321aa5bf30db0dacc3d4e38bf402f0a225904d18f5edd86429781e38d2ec3",
+      "resume_point": "after layer 0; compare uninterrupted with resumed layer 1",
+      "matrix_accounting": {
+        "decode_1": {
+          "calls_per_module": [
+            2
+          ],
+          "module_count": 15,
+          "rows_per_module": [
+            2
+          ]
+        },
+        "prefill_512": {
+          "calls_per_module": [
+            2
+          ],
+          "module_count": 15,
+          "rows_per_module": [
+            5
+          ]
+        }
+      },
+      "cache_records": [
+        {
+          "layer": 0,
+          "sequence_length": 7,
+          "writes": {
+            "0": {
+              "calls": 4,
+              "rows": 7
+            }
+          }
+        },
+        {
+          "layer": 1,
+          "sequence_length": 7,
+          "writes": {
+            "0": {
+              "calls": 4,
+              "rows": 7
+            }
+          }
+        }
+      ],
+      "matrix_cache_bookkeeping_bit_identical": true
+    },
+    "serialization_control": {
+      "status": "pass",
+      "manifest_publish_failure_injected_after_data_rename": true,
+      "previous_commit_survived": true,
+      "identity_mismatch_rejected": true,
+      "short_payload_rejected_without_replacing_previous": true,
+      "data_corruption_rejected": true,
+      "torch_layer_major_control_bit_identical": true
+    },
+    "admission": {
+      "initial_pass": true,
+      "prestart_pass": true,
+      "selected_physical_core": [
+        0,
+        3
+      ],
+      "available_bytes_initial": 21853671424,
+      "required_bytes_initial": 4294967296,
+      "active_peer_caps": [],
+      "active_cpu_overlap_samples": 0
+    },
+    "artifacts": {
+      "execution": {
+        "path": "tiny-control-execution-02.json",
+        "sha256": "9a5f59a7966478aa3895b496d3df332e6a0f2d910cec1c31e84198a3d374a029"
+      },
+      "stdout": {
+        "path": "tiny-control-stdout-02.log",
+        "sha256": "afd5be15a5d6a2eb796d046607371f2f2dae4a75c5d071a9d642425beb5b65e4"
+      },
+      "stderr": {
+        "path": "tiny-control-stderr-02.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "earlier_attempts": {
+      "preflight_create_failure": "preflight-failure.json, container removed before start because mount-mode assertion mistakenly expected the tmpfs entry in Docker Mounts; no inference ran.",
+      "first_control_success": "tiny-control-execution.json and tiny-control-stdout.log retained; exit0, but older copied Qwen script omitted detailed accounting in printed summary. This corrected attempt reports the values."
+    }
+  },
+  "root_review": {
+    "checked": [
+      "checkpoint identity and exact F32 hidden-state serialization",
+      "atomic replacement preserves previous checkpoint on manifest publication failure",
+      "restored integer cache layer keys and MatrixPolicy accounting",
+      "unchanged frozen layer-major prefill/decode schedule",
+      "later foreign CPU overlap is recorded, not fatal to this correctness-only run"
+    ],
+    "no_limits_changed": true,
+    "no_runtime_changes": true,
+    "resource_correction": "Running admission now reserves owned unused memory cap, peer unused caps and the 2 GiB host floor; pure accounting checks passed. No model rerun was needed for this supervisor-only change.",
+    "final_supervisor_sha256": "8a13007fa755a44b9e773d082c0024d6fda203461b0b559aba7640671b207731",
+    "final_payload_sha256": "4d5bc21738e70b69b9f932e99f24e2190d3a15c5f88f5a5515e312f773a1e040",
+    "startup_race_correction": "Exact owned container is inspected separately from docker ps. Created state reserves the full cap, running state reads its cgroup, terminal state follows exit validation. Mocked lifecycle cases passed. Earlier resume-001 pre-forward abort remains preserved."
+  },
+  "admission_at_2026_11_01_124216_utc": {
+    "available_bytes": 17380442112,
+    "required_bytes": 18253611008,
+    "cpu_overlap": false,
+    "active_owned_timing": false,
+    "launched": false
+  }
+}

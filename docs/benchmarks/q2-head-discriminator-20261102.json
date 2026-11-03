@@ -1,0 +1,410 @@
+{
+  "scope": "One case4 private native-int8/F32-KV head diagnostic, not a whole-model correctness pass.",
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "binary_sha256": "666a27d8c06b4028f365fa64132761aeb481bf685f78f56ff33c51dc22852c73",
+  "source_hash": "5e5b0a55e478b8f4288e81c6f6c993e09eb0a2836c27378b031c54164a29cfe6",
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--name",
+    "llmx-xdev-q2-head-case4-20261102",
+    "--network",
+    "none",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,nosuid,nodev,size=256m",
+    "--cpuset-cpus",
+    "2,10",
+    "--cpus",
+    "2",
+    "--memory",
+    "8g",
+    "--memory-swap",
+    "8g",
+    "--pids-limit",
+    "128",
+    "--ulimit",
+    "core=0",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/cache",
+    "--device",
+    "/dev/dri/renderD131",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-head-discriminator-20261102/out,dst=/out,readonly",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf,dst=/model.gguf,readonly",
+    "--mount",
+    "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-head-discriminator-20261102/capture,dst=/capture",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "timeout",
+    "--signal=TERM",
+    "--kill-after=3s",
+    "180s",
+    "/out/llmx",
+    "logits",
+    "/model.gguf",
+    "In 1969, humans first walked on the",
+    "--top",
+    "151936",
+    "--dtype",
+    "int8",
+    "--cache-type-k",
+    "f32",
+    "--cache-type-v",
+    "f32",
+    "--threads",
+    "4",
+    "--load-mode",
+    "auto",
+    "--device",
+    "vulkan:0"
+  ],
+  "head": {
+    "nin": 4096,
+    "nout": 151936,
+    "nbatch": 1,
+    "cluster": 32,
+    "variant": 7,
+    "kernel": "matmul_row_q2_0_i8_1col_2row"
+  },
+  "observations": {
+    "ordinary_quantizer": {
+      "codes_different": 0,
+      "scales_bits_different": 0,
+      "sum_bits_different": 0
+    },
+    "exact_ratio_codes_different": 0,
+    "exact_halfway_count": 0,
+    "max_scale_delta_from_exact_peak_over127": 2.3935723514334484e-08,
+    "max_scale_relative_delta_from_exact_peak_over127": 5.373456056786149e-08,
+    "all14_reduction_replays_bit_identical": true,
+    "max_head_reduction_error_vs_actual_twin_double": 1.5258540884133254e-06,
+    "max_head_activation_rounding_effect": 0.09410015428584373,
+    "max_same_input_hf_reconstruction_residual_vs_saved_ordinary_hf": 0.7710989407143529,
+    "min_analytic_bound": 1.2222777655656952e-05,
+    "max_analytic_bound": 1.3792369778810241e-05,
+    "max_cli_serialization_delta": 4.999999996257998e-07,
+    "capture_elapsed_seconds": 12.882100343704224,
+    "replay_elapsed_seconds": 6.239573955535889,
+    "capture_monitor_samples": 7,
+    "numpy_version": "2.4.3",
+    "note": "Exact-ratio quantizer is a diagnostic control, not a replacement reference or gate; code identity does not imply scale identity with a real division."
+  },
+  "selected_rows": [
+    {
+      "id": 320,
+      "runtime": 16.376388549804688,
+      "same_input_unquantized_double": 16.323147175178775,
+      "same_input_actual_twin_double": 16.37638742851823,
+      "same_input_hf_reconstructed_double": 16.376387404578736,
+      "same_input_shader_reduction_replay": 16.376388549804688,
+      "activation_rounding_delta": 0.05324025333945315,
+      "runtime_minus_actual_twin_double": 1.1212864592380356e-06,
+      "scale_product_rounding_delta": 1.4814168025623076e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3130334507263512e-05,
+      "actual_residual_after_scale_rounding": 9.731447789818048e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.4469488135753181,
+      "saved_selected_logits": {
+        "hf_ordinary": 15.929438591003418,
+        "hf_f32": 16.26032829284668,
+        "hf_old_hook": 16.122026443481445
+      }
+    },
+    {
+      "id": 716,
+      "runtime": 16.317440032958984,
+      "same_input_unquantized_double": 16.380333829079788,
+      "same_input_actual_twin_double": 16.317440046784924,
+      "same_input_hf_reconstructed_double": 16.317440134263848,
+      "same_input_shader_reduction_replay": 16.317440032958984,
+      "activation_rounding_delta": -0.06289378229486431,
+      "runtime_minus_actual_twin_double": -1.3825939504386042e-08,
+      "scale_product_rounding_delta": 7.203036034297838e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3792369778810241e-05,
+      "actual_residual_after_scale_rounding": -8.585629984736443e-08,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.4410611212023241,
+      "saved_selected_logits": {
+        "hf_ordinary": 15.876379013061523,
+        "hf_f32": 15.893796920776367,
+        "hf_old_hook": 15.876087188720703
+      }
+    },
+    {
+      "id": 949,
+      "runtime": 16.247318267822266,
+      "same_input_unquantized_double": 16.245172747335474,
+      "same_input_actual_twin_double": 16.24731775398149,
+      "same_input_hf_reconstructed_double": 16.247317815374345,
+      "same_input_shader_reduction_replay": 16.247318267822266,
+      "activation_rounding_delta": 0.0021450066460175776,
+      "runtime_minus_actual_twin_double": 5.138407743743301e-07,
+      "scale_product_rounding_delta": 6.927976414772274e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3226407051012503e-05,
+      "actual_residual_after_scale_rounding": 4.445610102266073e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": -0.05743071978190528,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.30474853515625,
+        "hf_f32": 16.10657501220703,
+        "hf_old_hook": 16.12864875793457
+      }
+    },
+    {
+      "id": 1273,
+      "runtime": 16.464481353759766,
+      "same_input_unquantized_double": 16.469162465712866,
+      "same_input_actual_twin_double": 16.464482170765734,
+      "same_input_hf_reconstructed_double": 16.464482287485964,
+      "same_input_shader_reduction_replay": 16.464481353759766,
+      "activation_rounding_delta": -0.004680294947132069,
+      "runtime_minus_actual_twin_double": -8.170059686563036e-07,
+      "scale_product_rounding_delta": -1.156618623099348e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3190056132814967e-05,
+      "actual_residual_after_scale_rounding": -7.013441063463688e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.11277292164123764,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.351709365844727,
+        "hf_f32": 16.24058723449707,
+        "hf_old_hook": 16.373592376708984
+      }
+    },
+    {
+      "id": 4910,
+      "runtime": 16.076709747314453,
+      "same_input_unquantized_double": 15.982608393500652,
+      "same_input_actual_twin_double": 16.076708547786495,
+      "same_input_hf_reconstructed_double": 16.07670867216069,
+      "same_input_shader_reduction_replay": 16.076709747314453,
+      "activation_rounding_delta": 0.09410015428584373,
+      "runtime_minus_actual_twin_double": 1.1995279578513873e-06,
+      "scale_product_rounding_delta": 1.3738366533289081e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2860722042350172e-05,
+      "actual_residual_after_scale_rounding": 1.0621442925184965e-06,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": -0.23409378755610533,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.310802459716797,
+        "hf_f32": 16.094751358032227,
+        "hf_old_hook": 15.973596572875977
+      }
+    },
+    {
+      "id": 6200,
+      "runtime": 16.168739318847656,
+      "same_input_unquantized_double": 16.13888520991535,
+      "same_input_actual_twin_double": 16.168739637211672,
+      "same_input_hf_reconstructed_double": 16.168739825715022,
+      "same_input_shader_reduction_replay": 16.168739318847656,
+      "activation_rounding_delta": 0.029854427296321262,
+      "runtime_minus_actual_twin_double": -3.183640160386858e-07,
+      "scale_product_rounding_delta": 2.4285969857373857e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.293597808073987e-05,
+      "actual_residual_after_scale_rounding": -5.612237146124244e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.11236432217498304,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.05637550354004,
+        "hf_f32": 15.991771697998047,
+        "hf_old_hook": 16.056060791015625
+      }
+    },
+    {
+      "id": 11580,
+      "runtime": 16.63458824157715,
+      "same_input_unquantized_double": 16.65608634046055,
+      "same_input_actual_twin_double": 16.63458898537627,
+      "same_input_hf_reconstructed_double": 16.634589064728857,
+      "same_input_shader_reduction_replay": 16.63458824157715,
+      "activation_rounding_delta": -0.021497355084282077,
+      "runtime_minus_actual_twin_double": -7.437991200731631e-07,
+      "scale_product_rounding_delta": 7.365471788034483e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2222777655656952e-05,
+      "actual_residual_after_scale_rounding": -8.174538379535079e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.48507582009995076,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.149513244628906,
+        "hf_f32": 16.0601863861084,
+        "hf_old_hook": 15.803902626037598
+      }
+    },
+    {
+      "id": 15494,
+      "runtime": 17.115676879882812,
+      "same_input_unquantized_double": 17.188698452446307,
+      "same_input_actual_twin_double": 17.115677021734882,
+      "same_input_hf_reconstructed_double": 17.115677055872197,
+      "same_input_shader_reduction_replay": 17.115676879882812,
+      "activation_rounding_delta": -0.07302143071142453,
+      "runtime_minus_actual_twin_double": -1.4185206964612007e-07,
+      "scale_product_rounding_delta": 1.3771932572126389e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2293896983351779e-05,
+      "actual_residual_after_scale_rounding": -2.7957139536738396e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.018678841150517655,
+      "saved_selected_logits": {
+        "hf_ordinary": 17.09699821472168,
+        "hf_f32": 16.766042709350586,
+        "hf_old_hook": 17.179723739624023
+      }
+    },
+    {
+      "id": 17330,
+      "runtime": 17.447662353515625,
+      "same_input_unquantized_double": 17.370110847837196,
+      "same_input_actual_twin_double": 17.447663879369713,
+      "same_input_hf_reconstructed_double": 17.447664003403702,
+      "same_input_shader_reduction_replay": 17.447662353515625,
+      "activation_rounding_delta": 0.07755303153251702,
+      "runtime_minus_actual_twin_double": -1.5258540884133254e-06,
+      "scale_product_rounding_delta": -1.649589762564574e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2275715341492262e-05,
+      "actual_residual_after_scale_rounding": -1.360895112156868e-06,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.23599408152870183,
+      "saved_selected_logits": {
+        "hf_ordinary": 17.211669921875,
+        "hf_f32": 17.57948875427246,
+        "hf_old_hook": 17.284595489501953
+      }
+    },
+    {
+      "id": 17788,
+      "runtime": 18.020259857177734,
+      "same_input_unquantized_double": 17.962159810963044,
+      "same_input_actual_twin_double": 18.02025893825828,
+      "same_input_hf_reconstructed_double": 18.020259062514583,
+      "same_input_shader_reduction_replay": 18.020259857177734,
+      "activation_rounding_delta": 0.05809912729523603,
+      "runtime_minus_actual_twin_double": 9.189194543068879e-07,
+      "scale_product_rounding_delta": -2.6969587452185806e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.31369867393735e-05,
+      "actual_residual_after_scale_rounding": 9.458890417590737e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.11567989991692684,
+      "saved_selected_logits": {
+        "hf_ordinary": 17.904579162597656,
+        "hf_f32": 18.48086166381836,
+        "hf_old_hook": 18.398967742919922
+      }
+    },
+    {
+      "id": 23918,
+      "runtime": 16.956218719482422,
+      "same_input_unquantized_double": 16.99406725843823,
+      "same_input_actual_twin_double": 16.956219503296637,
+      "same_input_hf_reconstructed_double": 16.956219488871625,
+      "same_input_shader_reduction_replay": 16.956218719482422,
+      "activation_rounding_delta": -0.03784775514159122,
+      "runtime_minus_actual_twin_double": -7.838142153104855e-07,
+      "scale_product_rounding_delta": -3.4099542745025246e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3305147764282608e-05,
+      "actual_residual_after_scale_rounding": -7.497146725654602e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.09190445591264051,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.864315032958984,
+        "hf_f32": 16.48689079284668,
+        "hf_old_hook": 16.675966262817383
+      }
+    },
+    {
+      "id": 28835,
+      "runtime": 16.333078384399414,
+      "same_input_unquantized_double": 16.286062278489293,
+      "same_input_actual_twin_double": 16.333079165820607,
+      "same_input_hf_reconstructed_double": 16.33307918821191,
+      "same_input_shader_reduction_replay": 16.333078384399414,
+      "activation_rounding_delta": 0.047016887331313484,
+      "runtime_minus_actual_twin_double": -7.814211926415737e-07,
+      "scale_product_rounding_delta": 1.5729375490991515e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2782911766275633e-05,
+      "actual_residual_after_scale_rounding": -9.387149475514889e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": 0.7710989407143529,
+      "saved_selected_logits": {
+        "hf_ordinary": 15.561980247497559,
+        "hf_f32": 15.65679931640625,
+        "hf_old_hook": 15.520814895629883
+      }
+    },
+    {
+      "id": 33161,
+      "runtime": 16.338783264160156,
+      "same_input_unquantized_double": 16.340606689355287,
+      "same_input_actual_twin_double": 16.33878228177622,
+      "same_input_hf_reconstructed_double": 16.338782476864196,
+      "same_input_shader_reduction_replay": 16.338783264160156,
+      "activation_rounding_delta": -0.0018244075790683212,
+      "runtime_minus_actual_twin_double": 9.82383937753184e-07,
+      "scale_product_rounding_delta": 7.377690280918614e-08,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.3031798543029069e-05,
+      "actual_residual_after_scale_rounding": 9.086070349439979e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": -0.0005882506748662308,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.339370727539062,
+        "hf_f32": 16.207971572875977,
+        "hf_old_hook": 16.324708938598633
+      }
+    },
+    {
+      "id": 56711,
+      "runtime": 16.181869506835938,
+      "same_input_unquantized_double": 16.10647019258699,
+      "same_input_actual_twin_double": 16.181868967884185,
+      "same_input_hf_reconstructed_double": 16.181869130765108,
+      "same_input_shader_reduction_replay": 16.181869506835938,
+      "activation_rounding_delta": 0.07539877529719519,
+      "runtime_minus_actual_twin_double": 5.38951752560024e-07,
+      "scale_product_rounding_delta": -1.052178788540914e-07,
+      "runtime_minus_replay": 0.0,
+      "reduction_roundoff_bound": 1.2948830827366502e-05,
+      "actual_residual_after_scale_rounding": 6.441696314141154e-07,
+      "same_input_hf_reconstructed_minus_saved_hf_ordinary": -0.0701774543178999,
+      "saved_selected_logits": {
+        "hf_ordinary": 16.252046585083008,
+        "hf_f32": 16.52558708190918,
+        "hf_old_hook": 16.771099090576172
+      }
+    }
+  ],
+  "capture_hashes": {
+    "head-scale-sum.f32": {
+      "sha256": "443be8b608964f72cd91a5a67e2817e9fbbd14db72ede9a8d602fda8e181c921",
+      "bytes": 1024
+    },
+    "head-output.f32": {
+      "sha256": "6eda7bc6c78d617c113ab8033ccd25ebe99181192252718992b98a7a90a2e897",
+      "bytes": 607744
+    },
+    "head-codes.i8": {
+      "sha256": "3d5d99bb0333fbe6097dc72a6fda34e4ae2231cfcad8d5e1d43d739b1d61e11b",
+      "bytes": 4096
+    },
+    "head-input.f32": {
+      "sha256": "b517b2f7b9e423357af91e86a5174fca1b5973cdf72f62b7917ed98fd0e2f666",
+      "bytes": 16384
+    },
+    "head.json": {
+      "sha256": "3301922545721defc34e6dc994f016c43cdc6e65d177d139c3bf511e8cf484e1",
+      "bytes": 103
+    }
+  },
+  "stdout_sha256": "e2190545d232744d51f27e705c79db0659d46521444d60484fdf3bc771ec6045",
+  "receipt_sha256": "f77efaeffc831d6fa3cce0d607934b1bb6f44bb3108cdc50a6efc18bced9ab2d",
+  "replay_sha256": "d71d364c04c67c5d698f26a98ef877eb66bbfb119ada5c7aee971ecdba20e1dd",
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-head-discriminator-20261102",
+  "limitations": [
+    "Runtime input is captured; no saved case4 HF head input exists. Upstream difference is residual localization, not an identified upstream operator.",
+    "Rounded same-input double dot isolates quantizer error from runtime projection arithmetic.",
+    "FMA/cluster replay is diagnostic shader-order reconstruction; an order mismatch alone is not an implementation bug.",
+    "Reduction bound is a mathematical forward-error check on these rows, not a precision acceptance gate.",
+    "No NLL or full HF rerun. Existing ranking/NLL failures remain failures."
+  ],
+  "next": "Propose one paired intermediate-state diagnostic to locate upstream divergence. No broad gate or limit change."
+}

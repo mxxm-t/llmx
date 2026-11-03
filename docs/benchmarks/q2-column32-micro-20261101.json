@@ -1,0 +1,261 @@
+{
+  "schema": "llmx.q2-column32-micro-evidence.v1",
+  "date": "2026-11-01",
+  "status": "not_promoted_no_demonstrated_gain",
+  "scope": "Exact-micro comparison of Q2_0 default block-int16 128-row tall tile at 64 vs 32 columns; no model/HF/mx claim.",
+  "base": {
+    "revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "helper_sha256": "a9cba8c20bcde9d5a457215c79e3594b8b069e7fc77f4de3e755571a19e0dc1e"
+  },
+  "candidate": {
+    "source_tree_sha256": "147fc190c254eada341b77e4c8d18742a7b95ec82fe863cb5d44f1e066226d9e",
+    "library_sha256": "6f98772f3f08ffd6bbd8943dd5114518e25ee7d871ecbbad7dc8372a34431854",
+    "helper_sha256": "21304395a4346495c118f11eb9cdea4392ba656f5937ab840662882424629ae0",
+    "temporary_runtime_overlays_reverted": [
+      "src/backends/vulkan/shaders/matmul_tile_q.comp",
+      "src/backends/vulkan/vulkan_backend.cpp",
+      "src/backends/vulkan/vulkan_dispatch.hpp",
+      "src/backends/vulkan/vulkan_kernels.hpp",
+      "src/backends/vulkan/vulkan_matmul.hpp"
+    ],
+    "generated_module_count_each_arm": 334,
+    "changed_generated_modules": [
+      "generated/vulkan/matmul_tile_q2_0_dot.inc"
+    ],
+    "shader_overlay_sha256": "2e18fa0b14a7ce091345c84aed1b1033a63473febbe479f42db93fa391e34f29"
+  },
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpu_set": [
+      5
+    ],
+    "cpu_quota": 1,
+    "memory_bytes": 2147483648,
+    "memory_swap_bytes": 2147483648,
+    "gpu_exposed": false,
+    "receipt_path": "scratch/q2-column32-micro-v1/build-out/receipt.json",
+    "receipt_sha256": "44336436cfd33d9f11e4f42b4b5f69c907648ff37623a7ca00d7321ad3139f78",
+    "candidate_build_path_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-column32-micro-v1/candidate/build/",
+    "raw_logs_and_receipt_local": "scratch/q2-column32-micro-v1/",
+    "log_sha256": "412ab5026b3205f56080e02843c1090cca287cbb7d7ac2f0c3e30ccca8122ae4",
+    "container_removed": true,
+    "first_preflight_failure": "build-attempt-v1.json: two transcribed overlay-hash pins failed before candidate copy/container creation; preserved, then corrected from file bytes."
+  },
+  "run": {
+    "execution_sha256": "f0fb41a5fe205c4d96e5ec47c96347111cebe1fcb0a6c0d4959f9e5ce4b5a3b8",
+    "plan_sha256": "ca8f066d95af55fea5ad912c4b7509b4e506b7b89f5c81d80fed0c6ab587dd0f",
+    "runner_sha256": "a5dbbae499fdd2294a80232549c58a9033116d331f0aa3c2156cb10318fc0ceb",
+    "device": {
+      "render_node": "renderD128",
+      "pci": "0000:c3:00.0"
+    },
+    "order": [
+      "base",
+      "candidate",
+      "candidate",
+      "base"
+    ],
+    "calls": 32,
+    "shape": "M4096 x N512, K4096 and K12288; per process and shape: one warmup plus three measured calls.",
+    "result": [
+      {
+        "K": 4096,
+        "M": 4096,
+        "N": 512,
+        "blocks": [
+          {
+            "label": "A1",
+            "arm": "base",
+            "row_gpu_ms": [
+              3.58832,
+              3.55888,
+              3.55968
+            ],
+            "row_gpu_median_ms": 3.55968,
+            "wall_ms": [
+              5.7729,
+              5.71351,
+              5.76435
+            ],
+            "wall_median_ms": 5.76435
+          },
+          {
+            "label": "B1",
+            "arm": "candidate",
+            "row_gpu_ms": [
+              4.27136,
+              4.26832,
+              4.27568
+            ],
+            "row_gpu_median_ms": 4.27136,
+            "wall_ms": [
+              6.19994,
+              6.11258,
+              6.13886
+            ],
+            "wall_median_ms": 6.13886
+          },
+          {
+            "label": "B2",
+            "arm": "candidate",
+            "row_gpu_ms": [
+              4.28304,
+              4.27952,
+              4.27248
+            ],
+            "row_gpu_median_ms": 4.27952,
+            "wall_ms": [
+              6.53588,
+              6.33241,
+              6.2782
+            ],
+            "wall_median_ms": 6.33241
+          },
+          {
+            "label": "A2",
+            "arm": "base",
+            "row_gpu_ms": [
+              3.5912,
+              3.59568,
+              3.57728
+            ],
+            "row_gpu_median_ms": 3.5912,
+            "wall_ms": [
+              6.07483,
+              10.1427,
+              6.63117
+            ],
+            "wall_median_ms": 6.63117
+          }
+        ],
+        "arm_medians": {
+          "base_row_gpu_ms": 3.5827999999999998,
+          "candidate_row_gpu_ms": 4.27408,
+          "candidate_percent_vs_base": 19.294406609355818
+        },
+        "wall_arm_medians": {
+          "base_wall_ms": 5.923865,
+          "candidate_wall_ms": 6.23907,
+          "candidate_percent_vs_base": 5.320934896389429
+        },
+        "driver_pipeline_statistics": {
+          "base": "matmul_tile_q2_0_dot_tall: Driver pipeline hash=13492738097654853023 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=24492 LDS size=26624 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=528913944 Instructions=4025 Copies=145 Branches=106 Latency=534538 Inverse Throughput=410788 VMEM Clause=26 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=98 VALU=2923 SALU=666 VMEM=56 SMEM=22 VOPD=0",
+          "candidate": "matmul_tile_q2_0_dot_tall_32col: Driver pipeline hash=11239466154243628880 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=16260 LDS size=22016 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=2912868989 Instructions=2775 Copies=172 Branches=64 Latency=406360 Inverse Throughput=298372 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=62 VALU=1963 SALU=486 VMEM=56 SMEM=22 VOPD=0"
+        }
+      },
+      {
+        "K": 12288,
+        "M": 4096,
+        "N": 512,
+        "blocks": [
+          {
+            "label": "A1",
+            "arm": "base",
+            "row_gpu_ms": [
+              9.79984,
+              7.29536,
+              6.59104
+            ],
+            "row_gpu_median_ms": 7.29536,
+            "wall_ms": [
+              11.8178,
+              9.44639,
+              8.45996
+            ],
+            "wall_median_ms": 9.44639
+          },
+          {
+            "label": "B1",
+            "arm": "candidate",
+            "row_gpu_ms": [
+              10.6469,
+              8.23984,
+              7.1976
+            ],
+            "row_gpu_median_ms": 8.23984,
+            "wall_ms": [
+              12.8811,
+              10.3744,
+              9.58316
+            ],
+            "wall_median_ms": 10.3744
+          },
+          {
+            "label": "B2",
+            "arm": "candidate",
+            "row_gpu_ms": [
+              11.1469,
+              7.50336,
+              7.45488
+            ],
+            "row_gpu_median_ms": 7.50336,
+            "wall_ms": [
+              13.1023,
+              9.34545,
+              9.61327
+            ],
+            "wall_median_ms": 9.61327
+          },
+          {
+            "label": "A2",
+            "arm": "base",
+            "row_gpu_ms": [
+              9.9904,
+              7.99392,
+              7.03424
+            ],
+            "row_gpu_median_ms": 7.99392,
+            "wall_ms": [
+              12.1201,
+              10.1067,
+              9.02983
+            ],
+            "wall_median_ms": 10.1067
+          }
+        ],
+        "arm_medians": {
+          "base_row_gpu_ms": 7.64464,
+          "candidate_row_gpu_ms": 7.871599999999999,
+          "candidate_percent_vs_base": 2.9688775403419854
+        },
+        "wall_arm_medians": {
+          "base_wall_ms": 9.776544999999999,
+          "candidate_wall_ms": 9.993835,
+          "candidate_percent_vs_base": 2.2225643108071624
+        },
+        "driver_pipeline_statistics": {
+          "base": "matmul_tile_q2_0_dot_tall: Driver pipeline hash=13492738097654853023 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=24492 LDS size=26624 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=528913944 Instructions=4025 Copies=145 Branches=106 Latency=534538 Inverse Throughput=410788 VMEM Clause=26 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=98 VALU=2923 SALU=666 VMEM=56 SMEM=22 VOPD=0",
+          "candidate": "matmul_tile_q2_0_dot_tall_32col: Driver pipeline hash=11239466154243628880 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=16260 LDS size=22016 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=2912868989 Instructions=2775 Copies=172 Branches=64 Latency=406360 Inverse Throughput=298372 VMEM Clause=24 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=62 VALU=1963 SALU=486 VMEM=56 SMEM=22 VOPD=0"
+        }
+      }
+    ],
+    "all_outputs_exact": true,
+    "each_call_outputs": 2097152,
+    "path_witnesses": {
+      "base": "matmul_tile_q2_0_dot_tall",
+      "candidate": "matmul_tile_q2_0_dot_tall_32col"
+    },
+    "raw_artifacts_local": "scratch/q2-column32-micro-v1/run-out-v1/",
+    "raw_artifacts_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-column32-micro-v1/run-out-v1/",
+    "container_removed": true
+  },
+  "activity": {
+    "samples": 15,
+    "activity_lines": 17,
+    "monitor_returncode": 0,
+    "unrelated_cpu_cores_max": 4.357707614259047,
+    "unrelated_cpu_flag_samples_over_1_core": 14,
+    "system_disk_mib_s_max": 27.028009447794673,
+    "disk_flag_samples_over_100_mib_s": 0,
+    "other_gpu_activity_samples": 15,
+    "missed_process_records": 3,
+    "coverage_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "limits": [
+    "The 32-column experiment changes the launched grid and static pipeline; this result only measures the two retained exact micro shapes.",
+    "Driver statistics (including instructions, VGPR/SGPR, LDS and spills) are static pipeline metadata, not dynamic occupancy or hardware-time attribution.",
+    "No full model, HF, or matched mx comparison was run."
+  ]
+}

@@ -1,0 +1,275 @@
+{
+  "status": "DONE",
+  "interpretation": "No useful gain; do not promote.",
+  "scope": "Q2 row4 gate and down kernel micro only; no model or decode-end-to-end claim.",
+  "source_commit": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "candidate_overlay_sha256": "73464b67feff7143ad374e1270d80e6f165e27748132ea3ff6d7d676dea44661",
+  "baseline_module_sha256": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+  "candidate_module_sha256": "8e645631e31bba7709d9b470efd8af4153f0f18beeb6ff6507f45597a10eb501",
+  "timings": {
+    "gate": {
+      "median_us": {
+        "base": 79.68,
+        "soa": 80.08000000000001
+      },
+      "measured_us": {
+        "base": [
+          80.8,
+          79.68,
+          78.72,
+          79.68
+        ],
+        "soa": [
+          81.76,
+          79.68,
+          80.48,
+          79.68
+        ]
+      },
+      "samples": [
+        {
+          "arm": 0,
+          "call": 0,
+          "warmup": true,
+          "gpu_ns": 81920
+        },
+        {
+          "arm": 1,
+          "call": 1,
+          "warmup": true,
+          "gpu_ns": 82400
+        },
+        {
+          "arm": 0,
+          "call": 2,
+          "warmup": false,
+          "gpu_ns": 80800
+        },
+        {
+          "arm": 1,
+          "call": 3,
+          "warmup": false,
+          "gpu_ns": 81760
+        },
+        {
+          "arm": 1,
+          "call": 4,
+          "warmup": false,
+          "gpu_ns": 79680
+        },
+        {
+          "arm": 0,
+          "call": 5,
+          "warmup": false,
+          "gpu_ns": 79680
+        },
+        {
+          "arm": 0,
+          "call": 6,
+          "warmup": false,
+          "gpu_ns": 78720
+        },
+        {
+          "arm": 1,
+          "call": 7,
+          "warmup": false,
+          "gpu_ns": 80480
+        },
+        {
+          "arm": 1,
+          "call": 8,
+          "warmup": false,
+          "gpu_ns": 79680
+        },
+        {
+          "arm": 0,
+          "call": 9,
+          "warmup": false,
+          "gpu_ns": 79680
+        }
+      ]
+    },
+    "down": {
+      "median_us": {
+        "base": 87.6,
+        "soa": 88.47999999999999
+      },
+      "measured_us": {
+        "base": [
+          86.72,
+          88.64,
+          88.48,
+          86.72
+        ],
+        "soa": [
+          87.2,
+          89.28,
+          88.8,
+          88.16
+        ]
+      },
+      "samples": [
+        {
+          "arm": 0,
+          "call": 0,
+          "warmup": true,
+          "gpu_ns": 93120
+        },
+        {
+          "arm": 1,
+          "call": 1,
+          "warmup": true,
+          "gpu_ns": 87520
+        },
+        {
+          "arm": 0,
+          "call": 2,
+          "warmup": false,
+          "gpu_ns": 86720
+        },
+        {
+          "arm": 1,
+          "call": 3,
+          "warmup": false,
+          "gpu_ns": 87200
+        },
+        {
+          "arm": 1,
+          "call": 4,
+          "warmup": false,
+          "gpu_ns": 89280
+        },
+        {
+          "arm": 0,
+          "call": 5,
+          "warmup": false,
+          "gpu_ns": 88640
+        },
+        {
+          "arm": 0,
+          "call": 6,
+          "warmup": false,
+          "gpu_ns": 88480
+        },
+        {
+          "arm": 1,
+          "call": 7,
+          "warmup": false,
+          "gpu_ns": 88800
+        },
+        {
+          "arm": 1,
+          "call": 8,
+          "warmup": false,
+          "gpu_ns": 88160
+        },
+        {
+          "arm": 0,
+          "call": 9,
+          "warmup": false,
+          "gpu_ns": 86720
+        }
+      ]
+    }
+  },
+  "relative_change_percent": {
+    "gate": 0.5020080321285203,
+    "down": 1.0045662100456543
+  },
+  "resources": {
+    "base": {
+      "Driver pipeline hash": 13065778262660007069,
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 7672,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Latency": 173044,
+      "Inverse Throughput": 123380
+    },
+    "soa": {
+      "Driver pipeline hash": 7502148317364630330,
+      "SGPRs": 80,
+      "VGPRs": 64,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 7672,
+      "LDS size": 2048,
+      "Scratch size": 0,
+      "Latency": 173044,
+      "Inverse Throughput": 123380
+    }
+  },
+  "final_physical_isa": {
+    "base": {
+      "source": "compile.stderr shader section 0 physical final ISA beginning BB0",
+      "sha256": "8342075a8b4e4ad77e691fa01aeb8841389670ab1c71b3f700fe5cd50044bbce",
+      "instruction_counts": {
+        "ds_read_b64": 32,
+        "ds_read2st64_b32": 0,
+        "v_dot2_i32_i16": 80
+      },
+      "lds_read_instructions": 32
+    },
+    "soa": {
+      "source": "compile.stderr shader section 1 physical final ISA beginning BB0",
+      "sha256": "0e59b2efd9b5f390062274f8aa7d3eedb8b60aa1b030b13084fd0e6c6cddb266",
+      "instruction_counts": {
+        "ds_read_b64": 0,
+        "ds_read2st64_b32": 32,
+        "v_dot2_i32_i16": 80
+      },
+      "lds_read_instructions": 32
+    }
+  },
+  "correctness_and_guards": {
+    "calls": 20,
+    "all_output_bits_match_device_baseline": true,
+    "guards_intact": true,
+    "inputs_unchanged": true,
+    "finite_exact_outputs_gate": 12288,
+    "finite_exact_outputs_down": 4096
+  },
+  "activity_coverage": {
+    "samples": 15,
+    "sampled_seconds": 0.772,
+    "process_count_min": 1011,
+    "process_count_max": 1042,
+    "missed_process_observations": 6,
+    "appeared_process_observations": 1098,
+    "disappeared_process_observations": 56,
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "lifecycle": {
+    "status": "DONE",
+    "completed": true,
+    "removed": true,
+    "monitor_exit": 0,
+    "seconds": 18.254042863845825,
+    "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1"
+  },
+  "raw_artifacts": {
+    "activity.jsonl": "4f2e92fdb47c6087df64b885f06a157b5795a220cd7a0d6a4682a7505b6faf9e",
+    "arm0-final-isa.txt": "738b80f29ece75bccaac86f1de710e78822fabdd383cfecdee0d4c4da3f102dc",
+    "arm1-final-isa.txt": "9c1c4c8236cbd4e9a6d822ba3b2341ce142f8e0d47c34b8064a1e9f67ed8ba10",
+    "base-final-isa.txt": "738b80f29ece75bccaac86f1de710e78822fabdd383cfecdee0d4c4da3f102dc",
+    "candidate.spv": "8e645631e31bba7709d9b470efd8af4153f0f18beeb6ff6507f45597a10eb501",
+    "compile.stderr": "05a92e83ee8b36c102c2c080814b96ccc26bd3d08e928292d51fdfa346f38deb",
+    "compile.stdout": "63e83a3bcc2b56ac9b876d9affcd2eff52c231d029f96d90b2e0d507bb7c33d2",
+    "down.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "down.stdout": "59ee3c0fbaa52b29e5913656392ab8bc744118cea4f5a6f3b90032f3ed847e7d",
+    "E.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+    "execution.json": "348ab34d4ec8c501edf70a20207de883a1389643b20282be0b5079114a1456dc",
+    "gate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate.stdout": "6db9cd7e408a3ee4c096032d7f3f975cc361dada931c51d7a8a38537c9be1b34",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "probe": "ed8e3f6e10f8a7a53e40362d437fffe8e570b7b868a2753b4c431cf4880a9621",
+    "soa-final-isa.txt": "9c1c4c8236cbd4e9a6d822ba3b2341ce142f8e0d47c34b8064a1e9f67ed8ba10"
+  },
+  "full_result_sha256": "6e624540ebdfe7842bae117e7699820764c9d7c3a23f7597c433b542a14bf896",
+  "raw_local": "scratch/q2-prefill-code-table-20261103/model-integration-ef/row-soa-cache/results",
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/row-soa-cache/results"
+}

@@ -1,0 +1,283 @@
+{
+  "status": "DONE",
+  "job_id": "20261102T232700Z-397640",
+  "seconds": 31.785005807876587,
+  "plan_sha256": "fcc870199b686b0806940d8abc21664a2d6e4d0a6509b12f3a79093f6edb93dc",
+  "scope": "Root-approved no-build down operator screen, base versus revision2 only",
+  "comparisons": {
+    "row64_split1": {
+      "primary": true,
+      "blocks": [
+        {
+          "tag": "down-0-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            8.56672,
+            8.55712,
+            8.55872,
+            8.5704
+          ],
+          "median_ms": 8.562719999999999
+        },
+        {
+          "tag": "down-1-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            8.59312,
+            8.5776,
+            8.5808,
+            8.58464
+          ],
+          "median_ms": 8.58272
+        },
+        {
+          "tag": "down-2-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            8.58816,
+            8.58288,
+            8.56928,
+            8.57472
+          ],
+          "median_ms": 8.5788
+        },
+        {
+          "tag": "down-3-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            8.5568,
+            8.55776,
+            8.55792,
+            8.53104
+          ],
+          "median_ms": 8.55728
+        }
+      ],
+      "pooled_median_ms": {
+        "base": 8.557839999999999,
+        "revision2": 8.58184
+      },
+      "time_change_percent": 0.28044459816964906,
+      "equivalent_rate_change_percent": -0.27966030594838154,
+      "pooled_gain_ms": -0.02400000000000091,
+      "within_arm_block_median_spread_ms": {
+        "base": 0.005439999999998335,
+        "revision2": 0.003920000000000812
+      },
+      "cross_block_pass": false,
+      "gain_exceeds_spread_pass": false,
+      "frozen_advance_signal_pass": false,
+      "paired_block_time_change_percent": [
+        0.23357064110471892,
+        0.2514817792569568
+      ]
+    },
+    "row128_split2": {
+      "primary": false,
+      "blocks": [
+        {
+          "tag": "down-0-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            7.75152,
+            7.73296,
+            7.72896,
+            7.77088
+          ],
+          "median_ms": 7.742240000000001
+        },
+        {
+          "tag": "down-1-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            7.71168,
+            7.67904,
+            7.66768,
+            7.71872
+          ],
+          "median_ms": 7.69536
+        },
+        {
+          "tag": "down-2-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            7.64976,
+            7.688,
+            7.7168,
+            7.70512
+          ],
+          "median_ms": 7.69656
+        },
+        {
+          "tag": "down-3-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            7.75504,
+            7.76448,
+            7.73584,
+            7.76592
+          ],
+          "median_ms": 7.75976
+        }
+      ],
+      "pooled_median_ms": {
+        "base": 7.75328,
+        "revision2": 7.69656
+      },
+      "time_change_percent": -0.7315613520987307,
+      "equivalent_rate_change_percent": 0.7369526125957648,
+      "pooled_gain_ms": 0.056720000000000326,
+      "within_arm_block_median_spread_ms": {
+        "base": 0.017519999999999314,
+        "revision2": 0.0011999999999998678
+      },
+      "cross_block_pass": true,
+      "gain_exceeds_spread_pass": true,
+      "frozen_advance_signal_pass": true,
+      "paired_block_time_change_percent": [
+        -0.6055095166256907,
+        -0.8144581791189487
+      ]
+    },
+    "row128_split1": {
+      "primary": false,
+      "blocks": [
+        {
+          "tag": "down-0-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            8.52272,
+            8.51616,
+            8.51296,
+            8.53968
+          ],
+          "median_ms": 8.51944
+        },
+        {
+          "tag": "down-1-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            8.4592,
+            8.48528,
+            8.46896,
+            8.4608
+          ],
+          "median_ms": 8.46488
+        },
+        {
+          "tag": "down-2-revision2",
+          "shader_arm": "revision2",
+          "raw_ms": [
+            8.49264,
+            8.46288,
+            8.46976,
+            8.4488
+          ],
+          "median_ms": 8.46632
+        },
+        {
+          "tag": "down-3-base",
+          "shader_arm": "base",
+          "raw_ms": [
+            8.532,
+            8.52256,
+            8.5536,
+            8.55856
+          ],
+          "median_ms": 8.5428
+        }
+      ],
+      "pooled_median_ms": {
+        "base": 8.52736,
+        "revision2": 8.46592
+      },
+      "time_change_percent": -0.7205043530471245,
+      "equivalent_rate_change_percent": 0.7257332930148186,
+      "pooled_gain_ms": 0.06143999999999927,
+      "within_arm_block_median_spread_ms": {
+        "base": 0.02336000000000027,
+        "revision2": 0.0014399999999987756
+      },
+      "cross_block_pass": true,
+      "gain_exceeds_spread_pass": true,
+      "frozen_advance_signal_pass": true,
+      "paired_block_time_change_percent": [
+        -0.6404176800352879,
+        -0.8952568244603665
+      ]
+    }
+  },
+  "calls": 60,
+  "warmups": 12,
+  "measured_calls": 48,
+  "exact_outputs_including_warmups": 125829120,
+  "activity": {
+    "samples": 28,
+    "intervals": 27,
+    "first": "2026-11-02T23:27:03.114224+00:00",
+    "last": "2026-11-02T23:27:30.086510+00:00",
+    "system_cpu_percent": {
+      "min": 99.25,
+      "median": 99.93761696818466,
+      "max": 100.0
+    },
+    "unrelated_cpu_cores": {
+      "min": 10.971500444444354,
+      "median": 12.72041745158472,
+      "max": 14.638444923923418
+    },
+    "aggregate_disk_mib_s": {
+      "min": 0.0,
+      "median": 0.18709392797106375,
+      "max": 14.320257063040383
+    },
+    "flag_intervals": {
+      "system_saturated": 27,
+      "unrelated_cpu": 27,
+      "disk": 0,
+      "gap": 0
+    },
+    "process_snapshot_misses": 38,
+    "all_retained": true,
+    "limitations": "Native per-dispatch UTC timestamps unavailable; whole-process spans cannot reliably label individual dispatch activity. Aggregate disk counters may count multiple layers; unavailable GPU counters remain unknown."
+  },
+  "native_compilation": false,
+  "reused_probe_sha256": "d674c91d9ffc999e611ced176fca703ba4434840867cc52371c5465cd073b119",
+  "cleanup": {
+    "container_removed": true,
+    "monitor_exit": 0,
+    "postrun_gpu_errors": []
+  },
+  "verified_artifacts": [
+    "run-out/monitor.log",
+    "run-out/down-3-base.stderr",
+    "run-out/down-3-base.jsonl",
+    "run-out/down-0-base.stderr",
+    "run-out/driver-pins.txt",
+    "run-out/down-2-revision2.stderr",
+    "run-out/activity.jsonl",
+    "run-out/monitor.stop",
+    "run-out/device-limits.txt",
+    "run-out/down-1-revision2.stderr",
+    "run-out/down-2-revision2.jsonl",
+    "run-out/down-1-revision2.jsonl",
+    "run-out/down-0-base.jsonl",
+    "run-out/device-limits.stderr",
+    "build-out/candidate.spv",
+    "build-out/down-probe",
+    "build-out/base.spv",
+    "build-out/reduce-preserve.spv"
+  ],
+  "terminal_sha256": "6ba37c14aa890eaffd1b6e336d0a497c0791a9d2195226d2821b54bab147ebd3",
+  "run_receipt_sha256": "5fe988b9fff5a73ad7f35fae80ac6e559630bb0900f9a3cd035c8c7e1ae060f5",
+  "build_receipt_sha256": "b1501d9740305e6a9e0e02dc4a28f5650441d5b7f9097a6511d2999505160f88",
+  "tradeoff": "Revision2 previously improved primary tall128/K4096 tile time1.485757percent; current chooser down64/K12288 is0.280445percent slower here. Controls improve. No whole-model weighted outcome inferred, and no automatic isolated-cell rejection.",
+  "limits": [
+    "Prepared-int16 synthetic exact-output micro; twin production excluded equally.",
+    "Only row64/parts1 is the current down chooser target; other cells are retained controls.",
+    "Unchanged shader primary guarded smokes were not repeated. Down harness checks exact final outputs, not a new range/guard suite.",
+    "No model/HF/CI, owner-cleanup checks, integration or further run performed."
+  ],
+  "next_action": "Root reviews joint primary/down tradeoff; no active job or reservation remains.",
+  "root_applicability_note": "The prospectively selected rows64/parts1 target used the moving worktree chooser. Root subsequently verified frozen model source vulkan_matmul.hpp f65b13d4 lacks that unmerged Q2 avoid-split shortcut. Preserve the planned target and its failed advance signal. Both rows128 controls were measured and retained. Actual frozen model dispatch applicability needs confirmation in model qualification; do not relabel the failed target as passed."
+}

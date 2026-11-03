@@ -1,0 +1,126 @@
+{
+  "source": {
+    "candidate_commit": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "build_mode": "Release, Vulkan ON, ROCm OFF",
+    "source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "build_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/logs/candidate-build-receipt.txt",
+    "build_receipt_sha256": "e36081903da23f5e8f1bf66197e92c6097a9c711194c257838a8a0c77fa383ef",
+    "binary": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/build/llmx",
+    "binary_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "version": "llmx 0.1.0+unknown numerics 57f83d79972ae050",
+    "backend_library": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-qualification-20261101/candidate/build/libllmx-vulkan.a",
+      "sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+      "linkage": "static"
+    }
+  },
+  "phases": {
+    "pp": {
+      "device_ms": 7310.58,
+      "dispatches": 3467,
+      "kernels": [
+        {
+          "name": "matmul_tile_q2_0_dot_tall",
+          "ms": 6082.45,
+          "percent": 83.2006
+        },
+        {
+          "name": "attention_tile_kv16",
+          "ms": 1048.56,
+          "percent": 14.3431
+        },
+        {
+          "name": "matmul_reduce",
+          "ms": 55.243,
+          "percent": 0.755659
+        },
+        {
+          "name": "silu_mul",
+          "ms": 45.3574,
+          "percent": 0.620435
+        },
+        {
+          "name": "norm_rope_kv_kv16",
+          "ms": 41.2536,
+          "percent": 0.5643
+        },
+        {
+          "name": "rms_norm_rows",
+          "ms": 36.925,
+          "percent": 0.505089
+        },
+        {
+          "name": "matmul_row_q2_0_dot_1col_4row head",
+          "ms": 0.44912,
+          "percent": 0.00614342
+        },
+        {
+          "name": "embed",
+          "ms": 0.33792,
+          "percent": 0.00462234
+        }
+      ]
+    },
+    "tg": {
+      "device_ms": 1201.93,
+      "dispatches": 45440,
+      "kernels": [
+        {
+          "name": "matmul_row_q2_0_dot_1col_4row",
+          "ms": 911.552,
+          "percent": 75.8407
+        },
+        {
+          "name": "rms_norm_rows",
+          "ms": 79.5627,
+          "percent": 6.61958
+        },
+        {
+          "name": "matmul_row_q2_0_dot_1col_4row head",
+          "ms": 54.1682,
+          "percent": 4.50677
+        },
+        {
+          "name": "attention_vec_kv16",
+          "ms": 51.752,
+          "percent": 4.30574
+        },
+        {
+          "name": "norm_rope_kv_kv16",
+          "ms": 44.988,
+          "percent": 3.74298
+        },
+        {
+          "name": "attention_merge",
+          "ms": 30.3811,
+          "percent": 2.5277
+        },
+        {
+          "name": "silu_mul",
+          "ms": 26.8,
+          "percent": 2.22975
+        },
+        {
+          "name": "embed",
+          "ms": 1.97472,
+          "percent": 0.164296
+        },
+        {
+          "name": "gather_rows",
+          "ms": 0.75088,
+          "percent": 0.0624729
+        }
+      ]
+    }
+  },
+  "kernel_stats_raw": [
+    "profile: kernel matmul_tile_q2_0_dot_tall: Driver pipeline hash=13492738097654853023 SGPRs=64 VGPRs=128 Spilled SGPRs=0 Spilled VGPRs=0 Code size=24492 LDS size=26624 Scratch size=0 Subgroups per SIMD=2 Combined inputs=0 Combined outputs=0 Hash=528913944 Instructions=4025 Copies=145 Branches=106 Latency=534538 Inverse Throughput=410788 VMEM Clause=26 SMEM Clause=15 Pre-Sched SGPRs=57 Pre-Sched VGPRs=98 VALU=2923 SALU=666 VMEM=56 SMEM=22 VOPD=0",
+    "profile: kernel matmul_row_q2_0_dot_1col_4row: Driver pipeline hash=3296283819677549755 SGPRs=80 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8200 LDS size=0 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2097854313 Instructions=1480 Copies=60 Branches=26 Latency=307352 Inverse Throughput=237864 VMEM Clause=17 SMEM Clause=16 Pre-Sched SGPRs=49 Pre-Sched VGPRs=53 VALU=1162 SALU=151 VMEM=53 SMEM=24 VOPD=0"
+  ],
+  "execution_sha256": "d613ba56d12c23406ec14766292d8fea9370099cfb802ec26fa76acb13728bc2",
+  "raw_output_sha256": "270579170d9a8f83f2547ba8988c941969af01762b99d86e0d3958aee79c1eda",
+  "limitations": "GPU timestamps identify dispatch cost, not a hardware bottleneck. No spills is not proof of no memory stalls. Subgroups/SIMD is a resource limit, not measured occupancy. Instrumented throughput is not compared against ordinary timing.",
+  "all_raw_hashes_verified": true,
+  "completed": true
+}

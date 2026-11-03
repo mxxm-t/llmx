@@ -18,5 +18,15 @@ inline void dequantize_row_q1_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+inline void dequantize_row_q2_0(const uint8_t* src, float* dst, size_t nblocks) {
+    for (size_t b = 0; b < nblocks; ++b) {
+        const uint8_t* block = src + b * Q2_0_TYPESIZE;
+        const float d = f16_to_f32(uint16_t(block[0] | (uint16_t(block[1]) << 8)));
+        for (size_t j = 0; j < Q2_0_BLOCK; ++j) {
+            const unsigned code = (block[2 + j / 4] >> (2 * (j % 4))) & 3u;
+            dst[b * Q2_0_BLOCK + j] = float(int(code) - 1) * d;
+        }
+    }
+}
 
 } // namespace quant

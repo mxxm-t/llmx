@@ -1,0 +1,916 @@
+{
+  "status": "DONE",
+  "seconds": 23.44390106201172,
+  "verified_files": 16,
+  "timings": {
+    "gate": {
+      "us": [
+        [
+          80.8,
+          79.36,
+          81.76,
+          80.16
+        ],
+        [
+          81.76,
+          82.08,
+          79.36,
+          79.52
+        ]
+      ],
+      "median_us": [
+        80.47999999999999,
+        80.64
+      ],
+      "change_pct": 0.19880715705766772
+    },
+    "down": {
+      "us": [
+        [
+          86.72,
+          87.84,
+          86.88,
+          88.16
+        ],
+        [
+          87.2,
+          86.88,
+          87.04,
+          86.88
+        ]
+      ],
+      "median_us": [
+        87.36,
+        86.96000000000001
+      ],
+      "change_pct": -0.45787545787544515
+    }
+  },
+  "calls": 788,
+  "gate_resources": [
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Driver pipeline hash",
+      "description": "Driver pipeline hash used by RGP",
+      "value": 13065778262660007069
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SGPRs",
+      "description": "Number of SGPR registers allocated per subgroup",
+      "value": 80
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VGPRs",
+      "description": "Number of VGPR registers allocated per subgroup",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Spilled SGPRs",
+      "description": "Number of SGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Spilled VGPRs",
+      "description": "Number of VGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Code size",
+      "description": "Code size in bytes",
+      "value": 7672
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "LDS size",
+      "description": "LDS size in bytes per workgroup",
+      "value": 2048
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Scratch size",
+      "description": "Private memory in bytes per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Subgroups per SIMD",
+      "description": "The maximum number of subgroups in flight on a SIMD unit",
+      "value": 4
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Combined inputs",
+      "description": "Number of input slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Combined outputs",
+      "description": "Number of output slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Hash",
+      "description": "CRC32 hash of code and constant data",
+      "value": 1057829838
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Instructions",
+      "description": "Instruction count",
+      "value": 1366
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Copies",
+      "description": "Copy instructions created for pseudo-instructions",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Branches",
+      "description": "Branch instructions",
+      "value": 30
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Latency",
+      "description": "Issue cycles plus stall cycles",
+      "value": 173044
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Inverse Throughput",
+      "description": "Estimated busy cycles to execute one wave",
+      "value": 123380
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VMEM Clause",
+      "description": "Number of VMEM clauses (includes 1-sized clauses)",
+      "value": 17
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SMEM Clause",
+      "description": "Number of SMEM clauses (includes 1-sized clauses)",
+      "value": 16
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Pre-Sched SGPRs",
+      "description": "SGPR usage before scheduling",
+      "value": 48
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Pre-Sched VGPRs",
+      "description": "VGPR usage before scheduling",
+      "value": 52
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VALU",
+      "description": "Number of VALU instructions",
+      "value": 978
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SALU",
+      "description": "Number of SALU instructions",
+      "value": 152
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VMEM",
+      "description": "Number of VMEM instructions",
+      "value": 53
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SMEM",
+      "description": "Number of SMEM instructions",
+      "value": 24
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VOPD",
+      "description": "Number of VOPD instructions",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Driver pipeline hash",
+      "description": "Driver pipeline hash used by RGP",
+      "value": 16657644749414193044
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SGPRs",
+      "description": "Number of SGPR registers allocated per subgroup",
+      "value": 80
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VGPRs",
+      "description": "Number of VGPR registers allocated per subgroup",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Spilled SGPRs",
+      "description": "Number of SGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Spilled VGPRs",
+      "description": "Number of VGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Code size",
+      "description": "Code size in bytes",
+      "value": 7544
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "LDS size",
+      "description": "LDS size in bytes per workgroup",
+      "value": 2048
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Scratch size",
+      "description": "Private memory in bytes per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Subgroups per SIMD",
+      "description": "The maximum number of subgroups in flight on a SIMD unit",
+      "value": 4
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Combined inputs",
+      "description": "Number of input slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Combined outputs",
+      "description": "Number of output slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Hash",
+      "description": "CRC32 hash of code and constant data",
+      "value": 1471586570
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Instructions",
+      "description": "Instruction count",
+      "value": 1354
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Copies",
+      "description": "Copy instructions created for pseudo-instructions",
+      "value": 65
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Branches",
+      "description": "Branch instructions",
+      "value": 30
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Latency",
+      "description": "Issue cycles plus stall cycles",
+      "value": 173076
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Inverse Throughput",
+      "description": "Estimated busy cycles to execute one wave",
+      "value": 122356
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VMEM Clause",
+      "description": "Number of VMEM clauses (includes 1-sized clauses)",
+      "value": 17
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SMEM Clause",
+      "description": "Number of SMEM clauses (includes 1-sized clauses)",
+      "value": 16
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Pre-Sched SGPRs",
+      "description": "SGPR usage before scheduling",
+      "value": 48
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Pre-Sched VGPRs",
+      "description": "VGPR usage before scheduling",
+      "value": 51
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VALU",
+      "description": "Number of VALU instructions",
+      "value": 966
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SALU",
+      "description": "Number of SALU instructions",
+      "value": 152
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VMEM",
+      "description": "Number of VMEM instructions",
+      "value": 53
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SMEM",
+      "description": "Number of SMEM instructions",
+      "value": 24
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VOPD",
+      "description": "Number of VOPD instructions",
+      "value": 0
+    }
+  ],
+  "down_resources": [
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Driver pipeline hash",
+      "description": "Driver pipeline hash used by RGP",
+      "value": 13065778262660007069
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SGPRs",
+      "description": "Number of SGPR registers allocated per subgroup",
+      "value": 80
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VGPRs",
+      "description": "Number of VGPR registers allocated per subgroup",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Spilled SGPRs",
+      "description": "Number of SGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Spilled VGPRs",
+      "description": "Number of VGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Code size",
+      "description": "Code size in bytes",
+      "value": 7672
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "LDS size",
+      "description": "LDS size in bytes per workgroup",
+      "value": 2048
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Scratch size",
+      "description": "Private memory in bytes per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Subgroups per SIMD",
+      "description": "The maximum number of subgroups in flight on a SIMD unit",
+      "value": 4
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Combined inputs",
+      "description": "Number of input slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Combined outputs",
+      "description": "Number of output slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Hash",
+      "description": "CRC32 hash of code and constant data",
+      "value": 1057829838
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Instructions",
+      "description": "Instruction count",
+      "value": 1366
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Copies",
+      "description": "Copy instructions created for pseudo-instructions",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Branches",
+      "description": "Branch instructions",
+      "value": 30
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Latency",
+      "description": "Issue cycles plus stall cycles",
+      "value": 173044
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Inverse Throughput",
+      "description": "Estimated busy cycles to execute one wave",
+      "value": 123380
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VMEM Clause",
+      "description": "Number of VMEM clauses (includes 1-sized clauses)",
+      "value": 17
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SMEM Clause",
+      "description": "Number of SMEM clauses (includes 1-sized clauses)",
+      "value": 16
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Pre-Sched SGPRs",
+      "description": "SGPR usage before scheduling",
+      "value": 48
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "Pre-Sched VGPRs",
+      "description": "VGPR usage before scheduling",
+      "value": 52
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VALU",
+      "description": "Number of VALU instructions",
+      "value": 978
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SALU",
+      "description": "Number of SALU instructions",
+      "value": 152
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VMEM",
+      "description": "Number of VMEM instructions",
+      "value": 53
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "SMEM",
+      "description": "Number of SMEM instructions",
+      "value": 24
+    },
+    {
+      "event": "statistic",
+      "arm": 0,
+      "rows": 4,
+      "name": "VOPD",
+      "description": "Number of VOPD instructions",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Driver pipeline hash",
+      "description": "Driver pipeline hash used by RGP",
+      "value": 16657644749414193044
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SGPRs",
+      "description": "Number of SGPR registers allocated per subgroup",
+      "value": 80
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VGPRs",
+      "description": "Number of VGPR registers allocated per subgroup",
+      "value": 64
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Spilled SGPRs",
+      "description": "Number of SGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Spilled VGPRs",
+      "description": "Number of VGPR registers spilled per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Code size",
+      "description": "Code size in bytes",
+      "value": 7544
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "LDS size",
+      "description": "LDS size in bytes per workgroup",
+      "value": 2048
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Scratch size",
+      "description": "Private memory in bytes per subgroup",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Subgroups per SIMD",
+      "description": "The maximum number of subgroups in flight on a SIMD unit",
+      "value": 4
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Combined inputs",
+      "description": "Number of input slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Combined outputs",
+      "description": "Number of output slots reserved for the shader (including merged stages)",
+      "value": 0
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Hash",
+      "description": "CRC32 hash of code and constant data",
+      "value": 1471586570
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Instructions",
+      "description": "Instruction count",
+      "value": 1354
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Copies",
+      "description": "Copy instructions created for pseudo-instructions",
+      "value": 65
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Branches",
+      "description": "Branch instructions",
+      "value": 30
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Latency",
+      "description": "Issue cycles plus stall cycles",
+      "value": 173076
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Inverse Throughput",
+      "description": "Estimated busy cycles to execute one wave",
+      "value": 122356
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VMEM Clause",
+      "description": "Number of VMEM clauses (includes 1-sized clauses)",
+      "value": 17
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SMEM Clause",
+      "description": "Number of SMEM clauses (includes 1-sized clauses)",
+      "value": 16
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Pre-Sched SGPRs",
+      "description": "SGPR usage before scheduling",
+      "value": 48
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "Pre-Sched VGPRs",
+      "description": "VGPR usage before scheduling",
+      "value": 51
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VALU",
+      "description": "Number of VALU instructions",
+      "value": 966
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SALU",
+      "description": "Number of SALU instructions",
+      "value": 152
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VMEM",
+      "description": "Number of VMEM instructions",
+      "value": 53
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "SMEM",
+      "description": "Number of SMEM instructions",
+      "value": 24
+    },
+    {
+      "event": "statistic",
+      "arm": 1,
+      "rows": 4,
+      "name": "VOPD",
+      "description": "Number of VOPD instructions",
+      "value": 0
+    }
+  ],
+  "scope": "Q2 four-row signed shared cache diagnostic only; no runtime promotion",
+  "base": "4c3c997d4c609755f7f1d7348310aa3c34ac080d",
+  "decision": "No useful measured improvement. Do not promote or run broad qualification.",
+  "raw_local": "scratch/q2-prefill-code-table-20261103/model-integration-ef/signed-row-cache-v2",
+  "raw_remote": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-prefill-code-table-20261103/model-integration-ef/signed-row-cache-v2/results",
+  "physical_dot2_counts": [
+    80,
+    64
+  ],
+  "spirv_validation": "Both modules passed spirv-val --target-env vulkan1.2, VulkanSDK1.4.357.0 on Windows.",
+  "first_attempt": "signed-row-cache launcher referenced missing probe.cpp; no benchmark launched; failure retained",
+  "limits": "Short microbenchmark. Exact bits checked only by this probe, not full model qualification. Small timing differences overlap sample ranges.",
+  "raw_hashes": {
+    "compile.stderr": "800857bb49b53ebd4a132e4b6a4387485e41005c6da2a65b880e07f37fdb534b",
+    "probe": "ed8e3f6e10f8a7a53e40362d437fffe8e570b7b868a2753b4c431cf4880a9621",
+    "gate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "checks.stdout": "13646053ba27dd159d71c9de1c4e910f1d5bf9cb5b633c358861f71f00029d69",
+    "down.stdout": "87516fb2ca1abff69c740b619aa0140bdcaa411cdb6b2221966c57e5effd4a9b",
+    "tails.stdout": "809c610789c446fd242729187611e6d8f6bf427019939e10a7ad9b5d0af75405",
+    "E.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+    "candidate.spv": "b01882e18fc879d4a17c22016039066cc6e71a01afa82dd4451349b3ee1786d8",
+    "checks.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "down.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compile.stdout": "c6df1ce31652e0ecf3588356506c8040abcac4a7b807191d7ef36107fd687664",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "gate.stdout": "c4c48d2d4790a414c8a8e9046ef175eaf607b60e83b8a63eccbe9999fd45ee2d",
+    "tails.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "activity.jsonl": "d0fdbd0d73a7ecea9076eeebd7b2ec70c3b3d0505cca31b4d6d6563d044b754a"
+  }
+}

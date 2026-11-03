@@ -247,6 +247,8 @@ private:
           { *storage_type(GGML_TYPE_NVFP4), nullptr, dequantize_row_nvfp4 } },
         { GGML_TYPE_Q1_0,
           { *storage_type(GGML_TYPE_Q1_0), nullptr, dequantize_row_q1_0 } },
+        { GGML_TYPE_Q2_0,
+          { *storage_type(GGML_TYPE_Q2_0), nullptr, dequantize_row_q2_0 } },
         { GGML_TYPE_TQ1_0,
           { *storage_type(GGML_TYPE_TQ1_0), nullptr, dequantize_row_tq1_0 } },
         { GGML_TYPE_TQ2_0,

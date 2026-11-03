@@ -1,0 +1,73 @@
+{
+  "title": "Q2 frozen-D sustained dispatch diagnostic",
+  "date": "2026-11-03",
+  "classification": "diagnostic_only_no_candidate_or_gate_advance",
+  "source_identity": {
+    "public_main": "6f7698b07618edb52a5ce45bd91a6bc6c3de5e1a",
+    "source_pin_artifact": "scratch/q2-main6f769-port-20261103/source.json",
+    "source_pin_is_tracked_repository_evidence": false,
+    "old_head": "2a67405084b0808177685497400b4af00f36fbc0",
+    "staged_tree": "5cd2d935791b8d128b29f354f2150b6726f746d5",
+    "scope": "staged Q2 port; frozen D overlays separate; unstaged routing experiments excluded",
+    "probe_sha256": "bc1471ca9cb36c1d3c2bc285c8e43ae2d1c2af9a4ed163633cc77cb59a6eaae6",
+    "patch_sha256": "16da192ec3e2649a60b650742e254b50ed4b3a0442c04a5bc953a71b22c1205e",
+    "module_both_slots_sha256": "3a59c6849f337b606a0c036442833c79676a89a6edb8798f7786306ddfc24ebb",
+    "probe_binary_sha256": "4b53edc4dad2836f6b5832cf46497c6ace6fdc898345c9f0ae6c6b9c93ba92bb"
+  },
+  "job": {
+    "id": "20261103T024021Z-940982",
+    "result": "DONE",
+    "exit_code": 0,
+    "elapsed_seconds": 77.988213539,
+    "raw_receipts": "scratch/q2-prefill-code-table-20261103/sustained-d/jobs/20261103T024021Z-940982/RESULT.json and ROOT-AUDIT.json",
+    "raw_hashes_root_verified": 7,
+    "timestamps_and_arithmetic_root_verified": true,
+    "activity_samples": 75,
+    "activity_limits_retained": true
+  },
+  "workload": {
+    "M": 24576,
+    "N": 512,
+    "K": 4096,
+    "rows": 128,
+    "parts": 1,
+    "kper": 128,
+    "accumulate": 0
+  },
+  "calls": {
+    "total": 20,
+    "warmup": 4,
+    "measured": 16,
+    "dispatches_total": 90,
+    "dispatches_measured": 72,
+    "burst8_final_overwrite_oracle": "exact outputs passed for every burst",
+    "independent_intermediate_oracle": false
+  },
+  "timing_ms_per_dispatch_median": {
+    "single": 13.76808,
+    "burst8": 8.6847,
+    "burst8_vs_single_percent": -36.92149,
+    "blocks": [
+      {
+        "single": 13.7804,
+        "burst8": 8.68786
+      },
+      {
+        "single": 13.7676,
+        "burst8": 8.68265
+      }
+    ]
+  },
+  "host_observations": {
+    "copy_median_seconds_single": 3.408278512,
+    "copy_median_seconds_burst8": 3.39136847,
+    "interpretation": "CPU copy cost; host gaps are not GPU-idle intervals"
+  },
+  "limitations": [
+    "Repeated identical matrix/buffers are not a model workload.",
+    "Timestamp-query perturbation is uncalibrated.",
+    "No clock-cause attribution.",
+    "Input immutability was reported by runner but not independently checked by this probe.",
+    "No candidate promotion, correctness-gate, or model-gate advancement."
+  ]
+}

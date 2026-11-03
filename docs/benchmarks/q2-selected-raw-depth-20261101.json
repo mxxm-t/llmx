@@ -1,0 +1,88 @@
+{
+  "schema": "llmx.q2-selected-raw-depth-diagnostic.v1",
+  "date": "2026-11-01",
+  "scope": "Selected-policy raw Qwen3-8B depth comparison only. Provisional; F32 quality stage incomplete; not overall qualification.",
+  "candidate": {
+    "revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "source_archive_sha256": "0365d904881e0f8e66326291352293f6ff9e2fd90232b7f48345a333317a6320",
+    "source_manifest_sha256": "07fd24bd538c1fc19eff8bc100c4511f97c72e02d0b6ed94621e9d915d42b74b",
+    "cli_sha256": "8e50c737a7a611157913635404e16fab1c6cfb0aaade3d9ab27aaa3a888909a1",
+    "vulkan_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194"
+  },
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "capture": {
+    "execution_sha256": "be5c3dc662c613301086bb8d5fe9faba431a3524d6ec79cc1cb9132df023919c",
+    "plan_sha256": "4d7fd89207275152bb795333988a7b78a0b9f72bb6943216679b12d901d8bcb1",
+    "payload_sha256": "4e4bcb3ef72642b53ed84c089cdac74c26657e4b62feb9c75914c67b6adb5e8d",
+    "raw_scores_sha256": "ba75e53a8838fd8bd5607695ce61d7e49e57d7b4199c59e8561767a8d773d8cf",
+    "shape": [
+      512,
+      151936
+    ],
+    "matrix_path_witnesses": 512,
+    "path": "block-int16"
+  },
+  "reference": {
+    "bundle": "own8b-layer-major-depth-v1",
+    "execution_sha256": "19d3b0e9042e9120c63b41e6962678bb016b0ae3dfcb5bd003bd5cb61abc7992",
+    "selected_report_sha256": "a935b6ea691e1428aa3d460ef3d5d09a704394cae344af1769669b91bfeec84f",
+    "selected_scores_sha256": "3d83ae808b6beedb22568bc0c916ed1829e42564cac3fe009b5cb4cef46536b2",
+    "selected_stage_passed": true,
+    "f32_quality_exit_code": 137,
+    "execution_complete": false
+  },
+  "rule": {
+    "owner": "tests/common.py::hf_depth_top1",
+    "function_sha256": "59c8bb7811622dfbf45f470c5cd42a93ea5f321405a11310405a926150ba305c",
+    "source_lf_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "margin": 0.1,
+    "changed": false
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "rig_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-raw-depth-compare-v1/runner-out",
+      "container_id": "4e9c76232cbabb345606adc0032153760cfba22996163c8ed6f4dea9812d5a6b",
+      "exit_code": 1,
+      "failure": "Legacy adapter looked for inputs/original-complete.json; current capture stores the pinned file at inputs/raw/complete.json. Failed before score comparison. Preserved unchanged."
+    },
+    {
+      "attempt": 2,
+      "rig_output": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-e72-raw-depth-compare-v1/runner-out-attempt-2",
+      "container_id": "2ddd68718e2291ce4f89d1527d77625bd33d4c8f6e6c11abd1cfae5d106e27d9",
+      "exit_code": 0,
+      "removed": true,
+      "path_fix": "Capture-only input alias original-complete.json -> raw/complete.json; no score arithmetic or acceptance rule changed."
+    }
+  ],
+  "result": {
+    "variant": "raw",
+    "positions": 512,
+    "exact": 512,
+    "accepted_ties": 0,
+    "misses": 0,
+    "passed_selected_only": true,
+    "max_abs_logit_error": 0.01636028289794922,
+    "min_reference_top2_gap": 0.0062541961669921875,
+    "overall_qualification_complete": false,
+    "quality_status": "pending"
+  },
+  "attempt2_resources": {
+    "memory_cap_bytes": 1073741824,
+    "peak_bytes": 668311552,
+    "oom_kill_count": 0,
+    "cpuset": "4",
+    "cpu_quota": 1,
+    "gpu_exposed": false,
+    "host_reserve_bytes": 2147483648,
+    "admission_available_bytes": 20206985216,
+    "admission_required_bytes": 17558716416,
+    "active_peer_unused_cap_bytes": 14337490944
+  },
+  "artifacts": {
+    "rig_execution_sha256": "110a895391744279307f8040b84d6d27cadfa05bb634ea55a6a9fb79067aa16c",
+    "rig_selected_report_sha256": "f8fc1beaf447997f170b130cda97ed57047f0b49aef228a4a88a56cc5a2a3247",
+    "rig_quality_status_sha256": "3b384e5195cc673637589e6305bbf6db9bc89d0b39dc68e560c4649f8a140fb4",
+    "local_copy": "scratch/q2-e72-raw-depth-compare-v1/remote-out-attempt-2"
+  }
+}

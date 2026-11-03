@@ -1,0 +1,172 @@
+{
+  "scope": "One isolated Q2 wider-int16 kernel screen; not model performance or merge qualification.",
+  "job_id": "20261102T144942Z-988780",
+  "shape": {
+    "M": 24576,
+    "N": 512,
+    "K": 4096,
+    "tile_rows": 128,
+    "parts": 1
+  },
+  "device": {
+    "event": "device_features",
+    "pci": "0000:c3:00.0",
+    "name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+    "driver": "radv",
+    "driver_info": "Mesa 25.0.7-2+deb13u1",
+    "vendor_id": 4098,
+    "device_id": 26273,
+    "driver_version": 104857607,
+    "shaderIntegerDotProduct": 1,
+    "shaderInt16": 1,
+    "shaderStorageBufferArrayDynamicIndexing": 1,
+    "denorm_preserve_f32": 1,
+    "signed_zero_inf_nan_preserve_f32": 1,
+    "enabled_and_device_created": true
+  },
+  "samples_ms": {
+    "base": [
+      16.57568,
+      16.63888,
+      16.72448,
+      16.89072
+    ],
+    "candidate": [
+      16.02752,
+      16.0992,
+      16.06368,
+      16.144
+    ]
+  },
+  "medians_ms": {
+    "base": 16.68168,
+    "candidate": 16.08144
+  },
+  "candidate_time_change_percent": -3.598198742572689,
+  "exact_calls": 10,
+  "exact_outputs_per_call": 12582912,
+  "source_proof": {
+    "status": "PASS_SOURCE_PROOF_NOT_BUILT",
+    "halfwords": 65536,
+    "validity_cases": 131072,
+    "invalid_halfword": "0x5555",
+    "invalid_decoded_words": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "signed_lane_order": [
+      0,
+      2,
+      1,
+      3
+    ],
+    "tile_cases": [
+      {
+        "rows": 32,
+        "ww": 1,
+        "mode": "unchanged fallback"
+      },
+      {
+        "rows": 64,
+        "ww": 2,
+        "paired_address_checks": 4
+      },
+      {
+        "rows": 128,
+        "ww": 4,
+        "paired_address_checks": 4
+      }
+    ],
+    "preserved": "safe lookup_group addresses and scale guard; WW1 old loop; Q1/I8 excluded; activation twin, all dot/float/repair arithmetic unchanged",
+    "sha256": {
+      "scratch\\q2-paired-load-zero-mask-20261102\\zero-mask-only.patch": "0c9146a061f476423746951787f5a364828866b41c347843117b777decf79926",
+      "scratch\\q2-paired-load-zero-mask-20261102\\candidate.patch": "471938131b98da6aaa82a7dc3190d9cec96325dca740cf7084e0da8e6ccc46ba",
+      "scratch\\q2-paired-load-zero-mask-20261102\\shaders-base\\low_bits.glsl": "0e7dd90166d0c9fc4c71c4d5fb1f5545b222562b99c78b64fd5257222c4513ed",
+      "scratch\\q2-paired-load-zero-mask-20261102\\shaders-base\\matmul_tile_q.comp": "720fce996f7580afd293ef1665c4c7de2aa4b7fccdb08520f86c9dc3064f1557",
+      "scratch\\q2-paired-load-zero-mask-20261102\\shaders-candidate\\low_bits.glsl": "fc27507bb07987f7a7a5489b6f519827bd503e9bd4cd09b1f88e73fd2882372f",
+      "scratch\\q2-paired-load-zero-mask-20261102\\shaders-candidate\\matmul_tile_q.comp": "f637b26d664412f80f045353f8fb178a4709dd2f51801f65ff5e644173b5139c"
+    },
+    "final_source_form": "Unconditional safe lookup_q2_half, scalar ok selection0x5555, unconditional same decoder/stores; inline local-only preliminary compile archived, never run."
+  },
+  "isa": {
+    "weight_loads_before_after": [
+      10,
+      6
+    ],
+    "dot2_each": 1024,
+    "shared_bytes_each": 26624,
+    "paired_lds_stores_each": 6,
+    "execz_branches_each": 10,
+    "max_referenced_vgpr_each": 127,
+    "explicit_spills_observed": false,
+    "allocated_registers_or_occupancy_proven": false
+  },
+  "activity": {
+    "raw_records": 45,
+    "samples": 43,
+    "intervals": 42,
+    "start": "2026-11-02T14:49:47.175577+00:00",
+    "end": "2026-11-02T14:50:29.145636+00:00",
+    "system_nonidle_percent_range": [
+      82.05128205128206,
+      94.180225281602
+    ],
+    "max_disk_mib_per_second": 41.99516995107839,
+    "nonzero_unrelated_cpu_intervals": 42,
+    "unrelated_cpu_core_equivalents_range": [
+      9.845204725294044,
+      14.020720624701942
+    ],
+    "target_c3_nonzero_busy_samples": 0,
+    "loadavg_range": [
+      18.34,
+      19.37
+    ],
+    "limitations": [
+      "One-second samples cannot resolve each ~16ms dispatch. Calls lack absolute timestamps, preventing reliable individual activity labels.",
+      "Docker services/wrappers may count as unrelated; shared activity cannot all be attributed to this probe.",
+      "Every planned call and monitor sample retained; no slow sample replaced or dropped."
+    ]
+  },
+  "receipt_sha256": "43276567a69bee03683d68b003f6881d7b30207ecf2aa0f3a90740cd3e019f05",
+  "outputs": {
+    "compile.stdout": {
+      "bytes": 1372,
+      "sha256": "7df4cd7f4d5fceb52d49425cde4d918d38003962fe1241133c0870200398c51d"
+    },
+    "compile.isa.stderr": {
+      "bytes": 1926217,
+      "sha256": "e4915d47f9c45d962e564127aa9f5c94f1c0e52074db3e6b6810957512c546aa"
+    },
+    "samples.jsonl": {
+      "bytes": 3781,
+      "sha256": "471fc76c76ece0d31ee26a6d1f6075270846df6c0a59d8ed4045da01d43d4391"
+    },
+    "samples.isa.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "driver-pins.txt": {
+      "bytes": 219,
+      "sha256": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069"
+    },
+    "activity.jsonl": {
+      "bytes": 677941,
+      "sha256": "112799dd84a9bc402118eeafeeeb05a78fd8f875b68cd3b05b30d5730a8ea047"
+    },
+    "monitor.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "raw_evidence": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-paired-load-zero-mask-20261102/jobs/20261102T144942Z-988780",
+  "limitations": [
+    "Divisible synthetic shape does not execute invalid output-row tails.",
+    "Activation preparation is excluded from GPU timestamps.",
+    "One short screen under recorded background CPU activity; no per-call activity attribution.",
+    "No matched mx result, model speedup, HF pass, precision change or shipping promotion."
+  ],
+  "next": "Focused WW1/2/4 and tail checks, then matched model PP/TG with the same build procedure."
+}

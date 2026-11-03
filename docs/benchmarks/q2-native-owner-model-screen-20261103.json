@@ -1,0 +1,143 @@
+{
+  "scope": "Exploratory matched Qwen3-8B Q2_0 P4096/G256 native model screen, two samples per arm; not merge qualification",
+  "job": "20261103T003140Z-574359",
+  "receipt_sha256": "59c257415283b39654aa56fd84c731b5b091dac63ae8866ac517abc6706dbdab",
+  "status": "DONE",
+  "seconds": 167.80870056152344,
+  "model": {
+    "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+    "source": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-8b-convert-v1/out-convert-v2/Qwen3-8B-Q2_0-grid-mse.gguf",
+    "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "bytes": 2310747584
+  },
+  "device": "0000:c3:00.0 / renderD128; CPU4",
+  "mapping": {
+    "baseline": "C: unsigned row table and prefill repair hoist",
+    "combined": "D: C plus prefill table and shared-owner cleanup",
+    "mx": "pinned mx fork Vulkan"
+  },
+  "rows": [
+    {
+      "call": "q2-owner-c3-p4096-g256-0-baseline",
+      "arm": "baseline",
+      "pp4096": 699.03,
+      "tg256": 121.81
+    },
+    {
+      "call": "q2-owner-c3-p4096-g256-1-combined",
+      "arm": "combined",
+      "pp4096": 695.68,
+      "tg256": 121.28
+    },
+    {
+      "call": "q2-owner-c3-p4096-g256-2-mx",
+      "arm": "mx",
+      "pp4096": 720.65355,
+      "tg256": 126.419567
+    },
+    {
+      "call": "q2-owner-c3-p4096-g256-3-mx",
+      "arm": "mx",
+      "pp4096": 719.552248,
+      "tg256": 131.68341
+    },
+    {
+      "call": "q2-owner-c3-p4096-g256-4-combined",
+      "arm": "combined",
+      "pp4096": 698.94,
+      "tg256": 122.23
+    },
+    {
+      "call": "q2-owner-c3-p4096-g256-5-baseline",
+      "arm": "baseline",
+      "pp4096": 693.44,
+      "tg256": 117.78
+    }
+  ],
+  "medians_tok_s": {
+    "baseline": {
+      "pp4096": 696.235,
+      "tg256": 119.795
+    },
+    "combined": {
+      "pp4096": 697.31,
+      "tg256": 121.755
+    },
+    "mx": {
+      "pp4096": 720.102899,
+      "tg256": 129.0514885
+    }
+  },
+  "candidate_rate_change_percent": {
+    "baseline": {
+      "pp4096": 0.15440189016637795,
+      "tg256": 1.6361283859927411
+    },
+    "mx": {
+      "pp4096": -3.165228057219649,
+      "tg256": -5.653935948208777
+    }
+  },
+  "native_focused": [
+    {
+      "arm": "baseline",
+      "valid": true,
+      "binary_sha256": "cc0795c325d9f80cdc845eb5ff53008a47f4e10dd1046090f1df5d41e5b9c673"
+    },
+    {
+      "arm": "combined",
+      "valid": true,
+      "binary_sha256": "9e2872b09a2adc71d90dfdc2409cb6ba6420688558febcb2f4c3d9d4d0247180"
+    }
+  ],
+  "root_raw_hashes_verified": 25,
+  "root_raw_rates_reparsed": true,
+  "cleanup": {
+    "removed": true,
+    "monitor_exit": 0,
+    "inputs_unchanged": true
+  },
+  "reference_limits": [
+    "All six arms measured on newly claimed c3/renderD128; no subtraction against earlier cc cohorts.",
+    "Native container compiler2025.2 modules differ from Windows2026.3; earlier external-SPV operator evidence is not byte-applicable. Actual native C/D low-bits tests precede timing.",
+    "Original build terminal FAIL was local/native SPIR-V collector pin mismatch; immutable supplemental artifact collection validates existing completed targets; no recompile.",
+    "Both translation-unit executable sections and link command match; linked CLI byte differences are shader/metadata data relocations. Data placement remains a performance limitation.",
+    "Two samples per arm, shared-host activity retained; short exploratory model screen, not full correctness/merge qualification.",
+    "mx quiet JSON validates requested Vulkan/ngl99/F16KV/mmap/FA and batch flags, not actual current context/offloaded-layer-count unless runtime logs supply witnesses.",
+    "c3 API probe records60CUs and frozen profile implies down128/split2; this is source/caps calculation, not a new dispatch witness. Prospective rows64 failure remains recorded.",
+    "Identical established low-overhead monitor in every arm; active DPM is not instantaneous clock, missing counters unknown, sensor overhead uncalibrated.",
+    "llmx direct versus mx mmap is the established reference flag difference; model loading excluded from measured rates."
+  ],
+  "limitations": [
+    "All planned runs and77activity samples/76intervals retained. UnrelatedCPU35/disk28/otherGPU62 intervals flagged;22process snapshot misses are unknown activity, not zero.",
+    "Do not subtract earlier renderD131 cohort numbers.",
+    "Same native compiler across C/D; Windows-module checks are not byte-applicable.",
+    "Executable object sections match; shader/metadata payload changes linked data addresses.",
+    "Small C/D changes do not establish a clear win or a completed mx gate."
+  ],
+  "decision": "Q2 remains below matched mx Vulkan in prefill and decode. Do not run broad final gates or merge from this screen. Check native versus previously microbenchmarked GPU code generation before further tuning.",
+  "raw_artifacts": "scratch/q2-prefill-code-table-20261103/model-next/run-out",
+  "activity_summary": {
+    "samples": 77,
+    "intervals": 76,
+    "cpu_percent": {
+      "min": 1.1260556771973724,
+      "median": 8.613057701571922,
+      "max": 40.17857142857143
+    },
+    "unrelated_cpu_cores": {
+      "min": 0.12495681348824864,
+      "median": 0.8372593211891274,
+      "max": 5.701623988613445
+    },
+    "flag_intervals": {
+      "unrelated_cpu": 35,
+      "disk": 28,
+      "other_gpu": 62,
+      "gap": 0
+    },
+    "process_snapshot_misses": 22,
+    "all_retained": true
+  },
+  "reviewed_activity_report_sha256": "1c6b5890192c1440206e3414a485114a96bd58e461f844720830ddd91ee8c52c"
+}

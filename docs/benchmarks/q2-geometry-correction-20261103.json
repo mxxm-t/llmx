@@ -1,0 +1,138 @@
+{
+  "status": "CORRECTED_INTERPRETATION",
+  "date": "2026-11-03",
+  "scope": "Documentation/evidence correction. Raw timing and output records are preserved; no product or test changes.",
+  "workgroup_geometry": {
+    "D_shader_local_size_x": 64,
+    "E_shader_local_size_x": 256,
+    "F_shader_local_size_x": 256,
+    "evidence": "src/backends/vulkan/shaders/matmul_row.glsl declares layout(local_size_x = 256); D SPIR-V declares LocalSize 64; E/F SPIR-V declare LocalSize 256.",
+    "native_control": "E/F row ISA equality is valid at LocalSize 256. D/E ISA is not a matched-WG64 comparison; prior wording in STATUS and the native control record is corrected."
+  },
+  "microprobe": {
+    "source": "scratch/q2-wg64-code-table-20261102/micro/probe.cpp (parent checkout)",
+    "arm_rows": [
+      4,
+      4
+    ],
+    "arm_threads": [
+      64,
+      64
+    ],
+    "cluster": 32,
+    "dispatch_formula": "groups_x = ceil(M / ((arm_threads / cluster) * arm_rows))",
+    "shader_invocations": 256,
+    "required_groups_formula": "ceil(M / ((256 / cluster) * arm_rows))",
+    "result": "Overdispatch is shape-dependent. For timed gate/down dimensions M=12288 and M=4096 (both divisible by 32), the 64-based formula launches exactly 4x the workgroups required by the 256-invocation shader. M=37 checks use 5 versus 2 groups (2.5x); small tail cases may have equal group counts. Timings are not runtime-geometry comparisons.",
+    "output_integrity": "Saved output comparisons remain evidence for the executed probe configurations; this correction does not invalidate their exact comparisons or guards."
+  },
+  "source_derived_decode_shapes": {
+    "source": "scratch/q2-prefill-code-table-20261103/model-integration-ef/grouped-shapes/SHAPES.md",
+    "model": "Qwen3-8B Q2_0, E=4096, F=12288, Q=4096, KV=1024, vocab=151936",
+    "assumption": "subgroup 64, Q2 low-bit ROWS=4, row cluster 32; expected source-derived shape, runtime specialization witness not yet collected",
+    "calls": [
+      {
+        "call": "attention Q/K/V grouped",
+        "input": 4096,
+        "projection_rows": [
+          4096,
+          1024,
+          1024
+        ],
+        "total_rows": 6144,
+        "groups_of_32": [
+          128,
+          32,
+          32
+        ]
+      },
+      {
+        "call": "attention output",
+        "input": 4096,
+        "projection_rows": [
+          4096
+        ],
+        "total_rows": 4096,
+        "groups_of_32": [
+          128
+        ]
+      },
+      {
+        "call": "FFN gate/up grouped",
+        "input": 4096,
+        "projection_rows": [
+          12288,
+          12288
+        ],
+        "total_rows": 24576,
+        "groups_of_32": [
+          384,
+          384
+        ]
+      },
+      {
+        "call": "FFN down",
+        "input": 12288,
+        "projection_rows": [
+          4096
+        ],
+        "total_rows": 4096,
+        "groups_of_32": [
+          128
+        ]
+      },
+      {
+        "call": "output head",
+        "input": 4096,
+        "projection_rows": [
+          151936
+        ],
+        "total_rows": 151936,
+        "groups_of_32": [
+          4748
+        ]
+      }
+    ],
+    "limitation": "These shapes are source-derived. The old single-projection M=12288/K=4096 and M=4096/K=12288 microcases omit actual grouping and do not establish model decode speed."
+  },
+  "retained_records": [
+    "q2-decode-profile-20261103.json",
+    "q2-repair-tree-micro-20261103.json",
+    "q2-native-row-control-20261103.json",
+    "q2-workgroup-restore-micro-20261103.json",
+    "q2-workgroup-model-screen-20261103.json"
+  ],
+  "next": "Finish G integration correctness and applicable release gates; continue signed F prefill tuning and assess their interaction.",
+  "markdown_review": {
+    "tracked_markdown_count": 158,
+    "relevant_live_pages": "docs/STATUS.md, docs/ROADMAP.md, docs/USAGE.md, docs/VULKAN.md, docs/src/quant-types.md",
+    "disposition": "Scoped Q2_0 qualification remains pending. The active STATUS block now records the corrected v2 screen and pending G validation; docs/src/backends-vulkan.md documents the paired shader and host geometry. Older archived claims remain historical."
+  },
+  "collected_spirv_witness": {
+    "source": "scratch/q2-prefill-code-table-20261103/model-integration-ef/workgroup-restore-micro/results/geometry-tests.stdout and execution.json",
+    "geometry_check": "Pinned real shaders report E=256 and candidate=64; nine malformed or unsupported SPIR-V controls are rejected.",
+    "E.spv": {
+      "sha256": "17f04e87276bd518061ffa3a0fa00d0235e6b4e054cadf4fa0377386c4a2347b",
+      "LocalSize": [
+        256,
+        1,
+        1
+      ]
+    },
+    "candidate.spv": {
+      "sha256": "7683f27a128aa8f3b7642c17e7d60ed477d2a1f80c623bf3038b2c1abb87fb2d",
+      "LocalSize": [
+        64,
+        1,
+        1
+      ]
+    },
+    "hashes_recomputed_locally": true,
+    "limitation": "This is a real-shader geometry witness, not a passing numerical or timing screen."
+  },
+  "followup": {
+    "first_restored_candidate": "Failed independent oracle at fixture 0, row 8: observed 0xffffffff, expected 0x48efcc00. matmul_row.comp separately hardcodes 256-wide row indexing.",
+    "candidate_v2": "DONE: 788 calls; 20 timing calls including four warmups, 768 exact output/guard/input calls; all 26 receipt-listed raw artifact hashes verified; monitor exit 0 and container removed. Results and limits are in q2-workgroup-restore-micro-20261103.json.",
+    "disposition": "Geometry issue is corrected in the probe and current source edits pair Q2 row shader local size, both shader row-index formulas and host dispatch width. This micro-screen is not model qualification or a release gate; do not claim a product fix until G and applicable gates complete."
+  }
+}

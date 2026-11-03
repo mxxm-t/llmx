@@ -1,0 +1,260 @@
+{
+  "scope": "Native J Q2 four-row reduction micro, not a model or merge gate",
+  "source": "a04a408e81e9afc5892ecc3570cf298467927a64",
+  "status": "DONE",
+  "elapsed_seconds": 32.64958310127258,
+  "timing": {
+    "gate": {
+      "samples_us": {
+        "0": [
+          87.2,
+          87.2,
+          86.56,
+          85.28
+        ],
+        "1": [
+          83.36,
+          84.16,
+          84.64,
+          84.32
+        ]
+      },
+      "medians_us": {
+        "0": 86.88,
+        "1": 84.24
+      },
+      "candidate_latency_change_percent": -3.038674033149169
+    },
+    "down": {
+      "samples_us": {
+        "0": [
+          95.36,
+          92.48,
+          94.88,
+          93.76
+        ],
+        "1": [
+          90.72,
+          90.08,
+          91.84,
+          90.72
+        ]
+      },
+      "medians_us": {
+        "0": 94.32,
+        "1": 90.72
+      },
+      "candidate_latency_change_percent": -3.8167938931297662
+    }
+  },
+  "calls": 788,
+  "exact_output_input_and_guard_checks": true,
+  "runtime_change": "none in this micro; identical SPIR-V, TREE_CLUSTER specialization 0 versus 32",
+  "queue_selection": {
+    "event": "queue_selection",
+    "policy": "main-policy",
+    "family": 1,
+    "flags": 6,
+    "timestamp_valid_bits": 64
+  },
+  "memory_policy_correction": "Unused peer Docker ceilings are informational, not reservations. Own 2GiB cap plus 2GiB actual headroom, memory pressure check and live watchdog. Old no-run receipts retained.",
+  "memory_peak_bytes": 132653056,
+  "minimum_available_bytes": 24706093056,
+  "raw_receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-prefill-code-table-20261103\\model-integration-ef\\row-tree-cluster32-actual-memory\\results\\execution.json",
+  "raw_file_hashes": {
+    "probe.cpp": "454e57d7b4b81497e73c0384f23ffdfb8a34a23d8e988f8cd2c01cb0ce70f6b0",
+    "compile.stderr": "1b3b61f8ca9d0b1aeb89b5db88333e46cd336edcd0a270714142b6bc8c57989a",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "checks.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "down.stdout": "3d1ee9b7ad7d3302045c14cb41f311ac54bd2414d59decb1b4544e3bd52e02c3",
+    "native-row.spv": "aae77572415dedf2eb92bf090cab92e88d0eb9108007b32587536ddc1109f208",
+    "tails.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "gate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "checks.stdout": "f615f2cf18c504c36491aade73a02600c21200a4f7e73a2da1efe9f156d3faa6",
+    "compile.stdout": "731479aff1dd0a06f272a1542b6099acd438ae6e0266f5f6f7ccb64df619a0bd",
+    "probe": "87a8c2de4a2dbb18a90adefcc224d61ba70ef8c756e09449b2e8ea9fecb78ca2",
+    "gate.stdout": "5da3fcf006ed5d0ace3c6f72a8e5f8624e3e56bdc8f41138c122f34b8f8c31ed",
+    "tails.stdout": "641ffb9e03fbf032c8cd3ef881e0d5800d49c4e8c97c5e2f5d15fbb0c43b0916",
+    "activity.jsonl": "47814a6965a70c991b7c6330b9ae29f203412c77b672d1fdc437a932a1d085fa",
+    "down.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "memory-watch.jsonl": "3bc57029fe6c70f2ec0a112b0136ecbe71d13c91f8596a8d281d9a19d2e5e067",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "Four measured samples per arm and shape, with two warmups per shape.",
+    "No mx model comparison or full Q2 model/HF gate is established.",
+    "Only cluster32/ROWS4/WG64/MAX_COLS1",
+    "Shared ROW_TREE activation does not check push.cluster; narrower clusters and other variants remain unresolved",
+    "Production source trace of actual Q2 cluster32 required before promotion",
+    "Synthetic repeated fixtures/cache state do not represent full decode; timestamps are not model TPS.",
+    "Short synthetic micro only; not a model or mx performance gate.",
+    "Host activity monitor begins after the execution receipt start and has missed process observations; flags annotate, do not exclude, any sample.",
+    "compile.stderr contains no extracted VGPR/SGPR/spill summary; driver executable statistics above provide those resource values."
+  ],
+  "next": "Integrate Q2-only four-row tree variant only at matching cluster32 and enabled profile, retain old build elsewhere; focused dispatch checks and matched model screen before full affected qualification.",
+  "recording_head": "487ca07958c086bac1e7995db386d0f60faab2b1",
+  "activity": {
+    "sample_count": 26,
+    "first_sample_utc": "2026-11-03T13:13:58.037736+00:00",
+    "last_sample_utc": "2026-11-03T13:14:22.890618+00:00",
+    "max_sample_gap_seconds": 1.1479301452636719,
+    "missed_pid_records": 36,
+    "samples_with_missed_pids": 16,
+    "phase_flags": {
+      "compile": {
+        "sample_rows": 1,
+        "adjacent_intervals": 1,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": false
+        }
+      },
+      "gate": {
+        "sample_rows": 7,
+        "adjacent_intervals": 7,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      "down": {
+        "sample_rows": 5,
+        "adjacent_intervals": 5,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      "checks": {
+        "sample_rows": 2,
+        "adjacent_intervals": 2,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      },
+      "tails": {
+        "sample_rows": 2,
+        "adjacent_intervals": 2,
+        "flags": {
+          "unrelated_cpu_core_equivalents_gt_1": true,
+          "disk_MiB_s_ge_100": true,
+          "other_gpu_busy_gt_0": true,
+          "sample_gap_seconds_gt_3": false,
+          "unknown_activity": true
+        }
+      }
+    },
+    "thresholds_source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\q2-prefill-code-table-20261103\\model-integration-ef\\model-screen\\model-plan.json",
+    "thresholds": {
+      "unrelated_cpu_core_equivalents": 1,
+      "disk_bytes_per_second": 104857600,
+      "non_target_gpu_busy_percent": 0,
+      "sample_gap_seconds": 3,
+      "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+    }
+  },
+  "pipeline_resources": {
+    "gate": {
+      "0": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      },
+      "1": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 12408,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      }
+    },
+    "down": {
+      "0": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      },
+      "1": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 12408,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      }
+    },
+    "checks": {
+      "0": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      },
+      "1": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 12408,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      }
+    },
+    "tails": {
+      "0": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 7672,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      },
+      "1": {
+        "SGPRs": 80,
+        "VGPRs": 64,
+        "Spilled SGPRs": 0,
+        "Spilled VGPRs": 0,
+        "Code size": 12408,
+        "LDS size": 2048,
+        "Scratch size": 0,
+        "Subgroups per SIMD": 4
+      }
+    }
+  },
+  "audit_sha256": "ee063232f1eeb5ee668b9ab32895e00bf1a563f87deb84832d8b65385aa5fd29"
+}

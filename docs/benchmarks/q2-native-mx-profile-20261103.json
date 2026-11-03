@@ -1,0 +1,1077 @@
+{
+  "status": "DONE",
+  "job": "20261103T010645Z-675889",
+  "seconds": 80.22531795501709,
+  "execution_sha256": "23c9dac22b092818514f5e2df6000e2296d8f17de5ae89c95847253f3f0f1ea7",
+  "terminal_sha256": "81ed0ac2cc62d40b44b129cf7162c27de6b230e461ae26325988564b512c232f",
+  "verified_raw_hashes": {
+    "activity.jsonl": "1586afdb28cc1a06eb23af3b03995c6c3b584100839da1d96f4ffa2805836b32",
+    "q2-profile-p4096-g256-0-combined.profile.json": "38618f5cfc34a4dfb990febcadcb97a850ab66a89c3bdec0c572ba622afce2a9",
+    "q2-profile-p4096-g256-0-combined.stderr": "11efc446c7ad8635d936bbf8d49b4eead37492606bbed77c519041f00ebf22de",
+    "combined-version.stdout": "3119f8b2cf95bf5a13e6ad9a92bd4231bd5091351cb452e8f7da77df3110e05c",
+    "q2-profile-p4096-g256-1-mx.stderr": "0ae24cb15afbc0098835424f19699b7054e842fb0500ac83210cd309883d6f54",
+    "q2-profile-p4096-g256-1-mx.profile.json": "662bd57a3a0fd6379e870f31054bd3089f6de1d4b875fc98dc9a14a1d0519ce8",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "q2-profile-p4096-g256-1-mx.stdout": "232cbb4d73bbc69800b9e02a54de0a4ce586cbc7873a103b5e744e71c72cf30f",
+    "combined-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "container-id.txt": "6caf401cfdd3abcf59dd677bd84136d7cc058fb10d9291e0d3856b50b6535979",
+    "q2-profile-p4096-g256-0-combined.stdout": "1db5639cac2a6c9b30a99967071ccd5bfa63c63aa4c82d1a9b5d98effbfab76b",
+    "driver-pins.txt": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "diagnostic_rates_not_gates": {
+    "combined": {
+      "pp4096": 700.61,
+      "tg256": 107.96
+    },
+    "mx": {
+      "pp4096": 697.565603,
+      "tg256": 107.106181
+    }
+  },
+  "native": {
+    "phases": {
+      "pp": {
+        "milliseconds": 5861.46,
+        "dispatches": 3467,
+        "kernels": [
+          {
+            "label": "matmul_tile_q2_0_dot_tall",
+            "milliseconds": 4672.57,
+            "percent": "79.7168%"
+          },
+          {
+            "label": "attention_tile_kv16",
+            "milliseconds": 1030.57,
+            "percent": "17.5821%"
+          },
+          {
+            "label": "matmul_reduce",
+            "milliseconds": 47.3077,
+            "percent": "0.807097%"
+          },
+          {
+            "label": "norm_rope_kv_kv16",
+            "milliseconds": 42.5912,
+            "percent": "0.726631%"
+          },
+          {
+            "label": "silu_mul",
+            "milliseconds": 36.3134,
+            "percent": "0.619529%"
+          },
+          {
+            "label": "rms_norm_rows",
+            "milliseconds": 31.3469,
+            "percent": "0.534796%"
+          },
+          {
+            "label": "matmul_row_q2_0_dot_1col_4row head",
+            "milliseconds": 0.40928,
+            "percent": "0.00698256%"
+          },
+          {
+            "label": "embed",
+            "milliseconds": 0.34352,
+            "percent": "0.00586065%"
+          },
+          {
+            "label": "gather_rows",
+            "milliseconds": 0.00656,
+            "percent": "0.000111917%"
+          }
+        ]
+      },
+      "tg": {
+        "milliseconds": 2238.09,
+        "dispatches": 92032,
+        "kernels": [
+          {
+            "label": "matmul_row_q2_0_dot_1col_4row",
+            "milliseconds": 1633.86,
+            "percent": "73.0024%"
+          },
+          {
+            "label": "rms_norm_rows",
+            "milliseconds": 159.569,
+            "percent": "7.12971%"
+          },
+          {
+            "label": "attention_vec_kv16",
+            "milliseconds": 115.507,
+            "percent": "5.16095%"
+          },
+          {
+            "label": "matmul_row_q2_0_dot_1col_4row head",
+            "milliseconds": 100.127,
+            "percent": "4.47379%"
+          },
+          {
+            "label": "norm_rope_kv_kv16",
+            "milliseconds": 89.865,
+            "percent": "4.01526%"
+          },
+          {
+            "label": "attention_merge",
+            "milliseconds": 77.8918,
+            "percent": "3.48029%"
+          },
+          {
+            "label": "silu_mul",
+            "milliseconds": 55.744,
+            "percent": "2.4907%"
+          },
+          {
+            "label": "embed",
+            "milliseconds": 4.00544,
+            "percent": "0.178967%"
+          },
+          {
+            "label": "gather_rows",
+            "milliseconds": 1.5208,
+            "percent": "0.0679509%"
+          }
+        ]
+      }
+    },
+    "per_kernel_counts_shapes": "unavailable",
+    "rates_are_gates": false
+  },
+  "mx": {
+    "markers": [
+      {
+        "line": 3,
+        "kind": "starting",
+        "instance": 1
+      },
+      {
+        "line": 4473,
+        "kind": "pp",
+        "instance": 1,
+        "run": 1
+      },
+      {
+        "line": 4591,
+        "kind": "starting",
+        "instance": 2
+      },
+      {
+        "line": 9061,
+        "kind": "tg",
+        "instance": 2,
+        "run": 1
+      }
+    ],
+    "blocks_by_phase": {
+      "warmup": 528,
+      "pp": 8,
+      "tg": 256
+    },
+    "phases": {
+      "pp": {
+        "total_ms": 5788.07222,
+        "reported_block_total_ms": 5788.076,
+        "operators": {
+          "ADD": {
+            "count": 561,
+            "microseconds": 30763.84
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,512,8,1),  v(128,512,8,1),  m(512,512,1,1)": {
+            "count": 36,
+            "microseconds": 45865.1
+          },
+          "GLU": {
+            "count": 281,
+            "microseconds": 31191.68
+          },
+          "MUL_MAT q2_0 m=1024 n=512 k=4096": {
+            "count": 576,
+            "microseconds": 234031.8
+          },
+          "MUL_MAT q2_0 m=12288 n=512 k=4096": {
+            "count": 560,
+            "microseconds": 1818224.0
+          },
+          "MUL_MAT q2_0 m=4096 n=512 k=12288": {
+            "count": 280,
+            "microseconds": 976253.0
+          },
+          "MUL_MAT q2_0 m=4096 n=512 k=4096": {
+            "count": 576,
+            "microseconds": 693239.7000000001
+          },
+          "RMS_NORM_MUL RMS_NORM(4096,512,1,1)": {
+            "count": 568,
+            "microseconds": 32648.000000000004
+          },
+          "RMS_NORM_MUL_ROPE RMS_NORM(128,32,512,1)": {
+            "count": 288,
+            "microseconds": 85961.9
+          },
+          "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,512,1)": {
+            "count": 288,
+            "microseconds": 24463.36
+          },
+          "SET_ROWS": {
+            "count": 288,
+            "microseconds": 5098.5599999999995
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1024,8,1),  v(128,1024,8,1),  m(1024,512,1,1)": {
+            "count": 36,
+            "microseconds": 87292.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1536,8,1),  v(128,1536,8,1),  m(1536,512,1,1)": {
+            "count": 36,
+            "microseconds": 141987.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2048,8,1),  v(128,2048,8,1),  m(2048,512,1,1)": {
+            "count": 36,
+            "microseconds": 195270.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2560,8,1),  v(128,2560,8,1),  m(2560,512,1,1)": {
+            "count": 36,
+            "microseconds": 256140.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3072,8,1),  v(128,3072,8,1),  m(3072,512,1,1)": {
+            "count": 36,
+            "microseconds": 314399.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3584,8,1),  v(128,3584,8,1),  m(3584,512,1,1)": {
+            "count": 36,
+            "microseconds": 377272.0
+          },
+          "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,4096,8,1),  v(128,4096,8,1),  m(4096,512,1,1)": {
+            "count": 36,
+            "microseconds": 437434.0
+          },
+          "GET_ROWS": {
+            "count": 2,
+            "microseconds": 8.16
+          },
+          "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288": {
+            "count": 1,
+            "microseconds": 39.04
+          },
+          "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096": {
+            "count": 2,
+            "microseconds": 72.96
+          },
+          "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096": {
+            "count": 1,
+            "microseconds": 400.96
+          },
+          "RMS_NORM_MUL RMS_NORM(4096,1,1,1)": {
+            "count": 2,
+            "microseconds": 16.16
+          }
+        },
+        "blocks": 8
+      },
+      "tg": {
+        "total_ms": 2101.21344,
+        "reported_block_total_ms": 2101.21344,
+        "operators": {
+          "ADD": {
+            "count": 256,
+            "microseconds": 1109.4400000000041
+          },
+          "FLASH_ATTN_EXT dst(128,32,1,1),  q(128,1,32,1),  k(128,256,8,1),  v(128,256,8,1),  m(256,1,1,1)": {
+            "count": 9216,
+            "microseconds": 154800.80000000008
+          },
+          "GET_ROWS": {
+            "count": 512,
+            "microseconds": 2198.4000000000055
+          },
+          "GLU": {
+            "count": 9216,
+            "microseconds": 42412.79999999995
+          },
+          "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288": {
+            "count": 9216,
+            "microseconds": 352508.1600000002
+          },
+          "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=4096": {
+            "count": 8960,
+            "microseconds": 157694.55999999988
+          },
+          "MUL_MAT_VEC q2_0 m=1024 n=1 k=4096": {
+            "count": 18432,
+            "microseconds": 127938.71999999994
+          },
+          "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096": {
+            "count": 18432,
+            "microseconds": 629268.96
+          },
+          "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096": {
+            "count": 256,
+            "microseconds": 91185.27999999993
+          },
+          "MUL_MAT_VEC q2_0 m=4096 n=1 k=4096": {
+            "count": 9472,
+            "microseconds": 166715.68000000014
+          },
+          "RMS_NORM_MUL RMS_NORM(4096,1,1,1)": {
+            "count": 18688,
+            "microseconds": 206039.19999999995
+          },
+          "RMS_NORM_MUL_ROPE RMS_NORM(128,32,1,1)": {
+            "count": 9216,
+            "microseconds": 66344.00000000001
+          },
+          "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,1,1)": {
+            "count": 9216,
+            "microseconds": 63770.71999999999
+          },
+          "SET_ROWS": {
+            "count": 9216,
+            "microseconds": 39226.71999999999
+          }
+        },
+        "blocks": 256
+      }
+    }
+  },
+  "composition": {
+    "D_pp": {
+      "total_ms": 5861.46,
+      "buckets": {
+        "projection": {
+          "ms": 4720.28698,
+          "percent": 80.53090834024287,
+          "labels": [
+            "matmul_tile_q2_0_dot_tall",
+            "matmul_reduce",
+            "matmul_row_q2_0_dot_1col_4row head"
+          ]
+        },
+        "attention": {
+          "ms": 1030.57,
+          "percent": 17.582138238595846,
+          "labels": [
+            "attention_tile_kv16"
+          ]
+        },
+        "norm/prep/activation": {
+          "ms": 110.25150000000001,
+          "percent": 1.880956280517141,
+          "labels": [
+            "norm_rope_kv_kv16",
+            "silu_mul",
+            "rms_norm_rows"
+          ]
+        },
+        "other": {
+          "ms": 0.35008,
+          "percent": 0.005972573386152939,
+          "labels": [
+            "embed",
+            "gather_rows"
+          ]
+        }
+      }
+    },
+    "mx_pp": {
+      "total_ms": 5788.07222,
+      "buckets": {
+        "other": {
+          "ms": 30.772000000000002,
+          "percent": 0.531645059535902,
+          "labels": [
+            "ADD",
+            "GET_ROWS"
+          ]
+        },
+        "attention": {
+          "ms": 1855.6590999999999,
+          "percent": 32.060054357787536,
+          "labels": [
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,512,8,1),  v(128,512,8,1),  m(512,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1024,8,1),  v(128,1024,8,1),  m(1024,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,1536,8,1),  v(128,1536,8,1),  m(1536,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2048,8,1),  v(128,2048,8,1),  m(2048,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,2560,8,1),  v(128,2560,8,1),  m(2560,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3072,8,1),  v(128,3072,8,1),  m(3072,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,3584,8,1),  v(128,3584,8,1),  m(3584,512,1,1)",
+            "FLASH_ATTN_EXT dst(128,32,512,1),  q(128,512,32,1),  k(128,4096,8,1),  v(128,4096,8,1),  m(4096,512,1,1)"
+          ]
+        },
+        "norm/prep/activation": {
+          "ms": 179.37966,
+          "percent": 3.099126154303583,
+          "labels": [
+            "GLU",
+            "RMS_NORM_MUL RMS_NORM(4096,512,1,1)",
+            "RMS_NORM_MUL_ROPE RMS_NORM(128,32,512,1)",
+            "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,512,1)",
+            "SET_ROWS",
+            "RMS_NORM_MUL RMS_NORM(4096,1,1,1)"
+          ]
+        },
+        "projection": {
+          "ms": 3722.26146,
+          "percent": 64.30917442837298,
+          "labels": [
+            "MUL_MAT q2_0 m=1024 n=512 k=4096",
+            "MUL_MAT q2_0 m=12288 n=512 k=4096",
+            "MUL_MAT q2_0 m=4096 n=512 k=12288",
+            "MUL_MAT q2_0 m=4096 n=512 k=4096",
+            "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288",
+            "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096",
+            "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096"
+          ]
+        }
+      }
+    },
+    "D_tg": {
+      "total_ms": 2238.09,
+      "buckets": {
+        "projection": {
+          "ms": 1733.9869999999999,
+          "percent": 77.47619622088476,
+          "labels": [
+            "matmul_row_q2_0_dot_1col_4row",
+            "matmul_row_q2_0_dot_1col_4row head"
+          ]
+        },
+        "norm/prep/activation": {
+          "ms": 305.178,
+          "percent": 13.635644679168397,
+          "labels": [
+            "rms_norm_rows",
+            "norm_rope_kv_kv16",
+            "silu_mul"
+          ]
+        },
+        "attention": {
+          "ms": 193.3988,
+          "percent": 8.641243202909624,
+          "labels": [
+            "attention_vec_kv16",
+            "attention_merge"
+          ]
+        },
+        "other": {
+          "ms": 5.52624,
+          "percent": 0.24691768427543123,
+          "labels": [
+            "embed",
+            "gather_rows"
+          ]
+        }
+      }
+    },
+    "mx_tg": {
+      "total_ms": 2101.21344,
+      "buckets": {
+        "other": {
+          "ms": 3.30784000000001,
+          "percent": 0.15742522568292777,
+          "labels": [
+            "ADD",
+            "GET_ROWS"
+          ]
+        },
+        "attention": {
+          "ms": 154.80080000000007,
+          "percent": 7.367209682420462,
+          "labels": [
+            "FLASH_ATTN_EXT dst(128,32,1,1),  q(128,1,32,1),  k(128,256,8,1),  v(128,256,8,1),  m(256,1,1,1)"
+          ]
+        },
+        "norm/prep/activation": {
+          "ms": 417.7934399999999,
+          "percent": 19.8834364965798,
+          "labels": [
+            "GLU",
+            "RMS_NORM_MUL RMS_NORM(4096,1,1,1)",
+            "RMS_NORM_MUL_ROPE RMS_NORM(128,32,1,1)",
+            "RMS_NORM_MUL_ROPE_VIEW_SET_ROWS RMS_NORM(128,8,1,1)",
+            "SET_ROWS"
+          ]
+        },
+        "projection": {
+          "ms": 1525.3113600000001,
+          "percent": 72.59192859531682,
+          "labels": [
+            "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=12288",
+            "MUL_MAT_ADD MUL_MAT_VEC q2_0 m=4096 n=1 k=4096",
+            "MUL_MAT_VEC q2_0 m=1024 n=1 k=4096",
+            "MUL_MAT_VEC q2_0 m=12288 n=1 k=4096",
+            "MUL_MAT_VEC q2_0 m=151936 n=1 k=4096",
+            "MUL_MAT_VEC q2_0 m=4096 n=1 k=4096"
+          ]
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removed": true,
+    "monitor_exit": 0,
+    "inputs_unchanged": true,
+    "container_id": "557b9a30c9f1cb1f737c5da1a976b0148a3cb775c106a00ba0134993bb45fc8a"
+  },
+  "activity": {
+    "samples": 33,
+    "intervals": 32,
+    "cpu_percent": {
+      "min": 7.2368421052631575,
+      "median": 13.640631207152213,
+      "max": 15.721891637958032
+    },
+    "unrelated_cores": {
+      "min": 0.23490868488677635,
+      "median": 1.9734125897462684,
+      "max": 2.279406186193703
+    },
+    "flags": {
+      "unrelated_cpu": 25,
+      "disk": 0,
+      "other_gpu": 25,
+      "gap": 0
+    },
+    "all_retained": true,
+    "interval_details": [
+      {
+        "at": "2026-11-03T01:06:57.436135+00:00",
+        "unix": 1793668017.436135,
+        "interval": 2.002426564002235,
+        "cpu_percent": 12.449171097904285,
+        "unrelated_cpu_cores": 1.9676127308884435,
+        "aggregate_disk_bytes_per_second": 1949378.8537234184,
+        "non_target_gpu_busy_max": 2.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:06:59.434927+00:00",
+        "unix": 1793668019.434927,
+        "interval": 2.000825333998364,
+        "cpu_percent": 13.285175879396984,
+        "unrelated_cpu_cores": 1.8842224435784172,
+        "aggregate_disk_bytes_per_second": 90074.82909057736,
+        "non_target_gpu_busy_max": 99.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:01.436482+00:00",
+        "unix": 1793668021.436482,
+        "interval": 2.000443141998403,
+        "cpu_percent": 15.591397849462366,
+        "unrelated_cpu_cores": 1.719618982303845,
+        "aggregate_disk_bytes_per_second": 2672047.951665435,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:03.435142+00:00",
+        "unix": 1793668023.435142,
+        "interval": 2.000576346003072,
+        "cpu_percent": 10.854647535870244,
+        "unrelated_cpu_cores": 1.5945404964790588,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:05.513139+00:00",
+        "unix": 1793668025.513139,
+        "interval": 2.0016607099969406,
+        "cpu_percent": 9.2534504391468,
+        "unrelated_cpu_cores": 0.3996681335675629,
+        "aggregate_disk_bytes_per_second": 6374227.128642347,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:07.448096+00:00",
+        "unix": 1793668027.448096,
+        "interval": 2.000953198003117,
+        "cpu_percent": 13.8827953619555,
+        "unrelated_cpu_cores": 1.904092511410187,
+        "aggregate_disk_bytes_per_second": 546555.5121885947,
+        "non_target_gpu_busy_max": 7.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:09.445714+00:00",
+        "unix": 1793668029.445714,
+        "interval": 2.0006159679978737,
+        "cpu_percent": 13.9367366113373,
+        "unrelated_cpu_cores": 2.0843580510722144,
+        "aggregate_disk_bytes_per_second": 75752.66938995114,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:11.440203+00:00",
+        "unix": 1793668031.440203,
+        "interval": 2.000575916001253,
+        "cpu_percent": 14.406514249921704,
+        "unrelated_cpu_cores": 2.13938394727597,
+        "aggregate_disk_bytes_per_second": 1848811.6199023977,
+        "non_target_gpu_busy_max": 99.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:13.440595+00:00",
+        "unix": 1793668033.440595,
+        "interval": 2.0005257240009087,
+        "cpu_percent": 13.570981863664791,
+        "unrelated_cpu_cores": 2.124441565040365,
+        "aggregate_disk_bytes_per_second": 2413957.462312445,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:15.442682+00:00",
+        "unix": 1793668035.442682,
+        "interval": 2.0004913229968224,
+        "cpu_percent": 13.097843075961238,
+        "unrelated_cpu_cores": 2.0544952896086763,
+        "aggregate_disk_bytes_per_second": 937753.6300381043,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:17.487333+00:00",
+        "unix": 1793668037.487333,
+        "interval": 2.000486153003294,
+        "cpu_percent": 15.721891637958032,
+        "unrelated_cpu_cores": 2.2244592862186496,
+        "aggregate_disk_bytes_per_second": 3540131.477225146,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:19.444257+00:00",
+        "unix": 1793668039.444257,
+        "interval": 2.0007636029986315,
+        "cpu_percent": 13.990610328638498,
+        "unrelated_cpu_cores": 2.079206155972263,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:21.444284+00:00",
+        "unix": 1793668041.444284,
+        "interval": 2.0004962329985574,
+        "cpu_percent": 13.410440762738356,
+        "unrelated_cpu_cores": 2.0944803248739845,
+        "aggregate_disk_bytes_per_second": 1298109.917511588,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:23.443688+00:00",
+        "unix": 1793668043.443688,
+        "interval": 2.000531685000169,
+        "cpu_percent": 14.424280350438048,
+        "unrelated_cpu_cores": 2.1644246039520407,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:25.454317+00:00",
+        "unix": 1793668045.454317,
+        "interval": 2.0004934330027027,
+        "cpu_percent": 13.182674199623353,
+        "unrelated_cpu_cores": 0.2999260033058001,
+        "aggregate_disk_bytes_per_second": 3857480.2959573497,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:27.448944+00:00",
+        "unix": 1793668047.448944,
+        "interval": 2.000589826999203,
+        "cpu_percent": 7.984910405532851,
+        "unrelated_cpu_cores": 0.39488354351224775,
+        "aggregate_disk_bytes_per_second": 9987198.640297774,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:29.469337+00:00",
+        "unix": 1793668049.469337,
+        "interval": 2.000668949000101,
+        "cpu_percent": 7.2368421052631575,
+        "unrelated_cpu_cores": 0.3698762858142218,
+        "aggregate_disk_bytes_per_second": 65485424.79528101,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:31.446783+00:00",
+        "unix": 1793668051.446783,
+        "interval": 2.0007774519981467,
+        "cpu_percent": 12.015018773466833,
+        "unrelated_cpu_cores": 0.23490868488677635,
+        "aggregate_disk_bytes_per_second": 27135691.651152357,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:33.447956+00:00",
+        "unix": 1793668053.447956,
+        "interval": 2.0006934800003364,
+        "cpu_percent": 8.179254152303352,
+        "unrelated_cpu_cores": 0.2649081457494983,
+        "aggregate_disk_bytes_per_second": 13436365.074771713,
+        "non_target_gpu_busy_max": 1.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:35.445803+00:00",
+        "unix": 1793668055.445803,
+        "interval": 2.0007893629990576,
+        "cpu_percent": 13.66771159874608,
+        "unrelated_cpu_cores": 1.9442326473433138,
+        "aggregate_disk_bytes_per_second": 1572243.4645917704,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:37.460777+00:00",
+        "unix": 1793668057.460777,
+        "interval": 2.000540085002285,
+        "cpu_percent": 12.37468671679198,
+        "unrelated_cpu_cores": 1.7745208039637679,
+        "aggregate_disk_bytes_per_second": 479102.62192967016,
+        "non_target_gpu_busy_max": 99.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:39.517498+00:00",
+        "unix": 1793668059.517498,
+        "interval": 2.0006287779979175,
+        "cpu_percent": 13.831127914303718,
+        "unrelated_cpu_cores": 1.9044012771888488,
+        "aggregate_disk_bytes_per_second": 3480505.767275956,
+        "non_target_gpu_busy_max": 96.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:41.449435+00:00",
+        "unix": 1793668061.449435,
+        "interval": 2.000926757002162,
+        "cpu_percent": 11.466165413533835,
+        "unrelated_cpu_cores": 1.4093469389279363,
+        "aggregate_disk_bytes_per_second": 100305.52057822431,
+        "non_target_gpu_busy_max": 0.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:43.451458+00:00",
+        "unix": 1793668063.451458,
+        "interval": 2.000517813998158,
+        "cpu_percent": 9.984301412872842,
+        "unrelated_cpu_cores": 0.4048951698066438,
+        "aggregate_disk_bytes_per_second": 8537949.465125695,
+        "non_target_gpu_busy_max": 60.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": false,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:45.450475+00:00",
+        "unix": 1793668065.450475,
+        "interval": 2.000795823001681,
+        "cpu_percent": 13.613550815558344,
+        "unrelated_cpu_cores": 1.9792124486040936,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 11.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:47.451632+00:00",
+        "unix": 1793668067.451632,
+        "interval": 2.0005173440004,
+        "cpu_percent": 14.428794992175273,
+        "unrelated_cpu_cores": 2.089459515327833,
+        "aggregate_disk_bytes_per_second": 505725.18305534753,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:49.450530+00:00",
+        "unix": 1793668069.45053,
+        "interval": 2.000512405000336,
+        "cpu_percent": 14.142678347934918,
+        "unrelated_cpu_cores": 2.1644454636607326,
+        "aggregate_disk_bytes_per_second": 1443470.1793311373,
+        "non_target_gpu_busy_max": 99.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:51.463584+00:00",
+        "unix": 1793668071.463584,
+        "interval": 2.0004974129988113,
+        "cpu_percent": 15.054773082942097,
+        "unrelated_cpu_cores": 2.1794579546414994,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:53.464613+00:00",
+        "unix": 1793668073.464613,
+        "interval": 2.0004428819993336,
+        "cpu_percent": 15.237197612315425,
+        "unrelated_cpu_cores": 2.1945140446161773,
+        "aggregate_disk_bytes_per_second": 1603228.979372113,
+        "non_target_gpu_busy_max": 99.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:55.503587+00:00",
+        "unix": 1793668075.503587,
+        "interval": 2.0005210250019445,
+        "cpu_percent": 15.565299091763231,
+        "unrelated_cpu_cores": 2.279406186193703,
+        "aggregate_disk_bytes_per_second": 0.0,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:57.453250+00:00",
+        "unix": 1793668077.45325,
+        "interval": 2.001892776999739,
+        "cpu_percent": 15.014075695964967,
+        "unrelated_cpu_cores": 2.083028645644863,
+        "aggregate_disk_bytes_per_second": 515608.03448572237,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      },
+      {
+        "at": "2026-11-03T01:07:59.454257+00:00",
+        "unix": 1793668079.454257,
+        "interval": 2.0004890540003544,
+        "cpu_percent": 14.205256570713392,
+        "unrelated_cpu_cores": 2.179467061457477,
+        "aggregate_disk_bytes_per_second": 3394753.8910146905,
+        "non_target_gpu_busy_max": 100.0,
+        "unknown_gpu_counters": 0,
+        "flags": {
+          "unrelated_cpu": true,
+          "disk": false,
+          "other_gpu": true,
+          "gap": false
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "One intrusive diagnostic per runtime; profile rates are not gates. Ordinary unprofiled cohort remains performance evidence.",
+    "Native per-kernel counts/shapes absent; phase dispatch totals are available. mx records logger node/fusion/shape timing occurrences, not necessarily dispatches.",
+    "Projection includes native reduction/head; mx MUL_MAT_ADD includes fused residual addition and nodes may enclose preparation/reduction. Norm/prep includes native RMS/norm-rope/SILU versus mx RMS fusions/GLU/SET_ROWS. Other is native embedding/gather versus mx ADD/GET_ROWS. Bucket boundaries differ; do not directly subtract unmatched names.",
+    "No elapsed-minus-device inference of host/queue cost. Source says both generation phases start empty; no assumed graph count; measured mx windows precede exact observed8PP/256TG timing blocks.",
+    "mx current runtime context/offload counts not witnessed; ctx40960 is pinned source policy. Models/load/direct-vs-mmap and arithmetic paths differ as documented in cohort.",
+    "Monitoring includes load/warmup/profiling; sensor/DPM snapshots are not phase clocks, missing counters unknown, overhead uncalibrated."
+  ],
+  "assessment": "Projection work dominates both phases in both profiles. D PP tile is79.72%; D TG rows+head77.48%. mx projection64.31%PP and72.60%TG. Attention is a larger mx PP fraction than D. This supports projection kernels as the largest remaining optimization opportunity, but cannot attribute the small ordinary throughput deficit to exact costs because fusion/timestamp scopes differ. Host/queue behavior remains unmeasured.",
+  "root_verification": {
+    "receipt_sha256": "23c9dac22b092818514f5e2df6000e2296d8f17de5ae89c95847253f3f0f1ea7",
+    "verified_raw_hashes": 13,
+    "raw_mx_block_counts": {
+      "warmup": 528,
+      "pp": 8,
+      "tg": 256
+    },
+    "raw_mx_totals_ms": {
+      "warmup": 16249.878119999996,
+      "pp": 5788.076,
+      "tg": 2101.2134400000004
+    },
+    "raw_mx_operator_sums_ms": {
+      "warmup": 16249.876359999998,
+      "pp": 5788.07222,
+      "tg": 2101.21344
+    }
+  }
+}

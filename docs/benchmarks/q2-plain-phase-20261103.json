@@ -1,0 +1,2930 @@
+{
+  "status": "DONE",
+  "job": "20261102T224541Z-264537",
+  "seconds": 131.27321434020996,
+  "execution_sha256": "7052ea4b045dba220eb70fed1e23a47e1b02066d287d4d87cff1bf71156afb26",
+  "terminal_sha256": "7b5f9f3a4cdf045c378cfde000d1e39b51ba3491ba0f88f91467851229d2a9c5",
+  "plan_sha256": "03ef79db67fbd322818b904f951ef719b8bf5a0914fc7333a796af24622b8336",
+  "verified_raw_files": 20,
+  "raw_file_hashes": {
+    "q2-plain-phase-0-candidate.stderr": "1a848a39ca5bf87fb8a2f74e773c794207ae7a4cef110276be273e77a9de3786",
+    "container-id.txt": "e93deb2c9acbea69101490ece8070e24644ea396317a1bbf57132d3f0169a4fb",
+    "q2-plain-phase-3-candidate.stderr": "295bc5f6683c0585cd79b57114277b3286d5d55c66cabe2fc58300332c4ac89f",
+    "q2-plain-phase-2-combined.stderr": "5b0a136360dd8c0874c7c1874cef7f02b81fd036a52052765c961707130618ed",
+    "q2-plain-phase-1-combined.stderr": "5b052612dba2f019eaad62d709afeed65cf19f600dd84249217278b7ce754d01",
+    "candidate-version.stdout": "3db556f0ecfbd0ae7e8122e75b4267fe8cfb88ddf9d27717d8994ae16cf0e1c8",
+    "combined-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver-pins.txt": "084bfe81ed99b41c723c60c0ada07f5e0fe2b4597f6040ce3b9074a18ce6a069",
+    "q2-plain-phase-3-candidate.stdout": "c748d78c019f9cb4c9ad8b20f32f529c5c405c4b98b3297b2fe10a22527c2bf5",
+    "sensors-5hz.jsonl": "6b0a1bcd3bfaf3dd0d23d608cc764ad5976894746ee6ec1b9e53166ec1c9a01b",
+    "sensors.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2-plain-phase-2-combined.stdout": "59b35f5c432e5d3102b2d516dd53384e2102ada09c3682c5f1a4076ece861d39",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "sensors.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "q2-plain-phase-0-candidate.stdout": "ae0194fb48cd80816e8481c02fb6752aa0e0512c6e2b31a0878d4810426f059c",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "activity.jsonl": "32888c45f3cee16089a5648c2097e70b1d8fbcfb21fb57aba32bb333d65162e1",
+    "candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2-plain-phase-1-combined.stdout": "d5a84c2be6a2898a421569c2014c462f0101a9d9262f71e468e55f7bbddfcd76",
+    "combined-version.stdout": "4399a89e4e308d6ce7ce4ed67c377e9eca3ae24d561fab7bb5d4019b2456680d"
+  },
+  "build": {
+    "job": "20261102T224304Z-258019",
+    "seconds": 157.2923014163971,
+    "receipt_sha256": "2cfe1460a0bde1ac563f4d3964bedbd5714ded64fb3b93f8954a61a5780d6955",
+    "arms": {
+      "candidate": {
+        "cli_sha256": "bb5140177bb7abfed7e4f82f2ce2d264d260a3e620f460a022ed890d54b810c4",
+        "object_sha256": "bdf0eaed9c259407fe9a280cf1ee78a0291b2fe7fd18064760751d210c6e13f5",
+        "library_sha256": "b28959646099a839176be9eeeb52fd5075f076392b4e629c4dd205a4dee7067c",
+        "version": "llmx 0.1.0+unknown numerics b18e02327fc3119f",
+        "source_change_only": "src/cli/main.cpp ordinary timed PP/TG wall/UTC markers",
+        "generated_unchanged": true
+      },
+      "combined": {
+        "cli_sha256": "05f9363b1e8cbe6a8812ea299d9d7e122cbeec34a7e84966a79e98e00c10043c",
+        "object_sha256": "4147cc091a583c5259ed70d29b0e1a8cbe243452035e79f33883c3d366cfe216",
+        "library_sha256": "374ee140688bca8d2f0835badb7b5cd065067df0e53d0a511b60f694bed0f16c",
+        "version": "llmx 0.1.0+unknown numerics 2c76b41b794b82d1",
+        "source_change_only": "src/cli/main.cpp ordinary timed PP/TG wall/UTC markers",
+        "generated_unchanged": true
+      }
+    },
+    "exact_argv_source_metadata_verified": true,
+    "source_generated_manifest_assertions_pass": true,
+    "executable_text_same_addresses": "Plain B/C executable sections share addresses/sizes. All 5,907 .text byte differences are RIP-relative displacement operands in 5,582 otherwise identical instruction forms; no opcode/register/direct-control-flow change. Original-to-plain .text code/layout differs. Data-address effects and driver/allocation state remain unresolved."
+  },
+  "samples": [
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "workload": "q2-plain-phase",
+      "arm": "candidate",
+      "start": 1793659569.1419616,
+      "end": 1793659590.2973373,
+      "exit": 0,
+      "rates": {
+        "pp4096": 597.56,
+        "tg256": 114.92
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "bench_intervals": {
+        "pp": {
+          "begin": 1793659580.414957,
+          "end": 1793659587.2694795,
+          "wall_ms": 6854.522038,
+          "rate": 597.561723
+        },
+        "tg": {
+          "begin": 1793659587.2695117,
+          "end": 1793659589.4972434,
+          "wall_ms": 2227.730114,
+          "rate": 114.915177
+        }
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "workload": "q2-plain-phase",
+      "arm": "combined",
+      "start": 1793659593.3730614,
+      "end": 1793659612.7387047,
+      "exit": 0,
+      "rates": {
+        "pp4096": 696.7,
+        "tg256": 114.95
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "bench_intervals": {
+        "pp": {
+          "begin": 1793659603.623675,
+          "end": 1793659609.502796,
+          "wall_ms": 5879.120641,
+          "rate": 696.702832
+        },
+        "tg": {
+          "begin": 1793659609.5028336,
+          "end": 1793659611.7298324,
+          "wall_ms": 2226.997911,
+          "rate": 114.952959
+        }
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "workload": "q2-plain-phase",
+      "arm": "combined",
+      "start": 1793659615.8967986,
+      "end": 1793659635.4287465,
+      "exit": 0,
+      "rates": {
+        "pp4096": 694.49,
+        "tg256": 117.52
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "bench_intervals": {
+        "pp": {
+          "begin": 1793659626.1327877,
+          "end": 1793659632.030626,
+          "wall_ms": 5897.837933,
+          "rate": 694.491786
+        },
+        "tg": {
+          "begin": 1793659632.0306692,
+          "end": 1793659634.208977,
+          "wall_ms": 2178.304199,
+          "rate": 117.522612
+        }
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "workload": "q2-plain-phase",
+      "arm": "candidate",
+      "start": 1793659638.5257282,
+      "end": 1793659663.2036629,
+      "exit": 0,
+      "rates": {
+        "pp4096": 590.88,
+        "tg256": 102.15
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "bench_intervals": {
+        "pp": {
+          "begin": 1793659650.239073,
+          "end": 1793659657.1711376,
+          "wall_ms": 6932.063453,
+          "rate": 590.877453
+        },
+        "tg": {
+          "begin": 1793659657.1712346,
+          "end": 1793659659.6774166,
+          "wall_ms": 2506.181112,
+          "rate": 102.147446
+        }
+      },
+      "valid": true
+    }
+  ],
+  "activity_intervals": [
+    {
+      "at": "2026-11-02T22:46:05.278181+00:00",
+      "unix": 1793659565.278181,
+      "interval": 2.0033409179995942,
+      "cpu_percent": 73.32035053554041,
+      "unrelated_cpu_cores": 11.276163630979445,
+      "aggregate_disk_bytes_per_second": 186513141.44429395,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:07.280279+00:00",
+      "unix": 1793659567.280279,
+      "interval": 2.0012705530007224,
+      "cpu_percent": 70.34505208333333,
+      "unrelated_cpu_cores": 11.027994174454848,
+      "aggregate_disk_bytes_per_second": 8041483.434545989,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:09.359961+00:00",
+      "unix": 1793659569.359961,
+      "interval": 2.001388347000102,
+      "cpu_percent": 70.69466882067852,
+      "unrelated_cpu_cores": 11.042334703869882,
+      "aggregate_disk_bytes_per_second": 12299941.706415234,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:11.288698+00:00",
+      "unix": 1793659571.288698,
+      "interval": 2.00091545199939,
+      "cpu_percent": 74.02849740932642,
+      "unrelated_cpu_cores": 10.480202938632909,
+      "aggregate_disk_bytes_per_second": 8646794.137509253,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:13.283941+00:00",
+      "unix": 1793659573.283941,
+      "interval": 2.0007220349998533,
+      "cpu_percent": 71.9896973599485,
+      "unrelated_cpu_cores": 11.320912952309069,
+      "aggregate_disk_bytes_per_second": 9783859.85537538,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:15.285315+00:00",
+      "unix": 1793659575.285315,
+      "interval": 2.00080989900016,
+      "cpu_percent": 72.34385061171925,
+      "unrelated_cpu_cores": 11.36039961185647,
+      "aggregate_disk_bytes_per_second": 9943109.542761419,
+      "non_target_gpu_busy_max": 98.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:17.287938+00:00",
+      "unix": 1793659577.287938,
+      "interval": 2.00086403000023,
+      "cpu_percent": 72.39948947032546,
+      "unrelated_cpu_cores": 11.180169998856659,
+      "aggregate_disk_bytes_per_second": 5633662.173435496,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:19.284918+00:00",
+      "unix": 1793659579.284918,
+      "interval": 2.0006963550004,
+      "cpu_percent": 74.9597164034805,
+      "unrelated_cpu_cores": 11.710922520271854,
+      "aggregate_disk_bytes_per_second": 1621451.447088457,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:21.296549+00:00",
+      "unix": 1793659581.296549,
+      "interval": 2.00110058700011,
+      "cpu_percent": 75.3393665158371,
+      "unrelated_cpu_cores": 11.693565107129077,
+      "aggregate_disk_bytes_per_second": 3475591.404641179,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:23.289940+00:00",
+      "unix": 1793659583.28994,
+      "interval": 2.0009889239991026,
+      "cpu_percent": 73.20681891283371,
+      "unrelated_cpu_cores": 11.439343679250804,
+      "aggregate_disk_bytes_per_second": 8038521.256705973,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:25.291291+00:00",
+      "unix": 1793659585.291291,
+      "interval": 2.0010248250000586,
+      "cpu_percent": 74.50415866922584,
+      "unrelated_cpu_cores": 11.828938703946019,
+      "aggregate_disk_bytes_per_second": 3561694.9429899207,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:27.301766+00:00",
+      "unix": 1793659587.301766,
+      "interval": 2.00103950599987,
+      "cpu_percent": 75.60503388189738,
+      "unrelated_cpu_cores": 11.698919451519075,
+      "aggregate_disk_bytes_per_second": 4380443.251478999,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:29.299540+00:00",
+      "unix": 1793659589.29954,
+      "interval": 2.001140979000411,
+      "cpu_percent": 70.51532941943901,
+      "unrelated_cpu_cores": 10.933762403351146,
+      "aggregate_disk_bytes_per_second": 6727937.782137255,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:31.295070+00:00",
+      "unix": 1793659591.29507,
+      "interval": 2.000864850000653,
+      "cpu_percent": 70.15945330296128,
+      "unrelated_cpu_cores": 10.885292927202402,
+      "aggregate_disk_bytes_per_second": 9379879.905428832,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:33.297963+00:00",
+      "unix": 1793659593.297963,
+      "interval": 2.001070976999472,
+      "cpu_percent": 70.99609375,
+      "unrelated_cpu_cores": 11.159024470727653,
+      "aggregate_disk_bytes_per_second": 8545823.809629174,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:35.299038+00:00",
+      "unix": 1793659595.299038,
+      "interval": 2.000878939999893,
+      "cpu_percent": 71.15509409474367,
+      "unrelated_cpu_cores": 9.655756584654258,
+      "aggregate_disk_bytes_per_second": 7279488.883020967,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:37.302466+00:00",
+      "unix": 1793659597.302466,
+      "interval": 2.0011900709996553,
+      "cpu_percent": 75.76530612244898,
+      "unrelated_cpu_cores": 10.833553650988375,
+      "aggregate_disk_bytes_per_second": 6140.346275984554,
+      "non_target_gpu_busy_max": 1.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:39.305681+00:00",
+      "unix": 1793659599.305681,
+      "interval": 2.0009152610000456,
+      "cpu_percent": 74.66107165913492,
+      "unrelated_cpu_cores": 10.70010330637361,
+      "aggregate_disk_bytes_per_second": 4421656.515118058,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:41.309072+00:00",
+      "unix": 1793659601.309072,
+      "interval": 2.0011089479994553,
+      "cpu_percent": 72.43713733075435,
+      "unrelated_cpu_cores": 10.2992893118609,
+      "aggregate_disk_bytes_per_second": 5483551.51325973,
+      "non_target_gpu_busy_max": 98.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:43.305556+00:00",
+      "unix": 1793659603.305556,
+      "interval": 2.00090504200125,
+      "cpu_percent": 67.578125,
+      "unrelated_cpu_cores": 9.570669071255224,
+      "aggregate_disk_bytes_per_second": 7895563.091889161,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:45.307287+00:00",
+      "unix": 1793659605.307287,
+      "interval": 2.001259052000023,
+      "cpu_percent": 73.04826692581794,
+      "unrelated_cpu_cores": 10.338491650704979,
+      "aggregate_disk_bytes_per_second": 3244037.7938637426,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:47.307044+00:00",
+      "unix": 1793659607.307044,
+      "interval": 2.001161129999673,
+      "cpu_percent": 75.78374920025591,
+      "unrelated_cpu_cores": 10.823716129247194,
+      "aggregate_disk_bytes_per_second": 13361586.730402049,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:49.308131+00:00",
+      "unix": 1793659609.308131,
+      "interval": 2.0009681440005807,
+      "cpu_percent": 69.02972884678209,
+      "unrelated_cpu_cores": 9.740285000756286,
+      "aggregate_disk_bytes_per_second": 7874844.008508827,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:51.319136+00:00",
+      "unix": 1793659611.319136,
+      "interval": 2.0009031609988597,
+      "cpu_percent": 68.130081300813,
+      "unrelated_cpu_cores": 9.63065098581799,
+      "aggregate_disk_bytes_per_second": 6583395.067167625,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:53.307670+00:00",
+      "unix": 1793659613.30767,
+      "interval": 2.0010414160005894,
+      "cpu_percent": 70.27290448343079,
+      "unrelated_cpu_cores": 9.644977782905777,
+      "aggregate_disk_bytes_per_second": 2206595.0083257547,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:55.308245+00:00",
+      "unix": 1793659615.308245,
+      "interval": 2.0009379820003232,
+      "cpu_percent": 75.44871794871794,
+      "unrelated_cpu_cores": 10.500075559061784,
+      "aggregate_disk_bytes_per_second": 3101265.5343752666,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:57.301169+00:00",
+      "unix": 1793659617.301169,
+      "interval": 2.000970873999904,
+      "cpu_percent": 75.04804612427931,
+      "unrelated_cpu_cores": 10.195050945054874,
+      "aggregate_disk_bytes_per_second": 90068.27752556714,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:46:59.311328+00:00",
+      "unix": 1793659619.311328,
+      "interval": 2.0006876639999973,
+      "cpu_percent": 73.9353186039065,
+      "unrelated_cpu_cores": 10.151509586155985,
+      "aggregate_disk_bytes_per_second": 399222.73444876954,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:01.377250+00:00",
+      "unix": 1793659621.37725,
+      "interval": 2.0027925109989155,
+      "cpu_percent": 72.24555735056543,
+      "unrelated_cpu_cores": 10.79992055153621,
+      "aggregate_disk_bytes_per_second": 518671130.5815156,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:03.323336+00:00",
+      "unix": 1793659623.323336,
+      "interval": 2.0079324240014103,
+      "cpu_percent": 73.41486964917927,
+      "unrelated_cpu_cores": 10.443578553411154,
+      "aggregate_disk_bytes_per_second": 337806938.068312,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:05.335196+00:00",
+      "unix": 1793659625.335196,
+      "interval": 2.0020949989993824,
+      "cpu_percent": 73.61333760820776,
+      "unrelated_cpu_cores": 10.598897660003868,
+      "aggregate_disk_bytes_per_second": 613757.0897555491,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:07.325305+00:00",
+      "unix": 1793659627.325305,
+      "interval": 2.0018081500002154,
+      "cpu_percent": 73.37829158638407,
+      "unrelated_cpu_cores": 10.390606112777473,
+      "aggregate_disk_bytes_per_second": 2913717.7805971927,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:09.329267+00:00",
+      "unix": 1793659629.329267,
+      "interval": 2.000681944999087,
+      "cpu_percent": 72.33766233766234,
+      "unrelated_cpu_cores": 10.971259102360728,
+      "aggregate_disk_bytes_per_second": 5277944.366117033,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:11.328970+00:00",
+      "unix": 1793659631.32897,
+      "interval": 2.0010421950009913,
+      "cpu_percent": 69.7869593285991,
+      "unrelated_cpu_cores": 10.939299558342974,
+      "aggregate_disk_bytes_per_second": 6476497.113542166,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:13.352370+00:00",
+      "unix": 1793659633.35237,
+      "interval": 2.001042485999278,
+      "cpu_percent": 69.85630306988897,
+      "unrelated_cpu_cores": 10.794373508373273,
+      "aggregate_disk_bytes_per_second": 5422325.650712803,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:15.373059+00:00",
+      "unix": 1793659635.373059,
+      "interval": 2.0012007910008833,
+      "cpu_percent": 73.07940606843124,
+      "unrelated_cpu_cores": 11.523081593659944,
+      "aggregate_disk_bytes_per_second": 728650.5215054937,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:17.327372+00:00",
+      "unix": 1793659637.327372,
+      "interval": 2.001437797998733,
+      "cpu_percent": 75.78778135048232,
+      "unrelated_cpu_cores": 11.31186790947891,
+      "aggregate_disk_bytes_per_second": 1952388.429911362,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:19.331984+00:00",
+      "unix": 1793659639.331984,
+      "interval": 2.000695415001246,
+      "cpu_percent": 75.94081698295271,
+      "unrelated_cpu_cores": 11.555981898416857,
+      "aggregate_disk_bytes_per_second": 397173.89965603786,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:21.332066+00:00",
+      "unix": 1793659641.332066,
+      "interval": 2.0011769800003094,
+      "cpu_percent": 75.9020618556701,
+      "unrelated_cpu_cores": 11.043501010088866,
+      "aggregate_disk_bytes_per_second": 166257103.35721958,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:23.330509+00:00",
+      "unix": 1793659643.330509,
+      "interval": 2.0010110849998455,
+      "cpu_percent": 76.84176809737347,
+      "unrelated_cpu_cores": 12.138863288706807,
+      "aggregate_disk_bytes_per_second": 2065387.8586586236,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:25.338624+00:00",
+      "unix": 1793659645.338624,
+      "interval": 2.001119087999541,
+      "cpu_percent": 75.45395590142672,
+      "unrelated_cpu_cores": 11.763417850125169,
+      "aggregate_disk_bytes_per_second": 1903574.8661055567,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:27.334986+00:00",
+      "unix": 1793659647.334986,
+      "interval": 2.001235051999174,
+      "cpu_percent": 76.55748233782916,
+      "unrelated_cpu_cores": 11.927634375659462,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:29.397619+00:00",
+      "unix": 1793659649.397619,
+      "interval": 2.001099057000829,
+      "cpu_percent": 72.76554404145078,
+      "unrelated_cpu_cores": 11.473694877659668,
+      "aggregate_disk_bytes_per_second": 2562687.7300546723,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:31.342506+00:00",
+      "unix": 1793659651.342506,
+      "interval": 2.001169920000393,
+      "cpu_percent": 70.25806451612904,
+      "unrelated_cpu_cores": 10.45888197239937,
+      "aggregate_disk_bytes_per_second": 9740734.06020223,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:33.344532+00:00",
+      "unix": 1793659653.344532,
+      "interval": 2.000787847999163,
+      "cpu_percent": 70.01934235976789,
+      "unrelated_cpu_cores": 11.130615383470339,
+      "aggregate_disk_bytes_per_second": 9320872.284710018,
+      "non_target_gpu_busy_max": 96.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:35.340642+00:00",
+      "unix": 1793659655.340642,
+      "interval": 2.0011343879996275,
+      "cpu_percent": 69.95777849951283,
+      "unrelated_cpu_cores": 10.798874942927633,
+      "aggregate_disk_bytes_per_second": 10692687.171994159,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:37.348639+00:00",
+      "unix": 1793659657.348639,
+      "interval": 2.0009275219999836,
+      "cpu_percent": 70.75532601678502,
+      "unrelated_cpu_cores": 10.929931124211995,
+      "aggregate_disk_bytes_per_second": 7623216.649423509,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:39.422620+00:00",
+      "unix": 1793659659.42262,
+      "interval": 2.0010002050003095,
+      "cpu_percent": 68.30618892508143,
+      "unrelated_cpu_cores": 10.849574100866542,
+      "aggregate_disk_bytes_per_second": 5817506.650379478,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:41.342266+00:00",
+      "unix": 1793659661.342266,
+      "interval": 2.0023846280000726,
+      "cpu_percent": 70.74122236671002,
+      "unrelated_cpu_cores": 10.567400340629879,
+      "aggregate_disk_bytes_per_second": 4326361.618473075,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:43.348644+00:00",
+      "unix": 1793659663.348644,
+      "interval": 2.0012597130007634,
+      "cpu_percent": 70.93098958333333,
+      "unrelated_cpu_cores": 11.187953194954192,
+      "aggregate_disk_bytes_per_second": 9040321.894489212,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T22:47:45.346218+00:00",
+      "unix": 1793659665.346218,
+      "interval": 2.0008346889990207,
+      "cpu_percent": 72.16996432046707,
+      "unrelated_cpu_cores": 11.500200454597008,
+      "aggregate_disk_bytes_per_second": 2397207.5386195723,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    }
+  ],
+  "phase_windows": [
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "arm": "candidate",
+      "phase": "pp",
+      "utc_begin": 1793659580.414957,
+      "utc_end": 1793659587.2694795,
+      "wall_ms": 6854.522038,
+      "rate": 597.561723,
+      "sensor_samples_contained": 35,
+      "sensor_samples_overlapping": 35,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 35,
+          "min": 1620000000.0,
+          "median": 1679000000.0,
+          "max": 1694000000.0
+        },
+        "freq2_input": {
+          "n": 35,
+          "min": 800000000.0,
+          "median": 800000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 35,
+          "min": 190000000.0,
+          "median": 219000000.0,
+          "max": 230000000.0
+        },
+        "temp1_input": {
+          "n": 35,
+          "min": 47000.0,
+          "median": 51000.0,
+          "max": 54000.0
+        },
+        "temp2_input": {
+          "n": 35,
+          "min": 65000.0,
+          "median": 80000.0,
+          "max": 83000.0
+        },
+        "temp3_input": {
+          "n": 35,
+          "min": 48000.0,
+          "median": 51000.0,
+          "max": 53000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        ]
+      },
+      "activity_fully_contained_intervals": 2,
+      "activity_flags": {
+        "unrelated_cpu": 2,
+        "disk": 0,
+        "other_gpu": 2,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "arm": "candidate",
+      "phase": "tg",
+      "utc_begin": 1793659587.2695117,
+      "utc_end": 1793659589.4972434,
+      "wall_ms": 2227.730114,
+      "rate": 114.915177,
+      "sensor_samples_contained": 11,
+      "sensor_samples_overlapping": 11,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 11,
+          "min": 1690000000.0,
+          "median": 1691000000.0,
+          "max": 1696000000.0
+        },
+        "freq2_input": {
+          "n": 11,
+          "min": 1000000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 11,
+          "min": 163000000.0,
+          "median": 189000000.0,
+          "max": 196000000.0
+        },
+        "temp1_input": {
+          "n": 11,
+          "min": 53000.0,
+          "median": 53000.0,
+          "max": 54000.0
+        },
+        "temp2_input": {
+          "n": 11,
+          "min": 74000.0,
+          "median": 76000.0,
+          "max": 76000.0
+        },
+        "temp3_input": {
+          "n": 11,
+          "min": 57000.0,
+          "median": 58000.0,
+          "max": 59000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 1,
+      "activity_flags": {
+        "unrelated_cpu": 1,
+        "disk": 0,
+        "other_gpu": 1,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "arm": "combined",
+      "phase": "pp",
+      "utc_begin": 1793659603.623675,
+      "utc_end": 1793659609.502796,
+      "wall_ms": 5879.120641,
+      "rate": 696.702832,
+      "sensor_samples_contained": 30,
+      "sensor_samples_overlapping": 30,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 30,
+          "min": 1573000000.0,
+          "median": 1631000000.0,
+          "max": 1685000000.0
+        },
+        "freq2_input": {
+          "n": 30,
+          "min": 800000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 30,
+          "min": 191000000.0,
+          "median": 218500000.0,
+          "max": 238000000.0
+        },
+        "temp1_input": {
+          "n": 30,
+          "min": 56000.0,
+          "median": 59000.0,
+          "max": 61000.0
+        },
+        "temp2_input": {
+          "n": 30,
+          "min": 75000.0,
+          "median": 88000.0,
+          "max": 90000.0
+        },
+        "temp3_input": {
+          "n": 30,
+          "min": 57000.0,
+          "median": 58000.0,
+          "max": 60000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 2,
+      "activity_flags": {
+        "unrelated_cpu": 2,
+        "disk": 0,
+        "other_gpu": 2,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "arm": "combined",
+      "phase": "tg",
+      "utc_begin": 1793659609.5028336,
+      "utc_end": 1793659611.7298324,
+      "wall_ms": 2226.997911,
+      "rate": 114.952959,
+      "sensor_samples_contained": 11,
+      "sensor_samples_overlapping": 11,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 11,
+          "min": 928000000.0,
+          "median": 1691000000.0,
+          "max": 1702000000.0
+        },
+        "freq2_input": {
+          "n": 11,
+          "min": 1000000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 11,
+          "min": 61000000.0,
+          "median": 189000000.0,
+          "max": 206000000.0
+        },
+        "temp1_input": {
+          "n": 11,
+          "min": 59000.0,
+          "median": 60000.0,
+          "max": 60000.0
+        },
+        "temp2_input": {
+          "n": 11,
+          "min": 72000.0,
+          "median": 82000.0,
+          "max": 85000.0
+        },
+        "temp3_input": {
+          "n": 11,
+          "min": 62000.0,
+          "median": 64000.0,
+          "max": 65000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 0,
+      "activity_flags": {
+        "unrelated_cpu": 0,
+        "disk": 0,
+        "other_gpu": 0,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "arm": "combined",
+      "phase": "pp",
+      "utc_begin": 1793659626.1327877,
+      "utc_end": 1793659632.030626,
+      "wall_ms": 5897.837933,
+      "rate": 694.491786,
+      "sensor_samples_contained": 29,
+      "sensor_samples_overlapping": 29,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 29,
+          "min": 1581000000.0,
+          "median": 1625000000.0,
+          "max": 1662000000.0
+        },
+        "freq2_input": {
+          "n": 29,
+          "min": 1000000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 29,
+          "min": 199000000.0,
+          "median": 221000000.0,
+          "max": 239000000.0
+        },
+        "temp1_input": {
+          "n": 29,
+          "min": 62000.0,
+          "median": 64000.0,
+          "max": 65000.0
+        },
+        "temp2_input": {
+          "n": 29,
+          "min": 90000.0,
+          "median": 93000.0,
+          "max": 95000.0
+        },
+        "temp3_input": {
+          "n": 29,
+          "min": 62000.0,
+          "median": 63000.0,
+          "max": 64000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 2,
+      "activity_flags": {
+        "unrelated_cpu": 2,
+        "disk": 0,
+        "other_gpu": 2,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "arm": "combined",
+      "phase": "tg",
+      "utc_begin": 1793659632.0306692,
+      "utc_end": 1793659634.208977,
+      "wall_ms": 2178.304199,
+      "rate": 117.522612,
+      "sensor_samples_contained": 11,
+      "sensor_samples_overlapping": 11,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 11,
+          "min": 1354000000.0,
+          "median": 1694000000.0,
+          "max": 1697000000.0
+        },
+        "freq2_input": {
+          "n": 11,
+          "min": 1000000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 11,
+          "min": 46000000.0,
+          "median": 196000000.0,
+          "max": 211000000.0
+        },
+        "temp1_input": {
+          "n": 11,
+          "min": 64000.0,
+          "median": 65000.0,
+          "max": 65000.0
+        },
+        "temp2_input": {
+          "n": 11,
+          "min": 86000.0,
+          "median": 88000.0,
+          "max": 95000.0
+        },
+        "temp3_input": {
+          "n": 11,
+          "min": 64000.0,
+          "median": 69000.0,
+          "max": 69000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 0,
+      "activity_flags": {
+        "unrelated_cpu": 0,
+        "disk": 0,
+        "other_gpu": 0,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "arm": "candidate",
+      "phase": "pp",
+      "utc_begin": 1793659650.239073,
+      "utc_end": 1793659657.1711376,
+      "wall_ms": 6932.063453,
+      "rate": 590.877453,
+      "sensor_samples_contained": 34,
+      "sensor_samples_overlapping": 34,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 34,
+          "min": 1615000000.0,
+          "median": 1657000000.0,
+          "max": 1691000000.0
+        },
+        "freq2_input": {
+          "n": 34,
+          "min": 800000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 34,
+          "min": 201000000.0,
+          "median": 220000000.0,
+          "max": 232000000.0
+        },
+        "temp1_input": {
+          "n": 34,
+          "min": 66000.0,
+          "median": 67000.0,
+          "max": 68000.0
+        },
+        "temp2_input": {
+          "n": 34,
+          "min": 94000.0,
+          "median": 96500.0,
+          "max": 98000.0
+        },
+        "temp3_input": {
+          "n": 34,
+          "min": 65000.0,
+          "median": 66000.0,
+          "max": 67000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 2,
+      "activity_flags": {
+        "unrelated_cpu": 2,
+        "disk": 0,
+        "other_gpu": 2,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "arm": "candidate",
+      "phase": "tg",
+      "utc_begin": 1793659657.1712346,
+      "utc_end": 1793659659.6774166,
+      "wall_ms": 2506.181112,
+      "rate": 102.147446,
+      "sensor_samples_contained": 13,
+      "sensor_samples_overlapping": 13,
+      "sensor_summary_raw_units": {
+        "freq1_input": {
+          "n": 13,
+          "min": 1089000000.0,
+          "median": 1694000000.0,
+          "max": 1709000000.0
+        },
+        "freq2_input": {
+          "n": 13,
+          "min": 1000000000.0,
+          "median": 1000000000.0,
+          "max": 1000000000.0
+        },
+        "power1_input": {
+          "n": 13,
+          "min": 76000000.0,
+          "median": 190000000.0,
+          "max": 202000000.0
+        },
+        "temp1_input": {
+          "n": 13,
+          "min": 65000.0,
+          "median": 67000.0,
+          "max": 68000.0
+        },
+        "temp2_input": {
+          "n": 13,
+          "min": 73000.0,
+          "median": 90000.0,
+          "max": 95000.0
+        },
+        "temp3_input": {
+          "n": 13,
+          "min": 68000.0,
+          "median": 71000.0,
+          "max": 72000.0
+        }
+      },
+      "sensor_dpm_raw": {
+        "pp_dpm_sclk": [
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz *\n7: 1606Mhz \n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz *\n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *"
+        ],
+        "pp_dpm_mclk": [
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *",
+          "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        ]
+      },
+      "activity_fully_contained_intervals": 1,
+      "activity_flags": {
+        "unrelated_cpu": 1,
+        "disk": 0,
+        "other_gpu": 1,
+        "gap": 0
+      }
+    }
+  ],
+  "phase_summaries": {
+    "pp": {
+      "medians": {
+        "candidate": {
+          "wall_ms": 6893.2927455,
+          "rate": 594.2195879999999
+        },
+        "combined": {
+          "wall_ms": 5888.479287,
+          "rate": 695.597309
+        }
+      },
+      "C_vs_B_percent": {
+        "wall_ms": -14.576683387717004,
+        "rate": 17.0606494715553
+      }
+    },
+    "tg": {
+      "medians": {
+        "candidate": {
+          "wall_ms": 2366.955613,
+          "rate": 108.5313115
+        },
+        "combined": {
+          "wall_ms": 2202.6510550000003,
+          "rate": 116.2377855
+        }
+      },
+      "C_vs_B_percent": {
+        "wall_ms": -6.941598612901401,
+        "rate": 7.1006918588650825
+      }
+    }
+  },
+  "benchmark_rates": {
+    "pp4096": {
+      "samples": {
+        "candidate": [
+          597.56,
+          590.88
+        ],
+        "combined": [
+          696.7,
+          694.49
+        ]
+      },
+      "medians": {
+        "candidate": 594.22,
+        "combined": 695.595
+      },
+      "C_vs_B_rate_percent": 17.060179731412607,
+      "paired_C_vs_B_rate_percent": [
+        16.590802597228738,
+        17.5348632548064
+      ]
+    },
+    "tg256": {
+      "samples": {
+        "candidate": [
+          114.92,
+          102.15
+        ],
+        "combined": [
+          114.95,
+          117.52
+        ]
+      },
+      "medians": {
+        "candidate": 108.535,
+        "combined": 116.235
+      },
+      "C_vs_B_rate_percent": 7.094485649790383,
+      "paired_C_vs_B_rate_percent": [
+        0.02610511660285919,
+        15.046500244738127
+      ]
+    }
+  },
+  "sensor_collector": {
+    "event": "stop",
+    "samples": 515,
+    "elapsed_seconds": 103.0001401210011,
+    "process_cpu_seconds": 0.765055359,
+    "interval_seconds": 0.2,
+    "cpu": 3,
+    "cpu_core_equivalents": 0.007427711827394008,
+    "sample_read_seconds": {
+      "min": 0.0008325576782226562,
+      "median": 0.0011446475982666016,
+      "max": 0.003564596176147461
+    }
+  },
+  "deviations": [],
+  "limits": [
+    "Two timed samples per arm; compare only this B/C cohort.",
+    "CPU timestamp instrumentation and changed CPU layout can perturb behavior; current patched B/C .text bytes differ while addresses/sizes match.",
+    "5Hz read-only telemetry is sparse; attribute only fully contained UTC reads. No sensor causal claim or clock/power change.",
+    "No GPU profiling, kernel timing, dispatch assertions, logits comparison or HF/operator repeat.",
+    "Quiet logs omit full placement/allocation plans; unchanged library pins are not a new model gate."
+  ],
+  "incident_note": "Separate earlier worker ran wrong old build launcher instead of original two-call full-logit comparison. Root cleaned exact orphan; that logits comparison remains undone and was not launched here.",
+  "activity_by_call": [
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "samples": 11,
+      "system_cpu_median": 73.20681891283371,
+      "unrelated_cpu_cores_median": 11.36039961185647,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 0,
+        "other_gpu": 10,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "samples": 9,
+      "system_cpu_median": 72.43713733075435,
+      "unrelated_cpu_cores_median": 10.2992893118609,
+      "flags": {
+        "unrelated_cpu": 9,
+        "disk": 0,
+        "other_gpu": 9,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "samples": 10,
+      "system_cpu_median": 73.22884882740766,
+      "unrelated_cpu_cores_median": 10.69663558418857,
+      "flags": {
+        "unrelated_cpu": 10,
+        "disk": 2,
+        "other_gpu": 5,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "samples": 12,
+      "system_cpu_median": 71.7604350291179,
+      "unrelated_cpu_cores_median": 11.087058196779601,
+      "flags": {
+        "unrelated_cpu": 12,
+        "disk": 1,
+        "other_gpu": 7,
+        "gap": 0
+      }
+    }
+  ],
+  "sensor_by_call": [
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "samples": 11,
+      "read_seconds": [
+        0.004255944999385974,
+        0.0030859069993312005,
+        0.0008366059992113151,
+        0.0011164059997099685,
+        0.0010371530006523244,
+        0.0007497739989048569,
+        0.0011411760006012628,
+        0.001031943000270985,
+        0.0009320690005552024,
+        0.001420485001290217,
+        0.0015431589999934658
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "928000000",
+          "1691000000",
+          "1686000000",
+          "1630000000",
+          "1538000000",
+          "1690000000",
+          "1686000000",
+          "1687000000",
+          "928000000",
+          "948000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "350000000",
+          "800000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "350000000",
+          "350000000"
+        ],
+        "hwmon4/power1_input": [
+          "22000000",
+          "23000000",
+          "228000000",
+          "212000000",
+          "232000000",
+          "147000000",
+          "219000000",
+          "223000000",
+          "213000000",
+          "26000000",
+          "29000000"
+        ],
+        "hwmon4/temp1_input": [
+          "35000",
+          "35000",
+          "42000",
+          "44000",
+          "47000",
+          "47000",
+          "50000",
+          "51000",
+          "52000",
+          "53000",
+          "54000"
+        ],
+        "hwmon4/temp2_input": [
+          "36000",
+          "36000",
+          "70000",
+          "73000",
+          "75000",
+          "65000",
+          "78000",
+          "79000",
+          "81000",
+          "71000",
+          "67000"
+        ],
+        "hwmon4/temp3_input": [
+          "35000",
+          "36000",
+          "41000",
+          "44000",
+          "45000",
+          "51000",
+          "48000",
+          "50000",
+          "52000",
+          "53000",
+          "56000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        }
+      ]
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "samples": 9,
+      "read_seconds": [
+        0.0009528810005576815,
+        0.0009254090000467841,
+        0.0011488159998407355,
+        0.0010695330001908587,
+        0.0009452199992665555,
+        0.0010267820016451878,
+        0.001235599000210641,
+        0.0012375390015222365,
+        0.0012266889989405172
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "1656000000",
+          "1627000000",
+          "1601000000",
+          "1682000000",
+          "1629000000",
+          "1635000000",
+          "1586000000",
+          "925000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "25000000",
+          "206000000",
+          "228000000",
+          "225000000",
+          "180000000",
+          "227000000",
+          "224000000",
+          "229000000",
+          "80000000"
+        ],
+        "hwmon4/temp1_input": [
+          "47000",
+          "53000",
+          "55000",
+          "56000",
+          "56000",
+          "59000",
+          "60000",
+          "60000",
+          "59000"
+        ],
+        "hwmon4/temp2_input": [
+          "48000",
+          "82000",
+          "84000",
+          "86000",
+          "73000",
+          "87000",
+          "88000",
+          "90000",
+          "72000"
+        ],
+        "hwmon4/temp3_input": [
+          "48000",
+          "52000",
+          "54000",
+          "56000",
+          "60000",
+          "58000",
+          "58000",
+          "60000",
+          "63000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "samples": 10,
+      "read_seconds": [
+        0.0008783969988144236,
+        0.0011387960003048647,
+        0.0009027890009747352,
+        0.000956240999585134,
+        0.0013027109998802189,
+        0.001033951999488636,
+        0.0011583569994400023,
+        0.001159086999905412,
+        0.0009579409997968469,
+        0.0011400769999454496
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "927000000",
+          "1578000000",
+          "1588000000",
+          "1599000000",
+          "1084000000",
+          "1633000000",
+          "1629000000",
+          "1633000000",
+          "1694000000",
+          "928000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "350000000"
+        ],
+        "hwmon4/power1_input": [
+          "26000000",
+          "222000000",
+          "225000000",
+          "227000000",
+          "90000000",
+          "238000000",
+          "198000000",
+          "226000000",
+          "196000000",
+          "26000000"
+        ],
+        "hwmon4/temp1_input": [
+          "52000",
+          "58000",
+          "60000",
+          "61000",
+          "60000",
+          "63000",
+          "64000",
+          "65000",
+          "64000",
+          "60000"
+        ],
+        "hwmon4/temp2_input": [
+          "53000",
+          "87000",
+          "89000",
+          "90000",
+          "73000",
+          "92000",
+          "93000",
+          "95000",
+          "87000",
+          "61000"
+        ],
+        "hwmon4/temp3_input": [
+          "53000",
+          "57000",
+          "59000",
+          "60000",
+          "64000",
+          "62000",
+          "63000",
+          "64000",
+          "68000",
+          "60000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz *\n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        }
+      ]
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "samples": 12,
+      "read_seconds": [
+        0.0009847509991232073,
+        0.0010791240001708502,
+        0.0011711869992723223,
+        0.0011157450007885927,
+        0.0010731640013545984,
+        0.0007764649999444373,
+        0.0012929309996252414,
+        0.0013524330006475793,
+        0.0007441140005539637,
+        0.0009286990007240092,
+        0.002927653000369901,
+        0.0008522669995727483
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "1667000000",
+          "1640000000",
+          "1610000000",
+          "1647000000",
+          "1678000000",
+          "1669000000",
+          "1608000000",
+          "1644000000",
+          "1359000000",
+          "925000000",
+          "926000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "800000000",
+          "800000000",
+          "800000000",
+          "800000000",
+          "1000000000",
+          "800000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "350000000"
+        ],
+        "hwmon4/power1_input": [
+          "26000000",
+          "199000000",
+          "227000000",
+          "226000000",
+          "217000000",
+          "174000000",
+          "200000000",
+          "227000000",
+          "218000000",
+          "126000000",
+          "59000000",
+          "25000000"
+        ],
+        "hwmon4/temp1_input": [
+          "56000",
+          "61000",
+          "63000",
+          "64000",
+          "65000",
+          "63000",
+          "66000",
+          "67000",
+          "67000",
+          "67000",
+          "65000",
+          "62000"
+        ],
+        "hwmon4/temp2_input": [
+          "57000",
+          "89000",
+          "92000",
+          "94000",
+          "95000",
+          "75000",
+          "95000",
+          "96000",
+          "97000",
+          "84000",
+          "73000",
+          "62000"
+        ],
+        "hwmon4/temp3_input": [
+          "56000",
+          "59000",
+          "61000",
+          "63000",
+          "64000",
+          "67000",
+          "65000",
+          "66000",
+          "66000",
+          "70000",
+          "68000",
+          "62000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz *\n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        }
+      ]
+    }
+  ],
+  "vram_by_call": [
+    {
+      "call": "q2-plain-phase-0-candidate",
+      "samples": 11,
+      "peak_bytes": 8556253184
+    },
+    {
+      "call": "q2-plain-phase-1-combined",
+      "samples": 9,
+      "peak_bytes": 8556253184
+    },
+    {
+      "call": "q2-plain-phase-2-combined",
+      "samples": 10,
+      "peak_bytes": 8556253184
+    },
+    {
+      "call": "q2-plain-phase-3-candidate",
+      "samples": 12,
+      "peak_bytes": 8556253184
+    }
+  ],
+  "activity_summary": {
+    "intervals": 51,
+    "cpu_percent_min": 67.578125,
+    "cpu_percent_median": 72.43713733075435,
+    "cpu_percent_max": 76.84176809737347,
+    "flags": {
+      "unrelated_cpu": 51,
+      "disk": 4,
+      "other_gpu": 38,
+      "gap": 0
+    }
+  },
+  "checks": {
+    "all_calls_valid": true,
+    "all_admissions_pass": true,
+    "model_flags_paths_pins_unchanged": true,
+    "removed": true,
+    "monitor_exit": 0,
+    "sensors_exit": 0,
+    "oom": false,
+    "profiling_flag_or_output": false,
+    "driver_overrides": false,
+    "logits_comparison_run": false
+  },
+  "elf_audit": {
+    "sha256": "1995f3b8d91a04c81f52fec0808e7af674a586274cadec1b03995b6107b30ff7",
+    "comparisons": {
+      "original_b_vs_original_c": {
+        "sections": {
+          ".init": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          },
+          ".plt": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          },
+          ".plt.got": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          },
+          ".text": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          },
+          ".fini": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          }
+        },
+        "all_executable_content_equal": true,
+        "all_executable_address_size_equal": true,
+        "text_a": {
+          "name": ".text",
+          "address": 111680,
+          "offset": 111680,
+          "size": 3186033,
+          "flags": "AX",
+          "sha256": "1de85c0e12f84a7a972d554dbebcf28dc7269756a0e27823549ebb37bd3dae22"
+        },
+        "text_b": {
+          "name": ".text",
+          "address": 111680,
+          "offset": 111680,
+          "size": 3186033,
+          "flags": "AX",
+          "sha256": "1de85c0e12f84a7a972d554dbebcf28dc7269756a0e27823549ebb37bd3dae22"
+        }
+      },
+      "plain_b_vs_plain_c": {
+        "sections": {
+          ".init": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".plt": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".plt.got": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".text": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".fini": {
+            "address_equal": true,
+            "size_equal": true,
+            "sha256_equal": true
+          }
+        },
+        "all_executable_content_equal": false,
+        "all_executable_address_size_equal": true,
+        "text_a": {
+          "name": ".text",
+          "address": 115776,
+          "offset": 115776,
+          "size": 3187185,
+          "flags": "AX",
+          "sha256": "042ff5e078dd27a280994d46384c5921287457e8cf19e1a91c4187804a061126"
+        },
+        "text_b": {
+          "name": ".text",
+          "address": 115776,
+          "offset": 115776,
+          "size": 3187185,
+          "flags": "AX",
+          "sha256": "cd25486479fb8926bef04edace5eb70eb57108d0db02f15c8bf4addd29ae038f"
+        }
+      },
+      "original_b_vs_plain_b": {
+        "sections": {
+          ".init": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".plt": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": true
+          },
+          ".plt.got": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".text": {
+            "address_equal": false,
+            "size_equal": false,
+            "sha256_equal": false
+          },
+          ".fini": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": true
+          }
+        },
+        "all_executable_content_equal": false,
+        "all_executable_address_size_equal": false,
+        "text_a": {
+          "name": ".text",
+          "address": 111680,
+          "offset": 111680,
+          "size": 3186033,
+          "flags": "AX",
+          "sha256": "1de85c0e12f84a7a972d554dbebcf28dc7269756a0e27823549ebb37bd3dae22"
+        },
+        "text_b": {
+          "name": ".text",
+          "address": 115776,
+          "offset": 115776,
+          "size": 3187185,
+          "flags": "AX",
+          "sha256": "042ff5e078dd27a280994d46384c5921287457e8cf19e1a91c4187804a061126"
+        }
+      },
+      "original_c_vs_plain_c": {
+        "sections": {
+          ".init": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".plt": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".plt.got": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": false
+          },
+          ".text": {
+            "address_equal": false,
+            "size_equal": false,
+            "sha256_equal": false
+          },
+          ".fini": {
+            "address_equal": false,
+            "size_equal": true,
+            "sha256_equal": true
+          }
+        },
+        "all_executable_content_equal": false,
+        "all_executable_address_size_equal": false,
+        "text_a": {
+          "name": ".text",
+          "address": 111680,
+          "offset": 111680,
+          "size": 3186033,
+          "flags": "AX",
+          "sha256": "1de85c0e12f84a7a972d554dbebcf28dc7269756a0e27823549ebb37bd3dae22"
+        },
+        "text_b": {
+          "name": ".text",
+          "address": 115776,
+          "offset": 115776,
+          "size": 3187185,
+          "flags": "AX",
+          "sha256": "cd25486479fb8926bef04edace5eb70eb57108d0db02f15c8bf4addd29ae038f"
+        }
+      }
+    },
+    "limits": "ELF virtual addresses are file layout, not process ASLR addresses. Identical executable sections do not establish equal data/relocations, driver or allocation state. Cross-build differences do not prove causality.",
+    "text_classification": {
+      "sha256": "9492bd1b3472db474bc20b201376a55afc924a0c814908ff02d0dad991d42980",
+      "differing_text_bytes": 5907,
+      "differing_instructions": 5582,
+      "instruction_categories": {
+        "RIP_relative_displacement_only": 5582
+      },
+      "target_section_pairs": {
+        ".got -> .got": 1534,
+        ".data.rel.ro -> .data.rel.ro": 3077,
+        ".bss -> .bss": 943,
+        "None -> None": 4,
+        ".data -> .data": 24
+      },
+      "other_changes": [],
+      "rip_examples": [
+        {
+          "address": 115807,
+          "kind": "RIP_relative_displacement_only",
+          "b": {
+            "bytes": "48 8b 15 22 8b da 00",
+            "asm": "mov    0xda8b22(%rip),%rdx        # dc4f88 <std::runtime_error::~runtime_error()@GLIBCXX_3.4>"
+          },
+          "c": {
+            "bytes": "48 8b 15 22 9b da 00",
+            "asm": "mov    0xda9b22(%rip),%rdx        # dc5f88 <std::runtime_error::~runtime_error()@GLIBCXX_3.4>"
+          },
+          "b_target": {
+            "address": 14438280,
+            "section": ".got"
+          },
+          "c_target": {
+            "address": 14442376,
+            "section": ".got"
+          }
+        },
+        {
+          "address": 115814,
+          "kind": "RIP_relative_displacement_only",
+          "b": {
+            "bytes": "48 8d 35 bb 6a da 00",
+            "asm": "lea    0xda6abb(%rip),%rsi        # dc2f28 <typeinfo for std::runtime_error@GLIBCXX_3.4>"
+          },
+          "c": {
+            "bytes": "48 8d 35 bb 7a da 00",
+            "asm": "lea    0xda7abb(%rip),%rsi        # dc3f28 <typeinfo for std::runtime_error@GLIBCXX_3.4>"
+          },
+          "b_target": {
+            "address": 14429992,
+            "section": ".data.rel.ro"
+          },
+          "c_target": {
+            "address": 14434088,
+            "section": ".data.rel.ro"
+          }
+        },
+        {
+          "address": 115883,
+          "kind": "RIP_relative_displacement_only",
+          "b": {
+            "bytes": "48 8b 15 d6 8a da 00",
+            "asm": "mov    0xda8ad6(%rip),%rdx        # dc4f88 <std::runtime_error::~runtime_error()@GLIBCXX_3.4>"
+          },
+          "c": {
+            "bytes": "48 8b 15 d6 9a da 00",
+            "asm": "mov    0xda9ad6(%rip),%rdx        # dc5f88 <std::runtime_error::~runtime_error()@GLIBCXX_3.4>"
+          },
+          "b_target": {
+            "address": 14438280,
+            "section": ".got"
+          },
+          "c_target": {
+            "address": 14442376,
+            "section": ".got"
+          }
+        },
+        {
+          "address": 115890,
+          "kind": "RIP_relative_displacement_only",
+          "b": {
+            "bytes": "48 8d 35 6f 6a da 00",
+            "asm": "lea    0xda6a6f(%rip),%rsi        # dc2f28 <typeinfo for std::runtime_error@GLIBCXX_3.4>"
+          },
+          "c": {
+            "bytes": "48 8d 35 6f 7a da 00",
+            "asm": "lea    0xda7a6f(%rip),%rsi        # dc3f28 <typeinfo for std::runtime_error@GLIBCXX_3.4>"
+          },
+          "b_target": {
+            "address": 14429992,
+            "section": ".data.rel.ro"
+          },
+          "c_target": {
+            "address": 14434088,
+            "section": ".data.rel.ro"
+          }
+        },
+        {
+          "address": 115962,
+          "kind": "RIP_relative_displacement_only",
+          "b": {
+            "bytes": "48 8d 05 47 79 da 00",
+            "asm": "lea    0xda7947(%rip),%rax        # dc3e48 <vtable for (anonymous namespace)::UsageError+0x10>"
+          },
+          "c": {
+            "bytes": "48 8d 05 47 89 da 00",
+            "asm": "lea    0xda8947(%rip),%rax        # dc4e48 <vtable for (anonymous namespace)::UsageError+0x10>"
+          },
+          "b_target": {
+            "address": 14433864,
+            "section": ".data.rel.ro"
+          },
+          "c_target": {
+            "address": 14437960,
+            "section": ".data.rel.ro"
+          }
+        }
+      ],
+      "all_differing_bytes_covered": true,
+      "affected_symbol_ranges": 360,
+      "interpretation": "Classify opcode/register/control-flow changes separately from RIP target displacement changes. Same addresses/sizes alone do not prove identical executable bytes; no cause inferred.",
+      "target_address_deltas": {
+        "4096": 5582
+      }
+    }
+  }
+}

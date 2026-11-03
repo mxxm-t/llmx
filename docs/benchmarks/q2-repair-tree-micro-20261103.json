@@ -1,0 +1,70 @@
+{
+  "status": "DONE",
+  "seconds": 18.016120195388794,
+  "execution_sha256": "5d32e214cdbd991297492e1aeb7ae7f81590110149a4849e084b7386efcb9787",
+  "verified_raw_files": 12,
+  "modes": {
+    "gate": {
+      "calls": 10,
+      "finite_exact_outputs": 122880,
+      "all_bits_equal": true,
+      "timed_us": {
+        "0": [
+          82.4,
+          82.88,
+          83.52,
+          81.6
+        ],
+        "1": [
+          83.84,
+          83.68,
+          82.56,
+          84.16
+        ]
+      },
+      "median_us": {
+        "0": 82.64,
+        "1": 83.76
+      },
+      "time_change_percent": 1.3552758954501476
+    },
+    "down": {
+      "calls": 10,
+      "finite_exact_outputs": 40960,
+      "all_bits_equal": true,
+      "timed_us": {
+        "0": [
+          100.0,
+          100.8,
+          99.04,
+          99.2
+        ],
+        "1": [
+          102.72,
+          103.68,
+          101.44,
+          101.6
+        ]
+      },
+      "median_us": {
+        "0": 99.6,
+        "1": 102.16
+      },
+      "time_change_percent": 2.5702811244979973
+    },
+    "checks": {
+      "calls": 384,
+      "finite_exact_outputs": 11660,
+      "all_bits_equal": true
+    }
+  },
+  "scope": "Focused shader-only screen; not a model/HF/CI gate.",
+  "candidate": "Skip combined repair flags when TREE_CLUSTER <=1; keep unconditional per-row reduction.",
+  "baseline_spv_sha256": "17f04e87276bd518061ffa3a0fa00d0235e6b4e054cadf4fa0377386c4a2347b",
+  "candidate_spv_sha256": "cfa5223f744090c00e8610a384f352484aaff88c7750bfb070f5eb857ab1ed5c",
+  "disposition": "Do not promote: no measured gain. Both medians slower, with overlapping primary ranges and separated secondary ranges. This does not prove an application regression.",
+  "next": "Verify actual model grouped projection shapes and reduction specialization before extending micro conclusions.",
+  "evidence_root": "scratch/q2-prefill-code-table-20261103/model-integration-ef/repair-tree-micro",
+  "geometry_correction_ref": "q2-geometry-correction-20261103.json",
+  "geometry_correction_summary": "Geometry is shape-dependent: for timed gate/down dimensions M=12288 and 4096 (both divisible by 32), the 64-based probe launches 4x the 256-local-size shader workgroups. M=37 checks use 2.5x; small tail cases can use the same group count. D LocalSize=64; E/F=256. See correction record; raw evidence is retained."
+}

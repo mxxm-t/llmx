@@ -1,0 +1,216 @@
+{
+  "status": "DONE_EXPLORATORY_MICRO_SCREEN",
+  "scope": "Corrected dispatch geometry probe only. Not runtime-model performance, full numerical qualification, or a gate pass.",
+  "provenance": {
+    "source_revision": "6f7698b07618edb52a5ce45bd91a6bc6c3de5e1a with documented dirty Q2 integration edits",
+    "scratch": "scratch/q2-prefill-code-table-20261103/model-integration-ef/workgroup-restore-micro-v2/results",
+    "plan_sha256": "cb56880d736bbf65cb72783861133c5b4b890a22f64675ca86b0cbcc2f8b5e4f",
+    "runner_sha256": "82fac52465ec6907b9cc0970730c1e5e65d4e383189bcf2c8a9db55c04ce9e48",
+    "probe_sha256": "ed8e3f6e10f8a7a53e40362d437fffe8e570b7b868a2753b4c431cf4880a9621",
+    "execution_sha256": "39599ba56330ba5c419dfd113315295d506bd8c92f1aea15ef937780a9028f3e",
+    "container_id": "5942de9903819075eec93dd17df2c5ae6b1d23651a14aa6ed9411b14171d054f",
+    "elapsed_seconds": 24.663363218307495,
+    "device": {
+      "pci": "0000:c3:00.0",
+      "node": "/dev/dri/renderD128",
+      "vendor": "0x1002",
+      "device": "0x66a1",
+      "busy": 0,
+      "vram_used": 10932224,
+      "performance_level": "auto",
+      "other_container_handles": [
+        {
+          "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+          "name": "/cdev-abc-run2",
+          "top": "PID                 COMMAND\n5607                sleep",
+          "target_handles": []
+        }
+      ],
+      "production_id": "5393a1f438ebc0ae320340099c66ca7134c502dbd97c51a48c87cf491aebde22",
+      "protected": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-58efd82a7",
+        "/zpool1/llmx-serve/flash-preview-58efd82a7",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-c4121c3d6/disk"
+      ],
+      "errors": []
+    },
+    "driver_pins": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1"
+  },
+  "geometry": {
+    "E_shader": {
+      "sha256": "17f04e87276bd518061ffa3a0fa00d0235e6b4e054cadf4fa0377386c4a2347b",
+      "LocalSize": [
+        256,
+        1,
+        1
+      ]
+    },
+    "candidate_shader": {
+      "sha256": "29e0958bbfa4b7afdf960a7fe94839002ffcd24484340bdea8f88acc87e54b0b",
+      "LocalSize": [
+        64,
+        1,
+        1
+      ]
+    },
+    "dispatch": "Each binary uses its matching shader LocalSize; gate/down each report correct 384/128 versus candidate 1536/512 workgroups, respectively."
+  },
+  "timing": {
+    "gate": {
+      "shape": {
+        "M": 12288,
+        "K": 4096,
+        "N": 1,
+        "rows": 4,
+        "cluster": 32
+      },
+      "warmups_per_arm": 1,
+      "measured_samples_per_arm": 4,
+      "arms": {
+        "E256": {
+          "samples_us": [
+            82.4,
+            80.32,
+            82.24,
+            80.32
+          ],
+          "median_us": 81.28,
+          "range_us": [
+            80.32,
+            82.4
+          ]
+        },
+        "candidate64": {
+          "samples_us": [
+            82.08,
+            81.6,
+            80.64,
+            79.84
+          ],
+          "median_us": 81.12,
+          "range_us": [
+            79.84,
+            82.08
+          ]
+        }
+      },
+      "candidate_time_change_percent": -0.19685039370078705
+    },
+    "down": {
+      "shape": {
+        "M": 4096,
+        "K": 12288,
+        "N": 1,
+        "rows": 4,
+        "cluster": 32
+      },
+      "warmups_per_arm": 1,
+      "measured_samples_per_arm": 4,
+      "arms": {
+        "E256": {
+          "samples_us": [
+            101.6,
+            99.36,
+            101.12,
+            99.36
+          ],
+          "median_us": 100.24000000000001,
+          "range_us": [
+            99.36,
+            101.6
+          ]
+        },
+        "candidate64": {
+          "samples_us": [
+            86.88,
+            88.64,
+            88.32,
+            87.36
+          ],
+          "median_us": 87.84,
+          "range_us": [
+            86.88,
+            88.64
+          ]
+        }
+      },
+      "candidate_time_change_percent": -12.370311252992828
+    }
+  },
+  "correctness": {
+    "checks": {
+      "calls": 384,
+      "per_arm": 192,
+      "finite_exact_outputs": 11660,
+      "all_output_bits_match_device_baseline": true,
+      "guards_intact": true,
+      "inputs_unchanged": true
+    },
+    "tails": {
+      "calls": 384,
+      "per_arm": 192,
+      "finite_exact_outputs": 1624,
+      "all_output_bits_match_device_baseline": true,
+      "guards_intact": true,
+      "inputs_unchanged": true
+    }
+  },
+  "totals": {
+    "timing_calls": 20,
+    "correctness_calls": 768,
+    "all_calls": 788,
+    "warmups": 4,
+    "raw_artifacts_hash_verified": 26,
+    "raw_file_hashes": {
+      "bad-zero.spv": "5dd28c0ef13540215f100ba2d72faa5d4d714259134c94ad8b808953dc156325",
+      "geometry-tests.stdout": "0d781d6882391d50096705fa909346812018c4482d85d6d6ac3eb75bd70946ce",
+      "gate.stdout": "22f9d10112e7f22ec71c62175530582383ef36251e904999293315d8b3a25b1e",
+      "bad-duplicate.spv": "7b1e08b300dd8c4983a6bf725dd76b178c5720d10b45e6a60258f8ebf6afc4dc",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bad-multiple-entries.spv": "78de39dd7b912dd1490e33bd2318b7e2a5a04ae7f61f1bd63870397657687ec1",
+      "tails.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "down.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bad-two-dimensions.spv": "b1cdaf39fa9e499a9f0d49a1ab3af5ab043631c1814f27bd7aa96feb37162be2",
+      "checks.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bad-zero-length.spv": "f38ecde19387fe58fd96e07dda0661b12cf0eddb81353892ff3bb19d97b8a30d",
+      "activity.jsonl": "09745aab1b9f61f7b452e2f1ea3bb65618737d261ee9421892ef570c6a1510f4",
+      "old-probe": "fe47ee8b5f2954f8c6b1e0195f37699f32d114637b6857faba52f5132a12e326",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "tails.stdout": "a8a48f04f60da5a8725a6e28277d07470d807d8a1b52051d2f4c96318b7cea97",
+      "bad-missing.spv": "c287ff2078c4b80b90649d01c91c3397123e732da26c0ab67f1b5b2af07199c0",
+      "E.spv": "17f04e87276bd518061ffa3a0fa00d0235e6b4e054cadf4fa0377386c4a2347b",
+      "down.stdout": "f8612dc73a735cf027a464716473117cea08168efe8f45d23ffd0633fb4d4ad1",
+      "bad-magic.spv": "cc1a7c4d19dc0f4c945c3bae3eacc00bba188652d0923f8a283fe5c18b880ae2",
+      "candidate.spv": "29e0958bbfa4b7afdf960a7fe94839002ffcd24484340bdea8f88acc87e54b0b",
+      "gate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "probe": "ed8e3f6e10f8a7a53e40362d437fffe8e570b7b868a2753b4c431cf4880a9621",
+      "bad-truncated.spv": "4d763a698cc0cd6aa732d3849f559840dba26f1585e9e2b0e2ad91cf5943f749",
+      "bad-specialized.spv": "4579e61d0abd521e352ec7d0577f4a3f363f8c33e14993380e38fc62e0d18f72",
+      "checks.stdout": "eb0516f841f7af12f43165525e977fd25e5c2d1ac5ba3d185993772278808aec",
+      "probe.cpp": "6b792059603e029405cc771ebd4c596ee30fb8f27ce01fd543510f976eabdbb2"
+    },
+    "monitor_exit": 0,
+    "container_removed": true,
+    "oom_killed": false
+  },
+  "interpretation": "Gate medians differ by -0.20% with overlapping sample ranges (E 80.32-82.40 us; candidate 79.84-82.08 us). Down medians differ by -12.37%, with non-overlapping ranges (E 99.36-101.60 us; candidate 86.88-88.64 us). Retain the mixed result; this two-shape micro-screen does not establish model speed or a merged performance gate.",
+  "preserved_prior_attempt": {
+    "artifact": "q2-geometry-correction-20261103.json followup.first_restored_candidate",
+    "candidate_spirv_sha256": "7683f27a128aa8f3b7642c17e7d60ed477d2a1f80c623bf3038b2c1abb87fb2d",
+    "status": "FAILED_BEFORE_TIMING",
+    "failure": "Independent oracle failed fixture 0 row 8: observed 0xffffffff, expected 0x48efcc00; matmul_row.comp retained hard-coded 256-wide row indexing. No timing was collected; v2 restores both shader indexing sites."
+  },
+  "limitations": [
+    "This isolated probe uses only M12288/K4096 and M4096/K12288, not the source-derived grouped Qwen3 calls.",
+    "The candidate changes only the paired Q2 integer row geometry and dispatch mapping; product correctness and performance gates remain open.",
+    "The first failed candidate and all v2 warmups/samples are retained; no sample was replaced."
+  ],
+  "next": "Build and screen G from the current product changes; then run applicable native/model and qualification gates."
+}

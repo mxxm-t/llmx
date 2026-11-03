@@ -1,0 +1,39 @@
+{
+  "scope": "Unsigned Q2 cache owner cleanup on reconciled main6f769 source. Focused checkpoint, not merge qualification.",
+  "base": "6f7698b07618edb52a5ce45bd91a6bc6c3de5e1a",
+  "version": "llmx 0.1.0+g6f7698b07618.dirty numerics 24040553759057ba",
+  "binary_sha256": "727137297eb639c4eddae6b0e2e585dbaacf396dac49a29855b230d714b43d44",
+  "source_hashes": {
+    "src/backends/vulkan/shaders/low_bits.glsl": "9b37e549d8276aad9a7f76596affcadc50399cab5e8852b2d9c612617eb04c01",
+    "src/backends/vulkan/shaders/low_bits_cache.glsl": "370fd6db516afc95844f8604b235e4832b02b11eb9f9c8b15eee481c8f99f167",
+    "src/backends/vulkan/shaders/matmul_row.glsl": "4b61b1c7433736acc162e9f0980b8df74b5aaa0febdceb3815259bee34193a6b",
+    "src/backends/vulkan/shaders/matmul_row.comp": "43de7118e63c48822470a5647939f708edec5715fbebba22838ddea5d5187add",
+    "src/backends/vulkan/shaders/matmul_row_one.glsl": "c56578f51de1536f74b55f6d5ef7b26c83482b677ea464055fed9d28a9e6c8ee",
+    "src/backends/vulkan/shaders/matmul_row_two.glsl": "9c35e0bb09751dce87b43811667499f55543dab3736078a1b744f22d4da29049",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "0205e3526e5f9a14fe8e983be8cad21f4f650f11e197d257ce685251dabc3e54",
+    "docs/src/backends-vulkan.md": "418379b4fd60e6e695fafc02afcbbea94a3815d008565d96e40df5f6ab17859f"
+  },
+  "owner_patch_sha256": "45f7dcfd8cb343a5ac58185965d85ee1ddbdf40625e5111f43a6ea89cae1b1d9",
+  "build": {
+    "exit_code": 0,
+    "finished_utc": "2026-11-03T03:32:47.0879767Z"
+  },
+  "tests": {
+    "exit_code": 0,
+    "finished_utc": "2026-11-03T03:33:03.7977392Z"
+  },
+  "logs": {
+    "configure-owner.log": "5001907b60347dd86e222a7c449bee28d12e03da9b01de71791c1f4ec1fd1a7e",
+    "build-owner.log": "77120f65014e32898d26e46fe5f6cd09d51ccd71d76421f526c1a4b4f5c262d7",
+    "low-bits-owner.log": "b6c480d48eeb4157e8ff90ce1b0a375f9973447251db0e19a2b0aae28eca7b7d",
+    "low-bits-owner-detail.log": "eb529d7b84a150ea77773fc01767ffa1f812e0e4469b603cf3959110e6f6013c"
+  },
+  "checks": {
+    "native_low_bits": "2/2 PASS, Q1/Q2 row and tile dispatch witnessed on Radeon VII",
+    "shader_compile_and_validation": "18 modules PASS, seven non-Q2 before/after pairs byte-identical",
+    "docs": "PASS, zero findings and 21 planted faults",
+    "dead_code": "PASS, eight expected listed findings and 19 planted faults",
+    "whitespace": "staged and unstaged diff checks pass"
+  },
+  "limitations": "No performance result for integrated main row repair or new shader organization. No complete HF/hosted/final gate. Desktop GPU availability snapshot showed 3D activity, no compute engine above one percent; not a performance measurement."
+}

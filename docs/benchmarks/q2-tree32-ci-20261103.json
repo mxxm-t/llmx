@@ -1,0 +1,295 @@
+{
+  "status": "QUALIFIED_WITH_RETAINED_CI_FAILURE_DISPOSITIONS",
+  "checked_source_head": "d182482d579968bc87678b5eac02ed3d6963d9d1",
+  "original_head": "ebe90d76522d1bd1990d0909857130f9a6746ed0",
+  "original_run": 41650887106,
+  "original_jobs": [
+    {
+      "name": "CPU (Linux TSan)",
+      "id": 125968406278,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "ROCm backend (build only, Linux)",
+      "id": 125968406679,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (Linux UBSan)",
+      "id": 125968406913,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Vulkan backend (build, Linux)",
+      "id": 125968406957,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (macos-15-intel)",
+      "id": 125968407059,
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "CPU (windows-2022)",
+      "id": 125968407079,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "HF reference (CPU)",
+      "id": 125968407268,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "CPU (ubuntu-24.04)",
+      "id": 125968407373,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "retry": {
+    "head": "61aafe78757b08093db2a4094970e908099c46a2",
+    "branch": "gate/q2-macos-retry-20261103",
+    "run_id": 41660437794,
+    "jobs": [
+      {
+        "name": "CPU (macos-15-intel)",
+        "id": 126001884656,
+        "status": "completed",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "original_failure": "server-resume-cache: internal one-minute wait for the second turn at the first job pass expired. Original failure retained; not reclassified as a proven root cause.",
+  "retry_scope": "Only the macOS CPU job, with identical steps. Runtime, tests and build configuration unchanged. The temporary workflow change does not land.",
+  "source_carry": "No src/tests/tools/cmake/CMakeLists.txt/build.bat/workflow changes from original hosted candidate to the landing worktree HEAD. Later changes are documentation/evidence only.",
+  "disposition": "Seven original jobs passed. macOS native tests and all 45 non-docs suite components passed the isolated retry; baseline was skipped as expected in this job, with the separate original HF job passing. The retry job remains failed solely because removing ROCm from the temporary workflow made the unchanged docs checker report two package names. An in-memory workflow-only control reproduced exactly those findings; the actual full workflow has neither. Final docs/dead-code checks are required on the landing tree. No runtime, test, numerical limit or ordinary workflow correction is needed. Both original and retry failures remain recorded.",
+  "docs_failure_control": {
+    "status": "PROVEN_WORKFLOW_ONLY_DOCS_FAILURE",
+    "normal_workflow_test_name_findings": [],
+    "retry_only_workflow_findings": [
+      [
+        "test-name",
+        "docs/CI.md",
+        "hip-dev"
+      ],
+      [
+        "test-name",
+        "docs/CI.md",
+        "rocm-device-libs"
+      ]
+    ],
+    "method": "Run the unchanged test-name checker on the current tree, then replace only workflow text in memory with the isolated retry workflow. Reproduce exactly the two hosted findings. No repository files modified.",
+    "components": [
+      {
+        "component": "dead-code",
+        "status": "PASS"
+      },
+      {
+        "component": "docs",
+        "status": "FAIL"
+      },
+      {
+        "component": "arch-boundary",
+        "status": "PASS"
+      },
+      {
+        "component": "version",
+        "status": "PASS"
+      },
+      {
+        "component": "cli",
+        "status": "PASS"
+      },
+      {
+        "component": "reference-generator",
+        "status": "PASS"
+      },
+      {
+        "component": "reference-consumer",
+        "status": "PASS"
+      },
+      {
+        "component": "device-reference",
+        "status": "PASS"
+      },
+      {
+        "component": "roundtrip",
+        "status": "PASS"
+      },
+      {
+        "component": "raw-blocks",
+        "status": "PASS"
+      },
+      {
+        "component": "perf",
+        "status": "PASS"
+      },
+      {
+        "component": "tokenizer",
+        "status": "PASS"
+      },
+      {
+        "component": "perplexity",
+        "status": "PASS"
+      },
+      {
+        "component": "f32",
+        "status": "PASS"
+      },
+      {
+        "component": "half-weights",
+        "status": "PASS"
+      },
+      {
+        "component": "moe",
+        "status": "PASS"
+      },
+      {
+        "component": "int8",
+        "status": "PASS"
+      },
+      {
+        "component": "mxfp4",
+        "status": "PASS"
+      },
+      {
+        "component": "q5-0",
+        "status": "PASS"
+      },
+      {
+        "component": "q2-k",
+        "status": "PASS"
+      },
+      {
+        "component": "q3-k",
+        "status": "PASS"
+      },
+      {
+        "component": "q5-1",
+        "status": "PASS"
+      },
+      {
+        "component": "iq4-nl",
+        "status": "PASS"
+      },
+      {
+        "component": "iq4-xs",
+        "status": "PASS"
+      },
+      {
+        "component": "iq3-s",
+        "status": "PASS"
+      },
+      {
+        "component": "iq2-s",
+        "status": "PASS"
+      },
+      {
+        "component": "iq2-xxs",
+        "status": "PASS"
+      },
+      {
+        "component": "iq2-xs",
+        "status": "PASS"
+      },
+      {
+        "component": "iq3-xxs",
+        "status": "PASS"
+      },
+      {
+        "component": "iq1",
+        "status": "PASS"
+      },
+      {
+        "component": "low-bits",
+        "status": "PASS"
+      },
+      {
+        "component": "tq1-0",
+        "status": "PASS"
+      },
+      {
+        "component": "tq2-0",
+        "status": "PASS"
+      },
+      {
+        "component": "nvfp4",
+        "status": "PASS"
+      },
+      {
+        "component": "qwen35",
+        "status": "PASS"
+      },
+      {
+        "component": "vision",
+        "status": "PASS"
+      },
+      {
+        "component": "image",
+        "status": "PASS"
+      },
+      {
+        "component": "split",
+        "status": "PASS"
+      },
+      {
+        "component": "tensor-split",
+        "status": "PASS"
+      },
+      {
+        "component": "decode-probe",
+        "status": "PASS"
+      },
+      {
+        "component": "drafters",
+        "status": "PASS"
+      },
+      {
+        "component": "shards",
+        "status": "PASS"
+      },
+      {
+        "component": "server",
+        "status": "PASS"
+      },
+      {
+        "component": "server-load",
+        "status": "PASS"
+      },
+      {
+        "component": "chat",
+        "status": "PASS"
+      },
+      {
+        "component": "threads",
+        "status": "PASS"
+      },
+      {
+        "component": "baseline",
+        "status": "SKIP"
+      }
+    ],
+    "retry_log_sha256": "19a80e15ef525ac0bbf2a0e064f50de7e1b4ce3bb857478b030d8e05d191d33e",
+    "limitation": "The retry job remains failed. All final docs/dead-code checks must pass on the actual landing tree. The temporary workflow is excluded from landing."
+  },
+  "observer_receipt_sha256": "971e2168029d0ace6f70f002f386b9cb5dddf0d3bda6a95ca16558d61bd0f722",
+  "final_static_checks": {
+    "docs": {
+      "result": "docs: 0 findings (none) against the list; 21 planted faults; 17.9 s  [ok]",
+      "log_sha256": "06d7b0a99be571a063b381d452ec36412017dddec075737d55ed63cd4f9d9940"
+    },
+    "dead-code": {
+      "result": "dead-code: 8 findings (unused 1, test-only 7) against the list; 19 planted faults; 23.2 s  [ok]",
+      "log_sha256": "7fb9f4c0c4cc41e9dd0a364c57f7f9799eed5431f73448ffc0fcb5a83c2a4c29"
+    }
+  },
+  "final_static_source_head": "d182482d579968bc87678b5eac02ed3d6963d9d1",
+  "final_static_delta": "Landing docs and this evidence record only; runtime/test/build/ordinary workflow source equals the original hosted source."
+}

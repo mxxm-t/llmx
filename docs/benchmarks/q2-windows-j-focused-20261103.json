@@ -1,0 +1,165 @@
+{
+  "schema": "llmx.q2.windows-j-focused.v1",
+  "source_head": "9cd51acb7394b6028c17fd2ab818ef7f345291fc",
+  "base": "d3a652cf9d7c1477e6d456d74d8d1d4a5d44aadf",
+  "source_rebase_audit": {
+    "old_head": "ba96fe9287dbb83e6adc913f72a07798bfe03dc8",
+    "new_head": "9cd51acb7394b6028c17fd2ab818ef7f345291fc",
+    "new_base": "d3a652cf9d7c1477e6d456d74d8d1d4a5d44aadf",
+    "runtime_build_source_unchanged": true,
+    "runtime_frozen_binary": "J a04a408e81e9afc5892ecc3570cf298467927a64",
+    "changed_files": [
+      "docs/STATUS.md",
+      "docs/src/backends-vulkan.md",
+      "tests/backend_vulkan.cpp"
+    ],
+    "range_diff": " 1:  62e571e4b =  1:  e2849ea0d Checkpoint Q2_0 integration and measured Vulkan gaps\n 2:  7bd68ab03 =  2:  583f89b9e Record Q2 checkpoint Markdown review scope\n 3:  de351a793 =  3:  4916974a5 Record Q2 decode profile and repair reduction screen\n 4:  8fb073597 =  4:  097e58e02 Restore Q2 row workgroup width after integration\n 5:  82ae37672 =  5:  3de3a35de Cache signed Q2 tile pairs with restored row geometry\n 6:  466afb18f =  6:  746e6ed46 Record rejected Q2 tile loop scheduling screen\n 7:  0de99cdb5 =  7:  02d3ef578 docs: record Q2 rebase and signed row-cache screen\n 8:  e9d21c46e =  8:  1776118f4 docs: record current Q2 Windows focused validation\n 9:  d92763b1c =  9:  ec2969270 docs: record current Q2 CPU model and split checks\n10:  a04a408e8 = 10:  5c50315fb docs: record Q2 attention attribution and geometry screen\n11:  16c38abc6 = 11:  fa0e2d6f0 docs: record Q2 current-main timing and phase evidence\n12:  9a877a0dd = 12:  50efaabbe docs: retain Q2 row cache layout screen\n13:  77d0a4b09 = 13:  286c3fba3 docs: record Q2 row cluster timing decision\n14:  eee948a97 = 14:  4bb5d0469 docs: record Q2 profile boundaries and next controls\n15:  ba96fe928 = 15:  9cd51acb7 Record Q2 cadence controls and micro queue limitation\n",
+    "main_delta_commits": [
+      "d3a652cf9 The --isa screen's division exclusion passes over instructions scheduled inside the sequence that name neither of its registers",
+      "c37da7866 The --isa screen's division exclusion must hold an unrelated instruction inside the sequence: failing test."
+    ],
+    "scope": "Integration only. No new build or numerical/performance qualification implied."
+  },
+  "build_receipt": {
+    "worktree": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-maind364-20261103",
+    "commit": "9cd51acb7394b6028c17fd2ab818ef7f345291fc",
+    "build_dir": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/q2-maind364-20261103/build-q2-j-current",
+    "generator": "Visual Studio 18 2026",
+    "config": "Release",
+    "options": [
+      "LLMX_HAS_BACKEND_VULKAN=ON",
+      "LLMX_HAS_BACKEND_ROCM=OFF",
+      "BUILD_TESTING=ON"
+    ],
+    "configure_started": "2026-11-03T09:44:14.4973656Z",
+    "build_started": "2026-11-03T09:44:25.9049306Z",
+    "configure_exit": 0,
+    "configured": "2026-11-03T09:44:21.9523360Z",
+    "build_exit": 0,
+    "build_finished": "2026-11-03T09:47:19.4582312Z",
+    "safe_test_exit": 0,
+    "safe_test_finished": "2026-11-03T09:48:15.0713413Z",
+    "safe_tests": [
+      "low-bits",
+      "vulkan-buffer"
+    ],
+    "physical_tests_pending": [
+      "low-bits-vulkan",
+      "vulkan-lifetime --queue"
+    ],
+    "status": "SAFE_TESTS_PASS_GPU_TESTS_PENDING"
+  },
+  "version": "llmx 0.1.0+g9cd51acb7394 numerics f80e8ccb8ac1dbe0",
+  "build_evidence": "Fresh VS18 2026 Release, full shader set and Vulkan TU rebuilt, parallel2. Existing shadow warnings retained.",
+  "tests": [
+    {
+      "name": "low-bits",
+      "result": "PASS",
+      "seconds": 0.42,
+      "scope": "CPU Q1/Q2 operators"
+    },
+    {
+      "name": "vulkan-buffer",
+      "result": "PASS",
+      "seconds": 0.05,
+      "scope": "Mock API, no physical GPU"
+    },
+    {
+      "name": "low-bits-vulkan",
+      "result": "PASS",
+      "seconds": 1.56,
+      "scope": "Physical Radeon low-bit Vulkan path; not MI50 integer-preferred coverage."
+    },
+    {
+      "name": "vulkan-lifetime (original J test source)",
+      "result": "FAIL",
+      "seconds": 29.73,
+      "scope": "Physical Radeon; tiled attention 100 rows after 2118 tokens differed whole versus cut into one-tile pieces with one/two rows per lane. Other listed lifetime checks and the 32-row, 20000-token/1252-part attention case passed."
+    }
+  ],
+  "raw_sha256": {
+    "scratch/q2-j-build-check-20261103/receipt.json": "1f72baf754a9a26aa73227ef8f1a81acb049edabf5e7ec7bfec3bff0889d7f6f",
+    "scratch/q2-j-build-check-20261103/configure.log": "e6f3720bd477914ed574b51581da9ff9e33721a337739c4e455b46afaf1dfc2b",
+    "scratch/q2-j-build-check-20261103/build.log": "4845af5d0fcedbe5ca51ecf433ea5e20eb18b5e07362618f3a927338aa33ed03",
+    "scratch/q2-j-build-check-20261103/focused-tests.log": "9089cfe18a2fc72593a6a0d3e7104d616ab3edcdf4cd77acbbcaa420353da886",
+    "worktrees/q2-maind364-20261103/scratch/q2-tests-main-rebase-audit.json": "13b8afb79a7b132f7596e7b1c2cfa99fb908ff403760f5d402f556c000441256"
+  },
+  "binary_sha256": {
+    "llmx-low-bits-test.exe": "73b6998f23b0d1586b42b2a37481be68980df72154260e7dbfdd38b86e32ffcc",
+    "llmx-vulkan-lifetime-test.exe": "8899e8b11084846731b0d45b96a07e3482bc9e4dafd7fce1ac057625090c0a2d",
+    "llmx.exe": "dbe3136ab3bb518c09b7fa3feaa087c2fd842c1441fad173247404dae50b0f52"
+  },
+  "limits": [
+    "Original vulkan-lifetime failure is retained and reproduced on published main; the test-only correction now passes on J with the runtime executable unchanged.",
+    "The cap diagnostic is focused Radeon evidence, not full HF/model qualification.",
+    "No MI50 integer-path coverage.",
+    "No full HF, performance or hosted qualification.",
+    "The source rebase changes only upstream tests/docs; frozen J runtime source is unchanged.",
+    "The saved build_receipt retains its earlier pending physical-test state; current physical results and corrected rerun are recorded separately.",
+    "Queue-policy control expired at 10:00 without launch; no comparative timing was collected.",
+    "The GPU activity snapshot has only three low per-engine samples and does not report total utilization, capacity, or free VRAM."
+  ],
+  "docs_validation": {
+    "command": "python -X utf8 tests/run_tests.py --only docs,dead-code --exe build-q2-j-current/Release/llmx.exe",
+    "dead_code": "PASS, 8 existing findings, 19 planted faults, 19.1 seconds",
+    "docs": "PASS, 0 findings, 21 planted faults, 14.4 seconds",
+    "log_sha256": "0f5cd2b9a74f381026477aca3f4b8206fb645f93983d80e828f95866b20ccce5"
+  },
+  "current_test_status": "LOW_BITS_VULKAN_PASS; CORRECTED_VULKAN_LIFETIME_PASS; ORIGINAL_VULKAN_LIFETIME_FAILURE_REPRODUCED_ON_PUBLISHED_MAIN",
+  "physical_test_evidence": {
+    "j_log": "worktrees/q2-maind364-20261103/scratch/q2-j-physical-tests.log",
+    "j_log_sha256": "49cd3e1821803726a89f68054b55b07ef6cf09cadcd6c3906945acba73dfee99",
+    "scope": "CTest low-bits-vulkan and vulkan-lifetime on the J Windows build; preserve lifetime failure.",
+    "main_control": {
+      "commit": "d3a652cf9d7c1477e6d456d74d8d1d4a5d44aadf",
+      "source_clean": true,
+      "test": "ctest --test-dir build-attention-main-control -C Release -R ^vulkan-lifetime$ --output-on-failure",
+      "status": "FAIL_REPRODUCED_ON_PUBLISHED_MAIN",
+      "exit_code": 8,
+      "executable_sha256": "00ad138b75332815c59eed9b7c8525b57f8b09d0d0da9efa284a2f4ca5e55055",
+      "test_source_sha256": "80688eb0979b2166b89d23481c97ffd1790f7c90112b06f953da786015bc97bf",
+      "receipt": "scratch/q2-attention-main-control-20261103/receipt.json",
+      "receipt_sha256": "4cf34f4bfcf07b9ed181fbd1c46ab76319aa6b59a917d788d329039d845fb0e4",
+      "raw_log": "scratch/q2-attention-main-control-20261103/vulkan-lifetime.log",
+      "raw_log_sha256": "5f39823879b3613ce00fe95d5d1b29323a8aac2979ada9289ecb3db28ced1b2f",
+      "comparison": "The same 100-row tiled-attention whole-versus-cut assertion failed on published main."
+    }
+  },
+  "gpu_activity_snapshot": {
+    "path": "scratch/q2-j-build-check-20261103/gpu-activity-root.json",
+    "sha256": "d03c8e54e9a53bc64208bf1676e27ff807fddddd4bca728e23c9f4a1573d18b2",
+    "observation": "Three low per-engine samples: 0.135%, 0.159%, 0.157%. This snapshot does not report total utilization, capacity or free VRAM and does not establish application contention."
+  },
+  "attention_cap_diagnostic": {
+    "raw_log": "scratch/tile-split-cap-diagnostic/restored-stdout.jsonl",
+    "raw_log_sha256": "a18b8084320a4dc0bafef41e4b33c18cf036164ad0ac37c345026e6c5078a9aa",
+    "device": "AMD Radeon VII, AMD proprietary driver 26.5.2; 60 compute units",
+    "finding": "Restoring real compute_units=60 before Q8 projection preserves the original projection geometry (prefer_integer_dot=false). The original test fake count also changed that Q8 dispatch geometry.",
+    "comparisons": "Four variants (one/two rows per lane, full/cap1): 12 recorded section comparisons, all with zero mismatches. Each run has 51200 attention outputs followed by 3200 projection outputs.",
+    "limit": "Focused diagnostic only; no full HF/model qualification and no runtime fix."
+  },
+  "corrected_lifetime_check": {
+    "status": "PASS",
+    "seconds": 25.34,
+    "command": "ctest --test-dir build-q2-j-current -C Release -R ^vulkan-lifetime$ --output-on-failure",
+    "source_change_scope": "Test-only correction in tests/vulkan_buffer.cpp restores the real 60 compute units before the Q8 projection; no runtime sources changed.",
+    "test_source_sha256": "ff91c47bd5ff498ddf934943abb448d68292a540d0e9508569d2acef907a76bc",
+    "test_executable_sha256": "f734a4655189ba34c9e2ed64d50995ebf0c61347c0a9edf7e804d39a9fc03ac6",
+    "build_log": "scratch/q2-j-attention-fix-build.log",
+    "build_log_sha256": "68e1aad3a2002619d8ec2a6bb5358b010927cab9611c7441cbe29a9ff9f372f0",
+    "test_log": "scratch/q2-j-attention-fix-test.log",
+    "test_log_sha256": "8b682e81f2ba3810cc6f9748998a9473ad703c20cd0444158d6fd91546f08e7e",
+    "runtime_executable_sha256": "dbe3136ab3bb518c09b7fa3feaa087c2fd842c1441fad173247404dae50b0f52",
+    "runtime_binary_unchanged_from_original_windows_build": true,
+    "test_source_commit": "e71dad0cc3e402b3fc90b4ab53a4c807f6e11b4a",
+    "test_source_git_blob_sha256": "331c03132a6b81a683396689a863e0cd24c0e084cf4657b6e4473ab9a1db9a50",
+    "test_source_note": "The committed LF blob matches the built Windows working-tree source after CRLF normalization."
+  },
+  "latest_docs_validation": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-q2-j-current/Release/llmx.exe --only docs,dead-code",
+    "dead_code": "PASS, 8 existing findings, 19 planted faults, 19.5 seconds",
+    "docs": "PASS, 0 findings, 21 planted faults, 15.7 seconds",
+    "log": "scratch/q2-attention-docs-check.log",
+    "log_sha256": "7a38314ca41171bc8ed5dda6bfa3b03777a6305dd2214126b5809ba8e1e6a570"
+  }
+}

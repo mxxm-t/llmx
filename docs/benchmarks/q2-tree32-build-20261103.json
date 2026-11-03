@@ -1,0 +1,49 @@
+{
+  "scope": "Native Q2 tree32 build and test-binary correction, not GPU/model qualification",
+  "head": "487ca07958c086bac1e7995db386d0f60faab2b1",
+  "overlays": {
+    "src/backends/vulkan/vulkan_backend.cpp": "8c91500bd2af0aee5f0841bd4207bedcce9c7201f0f7fed6eb006cf84a0278a2",
+    "src/backends/vulkan/vulkan_kernels.hpp": "51aac926cee045383b568b1bb6c7eb5b1a80e7a9f806c705a11feac4b6711c13",
+    "src/backends/vulkan/vulkan_matmul.hpp": "f143aabcaf7f7e77c02f976ce140b6861ee5aa02a8e8c3fa0375928fb3e9c878",
+    "tests/low_bits.cpp": "89eb4e7649195978d23a21e6ccec6797ff8b6b7e491d0e4b89f031c9308dc393"
+  },
+  "runtime_source_changes_from_frozen_J": [
+    "src/backends/vulkan/vulkan_backend.cpp",
+    "src/backends/vulkan/vulkan_kernels.hpp",
+    "src/backends/vulkan/vulkan_matmul.hpp"
+  ],
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b",
+  "binaries": {
+    "llmx": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+    "llmx-low-bits-test": "2f571ea267ae654ef72d3c132c320054f6a6fa6bab397e126b0ee9f145a05e20"
+  },
+  "build_seconds": 260.97402000427246,
+  "identical_shader_modules": 334,
+  "build_info": "#pragma once\n#define LLMX_BUILD_REVISION \"unknown\"\n#define LLMX_NUMERICS \"cd781581f6a20c9b9112eca5cc984637f14570876c94770226cb34150577bbe7\"\n#define LLMX_BUILD_FLAGS \"GNU 14.2.0; Release;  -O3 -DNDEBUG; vulkan 1; ipo \"\n#define LLMX_GLSLC_VERSION \"shaderc 2025.2-1, spirv-tools 2025.1~rc1-1, glslang 15.1.0+1.4.309.0-1, Target: SPIR-V 1.0\"\n",
+  "baseline_build_info": "#pragma once\n#define LLMX_BUILD_REVISION \"unknown\"\n#define LLMX_NUMERICS \"f80e8ccb8ac1dbe0604fa947fab660d57ba604e0b5a4cf10f00e66a3ef7d7eb4\"\n#define LLMX_BUILD_FLAGS \"GNU 14.2.0; Release;  -O3 -DNDEBUG; vulkan 1; ipo \"\n#define LLMX_GLSLC_VERSION \"shaderc 2025.2-1, spirv-tools 2025.1~rc1-1, glslang 15.1.0+1.4.309.0-1, Target: SPIR-V 1.0\"\n",
+  "test_correction": {
+    "reason": "Root review found two timing reads drained the same GPU witness; combine into one exact-name witness.",
+    "source_sha256_lf": "ef48c59b33404d77febc85e2703f2c801f65f92893791c07d022b6fb367e0257",
+    "binary_sha256": "5d98af6cdf33d4f09b9efc08acbbd7f858889a9880c921e816a184160f13d9dc",
+    "build_seconds": 35.351999282836914,
+    "isolated_source_and_build_copy": true,
+    "runtime_binary_unchanged": true,
+    "local_cpu_check": "PASS after corrected test cpp rebuilt; no GPU claim"
+  },
+  "resource_policy": "6GiB own cap/no swap plus2GiB actual available headroom, PSI full avg10<10, live owned-container watchdog. Peer ceilings informational.",
+  "memory_stop_reasons": [
+    null,
+    null
+  ],
+  "containers_removed": true,
+  "receipts": {
+    "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-build/build-receipt.json": {
+      "sha256": "6a9ac7ee72183a69e2befa02e9121aee01dba32eda57b985fef6cb521376df08"
+    },
+    "scratch/q2-prefill-code-table-20261103/model-integration-ef/tree32-native-test-fix/build-receipt.json": {
+      "sha256": "195a4b64e26955c5e6e4b14d728a681464c61b5b884a20ff93de760152303118"
+    }
+  },
+  "next": "Focused Vulkan checks on corrected binary, then matched frozen J/candidate/mx model screen. No merge pass."
+}

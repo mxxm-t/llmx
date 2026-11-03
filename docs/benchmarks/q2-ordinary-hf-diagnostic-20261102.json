@@ -1,0 +1,373 @@
+{
+  "scope": "Diagnostic only. Native-int8 ranking and NLL failures remain open.",
+  "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+  "cases": [
+    {
+      "case": 2,
+      "tokens": 6,
+      "reused": true,
+      "rankings": {
+        "hf_f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_top5_overlap": 5
+        },
+        "hf_old_hook": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_top5_overlap": 3
+        },
+        "hf_ordinary": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_top5_overlap": 4
+        },
+        "llmx_native_i8_f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_top5_overlap": 4
+        },
+        "llmx_native_i8_f32kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_top5_overlap": 4
+        }
+      },
+      "full_vector_errors": {
+        "ordinary_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.26367241907781935,
+          "max_abs": 1.6185898780822754,
+          "max_abs_token_id": 22922,
+          "a_at_max": 0.9137396812438965,
+          "b_at_max": 2.532329559326172,
+          "rms_abs": 0.33512761306422817,
+          "mean_signed": -0.0691160616815679
+        },
+        "ordinary_vs_hf_old_hook": {
+          "count": 151936,
+          "mean_abs": 0.21834844117790478,
+          "max_abs": 1.5089926719665527,
+          "max_abs_token_id": 73637,
+          "a_at_max": 4.730002403259277,
+          "b_at_max": 3.2210097312927246,
+          "rms_abs": 0.2804567067380192,
+          "mean_signed": 0.07052974167349826
+        },
+        "ordinary_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.19829871215907674,
+          "max_abs": 1.365739067504883,
+          "max_abs_token_id": 21475,
+          "a_at_max": 14.486391067504883,
+          "b_at_max": 13.120652,
+          "rms_abs": 0.2549846426236431,
+          "mean_signed": -0.0021557778472992015
+        },
+        "ordinary_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.2947218735498531,
+          "max_abs": 1.6718473788452144,
+          "max_abs_token_id": 76463,
+          "a_at_max": 10.376227378845215,
+          "b_at_max": 8.70438,
+          "rms_abs": 0.367935797009438,
+          "mean_signed": 0.20551909357224585
+        },
+        "old_hook_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.32529217965094526,
+          "max_abs": 2.0173425674438477,
+          "max_abs_token_id": 107959,
+          "a_at_max": 3.7766799926757812,
+          "b_at_max": 5.794022560119629,
+          "rms_abs": 0.41396109732279784,
+          "mean_signed": -0.13964580335506618
+        },
+        "old_hook_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.1996445800249634,
+          "max_abs": 1.313439203704834,
+          "max_abs_token_id": 92108,
+          "a_at_max": 2.734525203704834,
+          "b_at_max": 1.421086,
+          "rms_abs": 0.2538062388776243,
+          "mean_signed": -0.07268551952079746
+        },
+        "old_hook_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.27354642792546113,
+          "max_abs": 1.5956444708862305,
+          "max_abs_token_id": 47683,
+          "a_at_max": 5.1857404708862305,
+          "b_at_max": 3.590096,
+          "rms_abs": 0.3440396140429227,
+          "mean_signed": 0.13498935189874758
+        }
+      }
+    },
+    {
+      "case": 4,
+      "tokens": 12,
+      "reused": false,
+      "rankings": {
+        "hf_f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_top5_overlap": 5
+        },
+        "hf_old_hook": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_top5_overlap": 5
+        },
+        "hf_ordinary": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_top5_overlap": 4
+        },
+        "llmx_native_i8_f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_top5_overlap": 3
+        },
+        "llmx_native_i8_f32kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 4,
+          "existing_tie_top5_overlap": 4
+        }
+      },
+      "full_vector_errors": {
+        "ordinary_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.19925324897828509,
+          "max_abs": 1.10703706741333,
+          "max_abs_token_id": 38202,
+          "a_at_max": 7.722774982452393,
+          "b_at_max": 6.6157379150390625,
+          "rms_abs": 0.2527736176276029,
+          "mean_signed": 0.10514650152955272
+        },
+        "ordinary_vs_hf_old_hook": {
+          "count": 151936,
+          "mean_abs": 0.2564999015055382,
+          "max_abs": 1.3971904516220093,
+          "max_abs_token_id": 25908,
+          "a_at_max": 1.3719860315322876,
+          "b_at_max": -0.02520442008972168,
+          "rms_abs": 0.31173101871620573,
+          "mean_signed": 0.21916784789665536
+        },
+        "ordinary_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.2248345823741767,
+          "max_abs": 1.1870190500793454,
+          "max_abs_token_id": 65494,
+          "a_at_max": 7.631638050079346,
+          "b_at_max": 6.444619,
+          "rms_abs": 0.27957207540250767,
+          "mean_signed": 0.15948245422682206
+        },
+        "ordinary_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.26489938819427955,
+          "max_abs": 1.341254557029724,
+          "max_abs_token_id": 131423,
+          "a_at_max": 1.0611375570297241,
+          "b_at_max": -0.280117,
+          "rms_abs": 0.3241449209149327,
+          "mean_signed": 0.2166152249921443
+        },
+        "old_hook_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.22502897314156398,
+          "max_abs": 1.305253267288208,
+          "max_abs_token_id": 76542,
+          "a_at_max": -3.819546937942505,
+          "b_at_max": -2.514293670654297,
+          "rms_abs": 0.28226150509417497,
+          "mean_signed": -0.11402134636710264
+        },
+        "old_hook_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.1955007161917453,
+          "max_abs": 1.249567483337402,
+          "max_abs_token_id": 101547,
+          "a_at_max": 4.050240516662598,
+          "b_at_max": 5.299808,
+          "rms_abs": 0.24879808574436899,
+          "mean_signed": -0.059685393669833296
+        },
+        "old_hook_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.18733633169577624,
+          "max_abs": 1.244896246398926,
+          "max_abs_token_id": 99811,
+          "a_at_max": 4.505892753601074,
+          "b_at_max": 5.750789,
+          "rms_abs": 0.2389387164477882,
+          "mean_signed": -0.002552622904511053
+        }
+      }
+    },
+    {
+      "case": 5,
+      "tokens": 17,
+      "reused": false,
+      "rankings": {
+        "hf_f32": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 5,
+          "existing_tie_top5_overlap": 5
+        },
+        "hf_old_hook": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_top5_overlap": 4
+        },
+        "hf_ordinary": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_top5_overlap": 4
+        },
+        "llmx_native_i8_f16kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 3,
+          "existing_tie_top5_overlap": 3
+        },
+        "llmx_native_i8_f32kv": {
+          "top1_matches_golden": true,
+          "strict_top5_overlap": 2,
+          "existing_tie_top5_overlap": 3
+        }
+      },
+      "full_vector_errors": {
+        "ordinary_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.1915710190891226,
+          "max_abs": 1.153630942106247,
+          "max_abs_token_id": 93694,
+          "a_at_max": -1.637572169303894,
+          "b_at_max": -0.4839412271976471,
+          "rms_abs": 0.2448151515885828,
+          "mean_signed": 0.02682995796537682
+        },
+        "ordinary_vs_hf_old_hook": {
+          "count": 151936,
+          "mean_abs": 0.15751788565823743,
+          "max_abs": 1.1547422409057617,
+          "max_abs_token_id": 21321,
+          "a_at_max": 10.88431167602539,
+          "b_at_max": 9.729569435119629,
+          "rms_abs": 0.20228966730212017,
+          "mean_signed": 0.0044058521701047845
+        },
+        "ordinary_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.1608712124318496,
+          "max_abs": 1.0946855787773133,
+          "max_abs_token_id": 112327,
+          "a_at_max": 0.9326335787773132,
+          "b_at_max": -0.162052,
+          "rms_abs": 0.2053467032427014,
+          "mean_signed": 0.045176837220555564
+        },
+        "ordinary_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.15385920433422728,
+          "max_abs": 1.002722994384765,
+          "max_abs_token_id": 2926,
+          "a_at_max": 11.300662994384766,
+          "b_at_max": 10.29794,
+          "rms_abs": 0.19662850407253865,
+          "mean_signed": 0.050781998373935926
+        },
+        "old_hook_vs_hf_f32": {
+          "count": 151936,
+          "mean_abs": 0.19431555557565497,
+          "max_abs": 1.2635014653205872,
+          "max_abs_token_id": 95533,
+          "a_at_max": 1.8193745613098145,
+          "b_at_max": 0.5558730959892273,
+          "rms_abs": 0.24845335994699974,
+          "mean_signed": 0.022424105795272035
+        },
+        "old_hook_vs_llmx_native_i8_f16kv": {
+          "count": 151936,
+          "mean_abs": 0.15757810931966146,
+          "max_abs": 1.1264740257568358,
+          "max_abs_token_id": 1047,
+          "a_at_max": 6.282217025756836,
+          "b_at_max": 5.155743,
+          "rms_abs": 0.2015530541894016,
+          "mean_signed": 0.04077098505045078
+        },
+        "old_hook_vs_llmx_native_i8_f32kv": {
+          "count": 151936,
+          "mean_abs": 0.1573089359002084,
+          "max_abs": 0.9862746640319822,
+          "max_abs_token_id": 62137,
+          "a_at_max": 4.373562335968018,
+          "b_at_max": 5.359837,
+          "rms_abs": 0.19996513814520156,
+          "mean_signed": 0.04637614620383114
+        }
+      }
+    }
+  ],
+  "result_sha256": "8875f4e5f5dda84f521fb69ad7cc20aadd55c3a6eb31d5c43cb052b9edd81b6c",
+  "report_sha256": "7a75ae5d871df1a6b223d044b0ef6b76ef6d62e73d05167b2b0c777692f50ddb",
+  "raw_evidence": "scratch/q2-hf-ordinary-45-20261102/RESULT.json",
+  "input_pins": {
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/plan.json": "9e4036eb332792393be6162a5d5c7d8811df3362b64618ce0a2aa2530e77d81d",
+    "scratch/q2-hf-ordinary-45-20261102/postrun-pins.json": "9c78778f8de1637072ffa918ecdb1e276f00fdf8e5bfc471cdd168aea8394f29",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/plan-resume.json": "2470de795761de85eb1dbeafb200edb3394689260cfb3d76511c22a2b189df59",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/terminal.json": "9ff3df6f6de4fced55337dfa9d522858adcbc917c704821705531d670b191265",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/prepared.json": "d3a12beba98b141464821b9dccefbc982eae46510dc6dcb6c9ef5091cfd50722",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/summary.json": "0c206f63d5f27839c8ea13eaa8576ffec6426dd5286a4b939d185ba3445e835d",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/payload-hashes.json": "077509ddd31138bdbc6857da945b713f761f1e139aabddb6fb366e410b68b03c",
+    "scratch/q2-int8-hf-rounding-control-20261101/baseline_logits.json": "07f0eafcf5b784192b1b70db6a8a846b87243b596d8187af60811f9ab1efc9dc",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/weight-scales.json": "35b116b220b7ef1181ac591d47adec693f5659c801a6dde49e2c9608b3ead311",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-32585bdb1bac0f52b242007526285a795a1210a59ed6f567a486fc5b9f620eef/record.json": "881c96c73e1a3e21d506b1b9c004426898e4c657e560999cfa674bef432bbae3",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-32585bdb1bac0f52b242007526285a795a1210a59ed6f567a486fc5b9f620eef/logits.npy": "9a1d52efe9112fbbdb56681e867f09f2c00eb134f61e7419bb6920c3761a96bd",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-8d54a7dee404945e8e20cc09d8fc269e81a617186a520aab0f775a0476085685/record.json": "5479ddcce7dffcbf9af5010158d811e43ba35fd26b9643d32e73a47d76a6f84a",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-8d54a7dee404945e8e20cc09d8fc269e81a617186a520aab0f775a0476085685/logits.npy": "0559daf6fe85013b7bf9810d60b1263f6bddd2ac7c14bc877c11582e0abe9f01",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-af76fc51bea4b531d34898aa13f26f4654339a1a27ff3394384c8af493032e00/record.json": "22f13840e4154b4732bec2798345838b55def751587c10e5511029c164f3d4e0",
+    "scratch/q2-hf-ordinary-45-20261102/shared-functional-20261102-1635/remote-results/out/checkpoints/forward-af76fc51bea4b531d34898aa13f26f4654339a1a27ff3394384c8af493032e00/logits.npy": "7340186a14506b875c56bf4945a55c9097925209932b8663c87ef3c0b07ec13e",
+    "scratch/q2-int8-first-projection-observer-v1/ordinary-hf-case2/ordinary-replay-int8-case2.npy": "9a1d52efe9112fbbdb56681e867f09f2c00eb134f61e7419bb6920c3761a96bd",
+    "scratch/q2-int8-first-projection-observer-v1/ordinary-hf-case2/summary.json": "b9ac56d08b3156d2676953431004b4364bbdc0e2663f2470f006190c7e665383",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/execution.json": "878653d454d816cbe09b8dd5f0a1191009e4f4b785676c9267b6299e358ec642",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/execution.json": "7f3a7beb9501b1bf8bf39b495564e49c4d904ad30094e41036dddaa4d75ff9c5",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/postrun-audit.json": "49433d5d365cb30c8cde9ab02e12ae8c82b9c019021a12388ac099724833972c",
+    "scratch/q2-int8-hf-rounding-control-20261101/plan.json": "d2c29328a114b974929a8615d9123babb2ac7c3944bbafc26b802a6a53646d85",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/summary.json": "92ce6ffbc052e008f974f7652dab3484a7d67c49d6afe65d927863d04ca3354a",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/f32-case2.npy": "ccad75c32b6225fabe4b45a3ff030a2a731316343fac27bc7d5bad78370ddf1f",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/block-int8-case2.npy": "c5602a9232dbf4f1b5e73c7474fc4e580d1e0b7537c11db71177c366e1357531",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-2-stdout.txt": "5a0a97963863c1b3ceef086209debddc2051a2bd227f743ad98a20a97bb3fa27",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-2-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-2-stdout.txt": "a6b7edcabe015d812e8ee3b2ce8b382075f81e29b5ebaa08835c4635863dc96a",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-2-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/f32-case4.npy": "2cab36d3b9f96b0f1a63dfbecdec6d720dd894a76647fab37aa26968513f7728",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/block-int8-case4.npy": "ad33697dbb48026fb91681d03e5698cb50dba5b193f348047bb79a1ac63d26dc",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-4-stdout.txt": "d0ec13f6b18c5f86905abcb7eda3d600eca043c34062158fb0fda3eae630a20b",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-4-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-4-stdout.txt": "e2190545d232744d51f27e705c79db0659d46521444d60484fdf3bc771ec6045",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-4-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/f32-case5.npy": "8e52822e37beaf2490821593d5e288ebcd2dc10096d0a5eb1cf4adfcbc1e0a81",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/hf-control/block-int8-case5.npy": "88cdbd32802148e372bc46bdb5e6cea9923e8bb223b15d407084ee2078872f4c",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-5-stdout.txt": "f7908892410317395b37ef291939f2602e71ad123a5287552d2b1f9a87b6ea88",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-v1/raw-out/case-5-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-5-stdout.txt": "00382f5b3a82927e94ce0ab7a80778d498faa287d2ae04945a54b595e1bd0f4d",
+    "scratch/q12-landing-20261029/q2-int8-full-vocab-control-f32kv-v1/raw-out/case-5-stderr.txt": "b11a74ae3cd8247fa153ec06968c19b5712f2e0ba624ef3d6fd28f81a5863ae2"
+  },
+  "interpretation": [
+    "Ordinary quantizer case4 gives4/5 vs frozen HF F32, whereas the old HF hook gives5/5. It newly reproduces a case4 ranking failure inside HF, but not the exact llmx F16KV set, which gives3/5.",
+    "Ordinary HF cases2/4/5 remain4/5 each under the existing tie rule; all top1 agree. This is not a gate pass or evidence permitting lower default precision.",
+    "HF reductions, attention and use_cache=False/F32KV remain HF-owned. Only linear input quantizer arithmetic changes; GPU summation is not emulated.",
+    "Saved llmx F16KV and F32KV captures are separate comparisons from the same private native-int8 binary. F32KV aligns cache precision, not implementation or arithmetic order.",
+    "All full-vector metrics include151936 values without filtering; CLI text precision contributes at most0.5e-6 per value.",
+    "Rankings use frozen top10 golden IDs/logits. Full-vector errors use the saved full HF F32 control, not a nonexistent full-vocabulary golden: golden stores rounded top10 with4threads; the saved F32 control uses2threads, retains identical top10 IDs, and differs there by at most5.37e-5.",
+    "No NLL rerun/result, no F32/reversed/CLI inference rerun, no new budget/golden/reference or acceptance change. Existing ranking and NLL failures remain open."
+  ],
+  "next": "Inspect existing final-head inputs, then same-input replay to separate head arithmetic from upstream drift."
+}

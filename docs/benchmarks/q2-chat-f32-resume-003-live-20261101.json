@@ -1,0 +1,90 @@
+{
+  "schema": "llmx.q2-chat-f32-live-resume.v1",
+  "status": "running; no full-vector result or qualification claim",
+  "observed_at_utc": "2026-11-01T15:19:48Z",
+  "observation_source": "direct rig UTC and read-only Docker/execution/checkpoint inspection",
+  "root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-cpu2367-20261101",
+  "prior_root_preserved": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/own8b-chat-f32-resume-v1",
+  "attempt": "resume-003",
+  "migration": {
+    "receipt": "migration-receipt.json",
+    "receipt_sha256": "d2290a97435edf0dcbb91fc7bbb0651dedce8c3a8ab8e29466faddbcd2491f1e",
+    "execution_receipt_sha256": "a81315dfd69c6e32433694aad385c90f45f35ef6f64ea22a1d13b3b1b5705630",
+    "old_manifest_sha256": "99f433d6fef01200bc046581dc805634eefcd6565bf2e1367ff68b9b422b6de3",
+    "initial_rekeyed_manifest_sha256": "aa3b22909843b5705ed25e98ee60dbbdb9145966a87fed49480a1ff01084b99b",
+    "checkpoint_loader": "checkpoint_io.load passed before atomic publish",
+    "changed_identity_fields": [
+      "plan_sha256",
+      "resume_plan_sha256"
+    ],
+    "hidden_state_preserved_at_migration": true,
+    "hf_started_by_migration": false
+  },
+  "pins": {
+    "plan_sha256": "31d1a3d3a86eb729d065bced3f7b9a0b8fbd9d4aabf1cbb9c2beb7e56af578b7",
+    "resume_plan_sha256": "39e48d9bc172adc2b786e11c84e056b4df22ae08d322059242378c1f1b5bfc4b",
+    "payload_manifest_sha256": "2e87294ccba682c6d964880c110aa5e38f13d1f9b328a4284c6e5b3343781fb2",
+    "supervisor_sha256": "d5c3d1ae4710dce8d964713339398ca62a5ee5434dcb33b186134d5317392b81",
+    "detached_launcher_sha256": "906011d6f0daa835b4f2209678f80d7a71c5bf9438c5ad0f8d686411c1a0c902",
+    "root_review_sha256_at_launch": "0d319e054808e80f307e362f8bf459a6859c13ec96bc8aeeb7a69eeb294ea3f8",
+    "model_sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+    "input_u32le_sha256": "f5bfc26c4f3e47f24aa8875f7ab09bebf41f20c3d1c0d0eb11d124813bec6ff5",
+    "policy": "F32-quality",
+    "numerical_threads": 4,
+    "cpuset": "2-3,6-7",
+    "execution_receipt_sha256": "f9df926cfb076490a556e6a53788d284009124884214dadf7448dcc568fd1761"
+  },
+  "process": {
+    "supervisor_pid": 1041108,
+    "supervisor_started_at_utc": "2026-11-01T14:52:56Z",
+    "container_name": "llmx-xdev-q2-8b-chat-f32-resume-resume-003",
+    "container_id": "ffe79aa80131cb1c0c260cc2fa261c3811fc29ed18afcb274866902af42b9dda",
+    "container_status": "running",
+    "container_pid_at_observation": 1041758,
+    "oom_killed": false
+  },
+  "checkpoint_at_observation": {
+    "sequence": 9,
+    "layer_completed": 8,
+    "manifest_sha256": "f9509a3db40bce7a6fb8c99d89239e28fc70917d7b2d2b642b4776b7e6951bb4",
+    "hidden_file": "hidden-0009.f32",
+    "hidden_bytes": 276807680,
+    "hidden_sha256": "a2c01924ea0a31725b1fb6c03c4f1ae624e50c296cb3a99e740954c8ffab17f2"
+  },
+  "latest_saved_progress": {
+    "sample_unix": 1793546371.3665004,
+    "elapsed_seconds": 1585.9254496097565,
+    "phase": "layer-forward",
+    "layer": 9,
+    "phase_name": "prefill_512",
+    "end": 8704
+  },
+  "latest_saved_resource_sample": {
+    "sample_unix": 1793546393.3994205,
+    "host_available_bytes": 18567987200,
+    "container_memory_current_bytes": 2613080064,
+    "container_memory_peak_bytes": 4719104000,
+    "memory_events": {
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "cpu_overlap": [],
+    "admission_passed": true,
+    "reserve_source": "fresh_sample_memory_current",
+    "reserve_bytes": 15640530944
+  },
+  "artifact_paths": {
+    "execution": "out-resume-003/execution.json",
+    "host_log": "supervisor-host-resume-003.log",
+    "checkpoint": "checkpoint/checkpoint.json"
+  },
+  "limits": [
+    "Observation only; no result report or full logits are complete.",
+    "No correctness or released-file qualification claim is made.",
+    "The original attempt root and its prior checkpoint remain untouched."
+  ]
+}

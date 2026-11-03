@@ -1,0 +1,77 @@
+{
+  "schema": "llmx.q2-step1-micro-screen.v1",
+  "date": "2026-11-01",
+  "scope": "Isolated Q2_0 block-int16 tile experiment: STEP1 shader against the frozen STEP2 shader. No native suite, model/HF gate, or SQTT run.",
+  "candidate": {
+    "runtime_revision": "9ad2caed40365febd6cbc47bb2fbeab27d442e53",
+    "base_source_tree_sha256": "461c2c5d0e3d7ba5c0129b1171da9e144a343ed13e483d5e808d6795263b1966",
+    "candidate_source_tree_sha256": "37be082d47d901654ce9ba6bf727959f91e343f3bc6037579607d0374d93016e",
+    "only_source_path_changed": "src/backends/vulkan/shaders/matmul_tile_q.comp",
+    "base_shader_sha256": "720fce996f7580afd293ef1665c4c7de2aa4b7fccdb08520f86c9dc3064f1557",
+    "candidate_shader_sha256": "9038691d0d556cb2454a00e472976df1205c8f3400edf23c9d4ac6642abb54bb",
+    "changed_generated_module": "generated/vulkan/matmul_tile_q2_0_dot.inc",
+    "base_library_sha256": "1ae161d366a8e183f67f7cdb23cdeb7eab22397d171146f09760f1d1506fa194",
+    "candidate_library_sha256": "d6fa5b1de44628dc8e4a4047f36388a34c2b2cb6cefbf753af1d155e713ff500",
+    "base_probe_sha256": "a9cba8c20bcde9d5a457215c79e3594b8b069e7fc77f4de3e755571a19e0dc1e",
+    "candidate_probe_sha256": "a58a0c0aa9e02869b70f32f4bc25d97ec3d8e2af1e2705a3fbb5c084b63b115e",
+    "probe_source_sha256": "60a923b73d15e432b7578dd1bc6f394902d97a2d8c54bb13ccf19a2c9c44bb9e",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600"
+  },
+  "run": {
+    "order": ["base", "candidate", "candidate", "base"],
+    "processes": 4,
+    "calls_per_process": 8,
+    "calls_total": 32,
+    "per_shape_process_calls": "One warmup and three measured calls per process; six measured calls per arm and shape.",
+    "shapes_k_m_n": [[4096, 4096, 512], [12288, 4096, 512]],
+    "elapsed_seconds": 17.076885,
+    "full_output_checks": "32/32 processes/calls returned success; every output element was compared bitwise with the exact integer oracle. Each call reports 2,097,152 checked outputs and the block-int16 path.",
+    "slow_samples_discarded": false,
+    "gpu_container_removed": true,
+    "base_pins_unchanged": true
+  },
+  "warm_results": [
+    {
+      "shape_k_m_n": [4096, 4096, 512],
+      "base_row_kernel_ms": [3.57632, 3.56976, 3.58032, 3.564, 3.57488, 3.5776],
+      "candidate_row_kernel_ms": [3.81408, 3.81808, 3.80672, 3.81184, 3.80928, 3.8088],
+      "row_kernel_median_ms": {"base": 3.5756, "candidate": 3.81056, "change_percent": 6.57},
+      "wall_ms": {"base_samples": [6.00419, 6.04706, 5.87698, 5.79035, 5.66415, 5.46709], "candidate_samples": [5.88404, 6.04304, 6.0829, 6.07846, 5.97074, 6.04869], "base_median": 5.83367, "candidate_median": 6.04587}
+    },
+    {
+      "shape_k_m_n": [12288, 4096, 512],
+      "base_row_kernel_ms": [9.09168, 6.80976, 6.24336, 9.26176, 7.5536, 7.00144],
+      "candidate_row_kernel_ms": [10.0981, 8.11568, 6.97296, 10.2302, 7.10016, 6.69584],
+      "row_kernel_median_ms": {"base": 7.27752, "candidate": 7.60792, "change_percent": 4.54},
+      "wall_ms": {"base_samples": [11.2309, 8.9634, 8.37978, 11.519, 9.74682, 9.05563], "candidate_samples": [12.5063, 10.0436, 9.04101, 12.1559, 9.30067, 8.87223], "base_median": 9.40123, "candidate_median": 9.67214}
+    }
+  ],
+  "compiled_shader_resources": {
+    "base_vgpr": 128,
+    "candidate_vgpr": 128,
+    "base_lds_bytes": 26624,
+    "candidate_lds_bytes": 13824,
+    "spills": 0,
+    "pipeline_instruction_estimate": {"base": 4025, "candidate": 2864},
+    "interpretation": "Reported pipeline/resource estimates only. Instruction estimates are not dynamic instruction counts, and these fields do not measure occupancy."
+  },
+  "activity": {
+    "path": "scratch/q2-step1-micro-v1/run-out-v1/activity.jsonl",
+    "sha256": "7e6941a93a357b4100d4aa80a18a413264d6c2752d21f2aeac81c789f3fca455",
+    "sample_snapshots": 15,
+    "sample_intervals": 14,
+    "unrelated_cpu_mean_cores": 3.75,
+    "process_stat_gaps": 4,
+    "coverage_note": "The process monitor reports missing process-stat entries and may miss short-lived processes. All activity samples are retained; no slow call was censored."
+  },
+  "artifacts": {
+    "scratch_root": "scratch/q2-step1-micro-v1/",
+    "build_receipt": "scratch/q2-step1-micro-v1/build-receipt.json",
+    "build_receipt_sha256": "e00823ee1bd2aaeb745ae94acef5d451a05b4de410ab5b524b2b898bec278209",
+    "run_plan": "scratch/q2-step1-micro-v1/run-plan.json",
+    "run_plan_sha256": "23a353ec0947eabca0fc6db27dc73831872a888c0cc15def963c38f278d8d4ca",
+    "execution": "scratch/q2-step1-micro-v1/run-out-v1/execution.json",
+    "execution_sha256": "6dd7f6b639796826fbc2ea6d421b5dcebcd2cac78574d7b08a318e671a616a47"
+  },
+  "conclusion": "STEP1 is slower on both measured shapes despite lower reported LDS use; it is not promoted. This bounded exact micro screen is not a model result or a Q2 qualification gate."
+}

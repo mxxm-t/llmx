@@ -29,7 +29,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `MXFP4` | Supported | Supported | No |
 | `NVFP4` | Supported | Supported | No |
 | `Q1_0` | Supported | Supported | No |
-| `Q2_K` | Supported | Supported | No |
+| `Q2_0`, `Q2_K` | Supported | Supported | No |
 | `Q3_K` | Supported | Supported | No |
 | `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_0` |
 | `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | No |

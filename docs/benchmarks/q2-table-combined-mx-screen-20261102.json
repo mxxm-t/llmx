@@ -1,0 +1,3820 @@
+{
+  "status": "DONE",
+  "boot_id": "71d7f33f-ff6d-4528-a184-8868b92368de",
+  "plan_sha256": "b43c6fabc0692a20485597c28b2c7127cd446686363a439a0e558f9aba149900",
+  "execution_sha256": "2ca71a2779283ff35dfdb19cc77924758f79d78a7ce255e49b1ac272e06a9542",
+  "terminal_sha256": "23458ee100ba837c9041fad82becf77ef39507f7ba2f4a0ab7b5c5be969e7d11",
+  "samples": [
+    {
+      "call": "q2-table-combined-p4096-g256-0-baseline",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "baseline",
+      "start": 1793655509.8224435,
+      "end": 1793655531.3524604,
+      "exit": 0,
+      "rates": {
+        "pp4096": 597.55,
+        "tg256": 107.56
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-1-candidate",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "candidate",
+      "start": 1793655532.9738114,
+      "end": 1793655554.5553017,
+      "exit": 0,
+      "rates": {
+        "pp4096": 593.13,
+        "tg256": 113.76
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-2-combined",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "combined",
+      "start": 1793655556.1016123,
+      "end": 1793655575.4269753,
+      "exit": 0,
+      "rates": {
+        "pp4096": 694.18,
+        "tg256": 104.26
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-3-mx",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "mx",
+      "start": 1793655577.035501,
+      "end": 1793655605.206521,
+      "exit": 0,
+      "rates": {
+        "pp4096": 719.460452,
+        "tg256": 125.077624
+      },
+      "matrix_paths": {
+        "mx_config": [
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 4096,
+            "n_gen": 0,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:39:39Z",
+            "avg_ns": 5693155179,
+            "stddev_ns": 0,
+            "avg_ts": 719.460452,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              5693155179
+            ],
+            "samples_ts": [
+              719.46
+            ]
+          },
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 0,
+            "n_gen": 256,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:39:54Z",
+            "avg_ns": 2046728998,
+            "stddev_ns": 0,
+            "avg_ts": 125.077624,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              2046728998
+            ],
+            "samples_ts": [
+              125.078
+            ]
+          }
+        ],
+        "runtime_context_witness": false,
+        "actual_offload_count_witness": false
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-4-mx",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "mx",
+      "start": 1793655606.7869387,
+      "end": 1793655633.7133317,
+      "exit": 0,
+      "rates": {
+        "pp4096": 725.038807,
+        "tg256": 121.893779
+      },
+      "matrix_paths": {
+        "mx_config": [
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 4096,
+            "n_gen": 0,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:40:09Z",
+            "avg_ns": 5649352777,
+            "stddev_ns": 0,
+            "avg_ts": 725.038807,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              5649352777
+            ],
+            "samples_ts": [
+              725.039
+            ]
+          },
+          {
+            "build_commit": "unknown",
+            "build_number": 0,
+            "cpu_info": "AMD EPYC 7262 8-Core Processor",
+            "gpu_info": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "backends": "Vulkan",
+            "model_filename": "/models/Qwen3-8B-Q2_0-grid-mse.gguf",
+            "model_type": "qwen3 8B (guessed) Q2_0",
+            "model_size": 2304790528,
+            "model_n_params": 8190735360,
+            "n_batch": 4096,
+            "n_ubatch": 512,
+            "n_threads": 1,
+            "cpu_mask": "0x0",
+            "cpu_strict": false,
+            "poll": 50,
+            "type_k": "f16",
+            "type_v": "f16",
+            "n_gpu_layers": 99,
+            "n_cpu_moe": 0,
+            "split_mode": "layer",
+            "tensor_parallel_size": 0,
+            "main_gpu": 0,
+            "no_kv_offload": false,
+            "flash_attn": 1,
+            "devices": "auto",
+            "tensor_split": "0.00",
+            "tensor_buft_overrides": "none",
+            "load_mode": "mmap",
+            "lazy_mode": "auto",
+            "embeddings": false,
+            "no_op_offload": 0,
+            "no_host": false,
+            "repack": true,
+            "fit_target": 0,
+            "fit_min_ctx": 0,
+            "n_prompt": 0,
+            "n_gen": 256,
+            "n_depth": 0,
+            "test_time": "2026-11-02T21:40:22Z",
+            "avg_ns": 2100189214,
+            "stddev_ns": 0,
+            "avg_ts": 121.893779,
+            "stddev_ts": 0.0,
+            "samples_ns": [
+              2100189214
+            ],
+            "samples_ts": [
+              121.894
+            ]
+          }
+        ],
+        "runtime_context_witness": false,
+        "actual_offload_count_witness": false
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-5-combined",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "combined",
+      "start": 1793655635.2632658,
+      "end": 1793655654.7276473,
+      "exit": 0,
+      "rates": {
+        "pp4096": 675.89,
+        "tg256": 103.76
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-6-candidate",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "candidate",
+      "start": 1793655656.2795336,
+      "end": 1793655677.647115,
+      "exit": 0,
+      "rates": {
+        "pp4096": 572.59,
+        "tg256": 118.5
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-7-baseline",
+      "workload": "q2-table-combined-p4096-g256",
+      "arm": "baseline",
+      "start": 1793655679.2438705,
+      "end": 1793655701.6405663,
+      "exit": 0,
+      "rates": {
+        "pp4096": 574.59,
+        "tg256": 110.07
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "valid": true
+    }
+  ],
+  "reference_limits": [
+    "mx quiet JSON validates requested ngl99/Vulkan, F16KV, batch4096/ubatch512, threads1, mmap, flash-attention and depths; lacks current runtime context/offloaded-layer-count witnesses.",
+    "Pinned mx source configures40960context; no current runtime context witness.",
+    "mx and llmx use different activation arithmetic; comparison is speed, not precision equivalence.",
+    "Different input-loading modes: llmx direct and mx mmap, established pinned reference flags; model load excluded from timed rates.",
+    "Two timed samples/arm, shared-host activity and no CPU layout/noise control.",
+    "Prior unchanged prefillhoist model TG regression retained; current combined tradeoff must be measured.",
+    "Checked-in CPU/host/test sources identical A/B/C; generated numerics metadata differs, so no CPU binary layout qualification.",
+    "Target sensor rawvalues/readtime retained; starred DPM is activelevel, not instantaneousclock; missing unknown; sensoroverhead not calibrated."
+  ],
+  "phases": {
+    "pp4096": {
+      "samples": {
+        "baseline": [
+          597.55,
+          574.59
+        ],
+        "candidate": [
+          593.13,
+          572.59
+        ],
+        "combined": [
+          694.18,
+          675.89
+        ],
+        "mx": [
+          719.460452,
+          725.038807
+        ]
+      },
+      "median": {
+        "baseline": 586.0699999999999,
+        "candidate": 582.86,
+        "combined": 685.035,
+        "mx": 722.2496295000001
+      },
+      "candidate_rate_change_percent": -0.5477161431228228,
+      "paired_rate_changes_percent": [
+        -0.7396870554765234,
+        -0.3480742790511471
+      ],
+      "baseline_relative_to_mx_percent": -18.854925490827146,
+      "table_relative_to_mx_percent": -19.299370163262928,
+      "combined_vs_baseline_percent": 16.886208132134396,
+      "combined_vs_table_percent": 17.52993857873244,
+      "combined_vs_mx_percent": -5.152599320232687,
+      "combined_vs_table_paired_percent": [
+        17.036737308853024,
+        18.04083200894182
+      ]
+    },
+    "tg256": {
+      "samples": {
+        "baseline": [
+          107.56,
+          110.07
+        ],
+        "candidate": [
+          113.76,
+          118.5
+        ],
+        "combined": [
+          104.26,
+          103.76
+        ],
+        "mx": [
+          125.077624,
+          121.893779
+        ]
+      },
+      "median": {
+        "baseline": 108.815,
+        "candidate": 116.13,
+        "combined": 104.01,
+        "mx": 123.4857015
+      },
+      "candidate_rate_change_percent": 6.722418784174966,
+      "paired_rate_changes_percent": [
+        5.764224618817404,
+        7.658762605614622
+      ],
+      "baseline_relative_to_mx_percent": -11.880486017241443,
+      "table_relative_to_mx_percent": -5.956723256740792,
+      "combined_vs_baseline_percent": -4.415751504847676,
+      "combined_vs_table_percent": -10.4365796951692,
+      "combined_vs_mx_percent": -15.77162478199956,
+      "combined_vs_table_paired_percent": [
+        -8.350914205344584,
+        -12.438818565400844
+      ]
+    }
+  },
+  "activity_intervals": [
+    {
+      "at": "2026-11-02T21:38:17.757241+00:00",
+      "unix": 1793655497.757241,
+      "interval": 2.004293308999877,
+      "cpu_percent": 72.30062356416147,
+      "unrelated_cpu_cores": 11.1161374934278,
+      "aggregate_disk_bytes_per_second": 9555934.709754188,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:19.771027+00:00",
+      "unix": 1793655499.771027,
+      "interval": 2.0016550760001337,
+      "cpu_percent": 71.58203125,
+      "unrelated_cpu_cores": 10.846024502574464,
+      "aggregate_disk_bytes_per_second": 8193411.640517282,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:21.775353+00:00",
+      "unix": 1793655501.775353,
+      "interval": 2.0007724879997113,
+      "cpu_percent": 71.8668407310705,
+      "unrelated_cpu_cores": 10.530932490512654,
+      "aggregate_disk_bytes_per_second": 8180648.273689358,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:23.868365+00:00",
+      "unix": 1793655503.868365,
+      "interval": 2.000608512999861,
+      "cpu_percent": 70.99836333878888,
+      "unrelated_cpu_cores": 10.89668461287884,
+      "aggregate_disk_bytes_per_second": 8811910.918826139,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:25.771596+00:00",
+      "unix": 1793655505.771596,
+      "interval": 2.0010646259997884,
+      "cpu_percent": 71.76892950391645,
+      "unrelated_cpu_cores": 9.94970364340552,
+      "aggregate_disk_bytes_per_second": 2145162.1023260513,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:27.774394+00:00",
+      "unix": 1793655507.774394,
+      "interval": 2.0008587510001234,
+      "cpu_percent": 70.96563011456628,
+      "unrelated_cpu_cores": 10.305575038564394,
+      "aggregate_disk_bytes_per_second": 5394163.878187388,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:29.836620+00:00",
+      "unix": 1793655509.83662,
+      "interval": 2.001485450000473,
+      "cpu_percent": 73.07071359380045,
+      "unrelated_cpu_cores": 11.381546640768544,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 33.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:31.759409+00:00",
+      "unix": 1793655511.759409,
+      "interval": 2.0010265459995935,
+      "cpu_percent": 72.94117647058823,
+      "unrelated_cpu_cores": 10.019857077900092,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 28.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:33.773098+00:00",
+      "unix": 1793655513.773098,
+      "interval": 2.000811239000541,
+      "cpu_percent": 72.9957805907173,
+      "unrelated_cpu_cores": 11.170469039930238,
+      "aggregate_disk_bytes_per_second": 1907962.0933691526,
+      "non_target_gpu_busy_max": 34.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:35.859776+00:00",
+      "unix": 1793655515.859776,
+      "interval": 2.001136670000051,
+      "cpu_percent": 72.97650130548303,
+      "unrelated_cpu_cores": 11.763314496655244,
+      "aggregate_disk_bytes_per_second": 574698530.710534,
+      "non_target_gpu_busy_max": 25.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:37.780423+00:00",
+      "unix": 1793655517.780423,
+      "interval": 2.001154508999207,
+      "cpu_percent": 73.64165588615782,
+      "unrelated_cpu_cores": 11.043625017766562,
+      "aggregate_disk_bytes_per_second": 803673036.1236876,
+      "non_target_gpu_busy_max": 31.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:39.773156+00:00",
+      "unix": 1793655519.773156,
+      "interval": 2.0013775870002064,
+      "cpu_percent": 74.63509568602011,
+      "unrelated_cpu_cores": 11.691946663134878,
+      "aggregate_disk_bytes_per_second": 807134291.1465478,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:41.781072+00:00",
+      "unix": 1793655521.781072,
+      "interval": 2.0012528630004454,
+      "cpu_percent": 73.22987390882638,
+      "unrelated_cpu_cores": 11.27293827636362,
+      "aggregate_disk_bytes_per_second": 886871507.7508949,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:43.773519+00:00",
+      "unix": 1793655523.773519,
+      "interval": 2.0008398499994655,
+      "cpu_percent": 72.00910273081925,
+      "unrelated_cpu_cores": 10.580556959621559,
+      "aggregate_disk_bytes_per_second": 798802354.9213232,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:45.765148+00:00",
+      "unix": 1793655525.765148,
+      "interval": 2.0011100980000265,
+      "cpu_percent": 71.5076522305438,
+      "unrelated_cpu_cores": 11.333709236022106,
+      "aggregate_disk_bytes_per_second": 784124900.2582262,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:47.768183+00:00",
+      "unix": 1793655527.768183,
+      "interval": 2.0009888849999697,
+      "cpu_percent": 71.10609480812641,
+      "unrelated_cpu_cores": 10.369872694220545,
+      "aggregate_disk_bytes_per_second": 808091453.2416428,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:49.784238+00:00",
+      "unix": 1793655529.784238,
+      "interval": 2.0010176960004173,
+      "cpu_percent": 71.64663851899968,
+      "unrelated_cpu_cores": 9.800013282839009,
+      "aggregate_disk_bytes_per_second": 849012845.51141,
+      "non_target_gpu_busy_max": 12.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:51.814778+00:00",
+      "unix": 1793655531.814778,
+      "interval": 2.0018246310000904,
+      "cpu_percent": 72.40928407976463,
+      "unrelated_cpu_cores": 9.95092161996637,
+      "aggregate_disk_bytes_per_second": 795225607.3523796,
+      "non_target_gpu_busy_max": 5.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:53.768703+00:00",
+      "unix": 1793655533.768703,
+      "interval": 2.0012500319999162,
+      "cpu_percent": 74.03350515463917,
+      "unrelated_cpu_cores": 9.449094164961789,
+      "aggregate_disk_bytes_per_second": 830008719.2703513,
+      "non_target_gpu_busy_max": 24.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:55.780714+00:00",
+      "unix": 1793655535.780714,
+      "interval": 2.0014171189995977,
+      "cpu_percent": 74.2081447963801,
+      "unrelated_cpu_cores": 9.653160161664372,
+      "aggregate_disk_bytes_per_second": 751227070.9223919,
+      "non_target_gpu_busy_max": 8.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:57.776711+00:00",
+      "unix": 1793655537.776711,
+      "interval": 2.001216382000166,
+      "cpu_percent": 73.3868378812199,
+      "unrelated_cpu_cores": 10.153824535301208,
+      "aggregate_disk_bytes_per_second": 799712278.1897491,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:38:59.773751+00:00",
+      "unix": 1793655539.773751,
+      "interval": 2.001097848000427,
+      "cpu_percent": 71.50747238466536,
+      "unrelated_cpu_cores": 10.998962405558144,
+      "aggregate_disk_bytes_per_second": 840688989.6368731,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:01.778751+00:00",
+      "unix": 1793655541.778751,
+      "interval": 2.0010275249996994,
+      "cpu_percent": 71.68227316758153,
+      "unrelated_cpu_cores": 11.374156384981971,
+      "aggregate_disk_bytes_per_second": 779228205.7690507,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:03.786248+00:00",
+      "unix": 1793655543.786248,
+      "interval": 2.001209852000102,
+      "cpu_percent": 70.79159935379644,
+      "unrelated_cpu_cores": 9.53423249487332,
+      "aggregate_disk_bytes_per_second": 490539228.06689745,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:05.779281+00:00",
+      "unix": 1793655545.779281,
+      "interval": 2.001068857000064,
+      "cpu_percent": 72.6209808379344,
+      "unrelated_cpu_cores": 9.744792105372003,
+      "aggregate_disk_bytes_per_second": 843325.3029233197,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:07.789792+00:00",
+      "unix": 1793655547.789792,
+      "interval": 2.001033355999425,
+      "cpu_percent": 75.4832474226804,
+      "unrelated_cpu_cores": 10.679482146526567,
+      "aggregate_disk_bytes_per_second": 49126.61735761102,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:09.821830+00:00",
+      "unix": 1793655549.82183,
+      "interval": 2.0008662210002512,
+      "cpu_percent": 75.02413904087544,
+      "unrelated_cpu_cores": 10.39049976545003,
+      "aggregate_disk_bytes_per_second": 2114668.1150350976,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:11.793896+00:00",
+      "unix": 1793655551.793896,
+      "interval": 2.002652928000316,
+      "cpu_percent": 73.36764232872306,
+      "unrelated_cpu_cores": 9.352594120590947,
+      "aggregate_disk_bytes_per_second": 3775599.8027826054,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:13.788935+00:00",
+      "unix": 1793655553.788935,
+      "interval": 2.000780327999564,
+      "cpu_percent": 70.16916070266754,
+      "unrelated_cpu_cores": 9.131437241921933,
+      "aggregate_disk_bytes_per_second": 10068135.775875336,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:15.782448+00:00",
+      "unix": 1793655555.782448,
+      "interval": 2.0015368519998447,
+      "cpu_percent": 72.31912144702842,
+      "unrelated_cpu_cores": 9.777486724986625,
+      "aggregate_disk_bytes_per_second": 6974224.824315692,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:17.799840+00:00",
+      "unix": 1793655557.79984,
+      "interval": 2.0020795180007553,
+      "cpu_percent": 72.28138109067442,
+      "unrelated_cpu_cores": 9.205428572789108,
+      "aggregate_disk_bytes_per_second": 7872518.478056801,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:19.790405+00:00",
+      "unix": 1793655559.790405,
+      "interval": 2.000903182000002,
+      "cpu_percent": 72.3692704970949,
+      "unrelated_cpu_cores": 9.515702794259429,
+      "aggregate_disk_bytes_per_second": 7557802.964201586,
+      "non_target_gpu_busy_max": 96.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:21.817592+00:00",
+      "unix": 1793655561.817592,
+      "interval": 2.0009446939993722,
+      "cpu_percent": 70.76023391812865,
+      "unrelated_cpu_cores": 10.145207941467657,
+      "aggregate_disk_bytes_per_second": 6658998.641970552,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:23.792543+00:00",
+      "unix": 1793655563.792543,
+      "interval": 2.0010266850003973,
+      "cpu_percent": 68.6649384316267,
+      "unrelated_cpu_cores": 10.554581884546836,
+      "aggregate_disk_bytes_per_second": 10793563.20527815,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:25.802047+00:00",
+      "unix": 1793655565.802047,
+      "interval": 2.0011042489995816,
+      "cpu_percent": 66.46043633995441,
+      "unrelated_cpu_cores": 10.43423900101087,
+      "aggregate_disk_bytes_per_second": 7540668.612114448,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:27.801252+00:00",
+      "unix": 1793655567.801252,
+      "interval": 2.0013047640004515,
+      "cpu_percent": 68.33602584814217,
+      "unrelated_cpu_cores": 10.323265287542851,
+      "aggregate_disk_bytes_per_second": 7318873.2987979315,
+      "non_target_gpu_busy_max": 87.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:29.794130+00:00",
+      "unix": 1793655569.79413,
+      "interval": 2.0010438970002724,
+      "cpu_percent": 67.92945787067276,
+      "unrelated_cpu_cores": 10.62445458186623,
+      "aggregate_disk_bytes_per_second": 4067253.1033430356,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:31.794061+00:00",
+      "unix": 1793655571.794061,
+      "interval": 2.0011913109992747,
+      "cpu_percent": 67.37426518615284,
+      "unrelated_cpu_cores": 10.538722551952777,
+      "aggregate_disk_bytes_per_second": 4461982.195765808,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:33.805303+00:00",
+      "unix": 1793655573.805303,
+      "interval": 2.000938533000408,
+      "cpu_percent": 68.34532374100719,
+      "unrelated_cpu_cores": 10.555046870095781,
+      "aggregate_disk_bytes_per_second": 1377657.5114811077,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:35.878153+00:00",
+      "unix": 1793655575.878153,
+      "interval": 2.002424069999506,
+      "cpu_percent": 72.04928664072634,
+      "unrelated_cpu_cores": 11.396187421980814,
+      "aggregate_disk_bytes_per_second": 435695.92129414185,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:37.816624+00:00",
+      "unix": 1793655577.816624,
+      "interval": 2.0044975050004723,
+      "cpu_percent": 74.52920523459943,
+      "unrelated_cpu_cores": 11.045162163968262,
+      "aggregate_disk_bytes_per_second": 51085.12220371952,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:39.814105+00:00",
+      "unix": 1793655579.814105,
+      "interval": 2.0013359449994823,
+      "cpu_percent": 75.32842037808395,
+      "unrelated_cpu_cores": 10.917707271782227,
+      "aggregate_disk_bytes_per_second": 2924638.421962443,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:41.803642+00:00",
+      "unix": 1793655581.803642,
+      "interval": 2.0013583859999926,
+      "cpu_percent": 71.81492342782666,
+      "unrelated_cpu_cores": 10.782676481612464,
+      "aggregate_disk_bytes_per_second": 488879860.22109866,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:43.804293+00:00",
+      "unix": 1793655583.804293,
+      "interval": 2.0008565210000597,
+      "cpu_percent": 72.45817245817246,
+      "unrelated_cpu_cores": 10.220622910921552,
+      "aggregate_disk_bytes_per_second": 792777156.8583915,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:45.817076+00:00",
+      "unix": 1793655585.817076,
+      "interval": 2.0012869040001533,
+      "cpu_percent": 73.39360671617695,
+      "unrelated_cpu_cores": 11.522585769140791,
+      "aggregate_disk_bytes_per_second": 815349409.7915083,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:47.822818+00:00",
+      "unix": 1793655587.822818,
+      "interval": 2.001209922000271,
+      "cpu_percent": 72.63361236316806,
+      "unrelated_cpu_cores": 10.063911725897025,
+      "aggregate_disk_bytes_per_second": 753429388.6035389,
+      "non_target_gpu_busy_max": 0.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": false,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:49.863998+00:00",
+      "unix": 1793655589.863998,
+      "interval": 2.0008786609996605,
+      "cpu_percent": 70.83062946138871,
+      "unrelated_cpu_cores": 9.555801844799246,
+      "aggregate_disk_bytes_per_second": 762225643.0272654,
+      "non_target_gpu_busy_max": 72.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:51.823879+00:00",
+      "unix": 1793655591.823879,
+      "interval": 2.0031813940004213,
+      "cpu_percent": 71.27450980392157,
+      "unrelated_cpu_cores": 10.832768347885041,
+      "aggregate_disk_bytes_per_second": 880981473.4130008,
+      "non_target_gpu_busy_max": 55.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:53.827245+00:00",
+      "unix": 1793655593.827245,
+      "interval": 2.0007972679995873,
+      "cpu_percent": 73.32242225859247,
+      "unrelated_cpu_cores": 10.260909652543685,
+      "aggregate_disk_bytes_per_second": 927531950.2287439,
+      "non_target_gpu_busy_max": 48.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:55.827382+00:00",
+      "unix": 1793655595.827382,
+      "interval": 2.0011357399998815,
+      "cpu_percent": 75.40400775694893,
+      "unrelated_cpu_cores": 10.214199662438297,
+      "aggregate_disk_bytes_per_second": 794637645.1205125,
+      "non_target_gpu_busy_max": 60.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:57.821447+00:00",
+      "unix": 1793655597.821447,
+      "interval": 2.0013705260007555,
+      "cpu_percent": 74.97565725413827,
+      "unrelated_cpu_cores": 10.467826785609459,
+      "aggregate_disk_bytes_per_second": 825626100.9808517,
+      "non_target_gpu_busy_max": 61.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:39:59.945695+00:00",
+      "unix": 1793655599.945695,
+      "interval": 2.0009503739993306,
+      "cpu_percent": 73.43137254901961,
+      "unrelated_cpu_cores": 11.059744553168715,
+      "aggregate_disk_bytes_per_second": 824104524.243714,
+      "non_target_gpu_busy_max": 52.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:01.852532+00:00",
+      "unix": 1793655601.852532,
+      "interval": 2.0032728370006225,
+      "cpu_percent": 72.36457995458969,
+      "unrelated_cpu_cores": 10.24822960747489,
+      "aggregate_disk_bytes_per_second": 814766029.7954177,
+      "non_target_gpu_busy_max": 76.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:03.842336+00:00",
+      "unix": 1793655603.842336,
+      "interval": 2.0025721039992277,
+      "cpu_percent": 69.97065536354744,
+      "unrelated_cpu_cores": 10.546436733949504,
+      "aggregate_disk_bytes_per_second": 868018019.6900767,
+      "non_target_gpu_busy_max": 52.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:05.827389+00:00",
+      "unix": 1793655605.827389,
+      "interval": 2.001170801000626,
+      "cpu_percent": 70.47463175122749,
+      "unrelated_cpu_cores": 10.688742804614462,
+      "aggregate_disk_bytes_per_second": 825059665.6589352,
+      "non_target_gpu_busy_max": 76.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:07.852755+00:00",
+      "unix": 1793655607.852755,
+      "interval": 2.001138089000051,
+      "cpu_percent": 72.88080545631699,
+      "unrelated_cpu_cores": 10.943772506445676,
+      "aggregate_disk_bytes_per_second": 784113932.279443,
+      "non_target_gpu_busy_max": 70.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:09.831301+00:00",
+      "unix": 1793655609.831301,
+      "interval": 2.001180010999633,
+      "cpu_percent": 72.79220779220779,
+      "unrelated_cpu_cores": 10.688693611983076,
+      "aggregate_disk_bytes_per_second": 760424305.4775741,
+      "non_target_gpu_busy_max": 58.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:11.833455+00:00",
+      "unix": 1793655611.833455,
+      "interval": 2.0011659299998428,
+      "cpu_percent": 71.49885208265005,
+      "unrelated_cpu_cores": 11.16848916171672,
+      "aggregate_disk_bytes_per_second": 756260310.7080276,
+      "non_target_gpu_busy_max": 61.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:13.849196+00:00",
+      "unix": 1793655613.849196,
+      "interval": 2.00164048500028,
+      "cpu_percent": 74.30689877498388,
+      "unrelated_cpu_cores": 11.44061592059415,
+      "aggregate_disk_bytes_per_second": 754398937.9290501,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:15.845600+00:00",
+      "unix": 1793655615.8456,
+      "interval": 2.0009370329999,
+      "cpu_percent": 70.47089601046436,
+      "unrelated_cpu_cores": 10.679996245539561,
+      "aggregate_disk_bytes_per_second": 3291641.811499387,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:17.844478+00:00",
+      "unix": 1793655617.844478,
+      "interval": 2.0009245629998986,
+      "cpu_percent": 68.02765887388871,
+      "unrelated_cpu_cores": 10.440173700841843,
+      "aggregate_disk_bytes_per_second": 831103.7960905296,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:19.858494+00:00",
+      "unix": 1793655619.858494,
+      "interval": 2.000835939999888,
+      "cpu_percent": 70.78688524590164,
+      "unrelated_cpu_cores": 10.840469009168846,
+      "aggregate_disk_bytes_per_second": 1246710.9122400808,
+      "non_target_gpu_busy_max": 80.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:21.841124+00:00",
+      "unix": 1793655621.841124,
+      "interval": 2.000840448999952,
+      "cpu_percent": 73.33117303953338,
+      "unrelated_cpu_cores": 11.215287061602451,
+      "aggregate_disk_bytes_per_second": 540444.8918155722,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:23.901555+00:00",
+      "unix": 1793655623.901555,
+      "interval": 2.001124119000451,
+      "cpu_percent": 69.53381483913329,
+      "unrelated_cpu_cores": 10.813921932443172,
+      "aggregate_disk_bytes_per_second": 4392539.131650943,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:25.840205+00:00",
+      "unix": 1793655625.840205,
+      "interval": 2.000946553999711,
+      "cpu_percent": 71.40992167101828,
+      "unrelated_cpu_cores": 10.729921774813732,
+      "aggregate_disk_bytes_per_second": 8253629.746875481,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:27.848569+00:00",
+      "unix": 1793655627.848569,
+      "interval": 2.0014131980005914,
+      "cpu_percent": 70.43819489862655,
+      "unrelated_cpu_cores": 10.727420015741124,
+      "aggregate_disk_bytes_per_second": 7240707.723161381,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:29.857541+00:00",
+      "unix": 1793655629.857541,
+      "interval": 2.0009337329993286,
+      "cpu_percent": 69.04995102840353,
+      "unrelated_cpu_cores": 10.31518418606566,
+      "aggregate_disk_bytes_per_second": 8421540.26497471,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:31.854611+00:00",
+      "unix": 1793655631.854611,
+      "interval": 2.0010521359999984,
+      "cpu_percent": 68.8175565018015,
+      "unrelated_cpu_cores": 10.379539656332081,
+      "aggregate_disk_bytes_per_second": 9610304.326423615,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:33.895705+00:00",
+      "unix": 1793655633.895705,
+      "interval": 2.000631683999927,
+      "cpu_percent": 68.65965834428384,
+      "unrelated_cpu_cores": 10.441702071934577,
+      "aggregate_disk_bytes_per_second": 4719149.494385566,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:36.017096+00:00",
+      "unix": 1793655636.017096,
+      "interval": 2.0015372320003735,
+      "cpu_percent": 70.71498530852105,
+      "unrelated_cpu_cores": 11.411229146696051,
+      "aggregate_disk_bytes_per_second": 3429811.7917792094,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:37.844715+00:00",
+      "unix": 1793655637.844715,
+      "interval": 2.0014176579998093,
+      "cpu_percent": 72.17363135730483,
+      "unrelated_cpu_cores": 9.733100895826041,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 74.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:39.848256+00:00",
+      "unix": 1793655639.848256,
+      "interval": 2.000754047000555,
+      "cpu_percent": 72.38466536712151,
+      "unrelated_cpu_cores": 11.345722396029071,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 74.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:41.847230+00:00",
+      "unix": 1793655641.84723,
+      "interval": 2.000838179999846,
+      "cpu_percent": 71.57212317666126,
+      "unrelated_cpu_cores": 11.085354238892876,
+      "aggregate_disk_bytes_per_second": 164174652.04508707,
+      "non_target_gpu_busy_max": 81.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:43.876769+00:00",
+      "unix": 1793655643.876769,
+      "interval": 2.0009911549996104,
+      "cpu_percent": 71.15447154471545,
+      "unrelated_cpu_cores": 11.239429991385633,
+      "aggregate_disk_bytes_per_second": 855459829.3565837,
+      "non_target_gpu_busy_max": 53.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:45.851801+00:00",
+      "unix": 1793655645.851801,
+      "interval": 2.0008912809998947,
+      "cpu_percent": 71.09096795079314,
+      "unrelated_cpu_cores": 10.905140227856862,
+      "aggregate_disk_bytes_per_second": 819445126.0643413,
+      "non_target_gpu_busy_max": 77.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:47.853508+00:00",
+      "unix": 1793655647.853508,
+      "interval": 2.0008729820001463,
+      "cpu_percent": 72.38562091503267,
+      "unrelated_cpu_cores": 11.20011125223858,
+      "aggregate_disk_bytes_per_second": 766563577.897264,
+      "non_target_gpu_busy_max": 82.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:49.864903+00:00",
+      "unix": 1793655649.864903,
+      "interval": 2.0013564060000135,
+      "cpu_percent": 71.7915309446254,
+      "unrelated_cpu_cores": 11.367290669366087,
+      "aggregate_disk_bytes_per_second": 730403070.4464091,
+      "non_target_gpu_busy_max": 68.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:51.875936+00:00",
+      "unix": 1793655651.875936,
+      "interval": 2.0008636600005048,
+      "cpu_percent": 72.91666666666667,
+      "unrelated_cpu_cores": 11.470046889648748,
+      "aggregate_disk_bytes_per_second": 765690983.6623318,
+      "non_target_gpu_busy_max": 70.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:53.880592+00:00",
+      "unix": 1793655653.880592,
+      "interval": 2.0022820059994046,
+      "cpu_percent": 71.35953608247422,
+      "unrelated_cpu_cores": 10.787691211967283,
+      "aggregate_disk_bytes_per_second": 890194013.9597548,
+      "non_target_gpu_busy_max": 58.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:55.868970+00:00",
+      "unix": 1793655655.86897,
+      "interval": 2.0006847250006103,
+      "cpu_percent": 72.04968944099379,
+      "unrelated_cpu_cores": 11.046218189121857,
+      "aggregate_disk_bytes_per_second": 765863876.9282014,
+      "non_target_gpu_busy_max": 72.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:57.904008+00:00",
+      "unix": 1793655657.904008,
+      "interval": 2.0007153959995776,
+      "cpu_percent": 74.62060058120763,
+      "unrelated_cpu_cores": 10.99606672892552,
+      "aggregate_disk_bytes_per_second": 666178861.1538637,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:40:59.864949+00:00",
+      "unix": 1793655659.864949,
+      "interval": 2.000868351000463,
+      "cpu_percent": 72.74789371354504,
+      "unrelated_cpu_cores": 11.135165383999242,
+      "aggregate_disk_bytes_per_second": 5723722.899746816,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:01.872657+00:00",
+      "unix": 1793655661.872657,
+      "interval": 2.0006784549996155,
+      "cpu_percent": 70.81545064377683,
+      "unrelated_cpu_cores": 11.206198549283778,
+      "aggregate_disk_bytes_per_second": 9319334.625415148,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:03.876284+00:00",
+      "unix": 1793655663.876284,
+      "interval": 2.0010595369994917,
+      "cpu_percent": 70.00980071871938,
+      "unrelated_cpu_cores": 10.799278882228224,
+      "aggregate_disk_bytes_per_second": 6443690.3358379565,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:05.872460+00:00",
+      "unix": 1793655665.87246,
+      "interval": 2.0006445930002883,
+      "cpu_percent": 69.5037791652974,
+      "unrelated_cpu_cores": 10.866497765801258,
+      "aggregate_disk_bytes_per_second": 7837218.09203807,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:07.920603+00:00",
+      "unix": 1793655667.920603,
+      "interval": 2.0005668519997926,
+      "cpu_percent": 68.7110528041981,
+      "unrelated_cpu_cores": 10.636985201833289,
+      "aggregate_disk_bytes_per_second": 11412317.452514887,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:09.861287+00:00",
+      "unix": 1793655669.861287,
+      "interval": 2.0023393470000883,
+      "cpu_percent": 69.28361138370951,
+      "unrelated_cpu_cores": 10.57762762926871,
+      "aggregate_disk_bytes_per_second": 8337895.38472235,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:11.867643+00:00",
+      "unix": 1793655671.867643,
+      "interval": 2.0008456300001853,
+      "cpu_percent": 70.79790712884238,
+      "unrelated_cpu_cores": 11.180272812949557,
+      "aggregate_disk_bytes_per_second": 8810866.633423572,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:13.863137+00:00",
+      "unix": 1793655673.863137,
+      "interval": 2.0008877319996827,
+      "cpu_percent": 70.08855362413907,
+      "unrelated_cpu_cores": 10.850183972242698,
+      "aggregate_disk_bytes_per_second": 5044033.125193653,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:15.872225+00:00",
+      "unix": 1793655675.872225,
+      "interval": 2.0007381160003206,
+      "cpu_percent": 68.52035749751738,
+      "unrelated_cpu_cores": 10.731039623976734,
+      "aggregate_disk_bytes_per_second": 8148032.903271479,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:17.934069+00:00",
+      "unix": 1793655677.934069,
+      "interval": 2.000514070000463,
+      "cpu_percent": 69.96396986570586,
+      "unrelated_cpu_cores": 11.08215149918684,
+      "aggregate_disk_bytes_per_second": 7426187.209968766,
+      "non_target_gpu_busy_max": 99.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:19.879668+00:00",
+      "unix": 1793655679.879668,
+      "interval": 2.0019018729999516,
+      "cpu_percent": 69.96408749591903,
+      "unrelated_cpu_cores": 10.380129156310801,
+      "aggregate_disk_bytes_per_second": 1972396.3762933626,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:21.870149+00:00",
+      "unix": 1793655681.870149,
+      "interval": 2.000944212999457,
+      "cpu_percent": 74.40650406504065,
+      "unrelated_cpu_cores": 10.829887139889934,
+      "aggregate_disk_bytes_per_second": 1627391.6978018638,
+      "non_target_gpu_busy_max": 100.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:23.868797+00:00",
+      "unix": 1793655683.868797,
+      "interval": 2.000784589000432,
+      "cpu_percent": 72.92001284934148,
+      "unrelated_cpu_cores": 11.405525675005624,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 67.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:25.876200+00:00",
+      "unix": 1793655685.8762,
+      "interval": 2.000761066999985,
+      "cpu_percent": 71.24590163934427,
+      "unrelated_cpu_cores": 11.080783390713675,
+      "aggregate_disk_bytes_per_second": 0.0,
+      "non_target_gpu_busy_max": 71.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": false,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:27.886278+00:00",
+      "unix": 1793655687.886278,
+      "interval": 2.000863880999532,
+      "cpu_percent": 72.6829268292683,
+      "unrelated_cpu_cores": 11.090209689284302,
+      "aggregate_disk_bytes_per_second": 398647136.1567782,
+      "non_target_gpu_busy_max": 65.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:29.884802+00:00",
+      "unix": 1793655689.884802,
+      "interval": 2.0007227860005514,
+      "cpu_percent": 71.76241480038948,
+      "unrelated_cpu_cores": 11.155968311141056,
+      "aggregate_disk_bytes_per_second": 865499694.4686782,
+      "non_target_gpu_busy_max": 82.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:31.878884+00:00",
+      "unix": 1793655691.878884,
+      "interval": 2.0011227790000703,
+      "cpu_percent": 71.92755498059509,
+      "unrelated_cpu_cores": 10.963845012529953,
+      "aggregate_disk_bytes_per_second": 821325540.465472,
+      "non_target_gpu_busy_max": 60.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:33.886022+00:00",
+      "unix": 1793655693.886022,
+      "interval": 2.0007584869999846,
+      "cpu_percent": 71.69872839908706,
+      "unrelated_cpu_cores": 11.01082421648634,
+      "aggregate_disk_bytes_per_second": 822775071.9020255,
+      "non_target_gpu_busy_max": 69.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:35.874903+00:00",
+      "unix": 1793655695.874903,
+      "interval": 2.000700305999999,
+      "cpu_percent": 72.8780487804878,
+      "unrelated_cpu_cores": 11.421000902271075,
+      "aggregate_disk_bytes_per_second": 844189012.684642,
+      "non_target_gpu_busy_max": 78.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:37.878541+00:00",
+      "unix": 1793655697.878541,
+      "interval": 2.0008335499996974,
+      "cpu_percent": 72.87147944318549,
+      "unrelated_cpu_cores": 11.29529240450982,
+      "aggregate_disk_bytes_per_second": 710662917.462682,
+      "non_target_gpu_busy_max": 61.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:39.904438+00:00",
+      "unix": 1793655699.904438,
+      "interval": 2.000966384000094,
+      "cpu_percent": 71.55844155844156,
+      "unrelated_cpu_cores": 11.15461018159661,
+      "aggregate_disk_bytes_per_second": 746982935.8212396,
+      "non_target_gpu_busy_max": 68.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:41.888923+00:00",
+      "unix": 1793655701.888923,
+      "interval": 2.0007198759994935,
+      "cpu_percent": 72.90175666883539,
+      "unrelated_cpu_cores": 11.300932365009265,
+      "aggregate_disk_bytes_per_second": 787977241.0480112,
+      "non_target_gpu_busy_max": 76.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    },
+    {
+      "at": "2026-11-02T21:41:43.883109+00:00",
+      "unix": 1793655703.883109,
+      "interval": 2.001294374000281,
+      "cpu_percent": 72.47974068071312,
+      "unrelated_cpu_cores": 11.412613904643292,
+      "aggregate_disk_bytes_per_second": 865962696.2004124,
+      "non_target_gpu_busy_max": 70.0,
+      "unknown_gpu_counters": 0,
+      "flags": {
+        "unrelated_cpu": true,
+        "disk": true,
+        "other_gpu": true,
+        "gap": false
+      }
+    }
+  ],
+  "limits": [
+    "Two timed samples per arm, exploratory same-recovered-environment model screen.",
+    "All eight samples retained; benchmark default warmup enabled in each arm; shared-host activity annotated, not discarded.",
+    "Checked-in host/CPU sources are identical; embedded shaders and numerics metadata differ, with no separate binary layout control.",
+    "No full HF/CI, model-logit exactness or promotion claim; current short reference cohort only."
+  ],
+  "focused": [
+    {
+      "arm": "candidate",
+      "valid": true,
+      "binary_sha256": "f752d1f469bf39ed2a1f574cc09ff5d2058c7872e5156036d2eca0b0eab23a8f"
+    },
+    {
+      "arm": "combined",
+      "valid": true,
+      "binary_sha256": "cc0795c325d9f80cdc845eb5ff53008a47f4e10dd1046090f1df5d41e5b9c673"
+    }
+  ],
+  "activity_by_call": [
+    {
+      "call": "q2-table-combined-p4096-g256-0-baseline",
+      "samples": 11,
+      "system_cpu_median": 72.97650130548303,
+      "unrelated_cpu_cores_median": 11.170469039930238,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 8,
+        "other_gpu": 6,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-1-candidate",
+      "samples": 11,
+      "system_cpu_median": 73.36764232872306,
+      "unrelated_cpu_cores_median": 9.744792105372003,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 6,
+        "other_gpu": 7,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-2-combined",
+      "samples": 9,
+      "system_cpu_median": 68.34532374100719,
+      "unrelated_cpu_cores_median": 10.43423900101087,
+      "flags": {
+        "unrelated_cpu": 9,
+        "disk": 0,
+        "other_gpu": 9,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-3-mx",
+      "samples": 14,
+      "system_cpu_median": 72.97801731088026,
+      "unrelated_cpu_cores_median": 10.507131759779481,
+      "flags": {
+        "unrelated_cpu": 14,
+        "disk": 12,
+        "other_gpu": 8,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-4-mx",
+      "samples": 13,
+      "system_cpu_median": 70.78688524590164,
+      "unrelated_cpu_cores_median": 10.729921774813732,
+      "flags": {
+        "unrelated_cpu": 13,
+        "disk": 4,
+        "other_gpu": 13,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-5-combined",
+      "samples": 10,
+      "system_cpu_median": 71.68182706064334,
+      "unrelated_cpu_cores_median": 11.219770621812106,
+      "flags": {
+        "unrelated_cpu": 10,
+        "disk": 7,
+        "other_gpu": 10,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-6-candidate",
+      "samples": 10,
+      "system_cpu_median": 70.04917717142922,
+      "unrelated_cpu_cores_median": 10.858340869021978,
+      "flags": {
+        "unrelated_cpu": 10,
+        "disk": 1,
+        "other_gpu": 10,
+        "gap": 0
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-7-baseline",
+      "samples": 11,
+      "system_cpu_median": 71.92755498059509,
+      "unrelated_cpu_cores_median": 11.090209689284302,
+      "flags": {
+        "unrelated_cpu": 11,
+        "disk": 7,
+        "other_gpu": 11,
+        "gap": 0
+      }
+    }
+  ],
+  "sensor_by_call": [
+    {
+      "call": "q2-table-combined-p4096-g256-0-baseline",
+      "samples": 11,
+      "read_seconds": [
+        0.009465759000704566,
+        0.0009842910003499128,
+        0.0011314759995002532,
+        0.0012490790004449082,
+        0.0014096750001044711,
+        0.0011400149996916298,
+        0.0011074750000261702,
+        0.0012472890002754866,
+        0.0011493060001157573,
+        0.001127135999922757,
+        0.0009506599999440368
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "925000000",
+          "927000000",
+          "1648000000",
+          "1683000000",
+          "1690000000",
+          "928000000",
+          "1125000000",
+          "1636000000",
+          "1686000000",
+          "1684000000",
+          "924000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "350000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "350000000",
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "22000000",
+          "22000000",
+          "213000000",
+          "227000000",
+          "220000000",
+          "27000000",
+          "57000000",
+          "223000000",
+          "223000000",
+          "189000000",
+          "81000000"
+        ],
+        "hwmon4/temp1_input": [
+          "35000",
+          "36000",
+          "42000",
+          "45000",
+          "47000",
+          "47000",
+          "46000",
+          "50000",
+          "52000",
+          "54000",
+          "54000"
+        ],
+        "hwmon4/temp2_input": [
+          "37000",
+          "36000",
+          "70000",
+          "73000",
+          "75000",
+          "57000",
+          "54000",
+          "79000",
+          "81000",
+          "83000",
+          "65000"
+        ],
+        "hwmon4/temp3_input": [
+          "37000",
+          "37000",
+          "41000",
+          "44000",
+          "46000",
+          "49000",
+          "49000",
+          "50000",
+          "51000",
+          "53000",
+          "57000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-1-candidate",
+      "samples": 11,
+      "read_seconds": [
+        0.0011306650003461982,
+        0.0008152660002451739,
+        0.0010085220001201378,
+        0.0009497000000919797,
+        0.0009799910003494006,
+        0.0011818769999081269,
+        0.0008587669999542413,
+        0.0014613860003009904,
+        0.0015767300001243711,
+        0.000825225999506074,
+        0.0011935769998672185
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "927000000",
+          "1648000000",
+          "1642000000",
+          "1684000000",
+          "1631000000",
+          "925000000",
+          "1679000000",
+          "1633000000",
+          "1667000000",
+          "924000000",
+          "927000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "800000000",
+          "800000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "800000000"
+        ],
+        "hwmon4/power1_input": [
+          "25000000",
+          "213000000",
+          "217000000",
+          "194000000",
+          "229000000",
+          "83000000",
+          "218000000",
+          "218000000",
+          "223000000",
+          "65000000",
+          "27000000"
+        ],
+        "hwmon4/temp1_input": [
+          "49000",
+          "54000",
+          "56000",
+          "58000",
+          "59000",
+          "59000",
+          "61000",
+          "62000",
+          "63000",
+          "62000",
+          "61000"
+        ],
+        "hwmon4/temp2_input": [
+          "51000",
+          "82000",
+          "85000",
+          "87000",
+          "88000",
+          "72000",
+          "90000",
+          "91000",
+          "93000",
+          "74000",
+          "66000"
+        ],
+        "hwmon4/temp3_input": [
+          "50000",
+          "52000",
+          "55000",
+          "57000",
+          "58000",
+          "62000",
+          "60000",
+          "61000",
+          "61000",
+          "65000",
+          "62000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-2-combined",
+      "samples": 9,
+      "read_seconds": [
+        0.0014832960005151108,
+        0.0009150790001513087,
+        0.0013046710000708117,
+        0.0012312179997024941,
+        0.0010196630000791629,
+        0.0010468730006323312,
+        0.0011901879997822107,
+        0.0010960549998344504,
+        0.0016880029997992096
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "925000000",
+          "1662000000",
+          "1610000000",
+          "1584000000",
+          "1711000000",
+          "1605000000",
+          "1678000000",
+          "1600000000",
+          "926000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "24000000",
+          "214000000",
+          "228000000",
+          "228000000",
+          "137000000",
+          "227000000",
+          "202000000",
+          "229000000",
+          "28000000"
+        ],
+        "hwmon4/temp1_input": [
+          "56000",
+          "62000",
+          "63000",
+          "64000",
+          "64000",
+          "66000",
+          "66000",
+          "67000",
+          "65000"
+        ],
+        "hwmon4/temp2_input": [
+          "57000",
+          "91000",
+          "93000",
+          "94000",
+          "82000",
+          "95000",
+          "96000",
+          "97000",
+          "78000"
+        ],
+        "hwmon4/temp3_input": [
+          "56000",
+          "61000",
+          "62000",
+          "63000",
+          "67000",
+          "65000",
+          "66000",
+          "65000",
+          "68000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-3-mx",
+      "samples": 14,
+      "read_seconds": [
+        0.0009398390002388624,
+        0.0010519830002522212,
+        0.0008699279997017584,
+        0.0009154889994533733,
+        0.0014310760006992496,
+        0.0007765939999444527,
+        0.0031971810003597056,
+        0.001199278000058257,
+        0.0009857710001597297,
+        0.000956660000156262,
+        0.0008552170002076309,
+        0.0010584230003587436,
+        0.0010044809996543336,
+        0.0011135149998153793
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "925000000",
+          "1704000000",
+          "1708000000",
+          "1693000000",
+          "923000000",
+          "1694000000",
+          "1695000000",
+          "1709000000",
+          "1696000000",
+          "1690000000",
+          "926000000",
+          "922000000",
+          "923000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "350000000",
+          "800000000",
+          "1000000000",
+          "350000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "25000000",
+          "24000000",
+          "195000000",
+          "169000000",
+          "201000000",
+          "72000000",
+          "184000000",
+          "201000000",
+          "160000000",
+          "184000000",
+          "219000000",
+          "26000000",
+          "62000000",
+          "89000000"
+        ],
+        "hwmon4/temp1_input": [
+          "59000",
+          "58000",
+          "63000",
+          "64000",
+          "65000",
+          "64000",
+          "66000",
+          "66000",
+          "67000",
+          "68000",
+          "68000",
+          "67000",
+          "68000",
+          "68000"
+        ],
+        "hwmon4/temp2_input": [
+          "60000",
+          "59000",
+          "89000",
+          "89000",
+          "90000",
+          "75000",
+          "92000",
+          "92000",
+          "92000",
+          "94000",
+          "94000",
+          "83000",
+          "81000",
+          "80000"
+        ],
+        "hwmon4/temp3_input": [
+          "60000",
+          "58000",
+          "62000",
+          "63000",
+          "64000",
+          "67000",
+          "65000",
+          "65000",
+          "65000",
+          "67000",
+          "67000",
+          "67000",
+          "71000",
+          "72000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-4-mx",
+      "samples": 13,
+      "read_seconds": [
+        0.0010887139997066697,
+        0.0010536829995544394,
+        0.0008608170001025428,
+        0.0020814959998460836,
+        0.0009529599992674775,
+        0.0010395729996162117,
+        0.0009369800000058603,
+        0.0009481900005994248,
+        0.0010305219993824721,
+        0.0008916979995774454,
+        0.0011465360003057867,
+        0.0012403900000208523,
+        0.0010476229999767384
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "1688000000",
+          "1703000000",
+          "1697000000",
+          "921000000",
+          "1697000000",
+          "1690000000",
+          "1709000000",
+          "1692000000",
+          "1688000000",
+          "1697000000",
+          "929000000",
+          "922000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "26000000",
+          "217000000",
+          "163000000",
+          "221000000",
+          "89000000",
+          "181000000",
+          "220000000",
+          "168000000",
+          "222000000",
+          "217000000",
+          "222000000",
+          "30000000",
+          "89000000"
+        ],
+        "hwmon4/temp1_input": [
+          "63000",
+          "66000",
+          "68000",
+          "68000",
+          "68000",
+          "69000",
+          "69000",
+          "70000",
+          "70000",
+          "70000",
+          "70000",
+          "69000",
+          "69000"
+        ],
+        "hwmon4/temp2_input": [
+          "64000",
+          "92000",
+          "93000",
+          "93000",
+          "80000",
+          "97000",
+          "96000",
+          "95000",
+          "98000",
+          "96000",
+          "95000",
+          "79000",
+          "83000"
+        ],
+        "hwmon4/temp3_input": [
+          "63000",
+          "65000",
+          "66000",
+          "67000",
+          "71000",
+          "69000",
+          "69000",
+          "69000",
+          "69000",
+          "69000",
+          "70000",
+          "71000",
+          "72000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-5-combined",
+      "samples": 10,
+      "read_seconds": [
+        0.0029507330000342336,
+        0.0008433970006080926,
+        0.0011366660000931006,
+        0.0010545929999352666,
+        0.00123172900021018,
+        0.0010978550008076127,
+        0.001074824000170338,
+        0.00109281499953795,
+        0.0012185579998913454,
+        0.0011102349999418948
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "1638000000",
+          "1640000000",
+          "1579000000",
+          "1561000000",
+          "1568000000",
+          "1575000000",
+          "1569000000",
+          "925000000",
+          "1692000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "26000000",
+          "209000000",
+          "219000000",
+          "196000000",
+          "149000000",
+          "219000000",
+          "201000000",
+          "196000000",
+          "86000000",
+          "188000000"
+        ],
+        "hwmon4/temp1_input": [
+          "63000",
+          "67000",
+          "69000",
+          "70000",
+          "70000",
+          "71000",
+          "71000",
+          "72000",
+          "72000",
+          "71000"
+        ],
+        "hwmon4/temp2_input": [
+          "64000",
+          "95000",
+          "98000",
+          "99000",
+          "87000",
+          "99000",
+          "99000",
+          "99000",
+          "88000",
+          "90000"
+        ],
+        "hwmon4/temp3_input": [
+          "64000",
+          "66000",
+          "68000",
+          "68000",
+          "73000",
+          "70000",
+          "71000",
+          "72000",
+          "75000",
+          "75000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-6-candidate",
+      "samples": 10,
+      "read_seconds": [
+        0.005184962999919662,
+        0.0008633470006316202,
+        0.0012479990000429098,
+        0.0010066920003737323,
+        0.0007591840003442485,
+        0.0010074419997181394,
+        0.0008938080000007176,
+        0.0009345090002170764,
+        0.0009703409996291157,
+        0.0007554940002592048
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "926000000",
+          "1686000000",
+          "1651000000",
+          "1569000000",
+          "1692000000",
+          "1573000000",
+          "1569000000",
+          "1582000000",
+          "1570000000",
+          "1698000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "1000000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "25000000",
+          "223000000",
+          "218000000",
+          "195000000",
+          "182000000",
+          "183000000",
+          "201000000",
+          "194000000",
+          "189000000",
+          "151000000"
+        ],
+        "hwmon4/temp1_input": [
+          "65000",
+          "70000",
+          "71000",
+          "72000",
+          "71000",
+          "72000",
+          "72000",
+          "72000",
+          "72000",
+          "72000"
+        ],
+        "hwmon4/temp2_input": [
+          "66000",
+          "99000",
+          "99000",
+          "99000",
+          "93000",
+          "99000",
+          "99000",
+          "100000",
+          "99000",
+          "97000"
+        ],
+        "hwmon4/temp3_input": [
+          "64000",
+          "69000",
+          "70000",
+          "71000",
+          "75000",
+          "72000",
+          "72000",
+          "72000",
+          "72000",
+          "77000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-7-baseline",
+      "samples": 11,
+      "read_seconds": [
+        0.0011072050001530442,
+        0.0009906909999699565,
+        0.0008454159997199895,
+        0.0007706839996899362,
+        0.001415245000316645,
+        0.000929359999645385,
+        0.001156866000201262,
+        0.0011850969995066407,
+        0.0011841180003102636,
+        0.0008383570002479246,
+        0.0010476529996594763
+      ],
+      "raw_hwmon": {
+        "hwmon4/freq1_input": [
+          "927000000",
+          "1655000000",
+          "1661000000",
+          "1690000000",
+          "1589000000",
+          "965000000",
+          "1632000000",
+          "1578000000",
+          "1573000000",
+          "1683000000",
+          "1691000000"
+        ],
+        "hwmon4/freq2_input": [
+          "350000000",
+          "1000000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "350000000",
+          "1000000000",
+          "800000000",
+          "1000000000",
+          "800000000",
+          "1000000000"
+        ],
+        "hwmon4/power1_input": [
+          "24000000",
+          "216000000",
+          "212000000",
+          "231000000",
+          "202000000",
+          "33000000",
+          "236000000",
+          "183000000",
+          "194000000",
+          "240000000",
+          "194000000"
+        ],
+        "hwmon4/temp1_input": [
+          "65000",
+          "67000",
+          "70000",
+          "70000",
+          "71000",
+          "70000",
+          "71000",
+          "72000",
+          "72000",
+          "73000",
+          "73000"
+        ],
+        "hwmon4/temp2_input": [
+          "66000",
+          "95000",
+          "99000",
+          "99000",
+          "100000",
+          "84000",
+          "99000",
+          "99000",
+          "100000",
+          "99000",
+          "95000"
+        ],
+        "hwmon4/temp3_input": [
+          "65000",
+          "66000",
+          "67000",
+          "69000",
+          "70000",
+          "73000",
+          "71000",
+          "71000",
+          "72000",
+          "72000",
+          "76000"
+        ]
+      },
+      "dpm_raw": [
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz *\n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz *\n1: 800Mhz \n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz *\n2: 1000Mhz"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz *\n8: 1725Mhz",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        },
+        {
+          "pp_dpm_sclk": "0: 925Mhz \n1: 930Mhz \n2: 1032Mhz \n3: 1143Mhz \n4: 1282Mhz \n5: 1386Mhz \n6: 1485Mhz \n7: 1606Mhz \n8: 1725Mhz *",
+          "pp_dpm_mclk": "0: 350Mhz \n1: 800Mhz \n2: 1000Mhz *"
+        }
+      ]
+    }
+  ],
+  "sensor_summary_by_call": [
+    {
+      "call": "q2-table-combined-p4096-g256-0-baseline",
+      "samples": 11,
+      "read_ms_median": 1.1400149996916298,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 924000000,
+          "median": 1636000000,
+          "max": 1690000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 800000000,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 22000000,
+          "median": 189000000,
+          "max": 227000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 35000,
+          "median": 47000,
+          "max": 54000
+        },
+        "hwmon4/temp2_input": {
+          "min": 36000,
+          "median": 70000,
+          "max": 83000
+        },
+        "hwmon4/temp3_input": {
+          "min": 37000,
+          "median": 49000,
+          "max": 57000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-1-candidate",
+      "samples": 11,
+      "read_ms_median": 1.0085220001201378,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 924000000,
+          "median": 1633000000,
+          "max": 1684000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 800000000,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 25000000,
+          "median": 213000000,
+          "max": 229000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 49000,
+          "median": 59000,
+          "max": 63000
+        },
+        "hwmon4/temp2_input": {
+          "min": 51000,
+          "median": 85000,
+          "max": 93000
+        },
+        "hwmon4/temp3_input": {
+          "min": 50000,
+          "median": 60000,
+          "max": 65000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-2-combined",
+      "samples": 9,
+      "read_ms_median": 1.1901879997822107,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 925000000,
+          "median": 1605000000,
+          "max": 1711000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 24000000,
+          "median": 214000000,
+          "max": 229000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 56000,
+          "median": 64000,
+          "max": 67000
+        },
+        "hwmon4/temp2_input": {
+          "min": 57000,
+          "median": 93000,
+          "max": 97000
+        },
+        "hwmon4/temp3_input": {
+          "min": 56000,
+          "median": 65000,
+          "max": 68000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-3-mx",
+      "samples": 14,
+      "read_ms_median": 0.9951259999070317,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 922000000,
+          "median": 1691500000.0,
+          "max": 1709000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000.0,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 24000000,
+          "median": 164500000.0,
+          "max": 219000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 58000,
+          "median": 66000.0,
+          "max": 68000
+        },
+        "hwmon4/temp2_input": {
+          "min": 59000,
+          "median": 89000.0,
+          "max": 94000
+        },
+        "hwmon4/temp3_input": {
+          "min": 58000,
+          "median": 65000.0,
+          "max": 72000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-4-mx",
+      "samples": 13,
+      "read_ms_median": 1.0395729996162117,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 921000000,
+          "median": 1690000000,
+          "max": 1709000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 26000000,
+          "median": 181000000,
+          "max": 222000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 63000,
+          "median": 69000,
+          "max": 70000
+        },
+        "hwmon4/temp2_input": {
+          "min": 64000,
+          "median": 93000,
+          "max": 98000
+        },
+        "hwmon4/temp3_input": {
+          "min": 63000,
+          "median": 69000,
+          "max": 72000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-5-combined",
+      "samples": 10,
+      "read_ms_median": 1.1040450003747537,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 925000000,
+          "median": 1572000000.0,
+          "max": 1692000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000.0,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 26000000,
+          "median": 196000000.0,
+          "max": 219000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 63000,
+          "median": 70500.0,
+          "max": 72000
+        },
+        "hwmon4/temp2_input": {
+          "min": 64000,
+          "median": 96500.0,
+          "max": 99000
+        },
+        "hwmon4/temp3_input": {
+          "min": 64000,
+          "median": 70500.0,
+          "max": 75000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-6-candidate",
+      "samples": 10,
+      "read_ms_median": 0.952424999923096,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 926000000,
+          "median": 1577500000.0,
+          "max": 1698000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000.0,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 25000000,
+          "median": 191500000.0,
+          "max": 223000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 65000,
+          "median": 72000.0,
+          "max": 72000
+        },
+        "hwmon4/temp2_input": {
+          "min": 66000,
+          "median": 99000.0,
+          "max": 100000
+        },
+        "hwmon4/temp3_input": {
+          "min": 64000,
+          "median": 72000.0,
+          "max": 77000
+        }
+      }
+    },
+    {
+      "call": "q2-table-combined-p4096-g256-7-baseline",
+      "samples": 11,
+      "read_ms_median": 1.0476529996594763,
+      "raw_hwmon": {
+        "hwmon4/freq1_input": {
+          "min": 927000000,
+          "median": 1632000000,
+          "max": 1691000000
+        },
+        "hwmon4/freq2_input": {
+          "min": 350000000,
+          "median": 1000000000,
+          "max": 1000000000
+        },
+        "hwmon4/power1_input": {
+          "min": 24000000,
+          "median": 202000000,
+          "max": 240000000
+        },
+        "hwmon4/temp1_input": {
+          "min": 65000,
+          "median": 71000,
+          "max": 73000
+        },
+        "hwmon4/temp2_input": {
+          "min": 66000,
+          "median": 99000,
+          "max": 100000
+        },
+        "hwmon4/temp3_input": {
+          "min": 65000,
+          "median": 71000,
+          "max": 76000
+        }
+      }
+    }
+  ],
+  "activity_summary": {
+    "cpu_min": 66.46043633995441,
+    "cpu_median": 71.80322718622602,
+    "cpu_max": 75.4832474226804,
+    "unrelated_min": 9.131437241921933,
+    "unrelated_max": 11.763314496655244
+  },
+  "phase_timestamp_limits": {
+    "llmx_stdout": "Plain rate lines, no timed phase start/end timestamps",
+    "mx_test_time": [
+      {
+        "call": "q2-table-combined-p4096-g256-3-mx",
+        "test_time": [
+          "2026-11-02T21:39:39Z",
+          "2026-11-02T21:39:54Z"
+        ]
+      },
+      {
+        "call": "q2-table-combined-p4096-g256-4-mx",
+        "test_time": [
+          "2026-11-02T21:40:09Z",
+          "2026-11-02T21:40:22Z"
+        ]
+      }
+    ],
+    "source_semantics": "test_time constructor uses time(NULL) at source1595; test constructed2446 beforecooloff/warmup, measured timer starts2532. Not timed PP/TG boundaries.",
+    "correlation": "Whole-call windows only; no causal clock/thermal or CPU attribution."
+  },
+  "elf_B_C_audit": "elf-audit/RESULT.json",
+  "root_recomputed": {
+    "pp4096": {
+      "samples": {
+        "baseline": [
+          597.55,
+          574.59
+        ],
+        "candidate": [
+          593.13,
+          572.59
+        ],
+        "combined": [
+          694.18,
+          675.89
+        ],
+        "mx": [
+          719.460452,
+          725.038807
+        ]
+      },
+      "medians": {
+        "baseline": 586.0699999999999,
+        "candidate": 582.86,
+        "combined": 685.035,
+        "mx": 722.2496295000001
+      }
+    },
+    "tg256": {
+      "samples": {
+        "baseline": [
+          107.56,
+          110.07
+        ],
+        "candidate": [
+          113.76,
+          118.5
+        ],
+        "combined": [
+          104.26,
+          103.76
+        ],
+        "mx": [
+          125.077624,
+          121.893779
+        ]
+      },
+      "medians": {
+        "baseline": 108.815,
+        "candidate": 116.13,
+        "combined": 104.01,
+        "mx": 123.4857015
+      }
+    }
+  },
+  "subsequent_elf_audit": {
+    "sha256": "aa9d5731efcec30e19f13b1f1c0f3881e6edcfbafe68e26316bfac3efb9cca7d",
+    "comparison": {
+      "cli": {
+        "B_executable_bytes": 3191193,
+        "C_executable_bytes": 3191193,
+        "section_counts": [
+          5,
+          5
+        ],
+        "content_changed": [],
+        "address_or_size_changed": [],
+        "all_executable_content_equal": true,
+        "all_executable_address_size_equal": true
+      },
+      "backend_object": {
+        "B_executable_bytes": 336397,
+        "C_executable_bytes": 336397,
+        "section_counts": [
+          65,
+          65
+        ],
+        "content_changed": [],
+        "address_or_size_changed": [],
+        "all_executable_content_equal": true,
+        "all_executable_address_size_equal": true
+      }
+    },
+    "interpretation": "B/C CPU executable bytes and layout match. Read-only data, relocations and driver allocation state are not ruled out."
+  },
+  "disposition": "Retain the row lookup table candidate. The combined prefill optimization gains prefill but repeats the decode loss despite identical row modules. Diagnose that loss before promotion. Neither candidate passes the matched mx performance requirement. No limits changed."
+}

@@ -266,8 +266,14 @@ const uint32_t kSpvMatmulTileBf16Preserve[] = {
 const uint32_t kSpvMatmulRowQ10Dot[] = {
 #include "vulkan/matmul_row_q1_0_dot.inc"
 };
+const uint32_t kSpvMatmulRowQ20Dot[] = {
+#include "vulkan/matmul_row_q2_0_dot.inc"
+};
 const uint32_t kSpvMatmulTileQ10Dot[] = {
 #include "vulkan/matmul_tile_q1_0_dot.inc"
+};
+const uint32_t kSpvMatmulTileQ20Dot[] = {
+#include "vulkan/matmul_tile_q2_0_dot.inc"
 };
 const uint32_t kSpvMatmulTileTq10Dot[] = {
 #include "vulkan/matmul_tile_tq1_0_dot.inc"
@@ -500,8 +506,14 @@ const uint32_t kSpvMatmulRowNvfp4Preserve[] = {
 const uint32_t kSpvMatmulRowQ1_0[] = {
 #include "vulkan/matmul_row_q1_0.inc"
 };
+const uint32_t kSpvMatmulRowQ2_0[] = {
+#include "vulkan/matmul_row_q2_0.inc"
+};
 const uint32_t kSpvMatmulRowQ1_0Preserve[] = {
 #include "vulkan/matmul_row_q1_0_preserve.inc"
+};
+const uint32_t kSpvMatmulRowQ2_0Preserve[] = {
+#include "vulkan/matmul_row_q2_0_preserve.inc"
 };
 const uint32_t kSpvMatmulRowFloatXQ2[] = {
 #include "vulkan/matmul_row_float_x_q2.inc"
@@ -1225,10 +1237,15 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_BF16_TALL, "matmul_tile_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_NVFP4, "matmul_row_nvfp4", kSpvMatmulRowNvfp4, sizeof(kSpvMatmulRowNvfp4), 12, kMatmulRowCounts, kSpvMatmulRowNvfp4Preserve, sizeof(kSpvMatmulRowNvfp4Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q1_0, "matmul_tile_q1_0", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_Q2_0, "matmul_tile_q2_0", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q1_0_TALL, "matmul_tile_q1_0_tall", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_Q2_0_TALL, "matmul_tile_q2_0_tall", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q1_0_BF16, "matmul_tile_q1_0_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_Q2_0_BF16, "matmul_tile_q2_0_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_Q1_0_BF16_TALL, "matmul_tile_q1_0_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_Q2_0_BF16_TALL, "matmul_tile_q2_0_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_Q1_0, "matmul_row_q1_0", kSpvMatmulRowQ1_0, sizeof(kSpvMatmulRowQ1_0), 12, kMatmulRowCounts, kSpvMatmulRowQ1_0Preserve, sizeof(kSpvMatmulRowQ1_0Preserve), 0, kPreserve32) \
+    X(K_MATMUL_ROW_Q2_0, "matmul_row_q2_0", kSpvMatmulRowQ2_0, sizeof(kSpvMatmulRowQ2_0), 12, kMatmulRowCounts, kSpvMatmulRowQ2_0Preserve, sizeof(kSpvMatmulRowQ2_0Preserve), 0, kPreserve32) \
     X(K_EMBED_MXFP4, "embed_mxfp4", kSpvEmbedMxfp4, sizeof(kSpvEmbedMxfp4), 4, nullptr) \
     X(K_MATMUL_TILE_MXFP4, "matmul_tile_mxfp4", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_TILE_MXFP4_TALL, "matmul_tile_mxfp4_tall", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
@@ -1274,6 +1291,7 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_TQ1_0_DOT, "matmul_tile_tq1_0_dot", kSpvMatmulTileTq10Dot, sizeof(kSpvMatmulTileTq10Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_TQ2_0_DOT, "matmul_tile_tq2_0_dot", kSpvMatmulTileTq20Dot, sizeof(kSpvMatmulTileTq20Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_Q1_0_DOT, "matmul_tile_q1_0_dot", kSpvMatmulTileQ10Dot, sizeof(kSpvMatmulTileQ10Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_MATMUL_TILE_Q2_0_DOT, "matmul_tile_q2_0_dot", kSpvMatmulTileQ20Dot, sizeof(kSpvMatmulTileQ20Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ1_S_DOT, "matmul_tile_iq1_s_dot", kSpvMatmulTileIq1SDot, sizeof(kSpvMatmulTileIq1SDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ1_M_DOT, "matmul_tile_iq1_m_dot", kSpvMatmulTileIq1MDot, sizeof(kSpvMatmulTileIq1MDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ2_S_DOT, "matmul_tile_iq2_s_dot", kSpvMatmulTileIq2SDot, sizeof(kSpvMatmulTileIq2SDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
@@ -1284,6 +1302,7 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_TQ1_0_DOT_TALL, "matmul_tile_tq1_0_dot_tall", kSpvMatmulTileTq10Dot, sizeof(kSpvMatmulTileTq10Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_TQ2_0_DOT_TALL, "matmul_tile_tq2_0_dot_tall", kSpvMatmulTileTq20Dot, sizeof(kSpvMatmulTileTq20Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_Q1_0_DOT_TALL, "matmul_tile_q1_0_dot_tall", kSpvMatmulTileQ10Dot, sizeof(kSpvMatmulTileQ10Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_MATMUL_TILE_Q2_0_DOT_TALL, "matmul_tile_q2_0_dot_tall", kSpvMatmulTileQ20Dot, sizeof(kSpvMatmulTileQ20Dot), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ1_S_DOT_TALL, "matmul_tile_iq1_s_dot_tall", kSpvMatmulTileIq1SDot, sizeof(kSpvMatmulTileIq1SDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ1_M_DOT_TALL, "matmul_tile_iq1_m_dot_tall", kSpvMatmulTileIq1MDot, sizeof(kSpvMatmulTileIq1MDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ2_S_DOT_TALL, "matmul_tile_iq2_s_dot_tall", kSpvMatmulTileIq2SDot, sizeof(kSpvMatmulTileIq2SDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
@@ -1294,6 +1313,7 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_ROW_TQ1_0_DOT, "matmul_row_tq1_0_dot", kSpvMatmulRowTq10Dot, sizeof(kSpvMatmulRowTq10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_TQ2_0_DOT, "matmul_row_tq2_0_dot", kSpvMatmulRowTq20Dot, sizeof(kSpvMatmulRowTq20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_Q1_0_DOT, "matmul_row_q1_0_dot", kSpvMatmulRowQ10Dot, sizeof(kSpvMatmulRowQ10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_MATMUL_ROW_Q2_0_DOT, "matmul_row_q2_0_dot", kSpvMatmulRowQ20Dot, sizeof(kSpvMatmulRowQ20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_IQ1_S_DOT, "matmul_row_iq1_s_dot", kSpvMatmulRowIq1SDot, sizeof(kSpvMatmulRowIq1SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_IQ1_M_DOT, "matmul_row_iq1_m_dot", kSpvMatmulRowIq1MDot, sizeof(kSpvMatmulRowIq1MDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_IQ2_S_DOT, "matmul_row_iq2_s_dot", kSpvMatmulRowIq2SDot, sizeof(kSpvMatmulRowIq2SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
@@ -1341,6 +1361,9 @@ const WeightKernels weight_formats[] = {
     {quant::GGML_TYPE_Q1_0, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q1_0, K_MATMUL_ROW_Q1_0_DOT, K_MATMUL_ROW_Q1_0,
      K_MATMUL_TILE_Q1_0, K_MATMUL_TILE_Q1_0_TALL, K_MATMUL_TILE_Q1_0_BF16, K_MATMUL_TILE_Q1_0_BF16_TALL,
      K_MATMUL_TILE_Q1_0_DOT, K_MATMUL_TILE_Q1_0_DOT_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
+    {quant::GGML_TYPE_Q2_0, RowLayout::groups32, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_Q2_0, K_MATMUL_ROW_Q2_0_DOT, K_MATMUL_ROW_Q2_0,
+     K_MATMUL_TILE_Q2_0, K_MATMUL_TILE_Q2_0_TALL, K_MATMUL_TILE_Q2_0_BF16, K_MATMUL_TILE_Q2_0_BF16_TALL,
+     K_MATMUL_TILE_Q2_0_DOT, K_MATMUL_TILE_Q2_0_DOT_TALL, K_COUNT, K_COUNT, K_COUNT, false, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from_q4},
     {quant::GGML_TYPE_F32, RowLayout::values, K_EMBED, K_EMBED_IDS, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32, K_MATMUL_ROW_F32,
      K_MATMUL_TILE, K_MATMUL_TILE_TALL, K_MATMUL_TILE_BF16, K_MATMUL_TILE_BF16_TALL,
      K_COUNT, K_COUNT, K_COUNT, K_COUNT, K_COUNT, true, false, &DeviceProfile::prefer_integer_dot, &DeviceProfile::moe_tile_from},
@@ -1456,6 +1479,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW_WF16: case K_MATMUL_ROW_WBF16:
     case K_MATMUL_ROW_FLOAT_X_Q2: case K_MATMUL_ROW_FLOAT_X_Q3: case K_MATMUL_ROW_NVFP4:
     case K_MATMUL_ROW_Q1_0: case K_MATMUL_ROW_Q1_0_DOT:
+    case K_MATMUL_ROW_Q2_0: case K_MATMUL_ROW_Q2_0_DOT:
     case K_MATMUL_ROW_Q2_DOT: case K_MATMUL_ROW_Q3_DOT:
     case K_MATMUL_ROW_IQ4_DOT: case K_MATMUL_ROW_IQ4_XS_DOT:
     case K_MATMUL_ROW_IQ1_S: case K_MATMUL_ROW_IQ1_M:
@@ -1485,11 +1509,17 @@ inline bool is_nvfp4_tile(KernelId id) {
            id == K_MATMUL_TILE_NVFP4_BF16 || id == K_MATMUL_TILE_NVFP4_BF16_TALL;
 }
 
+// The low-bit integer row families share decode build selection.
+inline bool low_bits_dot_row(KernelId id) { return id == K_MATMUL_ROW_Q1_0_DOT || id == K_MATMUL_ROW_Q2_0_DOT; }
+
 inline uint32_t low_bits_tile_type(KernelId id) {
     switch (id) {
     case K_MATMUL_TILE_Q1_0: case K_MATMUL_TILE_Q1_0_TALL:
     case K_MATMUL_TILE_Q1_0_BF16: case K_MATMUL_TILE_Q1_0_BF16_TALL:
         return quant::GGML_TYPE_Q1_0;
+    case K_MATMUL_TILE_Q2_0: case K_MATMUL_TILE_Q2_0_TALL:
+    case K_MATMUL_TILE_Q2_0_BF16: case K_MATMUL_TILE_Q2_0_BF16_TALL:
+        return quant::GGML_TYPE_Q2_0;
     default: return UINT32_MAX;
     }
 }
@@ -1521,6 +1551,7 @@ inline bool is_tile_kernel(KernelId id) {
     case K_MATMUL_TILE_IQ2_XS_DOT_TALL: case K_MATMUL_TILE_TQ1_0_DOT_TALL: case K_MATMUL_TILE_TQ2_0_DOT_TALL: case K_MATMUL_TILE_IQ2_S_DOT_TALL:
     case K_MATMUL_TILE_IQ3_S_DOT: case K_MATMUL_TILE_IQ3_S_DOT_TALL:
     case K_MATMUL_TILE_Q1_0_DOT: case K_MATMUL_TILE_Q1_0_DOT_TALL:
+    case K_MATMUL_TILE_Q2_0_DOT: case K_MATMUL_TILE_Q2_0_DOT_TALL:
     case K_MATMUL_TILE_IQ3_XXS: case K_MATMUL_TILE_IQ2_XXS:
     case K_MATMUL_TILE_IQ2_XS: case K_MATMUL_TILE_TQ1_0: case K_MATMUL_TILE_TQ2_0: case K_MATMUL_TILE_IQ2_S:
     case K_MATMUL_TILE_IQ3_XXS_TALL: case K_MATMUL_TILE_IQ2_XXS_TALL:
@@ -1622,13 +1653,17 @@ const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWid
                                {kRowColsOne, 2}, {4, 2, true}, {8, 2, true}, {16, 4, true}};
 // The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
-// The two-row one-column build, which Q1_0's one-column calls take.
-const int kQ1TwoRows = 7;
+// The one-column low-bit build: two rows for Q1_0 and four for Q2_0.
+const int kLowBitsRows = 7;
+// Q2_0's four-row build with a 32-lane transposed reduction.
+const int kQ2TreeRows = 8;
 // The two-row builds a grouped routed call takes, narrowest first, each the plain build of its shape reading its columns through the grouping.
 const int kRowGroupedByWidth[] = {8, 9, 10};
 
 // Rows per cluster: a two-row kernel's build's; otherwise one.
 inline uint32_t build_rows(KernelId id, int variant) {
+    if (id == K_MATMUL_ROW_Q2_0_DOT && variant == kQ2TreeRows) return 4;
+    if (low_bits_dot_row(id) && variant == kLowBitsRows) return id == K_MATMUL_ROW_Q2_0_DOT ? 4 : 2;
     return row_kernel_builds_two_rows(id) ? kRowBuilds[variant].rows : 1;
 }
 
@@ -1641,6 +1676,8 @@ inline bool grouped_build(KernelId id, int variant) {
 // The columns a row kernel's build holds, by pipeline variant.
 inline uint32_t build_cols(KernelId id, int variant) {
     if (is_vec_kernel(id)) return kVecBuilds[variant].capacity();
+    if (id == K_MATMUL_ROW_Q2_0_DOT && variant == kQ2TreeRows) return kRowColsOne;
+    if (low_bits_dot_row(id) && variant == kLowBitsRows) return kRowColsOne;
     if (row_kernel_builds_two_rows(id)) return kRowBuilds[variant].cols;
     return variant == 1 ? kRowColsOne : kRowColsWide;
 }
@@ -1659,17 +1696,19 @@ const size_t kNarrowCols = 16;
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
-const uint32_t kQ1RowLanes = 32;         // the most lanes a Q1_0 row takes (VulkanBackend::row_plan)
+const uint32_t kLowBitsRowLanes = 32;         // the most lanes a Q1_0 or Q2_0 row takes (VulkanBackend::row_plan)
 const size_t kAttentionTileRows = 64;     // attention_tile.comp: `WG_ROWS`, the query rows of a workgroup of the 128-wide build with `pair` set
 const size_t kAttentionTileRowsOne = 32;  // attention_tile.comp: `TQ`, the query rows of a workgroup with one row a lane, as every LLMX_D256 one
 const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, the query rows of one non-causal tile
 
 // The cluster width whose reduction a two-row build transposes (shaders/matmul_row_two.glsl, TREE_CLUSTER): the width a long row of its kernel takes on the device, or 0 where the profile keeps the butterfly.
 inline uint32_t row_tree_cluster(KernelId id, int variant, const DeviceProfile& profile, uint32_t subgroup) {
+    if (id == K_MATMUL_ROW_Q2_0_DOT && variant == kQ2TreeRows)
+        return profile.row_decode_tree && subgroup >= kLowBitsRowLanes ? kLowBitsRowLanes : 0;
     if (!row_kernel_builds_two_rows(id) || !profile.row_decode_tree || build_rows(id, variant) < 2) return 0;
     const bool k45 = id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8;
     // Q1_0's one-column calls take the two-row build at whatever cluster their width gives (VulkanBackend::matmul_group_impl), so it reduces as the one-row builds do.
-    if (id == K_MATMUL_ROW_Q1_0_DOT) return variant == kQ1TwoRows ? 0 : std::min(subgroup, kQ1RowLanes);
+    if (id == K_MATMUL_ROW_Q1_0_DOT) return variant == kLowBitsRows ? 0 : std::min(subgroup, kLowBitsRowLanes);
     return k45 ? std::min(subgroup, std::max(kKQuantLanes, profile.k45_row_lanes)) : subgroup;
 }
 

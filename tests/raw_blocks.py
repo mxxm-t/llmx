@@ -603,13 +603,19 @@ def q1_0_block(d, codes):
     return struct.pack("<H", d) + packed
 
 
+def q2_0_block(d, codes):
+    assert len(codes) == 64 and all(c in (0, 1, 2, 3) for c in codes)
+    packed = bytes(sum(codes[4 * b + lane] << (2 * lane) for lane in range(4)) for b in range(16))
+    return struct.pack("<H", d) + packed
 
-# Q1_0 fields are checked from the selected codes and scale bits, independently of spec_decode's readers.
+
+
+# Q1_0 and Q2_0 fields are checked from selected codes and scale bits, independently of spec_decode's readers.
 def check_low_bits():
     for type_id, builder, block_values, code_count, code_value in (
             (sd.Q1_0, q1_0_block, 128, 2, lambda c: 1 if c else -1),
-):
-        expected_type = "Q1_0"
+            (sd.Q2_0, q2_0_block, 64, 4, lambda c: c - 1)):
+        expected_type = "Q1_0" if type_id == sd.Q1_0 else "Q2_0"
         assert sd.TYPES[type_id] == (expected_type, block_values, 18)
         payload, expected = bytearray(), []
         for d in HALVES:
@@ -800,7 +806,7 @@ def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
     halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
-              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,), sd.IQ1_S: (0,), sd.TQ1_0: (52,), sd.TQ2_0: (64,), sd.Q1_0: (0,)}.get(type_id, ())
+              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,), sd.IQ1_S: (0,), sd.TQ1_0: (52,), sd.TQ2_0: (64,), sd.Q1_0: (0,), sd.Q2_0: (0,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
         block = bytearray(rng.getrandbits(8) for _ in range(size))

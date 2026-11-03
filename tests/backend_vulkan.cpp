@@ -2916,6 +2916,16 @@ void check_float_ops() {
     require(float_ops(other + products) == FloatOps{3, 0, 1, 0, 0}, "a mismatched reciprocal hides float products");
     require(float_ops("v_mul_f32_e32 v1, 0x4f7ffffe, v1\n" + products) == want,
             "plain address division changes matrix instruction counts");
+    // The scheduler may place an unrelated instruction inside the sequence, as RADV does in matmul_row_q4_dot_16col_grouped on an MI50.
+    other = divide;
+    other.insert(other.find("v_rcp_f32_e32"), "v_mbcnt_hi_u32_b32 v0, -1, v0\n");
+    require(float_ops(other + products) == want, "an unrelated instruction inside address division pollutes the matrix instruction counts");
+    other = divide;
+    other.insert(other.find("v_rcp_f32_e32"), "v_mov_b32_e32 v16, v40\n");
+    require(float_ops(other + products) == FloatOps{3, 0, 1, 0, 0}, "an instruction writing the division's registers hides float products");
+    other = divide;
+    other.insert(other.find("v_rcp_f32_e32"), "v_mov_b32_e32 v[20:21], v[40:41]\n");
+    require(float_ops(other + products) == FloatOps{3, 0, 1, 0, 0}, "an instruction naming a register range of the division hides float products");
 }
 
 // The row kernel builds check_contraction checked, by how.

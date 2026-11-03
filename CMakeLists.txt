@@ -234,6 +234,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
         sparse_attention_vec_d256_k16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16
         sparse_attention_vec_d256_v16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_V16
         sparse_attention_vec_d256_kv16=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16+LLMX_V16
+        sparse_attention_vec_d256_g4=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_G4
+        sparse_attention_vec_d256_k16_g4=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16+LLMX_G4
+        sparse_attention_vec_d256_v16_g4=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_V16+LLMX_G4
+        sparse_attention_vec_d256_kv16_g4=attention_vec=LLMX_SPARSE+LLMX_D256+LLMX_K16+LLMX_V16+LLMX_G4
         kv_write_k16=kv_write=LLMX_K16 kv_write_v16=kv_write=LLMX_V16 kv_write_kv16=kv_write=LLMX_K16+LLMX_V16
         attention_k16=attention=LLMX_K16 attention_v16=attention=LLMX_V16 attention_kv16=attention=LLMX_K16+LLMX_V16
         attention_g4=attention=LLMX_G4 attention_k16_g4=attention=LLMX_K16+LLMX_G4 attention_v16_g4=attention=LLMX_V16+LLMX_G4

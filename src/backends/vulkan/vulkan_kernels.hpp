@@ -912,6 +912,18 @@ const uint32_t kSpvSparseAttentionVecD256V16[] = {
 const uint32_t kSpvSparseAttentionVecD256Kv16[] = {
 #include "vulkan/sparse_attention_vec_d256_kv16.inc"
 };
+const uint32_t kSpvSparseAttentionVecD256G4[] = {
+#include "vulkan/sparse_attention_vec_d256_g4.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256K16G4[] = {
+#include "vulkan/sparse_attention_vec_d256_k16_g4.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256V16G4[] = {
+#include "vulkan/sparse_attention_vec_d256_v16_g4.inc"
+};
+const uint32_t kSpvSparseAttentionVecD256Kv16G4[] = {
+#include "vulkan/sparse_attention_vec_d256_kv16_g4.inc"
+};
 
 const uint32_t kSpvEmbedWf16[] = {
 #include "vulkan/embed_wf16.inc"
@@ -1059,6 +1071,10 @@ const uint32_t kSpvHold[] = {
     X(K_SPARSE_ATTENTION_VEC_D256_K16, "sparse_attention_vec_d256_k16", kSpvSparseAttentionVecD256K16, sizeof(kSpvSparseAttentionVecD256K16), 8, nullptr) \
     X(K_SPARSE_ATTENTION_VEC_D256_V16, "sparse_attention_vec_d256_v16", kSpvSparseAttentionVecD256V16, sizeof(kSpvSparseAttentionVecD256V16), 8, nullptr) \
     X(K_SPARSE_ATTENTION_VEC_D256_KV16, "sparse_attention_vec_d256_kv16", kSpvSparseAttentionVecD256Kv16, sizeof(kSpvSparseAttentionVecD256Kv16), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_G4, "sparse_attention_vec_d256_g4", kSpvSparseAttentionVecD256G4, sizeof(kSpvSparseAttentionVecD256G4), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_K16_G4, "sparse_attention_vec_d256_k16_g4", kSpvSparseAttentionVecD256K16G4, sizeof(kSpvSparseAttentionVecD256K16G4), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_V16_G4, "sparse_attention_vec_d256_v16_g4", kSpvSparseAttentionVecD256V16G4, sizeof(kSpvSparseAttentionVecD256V16G4), 8, nullptr) \
+    X(K_SPARSE_ATTENTION_VEC_D256_KV16_G4, "sparse_attention_vec_d256_kv16_g4", kSpvSparseAttentionVecD256Kv16G4, sizeof(kSpvSparseAttentionVecD256Kv16G4), 8, nullptr) \
     X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
     X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 7, nullptr) \
     X(K_KV_INDEX_SCORES_TILE, "kv_index_scores_tile", kSpvKvIndexScoresTile, sizeof(kSpvKvIndexScoresTile), 4, nullptr) \

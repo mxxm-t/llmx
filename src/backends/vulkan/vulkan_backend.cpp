@@ -1746,7 +1746,7 @@ public:
     // With group positions, the view's start at `at` of them: each group turns by the positions its streams name, else at its first token's index.
     void pool_view(VkDescriptorBufferInfo aux, PlaneShape plane, VkDescriptorBufferInfo key_norm, VkDescriptorBufferInfo cos, VkDescriptorBufferInfo sin,
                    const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index, const GroupPositions& positions = {}, size_t at = 0);
-    // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart, kScoreTile groups a workgroup (shaders/kv_index_scores_tile.comp).
+    // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart, kScoreTile groups and kScoreRows rows a workgroup (shaders/kv_index_scores_tile.comp).
     void score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
                     uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale);
     // The groups a selection takes for `rows` rows (at most kSelectRows) from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp).

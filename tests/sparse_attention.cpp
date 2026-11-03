@@ -17,6 +17,9 @@
 #include "backends/devices.hpp"
 #include "backends/kv_storage.hpp"
 #include "core/fp16.hpp"
+#if LLMX_HAS_BACKEND_VULKAN
+#include "backends/vulkan/vulkan_backend.hpp"
+#endif
 
 namespace {
 using backend::Backend;
@@ -449,6 +452,89 @@ void run_case(Backend& device, size_t dim, backend::KVType k_type, backend::KVTy
     if (dim == 8) selector_chain(device, data);
 }
 
+
+// The kernels a device timed since it was last asked, by name; empty where it times none.
+std::vector<std::string> timed_kernels(Backend& device) {
+    std::vector<std::string> names;
+#if LLMX_HAS_BACKEND_VULKAN
+    for (const auto& k : backend::vulkan_kernel_times(device)) names.push_back(k.first);
+#else
+    (void)device;
+#endif
+    return names;
+}
+
+// Grouped heads at width 256 (VulkanBackend::sparse_attention): every row of a batch must give the bits it gives alone, where one head takes a workgroup.
+// Strides 78, 85 and 93 leave every remainder of a stream's four-token loop, and ids past a row's visible tokens land in every loop.
+void grouped_heads(Backend& device, const std::string& name, backend::KVType k_type, backend::KVType v_type) {
+    const size_t dim = 256, kv_heads = 2, bt = device.kv_layout().block_tokens, length = 3 * bt + 5;
+    uint32_t seed = 4242;
+    const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+    bool grouped_seen = false, timed = false, alone_grouped = false;
+    for (const size_t per_kv : {size_t(2), size_t(3), size_t(4)})
+        for (const size_t stride : {size_t(78), size_t(85), size_t(93)}) {
+            const size_t heads = per_kv * kv_heads;
+            const std::string label = name + " d256/K" + backend::kv_type_name(k_type) + "/V" + backend::kv_type_name(v_type) + ", " + std::to_string(heads) +
+                                      " query heads, stride " + std::to_string(stride);
+            // Rows double until the device takes the grouped build, where it says which kernels ran.
+            for (size_t rows = 256;; rows *= 2) {
+                const size_t total = length + rows;
+                auto storage = device.kv_alloc(1, kv_heads, dim, backend::blocks_for(total, bt) * bt, k_type, v_type);
+                std::vector<int32_t> map(backend::blocks_for(total, bt));
+                for (size_t i = 0; i < map.size(); ++i) map[i] = int32_t(map.size() - 1 - i);
+                std::vector<float> keys(total * kv_heads * dim), values(keys.size()), queries(rows * heads * dim);
+                for (size_t i = 0; i < keys.size(); ++i) {
+                    keys[i] = float(int(next() % 2001u) - 1000) / 1600.0f;
+                    values[i] = float(int(next() % 2001u) - 1000) / 900.0f;
+                }
+                for (float& x : queries) x = float(int(next() % 2001u) - 1000) / 700.0f;
+                std::vector<uint32_t> ids(rows * stride);
+                for (size_t r = 0; r < rows; ++r) {
+                    const size_t visible = length + r + 1;
+                    for (size_t t = 0; t < stride; ++t) {
+                        const uint32_t pick = next();
+                        ids[r * stride + t] = (t * 7 + r) % 6 == 0 ? (pick % 2 ? UINT32_MAX : uint32_t(visible + pick % (total - visible + 1))) : uint32_t(pick % visible);
+                    }
+                }
+                KVView write{storage.get(), map.data(), map.size(), 0, total};
+                BufferPtr kb = upload(device, keys), vb = upload(device, values);
+                device.kv_write(0, &write, 1, {kb.get(), 0}, {vb.get(), 0});
+                device.sync();
+                BufferPtr q = upload(device, queries), idbuf = upload(device, ids);
+                const size_t width = heads * dim;
+                BufferPtr out = device.alloc(rows * width * sizeof(float), backend::Memory::device);
+                KVView view{storage.get(), map.data(), map.size(), length, rows};
+                timed_kernels(device);
+                device.sparse_attention({q.get(), 0}, 0, &view, 1, {idbuf.get(), 0}, stride, {out.get(), 0}, int(heads), int(kv_heads), int(dim));
+                device.sync();
+                const auto batch_kernels = timed_kernels(device);
+                const bool grouped = std::any_of(batch_kernels.begin(), batch_kernels.end(), [](const std::string& k) { return k.find("_g4") != std::string::npos; });
+                timed = timed || !batch_kernels.empty();
+                if (!batch_kernels.empty() && !grouped && rows < 8192) continue;
+                require(batch_kernels.empty() || grouped, label + ": the grouped build was not reached at " + std::to_string(rows) + " rows");
+                grouped_seen = grouped_seen || grouped;
+                const auto batch = read<float>(device, *out, 0, rows * width);
+                BufferPtr alone = device.alloc(width * sizeof(float), backend::Memory::device);
+                for (size_t r = 0; r < rows; ++r) {
+                    KVView one{storage.get(), map.data(), map.size(), length + r, 1};
+                    device.sparse_attention({q.get(), r * width}, 0, &one, 1, {idbuf.get(), r * stride}, stride, {alone.get(), 0}, int(heads), int(kv_heads), int(dim));
+                    device.sync();
+                    if (r == 0) {
+                        const auto one_kernels = timed_kernels(device);
+                        alone_grouped = alone_grouped || std::any_of(one_kernels.begin(), one_kernels.end(), [](const std::string& k) { return k.find("_g4") != std::string::npos; });
+                    }
+                    const auto got = read<float>(device, *alone, 0, width);
+                    require(std::memcmp(got.data(), batch.data() + r * width, width * sizeof(float)) == 0,
+                            label + ": row " + std::to_string(r) + " of " + std::to_string(rows) + " differs bitwise from the row alone");
+                }
+                break;
+            }
+        }
+    std::cout << name << " d256/K" << backend::kv_type_name(k_type) << "/V" << backend::kv_type_name(v_type) << " grouped heads: every row the row alone bit for bit"
+              << (timed ? (grouped_seen ? ", the grouped build reached" : "") : ", kernels not timed on this device")
+              << (alone_grouped ? ", a row alone grouped too on this device's few compute units" : "") << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -464,6 +550,9 @@ int main(int argc, char** argv) {
             for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
                 for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
                     run_case(*device, dim, k_type, v_type);
+        for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
+            for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
+                grouped_heads(*device, device_name, k_type, v_type);
         std::cout << "sparse-attention: PASS (" << checks << " checks) on " << device_name << '\n';
         return 0;
     } catch (const std::exception& error) {

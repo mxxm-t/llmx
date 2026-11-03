@@ -344,17 +344,22 @@ inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KV
         throw std::runtime_error("vulkan: sparse attention output overlaps an input");
     u32(storage.k_buffer(layer)->size() / kv_elem_bytes(storage.k_type()));
     u32(storage.v_buffer(layer)->size() / kv_elem_bytes(storage.v_type()));
-    const size_t pairs = size_mul(table.rows, size_t(n_head));
+    // Rows enough to give every compute unit a workgroup group the query heads sharing a KV head, each head's arithmetic and token order unchanged (shaders/attention_vec.comp); fewer keep one head a workgroup, filling the device.
+    const size_t group = size_t(n_head / n_head_kv);
+    uint32_t hg = head_dim != 256 ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
+    if (size_mul(table.rows, size_t(n_head)) / hg < size_t(dev_->caps.compute_units)) hg = 1;
+    const size_t pairs = size_mul(table.rows, size_t(n_head)) / hg;
     const size_t gx = std::min(pairs, size_t(dev_->props.limits.maxComputeWorkGroupCount[0]));
     const size_t gy = blocks_for(pairs, gx);
     if (gy > dev_->props.limits.maxComputeWorkGroupCount[1])
         throw std::runtime_error("vulkan: sparse attention exceeds the workgroup count limit");
-    const KernelId kernel = head_dim == 256 ? kv_variant(K_SPARSE_ATTENTION_VEC_D256, K_SPARSE_ATTENTION_VEC_D256_K16, storage)
+    const KernelId kernel = head_dim == 256 ? (hg > 1 ? kv_variant(K_SPARSE_ATTENTION_VEC_D256_G4, K_SPARSE_ATTENTION_VEC_D256_K16_G4, storage)
+                                                      : kv_variant(K_SPARSE_ATTENTION_VEC_D256, K_SPARSE_ATTENTION_VEC_D256_K16, storage))
                           : head_dim == 128 ? kv_variant(K_SPARSE_ATTENTION_VEC, K_SPARSE_ATTENTION_VEC_K16, storage)
                                            : kv_variant(K_SPARSE_ATTENTION, K_SPARSE_ATTENTION_K16, storage);
     struct { uint32_t rows, heads, kv_heads, dim, bt; float scale; uint32_t splits, chunk, quant, max_parts, hg, stride; }
         pc{u32(table.rows), uint32_t(n_head), uint32_t(n_head_kv), uint32_t(head_dim), u32(kVkBlockTokens),
-           1.0f / std::sqrt(float(head_dim)), 1, 1, 0, 1, 1, u32(id_stride)};
+           1.0f / std::sqrt(float(head_dim)), 1, 1, 0, 1, hg, u32(id_stride)};
     dispatch(kernel, {bind(query), bind(out), bind(CSlice{storage.k_buffer(layer).get(), 0}),
                       bind(CSlice{storage.v_buffer(layer).get(), 0}), args(table.words.data(), table.words.size() * sizeof(uint32_t)),
                       bind(out), bind(out), bind(ids)}, &pc, sizeof(pc), u32(gx), u32(gy));
@@ -493,12 +498,13 @@ inline void VulkanBackend::pool_view(VkDescriptorBufferInfo aux, PlaneShape plan
 inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
                                       uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
     const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
-    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t tile, bt, block_floats, rows_floats; }
-        sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(kScoreTile), plane.bt, plane.block_floats, plane.rows_floats};
     const size_t tiles = (groups + kScoreTile - 1) / kScoreTile;
+    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t rows, bt, block_floats, rows_floats; }
+        sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(rows), plane.bt, plane.block_floats, plane.rows_floats};
     for (size_t first = 0; first < tiles; first += limit) {
         sc.first = u32(first);
-        dispatch(K_KV_INDEX_SCORES_TILE, {query, pooled, scores, args(table.data(), table.size() * sizeof(uint32_t))}, &sc, sizeof(sc), u32(std::min(tiles - first, limit)), u32(rows));
+        dispatch(K_KV_INDEX_SCORES_TILE, {query, pooled, scores, args(table.data(), table.size() * sizeof(uint32_t))}, &sc, sizeof(sc), u32(std::min(tiles - first, limit)),
+                 u32((rows + kScoreRows - 1) / kScoreRows));
     }
     if (unordered_) barrier(open());
 }

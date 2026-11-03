@@ -161,7 +161,7 @@ int scoring(backend::VulkanBackend& b) {
     const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
     const bool subnormal = backend::VulkanIndexTest::preserves_float32(b);
     size_t values = 0, cases = 0;
-    for (const uint32_t heads : {1u, 3u, 4u, 8u})
+    for (const uint32_t heads : {1u, 3u, 4u, 8u, 12u, 17u})
         for (const uint32_t dim : {32u, 96u, 128u, 200u, 256u})
             for (const size_t groups : {size_t(1), size_t(7), size_t(64), size_t(65), size_t(1000), size_t(4100)})
                 for (const int kind : {0, 1, 2}) {
@@ -188,9 +188,29 @@ int scoring(backend::VulkanBackend& b) {
                     ++cases;
                 }
     std::cout << "vulkan-index: " << cases << " scorings, " << values << " scores bit for bit the reference's" << (subnormal ? ", subnormal ones included" : ", no subnormal ones on this device") << "\n";
+    // Batches of rows, a workgroup taking kScoreRows of them: one, a whole and a part workgroup, several, and the last workgroup holding one row, each row against the reference.
+    size_t batch_values = 0;
+    for (const size_t rows : {size_t(1), size_t(4), size_t(5), size_t(16), size_t(17), size_t(64), size_t(1024)})
+        for (const uint32_t heads : {3u, 8u, 9u})
+            for (const uint32_t dim : {96u, 200u}) {
+                const uint32_t compression = 4;
+                const size_t groups = 300;
+                const uint32_t hist = uint32_t(groups * compression - rows);
+                std::vector<float> query(rows * heads * dim), pooled(groups * dim);
+                for (float& v : query) v = std::ldexp(float(int(next() % 2001u) - 1000), int(next() % 21u) - 10);
+                for (float& v : pooled) v = std::ldexp(float(int(next() % 2001u) - 1000), int(next() % 21u) - 10);
+                const auto want = score_reference(query, pooled, rows, groups, hist, heads, dim, compression);
+                const auto got = backend::VulkanIndexTest::score(b, query, pooled, rows, groups, hist, heads, dim, compression);
+                size_t at = 0;
+                while (at < want.size() && bits_of(want[at]) == bits_of(got[at])) ++at;
+                require(at == want.size(), "scores of " + std::to_string(rows) + " rows differ from the reference at " + std::to_string(at) + " of " + std::to_string(heads) +
+                                               " heads " + std::to_string(dim) + " wide");
+                batch_values += want.size();
+            }
+    std::cout << "vulkan-index: batches of 1 to 1024 rows, " << batch_values << " scores bit for bit the reference's\n";
     // A row of 65537 tiles of groups, past the 65535 workgroups a device may limit a dispatch's width to: where it does, the scoring takes its tiles in two dispatches.
-    const size_t groups = size_t(65537) * 8;
-    const uint32_t heads = 2, dim = 32, compression = 4;
+    const size_t groups = size_t(65537) * backend::kScoreTile;
+    const uint32_t heads = 1, dim = 32, compression = 4;
     std::vector<float> query(heads * dim), pooled(groups * dim);
     for (float& v : query) v = float(int(next() % 9u) - 4) / 4.0f;
     for (float& v : pooled) v = float(int(next() % 9u) - 4) / 4.0f;

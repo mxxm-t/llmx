@@ -1,38 +1,75 @@
 #version 450
 #extension GL_KHR_shader_subgroup_shuffle : require
-// The indexer's scores (score_rows in vulkan_backend.cpp): a workgroup scores a tile of groups for one query row, 32 lanes a group, summing its heads' rectified dots in turn.
-// Each dot sums 256 slots, +0 past the head's width, as a tree of steps k = 128 to 1: lane l holds slots l + 32c, the steps 128, 64 and 32 add within a lane and 16 to 1 across lanes, nothing contracted.
+#extension GL_EXT_control_flow_attributes : require
+// The indexer's scores (score_rows in vulkan_backend.cpp): a workgroup scores 64 groups for up to ROWS query rows, four lanes a group, each row's heads in turn.
+// Each dot is a tree of steps k = 128 to 1 over 256 slots, +0 past the width, nothing contracted: lane s adds its slots s + 4m for steps 128 to 4, its neighbours' for 2 and 1.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint view; uint row; uint first; uint groups; uint heads; uint dim; uint compression; float scale; uint tile; uint bt; uint block_floats; uint rows_floats; } p;
+layout(push_constant) uniform P { uint view; uint row; uint first; uint groups; uint heads; uint dim; uint compression; float scale; uint rows; uint bt; uint block_floats; uint rows_floats; } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) readonly buffer K { float aux[]; };
 layout(set = 0, binding = 2) writeonly buffer O { float scores[]; };
 layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
 #include "views.glsl"
+#define ROWS 4u
+#define HEADS 8u
+// The queries of ROWS rows and HEADS heads at a time, a head's 256 slots laid out lane by lane, slot s + 4m at s * 64 + m, so a lane reads four of its slots at once; more heads take turns.
+shared vec4 qs[ROWS][HEADS][64];
 void main() {
-    uint t = p.first + gl_WorkGroupID.x, r = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
-    uint visible = view_hist(p.view) + p.row + r + 1u;
-    uint count = visible / p.compression;
-    uint g0 = t * p.tile, end = min(count, g0 + p.tile);
-    // A lane group of 32 within the subgroup, which a 64-lane subgroup holds two of: its shuffles stay inside it.
-    uint lane = gl_SubgroupInvocationID & 31u, half_base = gl_SubgroupInvocationID & ~31u, team = lid / 32u;
-    uint qrow = (view_row0(p.view) + p.row + r) * p.heads * p.dim;
-    for (uint g = g0 + team; g < end; g += 8u) {
-        uint key = pooled_row(p.view, g, p.compression, p.bt, p.block_floats, p.rows_floats, p.dim);
-        float k[8];
-        for (uint c = 0u; c < 8u; ++c) k[c] = lane + 32u * c < p.dim ? aux[key + lane + 32u * c] : 0.0;
-        precise float score = 0.0;
-        for (uint h = 0u; h < p.heads; ++h) {
-            precise float x[8];
-            for (uint c = 0u; c < 8u; ++c) x[c] = lane + 32u * c < p.dim ? q[qrow + h * p.dim + lane + 32u * c] * k[c] : 0.0;
-            for (uint c = 0u; c < 4u; ++c) x[c] = x[c] + x[c + 4u];
-            for (uint c = 0u; c < 2u; ++c) x[c] = x[c] + x[c + 2u];
-            x[0] = x[0] + x[1];
-            precise float a = x[0];
-            for (uint s = 16u; s > 0u; s >>= 1u) a = a + subgroupShuffle(a, half_base + min(lane + s, 31u));
-            score += max(a, 0.0);
+    uint lid = gl_LocalInvocationID.x, s = lid & 3u, g = (p.first + gl_WorkGroupID.x) * 64u + lid / 4u;
+    uint r0 = gl_WorkGroupID.y * ROWS, nr = min(ROWS, p.rows - r0);
+    // The groups the last of these rows sees; an earlier row writes only its own.
+    bool live = g < (view_hist(p.view) + p.row + r0 + nr) / p.compression;
+    uint key = live ? pooled_row(p.view, g, p.compression, p.bt, p.block_floats, p.rows_floats, p.dim) : 0u;
+    bool hi = p.dim > 128u;
+    float k[64];
+    [[unroll]] for (uint m = 0u; m < 64u; ++m) k[m] = live && s + 4u * m < p.dim ? aux[key + s + 4u * m] : 0.0;
+    precise float score[ROWS];
+    [[unroll]] for (uint r = 0u; r < ROWS; ++r) score[r] = 0.0;
+    for (uint h0 = 0u; h0 < p.heads; h0 += HEADS) {
+        uint nh = min(HEADS, p.heads - h0);
+        barrier();
+        for (uint r = 0u; r < nr; ++r) {
+            uint qrow = (view_row0(p.view) + p.row + r0 + r) * p.heads * p.dim;
+            for (uint i = lid; i < nh * 256u; i += 256u) {
+                uint h = i / 256u, slot = i % 256u, at = (slot & 3u) * 64u + slot / 4u;
+                qs[r][h][at / 4u][at % 4u] = slot < p.dim ? q[qrow + (h0 + h) * p.dim + slot] : 0.0;
+            }
         }
-        precise float scaled = score * p.scale;
-        if (lane == 0u) scores[r * p.groups + g] = scaled;
+        barrier();
+        if (!live) continue;
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+            if (r >= nr) break;
+            for (uint h = 0u; h < nh; ++h) {
+                precise float x[64];
+                // The products of slots s + 4m, +0 past the width as the old kernel selects it, which also keeps each product a separate rounding; then step 128, whose upper slots are +0 for a head no wider than 128.
+                [[unroll]] for (uint c = 0u; c < 8u; ++c) {
+                    vec4 a = qs[r][h][s * 16u + c];
+                    [[unroll]] for (uint e = 0u; e < 4u; ++e) x[4u * c + e] = s + 16u * c + 4u * e < p.dim ? a[e] * k[4u * c + e] : 0.0;
+                }
+                if (hi) {
+                    [[unroll]] for (uint c = 8u; c < 16u; ++c) {
+                        vec4 a = qs[r][h][s * 16u + c];
+                        [[unroll]] for (uint e = 0u; e < 4u; ++e) x[4u * c + e] = s + 16u * c + 4u * e < p.dim ? a[e] * k[4u * c + e] : 0.0;
+                    }
+                    [[unroll]] for (uint m = 0u; m < 32u; ++m) x[m] = x[m] + x[m + 32u];
+                } else {
+                    [[unroll]] for (uint m = 0u; m < 32u; ++m) x[m] = x[m] + 0.0;
+                }
+                [[unroll]] for (uint m = 0u; m < 16u; ++m) x[m] = x[m] + x[m + 16u];
+                [[unroll]] for (uint m = 0u; m < 8u; ++m) x[m] = x[m] + x[m + 8u];
+                [[unroll]] for (uint m = 0u; m < 4u; ++m) x[m] = x[m] + x[m + 4u];
+                [[unroll]] for (uint m = 0u; m < 2u; ++m) x[m] = x[m] + x[m + 2u];
+                precise float a = x[0] + x[1];
+                precise float b = a + subgroupShuffleXor(a, 2u);
+                precise float c = b + subgroupShuffleXor(b, 1u);
+                score[r] += max(c, 0.0);
+            }
+        }
+    }
+    if (!live || s != 0u) return;
+    [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+        if (r >= nr) break;
+        precise float scaled = score[r] * p.scale;
+        if (g < (view_hist(p.view) + p.row + r0 + r + 1u) / p.compression) scores[(r0 + r) * p.groups + g] = scaled;
     }
 }

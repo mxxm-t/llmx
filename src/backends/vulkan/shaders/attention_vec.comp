@@ -66,7 +66,7 @@ void main() {
     #ifdef LLMX_SPARSE
     uint split = 0u;
     uint rb = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
-    if (rb >= p.rows * p.n_head) return;
+    if (rb >= p.rows * (p.n_head / p.hg)) return;
 #else
     uint split = gl_WorkGroupID.x % p.nsplit;
     uint rb = gl_WorkGroupID.x / p.nsplit;
@@ -102,7 +102,14 @@ void main() {
 #endif
     uint bf = p.n_head_kv * p.bt * p.dim;
     // Four heads' queries stay in shared memory, read per token, so the registers go to the accumulations and more subgroups fit a SIMD; one head's stay in registers, where they cost little.
-    float acc[HG][8], m[HG], l[HG];
+    // The sparse builds switch between one head and a group of heads by the rows a call holds, so their sums are precise: a driver may contract them differently in each build.
+#ifdef LLMX_SPARSE
+#define EXACT precise
+#else
+#define EXACT
+#endif
+    EXACT float acc[HG][8], l[HG];
+    float m[HG];
 #ifndef LLMX_G4
     float qv[HG][8];
 #endif
@@ -125,10 +132,10 @@ void main() {
 #define ABSORB(kx, vx)                                                                                  \
     [[unroll]] for (uint j = 0u; j < HG; ++j) {                                                         \
         if (j >= p.hg) continue;                                                                        \
-        float part = 0.0;                                                                               \
+        EXACT float part = 0.0;                                                                         \
         [[unroll]] for (uint e = 0u; e < 8u; ++e) part += QDOT(j, e) * kx[e];                           \
         [[unroll]] for (uint o = lanes / 2u; o > 0u; o /= 2u) part += subgroupShuffleXor(part, o);      \
-        float s = part * p.scale;                                                                       \
+        EXACT float s = part * p.scale;                                                                 \
         float mn = max(m[j], s);                                                                        \
         float corr = exp(m[j] - mn), w = exp(s - mn);                                                   \
         l[j] = l[j] * corr + w;                                                                         \
@@ -138,18 +145,48 @@ void main() {
     // In the four-head build a group takes its tokens two at a time, both loads issued before either is used, so twice the bytes are in flight; the order a group sees its tokens is unchanged.
     // The token's lanes are an aligned run of `lanes`, a power of two, so exchanging across bit o stays inside it.
     uint t = start + stream;
+#ifdef LLMX_SPARSE
+    // A selection's tokens sit anywhere in the history, so each stream takes four at a time, their ids and rows all loaded before the first is absorbed; the order is unchanged.
+    for (; t + 3u * streams < end; t += 4u * streams) {
+        uint sel[4], at[4];
+        [[unroll]] for (uint u = 0u; u < 4u; ++u) sel[u] = ids[(view_row0(v) + b) * p.selected_stride + t + u * streams];
+        [[unroll]] for (uint u = 0u; u < 4u; ++u) {
+            uint x = sel[u] < visible ? sel[u] : 0u;
+            at[u] = view_block(v, x / p.bt) * bf + (kvh * p.bt + x % p.bt) * p.dim + d0;
+        }
+        float kq[4][8], vq[4][8];
+        [[unroll]] for (uint u = 0u; u < 4u; ++u) { k_load8(at[u], kq[u]); v_load8(at[u], vq[u]); }
+        [[unroll]] for (uint u = 0u; u < 4u; ++u)
+            if (sel[u] < visible) { ABSORB(kq[u], vq[u]) }
+    }
+#endif
 #ifdef LLMX_G4
     for (; t + streams < end; t += 2u * streams) {
         uint t1 = t + streams;
+#ifdef LLMX_SPARSE
+        // A selection slot past the row's visible tokens holds no token and is passed over, as in the single loop below.
+        uint s0 = ids[(view_row0(v) + b) * p.selected_stride + t], s1 = ids[(view_row0(v) + b) * p.selected_stride + t1];
+        bool u0 = s0 < visible, u1 = s1 < visible;
+        s0 = u0 ? s0 : 0u;
+        s1 = u1 ? s1 : 0u;
+        uint b0 = view_block(v, s0 / p.bt) * bf + (kvh * p.bt + s0 % p.bt) * p.dim + d0;
+        uint b1 = view_block(v, s1 / p.bt) * bf + (kvh * p.bt + s1 % p.bt) * p.dim + d0;
+#else
         uint b0 = view_block(v, t / p.bt) * bf + (kvh * p.bt + t % p.bt) * p.dim + d0;
         uint b1 = view_block(v, t1 / p.bt) * bf + (kvh * p.bt + t1 % p.bt) * p.dim + d0;
+#endif
         float k0[8], v0[8], k1[8], v1[8];
         k_load8(b0, k0);
         v_load8(b0, v0);
         k_load8(b1, k1);
         v_load8(b1, v1);
+#ifdef LLMX_SPARSE
+        if (u0) { ABSORB(k0, v0) }
+        if (u1) { ABSORB(k1, v1) }
+#else
         ABSORB(k0, v0)
         ABSORB(k1, v1)
+#endif
     }
 #endif
     // The one-head build takes one token at a time: its short histories gain nothing from the pair, and its registers stay those of a single token.
@@ -178,7 +215,7 @@ void main() {
             uint h = h0 + j, rh = g * p.n_head + h, qbase = qrow + h * p.dim;
             float M = ms[j][0];
             for (uint i = 1u; i < streams; ++i) M = max(M, ms[j][i]);
-            float L = 0.0, A = 0.0;
+            EXACT float L = 0.0, A = 0.0;
             // A stream that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
             for (uint i = 0u; i < streams; ++i) {
                 if (isinf(ms[j][i])) continue;

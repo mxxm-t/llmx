@@ -63,6 +63,8 @@ struct DeviceProfile {
     uint32_t q8_decode_two_rows_from = 2560;
     // Output rows below which such a chunk over 16-bit activations takes the build of one row and four steps, and from which it keeps two rows and one step.
     uint32_t q8_decode_one_row_below_16bit = 1024;
+    // Waves per compute unit a ROCm decode row call must launch at four rows a wave before its two- to eight-column builds take four rows rather than two (docs/STATUS.md, ROCm many users).
+    uint32_t row_four_waves_per_cu = 8;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
     // Tokens of history in one part of the tiled attention's split, a multiple of every build's key tile (16); 1024 was best or within 1 percent of 2048 and 4096 on two models (docs/STATUS.md).

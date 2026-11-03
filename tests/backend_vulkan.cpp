@@ -2798,30 +2798,60 @@ struct FloatOps {
     }
     bool operator==(const FloatOps& o) const { return mul == o.mul && mad == o.mad && fused == o.fused && add == o.add && lane_add == o.lane_add; }
 };
-// Only this captured RADV address-division sequence excludes its two normalizing multiplies.
+// Only this captured RADV address-division sequence excludes its two normalizing multiplies, its two registers in `regs`.
 // Unknown instruction forms or register flows stay counted, so the diagnostic still fails closed.
-bool normalized_division(const std::string (&lines)[5]) {
+bool normalized_division(const std::string (&lines)[5], unsigned (&regs)[2]) {
     unsigned a[3], b[2], c[3], d[2], e[2];
     if (std::sscanf(lines[0].c_str(), "v_mul_f32_e32 v%u, v%u, v%u", &a[0], &a[1], &a[2]) != 3 ||
         std::sscanf(lines[1].c_str(), "v_rcp_f32_e32 v%u, v%u", &b[0], &b[1]) != 2 ||
         std::sscanf(lines[2].c_str(), "v_mul_f32_e32 v%u, v%u, v%u", &c[0], &c[1], &c[2]) != 3 ||
         std::sscanf(lines[3].c_str(), "v_mul_f32_e32 v%u, 0x4f7ffffe, v%u", &d[0], &d[1]) != 2 ||
         std::sscanf(lines[4].c_str(), "v_cvt_u32_f32_e32 v%u, v%u", &e[0], &e[1]) != 2) return false;
+    regs[0] = a[0], regs[1] = a[1];
     return a[0] == a[2] && a[0] != a[1] && b[0] == a[0] && b[1] == a[0] &&
            c[0] == a[1] && c[1] == a[1] && c[2] == a[0] &&
            d[0] == a[1] && d[1] == a[1] && e[0] == a[1] && e[1] == a[1];
 }
 
+// The vector registers an instruction names, a range v[a:b] as each of its registers, its comment left out.
+std::vector<unsigned> vector_registers(const std::string& line) {
+    std::vector<unsigned> regs;
+    const size_t end = std::min(line.find(';'), line.size());
+    for (size_t i = 0; i < end; ++i) {
+        if (line[i] != 'v' || (i && (std::isalnum((unsigned char)line[i - 1]) || line[i - 1] == '_'))) continue;
+        unsigned a = 0, b = 0;
+        if (std::sscanf(line.c_str() + i, "v[%u:%u]", &a, &b) == 2) {
+            for (unsigned r = a; r <= b; ++r) regs.push_back(r);
+        } else if (std::isdigit((unsigned char)line[i + 1])) {
+            std::sscanf(line.c_str() + i, "v%u", &a);
+            regs.push_back(a);
+        }
+    }
+    return regs;
+}
+
 FloatOps float_ops(const std::string& text) {
     FloatOps n;
+    // The division's own instructions, and before each the registers other instructions named since the one before it, which the sequence's two registers must not be among.
     std::string recent[5];
+    std::vector<unsigned> gaps[5], gap;
     for (size_t from = 0; from < text.size();) {
         size_t eol = text.find('\n', from);
         if (eol == std::string::npos) eol = text.size();
         const size_t at = text.find_first_not_of(" \t", from);
-        for (size_t i = 0; i < 4; ++i) recent[i] = recent[i + 1];
-        recent[4] = at < eol ? text.substr(at, eol - at) : "";
-        if (normalized_division(recent)) n.mul -= 2;
+        const std::string here = at < eol ? text.substr(at, eol - at) : "";
+        if (here.rfind("v_mul_f32", 0) == 0 || here.rfind("v_rcp_f32", 0) == 0 || here.rfind("v_cvt_u32_f32", 0) == 0) {
+            for (size_t i = 0; i < 4; ++i) recent[i] = recent[i + 1], gaps[i] = std::move(gaps[i + 1]);
+            recent[4] = here, gaps[4] = std::move(gap), gap.clear();
+            unsigned regs[2];
+            bool apart = normalized_division(recent, regs);
+            for (size_t i = 1; apart && i < 5; ++i)
+                apart = std::find(gaps[i].begin(), gaps[i].end(), regs[0]) == gaps[i].end() && std::find(gaps[i].begin(), gaps[i].end(), regs[1]) == gaps[i].end();
+            if (apart) n.mul -= 2;
+        } else {
+            const std::vector<unsigned> named = vector_registers(here);
+            gap.insert(gap.end(), named.begin(), named.end());
+        }
         if (at < eol && text.compare(at, 2, "v_") == 0) {
             size_t end = at;
             while (end < eol && (std::isalnum((unsigned char)text[end]) || text[end] == '_')) ++end;

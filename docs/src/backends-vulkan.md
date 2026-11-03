@@ -441,6 +441,7 @@ products, ordinary adds and shuffled adds. RADV's integer address division
 uses a reciprocal scaled by `0x4f7ffffe`; its recognized normalization and
 restore multiplies are excluded from matrix product counts. Planted
 instruction sequences hold this exclusion to the matching register chain.
+An instruction the driver schedules inside the sequence is passed over when it names none of the sequence's registers and breaks it when it names one.
 
 The Q8_0 expected counts follow each build's recorded shape. Products repeat
 for its load steps, the single-step tail after paired steps, partially filled

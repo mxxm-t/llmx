@@ -1,0 +1,56 @@
+{
+  "status": "DONE",
+  "started": 1793728554.5241458,
+  "calls": [
+    {
+      "name": "backend-vulkan",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\build-half-c\\Release\\llmx-backend-vulkan-test.exe"
+      ],
+      "started": 1793728554.5971487,
+      "timeout_seconds": 600,
+      "exit_code": 0,
+      "finished": 1793728746.6771119,
+      "log_sha256": "4fba251dd76c723aab29ab574f09111b8871b36000c7edcb305c5c1af8010504"
+    },
+    {
+      "name": "half-cpu",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\build-half-c\\Release\\llmx.exe",
+        "--only",
+        "half-weights",
+        "--device",
+        "cpu",
+        "--require-tools"
+      ],
+      "started": 1793728746.6831114,
+      "timeout_seconds": 300,
+      "exit_code": 0,
+      "finished": 1793728750.5428805,
+      "log_sha256": "b4941a0201eab927975a8469a88536baa22321a393d3858be7d0f2c4d04de4fd"
+    }
+  ],
+  "inputs": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\build-half-c\\Release\\llmx.exe": "15f459e57441f5591f04ec1e1fa68b926bc670eaf044dc0a038b943e6dff9a40",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\build-half-c\\Release\\llmx-backend-vulkan-test.exe": "7b18fdb7cef67cd5c7b0b4a345f147a44058c0b69b904564d0b9fa26fbbb7eba",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\build-half-c\\Release\\llmx-model-logits.exe": "56a2a0b2bb550ffc073e41f0cc3bee974cc060a239f47efb3fc8e3bf8e9c0621",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\src\\backends\\vulkan\\shaders\\f16.glsl": "6e3788809a018505d46ac1a813e6ae60a56b92ed6dafde1edbd8b2211df76a4d",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\half-decode-20261103\\tests\\backend_vulkan.cpp": "fa0c06541175937032ee6a95be5082d45637a6f17850501b28ce55182c35e694"
+  },
+  "finished": 1793728750.5483935,
+  "gpu_half": {
+    "exit_code": 0,
+    "sets": 24,
+    "unavailable_formats": 0,
+    "log_sha256": "1981ee708c75b8b37f8c2a17a30348e263ba4fe26627ac0db9329b9f14bdbd04",
+    "command": "python -X utf8 tests/run_tests.py --exe build-half-c/Release/llmx.exe --only half-weights --device vulkan:0 --require-tools --require-device-types F16,BF16"
+  },
+  "device_identity": "AMD Radeon VII; AMD proprietary driver 26.5.2",
+  "native_kernel_output_comparisons": 68643840,
+  "cpu_half_sets": 48
+}

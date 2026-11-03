@@ -1,0 +1,2085 @@
+{
+  "status": "OFFLINE_AUDIT_PASS_WITH_LIMITATIONS",
+  "summary": [
+    {
+      "period": 0,
+      "k": 1024,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          26.7912,
+          27.6781
+        ],
+        "B": [
+          27.7175,
+          19.909
+        ],
+        "C": [
+          19.237,
+          17.9236
+        ]
+      },
+      "wall_means_us": {
+        "main": 27.234650000000002,
+        "B": 23.81325,
+        "C": 18.5803
+      },
+      "C_vs_main_percent": -31.77698263058273,
+      "C_vs_B_percent": -21.97495092018099,
+      "subnormal_count": 0,
+      "weight_count": 1048576,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 0,
+      "k": 1024,
+      "m": 2048,
+      "wall_samples_us": {
+        "main": [
+          49.7141,
+          46.6177
+        ],
+        "B": [
+          33.0682,
+          29.7975
+        ],
+        "C": [
+          25.5537,
+          27.7557
+        ]
+      },
+      "wall_means_us": {
+        "main": 48.1659,
+        "B": 31.43285,
+        "C": 26.6547
+      },
+      "C_vs_main_percent": -44.66064165727206,
+      "C_vs_B_percent": -15.201135118196408,
+      "subnormal_count": 0,
+      "weight_count": 2097152,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 0,
+      "k": 1024,
+      "m": 3072,
+      "wall_samples_us": {
+        "main": [
+          50.6596,
+          54.6396
+        ],
+        "B": [
+          50.0216,
+          36.4948
+        ],
+        "C": [
+          31.1721,
+          31.6267
+        ]
+      },
+      "wall_means_us": {
+        "main": 52.6496,
+        "B": 43.2582,
+        "C": 31.3994
+      },
+      "C_vs_main_percent": -40.36156020178691,
+      "C_vs_B_percent": -27.4139931851071,
+      "subnormal_count": 0,
+      "weight_count": 3145728,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 0,
+      "k": 2048,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          35.9766,
+          68.467
+        ],
+        "B": [
+          50.1948,
+          26.755
+        ],
+        "C": [
+          27.1514,
+          23.3704
+        ]
+      },
+      "wall_means_us": {
+        "main": 52.2218,
+        "B": 38.4749,
+        "C": 25.2609
+      },
+      "C_vs_main_percent": -51.627672734375295,
+      "C_vs_B_percent": -34.34446873156265,
+      "subnormal_count": 0,
+      "weight_count": 2097152,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 0,
+      "k": 3072,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          76.3216,
+          42.3209
+        ],
+        "B": [
+          41.3382,
+          37.1875
+        ],
+        "C": [
+          35.9703,
+          32.9258
+        ]
+      },
+      "wall_means_us": {
+        "main": 59.321250000000006,
+        "B": 39.26285,
+        "C": 34.44805
+      },
+      "C_vs_main_percent": -41.92966264197063,
+      "C_vs_B_percent": -12.262991606569562,
+      "subnormal_count": 0,
+      "weight_count": 3145728,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 0,
+      "k": 1024,
+      "m": 151936,
+      "wall_samples_us": {
+        "main": [
+          572.246,
+          561.732
+        ],
+        "B": [
+          667.121,
+          665.949
+        ],
+        "C": [
+          510.727,
+          506.327
+        ]
+      },
+      "wall_means_us": {
+        "main": 566.989,
+        "B": 666.535,
+        "C": 508.527
+      },
+      "C_vs_main_percent": -10.310958413655303,
+      "C_vs_B_percent": -23.70588191167755,
+      "subnormal_count": 0,
+      "weight_count": 155582464,
+      "actual_subnormal_percent": 0.0
+    },
+    {
+      "period": 400,
+      "k": 1024,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          37.6056,
+          26.7832
+        ],
+        "B": [
+          23.3207,
+          18.6135
+        ],
+        "C": [
+          18.0405,
+          18.6975
+        ]
+      },
+      "wall_means_us": {
+        "main": 32.1944,
+        "B": 20.9671,
+        "C": 18.369
+      },
+      "C_vs_main_percent": -42.943493278334124,
+      "C_vs_B_percent": -12.391317826499604,
+      "subnormal_count": 2647,
+      "weight_count": 1048576,
+      "actual_subnormal_percent": 0.2524375915527344
+    },
+    {
+      "period": 400,
+      "k": 1024,
+      "m": 2048,
+      "wall_samples_us": {
+        "main": [
+          40.9238,
+          41.6143
+        ],
+        "B": [
+          29.5634,
+          28.1739
+        ],
+        "C": [
+          24.8159,
+          27.2403
+        ]
+      },
+      "wall_means_us": {
+        "main": 41.26905,
+        "B": 28.868650000000002,
+        "C": 26.028100000000002
+      },
+      "C_vs_main_percent": -36.930702305965355,
+      "C_vs_B_percent": -9.839566450111104,
+      "subnormal_count": 5303,
+      "weight_count": 2097152,
+      "actual_subnormal_percent": 0.2528667449951172
+    },
+    {
+      "period": 400,
+      "k": 1024,
+      "m": 3072,
+      "wall_samples_us": {
+        "main": [
+          45.2243,
+          55.1331
+        ],
+        "B": [
+          41.4645,
+          36.7399
+        ],
+        "C": [
+          31.6799,
+          32.7699
+        ]
+      },
+      "wall_means_us": {
+        "main": 50.1787,
+        "B": 39.102199999999996,
+        "C": 32.2249
+      },
+      "C_vs_main_percent": -35.77972326903647,
+      "C_vs_B_percent": -17.588012950677967,
+      "subnormal_count": 7936,
+      "weight_count": 3145728,
+      "actual_subnormal_percent": 0.2522786458333333
+    },
+    {
+      "period": 400,
+      "k": 2048,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          54.2137,
+          55.4515
+        ],
+        "B": [
+          37.0799,
+          36.0521
+        ],
+        "C": [
+          35.8407,
+          35.9535
+        ]
+      },
+      "wall_means_us": {
+        "main": 54.8326,
+        "B": 36.566,
+        "C": 35.897099999999995
+      },
+      "C_vs_main_percent": -34.53328859109362,
+      "C_vs_B_percent": -1.8292949734726505,
+      "subnormal_count": 5303,
+      "weight_count": 2097152,
+      "actual_subnormal_percent": 0.2528667449951172
+    },
+    {
+      "period": 400,
+      "k": 3072,
+      "m": 1024,
+      "wall_samples_us": {
+        "main": [
+          42.4338,
+          45.9377
+        ],
+        "B": [
+          37.3869,
+          37.3497
+        ],
+        "C": [
+          32.5451,
+          45.0846
+        ]
+      },
+      "wall_means_us": {
+        "main": 44.18575,
+        "B": 37.3683,
+        "C": 38.81485
+      },
+      "C_vs_main_percent": -12.155276305143625,
+      "C_vs_B_percent": 3.871061835834122,
+      "subnormal_count": 7936,
+      "weight_count": 3145728,
+      "actual_subnormal_percent": 0.2522786458333333
+    },
+    {
+      "period": 400,
+      "k": 1024,
+      "m": 151936,
+      "wall_samples_us": {
+        "main": [
+          594.88,
+          579.132
+        ],
+        "B": [
+          674.311,
+          686.86
+        ],
+        "C": [
+          516.871,
+          508.419
+        ]
+      },
+      "wall_means_us": {
+        "main": 587.006,
+        "B": 680.5855,
+        "C": 512.645
+      },
+      "C_vs_main_percent": -12.667843258842327,
+      "C_vs_B_percent": -24.675885689601095,
+      "subnormal_count": 389094,
+      "weight_count": 155582464,
+      "actual_subnormal_percent": 0.2500885961029644
+    }
+  ],
+  "timed_mixed": [
+    {
+      "k": 1024,
+      "m": 1024,
+      "device_us": {
+        "main": 24.6704,
+        "B": 17.5568,
+        "C": 15.8464
+      }
+    },
+    {
+      "k": 1024,
+      "m": 2048,
+      "device_us": {
+        "main": 40.0416,
+        "B": 27.6336,
+        "C": 23.72
+      }
+    },
+    {
+      "k": 1024,
+      "m": 3072,
+      "device_us": {
+        "main": 46.6368,
+        "B": 35.0608,
+        "C": 30.6336
+      }
+    },
+    {
+      "k": 2048,
+      "m": 1024,
+      "device_us": {
+        "main": 51.336,
+        "B": 34.9232,
+        "C": 32.824
+      }
+    },
+    {
+      "k": 3072,
+      "m": 1024,
+      "device_us": {
+        "main": 41.2048,
+        "B": 35.9472,
+        "C": 29.7872
+      }
+    },
+    {
+      "k": 1024,
+      "m": 151936,
+      "device_us": {
+        "main": 579.37,
+        "B": 651.328,
+        "C": 489.691
+      }
+    }
+  ],
+  "pipeline_stats": {
+    "main": {
+      "Driver pipeline hash": 5126168538029105649,
+      "SGPRs": 32,
+      "VGPRs": 40,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 5516,
+      "LDS size": 0,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 6,
+      "Combined inputs": 0,
+      "Combined outputs": 0,
+      "Hash": 3291117266,
+      "Instructions": 970,
+      "Copies": 176,
+      "Branches": 89,
+      "Latency": 81229,
+      "Inverse Throughput": 20746,
+      "VMEM Clause": 12,
+      "SMEM Clause": 16,
+      "Pre-Sched SGPRs": 28,
+      "Pre-Sched VGPRs": 27,
+      "LU": 264,
+      "VMEM": 15,
+      "SMEM": 19,
+      "VOPD": 0
+    },
+    "B": {
+      "Driver pipeline hash": 10842293711887537313,
+      "SGPRs": 32,
+      "VGPRs": 40,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 4428,
+      "LDS size": 0,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 6,
+      "Combined inputs": 0,
+      "Combined outputs": 0,
+      "Hash": 2335617705,
+      "Instructions": 746,
+      "Copies": 74,
+      "Branches": 29,
+      "Latency": 60361,
+      "Inverse Throughput": 24994,
+      "VMEM Clause": 10,
+      "SMEM Clause": 14,
+      "Pre-Sched SGPRs": 29,
+      "Pre-Sched VGPRs": 28,
+      "LU": 136,
+      "VMEM": 15,
+      "SMEM": 19,
+      "VOPD": 0
+    },
+    "C": {
+      "Driver pipeline hash": 18048170556421133803,
+      "SGPRs": 32,
+      "VGPRs": 40,
+      "Spilled SGPRs": 0,
+      "Spilled VGPRs": 0,
+      "Code size": 3468,
+      "LDS size": 0,
+      "Scratch size": 0,
+      "Subgroups per SIMD": 6,
+      "Combined inputs": 0,
+      "Combined outputs": 0,
+      "Hash": 1100759169,
+      "Instructions": 596,
+      "Copies": 74,
+      "Branches": 29,
+      "Latency": 53161,
+      "Inverse Throughput": 17890,
+      "VMEM Clause": 11,
+      "SMEM Clause": 14,
+      "Pre-Sched SGPRs": 28,
+      "Pre-Sched VGPRs": 28,
+      "LU": 134,
+      "VMEM": 15,
+      "SMEM": 19,
+      "VOPD": 0
+    }
+  },
+  "isa": {
+    "main": {
+      "sha256": "b7089eef389d02074b7d32433d71b537a879fd014c20cb8d53fdd60e43b8c933",
+      "sections": [
+        "NIR Shader(s) (The optimized NIR shader(s))",
+        "ACO IR (The ACO IR after some optimizations)",
+        "Assembly (Final Assembly)"
+      ]
+    },
+    "B": {
+      "sha256": "fcb904a3576049834dca6079123abf13e26d870ee7884d960f8ffb17d5a3ad9a",
+      "sections": [
+        "NIR Shader(s) (The optimized NIR shader(s))",
+        "ACO IR (The ACO IR after some optimizations)",
+        "Assembly (Final Assembly)"
+      ]
+    },
+    "C": {
+      "sha256": "0dd233b81d5d15e411c8584e8e272706e43c424e730f72fa72a8b54a2c772a9c",
+      "sections": [
+        "NIR Shader(s) (The optimized NIR shader(s))",
+        "ACO IR (The ACO IR after some optimizations)",
+        "Assembly (Final Assembly)"
+      ]
+    }
+  },
+  "samples": [
+    {
+      "id": "01-main-p0-t0",
+      "arm": "main",
+      "period": 0,
+      "timed": false,
+      "start": 1793727851.7144196,
+      "end": 1793727857.1062093,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 26.7912
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 49.7141
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 50.6596
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 35.9766
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 76.3216
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 572.246
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "02-B-p0-t0",
+      "arm": "B",
+      "period": 0,
+      "timed": false,
+      "start": 1793727857.1887033,
+      "end": 1793727862.6905687,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 27.7175
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 33.0682
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 50.0216
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 50.1948
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 41.3382
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 667.121
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "03-C-p0-t0",
+      "arm": "C",
+      "period": 0,
+      "timed": false,
+      "start": 1793727862.7336814,
+      "end": 1793727868.229498,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 19.237
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 25.5537
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 31.1721
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 27.1514
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 35.9703
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 510.727
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "04-C-p0-t0",
+      "arm": "C",
+      "period": 0,
+      "timed": false,
+      "start": 1793727868.3537068,
+      "end": 1793727873.6546867,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 17.9236
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 27.7557
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 31.6267
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 23.3704
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 32.9258
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 506.327
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "05-B-p0-t0",
+      "arm": "B",
+      "period": 0,
+      "timed": false,
+      "start": 1793727873.7087982,
+      "end": 1793727879.1125617,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 19.909
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 29.7975
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 36.4948
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 26.755
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 37.1875
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 665.949
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "06-main-p0-t0",
+      "arm": "main",
+      "period": 0,
+      "timed": false,
+      "start": 1793727879.1612341,
+      "end": 1793727884.6890788,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.32732e-05,
+          "wall_us": 27.6781
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.32732e-05,
+          "wall_us": 46.6177
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.32732e-05,
+          "wall_us": 54.6396
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 8.44896e-06,
+          "wall_us": 68.467
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 2.23964e-05,
+          "wall_us": 42.3209
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.32732e-05,
+          "wall_us": 561.732
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 0,
+          "total": 1048576
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 2097152
+        },
+        {
+          "subnormal": 0,
+          "total": 3145728
+        },
+        {
+          "subnormal": 0,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "889bcfdaf8663d0f85743b1b01fe03ddebbb8f7bb4f37a2bfe753a57eb5ffb62"
+    },
+    {
+      "id": "07-main-p400-t0",
+      "arm": "main",
+      "period": 400,
+      "timed": false,
+      "start": 1793727884.7339203,
+      "end": 1793727890.3535926,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 37.6056
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 40.9238
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 45.2243
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 54.2137
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 42.4338
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 594.88
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "08-B-p400-t0",
+      "arm": "B",
+      "period": 400,
+      "timed": false,
+      "start": 1793727890.412097,
+      "end": 1793727895.7418616,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 23.3207
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 29.5634
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 41.4645
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 37.0799
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 37.3869
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 674.311
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "09-C-p400-t0",
+      "arm": "C",
+      "period": 400,
+      "timed": false,
+      "start": 1793727895.810739,
+      "end": 1793727901.482954,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 18.0405
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 24.8159
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 31.6799
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 35.8407
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 32.5451
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 516.871
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "10-C-p400-t0",
+      "arm": "C",
+      "period": 400,
+      "timed": false,
+      "start": 1793727901.5369465,
+      "end": 1793727907.088065,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 18.6975
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 27.2403
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 32.7699
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 35.9535
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 45.0846
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 508.419
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "11-B-p400-t0",
+      "arm": "B",
+      "period": 400,
+      "timed": false,
+      "start": 1793727907.2241163,
+      "end": 1793727912.6076226,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 18.6135
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 28.1739
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 36.7399
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 36.0521
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 37.3497
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 686.86
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "12-main-p400-t0",
+      "arm": "main",
+      "period": 400,
+      "timed": false,
+      "start": 1793727912.7624636,
+      "end": 1793727917.770528,
+      "shapes": [
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 26.7832
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 41.6143
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 55.1331
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 55.4515
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 45.9377
+        },
+        {
+          "device_us": 0.0,
+          "dispatches": 0,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 579.132
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "13-main-p400-t1",
+      "arm": "main",
+      "period": 400,
+      "timed": true,
+      "start": 1793727917.831211,
+      "end": 1793727922.8671317,
+      "shapes": [
+        {
+          "device_us": 24.6704,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 27.297
+        },
+        {
+          "device_us": 40.0416,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 42.3972
+        },
+        {
+          "device_us": 46.6368,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 49.9228
+        },
+        {
+          "device_us": 51.336,
+          "dispatches": 100,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 54.3384
+        },
+        {
+          "device_us": 41.2048,
+          "dispatches": 100,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 44.6326
+        },
+        {
+          "device_us": 579.37,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 581.492
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "14-B-p400-t1",
+      "arm": "B",
+      "period": 400,
+      "timed": true,
+      "start": 1793727922.9287138,
+      "end": 1793727927.772034,
+      "shapes": [
+        {
+          "device_us": 17.5568,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 25.2845
+        },
+        {
+          "device_us": 27.6336,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 30.1785
+        },
+        {
+          "device_us": 35.0608,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 39.9879
+        },
+        {
+          "device_us": 34.9232,
+          "dispatches": 100,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 38.1328
+        },
+        {
+          "device_us": 35.9472,
+          "dispatches": 100,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 39.5511
+        },
+        {
+          "device_us": 651.328,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 653.372
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    },
+    {
+      "id": "15-C-p400-t1",
+      "arm": "C",
+      "period": 400,
+      "timed": true,
+      "start": 1793727927.8081763,
+      "end": 1793727932.7768228,
+      "shapes": [
+        {
+          "device_us": 15.8464,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 1024,
+          "max_error": 1.45994e-05,
+          "wall_us": 18.8076
+        },
+        {
+          "device_us": 23.72,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 2048,
+          "max_error": 1.45994e-05,
+          "wall_us": 26.0842
+        },
+        {
+          "device_us": 30.6336,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 3072,
+          "max_error": 1.45994e-05,
+          "wall_us": 34.0314
+        },
+        {
+          "device_us": 32.824,
+          "dispatches": 100,
+          "k": 2048,
+          "m": 1024,
+          "max_error": 1.48249e-05,
+          "wall_us": 35.823
+        },
+        {
+          "device_us": 29.7872,
+          "dispatches": 100,
+          "k": 3072,
+          "m": 1024,
+          "max_error": 3.18964e-05,
+          "wall_us": 33.5966
+        },
+        {
+          "device_us": 489.691,
+          "dispatches": 100,
+          "k": 1024,
+          "m": 151936,
+          "max_error": 1.45994e-05,
+          "wall_us": 491.736
+        }
+      ],
+      "mix_counts": [
+        {
+          "subnormal": 2647,
+          "total": 1048576
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 5303,
+          "total": 2097152
+        },
+        {
+          "subnormal": 7936,
+          "total": 3145728
+        },
+        {
+          "subnormal": 389094,
+          "total": 155582464
+        }
+      ],
+      "raw_sha256": "cfc1b80556c296bf7b17bcbf835871e168cc35ecc8e6ccbe207651f9ed1120c3"
+    }
+  ],
+  "coverage": [
+    {
+      "id": "01-main-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.595293022710365,
+      "system_cpu": 68.1198874577508,
+      "disk_mib_s": 1371.6677509882102,
+      "flag_seconds": {
+        "unrelated_cpu": 5.391789674758911,
+        "physical_disk": 5.391789674758911,
+        "non_target_gpu": 3.4296417236328125,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "02-B-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 10.181345885407408,
+      "system_cpu": 70.28023531072573,
+      "disk_mib_s": 1410.566293973291,
+      "flag_seconds": {
+        "unrelated_cpu": 5.501865386962891,
+        "physical_disk": 5.501865386962891,
+        "non_target_gpu": 5.501865386962891,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "03-C-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 10.088582035858686,
+      "system_cpu": 70.43645331252874,
+      "disk_mib_s": 1409.458450730244,
+      "flag_seconds": {
+        "unrelated_cpu": 5.495816469192505,
+        "physical_disk": 5.495816469192505,
+        "non_target_gpu": 4.511351585388184,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "04-C-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.675788421995927,
+      "system_cpu": 68.92505897954506,
+      "disk_mib_s": 1388.6936918669712,
+      "flag_seconds": {
+        "unrelated_cpu": 5.300979852676392,
+        "physical_disk": 5.300979852676392,
+        "non_target_gpu": 4.314408779144287,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "05-B-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.698068231409648,
+      "system_cpu": 68.29328492902077,
+      "disk_mib_s": 1361.160664494044,
+      "flag_seconds": {
+        "unrelated_cpu": 5.40376353263855,
+        "physical_disk": 5.40376353263855,
+        "non_target_gpu": 5.40376353263855,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "06-main-p0-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.732069044756221,
+      "system_cpu": 69.33287241004527,
+      "disk_mib_s": 1374.531377557259,
+      "flag_seconds": {
+        "unrelated_cpu": 5.527844667434692,
+        "physical_disk": 5.527844667434692,
+        "non_target_gpu": 4.5233845710754395,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "07-main-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.415941950981733,
+      "system_cpu": 67.73491112805,
+      "disk_mib_s": 1303.060672292997,
+      "flag_seconds": {
+        "unrelated_cpu": 5.6196722984313965,
+        "physical_disk": 5.6196722984313965,
+        "non_target_gpu": 5.6196722984313965,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "08-B-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.737229613291554,
+      "system_cpu": 69.4395261389407,
+      "disk_mib_s": 1371.61745902644,
+      "flag_seconds": {
+        "unrelated_cpu": 5.3297646045684814,
+        "physical_disk": 5.3297646045684814,
+        "non_target_gpu": 5.3297646045684814,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "09-C-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.774988509348923,
+      "system_cpu": 70.58444907429354,
+      "disk_mib_s": 1389.8393745095009,
+      "flag_seconds": {
+        "unrelated_cpu": 5.672214984893799,
+        "physical_disk": 5.672214984893799,
+        "non_target_gpu": 5.672214984893799,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "10-C-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 9.470034988104153,
+      "system_cpu": 69.55988145725375,
+      "disk_mib_s": 1334.4629040954899,
+      "flag_seconds": {
+        "unrelated_cpu": 5.55111837387085,
+        "physical_disk": 5.55111837387085,
+        "non_target_gpu": 4.50713038444519,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "11-B-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 5.359054777958997,
+      "system_cpu": 40.56331167062742,
+      "disk_mib_s": 482.9410450301941,
+      "flag_seconds": {
+        "unrelated_cpu": 5.3835062980651855,
+        "physical_disk": 3.3923463821411133,
+        "non_target_gpu": 1.38981032371521,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "12-main-p400-t0",
+      "coverage_fraction": 1.0,
+      "cores": 4.354536923037243,
+      "system_cpu": 33.06300448180777,
+      "disk_mib_s": 291.6181863691397,
+      "flag_seconds": {
+        "unrelated_cpu": 5.00806450843811,
+        "physical_disk": 5.00806450843811,
+        "non_target_gpu": 5.00806450843811,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "13-main-p400-t1",
+      "coverage_fraction": 1.0,
+      "cores": 2.905422501817447,
+      "system_cpu": 24.319455597458397,
+      "disk_mib_s": 247.9084821952067,
+      "flag_seconds": {
+        "unrelated_cpu": 5.0359206199646,
+        "physical_disk": 5.0359206199646,
+        "non_target_gpu": 5.0359206199646,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "14-B-p400-t1",
+      "coverage_fraction": 1.0,
+      "cores": 1.8878085512437395,
+      "system_cpu": 16.45872545871418,
+      "disk_mib_s": 127.12430125529323,
+      "flag_seconds": {
+        "unrelated_cpu": 3.8477749824523926,
+        "physical_disk": 2.8456759452819824,
+        "non_target_gpu": 4.84332013130188,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "15-C-p400-t1",
+      "coverage_fraction": 1.0,
+      "cores": 2.6133653546021267,
+      "system_cpu": 22.53069087172062,
+      "disk_mib_s": 211.10565252773154,
+      "flag_seconds": {
+        "unrelated_cpu": 4.96864652633667,
+        "physical_disk": 4.96864652633667,
+        "non_target_gpu": 4.96864652633667,
+        "sample_gap": 0
+      }
+    }
+  ],
+  "activity_thresholds": {
+    "disk_bytes_per_second": 104857600,
+    "non_target_gpu_busy_percent": 0,
+    "sample_gap_seconds": 3,
+    "unrelated_cpu_core_equivalents": 1,
+    "use": "annotation only; retain every planned call and interval; never discard/replace because flagged"
+  },
+  "raw_identity_per_period": {
+    "0": true,
+    "400": true
+  },
+  "remote_rehash": {
+    "source_parent_unchanged": true,
+    "source_C_unchanged": true,
+    "old_libs": {
+      "B": {
+        "before": "fc229ddbb40e93b53a6c4d48da849ce68a9d1dbb5812426b1970f92ee1121c95",
+        "now": "fc229ddbb40e93b53a6c4d48da849ce68a9d1dbb5812426b1970f92ee1121c95"
+      },
+      "main": {
+        "before": "18219527888e419363b6e60edb813850c41c6b65cc0ec780fda6309ec8909d3a",
+        "now": "18219527888e419363b6e60edb813850c41c6b65cc0ec780fda6309ec8909d3a"
+      }
+    },
+    "probe_hashes": {
+      "B": "186e37a88774e2a3d50844b652020c3db9e55fa3aadc2834388bcd0f6d20df72",
+      "C": "f4527000c7efdd2729d6f916e200d69ffeb32a9880af8868eaf7c6f5870316cb",
+      "main": "8568c45245ed75f06e95175d0fb7afa75aa68d176d919d93048d88a66c59691c"
+    },
+    "C_library_sha256": "636cbcca9ceee233ae043be9780046b5d176d81840349663cc982674f63ef571",
+    "input_hashes": {
+      "f16.glsl": "6e3788809a018505d46ac1a813e6ae60a56b92ed6dafde1edbd8b2211df76a4d",
+      "matmul_row.glsl": "c7373f1a15689cbc124050723a4cb58bfe1b85189dece26a575572bbb5628582",
+      "probe.cpp": "b5068eb9d15ae85e7bcff126077966733945b540246c3c76ab2c492a5c5c91be"
+    }
+  },
+  "provenance": {
+    "plan_sha256": "46e462a30cb5ae0201e14c6635d0f4e1960f1070469789119ade8cbe578c8e29",
+    "runner_sha256": "1c37e893327a18e36875cbfffb08047c5da0dece9521ba719784003e00d4761a",
+    "input_pins": {
+      "f16.glsl": "6e3788809a018505d46ac1a813e6ae60a56b92ed6dafde1edbd8b2211df76a4d",
+      "matmul_row.glsl": "c7373f1a15689cbc124050723a4cb58bfe1b85189dece26a575572bbb5628582",
+      "probe.cpp": "b5068eb9d15ae85e7bcff126077966733945b540246c3c76ab2c492a5c5c91be"
+    },
+    "source_C_delta_from_B": [
+      "src/backends/vulkan/shaders/f16.glsl"
+    ],
+    "shader_changes_B_C": {
+      "matmul_row_wf16.inc": [
+        "87ce8a6d19acf10e2ca4afd47f6c6272e6cc006f4a2939f9f2ef9fe31bfd6be5",
+        "c14dd62bf8666ad9622411dcf94715f3361d1f355b6591711bb37b7d6a50bd26"
+      ]
+    },
+    "driver": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1\n",
+    "old_libs": {
+      "B": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/half-decode-branchless-20261103/build-results/build-candidate/libllmx-vulkan.a",
+        "sha256": "fc229ddbb40e93b53a6c4d48da849ce68a9d1dbb5812426b1970f92ee1121c95"
+      },
+      "main": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/half-decode-native-20261103/build-results/build-main/libllmx-vulkan.a",
+        "sha256": "18219527888e419363b6e60edb813850c41c6b65cc0ec780fda6309ec8909d3a"
+      }
+    },
+    "C_library_sha256": "636cbcca9ceee233ae043be9780046b5d176d81840349663cc982674f63ef571",
+    "probes": {
+      "B": "186e37a88774e2a3d50844b652020c3db9e55fa3aadc2834388bcd0f6d20df72",
+      "C": "f4527000c7efdd2729d6f916e200d69ffeb32a9880af8868eaf7c6f5870316cb",
+      "main": "8568c45245ed75f06e95175d0fb7afa75aa68d176d919d93048d88a66c59691c"
+    }
+  },
+  "limitations": [
+    "Two untimed samples per arm/mix, one diagnostic timed call per arm; no exclusions. Whole-command monitoring includes allocation/oracles and cannot isolate every100-dispatch window.",
+    "Sparse timestamps, CPU contention and system-wide disk/GPU activity cannot establish a cause for timing differences. Untimed first mixed shape is particularly noisy.",
+    "Controlled subnormals are hash-distributed at about0.25%; they are not real-model weights. No causal claim about repair divergence follows.",
+    "253952 finite checks compare numerical products, so they do not prove output zero signs or NaN payload handling; the65536-bit Python formula proof is not compiled GPU evidence.",
+    "C timing tradeoffs are evaluated over every small row and the large output head. Only a whole-model screen can assess the workload-weighted tradeoff; no HF, long-context or landing gate completed."
+  ],
+  "recommendation": "Proceed with authorized bounded main/C/mx six-call F16 model screen; all controls passed and whole-shape tradeoff supports measuring the model. No C promotion or full gates.",
+  "decision": {
+    "supports_bounded_model_screen": true,
+    "rationale": "Every normal/mixed C wall mean improves over main, including the head. One mixed3072x1024 wall mean regresses3.87% vsB, while timedGPU improves17.14%; retain both and evaluate model-weighted tradeoff. No promotion/fullgate claim."
+  },
+  "root_conversion_inspection": {
+    "assembly_add_minus_half": 20,
+    "scope": "Final shader ISA contains the proposed exact F32 subtraction, expressed as addition of -0.5.",
+    "host_proof": {
+      "status": "PASS",
+      "encodings": 65536,
+      "scope": "prospective host formula only; no compiled GPU or speed claim",
+      "argument": "At exponent -1 each F32 mantissa unit is 2^-24. Subtracting 0.5 yields m*2^-24 exactly; all nonzero results are normal F32."
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "status": "PASS",
+  "tested_head": "1efb25bb3af4c97802739798e1ccbfa49d9f4460",
+  "parent": "23cdacc2a38a0bdab8821f2df4527510819c4b45",
+  "run_id": 41694164559,
+  "run_url": "https://github.com/mxxm-t/llmx/actions/runs/41694164559",
+  "run_conclusion": "success",
+  "jobs": [
+    {
+      "name": "CPU (Linux TSan)",
+      "id": 126120177420,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T18:51:53Z"
+    },
+    {
+      "name": "ROCm backend (build only, Linux)",
+      "id": 126120177535,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T18:42:59Z"
+    },
+    {
+      "name": "Vulkan backend (build, Linux)",
+      "id": 126120177582,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:16:21Z"
+    },
+    {
+      "name": "CPU (Linux UBSan)",
+      "id": 126120177711,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:16:46Z"
+    },
+    {
+      "name": "CPU (ubuntu-24.04)",
+      "id": 126120177712,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:00:50Z"
+    },
+    {
+      "name": "HF reference (CPU)",
+      "id": 126120177873,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:33:45Z"
+    },
+    {
+      "name": "CPU (windows-2022)",
+      "id": 126120177966,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:19:58Z"
+    },
+    {
+      "name": "CPU (macos-15-intel)",
+      "id": 126120178025,
+      "conclusion": "success",
+      "completed_at": "2026-11-03T19:34:03Z"
+    }
+  ],
+  "intervening_delta": "Final STATUS and this hosted evidence record only. Runtime, tests, build files and workflow remain identical to the hosted head.",
+  "local_qualification": "half-decode-subtraction-qualification-20261103.json",
+  "rebase": "Vulkan runtime and half-weight test body match tested checkpoint 59d883599. Parent 23cdacc2a added ROCm runtime and a separate shared collective oracle, compiled by this hosted run.",
+  "reference_floor": "Not established by the noisy mx model screen. This is a measured recovery step on an existing path, not a declaration that reference tuning is complete.",
+  "final_static_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-half-c/Release/llmx.exe --only docs,dead-code",
+    "exit_code": 0,
+    "log_sha256": "c452e404d10da838fd1481c2f81a2d4167c114ee8c1b77fd6563f3b7f3d7848f",
+    "evidence_delta": "This JSON status and check receipt only, added after both checks passed."
+  }
+}

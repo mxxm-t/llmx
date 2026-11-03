@@ -1,0 +1,246 @@
+{
+  "schema": "llmx.half-decode-C.focused-qualification.v1",
+  "status": "PASS_WITH_STATED_SCOPE",
+  "seconds": 421.3422701358795,
+  "provenance": {
+    "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+    "model_values": 751632384,
+    "CLI": {
+      "C": {
+        "sha256": "247613a356152be962ec6a3a03001a84f8b9a91885aacfa6ee5ee54db4d44a53",
+        "version": "llmx 0.1.0+unknown numerics 67f81e3baceba1b4"
+      },
+      "main": {
+        "sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+        "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b"
+      }
+    },
+    "model_logits_sha256": {
+      "C": "61713303c7bc931db8b3f5c94052ac1172010c0ca2a444eb9f6f33178888a5f5",
+      "main": "2028897f3e0d95cae293ec0ef3aead1f34d0ef6303adfb6d36d1efe338117b15"
+    },
+    "static_library_sha256": {
+      "C": "636cbcca9ceee233ae043be9780046b5d176d81840349663cc982674f63ef571",
+      "main": "18219527888e419363b6e60edb813850c41c6b65cc0ec780fda6309ec8909d3a"
+    },
+    "source_inventories_unchanged": true,
+    "fixture_pins": {
+      "input-manifest.json": "419e9beda4eabb01f00a017ded3b8f4856df8c566543b7e181bd64fed26271ff",
+      "output/baseline_logits.json": "77db5c8d165d9fb901d4bf1619cae3a04454e1e7135ad46ecb241f3253928b6b",
+      "output/baseline_perplexity.json": "86b02779c6c80262789e608fa303ac1b314e7ba08e7476c14a5fd069c6f6da3d"
+    },
+    "sealed_output_count": 126,
+    "small_artifacts_locally_rehashed": 113,
+    "all_outputs_independently_rehashed_on_rig": true,
+    "large_capture_files_retained_on_rig": 12,
+    "large_capture_bytes": 466747392,
+    "execution_sha256": "bdc0996afee3c804f71dd92292c4696bc60db1ddb062ac0008358d953523a786",
+    "remote_audit_sha256": "a64342f1f321632bf5a9eeb684ee00406df867012a2047be8433b2161aa962c0",
+    "render_node": "renderD128",
+    "PCI": "0000:c3:00.0"
+  },
+  "device_suite": {
+    "component": "half-weights",
+    "required_types": [
+      "F16",
+      "BF16"
+    ],
+    "require_tools": true,
+    "exact_comparison_sets": 24,
+    "capture_witnesses": 32,
+    "unavailable_formats": 0,
+    "skips": 0,
+    "architectures": [
+      "qwen3",
+      "qwen3moe"
+    ],
+    "heads": [
+      "tied",
+      "untied"
+    ],
+    "formats": [
+      "F16",
+      "BF16",
+      "mixed"
+    ],
+    "ubatches": [
+      3,
+      16
+    ],
+    "all_captures_F32_matrix_paths": true
+  },
+  "actual_file_main_C_identity": {
+    "cpu": {
+      "binary32_payloads_equal": true,
+      "metadata_equal_except_version": true,
+      "greedy_ids_equal": 64,
+      "generated_text_bytes_equal": true,
+      "generated_tokens": 64,
+      "payloads": {
+        "batched": {
+          "bytes": 38895616,
+          "sha256": "13b5bd62d5fd1b273beb7ce7d8ee2b1f16f04cc5c8e4954a571eb6d67dcc70c4"
+        },
+        "decode": {
+          "bytes": 38895616,
+          "sha256": "9cdd6be134844c75cfc9fbc3ab1e6f96e5caff97c7adcddb921538f61261718d"
+        },
+        "greedy": {
+          "bytes": 38895616,
+          "sha256": "607270a78eae99312032bbe4dbeb9b2d91d009d05e7c389587ef7c6264c3558e"
+        }
+      },
+      "generated_text_sha256": "37837bf1dac705d2922dcee983909d1780907fb478585511f7b33fbd581d2396",
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      }
+    },
+    "vulkan:0": {
+      "binary32_payloads_equal": true,
+      "metadata_equal_except_version": true,
+      "greedy_ids_equal": 64,
+      "generated_text_bytes_equal": true,
+      "generated_tokens": 64,
+      "payloads": {
+        "batched": {
+          "bytes": 38895616,
+          "sha256": "893dc1197527c326e49c1043dea956023f27057fb1a0bedbe3742786cda4d0e5"
+        },
+        "decode": {
+          "bytes": 38895616,
+          "sha256": "e40f311f3bb7e11953c0ec42bca75c1fc01ca89e68ba633083420ea9cfa786e8"
+        },
+        "greedy": {
+          "bytes": 38895616,
+          "sha256": "cbc6e2df3de86b2fb12491bc0bc363bcd18e2718a69062761848bf789d1757a7"
+        }
+      },
+      "generated_text_sha256": "37837bf1dac705d2922dcee983909d1780907fb478585511f7b33fbd581d2396",
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      }
+    }
+  },
+  "short_file_exact_HF": {
+    "cpu": {
+      "top1_matches": 6,
+      "rankings": 6,
+      "minimum_top5_overlap": 5,
+      "required_top5_overlap": 5,
+      "excerpt_tokens": 247,
+      "nll_checks": 8,
+      "all15_child_exits_zero": true,
+      "F32_matrix_witnesses": 14,
+      "nll": {
+        "continuous": {
+          "checks": 2,
+          "bound": 0.01,
+          "maximum_absolute_error": 6.285725494370453e-05,
+          "minimum_headroom": 0.009937142745056296,
+          "maximum_bound_fraction": 0.006285725494370453
+        },
+        "window": {
+          "checks": 6,
+          "bound": 0.02,
+          "maximum_absolute_error": 0.0001259230878072337,
+          "minimum_headroom": 0.019874076912192767,
+          "maximum_bound_fraction": 0.006296154390361686
+        }
+      }
+    },
+    "vulkan0": {
+      "top1_matches": 6,
+      "rankings": 6,
+      "minimum_top5_overlap": 5,
+      "required_top5_overlap": 5,
+      "excerpt_tokens": 247,
+      "nll_checks": 8,
+      "all15_child_exits_zero": true,
+      "F32_matrix_witnesses": 14,
+      "nll": {
+        "continuous": {
+          "checks": 2,
+          "bound": 0.01,
+          "maximum_absolute_error": 1.9742745056117172e-05,
+          "minimum_headroom": 0.009980257254943883,
+          "maximum_bound_fraction": 0.0019742745056117172
+        },
+        "window": {
+          "checks": 6,
+          "bound": 0.02,
+          "maximum_absolute_error": 0.00017905815307006634,
+          "minimum_headroom": 0.019820941846929934,
+          "maximum_bound_fraction": 0.008952907653503317
+        }
+      }
+    }
+  },
+  "resource_safety": {
+    "memory_cap_GiB": 4,
+    "memory_phases": [
+      {
+        "phase": 1,
+        "samples": 182,
+        "all_passed": true
+      },
+      {
+        "phase": 2,
+        "samples": 182,
+        "all_passed": true
+      },
+      {
+        "phase": 3,
+        "samples": 1278,
+        "all_passed": true
+      }
+    ],
+    "OOM_events": 0,
+    "owned_containers_removed": true
+  },
+  "coverage_notes": [
+    "The model suite uses synthetic exact half-representable weights; exhaustive finite encodings and nonzero mixed pairs are supplied by the separately recorded focused native C operator test.",
+    "Widths 5 and 7 exercise the entirely scalar fallback. Width 4 and widths divisible by 4 exercise the changed packed loader.",
+    "No standalone GPU converter-bit test establishes NaN payloads or signed-zero bits through the pair helper. Finite dot/model checks and the separate 65,536-encoding host formula proof retain their stated scopes."
+  ],
+  "scope": "Focused MI50 qualification with unchanged limits. No new 16K reference was generated. The exact widening substitution changes neither activation arithmetic nor accumulation precision. The ordinary kernel landing checks apply; hosted CI is separate.",
+  "raw_reports": {
+    "suite": "suite/witnesses.json",
+    "CPU_HF": "hf-cpu/results.json",
+    "GPU_HF": "hf-vulkan0/results.json",
+    "identity": "results/execution.json",
+    "full_receipt": "execution.json",
+    "remote_hash_manifest": "remote-audit.json"
+  },
+  "artifact_root_local": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\half-decode-subtraction-20261103\\qualification-v1",
+  "artifact_root_rig": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/half-decode-subtraction-20261103/qualification-v1"
+}

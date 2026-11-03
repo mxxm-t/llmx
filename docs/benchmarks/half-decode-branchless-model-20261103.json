@@ -1,0 +1,204 @@
+{
+  "status": "OFFLINE_AUDIT_PASS_WITH_LIMITATIONS",
+  "means": {
+    "main": {
+      "pp512": 3618.42,
+      "tg256": 216.735
+    },
+    "B": {
+      "pp512": 3615.455,
+      "tg256": 230.685
+    },
+    "mx": {
+      "pp512": 3339.938999,
+      "tg256": 277.7504665
+    }
+  },
+  "ratios": {
+    "pp512": {
+      "B_vs_main_percent": -0.08194184201945065,
+      "B_vs_mx_percent": 8.24913272615133
+    },
+    "tg256": {
+      "B_vs_main_percent": 6.436431586961033,
+      "B_vs_mx_percent": -16.945234005574573
+    }
+  },
+  "paired_B_vs_main_percent": {
+    "pp512": [
+      -0.016850270156776315,
+      -0.14709460505650807
+    ],
+    "tg256": [
+      6.216203725100522,
+      6.655918931368032
+    ]
+  },
+  "samples": [
+    {
+      "id": "1-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3620.12,
+        "tg256": 216.37
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "2-B",
+      "arm": "B",
+      "rates": {
+        "pp512": 3619.51,
+        "tg256": 229.82
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 3332.551204,
+        "tg256": 277.567804
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "4-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 3347.326794,
+        "tg256": 277.933129
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "5-B",
+      "arm": "B",
+      "rates": {
+        "pp512": 3611.4,
+        "tg256": 231.55
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "6-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3616.72,
+        "tg256": 217.1
+      },
+      "receipt": "model-screen-v1"
+    }
+  ],
+  "coverage": [
+    {
+      "id": "1-main",
+      "seconds": 8.227009773254395,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.958424260624455,
+      "system_cpu_percent": 9.851921590290566,
+      "disk_mib_s": 12.571671729142896,
+      "flag_seconds": {
+        "unrelated_cpu": 3.0023608207702637,
+        "physical_disk": 0,
+        "non_target_gpu": 8.227009773254395,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "2-B",
+      "seconds": 8.233713150024414,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.9271705421616824,
+      "system_cpu_percent": 9.634188996501214,
+      "disk_mib_s": 15.702805458752064,
+      "flag_seconds": {
+        "unrelated_cpu": 0.9925649166107178,
+        "physical_disk": 0,
+        "non_target_gpu": 8.233713150024414,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "3-mx",
+      "seconds": 11.628268718719482,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.7648000807862819,
+      "system_cpu_percent": 10.673485772906208,
+      "disk_mib_s": 15.22577369382097,
+      "flag_seconds": {
+        "unrelated_cpu": 0,
+        "physical_disk": 0,
+        "non_target_gpu": 11.628268718719482,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "4-mx",
+      "seconds": 8.242513179779053,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.8127061872164856,
+      "system_cpu_percent": 9.752533951343295,
+      "disk_mib_s": 14.369612756750094,
+      "flag_seconds": {
+        "unrelated_cpu": 0,
+        "physical_disk": 0,
+        "non_target_gpu": 8.242513179779053,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "5-B",
+      "seconds": 4.835785388946533,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.6240306589846425,
+      "system_cpu_percent": 8.779382484001172,
+      "disk_mib_s": 14.580676161343112,
+      "flag_seconds": {
+        "unrelated_cpu": 0,
+        "physical_disk": 0,
+        "non_target_gpu": 3.638320207595825,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "6-main",
+      "seconds": 4.864291191101074,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 0.4866439050179144,
+      "system_cpu_percent": 8.61955390823054,
+      "disk_mib_s": 27.949996189808612,
+      "flag_seconds": {
+        "unrelated_cpu": 1.082805871963501,
+        "physical_disk": 0,
+        "non_target_gpu": 0,
+        "sample_gap": 0
+      }
+    }
+  ],
+  "remote_rehash": {
+    "source_inventories_unchanged": true,
+    "binaries": {
+      "main": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+      "B": "b8f2527979fb2e08e211273e46ffde60ac3d8562ede355ac9747ff7a352a62a9"
+    },
+    "B_library_sha256": "fc229ddbb40e93b53a6c4d48da849ce68a9d1dbb5812426b1970f92ee1121c95"
+  },
+  "binaries": {
+    "B": {
+      "sha256": "b8f2527979fb2e08e211273e46ffde60ac3d8562ede355ac9747ff7a352a62a9",
+      "version": "llmx 0.1.0+unknown numerics d11d7d818bbbf8bf"
+    },
+    "main": {
+      "sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+      "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b"
+    }
+  },
+  "input_pin_count": 31,
+  "limitations": [
+    "Two samples per arm in a single six-call screen; all planned calls retained. No output-identity/HF/long-context correctness gate or layout-control gate completed.",
+    "Rates compare same pinned F16 file/image/driver/card/settings. Temporal drift and observed background activity remain limitations; whole-command monitoring cannot attribute phase costs.",
+    "512 is minimum history reach, not KV capacity. Default budget up to model context subject to fit; actual on-demand backing bytes unknown. mx uses40960 context.",
+    "mx source revision unknown; exact executable/libraries/source-file pinned. Main/B versions report unknown source revision but binary hashes, archived source inventories and compile logs recorded."
+  ]
+}

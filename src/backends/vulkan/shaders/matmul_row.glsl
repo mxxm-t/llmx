@@ -124,7 +124,11 @@ uint pi = 0u;
 #endif
 vec4 weight4(uint i) {
     uint lo = w32s[pi].w32[2u * i], hi = w32s[pi].w32[2u * i + 1u];
+#ifdef LLMX_WEIGHT_F16
+    return vec4(f16_pair_to_f32(lo), f16_pair_to_f32(hi));
+#else
     return vec4(WEIGHT_FLOAT(lo & 65535u), WEIGHT_FLOAT(lo >> 16u), WEIGHT_FLOAT(hi & 65535u), WEIGHT_FLOAT(hi >> 16u));
+#endif
 }
 #define WEIGHT4(i) weight4(i)
 #define WEIGHT1(i) WEIGHT_FLOAT(uint(w16s[pi].w16[i]))

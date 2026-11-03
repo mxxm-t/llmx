@@ -1,0 +1,62 @@
+{
+  "status": "DONE",
+  "seconds": 71.89282989501953,
+  "test_seconds": 3.456265926361084,
+  "test_exit": 0,
+  "compile_exit": 0,
+  "stdout": "focused-half: 1209244 finite half-weight values and exact F32-control products passed\n",
+  "stderr": "",
+  "coverage": "width4/divisible4 reach changed packed loader; widths5/7 entirely scalar fallback. Nonzero paired neighbors, finite edge encodings and exact F32 controls retained.",
+  "input_pins": {
+    "backend_vulkan.cpp": "fa0c06541175937032ee6a95be5082d45637a6f17850501b28ce55182c35e694",
+    "wrapper.cpp": "3fcb71923a8488cbf2dab4115924dba24d2104e7a1a96fa4f5f2a9c05cbd6b73"
+  },
+  "library_sha256": "fc229ddbb40e93b53a6c4d48da849ce68a9d1dbb5812426b1970f92ee1121c95",
+  "binary_sha256": "f861e47ed5c7d1168b3222f4344066bc424759a8cf95df9e2fa78704241887b0",
+  "target_metadata_pins": {
+    "flags.make": "017330dc6c6e190630265422924ffbad25a6f710c49aec3ae23664892bb43cb9",
+    "link.txt": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3"
+  },
+  "predecessor_receipt_sha256": "d31749d4360db41322c667e8986f6e991ddbc65c68e36c2de52d70afa698ab20",
+  "selected_device": {
+    "fd_owners": [],
+    "guard": {
+      "busy": 0,
+      "device": "0x66a1",
+      "errors": [],
+      "node": "/dev/dri/renderD128",
+      "other_container_handles": [
+        {
+          "id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+          "name": "/cdev-abc-run2",
+          "target_handles": [],
+          "top": "PID                 COMMAND\n5607                sleep"
+        }
+      ],
+      "pci": "0000:c3:00.0",
+      "performance_level": "auto",
+      "production_id": "1c460c346bdb948bc91bdf6f19827cb87f6e259e04eef294266a8adf39ce60a5",
+      "protected": [
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71",
+        "/zpool1/models",
+        "/zpool1/llmx-serve/flash-preview-3bf8aff71/disk"
+      ],
+      "vendor": "0x1002",
+      "vram_used": 10932224
+    },
+    "node": "renderD128",
+    "pci": "0000:c3:00.0"
+  },
+  "driver": "7ad998b763b899649facdb4e53ac37d666dff372e84184accc0d19508e8c55e1  /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so\nbbd6827e9fe418e9b9740aea57ce6d21fcea03e9876b4b17835c5a9c58f849fc  /usr/lib/x86_64-linux-gnu/libvulkan.so.1\n",
+  "receipt_sha256": "4f88921de2190269a614a5ecbbe06c5f9c75b8178a14b939f93decddfa928694",
+  "receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\half-decode-branchless-20261103\\focused-half-v2\\execution.json",
+  "limitation": "Focused operator checkpoint only, not HF, long-context or full landing qualification.",
+  "predecessor": "v1 failed wrapper compilation because CMake shader definitions were omitted; no GPU test ran. v2 uses complete target metadata."
+}

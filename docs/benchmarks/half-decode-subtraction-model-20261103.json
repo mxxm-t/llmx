@@ -1,0 +1,498 @@
+{
+  "status": "SCREEN_COMPLETE_NOT_A_GATE",
+  "samples": [
+    {
+      "block": 1,
+      "id": "1-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3609.32,
+        "tg256": 174.25
+      },
+      "start": 1793728167.358506,
+      "end": 1793728176.6491354
+    },
+    {
+      "block": 1,
+      "id": "2-C",
+      "arm": "C",
+      "rates": {
+        "pp512": 3546.61,
+        "tg256": 207.72
+      },
+      "start": 1793728176.7578068,
+      "end": 1793728186.1490698
+    },
+    {
+      "block": 1,
+      "id": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 2694.187738,
+        "tg256": 191.728921
+      },
+      "start": 1793728186.2086556,
+      "end": 1793728202.8793397
+    },
+    {
+      "block": 1,
+      "id": "4-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 3337.78802,
+        "tg256": 275.70657
+      },
+      "start": 1793728202.9642222,
+      "end": 1793728211.824837
+    },
+    {
+      "block": 1,
+      "id": "5-C",
+      "arm": "C",
+      "rates": {
+        "pp512": 3610.75,
+        "tg256": 260.83
+      },
+      "start": 1793728211.976029,
+      "end": 1793728220.2465222
+    },
+    {
+      "block": 1,
+      "id": "6-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3612.89,
+        "tg256": 215.65
+      },
+      "start": 1793728220.2757843,
+      "end": 1793728228.4999876
+    },
+    {
+      "block": 2,
+      "id": "1-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 3337.220217,
+        "tg256": 270.797349
+      },
+      "start": 1793728512.1372323,
+      "end": 1793728523.9680696
+    },
+    {
+      "block": 2,
+      "id": "2-C",
+      "arm": "C",
+      "rates": {
+        "pp512": 3624.88,
+        "tg256": 199.59
+      },
+      "start": 1793728523.9985373,
+      "end": 1793728532.790973
+    },
+    {
+      "block": 2,
+      "id": "3-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3608.33,
+        "tg256": 174.31
+      },
+      "start": 1793728532.8466947,
+      "end": 1793728542.1737392
+    },
+    {
+      "block": 2,
+      "id": "4-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3514.79,
+        "tg256": 173.73
+      },
+      "start": 1793728542.2252176,
+      "end": 1793728551.454888
+    },
+    {
+      "block": 2,
+      "id": "5-C",
+      "arm": "C",
+      "rates": {
+        "pp512": 3501.54,
+        "tg256": 181.42
+      },
+      "start": 1793728551.5200808,
+      "end": 1793728560.7515895
+    },
+    {
+      "block": 2,
+      "id": "6-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 2978.975872,
+        "tg256": 166.689924
+      },
+      "start": 1793728560.846629,
+      "end": 1793728573.9497988
+    }
+  ],
+  "means": {
+    "main": {
+      "pp512": 3586.3325,
+      "tg256": 184.485
+    },
+    "C": {
+      "pp512": 3570.945,
+      "tg256": 212.39
+    },
+    "mx": {
+      "pp512": 3087.04296175,
+      "tg256": 226.230691
+    }
+  },
+  "receipts": {
+    "1": "3ad25c2bbaf6a05cd42a29cc1ea96b071439f858a8c25383691494ac16bcc447",
+    "2": "d6ea2082cc86b7801c1d2a408d6cfcb47af0ecc586754cdc6168f448aa6116e2"
+  },
+  "limitations": [
+    "Large background activity and rate drift in both blocks; no samples excluded.",
+    "Means are descriptive and do not establish the mx performance floor.",
+    "Combined audit includes activity, binary pins and native C result; three growing outer-chain log/state hashes are explicitly identified as receipt-only limitations."
+  ],
+  "completed_audit": {
+    "status": "AUDIT_PASS_WITH_RECEIPT_AND_MEASUREMENT_LIMITATIONS",
+    "samples": [
+      {
+        "id": "1-main",
+        "arm": "main",
+        "rates": {
+          "pp512": 3609.32,
+          "tg256": 174.25
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "2-C",
+        "arm": "C",
+        "rates": {
+          "pp512": 3546.61,
+          "tg256": 207.72
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "3-mx",
+        "arm": "mx",
+        "rates": {
+          "pp512": 2694.187738,
+          "tg256": 191.728921
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "4-mx",
+        "arm": "mx",
+        "rates": {
+          "pp512": 3337.78802,
+          "tg256": 275.70657
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "5-C",
+        "arm": "C",
+        "rates": {
+          "pp512": 3610.75,
+          "tg256": 260.83
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "6-main",
+        "arm": "main",
+        "rates": {
+          "pp512": 3612.89,
+          "tg256": 215.65
+        },
+        "receipt": "model-screen-v1"
+      },
+      {
+        "id": "1-mx",
+        "arm": "mx",
+        "rates": {
+          "pp512": 3337.220217,
+          "tg256": 270.797349
+        },
+        "receipt": "model-screen-v2"
+      },
+      {
+        "id": "2-C",
+        "arm": "C",
+        "rates": {
+          "pp512": 3624.88,
+          "tg256": 199.59
+        },
+        "receipt": "model-screen-v2"
+      },
+      {
+        "id": "3-main",
+        "arm": "main",
+        "rates": {
+          "pp512": 3608.33,
+          "tg256": 174.31
+        },
+        "receipt": "model-screen-v2"
+      },
+      {
+        "id": "4-main",
+        "arm": "main",
+        "rates": {
+          "pp512": 3514.79,
+          "tg256": 173.73
+        },
+        "receipt": "model-screen-v2"
+      },
+      {
+        "id": "5-C",
+        "arm": "C",
+        "rates": {
+          "pp512": 3501.54,
+          "tg256": 181.42
+        },
+        "receipt": "model-screen-v2"
+      },
+      {
+        "id": "6-mx",
+        "arm": "mx",
+        "rates": {
+          "pp512": 2978.975872,
+          "tg256": 166.689924
+        },
+        "receipt": "model-screen-v2"
+      }
+    ],
+    "coverage": [
+      {
+        "id": "1-main",
+        "seconds": 9.290629386901855,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 9.963036530484265,
+        "system_cpu_percent": 71.09533350622739,
+        "disk_mib_s": 1377.6079505388916,
+        "flag_seconds": {
+          "unrelated_cpu": 9.290629386901855,
+          "physical_disk": 9.290629386901855,
+          "non_target_gpu": 9.290629386901855,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "2-C",
+        "seconds": 9.391263008117676,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 10.075438194813215,
+        "system_cpu_percent": 71.4197851472707,
+        "disk_mib_s": 1392.385236142928,
+        "flag_seconds": {
+          "unrelated_cpu": 9.391263008117676,
+          "physical_disk": 9.391263008117676,
+          "non_target_gpu": 8.379402160644531,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "3-mx",
+        "seconds": 16.670684099197388,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 9.770543208773933,
+        "system_cpu_percent": 71.54539357462782,
+        "disk_mib_s": 1348.179872250113,
+        "flag_seconds": {
+          "unrelated_cpu": 16.670684099197388,
+          "physical_disk": 16.670684099197388,
+          "non_target_gpu": 15.687597036361694,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "4-mx",
+        "seconds": 8.860614776611328,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 6.729238062586552,
+        "system_cpu_percent": 50.51812684110742,
+        "disk_mib_s": 771.6641442238401,
+        "flag_seconds": {
+          "unrelated_cpu": 8.860614776611328,
+          "physical_disk": 6.888041973114014,
+          "non_target_gpu": 5.8410327434539795,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "5-C",
+        "seconds": 8.270493268966675,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 2.966689755592515,
+        "system_cpu_percent": 22.958734007460748,
+        "disk_mib_s": 188.92287804207731,
+        "flag_seconds": {
+          "unrelated_cpu": 8.270493268966675,
+          "physical_disk": 8.270493268966675,
+          "non_target_gpu": 8.270493268966675,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "6-main",
+        "seconds": 8.22420334815979,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 1.7898416577559437,
+        "system_cpu_percent": 14.776578786085572,
+        "disk_mib_s": 112.8348131914562,
+        "flag_seconds": {
+          "unrelated_cpu": 8.22420334815979,
+          "physical_disk": 4.228101015090942,
+          "non_target_gpu": 7.213952302932739,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "1-mx",
+        "seconds": 11.83083724975586,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 2.2211315011711674,
+        "system_cpu_percent": 19.768176681455287,
+        "disk_mib_s": 53.334604782889784,
+        "flag_seconds": {
+          "unrelated_cpu": 11.83083724975586,
+          "physical_disk": 4.003040075302124,
+          "non_target_gpu": 11.83083724975586,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "2-C",
+        "seconds": 8.792435646057129,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 6.576340684034809,
+        "system_cpu_percent": 46.406177719481605,
+        "disk_mib_s": 764.3879633832125,
+        "flag_seconds": {
+          "unrelated_cpu": 8.792435646057129,
+          "physical_disk": 5.527322053909302,
+          "non_target_gpu": 5.763752698898315,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "3-main",
+        "seconds": 9.327044486999512,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 10.229894803873867,
+        "system_cpu_percent": 72.08221518284329,
+        "disk_mib_s": 1332.6833022216374,
+        "flag_seconds": {
+          "unrelated_cpu": 9.327044486999512,
+          "physical_disk": 9.327044486999512,
+          "non_target_gpu": 9.327044486999512,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "4-main",
+        "seconds": 9.229670524597168,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 10.575824013331623,
+        "system_cpu_percent": 73.17407122143764,
+        "disk_mib_s": 1266.3935742106016,
+        "flag_seconds": {
+          "unrelated_cpu": 9.229670524597168,
+          "physical_disk": 9.229670524597168,
+          "non_target_gpu": 9.229670524597168,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "5-C",
+        "seconds": 9.231508731842041,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 10.40871421519593,
+        "system_cpu_percent": 71.44136359697966,
+        "disk_mib_s": 1231.5743827569172,
+        "flag_seconds": {
+          "unrelated_cpu": 9.231508731842041,
+          "physical_disk": 9.231508731842041,
+          "non_target_gpu": 9.231508731842041,
+          "sample_gap": 0
+        }
+      },
+      {
+        "id": "6-mx",
+        "seconds": 13.103169918060303,
+        "coverage_fraction": 1.0,
+        "unrelated_cpu_cores": 10.467688214475908,
+        "system_cpu_percent": 73.6949994242476,
+        "disk_mib_s": 1245.0682052691009,
+        "flag_seconds": {
+          "unrelated_cpu": 13.103169918060303,
+          "physical_disk": 13.103169918060303,
+          "non_target_gpu": 13.103169918060303,
+          "sample_gap": 0
+        }
+      }
+    ],
+    "chronological_pairs": [
+      {
+        "block": 1,
+        "pp512": [
+          -1.7374463887934621,
+          -0.05923235968988694
+        ],
+        "tg256": [
+          19.208034433285516,
+          20.950614421516335
+        ]
+      },
+      {
+        "block": 2,
+        "pp512": [
+          0.4586609317883905,
+          -0.37697842545357796
+        ],
+        "tg256": [
+          14.502897137284144,
+          4.4264087952569975
+        ]
+      }
+    ],
+    "binaries": {
+      "C": {
+        "sha256": "247613a356152be962ec6a3a03001a84f8b9a91885aacfa6ee5ee54db4d44a53",
+        "version": "llmx 0.1.0+unknown numerics 67f81e3baceba1b4"
+      },
+      "main": {
+        "sha256": "95b6fddb8e767ecfb7a67a47c4acd7eeeceff550615ee9e19c8ae90dcf20b70a",
+        "version": "llmx 0.1.0+unknown numerics cd781581f6a20c9b"
+      }
+    },
+    "native_operator": {
+      "stdout": "focused-half: 1209244 finite half-weight values and exact F32-control products passed\n",
+      "test_seconds": 3.769120931625366,
+      "input_pins": {
+        "backend_vulkan.cpp": "fa0c06541175937032ee6a95be5082d45637a6f17850501b28ce55182c35e694",
+        "wrapper.cpp": "3fcb71923a8488cbf2dab4115924dba24d2104e7a1a96fa4f5f2a9c05cbd6b73"
+      },
+      "binary_sha256": "6e5ccce3f5f71edb8190e0cf7658589483ca194aa22e1a2d2b477261ad222c07",
+      "library_sha256": "636cbcca9ceee233ae043be9780046b5d176d81840349663cc982674f63ef571",
+      "mutable_outer_chain_files": [
+        "chain-runner.log",
+        "chain.json",
+        "operator-runner.log"
+      ],
+      "meaning": "Outer chain logs/state changed after the operator snapshot; all numerical test/compile/input/binary/memory artifacts verify. Original receipt is preserved."
+    },
+    "limitations": [
+      "All12 original/reverse samples retained; no exclusions or thirdrepeat. Strong drift/activity imbalance prevents mx-floor conclusions from pooled/unpaired averages.",
+      "Four chronological C/main pairs are descriptive; actual-file byteidentity and externalHF qualification remain separate.",
+      "512 is minimum history reach, not capacity. Full-context budget and actual on-demand physical backing differ; backing unknown."
+    ]
+  }
+}

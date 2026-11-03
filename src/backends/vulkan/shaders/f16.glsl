@@ -1,4 +1,4 @@
-// Half storage conversion in integer bits, matching core/fp16.hpp and core/bf16.hpp without depending on the driver's half rounding or subnormal mode.
+// Exact half storage conversions match core/fp16.hpp and core/bf16.hpp without depending on native half arithmetic.
 #ifndef LLMX_F16_GLSL
 #define LLMX_F16_GLSL
 // Widen in integer bits so subnormal half weights and signed zeros do not depend on the device's half arithmetic mode.
@@ -15,6 +15,18 @@ float f16_to_f32(uint h) {
     } else if (e == 31u) bits = sign | 0x7f800000u | (m << 13u);
     else bits = sign | ((e + 112u) << 23u) | (m << 13u);
     return uintBitsToFloat(bits);
+}
+
+// Subtracting 0.5 from a float at exponent -1 gives the half subnormal exactly; select the other classes in integer bits.
+vec2 f16_pair_to_f32(uint packed) {
+    uvec2 h = uvec2(packed & 65535u, packed >> 16u);
+    uvec2 magnitude = h & 32767u;
+    precise vec2 small = uintBitsToFloat(uvec2(0x3f000000u) | (h & 1023u)) - vec2(0.5);
+    uvec2 subnormal = floatBitsToUint(small);
+    subnormal = mix(subnormal, uvec2(0u), equal(magnitude, uvec2(0u)));
+    uvec2 normal = (magnitude << 13u) + mix(uvec2(0x38000000u), uvec2(0x70000000u), greaterThanEqual(magnitude, uvec2(0x7c00u)));
+    uvec2 bits = mix(normal, subnormal, lessThan(magnitude, uvec2(0x400u)));
+    return uintBitsToFloat(bits | ((h & 32768u) << 16u));
 }
 
 float bf16_to_f32(uint h) { return uintBitsToFloat(h << 16u); }

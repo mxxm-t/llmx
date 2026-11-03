@@ -1,0 +1,193 @@
+{
+  "status": "OFFLINE_AUDIT_PASS_WITH_LIMITATIONS",
+  "samples": [
+    {
+      "id": "1-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3617.95,
+        "tg256": 217.01
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "2-candidate",
+      "arm": "candidate",
+      "rates": {
+        "pp512": 3619.46,
+        "tg256": 218.59
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "3-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 2002.59574,
+        "tg256": 269.504256
+      },
+      "receipt": "model-screen-v1"
+    },
+    {
+      "id": "4-mx",
+      "arm": "mx",
+      "rates": {
+        "pp512": 3170.486967,
+        "tg256": 271.363048
+      },
+      "receipt": "model-screen-v2"
+    },
+    {
+      "id": "5-candidate",
+      "arm": "candidate",
+      "rates": {
+        "pp512": 3623.74,
+        "tg256": 213.84
+      },
+      "receipt": "model-screen-v2"
+    },
+    {
+      "id": "6-main",
+      "arm": "main",
+      "rates": {
+        "pp512": 3608.04,
+        "tg256": 211.11
+      },
+      "receipt": "model-screen-v2"
+    }
+  ],
+  "means": {
+    "main": {
+      "pp512": 3612.995,
+      "tg256": 214.06
+    },
+    "candidate": {
+      "pp512": 3621.6,
+      "tg256": 216.215
+    },
+    "mx": {
+      "pp512": 2586.5413535,
+      "tg256": 270.433652
+    }
+  },
+  "ratios": {
+    "pp512": {
+      "candidate_vs_main_percent": 0.23816805724889978,
+      "candidate_vs_mx_percent": 40.01709252007133
+    },
+    "tg256": {
+      "candidate_vs_main_percent": 1.006727085863779,
+      "candidate_vs_mx_percent": -20.048781502976553
+    }
+  },
+  "coverage": [
+    {
+      "id": "1-main",
+      "seconds": 8.312262535095215,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 2.273670349517676,
+      "system_cpu_percent": 18.045395854856288,
+      "disk_mib_s": 173.8001199000487,
+      "flag_seconds": {
+        "unrelated_cpu": 8.312262535095215,
+        "physical_disk": 2.004606008529663,
+        "non_target_gpu": 8.312262535095215,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "2-candidate",
+      "seconds": 8.306326627731323,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 2.7220179068573938,
+      "system_cpu_percent": 26.969073764022998,
+      "disk_mib_s": 22.272302127009446,
+      "flag_seconds": {
+        "unrelated_cpu": 8.306326627731323,
+        "physical_disk": 1.0084898471832275,
+        "non_target_gpu": 8.306326627731323,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "3-mx",
+      "seconds": 16.16694402694702,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 7.786457047354997,
+      "system_cpu_percent": 95.09496902096276,
+      "disk_mib_s": 11.669179616914946,
+      "flag_seconds": {
+        "unrelated_cpu": 16.16694402694702,
+        "physical_disk": 0,
+        "non_target_gpu": 16.16694402694702,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "4-mx",
+      "seconds": 8.491572618484497,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 9.62942522146049,
+      "system_cpu_percent": 68.27870298315625,
+      "disk_mib_s": 2.5225525519127867,
+      "flag_seconds": {
+        "unrelated_cpu": 8.491572618484497,
+        "physical_disk": 0,
+        "non_target_gpu": 8.491572618484497,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "5-candidate",
+      "seconds": 8.501694917678833,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 9.019469555766939,
+      "system_cpu_percent": 63.89096110741889,
+      "disk_mib_s": 12.621574451052556,
+      "flag_seconds": {
+        "unrelated_cpu": 8.501694917678833,
+        "physical_disk": 0,
+        "non_target_gpu": 8.501694917678833,
+        "sample_gap": 0
+      }
+    },
+    {
+      "id": "6-main",
+      "seconds": 8.573176145553589,
+      "coverage_fraction": 1.0,
+      "unrelated_cpu_cores": 7.388897569818949,
+      "system_cpu_percent": 51.57208496912844,
+      "disk_mib_s": 12.547846281777346,
+      "flag_seconds": {
+        "unrelated_cpu": 8.573176145553589,
+        "physical_disk": 0,
+        "non_target_gpu": 8.573176145553589,
+        "sample_gap": 0
+      }
+    }
+  ],
+  "paired_candidate_vs_main_percent": {
+    "pp512": [
+      0.041736342403853044,
+      0.4351393000077586
+    ],
+    "tg256": [
+      0.728077047140685,
+      1.2931647008668445
+    ]
+  },
+  "source_differences": [
+    "src/backends/vulkan/shaders/f16.glsl",
+    "src/backends/vulkan/shaders/matmul_row.glsl"
+  ],
+  "interruption": "v1 stopped during call4 on inherited resource.capacity_sample CPU saturation rejection; v2 repeats only interrupted4 then unrun5/6. Completed1-3 retained.",
+  "limitations": [
+    "Two samples per arm separated by a harness interruption; descriptive screen only, no causal performance or correctness conclusion.",
+    "Whole-command activity windows include loading, warmup and both timed phases; background activity and drift cannot be attributed to separate PP/TG phases.",
+    "Unrelated process observations can miss short-lived processes; unknown counters are not zero. No sample exclusions.",
+    "Same pinned F16 model, driver and image; mx source revision unknown but binary/libraries/source-file pinned. llmx minimum reach512 is not its capacity: its default budget reaches full model context subject to fit; actual on-demand backing and peak cache bytes are unknown.",
+    "No HF, output identity, layout perturbation or landing gate completed by this screen."
+  ],
+  "artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/half-decode-native-20261103/model-screen-v2",
+  "source_base": "19084b489153f1a8882f3759bb7a402f7a77163b"
+}

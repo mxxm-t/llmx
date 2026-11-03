@@ -1,5 +1,27 @@
 # llmx - Development Status
 
+## Vulkan F16 pair widening (2026-11-03, Done, lands by fast-forward)
+
+**Goal:** Improve Vulkan F16 decode while preserving storage, activation, reduction and precision behavior. Weight conversion remains in its existing shader owner. No flags or model representation were added.
+
+Candidate C replaces subnormal integer normalization in the F16 packed row loader with an exact F32 subtraction over normal intermediates, followed by integer bit selection. Scalar rows, embedding and tiles retain the existing integer helper. The host formula covers all 65,536 encodings. The GPU micro screen passed 15 calls with finite and double controls and byte-identical outputs within each weight mixture. The final ISA contains the precise subtraction, with 596 instructions, 29 branches and unchanged registers/spills. Every normal and mixed mean improves versus main; one mixed smaller-row wall mean is 3.87% slower than B. That tradeoff and all samples are retained. The measured main baseline is `19084b489`.
+
+The same-file 12-call model screen, including the reversed block, gives these descriptive means:
+
+| Arm | Prefill (tok/s) | Decode (tok/s) |
+| --- | ---: | ---: |
+| Main | 3586.333 | 184.485 |
+| C | 3570.945 | 212.390 |
+| mx Vulkan | 3087.043 | 226.231 |
+
+C improves decode in all four chronological main/C pairs and has a descriptive pooled gain of 15.13%; prefill changes by -0.43%. Strong background activity and rate drift affect both blocks. These means do not establish or pass an mx performance floor. No samples were removed. F16/BF16 model speeds do not isolate storage type because their files have different parameter counts.
+
+Windows checks passed on Radeon VII: the native backend test covered 68,643,840 kernel outputs and 1,209,244 half-weight checks. The half-weight model component passed 48 CPU and 24 Vulkan capture sets, with 64-token replies and no unavailable formats. These are independent widened-F32 controls, not external HF results. The audited MI50 half-weight suite passed 24 exact comparison sets with 32 capture witnesses and no skips. All 11 qualification commands passed. Main/C full-logit payloads, 64 greedy IDs and generated text matched byte-for-byte on CPU and MI50. Each backend passed all six file-exact HF ranking prompts with top-5 overlap 5/5 and eight NLL checks over the 247-token excerpt. Maximum continuous/window NLL errors were 0.000062857/0.000125923 on CPU and 0.000019743/0.000179058 on MI50, against unchanged bounds 0.01/0.02. All 126 sealed artifacts, source and fixture pins verified. [Qualification audit](benchmarks/half-decode-subtraction-qualification-20261103.json). GPU product checks do not directly verify signed-zero conversion bits or NaN payload preservation.
+
+The exact widening replacement leaves activation arithmetic, reductions and precision unchanged, so the 16K gate is not applicable to this change; an independent review concurs. No precision bounds changed.
+
+**Landing:** The applicable local checks pass, including docs and dead-code. The affected device suite is `half-weights`, supplemented by the native finite/mixed-pair checks and the full Windows Vulkan backend test. The Vulkan runtime and half-weight test body match checkpoint `59d883599`. The landing is rebased onto `23cdacc2a`, whose runtime change is confined to ROCm and whose Vulkan test addition is a separate shared collective oracle. The affected F16 code and tested inputs remain unchanged. Hosted CI compiles the combined tests. The feature edits after its tested checkpoint are documentation and archived evidence. All eight hosted jobs passed at `1efb25bb3af4` in [run 41694164559](https://github.com/mxxm-t/llmx/actions/runs/41694164559). The landing adds only this final documentation and the [hosted evidence record](benchmarks/half-decode-ci-20261103.json), with unchanged runtime, tests and build inputs. It lands by fast-forward after the final documentation check and main check. The mx performance deficit remains recovery work, not a passed reference gate. The Markdown review carries 155 unchanged pages and checks the three changed pages against source and receipts. Historical claims were not revalidated individually. The A/B/C records remain available: [A micro](benchmarks/half-decode-micro-20261103.json), [A model](benchmarks/half-decode-model-screen-20261103.json), [A profile](benchmarks/half-decode-model-profile-20261103.json), [B micro](benchmarks/half-decode-branchless-micro-20261103.json), [B model](benchmarks/half-decode-branchless-model-20261103.json), [B operator](benchmarks/half-decode-branchless-operator-20261103.json), [C micro](benchmarks/half-decode-subtraction-micro-20261103.json), [C model](benchmarks/half-decode-subtraction-model-20261103.json), and [C Windows checks](benchmarks/half-decode-subtraction-windows-20261103.json).
+
 ## Q2_0 read-only inference (2026-11-03, Done, lands by fast-forward)
 
 Q2_0 GGUF weights now run on CPU and Vulkan through the existing quant decoder and backend owners. Type 42 stores 64 values in 18 bytes. There is no quantize writer or new runtime flag. F32, F16, BF16 and int8-request fallback policies retain their existing precision rules.

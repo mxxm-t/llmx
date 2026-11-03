@@ -3500,14 +3500,45 @@ size_t check_half_weights(backend::Backend& vk) {
             cpu.matmul({0, {cw.get(), 0}}, {cx.get(), 0}, {cy.get(), 0}, 1, n, 1);
             cpu.read(*cy, 0, expected.data(), n * sizeof(float));
             checked += exact(expected, actual, "finite F16 weight products, including subnormals, differ from CPU F32");
+            // Reach the packed row loader at each component, including pairs of normal and subnormal halves.
+            for (size_t lane = 0; lane < 4; ++lane) {
+                std::vector<uint8_t> packed(8 * n, 0);
+                std::vector<float> expanded(4 * n, 0.0f);
+                float input4[4] = {};
+                input4[lane] = input;
+                input4[lane ^ 1] = -0.25f;
+                for (size_t r = 0; r < n; ++r) {
+                    packed[8 * r + 2 * lane] = bytes[1 + 2 * r];
+                    packed[8 * r + 2 * lane + 1] = bytes[2 + 2 * r];
+                    expanded[4 * r + lane] = wide[r];
+                    const size_t neighbor = lane ^ 1;
+                    const uint16_t other = (r % 2) ? 0x3c00 : 0x0001;
+                    packed[8 * r + 2 * neighbor] = uint8_t(other);
+                    packed[8 * r + 2 * neighbor + 1] = uint8_t(other >> 8);
+                    expanded[4 * r + neighbor] = half_weight_value(type, other);
+                }
+                const auto pw = vk.adopt(packed.data(), packed.size()), fw = vk.adopt(expanded.data(), expanded.size() * sizeof(float));
+                const auto px = vk.adopt(input4, sizeof(input4));
+                vk.matmul({type, {pw.get(), 0}}, {px.get(), 0}, {y.get(), 0}, 4, n, 1);
+                vk.matmul({0, {fw.get(), 0}}, {px.get(), 0}, {ref.get(), 0}, 4, n, 1);
+                vk.read(*y, 0, actual.data(), n * sizeof(float));
+                vk.read(*ref, 0, expected.data(), n * sizeof(float));
+                checked += exact(expected, actual, "packed F16 row position differs from independent widened F32 control");
+            }
         }
-        for (size_t nin : {size_t(7), size_t(32), size_t(65), size_t(256), size_t(4096)}) {
+        for (size_t nin : {size_t(5), size_t(7), size_t(32), size_t(65), size_t(256), size_t(4096)}) {
             const size_t nout = 7, experts = 3, k = 2;
             auto packed = matrix(type, nin, experts * nout, 523);
             std::vector<float> values(packed.size() / 2);
             for (size_t i = 0; i < values.size(); ++i) {
                 if (i < nin) {
                     const uint16_t bits = uint16_t((i % 3 ? 0x8000u : 0) | (1 + i % (type == 1 ? 1023 : 127)));
+                    packed[2 * i] = uint8_t(bits);
+                    packed[2 * i + 1] = uint8_t(bits >> 8);
+                }
+                if (type == 1 && nin <= 7 && i >= nin) {
+                    const uint16_t edges[] = {0x0000, 0x8000, 0x0001, 0x03ff, 0x0400, 0x7bff, 0x8001, 0x83ff, 0x8400, 0xfbff};
+                    const uint16_t bits = edges[i % 10];
                     packed[2 * i] = uint8_t(bits);
                     packed[2 * i + 1] = uint8_t(bits >> 8);
                 }

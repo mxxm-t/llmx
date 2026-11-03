@@ -4130,6 +4130,8 @@ void job_between_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
         require(model->kv_pool_blocks(0) == 16, what + ": a pool of " + std::to_string(model->kv_pool_blocks(0)) + " blocks, against 16");
         server::Scheduler sched(*model, tok, 3, 64, 0, false, 0);
         std::mutex handles;
+        // Every handle stays held until the scheduler stops, so no request the case sent is freed and its address given to the job, which would read as the test's own.
+        std::vector<std::shared_ptr<server::Request>> held;
         std::set<const server::Request*> mine;
         std::shared_ptr<server::Request> second;
         std::atomic<bool> sent{false};
@@ -4151,6 +4153,7 @@ void job_between_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             std::lock_guard<std::mutex> lk(handles);
             auto h = sched.submit(r.prompt, params_of(r));
             mine.insert(h.get());
+            held.push_back(h);
             return h;
         };
         const auto moves = [&](server::Move m) { return sched.stats().moves[(size_t)m]; };
@@ -4168,10 +4171,8 @@ void job_between_turns(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             within_a_minute([&] { return sent.load(); }, what + ": the second turn sent at the job's first pass");
             for (size_t k = 1; k < turns; ++k) {
                 got.push_back(drain(*(k == 1 ? second : submit(conversation[k]))));
-                // Between two turns the job has a moment to start again, as a client's next message gives it.
-                const size_t before = moves(server::Move::job_started);
-                const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
-                while (moves(server::Move::job_started) == before && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                // Between turns the job may restart; a turn sent before that round's job check skips it, which can hide a restart but never fail the case.
+                within_a_minute([&] { return sched.stats().active == 0; }, what + ": turn " + std::to_string(k) + " left the scheduler");
             }
             started = moves(server::Move::job_started);
             gave_way = moves(server::Move::job_gave_way);

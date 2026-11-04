@@ -325,9 +325,9 @@ These rules keep every result batch-invariant, and every reused state one the CL
 - **On the CPU**, one arithmetic serves every row: for each (sequence, V head), tokens run in order through the recurrence above.
 - **On Vulkan**, the rows of an extent-1 entry run that same per-token recurrence.
   These are the generated rows (decode steps, the exact-resume replay and the verify rows of speculative decoding) and a one-token prompt.
-- **The prompt rows of an entry whose extent is above 1** run the chunked form on Vulkan, on a grid of absolute multiples of 64 from position 0, with no other extent threshold.
-  This comes with its own step of the plan (step 6), and is kept only if it measures faster; until then these rows run the recurrence too.
-- So a row's class is its entry's extent, 1 or above 1.
+- **The prompt rows of an entry whose extent is above 1** currently run the per-token recurrence on Vulkan too. The planned chunked form would use a grid of absolute multiples of 64 from position 0, with no other extent threshold.
+  This is a separate step of the plan (step 6), retained only if it measures faster.
+- That planned recurrence distinguishes extent 1 from extents above 1; it does not replace the matrix paths' existing backend row classes.
   The server's row classes (`RowClass` in `server/policy.hpp`: the end and extent of each stretch of a history) record it.
 
 Within a class, a row's output and the state after it depend only on the state before the row and the row's own inputs.

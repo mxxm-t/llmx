@@ -229,7 +229,7 @@ matters: **each layer depends only on the layers below it** -
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `image/`     | image files decoded, oriented and resized for a vision encoder, beside the tokenizer; depends on core alone |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
-| `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
+| `backends/`  | Backend interface with cpu/ (AVX2), vulkan/ and optional Linux rocm/ implementations; one CPU worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |
 | `server/`    | multi-user server (`docs/SERVER.md`): HTTP layer, scheduler, the cache behind one owner, its holders, room, ranking, parking, jobs and tiers (`cache.hpp`), its policy core and sampling threads, routes |
 | `cli/`       | thin argument parsing + dispatch               |
@@ -355,7 +355,7 @@ In the code: code that runs but serves nothing, paths for inputs or devices that
 
 - **Backends** are the only compile-time concern (GPU SDKs are heavy). Gated by
   `LLMX_HAS_BACKEND_*` in `src/config.hpp` (see `cmake/llmx-config.hpp.in`).
-  Vulkan is the only optional backend today; ROCm, CUDA and SYCL are planned and each gets its option with its implementation.
+  Vulkan and Linux ROCm are optional backends. CUDA and SYCL remain planned and get their options with their implementations.
 - **Model architectures** are compiled in and selected from metadata by
   `src/model/arch/registry.hpp`, one module per architecture under `src/model/arch/`
   on a runtime they share; today qwen3, qwen3moe, qwen35, qwen35moe and

@@ -41,3 +41,5 @@ If accepted, freeze this producer and method, complete the three remaining raw/c
 ## Approval record
 
 BOSS approved the scoped correction in the development conversation on 2026-10-24 after seeing the independent HF-only disagreement and the retained Vulkan comparison. The producer above is frozen unchanged. Complete the remaining TQ1_0 chat and TQ2_0 raw/chat references, then audit all four against the unchanged rule. The remaining three references are running on rig CPUs0-3; their completion and comparison review are not yet claimed. The historical proposal section preserves the request as submitted, including its pre-approval instructions.
+
+Later status (2026-11-04 documentation review): the remaining references subsequently completed, as recorded in [STATUS](../STATUS.md), Historical TQ1_0 / TQ2_0 qualification checkpoints. The paragraph above records the approval-time state. Later qualification and baseline exceptions remain separately recorded in STATUS and [PRECISION](../PRECISION.md); this note changes no limit or approval scope.

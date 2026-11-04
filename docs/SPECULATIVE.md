@@ -1,7 +1,7 @@
 # Sequence history, state checkpoints and speculative decoding
 
-A design, approved by the user on 2026-09-30 as agreed with XDEV and not yet built: one owner for where a sequence's history can be re-entered, checkpoints of the recurrent state on top of it, and speculative decoding on top of both.
-Its first user is prefix reuse for the hybrid models, the qwen35 plan's step 8c ([QWEN35](QWEN35.md), [STATUS-2026-09](STATUS-2026-09.md)), because production serves Qwen 3.5, 3.6 and 3.8 with none: every follow-up chat turn reads the whole conversation again.
+The design approved by the user on 2026-09-30 gives one owner to sequence-history re-entry, recurrent-state checkpoints and speculative decoding. Those owners, hybrid prefix reuse, lookup drafting and embedded MTP are implemented; the current paths and remaining work are described below and recorded in STATUS.
+The original motivation was hybrid prefix reuse, the qwen35 plan's step 8c ([QWEN35](QWEN35.md), [STATUS-2026-09](STATUS-2026-09.md)): before it landed, follow-up chat turns read the whole conversation again.
 The speculative decoding plan the user approved on 2026-09-26 is taken as input; section 3 says what it keeps and what changes, and section 4 what the user's mx-llama.cpp history teaches.
 The rules every part keeps: output is byte-identical with every feature here on and off, greedy and seeded, alone and among other requests, on one device and on a layer split; kernels follow a row's class, never the batch; one owner per rule ([ARCHITECTURE](ARCHITECTURE.md), Each concern has one owner).
 
@@ -229,7 +229,7 @@ Sources are commits of that fork, its notes (`tp-notes/research/`, at 2993afb7d1
 | 23 | The reference server checkpoints 4 + ubatch and 4 tokens before a prompt's end, host-resident | S from the template, device slots | `tools/server/server-context.cpp` (`checkpoint_offsets`) |
 | 24 | The MTP block's carried h started as stale bytes, so repeated requests drafted differently (228/140 against 226/141 drafted/kept) until it was zeroed at position 0; a zero h at any later position cut acceptance from 0.518 to 0.328 | the carried row lives in the slot pool and follows every history call; only a sequence's first row reads a zero h (section 7) | 017a5d3f8f, a186706304, 7393b6c88e |
 
-## 5. Order of work (planned)
+## 5. Original order of work (2026-09-30)
 
 Each step is a branch off main, landed as at most two commits, with every command byte-identical to main where the step's feature is off, and `llmx-split-check` bit-identical on the splits it runs.
 

@@ -11,8 +11,8 @@ supplies an allocator, an ordered queue, and kernels.
 Vulkan goes first because it is the one GPU path both machines run. The
 Windows workstation's Radeon VII and the Linux machine's MI50 are the same
 gfx906 silicon, the Windows HIP SDK does not support it, and the Vulkan
-runtime is already present on the workstation. ROCm stays the first-class
-target on Linux; it comes after this and reuses the structure.
+runtime is already present on the workstation. ROCm is also implemented as an
+optional Linux backend and reuses the execution structure; [ROCM](ROCM.md) records its current scope and qualification.
 
 ## F16 and BF16 weight storage
 

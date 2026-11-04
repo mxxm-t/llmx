@@ -1,25 +1,25 @@
-# ROCm backend (planned)
+# ROCm backend: design and qualification
 
-Research and proposed delivery plan, 2026-10-09, based on main a1b8211b4.
-No ROCm backend is implemented or qualified by this document. The source
+The research and delivery plan began on 2026-10-09, based on main a1b8211b4.
+The optional Linux backend and its initial Qwen3 Q8_0 inference path are now implemented. Broader operation, model, storage-type and dtype coverage and the remaining speed gates are still work in progress; [STATUS](STATUS.md) records the completed checks. The plan alone does not qualify a path. The source
 comparison and pinned references are in [the research record](research/rocm-20261009.md).
 The user requested the plan and on 2026-10-09 authorized its bounded hardware
 probe before Vulkan tensor split was complete.
 On 2026-10-29 the owner ruled that the Vulkan backend and tensor split are finished and only fine-tuning remains.
-They no longer gate the implementation steps below, and step 2 may start when a developer is free.
+They no longer gate the implementation steps below; implementation has since begun.
 The open Vulkan speed cells against the reference stay in [STATUS](STATUS.md) and are not a precondition.
 The design of the Vulkan tensor split is in [TENSOR-SPLIT](TENSOR-SPLIT.md). The closed
 patched-kernel/driver route stays closed.
 This combines two research proposals, dated 2026-10-08 and 2026-10-09,
 reviewed on 2026-10-09. The research record states the accepted inputs and the
-corrections. The launch correctness smoke passes on one MI50, and guarded peer
+corrections. The original probe results were: the launch correctness smoke passes on one MI50, and guarded peer
 writes followed by host-synchronized ordered sums pass on groups of two, three
 and four MI50s in the three public allocation modes. The subsequent one-block
 device-signal probe passes with uncached payloads at all three group widths;
 ordinary and fine-grained payloads fail that probe. A subsequent bounded
 multi-block eager/graph screen passes with uncached storage at those widths,
 including missing-member and stale-epoch controls. Model graph integration,
-general failure recovery and qualified performance remain open. Authorization
+general failure recovery and qualified performance remained open at that checkpoint. Authorization
 for the probe does not authorize landing an incomplete backend.
 
 ## Outcome and scope
@@ -42,7 +42,7 @@ Strix Halo/gfx1151 is an explicit future hardware target. The user confirmed on
 assumptions and compile wave32 variants of kernels already being implemented.
 Device-specific memory accounting, profile rows and other seams wait for
 hardware, as do numerical, performance and support qualification. Newer CDNA and RDNA devices use
-the same qualification procedure. Linux is the planned platform; Windows ROCm
+the same qualification procedure. Linux is the implemented platform; Windows ROCm
 support would be a separate scope change even if a vendor SDK supports a device.
 
 GPU SDK/runtime dependencies are the existing backend exception. HIP is the

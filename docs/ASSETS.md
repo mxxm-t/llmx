@@ -527,7 +527,20 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q1-0`, `q2-0`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
+`tools/gen_baseline.py` accepts the selectors below. The default is `all`, which does not include every specialized selector; `--help` lists the current choices.
+
+| Reference family | Selectors |
+|---|---|
+| Default group | `all` |
+| Tokenizers | `tokenizer`, `tokenizer-qwen35` |
+| Released text models | `logits`, `perplexity`, `qwen35`, `file-exact` |
+| Synthetic graphs and activation policies | `f32`, `moe`, `moe-q8`, `int8`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe` |
+| FP4 formats | `mxfp4`, `nvfp4` |
+| Q formats | `q1-0`, `q2-0`, `q2-k`, `q3-k`, `q5-0`, `q5-1` |
+| IQ formats | `iq4-nl`, `iq4-xs`, `iq3-s`, `iq2-s`, `iq2-xxs`, `iq2-xs`, `iq3-xxs`, `iq1` |
+| Ternary formats | `tq` |
+| Images and vision | `image-decode`, `vision-tiny`, `vision-file-exact`, `image-tiny`, `image-qwen4exp` |
+
 `q2-0` is a separate selector for raw-block Q2_0 tiny-HF fixtures; it is not part of `all`. The ordinary and whole-block split references are committed as [`baseline_q2_0.json`](../tests/data/baseline_q2_0.json) and [`baseline_q2_0_split.json`](../tests/data/baseline_q2_0_split.json). Hosted tests consume these frozen files and do not regenerate them.
 `moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.

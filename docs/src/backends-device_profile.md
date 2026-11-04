@@ -1,8 +1,8 @@
 # `src/backends/device_profile.hpp` - what a GPU backend shapes its kernels by
 
 Device numbers in namespace `backend`, apart from any one vendor's API. The
-Vulkan backend fills and reads them today; a second GPU backend would share
-them (`docs/ROADMAP.md` 4b). Branch on what a device reports, never on its
+Vulkan and ROCm backends fill and read them today; another GPU backend can
+share them (`docs/ROADMAP.md` 4b). Branch on what a device reports, never on its
 vendor name.
 
 - `pci_root_of(domain, bus, device, function)`: the PCI root complex above a device at that address as Linux's sysfs names it (pci0000:80), or empty where the system does not say; the Vulkan and ROCm backends both report it.

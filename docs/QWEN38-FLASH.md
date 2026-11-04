@@ -38,7 +38,8 @@ The CPU backend runs the complete graph, which the tiny fixtures check against H
 | Tensor groups | `--tensor-width` 2 to 4; width 3 is refused on this model's vocabulary | Tiny CPU and MI50 tensor-group fixtures against HF; the released file on three stages of width-two groups (section 6) |
 | Follow-ups, multiple users, reset, cut and failure recovery | Yes, through the shared runtime and server | Tiny fixtures against fresh controls (`tests/qwen4exp_fixture.py`) |
 | MTP | Embedded block or sidecar file (section 4) | Tiny graph against a scalar oracle; on the released file, replies with MTP on equal those with it off, and natural-text acceptance is in section 6 (MTP development checkpoint, below) |
-| Vision/video, native HF-directory loading | No | Separate follow-on work, never inferred from text support or the fixture generator |
+| Image input | Separate `mmproj`, CLI images and compatible chat image parts | Implemented through the shared image path; model-specific qualification is recorded in [VISION](VISION.md) and STATUS |
+| Video, native HF-directory loading | No | Separate follow-on work, never inferred from text or image support |
 | Further quantization types | Only the types the existing decoders read; another is refused by name | The decoder owners' own gates |
 
 The runtime does not invent a model-file layout or convert weights.
@@ -53,7 +54,7 @@ The reference preparation (`tools/qwen4exp_reference.py`) also pins the Torch ve
 ### 1.1 Pinned text config and refusals
 
 The pinned outer config is `model_type=qwen4_exp` with `architectures=["Qwen4ExpForConditionalGeneration"]`, and contains separate `text_config` and `vision_config` objects.
-llmx runs the text model only: it reads the text fields below and has no image or video input path.
+The text module reads the text fields below. Image input uses the separate vision encoder and `mmproj` described in [VISION](VISION.md); video input is not implemented.
 Packaged vision tensors are not unsupported text inputs; the text graph does not read them, and the MTP block runs only as a drafter (section 4).
 The pinned Transformers source also exposes `Qwen4ExpForCausalLM` over a `Qwen4ExpTextConfig` for a text-only reference.
 

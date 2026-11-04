@@ -2,10 +2,10 @@
 
 This page is the plan for image input, ROADMAP item 10, as F2DEV approved it as the plan of record on 2026-10-25.
 The coordinator and F2DEV answered its open questions the same day, on the owner's delegation.
-The image decoder and standalone Qwen vision encoder are implemented, along with `llmx-encode-image` for checking encoder rows against the reference. Image rows are not yet wired into text prompts, chat templates or the server. The sections below retain the broader image-input plan and distinguish its implemented pieces from the remaining integration work.
-Audio follows on the same encoder contract once image input is integrated.
+The image decoder and Qwen vision encoder are implemented, along with `llmx-encode-image` for checking encoder rows against the reference. Image rows are wired into CLI prompts, chat templates, server requests and cache identity. The sections below describe the approved design and retain the original work order in section 8. Current qualification and performance results belong in STATUS; implementation alone does not close those gates.
+Audio remains planned on the same encoder contract.
 
-## 1. The models and the weights (planned)
+## 1. The models and the weights
 
 One vision encoder serves Qwen 3.5, 3.6, 3.8-27B and Qwen3.8-Flash-Next (`qwen4exp`).
 - At transformers commit `93c8b7b` (v5.16.1, the commit [QWEN38-FLASH](QWEN38-FLASH.md) pins), `Qwen4ExpVisionModel` and `Qwen3_5VisionModel` are the same code but for one decorator, and `get_rope_index` is the same in both.
@@ -43,7 +43,7 @@ The files, all from the `unsloth` repositories unless named:
 | Qwen3.8-Flash-Next `mmproj-BF16.gguf`, revision `38bb39ee` | 907,542,944 B | the target, beside production's text files |
 | `ggml-org` Qwen3.8-Flash-Next `mmproj-...-Q8_0.gguf` | 616,703,104 B | not used in the first steps |
 
-## 2. Preprocessing (planned)
+## 2. Preprocessing
 
 It follows transformers' `load_image` and `Qwen2VLImageProcessor` (torchvision backend) at the pinned commit, and must give their bytes.
 1. Decode PNG or JPEG.
@@ -59,7 +59,7 @@ An image gives gh * gw / 4 tokens, gh and gw being its patch grid: 64 at least, 
 
 The decoders are written here (`image/`, section 9), PNG with its inflate and JPEG with libjpeg-turbo's integer IDCT, fancy upsampling and color tables, since the reference decodes through Pillow's libjpeg-turbo.
 
-## 3. The encoder (planned)
+## 3. The encoder
 
 Per HF `Qwen4ExpVisionModel.forward`:
 - Patch embedding: a matrix product of each 768-value patch row with frame 0's kernel, a product added with frame 1's, and the bias.
@@ -76,7 +76,7 @@ The backend gains, each with a CPU implementation and a test against a reference
 The encoder has no sequences and no caches, so it has a contract of its own, `model/encoder.hpp`, sized for the known vision models (section 9), with its module at `model/arch/qwen3vl_vision.hpp` chosen in the registry by `clip` and `clip.projector_type`.
 It runs on the device that holds the embedding, counted in that device's fit, one image a call, so an image's rows never depend on another image.
 
-## 4. A prompt of token ids and encoder rows (planned)
+## 4. A prompt of token ids and encoder rows
 
 - The Qwen templates render an image part as `<|vision_start|><|image_pad|><|vision_end|>` (ids 248053, 248056 and 248054 in the 3.5 and 3.8 vocabularies), and refuse an image in a system message.
 - `chat::Message` carries content parts, and the renderer hands the template the parts.
@@ -88,7 +88,7 @@ It runs on the device that holds the embedding, counted in that device's fit, on
 - The sections are interleaved [11, 11, 10] over the 32 rotary frequencies, a constant the module declares beside the sections the GGUF records.
 - Flash-Next's sparse attention ropes each pooled key group at its first token's position: once its pooled keys are computed once in the pass that completes a group, that pass's call carries the groups' positions, so this step builds on that change and stores no positions.
 
-## 5. History and cache (planned)
+## 5. History and cache
 
 - A history's identity is its token ids, its row classes and its media runs; a text-only history has none and keeps its bytes, its disk digests and the saved caches.
 - An image's digest is SHA-256 over the encoder file's identity, the preprocessing settings, the grid and the resized pixels, so another `mmproj` reuses nothing.
@@ -96,7 +96,7 @@ It runs on the device that holds the embedding, counted in that device's fit, on
 - A request keeps its resized pixels for its life and its encoder rows until its prompt is read; a resume that recomputes encodes again, to the same bits.
 - A context cut never falls inside an image, and the lookup drafter skips media runs.
 
-## 6. The routes (planned)
+## 6. The routes
 
 - `/v1/chat/completions` and `/v1/chat` take `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}`; a `detail` other than absent or `auto` is refused with the field named; `/v1/completions` stays text.
 - Only `data:` URLs of `image/png` and `image/jpeg`, base64 decoded strictly and the format read from its first bytes; http, https and file URLs are refused.
@@ -104,7 +104,7 @@ It runs on the device that holds the embedding, counted in that device's fit, on
 - `/v1/tokenize` counts an image's tokens.
 - The CLI takes `--mmproj FILE` on its model commands and `--image FILE` on `generate` and `logits` with `--chat`, so a served reply is held to the CLI's.
 
-## 7. The references and gates (planned)
+## 7. The references and gates
 
 - The reference environment gains torchvision and Pillow, pinned (the coordinator's and F2DEV's decision of 2026-10-25): the Pillow wheel by version, Python tag and platform with the libjpeg-turbo and zlib versions it reports, recorded in each fixture's metadata; the generator refuses other versions; decoded bytes and arrays are committed so the suite needs neither package; no text reference is regenerated.
 - The F32 paths are held to 2e-5 a logit and 1e-5 NLL on tiny random-weight fixtures of both families built by HF; device paths below F32 are held to a budget calibrated as [PRECISION](PRECISION.md) sets out.
@@ -112,9 +112,9 @@ It runs on the device that holds the embedding, counted in that device's fit, on
 - Each step that touches the runtime, the renderer or the cache keeps text-only `generate`, `logits`, `perplexity`, `chat`, `tools/server_mix_check.py` and the disk digests byte-identical to main on the CPU and a device.
 - The comparison with the reference runtime's image encoding and first token is the phase's final gate, at image grids both runtimes take unchanged.
 
-## 8. Order of work (planned)
+## 8. Original order of work (2026-10-25)
 
-Each step is a branch of its own, its failing test first.
+The approved sequence below records the original branches and dependencies. It is not a list of unfinished steps; STATUS records the implemented work and its gate results. Each step has its failing test first.
 0. This page and the STATUS block.
 1. `feat/image-decode`: PNG and JPEG decoding, EXIF orientation, RGB conversion, `smart_resize` and the resize, with their byte checks.
 2. `feat/vision-ops`: the backend ops on the CPU.
@@ -125,7 +125,7 @@ Each step is a branch of its own, its failing test first.
 7. `feat/vision-vulkan`: the device ops, identity and speed.
 8. `feat/image-flash`: Flash-Next's released checks, the encoder's work split under pacing, then production.
 
-## 9. Addendum of 2026-10-25: where the code lives, and other vision models (planned)
+## 9. Addendum of 2026-10-25: where the code lives, and other vision models
 
 F2DEV's decisions of 07:45 and 07:46, on the owner's rules that each concern is kept in one place and that image input serves future vision models too.
 
@@ -148,7 +148,7 @@ The projector types the reference runtime reads show what the next modules need:
 A member only a later module needs comes with that module and no earlier, as ADDING-AN-ARCHITECTURE has it: Gemma's attention that sees an image's rows both ways inside the text model, and MiMo's banded window attention, are the first such members on the list.
 A new vision model is then one module, one registry row and its fixtures, with no change to `image/`, `media.hpp`, the routes or the cache.
 
-## 10. Speed (planned)
+## 10. Speed targets and qualification
 
 The owner's gate for the phase: image input beats the reference runtime's mtmd path heavily, the owner's fork and the castagna-veloce build, on the same MI50s, model, mmproj and images at default clocks, in three figures:
 - the encode time of one image;

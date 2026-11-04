@@ -7,9 +7,9 @@ Single place for compile-time build knobs.
   uses. Keep the two in sync when adding build knobs.
 - **Backends** are the only things that need compile-time config, because GPU
   backends pull in heavyweight SDKs (ROCm/CUDA/SYCL/Vulkan). CPU is always on (no
-  external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend, the
-  only optional backend today; ROCm, CUDA and SYCL get their options when they
-  are implemented.
+  external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan backend, and
+  `LLMX_HAS_BACKEND_ROCM` builds the ROCm backend on Linux; CUDA and SYCL remain
+  planned.
 - **Model architectures** are *not* here: the registry
   (`model/arch/registry.hpp`) reads `general.architecture` at run time;
   dense Qwen3, `qwen3moe`, and `qwen35` and `qwen35moe` (Qwen 3.5, 3.6 and 3.8)
@@ -29,6 +29,6 @@ Defines:
   Plain builds stop before compilation if writing the version header fails.
 - Update the CMake project version and the fallback config's version string
   together for a release. Rebuilding does not bump or tag a release.
-- `LLMX_HAS_BACKEND_VULKAN`: whether the Vulkan backend is compiled in. The
-  CPU backend always is, and another backend gets its flag when it exists.
-  Thread counts are runtime flags, not build options.
+- `LLMX_HAS_BACKEND_VULKAN` and `LLMX_HAS_BACKEND_ROCM`: whether the Vulkan and
+  Linux ROCm backends are compiled in. The CPU backend always is. Thread counts
+  are runtime flags, not build options.

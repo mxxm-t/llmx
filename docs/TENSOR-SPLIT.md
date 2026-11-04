@@ -191,7 +191,7 @@ A layer split is stages of width-1 groups, a tensor split one stage of width W, 
 - `Placement` gains its groups: the backends of each group in member order, every group of one width.
   A role names a group, not a backend; with no groups given, each backend is a group of one, which is today's placement and keeps today's code path.
 - A stage is a run of layers on one group, so the pass API, passes in flight, the handoff buffers, admission over pools and the fit's balance by layer counts are unchanged in shape: the residual leaves a stage from member 0's handoff buffer (the residual is the same on every member) and the next stage writes it into every member's residual.
-- The scheduler keeps P passes in flight over S stages, P = S by default; a single group is one stage and runs one pass at a time, as one device does.
+- The scheduler keeps P passes in flight over S stages, P = S + 1 by default for a pipelined split; a single group is one stage and runs one pass at a time, as one device does.
 
 ### 4.2 How each op shards
 
@@ -349,7 +349,7 @@ The flag means the same on every backend or is refused and reads nothing from th
 
 ### 4.7 Serving many users
 
-- **Passes:** the scheduler, the pass API and the policy core are unchanged; a stage is a group, P = S passes in flight by default, and every member of a stage runs each pass in lockstep, recorded by its submitter.
+- **Passes:** the scheduler, the pass API and the policy core are shared; a stage is a group, a pipelined split defaults to P = S + 1 passes in flight, and every member of a stage runs each pass in lockstep, recorded by its submitter.
   A single group runs one pass at a time, so its host gap (sampling and the first recording of the next pass) is exposed as on one device.
 - **Width of a pass:** passes widen up to the decode kernel's columns as on one device, and a wider pass pays each sum once: on Qwen3-32B at width 2, a 32-row pass projects to about 113 tok/s against the layer split's 116 at P = 2 on the same two cards, from step 0's measured pass costs and sums (section 5).
   So at 16 to 64 users the layer split keeps the throughput lead on Vulkan and the tensor split the latency lead; the staged form sits between, and the choice is the user's per deployment, as MULTI-DEVICE's Which split for which case says.

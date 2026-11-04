@@ -490,12 +490,12 @@ The reply read again for the next turn (`reply_sent_back`, `chat::reply_message`
 `parallel_tool_calls` false asks for one call a reply: on either chat route the request is cancelled as its first call closes (`chat::ToolCallSplit` with one call, read on the tokens as they come), the tokens it draws after are left out of the reply and its usage, and the compatible reply holds that call with `finish_reason` `tool_calls`, while `/v1/chat`'s text ends with the token that closes the call and its `finish` is `stop`; the request's line says it was cancelled, and its history is kept as a cancelled request's is.
 Refused with 400, each naming its field and why: `tool_choice` `"required"` or naming a function, which a prompt cannot honour and constrained decoding would; any other `tool_choice` but `"auto"` and `"none"`; a `parallel_tool_calls` that is not a boolean; `tools` that are not function tools with a name, and `function.strict` true; and tools for a template that writes no `<tool_call>`.
 
-### What is not in the first version
+### Scope limits
 
-- A prefix index that outlives the process, spans models or holds more
-  than a few dozen donors: the hashed key of KV-CACHE is for that scale.
-- Speculative decoding, grammars, logit bias, embeddings endpoints.
+- Grammars, logit bias and embeddings endpoints are not implemented.
 - TLS, authentication, rate limiting: the reverse proxy's job.
+
+Speculative decoding is available through `--drafter` ([SPECULATIVE](SPECULATIVE.md)). Prefix reuse and the host and persistent disk tiers are implemented through the shared cache owner ([CACHE-PLAN](CACHE-PLAN.md)); they are no longer first-version exclusions.
 
 ### Open gaps
 

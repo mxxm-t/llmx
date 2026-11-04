@@ -316,18 +316,15 @@ What would work instead, if this is ever picked up:
 - Payoff: no build step for users, and kernels updatable without shipping a new
   llmx binary
 
-## 10. Image and audio input **[planned]**
-The Qwen 3.5 and 3.6 checkpoints are vision-language models, and llmx runs their text part only: the reference checkpoints carry a vision tower (`model.visual.*`, which the reference generator lists as unused, `docs/ASSETS.md`), a GGUF keeps its projector in a separate `mmproj` file, and nothing in `src/` reads one.
-This item adds image input for those checkpoints, then audio input and omni models.
-Its place in the order is not fixed: it is taken up when it makes most sense against the items above.
-The image half is planned in [VISION](VISION.md), approved on 2026-10-25 with Qwen3.8-Flash-Next as its target.
-Before it starts, the cache key and the chat routes' message handling should leave room for non-text parts, since both are built on token ids and text today.
-- **The vision encoder** is a module under `model/arch/` with its backend kernels on the CPU and on Vulkan, built in the order and held to the gates of `docs/ADDING-AN-ARCHITECTURE.md`: the HF reference on tiny random-weight fixtures and on the released files.
-- **Image decoding** is written here, since the runtime has no dependencies: PNG and JPEG first, other formats when a use asks.
-- **A prompt of token ids and encoder rows**: the model reads rows from the encoder at the places the template marks, and gives them the positions these models give image rows, so the runtime's history holds rows that are not token ids.
-- **The chat routes** accept image content parts. The compatible route refuses everything but text parts today (`only text content parts are supported`, `src/server/api.hpp`).
-- **Cache identity**: prefix reuse, checkpoints and the disk tier key a history by its token ids and row classes (`src/server/disk_index.hpp`). A row from an encoder is keyed by a digest of its content beside the token ids, so a repeated image reuses what it computed and a changed one does not, in every tier, with saved caches kept.
-- **Audio input and audio output** follow images, with an audio encoder as a module of the same kind, an audio decoder written here, and the omni models' output side after that.
+## 10. Image and audio input **[image paths implemented; qualification continues, audio planned]**
+The Qwen image path reads a separate GGUF `mmproj`, decodes PNG and JPEG, and runs the vision encoder through CPU or Vulkan ops. The CLI places encoder rows in prompts with `--mmproj` and `--image`; the compatible chat routes accept image content parts when the server has a projector. History and cache identity carry media runs beside token ids and row classes, so a changed image invalidates reuse from its first row.
+
+[VISION](VISION.md) records the design approved on 2026-10-25, its implementation owners and the model-specific correctness and speed gates. Implemented plumbing does not establish every released model's qualification or complete the phase's performance gate; the current work is recorded in STATUS.
+- **The vision encoder** lives under `model/arch/`, with backend ops on the CPU and Vulkan and the reference checks required by `docs/ADDING-AN-ARCHITECTURE.md`.
+- **Image decoding** lives under `image/`. Additional formats follow a concrete use.
+- **Prompt and cache integration** share the media-run identity used by prompt positions, prefix reuse, checkpoints and the disk tier.
+- **The chat routes** accept PNG and JPEG data URLs. They do not fetch remote image URLs; the exact limits and supported commands are in [USAGE](USAGE.md).
+- **Audio input and output remain planned**, with an audio encoder using the encoder contract, an in-tree decoder, and the omni models' output side after that.
 
 ## Non-goals (for now)
 - Training / fine-tuning in-tree

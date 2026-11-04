@@ -196,33 +196,41 @@ inline void VulkanBackend::dispatch(KernelId id, std::initializer_list<VkDescrip
     dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                 (uint32_t)push_bytes, push);
     if (dev_->timestamps) {
-        // A reading interval takes as many pools as its dispatches need, each reset as the interval first reaches it.
-        const size_t pool = query_next_ / kQueries;
-        if (pool == queries_.size()) {
-            VkQueryPoolCreateInfo qp{};
-            qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-            qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
-            qp.queryCount = kQueries;
-            VkQueryPool queries = VK_NULL_HANDLE;
-            check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries), "vkCreateQueryPool");
-            queries_.push_back(queries);
-        }
-        if (pool == pools_reset_) {
-            dev_->fn.vkCmdResetQueryPool(cmd, queries_[pool], 0, kQueries);
-            ++pools_reset_;
-        }
-        const uint32_t q = (uint32_t)(query_next_ % kQueries);
-        dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_[pool], q);
+        stamp_before(cmd);
         dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
-        dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_[pool], q + 1);
-        query_kernel_.push_back(id * kVariants + variant + (head_ ? kTimedKernels : 0));
-        query_next_ += 2;
+        stamp_after(cmd, id * kVariants + variant + (head_ ? kTimedKernels : 0));
     } else {
         dev_->fn.vkCmdDispatch(cmd, groups_x, groups_y, 1);
     }
     if (!unordered_) barrier(cmd);
     // A pass is submitted in chunks so the device starts on the first while the host records the rest; the ordered timeline makes the last chunk's ticket cover them all.
     if (++chunk_ >= chunk_limit_) flush();
+}
+
+// A diagnostics backend's timestamp before an op it times: a reading interval takes as many pools as its ops need, each reset as the interval first reaches it.
+inline void VulkanBackend::stamp_before(VkCommandBuffer cmd) {
+    const size_t pool = query_next_ / kQueries;
+    if (pool == queries_.size()) {
+        VkQueryPoolCreateInfo qp{};
+        qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        qp.queryCount = kQueries;
+        VkQueryPool queries = VK_NULL_HANDLE;
+        check(dev_->fn.vkCreateQueryPool(dev_->device, &qp, nullptr, &queries), "vkCreateQueryPool");
+        queries_.push_back(queries);
+    }
+    if (pool == pools_reset_) {
+        dev_->fn.vkCmdResetQueryPool(cmd, queries_[pool], 0, kQueries);
+        ++pools_reset_;
+    }
+    dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queries_[pool], (uint32_t)(query_next_ % kQueries));
+}
+
+// And after it, the op's time kept under `kind`.
+inline void VulkanBackend::stamp_after(VkCommandBuffer cmd, int kind) {
+    dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queries_[query_next_ / kQueries], (uint32_t)(query_next_ % kQueries + 1));
+    query_kernel_.push_back(kind);
+    query_next_ += 2;
 }
 
 } // namespace

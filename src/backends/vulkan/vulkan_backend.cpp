@@ -1077,6 +1077,7 @@ public:
     // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
     // Dispatches the last reading timed: every one since the reading before it.
     size_t timed_dispatches() const { return last_timed_; }
+    const std::vector<double>& timed_gaps() const { return gaps_ms_; }
 
     std::vector<std::pair<std::string, double>> kernel_times() {
         std::vector<std::pair<std::string, double>> out;
@@ -1089,18 +1090,22 @@ public:
             read = dev_->fn.vkGetQueryPoolResults(dev_->device, queries_[at / kQueries], 0, count, count * sizeof(uint64_t), stamps.data() + at,
                                                   sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT) == VK_SUCCESS;
         }
+        gaps_ms_.clear();
         if (query_next_ && read) {
             for (size_t i = 0; i + 1 < query_kernel_.size() * 2 && i + 1 < stamps.size(); i += 2) {
                 const int k = query_kernel_[i / 2];
                 kernel_ns_[k] += double(stamps[i + 1] - stamps[i]) * dev_->timestamp_ns;
                 ++kernel_calls_[k];
+                if (i) gaps_ms_.push_back(stamps[i] > stamps[i - 1] ? double(stamps[i] - stamps[i - 1]) * dev_->timestamp_ns / 1e6 : 0.0);
             }
         }
-        for (int i = 0; i < 2 * kTimedKernels; ++i)
+        for (int i = 0; i < kTimed; ++i)
             if (kernel_calls_[i])
-                out.emplace_back(kernel_variant_name(i % kTimedKernels / kVariants, i % kVariants) + (i < kTimedKernels ? "" : " head"), kernel_ns_[i] / 1e6);
+                out.emplace_back(i == kTimedCopy ? std::string("copy") : i == kTimedUpload ? std::string("write")
+                                 : kernel_variant_name(i % kTimedKernels / kVariants, i % kVariants) + (i < kTimedKernels ? "" : " head"), kernel_ns_[i] / 1e6);
         // Since the last call: the next reading starts from an empty pool, which the next dispatch resets.
-        last_timed_ = query_kernel_.size();
+        // Copies are timed beside the kernels but are not dispatches.
+        last_timed_ = (size_t)std::count_if(query_kernel_.begin(), query_kernel_.end(), [](int k) { return k < kTimedCopy; });
         std::fill(std::begin(kernel_ns_), std::end(kernel_ns_), 0.0);
         std::fill(std::begin(kernel_calls_), std::end(kernel_calls_), size_t(0));
         query_kernel_.clear();
@@ -1947,9 +1952,14 @@ private:
     size_t last_timed_ = 0;        // dispatches the last reading covered
     static constexpr int kTimedKernels = K_COUNT * kVariants;
     bool head_ = false;               // on a backend that times its dispatches, those being recorded are the output head's (matmul_logits)
-    std::vector<int> query_kernel_;   // id * kVariants + variant, past kTimedKernels for the output head's
-    double kernel_ns_[2 * kTimedKernels] = {0};
-    size_t kernel_calls_[2 * kTimedKernels] = {0};
+    // The copies a diagnostics backend times beside its kernels: buffer to buffer (copy), and from staging into device memory (write).
+    static constexpr int kTimedCopy = 2 * kTimedKernels, kTimedUpload = kTimedCopy + 1, kTimed = kTimedUpload + 1;
+    std::vector<int> query_kernel_;   // id * kVariants + variant, past kTimedKernels for the output head's, or a timed copy
+    double kernel_ns_[kTimed] = {0};
+    size_t kernel_calls_[kTimed] = {0};
+    std::vector<double> gaps_ms_;     // the last reading's time between each timed op's end and the next one's start, 0 where they overlap
+    void stamp_before(VkCommandBuffer cmd);
+    void stamp_after(VkCommandBuffer cmd, int kind);
     std::shared_ptr<VulkanBuffer> mx_copy_; // copies of one call, reused in queue order
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
@@ -2038,6 +2048,11 @@ std::vector<std::pair<std::string, std::vector<bool>>> vulkan_kernel_writes() {
 size_t vulkan_timed_dispatches(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->timed_dispatches() : 0;
+}
+
+std::vector<double> vulkan_timed_gaps(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->timed_gaps() : std::vector<double>();
 }
 
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend) {

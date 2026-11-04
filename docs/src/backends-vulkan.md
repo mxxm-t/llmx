@@ -112,6 +112,7 @@ The first three come before the class; the others define members the class decla
   `vulkan_timed_dispatches` how many dispatches that reading covered, every
   one since the reading before, in as many query pools as the interval needs
   (`bench --profile`, `serve --timing`).
+  Its buffer copies and its writes' copies out of staging are timed beside the kernels, as `copy` and `write`, and `vulkan_timed_gaps` gives that reading's device time between each timed op's end and the next one's start, which `bench --profile` sums into the device's idle time.
   `matmul_logits` is `matmul`; on a backend that times its dispatches it names that call's apart, under the kernel's name with ` head` after it, so a profile shows the output head's read on its own, and without timestamps it calls `matmul` and keeps nothing.
   `wait(t)` of a returned ticket may come from another thread while the
   owning one records: the last ticket and the confirmed-completion ticket are

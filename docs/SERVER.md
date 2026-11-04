@@ -193,9 +193,14 @@ round:
            decode share, those that left flight earliest first, then a
            slice of the next stretch each prompt's cache lacks, at that
            stretch's extent, in the share rule's order, until the pass
-           holds ubatch tokens (a lone prompt on a split about a 2S-th of
-           what it lacks, at least 128 rows, so every stage reads;
-           lone_slice), the generated tokens a resume recomputes
+           holds ubatch tokens (on a split each prompt in equal slices
+           whose count minimises the pipeline's time after the passes in
+           flight by the stages' price lines, among those whose next
+           slice adds at most kMaxStepGapMs to when the last stage is
+           through them while someone waits behind it, slice_capped;
+           before they are priced a lone prompt about a
+           2S-th of it and any other a ubatch; next_slice), the
+           generated tokens a resume recomputes
            at most 64 a request, each counting ubatch / 64, at least 1;
            while both wait, on a split a pass of the replies packed by
            the decode columns or a chunk of one prompt, on one pass in
@@ -263,6 +268,11 @@ The record also counts the rows passes carried by kind and the prompt rows by de
 
 One rule forms the passes on every placement (`Scheduler::form_round` over `Scheduler::plan`), replacing the pacing modes, the pieces, the passes apart and the short prompts it grew from (docs/STATUS.md, the serving rework).
 While only replies wait, or only prompts, passes are formed as the round above says, the decode share over the passes in flight and the prompts' slices in the share rule's order up to the ubatch.
+On a split each such slice is cut by `next_slice` (`docs/src/model-slicing.md`): the fastest equal cut of what the prompt lacks after the passes in flight, its own by its price lines and the others at their formation prices, whose next slice adds at most `kMaxStepGapMs` to when the last stage is through them while someone would wait behind it, so a request arriving waits at most that past what is already in flight.
+Who waits is one predicate (`slice_capped`): an arrival that would be admitted at once (a sequence free and nothing queued or paused), or another admitted prompt that has not read a slice yet and has fewer rows left than the slice it would wait behind, min(left, ubatch), least remaining first.
+A reply is not among them: while a reply and a prompt both wait the slice is the service rule's chunk below (`chunk_plan`), which owns the reply's bound.
+With every sequence held by prompts and the rest queued, and every newcomer at least as long as the slice, nobody waits, and the queued prompts' bound is the share rule's `kPromptWaitMs`: the slice is the prompt's own cut alone, and a ubatch beside other ready prompts, admitted prompts with rows left, whose slices fill the stages the prompt's own drain would leave idle, so a smaller cut would only pay a pass's fixed cost more often.
+Each slice is cut again, so once the others' rows are read the prompt's own cut returns for what it has left.
 While a prompt also waits, on a split the replies go in as few passes as the decode kernels' columns hold them, never every slot, each reply in one of them (`packed_passes`, `packed_share`), and each other free slot takes a chunk pass of one prompt, which continues in its own pass once its chunk before has run the first stage, up to one chunk pass a stage (`passes_in_flight`); a slot no prompt can use goes to the replies.
 On one pass in flight, one device or one tensor group, the chunk rides the replies' pass as a second class.
 Prompt work is the clients' prompts, and with none waiting the read-again jobs', which so take only what no prompt wants.

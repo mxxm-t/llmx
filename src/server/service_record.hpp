@@ -162,6 +162,11 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return stages_[s].prices.slice_ms({cls, band, rows}, step);
     }
+    // Stage s's cost line of class `cls` at band `band` (PriceTable::chunk_line).
+    std::optional<infer::StageLine> chunk_line(size_t s, size_t cls, size_t band) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return stages_[s].prices.chunk_line(cls, band);
+    }
     // The rows of a slice of class `cls` at band `band` within `target_ms` of stage s, at most `most` (PriceTable::chunk_rows).
     size_t chunk_rows(size_t s, size_t cls, size_t band, double target_ms, size_t most) const {
         std::lock_guard<std::mutex> lk(m_);

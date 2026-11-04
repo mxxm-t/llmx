@@ -671,6 +671,7 @@ std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, co
     model.set_threads(decode_threads);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (prefilled) prefilled(ms);
+    if (exec.verbose) std::cerr << "prefill: " << model.prefill_slices() << " slices\n";
     if (exec.verbose) std::cerr << "threads: decode " << model.threads_available() << "\n";
     if (progress) std::cerr << "Generating...\n";
     return logits;
@@ -1233,9 +1234,15 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     pp();
     tg({});
     std::vector<double> ppv, tgv;
-    for (int r = 0; r < R; r++) ppv.push_back(pp());
+    // Each timed prompt's slices (Model::prefill_slices), which a pipelined split chooses by its own measured period.
+    std::string slices;
+    for (int r = 0; r < R; r++) {
+        ppv.push_back(pp());
+        slices += (r ? ", " : "") + std::to_string(model.prefill_slices());
+    }
     for (int r = 0; r < R; r++) tgv.push_back(tg({}));
     report("pp", P, ppv);
+    printf("bench: pp%d slices %s\n", P, slices.c_str());
     report(seqs > 1 ? ("x" + std::to_string(seqs) + " tg").c_str() : "tg", G, tgv);
     // With the drafter, a round's rollback (docs/SPECULATIVE.md, section 7): after a mark and a verify of kRollbackDrafts drafts, each retract keeping some rows and the decode step after it are timed up to the step's logits.
     // Each repeat takes every rejection position in turn after the same history, and the cost of keeping fewer rows is its difference from keeping all in the same repeat, reported as the median and middle half after one uncounted round.
@@ -1292,6 +1299,15 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                       << backend::vulkan_timed_dispatches(*devices[i]) << " dispatches sampled\n";
             for (const auto& t : times)
                 std::cout << "profile:   " << t.first << " " << t.second << " ms (" << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
+            // The device's idle time between its timed ops, and of it the gaps of a millisecond or more, where it waited for work.
+            double idle = 0, long_idle = 0;
+            size_t longs = 0;
+            for (double g : backend::vulkan_timed_gaps(*devices[i])) {
+                idle += g;
+                if (g >= 1.0) long_idle += g, ++longs;
+            }
+            std::cout << "profile " << what << (devices.size() > 1 ? ", device " + names[i] : std::string()) << ": idle " << idle << " ms between timed ops, " << long_idle
+                      << " ms of it in " << longs << " gaps of 1 ms or more\n";
         }
     };
 #else
@@ -1344,12 +1360,41 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
         }
     }
     if (profile) {
+        // Each stage's recordings over a run: how often one started, and the host's time in each, its wait for the residual's sender and its write into the stage's device apart (Model::StageTime).
+        auto print_stages = [&](const std::string& what) {
+            const auto times = model.stage_times();
+            size_t S = 0;
+            for (const auto& t : times) S = std::max(S, t.stage + 1);
+            // The k-th recording of each stage is the k-th pass's, whose first stage's start the others' times are taken from.
+            std::vector<double> begun;
+            for (const auto& t : times)
+                if (t.stage == 0) begun.push_back(t.start);
+            for (size_t s = 0; s < S; ++s) {
+                size_t n = 0, rows = 0;
+                double first = 0, last = 0, recording = 0, waited = 0, wrote = 0, ready = 0;
+                for (const auto& t : times) {
+                    if (t.stage != s) continue;
+                    if (!n) first = t.start;
+                    last = t.start;
+                    ready += t.start + t.receive_ms - (n < begun.size() ? begun[n] : t.start);
+                    ++n, rows += t.rows, recording += t.end - t.start, waited += t.receive_ms, wrote += t.write_ms;
+                }
+                if (!n) continue;
+                const double k = (double)n;
+                printf("profile %s, stage %zu: %zu recordings of %.0f rows, one every %.3f ms, each %.3f ms: %.3f waiting for the sender, %.3f writing, %.3f recording and submitting; "
+                       "the residual there %.3f ms after the pass's first stage began\n",
+                       what.c_str(), s, n, (double)rows / k, n > 1 ? (last - first) / (k - 1) : 0.0, recording / k, waited / k, wrote / k, (recording - waited - wrote) / k, ready / k);
+            }
+        };
         // One more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.
         // A run calls its argument where its interval starts: a batched decode's after its sequences' prompts.
-        pp_from(clear_times);
+        pp_from([&] { clear_times(); model.trace_stages(true); });
         print_times("pp");
-        tg(clear_times);
+        print_stages("pp");
+        tg([&] { clear_times(); model.stage_times(); });
         print_times(seqs > 1 ? "batched tg" : "tg");
+        print_stages(seqs > 1 ? "batched tg" : "tg");
+        model.trace_stages(false);
 #if LLMX_HAS_BACKEND_VULKAN
         // And what the driver made of each kernel that ran: registers, shared memory and waves per SIMD, where it reports them.
         for (size_t i = 0; i < devices.size(); ++i) {
@@ -1610,7 +1655,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (chat) page
             << "  --system TEXT           System message (default: " << kChatSystem << ")\n";
         page
-            << "  --verbose               Show the prompt token count, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n"
+            << "  --verbose               Show the prompt token count, its slices, progress and execution details" << (chat ? "" : ", and the generated ids") << "\n"
             << "\nSampling options:\n"
             << "  --temp F                Temperature. 0 is greedy (default: " << sampling.temp << ")\n"
             << "  --topk N                Top-k sampling (default: " << sampling.top_k << ")\n"

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -24,6 +25,9 @@ void require(bool ok, const std::string& what) {
     if (!ok) throw std::runtime_error(what);
     ++checks;
 }
+
+// No stage's line at any band, so a lone prompt takes the cut without prices.
+std::vector<infer::StageLine> unpriced_lines(size_t) { return {}; }
 
 constexpr size_t npos = (size_t)-1;
 
@@ -922,8 +926,8 @@ struct Sim {
                     }
                     const size_t at_len = r.len + flying_rows(r);
                     size_t n = std::min({budget, ubatch, r.history() - at_len});
-                    // A lone prompt on a split is cut so every stage reads.
-                    if (active.size() == 1 && queue.empty() && paused.empty()) n = std::min(n, server::lone_slice(r.history() - at_len, S, ubatch));
+                    // Unpriced, a lone prompt on a split is cut so every stage reads and any other takes a ubatch.
+                    n = std::min(n, server::next_slice(at_len, r.history() - at_len, S, unpriced_lines, ubatch, {}, active.size() == 1 && queue.empty() && paused.empty(), true, false));
                     if (cold) n = std::min(n, server::kPieceStep);
                     else if (overlap)
                         for (size_t s = 0; s < v.tables.size(); ++s) n = std::min(n, v.tables[s].chunk_rows(Prices::row_class(r.prompt), server::depth_band(at_len), target, n));
@@ -1463,9 +1467,296 @@ void service_by_hand() {
     require(server::encode_pieces(45, 15) == 3 && server::encode_pieces(45, 16) == 2 && server::encode_pieces(45, 55) == 1 && server::encode_pieces(0, 10) == 1 &&
                 server::encode_pieces(unpriced, 10) == 1 && server::encode_pieces(45, 0) == 1,
             "an encode's pieces beside replies were not the chunk budget's");
-    require(server::lone_slice(768, 2, 256) == 192 && server::lone_slice(300, 2, 256) == 128 && server::lone_slice(4000, 2, 256) == 256 && server::lone_slice(768, 1, 256) == 256 &&
-                server::lone_slice(100, 2, 64) == 64,
-            "a lone prompt's slice was not cut so every stage reads");
+    // Without prices a lone prompt on a split is cut into about 2S slices, at least kSliceFloor rows and at most the cap; one stage takes the cap.
+    const auto one_line = [](size_t) { return std::vector<infer::StageLine>{infer::StageLine{36, 0.3}}; };
+    require(infer::prompt_slice(0, 768, 2, unpriced_lines, 256) == 192 && infer::prompt_slice(0, 300, 2, unpriced_lines, 256) == 128 && infer::prompt_slice(0, 4000, 2, unpriced_lines, 256) == 256 &&
+                infer::prompt_slice(0, 768, 1, unpriced_lines, 256) == 256 && infer::prompt_slice(0, 100, 2, unpriced_lines, 64) == 64 && infer::prompt_slice(0, 100, 1, unpriced_lines, 256) == 100 &&
+                infer::prompt_slice(0, 0, 2, unpriced_lines, 256) == 0 && infer::prompt_slice(0, 768, 2, one_line, 256) == 192,
+            "a lone prompt's slice without prices was not the 2S cut");
+    // Without prices every slice is chosen again on what remains, the scheduler's lone_slice before this owner, over whole prompts.
+    for (size_t S = 2; S <= 5; ++S)
+        for (size_t cap : {64, 256, 1024})
+            for (size_t rows : {1, 127, 128, 300, 2048, 5000, 16384})
+                for (size_t left = rows; left;) {
+                    const size_t old = std::min({left, cap, std::max(std::min<size_t>(128, cap), (left + 2 * S - 1) / (2 * S))});
+                    require(infer::prompt_slice(rows - left, left, S, unpriced_lines, cap) == old, "an unpriced lone prompt's slices were not lone_slice's");
+                    left -= old;
+                }
+    {
+        uint64_t seed = 7;
+        const auto next = [&] { return (seed = seed * 6364136223846793005ull + 1442695040888963407ull) >> 33; };
+        const auto random_line = [&] { return infer::StageLine{1.0 + double(next() % 6000) / 100.0, 0.01 + double(next() % 1000) / 1000.0}; };
+        // The latest finish over every path of the grid from a stage's backlog at the first slice to the last stage at the last slice, each cell a stage's time on a slice.
+        const auto paths = [](const std::vector<std::vector<double>>& t, const std::vector<double>& backlog) {
+            const size_t S = backlog.size(), n = t.size();
+            double most = 0;
+            const std::function<void(size_t, size_t, double)> walk = [&](size_t s, size_t i, double sum) {
+                sum += t[i][s];
+                if (s + 1 == S && i + 1 == n) most = std::max(most, sum);
+                if (s + 1 < S) walk(s + 1, i, sum);
+                if (i + 1 < n) walk(s, i + 1, sum);
+            };
+            for (size_t s = 0; s < S; ++s) walk(s, 0, backlog[s]);
+            return most;
+        };
+        // The stage recurrence equals the path enumeration, for slices of their own sizes and lines after any backlog.
+        for (int k = 0; k < 300; ++k) {
+            const size_t S = 2 + next() % 3, n = 1 + next() % 6;
+            std::vector<double> backlog(S), finish;
+            for (auto& b : backlog) b = double(next() % 5000) / 10.0;
+            finish = backlog;
+            std::vector<std::vector<double>> t(n, std::vector<double>(S));
+            for (size_t i = 0; i < n; ++i) {
+                std::vector<infer::StageLine> lines(S);
+                for (auto& l : lines) l = random_line();
+                const size_t rows = 1 + next() % 1024;
+                for (size_t s = 0; s < S; ++s) t[i][s] = lines[s].at(rows);
+                infer::pipeline_add(finish, lines, rows);
+            }
+            require(std::fabs(finish.back() - paths(t, backlog)) < 1e-9 * (1 + finish.back()), "the stage recurrence was not the pipeline's latest path");
+        }
+        // The slice chosen is the first of the equal cut that finishes first by the path enumeration, of every cut within the cap.
+        for (int k = 0; k < 300; ++k) {
+            const size_t S = 2 + next() % 3, rows = 1 + next() % 24, cap = 1 + next() % 32;
+            std::vector<infer::StageLine> lines(S);
+            for (auto& l : lines) l = random_line();
+            std::vector<double> backlog(S);
+            for (auto& b : backlog) b = next() % 2 ? double(next() % 3000) / 10.0 : 0.0;
+            const auto time = [&](size_t r) {
+                std::vector<std::vector<double>> t;
+                for (size_t at = 0; at < rows; at += r) {
+                    t.emplace_back(S);
+                    for (size_t s = 0; s < S; ++s) t.back()[s] = lines[s].at(std::min(r, rows - at));
+                }
+                return paths(t, backlog);
+            };
+            const size_t r = infer::prompt_slice(0, rows, S, [&](size_t) { return lines; }, cap, backlog);
+            double best = std::numeric_limits<double>::infinity();
+            for (size_t n = (rows + cap - 1) / cap; n <= rows; ++n) best = std::min(best, time((rows + n - 1) / n));
+            require(r >= 1 && r <= cap && r <= rows && time(r) <= best * (1 + 1e-12), "a priced lone prompt's slice was not the fastest equal cut within the cap");
+        }
+        // An increment cap: none is the choice without it, and with one every slice leaves the last stage at most that much after the backlog does and is the fastest such equal cut, or none can and it is the floor slice.
+        for (int k = 0; k < 300; ++k) {
+            const size_t S = 2 + next() % 3, rows = 1 + next() % 3000, cap = 64 + next() % 1024;
+            std::vector<infer::StageLine> lines(S);
+            for (auto& l : lines) l = random_line();
+            std::vector<double> backlog(S);
+            for (auto& b : backlog) b = next() % 2 ? double(next() % 3000) / 10.0 : 0.0;
+            const auto at = [&](size_t) { return lines; };
+            const size_t free = infer::prompt_slice(0, rows, S, at, cap, backlog);
+            require(infer::prompt_slice(0, rows, S, at, cap, backlog, std::numeric_limits<double>::infinity()) == free, "an infinite increment cap changed the slice");
+            const double drain_cap = 20.0 + double(next() % 8000) / 10.0;
+            const auto drain = [&](size_t r) {
+                std::vector<double> f = backlog;
+                infer::pipeline_add(f, lines, r);
+                return f.back() - backlog.back();
+            };
+            const auto total = [&](size_t r) {
+                std::vector<double> f = backlog;
+                for (size_t a = 0; a < rows; a += r) infer::pipeline_add(f, lines, std::min(r, rows - a));
+                return f.back();
+            };
+            const size_t floor = std::min<size_t>({rows, cap, infer::kSliceFloor});
+            double best = std::numeric_limits<double>::infinity();
+            for (size_t n = (rows + cap - 1) / cap; n <= rows; ++n) {
+                const size_t r = (rows + n - 1) / n;
+                if (r >= floor && drain(r) <= drain_cap) best = std::min(best, total(r));
+            }
+            const size_t r = infer::prompt_slice(0, rows, S, at, cap, backlog, drain_cap);
+            if (best < std::numeric_limits<double>::infinity())
+                require(r >= floor && r <= cap && drain(r) <= drain_cap && total(r) <= best * (1 + 1e-12), "a capped slice was not the fastest equal cut within the increment cap");
+            else
+                require(r == floor, "a capped slice that no cut keeps within the increment was not the floor slice");
+            require(infer::prompt_slice(0, rows, S, unpriced_lines, cap, backlog, drain_cap) == infer::prompt_slice(0, rows, S, unpriced_lines, cap), "an increment cap changed the cut without prices");
+        }
+        // The scheduler's slice after the passes in flight (server::next_slice), against the backlog built here.
+        const double gap = server::kMaxStepGapMs, unbounded = std::numeric_limits<double>::infinity();
+        for (int k = 0; k < 300; ++k) {
+            const size_t S = 2 + next() % 3, rows = 1 + next() % 6000, ubatch = 64 + next() % 1024, at = next() % 40000;
+            std::vector<infer::StageLine> lines(S);
+            for (auto& l : lines) l = random_line();
+            const auto at_band = [&](size_t) { return lines; };
+            // A lone prompt's own slices in flight run through its lines, its choice the one it took with the backlog of those slices alone.
+            std::vector<server::InFlight> own;
+            std::vector<double> mine(S, 0.0);
+            for (size_t i = 0, n = next() % 4; i < n; ++i) {
+                own.push_back({next() % S, true, at, 1 + next() % 1024, {}});
+                infer::pipeline_add(mine, lines, own.back().rows, own.back().ran);
+            }
+            require(server::next_slice(at, rows, S, at_band, ubatch, own, true, server::slice_capped(true, SIZE_MAX, rows, ubatch), false) == infer::prompt_slice(at, rows, S, at_band, ubatch, mine, gap),
+                    "a lone prompt's slice was not its choice after its own slices");
+            // Another request's passes at their formation prices: the cut after the whole backlog, its next slice adding at most the cap at the last stage.
+            std::vector<server::InFlight> mixed = own;
+            std::vector<double> all = mine;
+            for (size_t i = 0, n = 1 + next() % 4; i < n; ++i) {
+                server::InFlight f{next() % S, false, 0, 0, std::vector<double>(S)};
+                for (auto& ms : f.predicted) ms = 1.0 + double(next() % 6000) / 10.0;
+                infer::pipeline_run(all, f.predicted, f.ran);
+                mixed.push_back(f);
+            }
+            const size_t r = server::next_slice(at, rows, S, at_band, ubatch, mixed, false, true, false);
+            require(r == infer::prompt_slice(at, rows, S, at_band, ubatch, all, gap), "a prompt's slice beside other passes was not the cut after the whole backlog");
+            std::vector<double> after = all;
+            infer::pipeline_add(after, lines, r);
+            require(r == std::min<size_t>({rows, ubatch, infer::kSliceFloor}) || after.back() - all.back() <= gap, "a prompt's slice beside other passes added more than the cap");
+            // A pass with a stage left unpriced leaves the cut uncapped.
+            mixed.push_back({0, false, 0, 0, std::vector<double>(S, 0.0)});
+            require(server::next_slice(at, rows, S, at_band, ubatch, mixed, false, true, false) == infer::prompt_slice(at, rows, S, at_band, ubatch, all, unbounded),
+                    "a pass unpriced at a stage left a cap on the slice");
+            // One stage takes what it lacks up to a ubatch, as does a prompt that is not lone without a line for every stage.
+            for (const bool capped : {false, true})
+                require(server::next_slice(at, rows, 1, at_band, ubatch, mixed, false, capped, false) == std::min(rows, ubatch) &&
+                            server::next_slice(at, rows, S, unpriced_lines, ubatch, mixed, false, capped, false) == std::min(rows, ubatch) &&
+                            server::next_slice(at, rows, S, unpriced_lines, ubatch, mixed, true, capped, false) == infer::prompt_slice(at, rows, S, unpriced_lines, ubatch),
+                        "one stage or a prompt without prices took another slice");
+            // Nobody waiting behind the slice leaves it uncapped, priced passes in flight or not: the prompt's own cut without other ready prompts, a ubatch beside them, and a capped slice the same either way.
+            mixed.pop_back();
+            require(server::next_slice(at, rows, S, at_band, ubatch, mixed, false, false, false) == infer::prompt_slice(at, rows, S, at_band, ubatch, all, unbounded),
+                    "an uncapped prompt's slice beside other passes was not the cut after the whole backlog without a cap");
+            require(server::next_slice(at, rows, S, at_band, ubatch, mixed, false, false, true) == std::min(rows, ubatch) &&
+                        server::next_slice(at, rows, S, at_band, ubatch, mixed, false, true, true) == server::next_slice(at, rows, S, at_band, ubatch, mixed, false, true, false),
+                    "other ready prompts did not give an uncapped slice a ubatch, or changed a capped one");
+        }
+        // A backlog already past the cap still takes the cut whose slice adds at most the cap, not the floor: four even stages of 20 ms and 0.1 ms a row behind 2 s of passes take 1024 rows.
+        {
+            const std::vector<infer::StageLine> even4(4, infer::StageLine{20, 0.1});
+            const auto even4_at = [&](size_t) { return even4; };
+            const std::vector<server::InFlight> busy{{0, false, 0, 0, {500, 500, 500, 500}}};
+            const size_t r = server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, true, false);
+            require(r > infer::kSliceFloor && r == infer::prompt_slice(0, 4096, 4, even4_at, 1024, {500, 1000, 1500, 2000}), "a backlog past the cap gave the floor slice, not the increment-capped cut");
+        }
+        // Whom the cap serves (server::slice_capped): an arrival admitted at once, or an unread admitted prompt with fewer rows than min(left, ubatch); a reply is the chunk's (chunk_plan).
+        require(server::slice_capped(true, SIZE_MAX, 4096, 1024) && !server::slice_capped(false, SIZE_MAX, 4096, 1024) && server::slice_capped(false, 1023, 4096, 1024) &&
+                    !server::slice_capped(false, 1024, 4096, 1024) && !server::slice_capped(false, 4096, 4096, 1024) && server::slice_capped(false, 299, 300, 1024) &&
+                    !server::slice_capped(false, 300, 300, 1024) && server::slice_capped(true, 4096, 4096, 1024),
+                "the cap did not follow who waits behind a slice");
+        {
+            // Four even stages of 20 ms and 0.5 ms a row behind two other prompts' slices in flight, where a ubatch adds more than the cap at the last stage.
+            const std::vector<infer::StageLine> even4(4, infer::StageLine{20, 0.5});
+            const auto even4_at = [&](size_t) { return even4; };
+            const std::vector<server::InFlight> busy{{0, false, 0, 0, {150, 150, 150, 150}}, {1, false, 0, 0, {150, 150, 150, 150}}};
+            std::vector<double> backlog(4, 0.0);
+            for (const auto& f : busy) infer::pipeline_run(backlog, f.predicted, f.ran);
+            // A lone prompt with a sequence free stays capped, the cut it took before the rule.
+            const size_t lone = server::next_slice(0, 4096, 4, even4_at, 1024, {}, true, server::slice_capped(true, SIZE_MAX, 4096, 1024), false);
+            require(lone == infer::prompt_slice(0, 4096, 4, even4_at, 1024, std::vector<double>(4, 0.0), server::kMaxStepGapMs), "a lone prompt's slice was not the capped cut");
+            // Every sequence held by prompts, the rest queued and no reply: the ubatch cut beside the other prompts' rows, and the prompt's own cut once they are read.
+            const size_t full = server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, server::slice_capped(false, SIZE_MAX, 4096, 1024), true);
+            require(full == 1024, "prompts with nobody waiting behind them took " + std::to_string(full) + " rows, not the ubatch");
+            require(server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, false, false) == infer::prompt_slice(0, 4096, 4, even4_at, 1024, backlog), "a prompt without other ready prompts did not take its own cut");
+            // A newly admitted prompt of fewer rows than the ubatch caps the same backlog until its first slice; one of a ubatch or more, as every newcomer of a queued 4k load, leaves the ubatch, and once it has read a slice it no longer caps.
+            const size_t capped = infer::prompt_slice(0, 4096, 4, even4_at, 1024, backlog, server::kMaxStepGapMs);
+            require(capped < 1024 && server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, server::slice_capped(false, 600, 4096, 1024), true) == capped,
+                    "a short unread newcomer left the slice uncapped beside other ready prompts");
+            require(server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, server::slice_capped(false, 4096, 4096, 1024), true) == 1024 &&
+                        server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, server::slice_capped(false, 1024, 4096, 1024), true) == 1024,
+                    "a newcomer of a ubatch or more capped the slice");
+            require(server::next_slice(0, 4096, 4, even4_at, 1024, busy, false, server::slice_capped(false, SIZE_MAX, 4096, 1024), true) == 1024, "a newcomer that has read its first slice still capped the slice");
+            // One stage reads a ubatch either way.
+            require(server::next_slice(0, 4096, 1, even4_at, 1024, busy, false, false, false) == 1024 && server::next_slice(0, 4096, 1, even4_at, 1024, busy, false, true, false) == 1024 &&
+                        server::next_slice(0, 4096, 1, even4_at, 1024, busy, false, false, true) == 1024 && server::next_slice(0, 4096, 1, even4_at, 1024, busy, false, true, true) == 1024,
+                    "one stage's slice followed the cap");
+        }
+        // A whole prompt's slices chosen one after another, each after the backlog of those before it, as Model::prefill plans them.
+        const auto plan = [](size_t rows, size_t S, const std::vector<infer::StageLine>& lines, size_t cap) {
+            std::vector<size_t> slices;
+            std::vector<double> finish(S, 0.0);
+            for (size_t at = 0; at < rows;) {
+                const size_t n = infer::prompt_slice(at, rows - at, S, [&](size_t) { return lines; }, cap, finish);
+                infer::pipeline_add(finish, lines, n);
+                slices.push_back(n);
+                at += n;
+            }
+            return slices;
+        };
+        // Even lines never take a tail: every slice but the last within a row of the first, and the last no larger.
+        for (int k = 0; k < 300; ++k) {
+            const size_t S = 2 + next() % 4, rows = 256 + next() % 20000, cap = 128 + next() % 1920;
+            const std::vector<size_t> slices = plan(rows, S, std::vector<infer::StageLine>(S, random_line()), cap);
+            for (size_t i = 0; i < slices.size(); ++i)
+                require(slices[i] <= slices[0] && (i + 1 == slices.size() || slices[i] + 1 >= slices[0]), "even lines took a tail");
+        }
+        // A first stage slower than the others with a small fixed cost shrinks the slices toward the end, which shortens the drain: none larger than the first, the last below a quarter of it.
+        const std::vector<infer::StageLine> uneven{{2, 0.5}, {2, 0.25}, {2, 0.25}, {2, 0.25}};
+        const std::vector<size_t> tail = plan(16384, 4, uneven, 1024);
+        require(tail.size() > 2 && *std::max_element(tail.begin(), tail.end()) == tail.front() && tail.back() * 4 < tail.front(), "uneven lines with a small fixed cost took no shrinking tail");
+        // Uneven stages: the slowest stage's line sets the slices after the first, so a slower stage asks for fewer slices than the same stage would at the others' cost.
+        const std::vector<infer::StageLine> even(4, infer::StageLine{36, 0.323}), heavy{{36, 0.323}, {36, 0.323}, {36, 0.323}, {72, 0.323}};
+        const auto even_at = [&](size_t) { return even; };
+        const auto heavy_at = [&](size_t) { return heavy; };
+        require(infer::prompt_slice(0, 2048, 4, even_at, 1024) == 293 && infer::prompt_slice(0, 2048, 4, heavy_at, 1024) == 410 && infer::prompt_slice(0, 2048, 4, even_at, 200) <= 200,
+                "a priced lone prompt's slices did not follow its stages' lines");
+    }
+    // A slice cost line (infer::fit_line): none before two sizes or for a line without a positive fixed cost and cost a row, the line itself through measures on it, and the weighted least-squares line through measures off it.
+    require(!infer::fit_line({{64, 0, 50.0}}) && !infer::fit_line({{64, 0, 50.0}, {64, 0, 60.0}}) && !infer::fit_line({{64, 0, 10.0}, {128, 0, 30.0}}) && !infer::fit_line({{64, 0, 50.0}, {128, 0, 0.0}}) &&
+                std::fabs(infer::fit_line({{256, 0, 30 + 0.3 * 256}, {64, 0, 30 + 0.3 * 64}, {128, 0, 30 + 0.3 * 128}})->row_ms - 0.3) < 1e-12,
+            "a slice cost line was refused or missed measures on one line");
+    {
+        // Stage 0's cells as a queued load measured them on four stages: the 1024-row cell of 7 measures at 1124 ms is the load's first passes, whose stage 0 also paid each fresh request's start, against 300-380 ms at the other stages.
+        // The line through the cells farthest apart read them as 13 ms and 1.09 ms a row; the weighted least-squares line is the closed-form one, near the 29 ms and 0.31 ms of the rest.
+        std::vector<infer::LinePoint> cells{{16, 0, 30.5, 1792}, {32, 0, 33.3, 7},  {64, 0, 46.4, 32},  {80, 0, 54.2, 1},   {128, 0, 70.5, 23},  {144, 0, 73.8, 97},  {160, 0, 76.5, 35}, {176, 0, 79.8, 43},
+                                            {192, 0, 86.2, 3},   {208, 0, 88.7, 2}, {224, 0, 92.8, 1}, {352, 0, 168.6, 1}, {624, 0, 272.9, 1}, {960, 0, 497.6, 28}, {1024, 0, 1123.9, 7}};
+        const auto closed = [](const std::vector<infer::LinePoint>& c) {
+            double w = 0, x = 0, xx = 0, y = 0, xy = 0;
+            for (const auto& q : c) w += q.weight, x += q.weight * q.rows, xx += q.weight * q.rows * q.rows, y += q.weight * q.ms, xy += q.weight * q.rows * q.ms;
+            const double row = (w * xy - x * y) / (w * xx - x * x);
+            return infer::StageLine{(y - row * x) / w, row};
+        };
+        const auto same_line = [](const infer::StageLine& a, const infer::StageLine& b) { return std::fabs(a.fixed_ms - b.fixed_ms) < 1e-9 * b.fixed_ms && std::fabs(a.row_ms - b.row_ms) < 1e-9 * b.row_ms; };
+        const auto l = infer::fit_line(cells);
+        require(l && same_line(*l, closed(cells)) && l->row_ms < 0.7 && l->fixed_ms > 15, "an outlier cell at the far end set the slice cost line, or the line was not the weighted least-squares line");
+        // Remeasured by ubatch slices, as in the load on the stage's other cells, the far cell leaves the line near the rest's.
+        cells.back() = {1024, 0, 349.5, 70};
+        const auto again = infer::fit_line(cells);
+        require(again && same_line(*again, closed(cells)) && again->row_ms < 0.4 && again->fixed_ms > 20, "a remeasured far cell did not bring the slice cost line back");
+        // The weights are the cells' measures: the outlier with as many measures as the rest together pulls the line toward it.
+        cells.back() = {1024, 0, 1123.9, 2200};
+        require(infer::fit_line(cells)->row_ms > l->row_ms, "a cell's measures did not weight the slice cost line");
+    }
+    // A prefill's own prices (infer::SlicePeriods): a least-squares line through every slice's period, with a term for its depth.
+    {
+        // Slices of two sizes at two depths each, measured on 30 ms + 0.2 ms a row + 1e-5 ms a row per token of depth, give that line back, where a line through two of them reads the depth as row cost.
+        infer::SlicePeriods p;
+        require(!p.line(0), "a prefill priced its slices before any was measured");
+        const auto truth = [](size_t r, size_t d) { return 30.0 + double(r) * (0.2 + 1e-5 * double(d)); };
+        p.observe(0, 128, 1000, truth(128, 1000));
+        p.observe(0, 128, 3000, truth(128, 3000));
+        require(!p.line(0), "a prefill priced its slices from one slice size");
+        p.observe(0, 256, 1000, truth(256, 1000));
+        p.observe(0, 256, 3000, truth(256, 3000));
+        const auto l = p.line(0);
+        require(l && std::fabs(l->row_ms - 0.2) < 1e-9 && std::fabs(l->depth_ms - 1e-5) < 1e-12 && std::fabs(l->fixed_ms - 30) < 1e-6 && p.line(2) && std::fabs(p.line(2)->row_ms - 0.2) < 1e-9,
+                "the slice line did not tell row cost from depth cost, or a band above did not take it");
+        require(infer::fit_line({{128, 0, truth(128, 1000)}, {256, 0, truth(256, 3000)}})->row_ms > 0.24, "two slices at different depths did not mislead a line without their depths");
+        // Four even stages each pay 12 ms a slice that the measured period leaves out: the prefills' wall time beyond the prediction raises the fixed cost to the stages' true cost, which then cuts 16k rows into fewer slices.
+        const double hidden = 12;
+        const auto plan = [](size_t rows, const std::vector<infer::StageLine>& lines, std::vector<double>* finish) {
+            std::vector<size_t> slices;
+            std::vector<double> f(lines.size(), 0.0);
+            for (size_t at = 0; at < rows;) {
+                const size_t n = infer::prompt_slice(at, rows - at, lines.size(), [&](size_t) { return lines; }, 1024, f);
+                infer::pipeline_add(f, lines, n, 0, at + n / 2);
+                slices.push_back(n);
+                at += n;
+            }
+            if (finish) *finish = f;
+            return slices;
+        };
+        infer::SlicePeriods q;
+        q.observe(0, 512, 256, 20 + 0.3 * 512);
+        q.observe(0, 1024, 512, 20 + 0.3 * 1024);
+        const std::vector<infer::StageLine> real(4, infer::StageLine{20 + hidden, 0.3});
+        const size_t before = plan(16384, std::vector<infer::StageLine>(4, *q.line(0)), nullptr).size();
+        for (int k = 0; k < 60; ++k) {
+            std::vector<double> predicted;
+            const std::vector<size_t> slices = plan(3000, std::vector<infer::StageLine>(4, *q.line(0)), &predicted);
+            std::vector<double> f(4, 0.0);
+            for (size_t r : slices) infer::pipeline_add(f, real, r);
+            q.calibrate(std::vector<size_t>(slices.size(), 0), f.back() - predicted.back());
+        }
+        const size_t after = plan(16384, std::vector<infer::StageLine>(4, *q.line(0)), nullptr).size();
+        require(std::fabs(q.line(0)->fixed_ms - (20 + hidden)) < 0.1 * hidden && after < before, "the prefills' wall time did not recover a fixed cost the period leaves out, or the slices did not follow it");
+    }
     // A round keeps a pass a stage in flight, and the one more only while prompt rows and replies overlap.
     require(server::passes_in_flight(3, 2, false, 1) == 2 && server::passes_in_flight(3, 2, true, 1) == 3 && server::passes_in_flight(1, 1, false, 0) == 1 && server::passes_in_flight(5, 4, false, 0) == 4 &&
                 server::passes_in_flight(2, 4, false, 0) == 2 && server::passes_in_flight(4, 2, true, 1) == 3 && server::passes_in_flight(2, 2, true, 1) == 2 && server::passes_in_flight(6, 2, true, 2) == 4,

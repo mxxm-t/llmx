@@ -210,7 +210,7 @@ delegated to a `backend::Backend`.
     decode kernels and gives the bits single steps give; with `argmax` (draws that are `infer::plain_argmax`) the rows stay on an output device that can hold them and it returns null, `argmax_id(i)` giving each row's id and `logits(i)` a row read back; the rows stay
     valid until the next pass. `mark()`, `keep()` and `retract(length)` act on the
     model's own sequence.
-  - `prefill(ids) -> logits`: the prompt in chunks of `ubatch()` tokens, one
+  - `prefill(ids) -> logits`: the prompt in chunks of at most `ubatch()` tokens, one
     entry per chunk, inside one backend prefill scope, so each weight row is
     read once per chunk instead of once per token. Only the last chunk asks
     for logits. The prompt is one transaction across its chunks. Over more
@@ -230,8 +230,8 @@ delegated to a `backend::Backend`.
     length, which a chunk commits first. That needs the embedding on the first stage's
     device, the head on the last's and every feed-forward block beside its
     mixer, as every fitted split has; any other placement runs its
-    chunks one pass at a time. Chunks are the ubatch either way, so a split
-    computes what one device does.
+    chunks one pass at a time, each a ubatch. A pipelined prompt's chunks are slices that `prompt_slice` chooses one after another, each after the backlog of those before it, at the periods `run_chunks` measured for each slice of earlier prompts and their fixed costs calibrated by those prompts' wall times ([slicing](model-slicing.md)), and `prefill_slices()` says how many the last prompt took; every chunk carries the prompt's extent, so a split and any slicing compute what one device does.
+  - `trace_stages(on)` / `stage_times()`: while on, each stage recorded keeps its host times (`StageTime`): when its recording started and ended, and inside it the wait for the residual's sending submission and the write of the rows into its device, which `receive` measures; `bench --profile` prints them by stage.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`
     for every position. This is the batched path perplexity scores through.

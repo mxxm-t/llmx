@@ -168,7 +168,9 @@ inline void VulkanBackend::copy(Buffer& dst_b, size_t dst_off, const Buffer& src
         order_step(cmd, uses, 2);
     }
     VkBufferCopy region{src_off, dst_off, bytes};
+    if (dev_->timestamps) stamp_before(cmd);
     dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), dst.handle(), 1, &region);
+    if (dev_->timestamps) stamp_after(cmd, kTimedCopy);
     if (!unordered_) barrier(cmd);
 }
 
@@ -305,7 +307,9 @@ inline void VulkanBackend::upload(VulkanBuffer& dst, size_t off, const void* src
         if (keep) pending_[ring_index_].push_back(keep);
         barrier(cmd);
         VkBufferCopy region{i * half, off + done, n};
+        if (dev_->timestamps) stamp_before(cmd);
         dev_->fn.vkCmdCopyBuffer(cmd, st.handle(), dst.handle(), 1, &region);
+        if (dev_->timestamps) stamp_after(cmd, kTimedUpload);
         barrier(cmd);
         staged_[i] = flush();
         done += n;

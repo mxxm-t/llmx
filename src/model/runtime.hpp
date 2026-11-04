@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include <utility>
 #include <string>
 #include <stdexcept>
 #include <limits>
@@ -24,6 +25,7 @@
 #include "model/architecture.hpp"
 #include "model/kv_cache.hpp"
 #include "model/layer_split.hpp"
+#include "model/slicing.hpp"
 #include "model/shard.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 
@@ -263,6 +265,7 @@ struct Pass {
     backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
     size_t sent_at = 0;                                // the device `sent` is on
     mutable double lookup_ms = 0, sum_ms = 0;          // the last stage recorded: the host's waits for its lookup rows and in its tensor-group sums
+    double receive_ms = 0, write_ms = 0;               // the last stage recorded: the host's wait for the residual's sending submission and its write of the rows into this stage's device
     std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
@@ -867,6 +870,18 @@ public:
         const Pass& p = in_flight(ctx, slot);
         return {p.lookup_ms, p.sum_ms};
     }
+    // A recorded stage's host times while tracing (bench --profile), in milliseconds from the trace's start: its recording's start and end, and inside it the wait for the residual's sender and the write into its device.
+    struct StageTime {
+        size_t stage = 0, rows = 0;
+        double start = 0, receive_ms = 0, write_ms = 0, end = 0;
+    };
+    // Starts or stops keeping each recorded stage's times; stage_times hands over those kept since the last call.
+    void trace_stages(bool on) { trace_ = on ? std::make_unique<StageTrace>() : nullptr; }
+    std::vector<StageTime> stage_times() {
+        if (!trace_) return {};
+        std::lock_guard<std::mutex> lk(trace_->m);
+        return std::exchange(trace_->times, {});
+    }
     void commit_pass_stage(ExecContext& ctx, size_t slot);
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
@@ -1051,16 +1066,29 @@ public:
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch.
             // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
-            // Chunks of the ubatch, one cut short to end at `keep_at`.
-            const size_t B = (size_t)ubatch(), cut = keep_at > start ? keep_at - start : 0;
+            // Slices of at most the ubatch, on a pipelined split each chosen by prompt_slice at the prefill's own measured period (SlicePeriods) after the slices before it, one cut short to end at `keep_at`.
+            const size_t B = (size_t)ubatch(), cut = keep_at > start ? keep_at - start : 0, S = pipelined_ ? stages_.size() : 1;
             std::vector<std::pair<size_t, size_t>> parts;
+            const auto lines = [&](size_t band) {
+                std::vector<StageLine> l;
+                if (const auto line = periods_.line(band)) l.assign(S, *line);
+                return l;
+            };
+            std::vector<double> finish(S, 0.0);
+            bool priced = S > 1;
             for (size_t i = 0; i < ids.size();) {
-                size_t n = std::min(B, ids.size() - i);
+                size_t n = prompt_slice(start + i, ids.size() - i, S, lines, B, finish);
                 if (cut > i && cut < i + n) n = cut - i;
+                if (S > 1) {
+                    const auto l = lines(depth_band(start + i));
+                    if (!l.empty()) pipeline_add(finish, l, n, 0, start + i + n / 2);
+                    priced = priced && !l.empty();
+                }
                 parts.push_back({i, n});
                 i += n;
             }
             const size_t chunks = parts.size();
+            prefill_slices_ = chunks;
             auto chunk = [&](size_t c) {
                 const size_t i = parts[c].first, n = parts[c].second;
                 BatchEntry entry{&seq_, ids.data() + i, n, i + n == ids.size()};
@@ -1075,7 +1103,17 @@ public:
                 }
                 return;
             }
-            run_chunks(ctx_, chunks, chunk);
+            const auto began = std::chrono::steady_clock::now();
+            const auto done = run_chunks(ctx_, chunks, chunk);
+            // Each slice after the first is measured by the last stage's interval since the one before it, and a priced prefill's wall time beyond its predicted finish calibrates the fixed costs.
+            const auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+            std::vector<size_t> bands(chunks);
+            for (size_t c = 0; c < chunks; ++c) {
+                const size_t at = start + parts[c].first, n = parts[c].second;
+                bands[c] = depth_band(at);
+                if (c) periods_.observe(bands[c], n, at + n / 2, ms(done[c - 1], done[c]));
+            }
+            if (priced) periods_.calibrate(bands, ms(began, done.back()) - finish.back());
         };
         try {
             scoped(0, work);
@@ -1086,6 +1124,9 @@ public:
         }
         return row(ctx_, 0);
     }
+
+    // The slices the last prefill cut its prompt into, which its own measured prices choose on a pipelined split (prompt_slice), so a timing says which slicing it ran.
+    size_t prefill_slices() const { return prefill_slices_; }
 
     // Every position's logits for a text from an empty history, through the batched passes prefill takes, handed to `each` as (position, logits) a microbatch at a time.
     // Scoring through this rather than step exercises the prompt path, whose kernels differ from the decode path's on a device (inference/perplexity.hpp).
@@ -1262,6 +1303,15 @@ private:
     std::vector<uint32_t> token_tails_, marked_tokens_; // host IDs indexed by the existing state slot and mark buffer IDs
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
+    SlicePeriods periods_;                       // the pipelined prefill's measured stage periods, which its slicing reads
+    size_t prefill_slices_ = 0;                  // the slices the last prefill ran
+    // The stages' times kept while tracing (trace_stages), each stage's thread appending its own.
+    struct StageTrace {
+        std::mutex m;
+        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+        std::vector<StageTime> times;
+    };
+    std::unique_ptr<StageTrace> trace_;
     int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
     std::shared_ptr<const Architecture> arch_;
@@ -1457,7 +1507,7 @@ private:
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void prepare_stage(Pass& p, size_t s);
     void record_stage(ExecContext& ctx, Pass& p, size_t s);
-    void run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk);
+    std::vector<std::chrono::steady_clock::time_point> run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk);
     void single_prepare(Pass& p, size_t s);
     void start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l);
     void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
@@ -1478,7 +1528,7 @@ private:
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers);
     bool argmax_buffers(ExecContext& ctx, size_t end);
     void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows);
-    void receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
+    std::pair<double, double> receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
     Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs) const;

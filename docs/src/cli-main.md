@@ -80,8 +80,8 @@ Commands and their entry points:
   repeats of `pp N` and `tg N`, model time only, `--seqs N` for decode
   passes carrying one token of each of N sequences, `--depth N` for tests
   run on top of an N-token history filled outside the timer, `--profile`
-  for device time per kernel and the driver's statistics of each kernel
-  (registers, occupancy) where it reports them.
+  for device time per kernel, copies, idle and each stage's recordings (`Model::trace_stages`), and the driver's statistics of each kernel
+  (registers, occupancy) where it reports them; after `pp` it prints the slices each timed prompt took (`Model::prefill_slices`).
   Its branch refuses `--profile` unless every device `--device` lists is a Vulkan one, before any model is opened, and a profile prints each listed device's times apart.
   With `--drafter` it also times the rollback and, at each draft count up to `--draft-max`, a chain (asked of `infer::spec::Embedded` over the history, as `generate` asks it) and the verify after it (`Model::step` on a mark), which a profile reads by kernel in one more round.
   Every test starts from a cleared history, batched decode included, so the last prompt's blocks are back in the pool before its sequences take theirs.

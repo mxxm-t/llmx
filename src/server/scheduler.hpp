@@ -1017,6 +1017,45 @@ private:
         for (size_t s = 0; s < model_.stage_count(); ++s) n = std::min(n, record_.chunk_rows(s, cls, band, budget_ms, ubatch_));
         return n;
     }
+    // A prompt's next slice on a split when it has `left` rows to read (next_slice): each stage's price line is its class's at a slice's band, its own slices in flight run through those lines and every other pass at its formation price.
+    size_t slice_rows(Request& r, size_t left, bool alone, bool capped, bool others_ready) {
+        const size_t at = r.seq_.length(), cls = class_id(class_at(r.classes_, at).extent), S = model_.stage_count();
+        // Each band's lines are fitted once for this slice, whoever reads them.
+        std::map<size_t, std::vector<infer::StageLine>> fitted;
+        const auto lines = [&](size_t band) {
+            const auto [it, fresh] = fitted.try_emplace(band);
+            if (fresh)
+                for (size_t s = 0; s < S; ++s) {
+                    const auto line = record_.chunk_line(s, cls, band);
+                    if (!line) {
+                        it->second.clear();
+                        break;
+                    }
+                    it->second.push_back(*line);
+                }
+            return it->second;
+        };
+        std::vector<std::pair<uint64_t, size_t>> order;
+        for (size_t k = 0; k < slots_.size(); ++k)
+            if (slots_[k].live) order.push_back({slots_[k].formed, k});
+        std::sort(order.begin(), order.end());
+        std::vector<InFlight> flying;
+        for (const auto& fk : order) {
+            const Slot& f = slots_[fk.second];
+            const bool own = std::all_of(f.members.begin(), f.members.end(), [&](const std::shared_ptr<Request>& m) { return m.get() == &r; });
+            if (own)
+                for (size_t e = 0; e < f.members.size(); ++e) flying.push_back({f.ran, true, f.from[e], f.rows[e], {}});
+            else
+                flying.push_back({f.ran, false, 0, 0, f.predicted});
+        }
+        const size_t n = next_slice(at, left, S, lines, ubatch_, flying, alone, capped, others_ready);
+        const bool priced = S > 1 && !lines(depth_band(at + left / 2)).empty();
+        if (S > 1 && int(priced) != slices_priced_) {
+            slices_priced_ = priced;
+            std::fprintf(stderr, "server: prompt slices on a split are %s\n", priced ? "priced by every stage's line" : "the cut without prices");
+        }
+        return n;
+    }
     // The round's new passes by the service rule, one in each free slot while a request is ready.
     // While both wait, on a split the replies go in the plan's passes and each other slot takes one prompt's chunk; on one pass in flight the chunk rides the replies' pass.
     void form_round(std::vector<std::shared_ptr<Request>>& active, std::vector<std::pair<size_t, size_t>>& host) {
@@ -1163,6 +1202,16 @@ private:
             company = !queue_.empty() || !paused_.empty();
         }
         const bool alone = active.size() == 1 && !active[0]->job_ && !company;
+        // Who would wait behind a capped slice (slice_capped): an arrival admitted at once, or the fewest rows an admitted prompt yet to read a slice has left; and whether another admitted prompt has rows left (next_slice).
+        const auto replying = [&](const Request& o) { return !o.gen_.empty() && o.seq_.length() + 1 >= history_tokens(o); };
+        const bool admission_open = active.size() < max_seqs_ && !company;
+        const auto other_prompts = [&](const Request& r, bool unread) {
+            size_t fewest = SIZE_MAX;
+            for (const auto& o : active)
+                if (o.get() != &r && !o->job_ && !replying(*o) && (!unread || o->rows_at_ == Clock::time_point{}) && o->seq_.length() < history_tokens(*o))
+                    fewest = std::min(fewest, history_tokens(*o) - o->seq_.length());
+            return fewest;
+        };
         const std::vector<std::shared_ptr<Request>> only_quick = rows == Rows::quick ? std::vector<std::shared_ptr<Request>>{plan.quick} : std::vector<std::shared_ptr<Request>>{};
         for (const auto& r : rows == Rows::quick ? only_quick : plan.order) {
             if (!budget) break;
@@ -1193,8 +1242,10 @@ private:
             }
             const size_t before = entries_.size();
             // Until the replies' pass is priced a chunk is one small step.
-            // A lone prompt on a split is cut so every stage reads; otherwise a ubatch, and beside replies the service rule's chunk.
-            const size_t most = alone ? lone_slice(history_tokens(*r) - r->seq_.length(), model_.stage_count(), ubatch_) : ubatch_;
+            // Beside replies the service rule's chunk; otherwise on a split the slice next_slice cuts after the passes in flight, which a lone prompt without prices takes as the cut that keeps every stage reading.
+            const size_t left = history_tokens(*r) - r->seq_.length();
+            const bool capped = slice_capped(admission_open, other_prompts(*r, true), left, ubatch_), others_ready = other_prompts(*r, false) != SIZE_MAX;
+            const size_t most = plan.overlap ? ubatch_ : slice_rows(*r, left, alone, capped, others_ready);
             // The quick prompt rides whole, or as the learning step while its price is not yet known.
             const size_t chunk = rows == Rows::quick ? plan.quick_rows : plan.priced ? chunk_rows(*r, plan.budget_ms) : kPieceStep;
             slice(r, std::min(budget, plan.overlap ? chunk : most));
@@ -2581,6 +2632,7 @@ private:
     std::atomic<uint64_t> finished_{0}, prompt_total_{0}, generated_total_{0};   // what Stats gives as the totals since start
     std::atomic<uint64_t> prefilled_total_{0}, published_total_{0};
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
+    int slices_priced_ = -1;                                                     // whether the last prompt slice on a split was priced (slice_rows), -1 before any
     std::atomic<uint64_t> continued_{0};                                         // Stats::continued
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock
     // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.

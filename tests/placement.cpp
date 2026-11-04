@@ -1,5 +1,6 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
+#include <set>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -838,28 +839,63 @@ void pipelined_matches_single(bool devices) {
     }
 }
 
+// A prompt cut into other slices gives the same bits: on each split, with backends playing devices, the prompt at ubatch 3 to 13 and again at 3, each from an empty history, and the step after it, against one backend reading it whole.
+// The prefills measure their own periods as they go, so later ones may take priced slices (infer::prompt_slice); each slicing is one the slice count says, and every one is exact.
+void pipelined_slicings_match() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    auto one = std::make_shared<backend::CpuBackend>();
+    one->set_threads(1);
+    infer::Model single(infer::gguf_weights(weights), one);
+    single.set_ubatch((int)kPrompt.size());
+    const std::vector<float> whole = single.prefill(kPrompt), after = step_row(single, 7);
+    require(single.prefill_slices() == 1, "one backend did not read the prompt in one slice");
+    for (const PipelinedSplit& ps : kPipelined) {
+        std::vector<backend::BackendPtr> cpus;
+        for (size_t i = 0; i < ps.shares.size(); ++i) {
+            auto b = std::make_shared<FailingCpu>();
+            b->plays_device = true;
+            cpus.push_back(b);
+        }
+        infer::PlacedModel placed = pipelined(weights, cpus, ps.shares);
+        infer::Model& split = *placed.model;
+        std::set<size_t> counts;
+        for (int ub : {3, 4, 5, 6, 8, 13, 3}) {
+            split.reset();
+            split.set_ubatch(ub);
+            exact(whole, split.prefill(kPrompt), "a pipelined prompt cut into other slices differs from one backend");
+            exact(after, step_row(split, 7), "a step after a pipelined prompt cut into other slices differs from one backend");
+            const size_t n = split.prefill_slices();
+            require(n >= (kPrompt.size() + (size_t)ub - 1) / (size_t)ub && n <= kPrompt.size(), "a pipelined prompt's slices passed the ubatch");
+            counts.insert(n);
+            checked += 2;
+        }
+        require(counts.size() > 1, "the pipelined prompt was read in one slicing only");
+    }
+}
+
 // A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk.
 // Every storage must be back at the history and the same prompt again exact; with backends playing devices the last stage fails on its own thread, the first stage then at the failing chunk at least.
 void pipelined_failure_rolls_back(bool devices) {
     const auto weights = tiny_qwen(3, 2 * 128, true);
-    for (const PipelinedSplit& ps : kPipelined) {
-        auto plain = std::make_shared<backend::CpuBackend>();
-        plain->set_threads(1);
-        infer::Model control(infer::gguf_weights(weights), plain);
-        control.set_ubatch(3);
-        std::vector<std::shared_ptr<FailingCpu>> stages;
-        for (size_t i = 0; i < ps.shares.size(); ++i) {
-            stages.push_back(std::make_shared<FailingCpu>());
-            stages.back()->plays_device = devices;
-        }
-        infer::PlacedModel placed = pipelined(weights, std::vector<backend::BackendPtr>(stages.begin(), stages.end()), ps.shares);
-        infer::Model& split = *placed.model;
-        FailingCpu& first = *stages.front();
-        FailingCpu& last = *stages.back();
-        const std::vector<uint32_t> history{2, 7, 1, 8};
-        exact(control.prefill(history), split.prefill(history), "history before a failure differs from one device");
-
+    for (const PipelinedSplit& ps : kPipelined)
+        // Each failure on fresh models, so the prompt is read in the slices of the ubatch before any prefill has measured its periods.
         for (bool at_head : {false, true}) {
+            auto plain = std::make_shared<backend::CpuBackend>();
+            plain->set_threads(1);
+            infer::Model control(infer::gguf_weights(weights), plain);
+            control.set_ubatch(3);
+            std::vector<std::shared_ptr<FailingCpu>> stages;
+            for (size_t i = 0; i < ps.shares.size(); ++i) {
+                stages.push_back(std::make_shared<FailingCpu>());
+                stages.back()->plays_device = devices;
+            }
+            infer::PlacedModel placed = pipelined(weights, std::vector<backend::BackendPtr>(stages.begin(), stages.end()), ps.shares);
+            infer::Model& split = *placed.model;
+            FailingCpu& first = *stages.front();
+            FailingCpu& last = *stages.back();
+            const std::vector<uint32_t> history{2, 7, 1, 8};
+            exact(control.prefill(history), split.prefill(history), "history before a failure differs from one device");
+
             const size_t before = (size_t)split.n_tokens(), used = split.kv_used_bytes();
             for (auto& s : stages) s->histories.clear();
             if (at_head)
@@ -878,11 +914,9 @@ void pipelined_failure_rolls_back(bool devices) {
             exact(control.prefill(kPrompt), split.prefill(kPrompt), "a pipelined prompt after a failure differs from one device");
             for (auto& s : stages)
                 require(!s->histories.empty() && s->histories.front() == before, "a storage kept tokens of a failed pipelined prompt");
-            checked += 2;
+            exact(step_row(control, 5), step_row(split, 5), "a step after the retried prompt differs from one device");
+            checked += 3;
         }
-        exact(step_row(control, 5), step_row(split, 5), "a step after the retried prompts differs from one device");
-        ++checked;
-    }
 }
 
 // A request's histories (PlacementRequest::histories) grow the cache budget only where it cannot hold them, each in whole blocks up to the context: the fixture's context is two CPU blocks.
@@ -2210,6 +2244,7 @@ int main() {
             pipelined_matches_single(devices);
             pipelined_failure_rolls_back(devices);
         }
+        pipelined_slicings_match();
         replay_over_stages();
         passes_refused();
         passes_continue();

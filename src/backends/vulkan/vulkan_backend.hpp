@@ -54,4 +54,7 @@ std::vector<std::pair<std::string, std::vector<bool>>> vulkan_kernel_writes();
 // How many dispatches the last reading covered. The query pool bounds it, so a long interval is sampled from its first dispatches.
 size_t vulkan_timed_dispatches(const Backend& backend);
 
+// The last reading's device time between each timed op's end and the next one's start, copies included, in milliseconds, 0 where they overlap.
+std::vector<double> vulkan_timed_gaps(const Backend& backend);
+
 } // namespace backend

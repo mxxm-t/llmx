@@ -17,6 +17,7 @@
 #include <vector>
 #include "backends/backend.hpp"
 #include "inference/spec.hpp"
+#include "model/slicing.hpp"
 
 namespace server {
 
@@ -370,13 +371,8 @@ inline double forget(double old, double now) { return old > 0 ? kCostKeep * old 
 // The time a segment of a turn-end write may take beside prompts (Cache::flush_one), 50 ms, and the step a prompt's slices are measured and cut in (PriceTable).
 inline constexpr double kPieceMs = 50;
 inline constexpr size_t kPieceStep = 16;
-// The depth band of rows read at history position `depth` (docs/SERVER.md, The price table): 0 below kBandTokens, then one band a doubling, so 4k to 8k tokens is band 1 and 128k to 256k band 6.
-inline constexpr size_t kBandTokens = 4096;
-inline size_t depth_band(size_t depth) {
-    size_t b = 0;
-    for (size_t d = depth / kBandTokens; d; d >>= 1) ++b;
-    return b;
-}
+using infer::depth_band;
+using infer::kBandTokens;
 
 // A pass's work at a stage as the price table keys it: its rows of extent 1 (decode entries, verifies and a resume's recomputed tokens) with the band of the deepest, and each prompt slice by its row class, band and rows.
 struct PassWork {
@@ -549,6 +545,16 @@ struct PriceTable {
             if (it->second.last_ms <= target_ms && (!b.hi || std::get<2>(it->first) < b.hi)) b.lo = std::get<2>(it->first);
         return b;
     }
+    // The cost line of class `cls`'s slices in band `band`, the least-squares line through its measured cells weighted by their measures (infer::fit_line), else the nearest band below's; none before two sizes are measured.
+    std::optional<infer::StageLine> chunk_line(size_t cls, size_t band) const {
+        for (size_t b = band + 1; b-- > 0;) {
+            std::vector<infer::LinePoint> points;
+            for (auto it = chunks.lower_bound({cls, b, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == b; ++it)
+                points.push_back({(double)std::get<2>(it->first), 0.0, it->second.ms, (double)it->second.samples});
+            if (const auto line = infer::fit_line(points)) return line;
+        }
+        return std::nullopt;
+    }
     // The rows of the next slice of class `cls` in band `band` within `target_ms`, at most `most`: the search over the measured cells (docs/SERVER.md, The price table).
     size_t chunk_rows(size_t cls, size_t band, double target_ms, size_t most) const {
         const Bracket b = bracket(cls, band, target_ms);
@@ -576,6 +582,35 @@ struct PriceTable {
 inline constexpr double kReplyTokensPerSecond = 8;
 // The longest a reply's steps may lie apart while prompt work waits, however many tokens a step brings, so a drafting reply is delivered without long pauses; a reader's property, not the hardware's.
 inline constexpr double kMaxStepGapMs = 500;
+// A pass in flight as a prompt's next slice queues behind it (next_slice): the first stage it has not recorded, and the request's own slice by its start and rows, or another pass by its formation price a stage (0 where unpriced).
+struct InFlight {
+    size_t ran = 0;
+    bool own = false;
+    size_t from = 0, rows = 0;
+    std::vector<double> predicted;
+};
+// Whether a prompt's next slice is held to kMaxStepGapMs: while an arrival would be admitted at once, or an admitted prompt yet to read a slice has fewer rows left (`newcomer_rows`, SIZE_MAX without one) than min(left, ubatch).
+// A reply's bound is the service rule's chunk (chunk_plan), not this cap (docs/SERVER.md, The service rule).
+inline bool slice_capped(bool admission_open, size_t newcomer_rows, size_t left, size_t ubatch) { return admission_open || newcomer_rows < std::min(left, ubatch); }
+// A prompt's next slice on a split (infer::prompt_slice): the fastest equal cut after the passes in flight, at most kMaxStepGapMs more at the last stage when `capped` (slice_capped) and every pass in flight is priced.
+// Uncapped beside other ready prompts (`others_ready`), or not alone without a line for every stage, it is a ubatch (docs/src/model-slicing.md).
+template <class Lines>
+size_t next_slice(size_t at, size_t left, size_t stages, const Lines& lines, size_t ubatch, const std::vector<InFlight>& flying, bool alone, bool capped, bool others_ready) {
+    if (stages < 2 || (!capped && others_ready) || (!alone && lines(depth_band(at + left / 2)).size() != stages)) return std::min(left, ubatch);
+    std::vector<double> backlog(stages, 0.0);
+    double cap = capped ? kMaxStepGapMs : std::numeric_limits<double>::infinity();
+    for (const InFlight& f : flying) {
+        if (f.own) {
+            const auto l = lines(depth_band(f.from));
+            if (l.size() == stages) infer::pipeline_add(backlog, l, f.rows, f.ran);
+        } else if (f.predicted.size() == stages && std::all_of(f.predicted.begin() + (std::ptrdiff_t)std::min(f.ran, stages), f.predicted.end(), [](double ms) { return ms > 0; })) {
+            infer::pipeline_run(backlog, f.predicted, f.ran);
+        } else {
+            cap = std::numeric_limits<double>::infinity();
+        }
+    }
+    return infer::prompt_slice(at, left, stages, lines, ubatch, backlog, cap);
+}
 // A reply's tokens a step over its last kSteps steps, a verify's kept drafts and its pick or one decoded token; 1 until it has that many, so one lucky verify cannot widen the gap.
 class StepTokens {
 public:
@@ -616,13 +651,6 @@ inline size_t encode_pieces(double budget_ms, double piece_ms) {
 }
 // How long a ready prompt goes without rows at most before it reads first, the bound of least-remaining-first (Share::wait_ms) the replays chose (docs/SERVER.md, Prompt shares).
 inline constexpr double kPromptWaitMs = 10000;
-// A lone prompt's next slice on `stages` stages when it lacks `waiting` rows: about a 2 * stages-th of them, at least 128 rows and at most a ubatch.
-// So every stage of a split has a slice to read while the prompt is the only work; on one stage a ubatch.
-inline size_t lone_slice(size_t waiting, size_t stages, size_t ubatch) {
-    if (stages < 2) return ubatch;
-    const size_t cut = (waiting + 2 * stages - 1) / (2 * stages);
-    return std::min(ubatch, std::max(std::min<size_t>(128, ubatch), cut));
-}
 // Whether a prompt is quick while the reply objective is unmet: its whole remaining cost and the replies-only pass fit within the step gap's cap by the measured prices.
 // A quick prompt runs whole in a pass shared with the replies, at most every other replies' pass, shortest first, so a newcomer never waits the wait bound and no reply step lies further apart than the cap.
 inline bool quick_prompt(double remaining_ms, double replies_ms) { return remaining_ms > 0 && remaining_ms + replies_ms <= kMaxStepGapMs; }

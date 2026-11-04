@@ -129,6 +129,65 @@ Publication note, 2026-11-04: this change is now on main at `840b96ec7`; hosted 
 - **Left:** CTest and the device suite on an MI50 at the landing head, and the hosted run.
   `backend-vulkan --isa` already fails on main on Q2_0's two-row builds, which this branch does not cause.
 
+## Pipelined prompts: one slicing owner and the stage crossings measured (2026-11-04, PDEV2 to PDEV15, Done, lands by fast-forward on main 2c463d721; PDEV's proposal of 2026-11-03 16:45 with F2DEV's reviews of 16:46, 21:15, 03:55, 05:03, 2026-11-04 16:39, 18:18 and the LAND ruling of 21:02)
+
+**Goal:** a prompt's slices on a layer split chosen by one pure function in `model/` (`infer::prompt_slice`) from what remains, the stages' measured cost lines and what is in flight, for `Model::prefill` and the scheduler alike, and the per-chunk stage overhead of the pipelined prefill measured (B).
+**Done:** step B measured (devlog RESULT 2026-11-03 17:04): stage 0 is the pipeline's clock and a crossing costs ~1.5 ms a slice, so no device-side handoff is proposed.
+`src/model/slicing.hpp` owns the slicing; `Model::prefill` plans each slice after the backlog of those before it, and the scheduler's `server::next_slice` cuts every prompt slice on a split after the passes in flight, its increment at the last stage capped by `kMaxStepGapMs` beside other requests, which changes main's path for prompts that are not alone.
+`SlicePeriods` (F2DEV 05:03): every slice is one measure under the band `prompt_slice` reads, a band's line is a least-squares fit of fixed, row and row-by-depth costs, and each priced prefill's wall time beyond the recurrence's prediction calibrates the fixed cost, which the bottleneck period leaves out; before it the line's fixed cost was a fraction of the real one, so 16k prompts took 24-32 slices and layer-4 pp16384 at d16384 lost 2.5% (PDEV4, 05:01).
+Checks at the candidate: server-passes with the new `SlicePeriods` tests, CTest (placement's failure test now on fresh models, since a prefill prices its slices sooner), the CPU suite, docs and dead-code.
+PDEV11's (c) diagnosis and F2DEV's review of 2026-11-04 16:39 (PDEV12): an uncapped slice beside other ready prompts, admitted prompts with rows left (`others_ready`), is a ubatch, main's cut in a queued load, and alone the prompt's own cut; the capped path is unchanged.
+A stage's cost line is `infer::fit_line`, the one least-squares fitter, which `SlicePeriods` also uses, weighted by each cell's measures, in place of the line through the two cells farthest apart: in PDEV11's queued layer-4 run stage 0's 1024-row cell (7 measures, 1124 ms) came from the load's first nine passes, where stage 0 took 1013-2252 ms beside 300-380 ms at stages 1-3, and set the line to 13 ms and 1.09 ms a row against about 29 ms and 0.31 ms.
+F2DEV's review of 2026-11-04 18:18 (PDEV13): the cap serves only an arrival admitted at once and an unread admitted prompt with fewer rows left than the slice it would wait behind, min(left, ubatch), least remaining first (`slice_capped`); a reply decoding no longer caps, since a slice there is reached only while no reply waits beside a prompt and the reply's bound is the service rule's chunk (`chunk_plan`).
+
+**Measured** (PDEV13 and PDEV14, devlog RESULT 2026-11-04 20:44 and NOTE 20:45, F2DEV's LAND ruling of 21:02): Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s at production's serve flags, layer-4 (`--layer-shares 1,1,1,1`) and 2x2, a fresh server a run, M = main 840b96ec7, B = b11819054 (the earlier cap), N = db7c32e1c (this change with a measurement-only slice-path log, removed here), each built the same way from its own worktree, run order M-B-N-N-B-M for (c) and (a) and M then N for (b), at default clocks, cards held by cardlock; no GPU fault in dmesg.
+
+| (c) 8 users x 4k prompts, 16 out | M tok/s | B tok/s | N tok/s | N vs M | TTFT p50 ms, M / B / N |
+| --- | --- | --- | --- | --- | --- |
+| layer-4 | 1138.9, 1169.0 | 948.3, 1007.8 | 1180.5, 1143.0 | +0.7% | 24019, 23622 / 31833, 28430 / 23742, 24083 |
+| 2x2 | 907.8, 915.1 | 833.4, 858.0 | 928.4, 890.0 | -0.3% | 31867, 31722 / 35549, 34475 / 30802, 31982 |
+
+N's slice paths in (c): layer-4 capped 16 and 14 slices (median 264 and 341 rows), chunk 1251 and 1243 (median 16), ubatch 148 and 150 (median 960); 2x2 capped 23 and 27 (median 228 and 348), chunk 929 and 927, ubatch 177 and 173, own 1; every slice but the capped ones, the tail's last prompts read with admission open, is main's cut.
+
+(a) keyed newcomers, a 16k long request with newcomers of 256 tokens arriving mid-prompt (A), during replies (B) and after them (C), two seeds a run; TTFT p50 ms per seed, and the long request's own TTFT:
+
+| (a) | run 1, seed 3: A / B / long | run 1, seed 4: A / B / long | run 2, seed 3 | run 2, seed 4 | pooled n=20 p50 / p90 / max |
+| --- | --- | --- | --- | --- | --- |
+| layer-4 M | 3714 / 1889 / 25291 | 3610 / 1641 / 13475 | 3476 / 1992 / 24492 | 3195 / 1525 / 10889 | 1962 / 3621 / 3714 |
+| layer-4 B | 3286 / 1881 / 23783 | 1690 / 887 / 18466 | 3480 / 1921 / 24549 | 1523 / 869 / 18977 | 1700 / 3306 / 3480 |
+| layer-4 N | 3612 / 1910 / 24256 | 1460 / 874 / 18973 | 3394 / 2103 / 23591 | 1388 / 818 / 18939 | 1685 / 3416 / 3612 |
+| 2x2 M | 3407 / 1554 / 31746 | 2407 / 1671 / 26585 | 3610 / 2190 / 36224 | 2336 / 1762 / 28283 | 2660 / 3622 / 3726 |
+| 2x2 B | 2900 / 1838 / 32700 | 1504 / 1156 / 25919 | 3387 / 1434 / 31718 | 1293 / 760 / 23373 | 1504 / 2949 / 3387 |
+| 2x2 N | 3119 / 1976 / 36754 | 1497 / 1054 / 26682 | 2911 / 1832 / 34569 | 1315 / 1012 / 25096 | 1562 / 2932 / 3119 |
+
+Phase A's gain is the warm seed's (seed 4) only: seed 3 reads a fresh server's first 4096 rows at about 2 ms a row, the stage lines are refused there and every arm takes main's cut.
+Phase C is not comparable across arms (N's long prompt is at 12147 rows when C fires, M's has finished), so its p50 (layer-4 N 1564/1526 against M 1439/1434) is not a finding.
+N's slice paths in (a): layer-4 capped 68 and 69 (median 242 and 235 rows), chunk 663 and 666 (median 16); 2x2 capped 85 and 79 (median 283 and 293), chunk 390 and 527.
+
+| (b) lone 16k, 16 out, TTFT ms | warm-up | round 1 | round 2 | round 3 | slices a request (warm-up; rounds) |
+| --- | --- | --- | --- | --- | --- |
+| layer-4 M | 14604 | 8820 | 7951 | 7916 | 32-33 each |
+| layer-4 N | 15130 | 8920 | 9142 | 8529 | 33; 32 / 81 / 44, all capped, median 185 rows |
+| 2x2 M | - | 13550 | 11866 | 11641 | - |
+| 2x2 N | - | 12740 | 11869 | 11719 | 244 capped over the run, median 213 rows |
+
+In (b) every slice is capped by the open admission alone; where stage 0's lines are refused the cut is main's (round 1, 8920 against 8820 ms), and where they are priced the cap cuts 176-369-row slices at about 24 ms an extra slice, one stage's fixed cost, which the lines predict (main's cut 7982 ms predicted against 7916-7951 measured).
+Trade: layer-4 lone 16k TTFT is +8 to 15% (about +12%) while admission is open, the price of phase A's gain (layer-4 -1.0 s, 2x2 -0.7 s in the warm seed); 2x2 is level.
+Trade: in the warm seed the long request in company reads to its first token in 18.9-19.0 s against M's 10.9-13.5 s on layer-4 (+40 to 75%; 2x2 25.1-26.7 against 26.6-28.3 s), since main read it faster only by 1024-row slices that broke the 500 ms bound and the newcomers' replies now step at 131 ms p50 with a 0.5-0.6 s max against M's 1.3-1.4 s stalls.
+Activity, no run discarded: a22-m2 ran under a host build (load1 to 38.3), cl4-m2 beside a clang build, c22-m1 started at load1 50.6 with ZFS reads, al4-n1 had ZFS reads (load1 max 32.9); every run's load1 mean and max is in sum13's output.
+Not rerun: a second (b) pair, since the cause is structural and the lines predict the rounds; the slice-path log's removal changes no executed path (the landing head's byte identity below holds it).
+Stage-0 fresh-slice cost, unpriced: a 1024-row cell of 4 measures at 1631 ms in a keyed-newcomers run and one of 7 at 1124 ms at the start of a queued load, against 300-390 ms at stages 1-3, consistent with first-touch page faults on the model's lookup table, whose owner is the read-ahead work; `fit_line` refuses a negative fixed cost so that stage falls back to the cut without prices, and the cells age out through `kCostKeep`.
+**Open, not this branch:** the service rule's reply objective `kReplyTokensPerSecond` = 8 prices a chunk beside replies at 16 rows (657 of 663 chunk slices in al4-n1), so a long prompt in company pays the objective's price above; `chunk_rows` is byte-identical in both arms, and the trade belongs to the service rule's owner.
+
+**Gates at the landing head:** built on the rig in one image, both arms the same way from detached worktrees (Release, Vulkan on): at the rebased head on main 2c463d721, `llmx 0.1.0+g1549f3ce904e` (sha256 0b194a93...) against `llmx 0.1.0+g2c463d7218cb` (5d426d09...), and before main moved at cd1a40853 on 52c8a3bcb, `llmx 0.1.0+gcd1a4085336b` (094c771b...) against `llmx 0.1.0+g52c8a3bcbcb8` (8c9baada...); both builds give main's 71 compiler warnings.
+Qwen3-0.6B Q8_0 byte identity against main on the CPU and on one MI50 (greedy and seeded generate, logits, perplexity at contexts 128 and 512): 10 of 10 the same at both heads.
+The server component on one MI50 with the Q8_0 fixture: PASS at cd1a40853; the CPU suite (`--device cpu --require-tools`): every component PASS at cd1a40853 but `docs`, whose one finding, a long comment line in `tests/server_passes.cpp`, is fixed here; `docs` and `dead-code` PASS at the landing head.
+CTest on an MI50 at cd1a40853 failed `backend-vulkan` and `vulkan-index`, which main passes: the copies this change times beside the kernels were counted as dispatches (`vulkan_timed_dispatches`), so a selection read 3 and 7 dispatches for 1 and 5; the count now takes kernels alone, and both pass at the landing head.
+CTest there: 96 of 97, `vulkan-lifetime` failing on its host timing bound (a hold given back within 1 ms at p99, 1.42 ms under a host load of about 25); run alone three times interleaved, main 2c463d721 and this head each failed the first run on the same bound (p99 1.18 and 1.07 ms) and passed the next two, so it is main's flake under load and not this change.
+The first hosted run (41907366545) failed the Windows build: a test lambda named `near`, which the Windows headers define as a macro; it is `same_line` now, checked by a local MSVC build of every target and CTest there.
+Not rerun after the rebase: the server component and the CPU suite, since main's two new commits touch the backends' collectives, the sum kernel and docs and no server, scheduler or slicing code; the rebase reran the builds, CTest, the identity and `docs` and `dead-code`.
+**Gotchas:** a bench process learns its prices from scratch: its warm-up prompt is unpriced, the first timed one uncalibrated; a device-side wait or copy changes the Backend interface and is posted for review before code.
+
 ## Q2_0 read-only inference (2026-11-03, Done, lands by fast-forward)
 
 Q2_0 GGUF weights now run on CPU and Vulkan through the existing quant decoder and backend owners. Type 42 stores 64 values in 18 bytes. There is no quantize writer or new runtime flag. F32, F16, BF16 and int8-request fallback policies retain their existing precision rules.

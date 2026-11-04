@@ -114,8 +114,16 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s) {
         ~Paths() { swap(); }
     } paths{devices_, st.touches, width_};
     paths.swap();
+    p.receive_ms = p.write_ms = 0;
+    const auto start = std::chrono::steady_clock::now();
     if (width_ > 1) group_record(ctx, p, s);
     else single_record(ctx, p, s);
+    if (trace_) {
+        const auto ms = [&](std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(t - trace_->t0).count(); };
+        const StageTime t{s, p.rows, ms(start), p.receive_ms, p.write_ms, ms(std::chrono::steady_clock::now())};
+        std::lock_guard<std::mutex> lk(trace_->m);
+        trace_->times.push_back(t);
+    }
 }
 
 inline void Model::commit_pass_stage(ExecContext& ctx, size_t slot) {
@@ -301,9 +309,10 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
 }
 
 // A prompt's chunks through a pipelined split (Model::prefill), each device taking its chunks in order and each stage that waits on its devices (stage_waits) recording on a thread of its own.
-// This thread begins, prepares and commits every stage and records the rest; when a stage may take a chunk is docs/src/model-runtime.md's prefill.
-inline void Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk) {
+// This thread begins, prepares and commits every stage and records the rest, returning when each chunk's last stage committed (docs/src/model-runtime.md, prefill).
+inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk) {
     const size_t S = stages_.size();
+    std::vector<std::chrono::steady_clock::time_point> done(chunks);
     if (ctx.passes.size() < S) ctx.passes.resize(S);
     // Each stage's hand-off under `m`: the chunk given to its lane, those it has recorded and its failure.
     struct Lane {
@@ -372,6 +381,7 @@ inline void Model::run_chunks(ExecContext& ctx, size_t chunks, const std::functi
                 } else {
                     record_stage(ctx, p, s);
                     stage_commit(p, s);
+                    if (s + 1 == S) done[c] = std::chrono::steady_clock::now();
                     ++committed[s];
                 }
                 moved = true;
@@ -406,6 +416,7 @@ inline void Model::run_chunks(ExecContext& ctx, size_t chunks, const std::functi
             if (failed) break;
             for (const auto& [s, c] : finished) {
                 stage_commit(ctx.passes[c % S], s);
+                if (s + 1 == S) done[c] = std::chrono::steady_clock::now();
                 ++committed[s];
             }
         }
@@ -416,6 +427,7 @@ inline void Model::run_chunks(ExecContext& ctx, size_t chunks, const std::functi
     threads.reset();
     if (failed) std::rethrow_exception(failed);
     finish(ctx, ctx.passes[(chunks - 1) % S]);
+    return done;
 }
 
 // Each entry's history at stage s where the pass found it, before the stage takes anything: an earlier pass of a continued prompt has run the stage first.
@@ -495,7 +507,9 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
         arch_->embed(part(ctx, cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
         if (p.image_rows) write_media(ctx, p, cur);
     } else if (p.at != cur) {
-        receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows);
+        const auto [waited, wrote] = receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows);
+        p.receive_ms += waited;
+        p.write_ms += wrote;
     }
     for (int l = st.first; l < st.end; l++) {
         if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
@@ -584,7 +598,9 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
             if (p.image_rows) write_media(ctx, p, g + m);
         } else {
-            receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows);
+            const auto [waited, wrote] = receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows);
+            p.receive_ms += waited;
+            p.write_ms += wrote;
         }
     }
     for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
@@ -895,13 +911,17 @@ inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t ba
                             (x.offset + base * E) * sizeof(float), rows * E * sizeof(float));
 }
 
-// `receive` waits for that submission and writes the rows into the destination's residual, enqueued there.
-inline void Model::receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+// `receive` waits for that submission and writes the rows into the destination's residual, enqueued there; it returns the host's milliseconds in the wait and in the write.
+inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+    using clock = std::chrono::steady_clock;
     const size_t E = plan_.residual;
+    const auto t0 = clock::now();
     devices_[from]->b->wait(sent);
+    const auto t1 = clock::now();
     const backend::Slice x = slot(ctx, to, 0);
     const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][handoff]->host_ptr() + base * E * sizeof(float);
     devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float), rows_out, rows * E * sizeof(float));
+    return {std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(clock::now() - t1).count()};
 }
 
 // A crossing inside a stage, both halves at once.

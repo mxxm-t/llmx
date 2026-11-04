@@ -16,6 +16,7 @@
 #include "inference/sampler.hpp"
 #include "inference/spec.hpp"
 #include "server/policy.hpp"
+#include "server/service_record.hpp"
 
 namespace {
 
@@ -565,6 +566,12 @@ void pass_price() {
     require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
 }
 
+// Whether band 0's cell of `rows` decode rows is priced, as a pass is reconciled only then (ServiceRecord::decode_price).
+bool priced(const server::PriceTable& t, size_t rows) {
+    const auto it = t.decode.find({0, rows});
+    return it != t.decode.end() && it->second.ms > 0;
+}
+
 // The pass cost as the scheduler gives it to the depth rule (Scheduler::propose): passes of each of `widths`, `rounds` times, taking `ms` of stage time at band 0 and `host_ms` more of the server's.
 // The table prices its band's widths through PassTimes::server_ms and the line the rest; `band` is the band read.
 infer::spec::PassCost table_cost(const std::function<double(size_t)>& ms, const std::vector<size_t>& widths, size_t most, double host_ms = 0, size_t band = 0, int rounds = 10) {
@@ -574,7 +581,7 @@ infer::spec::PassCost table_cost(const std::function<double(size_t)>& ms, const 
         for (size_t rows : widths) {
             server::PassWork w;
             w.decode(rows, 0);
-            const double cell = table.decode_cell_ms(0, rows);
+            const double cell = priced(table, rows) ? table.decode_curve(0, rows)[rows] : 0.0;
             table.observe(w, ms(rows));
             t.pass(rows, ms(rows) + host_ms);
             if (cell > 0) t.reconcile(cell, ms(rows) + host_ms);
@@ -629,7 +636,7 @@ void stepped_price() {
     const double between = ms(6) + host + (ms(10) - ms(6)) * 2.0 / 4.0;
     require(close_to(gap.rows_ms[8], between, 1e-6) && !close_to(infer::spec::pass_ms(gap, 8), ms(6) + host, 0.5) && !close_to(infer::spec::pass_ms(gap, 8), ms(10) + host, 0.5),
             "8 rows between measured 6 and 10 were priced " + std::to_string(infer::spec::pass_ms(gap, 8)) + ", not " + std::to_string(between));
-    require(gap.rows_ms[14] == 0 && close_to(infer::spec::pass_ms(gap, 14), gap.rows_ms[12] + gap.row_ms * 2, 1e-9), "14 rows past the measured cells were not priced from 12 rows' price on the line's slope");
+    require(close_to(infer::spec::pass_ms(gap, 14), gap.rows_ms[12] + 2.4 * 2, 1e-9), "14 rows past the measured cells were not priced from 12 rows' price on the slope of 11 and 12 rows");
     // A line below the table's last width: past it a pass costs that width's price and the line's slope more, never less, so a draft there never looks free.
     infer::spec::PassCost low;
     low.known = true;
@@ -638,6 +645,155 @@ void stepped_price() {
     low.rows_ms = {0, 0, 0, 30, 32, 40};
     require(close_to(infer::spec::pass_ms(low, 7), 41, 1e-12) && infer::spec::pass_ms(low, 6) > infer::spec::pass_ms(low, 5), "past the last measured width the price fell to the line");
     require(close_to(infer::spec::pass_ms(low, 2), 29.5, 1e-12) && close_to(infer::spec::pass_ms(low, 4), 32, 1e-12), "before the first measured width the price was not continued from it");
+}
+
+// A server's stages as the scheduler prices a pass of generated rows (Scheduler::propose): each stage's price table, and the pass's server time reconciled against the price it was formed with.
+struct Stages {
+    std::vector<server::PriceTable> tables;
+    infer::spec::PassTimes times;
+    explicit Stages(size_t n) : tables(n) {}
+    std::vector<double> curve(size_t most, size_t passes) const {
+        std::vector<std::vector<double>> c;
+        for (const auto& t : tables) c.push_back(t.decode_curve(0, most));
+        return server::ServiceRecord::combine(c, passes);
+    }
+    // A pass of `rows` rows whose stage s takes `stage_ms(s, rows)` and the server `host_ms` more, with `passes` in rotation: a pass retires every stages' sum over the passes, never sooner than the slowest stage.
+    void run(size_t rows, const std::function<double(size_t, size_t)>& stage_ms, size_t passes, double host_ms) {
+        const double price = priced(tables[0], rows) ? curve(rows, passes)[rows] : 0.0;
+        double slowest = 0, sum = 0;
+        for (size_t s = 0; s < tables.size(); ++s) {
+            server::PassWork w;
+            w.decode(rows, 0);
+            tables[s].observe(w, stage_ms(s, rows));
+            slowest = std::max(slowest, stage_ms(s, rows));
+            sum += stage_ms(s, rows);
+        }
+        const double took = std::max(slowest, sum / (double)passes) + host_ms;
+        times.pass(rows, took);
+        if (price > 0) times.reconcile(price, took);
+    }
+    infer::spec::PassCost cost(size_t most, size_t passes) const {
+        infer::spec::PassCost c = times.cost();
+        c.rows_ms = curve(most, passes);
+        for (double& x : c.rows_ms) x = times.server_ms(x);
+        return c;
+    }
+};
+
+// A pass alone on two stages costs both in turn, and passes filling them the slowest (ServiceRecord::combine); past a stage's widest cell its two widest's slope goes on.
+void lone_pass_two_stages() {
+    server::PriceTable a, b;
+    for (int round = 0; round < 3; ++round)
+        for (size_t rows = 1; rows <= 4; ++rows) {
+            server::PassWork w;
+            w.decode(rows, 0);
+            a.observe(w, 12.0 + (double)rows);
+            if (rows != 3) b.observe(w, 13.0 + 1.5 * (double)rows);
+        }
+    const std::vector<std::vector<double>> c = {a.decode_curve(0, 5), b.decode_curve(0, 5)};
+    const std::vector<double> alone = server::ServiceRecord::combine(c, 1), full = server::ServiceRecord::combine(c, 2);
+    require(close_to(alone[2], 14.0 + 16.0, 1e-12) && close_to(full[2], 16.0, 1e-12),
+            "a pass of 2 rows on two stages was priced " + std::to_string(alone[2]) + " alone and " + std::to_string(full[2]) + " beside another, not 30 and 16");
+    require(close_to(alone[3], 15.0 + 17.5, 1e-12), "3 rows, priced at one stage by the line through 2 and 4, were priced " + std::to_string(alone[3]) + " alone, not 32.5");
+    require(close_to(alone[5], 17.0 + 20.5, 1e-12) && close_to(full[5], 20.5, 1e-12) && alone[0] == 0, "5 rows, past each stage's widest cell, were not priced on the slope of its two widest");
+}
+
+// The server time past a pass's price is the host's, whether one pass or one a stage is in rotation, since each pass is reconciled against the price it was formed with.
+// Against the slowest stage alone the offset carries the other stage's time while one pass runs, so the case tells the two apart.
+void rotation_offset() {
+    const double host = 1.5;
+    const auto ms = [](size_t s, size_t rows) { return s ? 13.0 + 1.5 * (double)rows : 12.0 + 2.0 * (double)rows; };
+    Stages st(2);
+    infer::spec::PassTimes slowest;
+    for (int i = 0; i < 400; ++i) {
+        const size_t rows = 1 + (size_t)(i % 8), passes = i % 2 ? 2 : 1;
+        double old = 0;
+        for (const auto& t : st.tables) old = std::max(old, t.decode_curve(0, rows)[rows]);
+        st.run(rows, ms, passes, host);
+        const double took = std::max(std::max(ms(0, rows), ms(1, rows)), (ms(0, rows) + ms(1, rows)) / (double)passes) + host;
+        if (old > 0) slowest.reconcile(old, took);
+    }
+    const double offset = st.times.server_ms(40.0) - 40.0;
+    require(close_to(offset, host, 1e-9), "passes alternating 1 and 2 in rotation left " + std::to_string(offset) + " ms past their price, not the host's " + std::to_string(host));
+    require(std::fabs(slowest.server_ms(40.0) - 40.0 - host) > 5, "the slowest stage's price left the host's offset too, so the case does not tell the prices apart");
+}
+
+// Production's case (docs/STATUS.md, Draft price at depth): a lone reply verified 22 drafts every pass on two stages, the narrower widths' cells left at old stalls' prices and the plain pass's at an old dear one.
+// Aged cells are priced as widths not measured, the plain width ages so a plain pass measures it again, and an aged cell's price starts again at its next measure, so the depth is the one the stages' costs give.
+void aged_cells() {
+    const double host = 1.0;
+    const auto ms = [](size_t, size_t rows) { return 10.0 + 2.0 * (double)rows; };
+    Stages st(2);
+    for (int round = 0; round < 3; ++round)
+        for (size_t rows = 1; rows <= 23; ++rows) st.run(rows, ms, 1, host);
+    // Old stalls: twice, every narrower width at a price far past its cost, the plain one at 2.3 times its cost, while 23 rows kept their price.
+    for (int round = 0; round < 2; ++round)
+        for (size_t rows = 1; rows <= 22; ++rows) {
+            for (auto& t : st.tables) {
+                server::PassWork w;
+                w.decode(rows, 0);
+                t.observe(w, rows == 1 ? 2.3 * ms(0, rows) : 5000.0);
+            }
+            st.run(23, ms, 1, host);
+        }
+    std::vector<double> keeps(22);
+    double chance = 1;
+    for (double& k : keeps) chance *= 0.75, k = chance;
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(st.cost(23, 1), 1, {keeps}, takes);
+    require(takes[0] == 22, "stale cells took " + std::to_string(takes[0]) + " drafts, where production's took 22");
+    for (uint64_t i = 0; i < server::kPriceHorizon; ++i) st.run(23, ms, 1, host);
+    require(st.tables[0].decode_aged(0, 1) && st.tables[0].decode_aged(0, 10) && !st.tables[0].decode_aged(0, 23), "cells not measured for the horizon's passes did not age");
+    require(st.curve(23, 1)[10] == 0, "an aged cell was priced");
+    st.run(1, ms, 1, host);
+    require(!st.tables[1].decode_aged(0, 1) && close_to(st.curve(23, 1)[1], 2 * ms(0, 1), 1e-9),
+            "a plain pass after its cell aged priced it at " + std::to_string(st.curve(23, 1)[1]) + ", not its measure");
+    require(close_to(st.curve(23, 1)[10], 2 * ms(0, 10), 1e-9), "a width between fresh cells was not priced on the line through them");
+    size_t best = 0;
+    double rate = 1 / (2 * ms(0, 1) + host), tokens = 1;
+    for (size_t k = 1; k <= keeps.size(); ++k) {
+        tokens += keeps[k - 1];
+        if (tokens / (2 * ms(0, k + 1) + host) > rate) rate = tokens / (2 * ms(0, k + 1) + host), best = k;
+    }
+    infer::spec::draft_depths(st.cost(23, 1), 1, {keeps}, takes);
+    require(best < 22 && takes[0] == best, "fresh prices took " + std::to_string(takes[0]) + " drafts, where the stages' costs give " + std::to_string(best));
+    // No width is read dearer than the cheapest fresh wider cell.
+    server::PriceTable t;
+    for (int round = 0; round < 2; ++round)
+        for (const auto& [rows, x] : std::vector<std::pair<size_t, double>>{{2, 30}, {5, 50}, {8, 40}}) {
+            server::PassWork w;
+            w.decode(rows, 0);
+            t.observe(w, x);
+        }
+    const std::vector<double> c = t.decode_curve(0, 8);
+    require(c[5] == 40 && c[4] == 40 && close_to(c[3], 30 + 20.0 / 3, 1e-9) && c[7] == 40, "a width was read dearer than a fresh wider cell");
+}
+
+// Inverted widest cells do not price the widths past them flat, which would take the widest depth (docs/SERVER.md, The price table).
+void inverted_widest() {
+    const double host = 1.0;
+    const auto ms = [](size_t, size_t rows) { return rows == 7 ? 20.0 : 10.0 + 2.0 * (double)rows; };
+    Stages st(1);
+    for (int round = 0; round < 3; ++round)
+        for (size_t rows = 1; rows <= 7; ++rows) st.run(rows, ms, 1, host);
+    const std::vector<double> c = st.tables[0].decode_curve(0, 12);
+    const double slope = (20.0 - 12.0) / 6.0;
+    require(close_to(c[10], 20.0 + 3 * slope, 1e-9), "10 rows past inverted widest cells were priced " + std::to_string(c[10]) + ", not on the narrowest to widest slope");
+    std::vector<double> keeps(11);
+    double chance = 1;
+    for (double& k : keeps) chance *= 0.75, k = chance;
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(st.cost(12, 1), 1, {keeps}, takes);
+    require(takes[0] < keeps.size(), "inverted widest cells took the widest depth, " + std::to_string(takes[0]) + " drafts");
+    server::PriceTable t;
+    for (int round = 0; round < 2; ++round)
+        for (const auto& [rows, x] : std::vector<std::pair<size_t, double>>{{2, 30}, {5, 40}, {8, 25}}) {
+            server::PassWork w;
+            w.decode(rows, 0);
+            t.observe(w, x);
+        }
+    const std::vector<double> d = t.decode_curve(0, 12);
+    require(d[8] == 25 && d[9] == 0 && d[12] == 0, "widths past cells with no rising slope were priced, not left to the line");
 }
 
 // A decode cell's first measure pays its width's one-time costs, as a kernel build made on first use did for 2 rows on an MI50 (docs/STATUS.md): 1 to 4 rows cost 49, 55, 92 and 97 ms, the first 2-row pass 96.
@@ -650,7 +806,7 @@ void first_measure() {
     const auto run = [&](size_t rows, double took) {
         server::PassWork w;
         w.decode(rows, 0);
-        const double cell = table.decode_cell_ms(0, rows);
+        const double cell = priced(table, rows) ? table.decode_curve(0, rows)[rows] : 0.0;
         table.observe(w, took);
         t.pass(rows, took);
         if (cell > 0) t.reconcile(cell, took);
@@ -972,6 +1128,10 @@ int main() {
         censored_depth();
         stepped_price();
         first_measure();
+        lone_pass_two_stages();
+        rotation_offset();
+        aged_cells();
+        inverted_widest();
         cheaper_not_shallower();
         frontier_relaxes();
         frontier_loop();

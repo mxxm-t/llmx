@@ -878,7 +878,7 @@ private:
         std::vector<size_t> from, rows, first_row;   // first_row: per wanting entry, its first logits row in the pass
         size_t base = 0, want = 0, decoders = 0;
         size_t generated = 0;        // its rows where it is decode rows alone, which the pass cost is measured on, else 0
-        double decode_ms = 0;        // then its slowest stage's price in its measured cell, which its server time is reconciled with (PassTimes::reconcile), else 0
+        double decode_ms = 0;        // then the price it was formed with (ServiceRecord::decode_price), which its server time is reconciled with (PassTimes::reconcile), else 0
         bool continues = false;      // formed while its request's pass before it was in flight (Scheduler::continues)
         uint64_t job = 0;            // its hand-over to a recorder, which the recorder's result names
         Clock::time_point begun;
@@ -908,6 +908,7 @@ private:
         size_t quick_rows = 0;            // its rows: all it lacks, or the learning step while its price is not yet known
         double replies_ms = 0;
         size_t packed = 0, share = 0, limit = 0;
+        size_t rotation = 1;   // the replies' passes in rotation, which a pass's price takes its stages' sum over (ServiceRecord::combine)
         double budget_ms = std::numeric_limits<double>::infinity(), gap_ms = 0;
         std::vector<std::shared_ptr<Request>> order;
     };
@@ -937,6 +938,8 @@ private:
         p.packed = packed_passes(decoders, model_.decode_columns(), slots_.size());
         p.limit = passes_in_flight(slots_.size(), S, p.overlap, p.packed);
         p.share = packed_share(decoders, p.packed);
+        const size_t reply_share = p.overlap ? p.share : decode_share(decoders, p.limit, S);
+        p.rotation = reply_share ? std::max<size_t>(1, (decoders + reply_share - 1) / reply_share) : 1;
         if (p.overlap) {
             // The replies' pass packed, the slowest stage's; before it is measured no budget binds.
             const size_t band = depth_band(deepest);
@@ -1086,7 +1089,9 @@ private:
         std::vector<std::shared_ptr<Request>> decoding_now;
         for (auto& r : active)
             if (std::find(waiting.begin(), waiting.end(), r.get()) != waiting.end()) decoding_now.push_back(r);
-        propose(decoding_now, draft_columns(share, active.size()));
+        // A pass takes prompt rows only from the plan's order or its quick prompt, so without them it carries decode rows alone and measures the plain width.
+        const bool plain = rows == Rows::generated || (rows == Rows::all && plan.order.empty());
+        propose(decoding_now, draft_columns(share, active.size()), plan.rotation, plain);
         for (auto& r : decoding_now) {
             // A request whose chain went to the head stage's thread sits this pass out and verifies its drafts once they land.
             if (r->seq_.in_flight()) continue;
@@ -1198,6 +1203,7 @@ private:
             if (continued || plan.overlap) break;
         }
         if (entries_.empty()) return false;
+        if (plain && f.members.size() > f.decoders) throw std::logic_error("server: a pass formed as decode rows alone took prompt rows");
         const bool continuing = f.members.front()->seq_.in_flight();
         f.base = take_rows(logit_rows_, f.want);
         if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a new pass");
@@ -1224,7 +1230,7 @@ private:
         f.ran = 0;
         // Measured as the price table keys it, so a one-row prompt slice is not taken for a decode row.
         f.generated = f.work.chunks.empty() ? f.work.decode_rows : 0;
-        f.decode_ms = f.generated ? record_.decode_cell_ms(f.work.decode_band, f.generated) : 0;
+        f.decode_ms = f.generated ? record_.decode_price(f.work.decode_band, f.generated, plan.rotation) : 0;
         f.begun = Clock::now();
         if (model_.stage_on_host(0)) host.push_back({k, 0});
         else advance(active, k, 0);
@@ -1516,7 +1522,7 @@ private:
 
     // The verifies of the decoding requests `rs` in the pass being formed, each in r.verify_ on a mark of its sequence, its last pick then its drafts, or empty for a decode entry.
     // Each drafts within the `columns`, its reservation and tokens left (spec::draft_length) and the price's gain (spec::draft_depths): from its own history where that convinces (spec::lookup_first), else from the proposer.
-    void propose(const std::vector<std::shared_ptr<Request>>& rs, size_t columns) {
+    void propose(const std::vector<std::shared_ptr<Request>>& rs, size_t columns, size_t rotation, bool plain) {
         using infer::spec::Source;
         for (const auto& r : rs) r->verify_.clear();
         if (!proposer_) return;
@@ -1573,18 +1579,22 @@ private:
         }
         // The pass is priced by the price table at the deepest decoder's band, in server time, for every width the drafts may reach, and by the line where the table has no cell.
         infer::spec::PassCost cost = priced_ ? times_.cost() : infer::spec::PassCost{};
+        size_t deepest = 0;
+        for (const auto& r : rs) deepest = std::max(deepest, r->seq_.length());
         if (priced_ && !keeps_.empty()) {
-            size_t deepest = 0, most = rs.size();
-            for (const auto& r : rs) deepest = std::max(deepest, r->seq_.length());
+            size_t most = rs.size();
             for (const auto& k : keeps_) most += k.size();
-            cost.rows_ms = record_.decode_curve(depth_band(deepest), most);
+            cost.rows_ms = record_.decode_curve(depth_band(deepest), most, rotation);
             for (double& ms : cost.rows_ms) ms = times_.server_ms(ms);
         }
         // A chain runs on the head's devices before the passes posted there after it, so every pass in flight waits on it as the one being formed does.
         const double stall = 1.0 + (double)flights_live();
         cost.step_ms *= stall;
         cost.step_row_ms *= stall;
-        infer::spec::draft_depths(cost, rs.size(), keeps_, takes_, &chained_);
+        const bool verifying = std::any_of(rs.begin(), rs.end(), [](const std::shared_ptr<Request>& r) { return r->verify_.size() > 1; });
+        // Where the plain width has aged none drafts, so the price drafts are weighed against is measured again (docs/SERVER.md, Drafts).
+        if (priced_ && plain && !keeps_.empty() && !verifying && record_.decode_aged(depth_band(deepest), rs.size())) takes_.assign(keeps_.size(), 0);
+        else infer::spec::draft_depths(cost, rs.size(), keeps_, takes_, &chained_);
         // A model that keeps a state holds as many marks as its fit gave, some held by verifies in flight, and a request without one drafts nothing, so no more draft than are free.
         size_t held = 0;
         for (const Slot& s : slots_)

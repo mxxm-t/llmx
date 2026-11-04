@@ -1424,9 +1424,9 @@ void service_by_hand() {
     n.observe(chunk(3, 128, 8192), 60);
     require(n.chunk_rows(3, 2, 50, 512) == 64, "an overrun in a new band did not halve its slice");
     // A band measured only far over the target, as at a whole ubatch read alone, starts at its rows scaled to the target and not at half of them (the owner's scenario of 2026-10-29, a 512-row slice beside replies).
-    server::PriceTable far;
-    far.observe(chunk(3, 1024, 70000), 1000);
-    require(far.chunk_rows(3, server::depth_band(70000), 18, 1024) == server::kPieceStep && far.chunk_rows(3, server::depth_band(70000), 300, 1024) == 304,
+    server::PriceTable distant;
+    distant.observe(chunk(3, 1024, 70000), 1000);
+    require(distant.chunk_rows(3, server::depth_band(70000), 18, 1024) == server::kPieceStep && distant.chunk_rows(3, server::depth_band(70000), 300, 1024) == 304,
             "a band measured only far over the target did not scale its first slice to the target");
     require(server::chunk_budget(51, 19, 1) == 32 && server::chunk_budget(10, 19, 1) == 0 && server::chunk_budget(120, 20, 2) == 40 && server::chunk_budget(30, 20, 2) == 0,
             "a chunk's budget over the stages was read wrongly");

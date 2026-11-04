@@ -113,26 +113,42 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return stages_[s].prices.decode_ms(band, rows);
     }
-    // The slowest stage's price of exactly `rows` decode rows at band `band`, 0 where a stage has not measured that cell.
-    double decode_cell_ms(size_t band, size_t rows) const {
+    // A pass's decode prices at band `band` for 0 to `most` rows with `passes` replies' passes in rotation (combine), 0 at a width some stage does not price.
+    std::vector<double> decode_curve(size_t band, size_t most, size_t passes) const {
         std::lock_guard<std::mutex> lk(m_);
-        double ms = 0;
-        for (const auto& st : stages_) {
-            const double x = st.prices.decode_cell_ms(band, rows);
-            if (!(x > 0)) return 0;
-            ms = std::max(ms, x);
-        }
-        return ms;
+        std::vector<std::vector<double>> curves;
+        for (const auto& st : stages_) curves.push_back(st.prices.decode_curve(band, most));
+        return combine(curves, passes);
     }
-    // The slowest stage's decode prices at band `band` for 0 to `most` rows (PriceTable::decode_curve), 0 at a width some stage does not price.
-    std::vector<double> decode_curve(size_t band, size_t most) const {
+    // The price a pass of `rows` decode rows is formed with (decode_curve), which its server time is reconciled with; 0 where a stage has not priced that width's cell, as before its second measure, since its first pays its one-time costs.
+    double decode_price(size_t band, size_t rows, size_t passes) const {
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            for (const auto& st : stages_) {
+                const auto it = st.prices.decode.find({band, rows});
+                if (it == st.prices.decode.end() || !(it->second.ms > 0)) return 0;
+            }
+        }
+        return decode_curve(band, rows, passes)[rows];
+    }
+    // Whether some stage's `rows` decode rows at band `band` are aged (PriceTable::decode_aged).
+    bool decode_aged(size_t band, size_t rows) const {
         std::lock_guard<std::mutex> lk(m_);
-        std::vector<double> out;
-        for (size_t s = 0; s < stages_.size(); ++s) {
-            const std::vector<double> c = stages_[s].prices.decode_curve(band, most);
-            if (!s) out = c;
-            else
-                for (size_t r = 0; r < out.size(); ++r) out[r] = out[r] > 0 && c[r] > 0 ? std::max(out[r], c[r]) : 0.0;
+        return std::any_of(stages_.begin(), stages_.end(), [&](const StageRecord& st) { return st.prices.decode_aged(band, rows); });
+    }
+    // A pass's price at each width (docs/SERVER.md, The price table): the larger of the slowest stage and the stages' sum over the `passes` in rotation, 0 where a stage has no price.
+    static std::vector<double> combine(const std::vector<std::vector<double>>& stages, size_t passes) {
+        if (stages.empty()) return {};
+        std::vector<double> out(stages[0].size(), 0.0);
+        for (size_t r = 0; r < out.size(); ++r) {
+            double slowest = 0, sum = 0;
+            bool priced = true;
+            for (const auto& c : stages) {
+                priced = priced && c[r] > 0;
+                slowest = std::max(slowest, c[r]);
+                sum += c[r];
+            }
+            out[r] = priced ? std::max(slowest, sum / (double)std::max<size_t>(1, passes)) : 0.0;
         }
         return out;
     }

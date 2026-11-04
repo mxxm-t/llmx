@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
+#include "inference/spec.hpp"
 
 namespace server {
 
@@ -391,14 +392,18 @@ struct PassWork {
     void chunk(size_t cls, size_t rows, size_t depth) { chunks.push_back({cls, depth_band(depth), rows}); }
 };
 
+// The decode passes of a band a decode cell stays fresh for after its last measure, spec::kForget's horizon (docs/SERVER.md, The price table).
+inline constexpr uint64_t kPriceHorizon = (uint64_t)(1.0 / (1.0 - infer::spec::kForget) + 0.5);
+
 // A stage's measured prices (docs/SERVER.md, The price table): a pass of decode rows alone by its band and rows, and a pass of one prompt slice alone by the slice's row class, band and rows in steps of kPieceStep.
-// A cell keeps a forgetting mean, which predicts, and its last measure, which the slice search reads so that an overrun acts at once.
+// A cell keeps a forgetting mean, which predicts, and its last measure, which the slice search reads so that an overrun acts at once; a decode cell also keeps its band's pass count at that measure.
 struct PriceTable {
     struct Cell {
         double ms = 0, last_ms = 0;
-        uint64_t samples = 0;
+        uint64_t samples = 0, at = 0;
     };
     std::map<std::pair<size_t, size_t>, Cell> decode;              // by (band, rows)
+    std::map<size_t, uint64_t> decode_passes;                      // by band, the decode passes it measured
     std::map<std::tuple<size_t, size_t, size_t>, Cell> chunks;     // by (class, band, rows in steps)
     static size_t step_of(size_t rows) { return (rows + kPieceStep - 1) / kPieceStep * kPieceStep; }
 
@@ -407,8 +412,13 @@ struct PriceTable {
         if (!(ms >= 0)) return false;
         Cell* c = nullptr;
         const bool rows_alone = w.chunks.empty() && w.decode_rows;
-        if (rows_alone) c = &decode[{w.decode_band, w.decode_rows}];
-        else if (w.chunks.size() == 1) {
+        bool aged = false;
+        if (rows_alone) {
+            uint64_t& n = decode_passes[w.decode_band];
+            c = &decode[{w.decode_band, w.decode_rows}];
+            aged = c->samples && !fresh(n, c->at);
+            c->at = ++n;
+        } else if (w.chunks.size() == 1) {
             // A slice beside decode rows already priced takes what remains, so a prompt riding the replies' pass learns its price.
             const double d = w.decode_rows ? decode_ms(w.decode_band, w.decode_rows) : 0;
             if (w.decode_rows && !(d > 0 && ms > d)) return false;
@@ -416,8 +426,9 @@ struct PriceTable {
             c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
         }
         if (!c) return false;
-        // A decode cell's first measure pays its width's one-time costs, such as kernel builds made on first use (vulkan_dispatch.hpp), so its price starts at the second.
-        if (c->samples || !rows_alone) c->ms = forget(c->ms, ms);
+        // A decode cell's first measure pays its width's one-time costs, such as kernel builds made on first use (vulkan_dispatch.hpp), so its price starts at the second; an aged cell's starts again at this measure.
+        if (aged) c->ms = ms;
+        else if (c->samples || !rows_alone) c->ms = forget(c->ms, ms);
         c->last_ms = ms;
         ++c->samples;
         return true;
@@ -435,27 +446,50 @@ struct PriceTable {
         }
         return 0;
     }
-    // Decode rows' price measured at exactly `rows` in band `band`, 0 where that cell is not priced yet.
-    double decode_cell_ms(size_t band, size_t rows) const {
-        const auto it = decode.find({band, rows});
-        return it != decode.end() ? it->second.ms : 0.0;
+    // Whether a decode cell last measured at its band's pass `at` is fresh, `newest` being the band's passes: measured within kPriceHorizon of them.
+    static bool fresh(uint64_t newest, uint64_t at) { return newest - at < kPriceHorizon; }
+    uint64_t band_passes(size_t band) const {
+        const auto it = decode_passes.find(band);
+        return it != decode_passes.end() ? it->second : 0;
     }
-    // Decode rows' prices in band `band` for 0 to `most` rows, for the depth rule (Scheduler::propose): each measured cell, between two measured cells the line through them, 0 outside the measured rows.
-    // No nearest cell stands in for a width, so a step between measured widths is not priced at the width before it.
+    // Whether `rows` decode rows in band `band` are aged: not measured within kPriceHorizon of the band's newest measure, never measured counting from the band's first.
+    bool decode_aged(size_t band, size_t rows) const {
+        const auto it = decode.find({band, rows});
+        return !fresh(band_passes(band), it != decode.end() ? it->second.at : 0);
+    }
+    // Decode rows' prices in band `band` for 0 to `most` rows, for the depth rule (Scheduler::propose): each fresh cell, between two the line through them, past the widest a rising slope of the band's, and none above a fresh wider cell.
+    // An aged cell is priced as a width not measured, so the rule may take it and measure it again (docs/SERVER.md, The price table).
     std::vector<double> decode_curve(size_t band, size_t most) const {
         std::vector<double> out(most + 1, 0.0);
         std::vector<std::pair<size_t, double>> priced;
+        const uint64_t newest = band_passes(band);
         for (auto it = decode.lower_bound({band, 1}); it != decode.end() && it->first.first == band; ++it)
-            if (it->second.ms > 0) priced.push_back({it->first.second, it->second.ms});
+            if (it->second.ms > 0 && fresh(newest, it->second.at)) priced.push_back({it->first.second, it->second.ms});
+        // Past the widest fresh cell: the two widest's slope, else the narrowest to widest's; with neither rising those widths fall to the line.
+        const auto slope = [&](size_t a, size_t b) { return (priced[b].second - priced[a].second) / double(priced[b].first - priced[a].first); };
+        double past = 0;
+        if (priced.size() >= 2) {
+            past = slope(priced.size() - 2, priced.size() - 1);
+            if (!(past > 0)) past = slope(0, priced.size() - 1);
+        }
         size_t hi = 0;
         for (size_t r = 1; r <= most; ++r) {
             while (hi < priced.size() && priced[hi].first < r) ++hi;
-            if (hi == priced.size()) break;
+            if (hi == priced.size()) {
+                if (!(past > 0)) break;
+                out[r] = priced.back().second + past * double(r - priced.back().first);
+                continue;
+            }
             if (priced[hi].first == r) out[r] = priced[hi].second;
             else if (hi > 0) {
                 const auto& [l, lo_ms] = priced[hi - 1];
                 out[r] = lo_ms + (priced[hi].second - lo_ms) * double(r - l) / double(priced[hi].first - l);
             }
+        }
+        double cheapest = std::numeric_limits<double>::infinity();
+        for (size_t r = most, j = priced.size(); r >= 1; --r) {
+            while (j > 0 && priced[j - 1].first > r) cheapest = std::min(cheapest, priced[--j].second);
+            out[r] = std::min(out[r], cheapest);
         }
         return out;
     }

@@ -1,5 +1,38 @@
 # llmx - Development Status
 
+## Draft price at depth (2026-11-04, SDEV3 and SDEV4, branch sdev2/draft-price-at-depth on main 44c5e56f0; SDEV2's finding and proposal of 2026-11-03 22:39, approved by F2DEV at 22:42 with seven changes and at 2026-11-04 04:09 with four more)
+
+**Goal:** a drafting reply at depth weighs its drafts against fresh prices of the pass it would run: on production's Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 layer split at about 200k tokens, a lone reply drafting took 23-row verifies at about 19 tokens a second where plain decode gives 35.9, because the depth rule read decode cells last measured during old stalls and priced a pass alone as its slowest stage plus a flat offset.
+**Done:** a decode cell keeps its band's pass count at its last measure and the depth rule reads only cells measured within spec::kForget's horizon of the band's newest measure (`kPriceHorizon`, 100 passes), an aged width priced on the line through the fresh cells beside it and its mean starting again once measured; past the widest fresh cell the curve goes on at the slope of the two widest fresh cells of that band; no width is read dearer than the cheapest fresh wider cell; a drafting reply takes a plain pass in its band when its plain width has aged; a pass is priced as the larger of its slowest stage and its stages' sum over the replies' passes in rotation (`ServiceRecord::combine`), and its server time is reconciled against that same price (`ServiceRecord::decode_price`).
+The slope past the widest fresh cell is beyond the approved list: with the plain price right, a band priced past its widest cell on `spec::PassTimes`' line, which mixes every band, never drafted past 4 rows on a shallow copy, 110 to 160 tok/s against main's 130 to 185.
+Change 7, on a fresh server: drafting on the preview build at 203.7k tokens gave 60.2 and 77.4 tok/s against plain 35.9 (SDEV2's arm), so production's 19 tok/s was the stale cells (cause 1), which no fresh server shows; `sampler`'s production case holds the ageing and the plain refresh to it.
+Bench, Qwen3.8-Flash-Next UD-Q4_K_XL, four MI50s at tensor width 2 and layer shares 1,1, production's flags but `--ctx-size 262144` without `--yarn` (main has no `--yarn`), a fresh server an arm, greedy, 600 tokens, the request line's rate, the cold request then the one reusing its prompt (tok/s):
+
+| Arm | 203.7k-token wiki chat | 1.9k-token self-repeating prompt |
+| --- | --- | --- |
+| main 5c77f0d83, drafting off | 39.3 / 40.1 | 45.4 |
+| main, drafting on (three servers) | 56.6 / 69.2, 57.3 / 72.0, 56.8 / 70.4 | 165.2 / 185.0, 132.0 / 132.6, 129.1 / 130.1 |
+| branch without the slope (two servers) | 59.9 / 76.4, 60.3 / 75.8 | 110.0 / 160.5, 111.8 / 141.9 |
+| branch (two servers) | 59.4 / 74.4, 57.9 / 70.9 | 188.7 / 194.9, 171.8 / 184.8 |
+
+Drafting `lookup` and the Q4_K_M MTP head at `--draft-max` 63; the branch feeds about 5 drafts a verify at 200k where main feeds 8, and about 11 on the copy, as main's best server did.
+Checks: `sampler` (24636 checks, with a lone pass on two stages, passes alternating one and two in rotation keeping the offset at the host's time, production's aged-cell case and inverted widest cells), `server-spec`, `server-passes` (its 2000 schedules' summary identical to main's), `docs` and `dead-code`.
+F2DEV's four of 04:09: past the widest fresh cell the slope is the two widest's where it rises, else the band's narrowest to widest fresh cell's, else those widths fall to the line, so inverted widest cells never price wider drafts flat (`sampler`'s `inverted_widest`); SERVER.md says so; the plain refresh keys on the pass taking no prompt rows (`rows` generated, or all with the plan's order empty), and `form` throws if such a pass took prompt rows, which `server-passes-cpu` runs.
+Cross-band check on one branch server (the bench's flags, a build of the head's code before two comments were cut), greedy 600 tokens a request, in order, decode tok/s, stage-0 passes, and the widths the health's recent passes showed (band, rows, count):
+
+| Request | tok/s | Passes | Drafted / kept | Widths seen |
+| --- | --- | --- | --- | --- |
+| 203.7k chat, cold | 60.3 | 363 | 767 / 444 | 6:5 x138, 6:4 x7, 6:1 x6 |
+| 1.9k copy prompt | 175.6 | 66 | 1023 / 779 | 0:4 x25, 0:3 x14, 0:64 x6 |
+| copy prompt again | 187.6 | 56 | 610 / 545 | 0:5 x23, 0:3 x15, 0:64 x13 |
+| copy prompt a third time | 191.1 | 50 | 623 / 550 | 0:5 x28, 0:64 x14, 0:3 x6 |
+| 203.7k chat again | 75.0 | 160 | 592 / 440 | 6:5 x122, 6:4 x33, 6:1 x3 |
+
+The second 200k visit after 172 passes in band 0 gives 75.0 tok/s at 4 drafts, against 60.3 cold and the bench's 74.4 and 70.9 warm, so cross-band load does not degrade it.
+Gates on that build: CTest 96 of 96 (32 device tests skipped, no card in the container), `spec` and `server-passes` at its 2000 schedules among them; the CPU suite with `--no-perf-floor` (2 CPUs), every component PASS but `baseline` SKIP, `docs` passing at the head after two comments were cut; Qwen3-0.6B Q8_0 served on the CPU through `tools/server_mix_check.py --ids`, every phase's ids byte-identical to main 44c5e56f0 with drafting off and with `--drafter lookup` (455 drafts fed, 218 kept).
+**Left:** F2DEV's final review; lands by fast-forward. After landing, production's tok/s and depth at 128k tokens or more after a day of serving go here (not a landing gate).
+**Gotchas:** `server/policy.hpp` now includes `inference/spec.hpp` for `kForget`, which brings the Windows headers, so `tests/server_passes.cpp`'s local `far`, a macro there, became `distant`; `plan()`'s replies' price for the chunk budget stays the slowest stage's; band 6 spans 128k to 256k tokens, so a wide cell measured at 130k may be cheaper than a narrow one at 250k for real, which ageing bounds; a plain refresh forms only in a pass that takes no prompt rows, so it never rides a prompt's chunk.
+
 ## Vulkan F16 pair widening (2026-11-03, Done, lands by fast-forward)
 
 **Goal:** Improve Vulkan F16 decode while preserving storage, activation, reduction and precision behavior. Weight conversion remains in its existing shader owner. No flags or model representation were added.

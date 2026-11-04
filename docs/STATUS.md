@@ -5999,7 +5999,7 @@ See [CI](CI.md) for the precise workflow scope and local reproduction commands.
 Current feature ownership and timing reservations are recorded in the shared
 collaboration log outside this repository. Confirm ownership there before
 starting work; historical branch names below are not active assignments. Builds and tests
-may run in parallel when no timing reservation is active. Keep every planned
+may run in parallel when no timing reservation is active. During development a step runs only its build, focused test and microbenchmarks; the full gates run once at the head that lands (AGENTS.md, Merge gates). Keep every planned
 performance sample, record ordinary machine activity, and report missing
 telemetry honestly. GitHub receives main and the `gate/<name>` branches whose hosted run checks a stack before it merges (`docs/CI.md`); feature work stays on its branch until its gates pass.
 

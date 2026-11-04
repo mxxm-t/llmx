@@ -258,6 +258,11 @@ When you start (or pick up) a feature:
 
 Choose checks by the changed paths and behavior, not by the number or metadata of commits. Do not repeat the full gates during development: run focused checks for the changed coverage, then the applicable landing checks once the change is complete. After a failure or fix, rerun the checks that cover the failure and the changed code.
 
+During development a step runs only the build, the focused test of what it changed and short microbenchmarks on the real shapes, profiling before it changes a hot path.
+CTest, the suites, device suites, long benchmarks, the Radeon VII check, gate pushes and the hosted run wait for the head that lands and run there once.
+A focused test may run on a second device or driver when the step's risk is there, such as a kernel whose sums a driver could contract differently.
+Fewer checks never loosen the architecture: each step states its layer and the one owner it changes, adds no second path, and is read by the reviewer before the next step starts.
+
 - Static dashboard presentation changes confined to HTML, CSS and browser JavaScript, with no collector, health API, server or runtime change: run syntax checks and focused browser checks for the changed states and responsive layout, plus the `docs` and `dead-code` components. Do not require HF, CPU/device numerical correctness or inference performance gates, or wait for unrelated hosted inference jobs. A workflow may still start automatically; that does not make its unrelated jobs a gate for this scope.
 - Docs only: the suite's `docs` and `dead-code` components on the tree that lands; unrelated hosted inference jobs are not waited for.
 - Tests or tools only: rerun the tests and checks affected by the change; apply the relevant hosted checks for its scope, without requiring unrelated inference gates for static tools.
@@ -290,11 +295,12 @@ They are part of the gates, not advice.
 Update `docs/STATUS.md` and commit at each meaningful checkpoint - at minimum
 when a feature, a milestone, or a discrete chunk of work is complete. Each
 commit should leave `docs/STATUS.md` accurate: `Done`/`Left` reflect reality,
-the build passes, and tests are green. A fresh agent should be able to read
+the build passes, and the focused tests of the change pass. A fresh agent should be able to read
 STATUS.md and resume exactly where the last commit left off.
 These checkpoints live on the branch; it is squashed as it lands (Starting a feature, above).
 
-At every completed checkpoint, review all project Markdown files against the
+A checkpoint during development updates the docs its change touches and its STATUS block.
+At the head that lands, review all project Markdown files against the
 current code, tests, CLI, build configuration and recorded results. Correct stale
 claims and links, distinguish historical measurements from current status, and
 record the review in STATUS.md. This includes README, AGENTS, all docs/ pages
@@ -334,7 +340,7 @@ An interface that a later step of an approved plan gives its product caller is s
 - The tree the checks read is what a commit would hold: the files git tracks and the new ones it does not ignore, or every file of a copy without `.git`.
 - A `docs/src` page's title names its file or its directory (`` # `src/core/json.hpp` - minimal JSON parser ``), and each source file is named by exactly one title.
 
-**What no mechanical check sees** is left to the review of the Markdown at each checkpoint (Checkpoints, above) and at each merge.
+**What no mechanical check sees** is left to the review of the Markdown at the head that lands (Checkpoints, above).
 In the docs: whether prose about behaviour, a refusal, a crossover or an exit status is still true; numbers not written beside the constant they are; a counted fact repeated in several docs (the suite's components, the consumer's checks); whether a measurement is current or history; history paragraphs in live text, which move under a dated heading; names of other programs; planned names in live design text; whether a page describes its file as it is now; what a pinned line says; a finished plan still headed "planned"; and one concern described differently in two docs.
 In the code: code that runs but serves nothing, paths for inputs or devices that never occur, whether a function only tests call is a probe worth keeping, a virtual function whose name is too common for the override check to tell its calls apart, generality nobody uses (a default never overridden, a template parameter with one instantiation, a seam with one implementation), table rows and enum values no path selects, and a feature implemented twice.
 

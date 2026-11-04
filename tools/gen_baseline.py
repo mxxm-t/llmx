@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|deepseek41-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|deepseek41-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -22,6 +22,7 @@ q2-k writes the synthetic raw-Q2_K dense/tied and MoE references used by tests/q
 q3-k writes the synthetic raw-Q3_K dense/tied and MoE references used by tests/q3_k.py, uses one thread, takes only --output-dir, and is not part of all.
 all includes f32 and moe regardless of --repo; mxfp4, q2-k, q3-k, q5-0, q5-1, iq4-nl, iq4-xs, iq3-s, iq2-s, iq2-xxs, iq2-xs and iq3-xxs are generated explicitly.
 tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenizer.json and tokenizer_config.json, takes only --output-dir, and is not part of all.
+tokenizer-deepseek41 writes the deepseek41 tokenizer golden from the pinned tokenizer.json in --checkpoint, with the token types of the GGUF shard --weights-gguf names, and is not part of all.
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
 qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
@@ -243,6 +244,128 @@ def gen_tokenizer_qwen35(output_dir):
     path = os.path.join(output_dir, "baseline_tokenizer_qwen35.json")
     _write(path, doc)
     print("wrote %s (%d cases, %d tokens, %d merges, %d config tokens)" % (path, len(cases), len(tokens), len(merges), len(config_tokens)))
+
+
+# The deepseek41 tokenizer golden reads DeepSeek-V4.1-Flash-1017's tokenizer.json, whose pretokenizer its GGUF files name joyai-llm, at the revision the deepseek41 reference pins.
+DEEPSEEK41_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+DEEPSEEK41_REVISION = "1bae0e1088993b9b82de08f59de5be5a34e42170"
+DEEPSEEK41_TOKENIZER_SHA256 = "c90dfa01249db1be4245780a052ede752e1361c612ac6d08e2bdada7d599476b"
+# Each probe puts one code point where its class decides the split, so the ids tell which reading the regex engine takes.
+# Letters and marks sit inside a letter run, numbers after a digit, symbols and punctuation between letters, from Unicode 15.0, 15.1 and 16.0 and unassigned in 16.0.
+DEEPSEEK41_VERSION_PROBES = [
+    "a\U00031350b", "a\U0002ebf0b", "a\u2ffcb", "a\u1c89b", "a\u0897b", "1\U00010d40a", "a\u2427b", "a\u1b4eb",
+    "a\U0001e6c0b", "a\U000323b0b", "a\U00011b60b", "a\U000e0080b", "1\U0001e6f0a", "a\U0001fa8ab",
+]
+# A whitespace candidate before a newline, which `\s*[\r\n]+` joins only if `\s` holds it, and doubled before a letter.
+DEEPSEEK41_SPACE_CANDIDATES = [
+    "\t", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x1f", "\x85", "\xa0", "\u1680", "\u180e", "\u2000", "\u2007", "\u200a",
+    "\u200b", "\u2028", "\u2029", "\u202f", "\u205f", "\u3000", "\ufeff",
+]
+DEEPSEEK41_CASES = [
+    "Hello world, this is a test.",
+    "  hello   spaced   out   \tend",
+    "trailing   ",
+    "don't can't I'm we'll they've 're 'S",
+    "MixedCASE_snake_case-kebab.dot (paren) [x] {y} @user #tag $5 %d \"q\" `c` ~t |p \\b",
+    "a\n\nb\r\n\r\nc \n d\n",
+    "def f(x):\n    if x > 0:\n        return x\n    return -x",
+    "1 12 123 1234 12345 123456 1234567",
+    "3.14159 and 1e-9, 2,000,000 v2.0",
+    "\u0661\u0662\u0663\u0664\u0665 \uff11\uff12\uff13\uff14 x\u00b2\u00b3\u00b9 \u2460\u2461\u2462\u2463 \u00bd\u00bc \u2167",
+    "caf\u00e9 na\u00efve jalape\u00f1o \u00c5ngstr\u00f6m cafe\u0301 nai\u0308ve \u0301x",
+    "\u041f\u0440\u0438\u0432\u0435\u0442, \u043c\u0438\u0440! \u0393\u03b5\u03b9\u03ac \u03c3\u03bf\u03c5 \u03ba\u03cc\u03c3\u03bc\u03b5",
+    "\u0645\u0631\u062d\u0628\u0627 \u0628\u0627\u0644\u0639\u0627\u0644\u0645 \u05e9\u05dc\u05d5\u05dd \u05e2\u05d5\u05dc\u05dd",
+    "\u0928\u092e\u0938\u094d\u0924\u0947 \u0926\u0941\u0928\u093f\u092f\u093e \u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35\u0e04\u0e23\u0e31\u0e1a",
+    "\uc548\ub155\ud558\uc138\uc694 \uc138\uacc4",
+    "\u4f60\u597d\uff0c\u4e16\u754c\uff01 abc\u4e2d\u6587def \u3400\u3401 \U00020000\U00020001 \uf900\uf901 \u9fa5\u9fa6\u9fff",
+    "\u3053\u3093\u306b\u3061\u306f \u30ab\u30bf\u30ab\u30ca\u30fc \uff76\uff80\uff76\uff85 \u3010\u6ce8\u610f\u3011",
+    "Hello!!! ... ?! --> => ++ ** \u00a9\u00ae\u2122 \u20ac100 \u00a3 \u00a5 \u2190\u2192 \u2200x  !!\n\n x!!\r\n",
+    "\U0001f600 emoji \U0001f680\U0001f468\u200d\U0001f469\u200d\U0001f467 \u2764\ufe0f \U0001f44d\U0001f3fd",
+    "a\x01b\x7fc \u00ad co\u00adoperate \u200dx",
+] + DEEPSEEK41_VERSION_PROBES + [text for c in DEEPSEEK41_SPACE_CANDIDATES for text in ("x" + c + "\n", "x" + c + c + "a")]
+# The long text: the start of the perplexity excerpt, its line ends as LF, and a multilingual tail.
+DEEPSEEK41_LONG_CHARS = 6000
+
+
+def deepseek41_cases(added):
+    """The golden's texts: the fixed ones, every added token side by side in groups of 100 and between words, then the long text."""
+    cases = list(DEEPSEEK41_CASES)
+    for start in range(0, len(added), 100):
+        group = added[start:start + 100]
+        cases.append("".join(group))
+        cases.append(" x".join(group) + " y")
+    with io.open(os.path.join(ROOT, "tests", "data", "wiki.test.raw"), encoding="utf-8", newline="") as f:
+        excerpt = f.read().replace("\r\n", "\n")[:DEEPSEEK41_LONG_CHARS]
+    return cases + [excerpt + "".join(DEEPSEEK41_CASES[9:19])]
+
+
+def gen_tokenizer_deepseek41(output_dir, checkpoint, header_gguf):
+    """HF's ids for the deepseek41 texts from the pinned tokenizer.json, with the part of its vocabulary those texts reach, so tests/tokenizer.py checks them without a model file.
+    The token types are the GGUF file's, read from the first shard's header, whose pretokenizer must be joyai-llm and whose tokens and merges must equal tokenizer.json's."""
+    import tokenizers
+    from tokenizers import Tokenizer
+    from tokenizers.pre_tokenizers import ByteLevel
+    import spec_decode
+
+    path = os.path.join(checkpoint, "tokenizer.json")
+    with open(path, "rb") as f:
+        raw = f.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != DEEPSEEK41_TOKENIZER_SHA256:
+        raise SystemExit("deepseek41: %s has SHA-256 %s, not the pinned %s" % (path, digest, DEEPSEEK41_TOKENIZER_SHA256))
+    spec = json.loads(raw)
+    header = spec_decode.GGUF(header_gguf)
+    if header.value("tokenizer.ggml.pre") != "joyai-llm":
+        raise SystemExit("deepseek41: %s names pretokenizer %r, not joyai-llm" % (header_gguf, header.value("tokenizer.ggml.pre")))
+    gguf_tokens = header.value("tokenizer.ggml.tokens")[1]
+    gguf_types = header.value("tokenizer.ggml.token_type")[1]
+    gguf_merges = header.value("tokenizer.ggml.merges")[1]
+    vocab = spec["model"]["vocab"]
+    added = sorted(spec["added_tokens"], key=lambda a: a["id"])
+    by_id = {i: t for t, i in vocab.items()}
+    by_id.update((a["id"], a["content"]) for a in added)
+    if len(by_id) != len(gguf_tokens) or gguf_tokens != [by_id.get(i) for i in range(len(gguf_tokens))]:
+        raise SystemExit("deepseek41: %s's tokens are not tokenizer.json's" % header_gguf)
+    if gguf_merges != spec["model"]["merges"]:
+        raise SystemExit("deepseek41: %s's merges are not tokenizer.json's" % header_gguf)
+    tok = Tokenizer.from_file(path)
+    byte_level = ByteLevel(add_prefix_space=False, use_regex=False)
+    cases = deepseek41_cases([a["content"] for a in added])
+    # As for qwen35: the merges that form a substring of a text, in rank order with the tokens they form, give the ids the whole vocabulary gives.
+    # No merge forms a token longer than the longest, so the long text's substrings are taken up to that length.
+    assert all(isinstance(m, str) and m.count(" ") == 1 for m in spec["model"]["merges"])
+    longest = max(len(m) - 1 for m in spec["model"]["merges"])
+    reach = set()
+    for text in cases:
+        mapped = byte_level.pre_tokenize_str(text)[0][0]
+        reach.update(mapped[i:j] for i in range(len(mapped)) for j in range(i + 2, min(len(mapped), i + longest) + 1))
+    merges = [m for m in spec["model"]["merges"] if m.replace(" ", "") in reach]
+    tokens = {vocab[t]: t for t in ByteLevel.alphabet()}
+    tokens.update((vocab[m.replace(" ", "")], m.replace(" ", "")) for m in merges)
+    tokens.update((a["id"], a["content"]) for a in added)
+    types = {i: int(t) for i, t in enumerate(gguf_types) if int(t) != 1}
+    assert set(types) == {a["id"] for a in added} and set(types.values()) <= {3, 4}
+    pre = tok.pre_tokenizer
+    # The fixed texts carry their pretokenized pieces, which tests/tokenizer.py prints beside a failing text; the added tokens' texts and the long one carry ids alone.
+    golden = [dict({"text": t, "ids": tok.encode(t, add_special_tokens=False).ids},
+                   **({"pieces": [p for p, _ in pre.pre_tokenize_str(t)]} if n < len(DEEPSEEK41_CASES) else {}))
+              for n, t in enumerate(cases)]
+    assert all(i in tokens for case in golden for i in case["ids"])
+    doc = {
+        "_comment": "Generated by tools/gen_baseline.py tokenizer-deepseek41. Do not hand-edit.",
+        "tokenizer_repo": DEEPSEEK41_REPO,
+        "tokenizer_revision": DEEPSEEK41_REVISION,
+        "tokenizer_json_sha256": DEEPSEEK41_TOKENIZER_SHA256,
+        "gguf_header": os.path.basename(header_gguf),
+        "tokenizers_version": tokenizers.__version__,
+        "tokens": {str(i): tokens[i] for i in sorted(tokens)},
+        "token_types": {str(i): types[i] for i in sorted(types)},
+        "merges": merges,
+        "cases": golden,
+    }
+    out = os.path.join(output_dir, "baseline_tokenizer_deepseek41.json")
+    _write(out, doc)
+    print("wrote %s (%d cases, %d tokens, %d merges, %d typed tokens)" % (out, len(golden), len(tokens), len(merges), len(types)))
 
 
 def load_reference(args):
@@ -1721,16 +1844,16 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "deepseek41-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "tokenizer-deepseek41", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "deepseek41-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
     parser.add_argument("--gguf-repo", help="associated GGUF repository label; required with --gguf-file")
     parser.add_argument("--gguf-file", help="associated GGUF filename label; required for another model")
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
-    parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens")
+    parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens; tokenizer-deepseek41: the GGUF shard whose header gives the token types")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
-    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny: the directory of DeepSeek's files at the pinned revision")
+    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41: the directory holding the pinned tokenizer.json")
     args = parser.parse_args(argv)
     if args.kind == "deepseek41-tiny":
         if not args.checkpoint or not os.path.isdir(args.checkpoint):
@@ -1741,6 +1864,14 @@ def parse_args(argv=None):
         args.family = "deepseek41"
         args.chunked_calls = True
         return args
+    if args.kind == "tokenizer-deepseek41":
+        if not args.weights_gguf or not args.checkpoint or not os.path.isfile(args.weights_gguf) or not os.path.isdir(args.checkpoint):
+            parser.error("tokenizer-deepseek41 needs --checkpoint, the directory of the pinned tokenizer.json, and --weights-gguf, the GGUF shard whose header gives the token types")
+        if args.repo != TOKENIZER_REPO or args.revision or args.gguf_repo or args.gguf_file or args.threads is not None or args.model:
+            parser.error("tokenizer-deepseek41 reads its pinned tokenizer.json; only --checkpoint, --weights-gguf and --output-dir apply")
+        args.output_dir = os.path.abspath(args.output_dir or OUT_DIR)
+        args.family = "deepseek41"
+        return args
     if args.kind == "vision-file-exact":
         if not args.weights_gguf or not args.checkpoint or not os.path.isfile(args.weights_gguf) or not os.path.isdir(args.checkpoint):
             parser.error("vision-file-exact needs --weights-gguf, an mmproj file, and --checkpoint, its checkpoint's directory")
@@ -1749,7 +1880,7 @@ def parse_args(argv=None):
         args.chunked_calls = True
         return args
     if args.checkpoint:
-        parser.error("--checkpoint applies to vision-file-exact only")
+        parser.error("--checkpoint applies to vision-file-exact and tokenizer-deepseek41 only")
     args.family = "qwen3"
     if os.path.isdir(args.repo):
         parser.error("--repo must identify a Hub repository, not a local directory that bypasses revision pinning")
@@ -1881,6 +2012,8 @@ def main(argv=None):
         gen_nvfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
+    if args.kind == "tokenizer-deepseek41":
+        gen_tokenizer_deepseek41(args.output_dir, args.checkpoint, args.weights_gguf)
     if args.kind == "qwen35-tiny":
         gen_qwen35_tiny(args.output_dir)
     if args.kind == "qwen35-mtp":

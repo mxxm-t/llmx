@@ -356,6 +356,8 @@ class ReferenceGenerator(unittest.TestCase):
             ["iq4-nl", "--threads", "2"], ["iq4-nl", "--revision", "c" * 40],
             ["iq4-xs", "--threads", "2"], ["iq4-xs", "--revision", "c" * 40],
             ["file-exact"],
+            ["tokenizer-deepseek41"], ["tokenizer-deepseek41", "--checkpoint", str(SCRIPT.parent)],
+            ["tokenizer-deepseek41", "--checkpoint", str(SCRIPT.parent), "--weights-gguf", str(SCRIPT), "--threads", "2"],
         ]
         with contextlib.redirect_stderr(io.StringIO()):
             for argv in invalid:
@@ -1218,6 +1220,14 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual((doc["tokenizer_repo"], doc["tokenizer_revision"]), (generator.QWEN35_REPO, generator.QWEN35_REVISION))
         self.assertEqual({"tokenizer.json": doc["tokenizer_json_sha256"], "tokenizer_config.json": doc["tokenizer_config_json_sha256"]},
                          generator.QWEN35_SHA256)
+
+    def test_committed_deepseek41_tokenizer_golden_is_the_generators(self):
+        # Changing the generator's texts, revision or pinned digest without regenerating the golden fails here; the added tokens are the typed ones, in id order.
+        doc = json.loads((Path(generator.OUT_DIR) / "baseline_tokenizer_deepseek41.json").read_text(encoding="utf-8"))
+        added = [doc["tokens"][i] for i in sorted(doc["token_types"], key=int)]
+        self.assertEqual([case["text"] for case in doc["cases"]], generator.deepseek41_cases(added))
+        self.assertEqual((doc["tokenizer_repo"], doc["tokenizer_revision"], doc["tokenizer_json_sha256"]),
+                         (generator.DEEPSEEK41_REPO, generator.DEEPSEEK41_REVISION, generator.DEEPSEEK41_TOKENIZER_SHA256))
 
     def test_qwen35_environment_is_offline_at_its_versions_without_replacements(self):
         # Every qwen35 reference comes from HF's own torch functions in one pinned environment, so another torch, transformers or tokenizers version, or a package HF's qwen3_5 code would run in their place, is refused.

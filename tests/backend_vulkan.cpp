@@ -2981,7 +2981,7 @@ size_t check_q6_dots(const std::vector<std::pair<std::string, std::string>>& rep
 }
 
 struct ContractionChecks {
-    size_t same = 0, whole_columns = 0, two_rows = 0, decode = 0, kinds_only = 0, grouped = 0;
+    size_t same = 0, whole_columns = 0, two_rows = 0, repair_rows = 0, decode = 0, kinds_only = 0, grouped = 0;
 };
 
 // Expected Q8_0 float operations for a build's columns, rows, steps and reduction forms.
@@ -3016,10 +3016,20 @@ bool decode_build(const std::string& text, DecodeBuild& b) {
     return b.cols && b.rows && b.steps && (b.halves == 1 || (b.halves == 2 && b.tree && b.half && b.cols == 1));
 }
 // A two-row build of the Q4 and K-quant row kernels, read from the first line of its representation: the columns it holds, the rows a cluster takes and the cluster width its reduction transposes (0 for none).
-bool row_build(const std::string& text, unsigned& cols, unsigned& rows, unsigned& tree) {
+bool row_build(const std::string& text, unsigned& cols, unsigned& rows, unsigned& tree, bool* repair = nullptr) {
     const std::string head = "; row_build";
     const std::string line = text.substr(0, text.find('\n'));
     if (line.compare(0, head.size(), head) != 0) return false;
+    unsigned property = 0;
+    const size_t repair_at = line.find(" repair=");
+    if (repair_at != std::string::npos) {
+        const size_t value = repair_at + 8;
+        if (value >= line.size() || (line[value] != '0' && line[value] != '1') ||
+            (value + 1 < line.size() && !std::isspace((unsigned char)line[value + 1])))
+            throw std::runtime_error("invalid row repair property");
+        property = unsigned(line[value] - '0');
+    }
+    if (repair) *repair = property != 0;
     return header_field(line, "cols", cols) && header_field(line, "rows", rows) && header_field(line, "tree", tree) && cols && rows;
 }
 
@@ -3079,6 +3089,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
         unsigned rows;
         FloatOps got, ref;
         unsigned tree;
+        bool repair;
     };
     std::vector<TwoRow> two_row;
     for (const auto& o : ops) {
@@ -3148,10 +3159,11 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 continue;
             }
             unsigned two_cols = 0, rows = 1, tree = 0;
+            bool repair = false;
             for (const auto& kr : representations)
-                if (kr.first == b && row_build(kr.second, two_cols, rows, tree) && two_cols != cols) fail("a two-row build whose shape gives other columns than its name");
+                if (kr.first == b && row_build(kr.second, two_cols, rows, tree, &repair) && two_cols != cols) fail("a two-row build whose shape gives other columns than its name");
             if (rows > 1) {
-                two_row.push_back({kernel, b, cols, rows, got, ref, tree});
+                two_row.push_back({kernel, b, cols, rows, got, ref, tree, repair});
                 continue;
             }
             if (got == ref) {
@@ -3189,6 +3201,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 if (a.kernel != c.kernel || c.cols <= a.cols || (pass == 0) != (a.rows == c.rows)) continue;
                 auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + a.name + " and " + c.name); };
                 if (a.tree != c.tree) fail("two-row builds of one kernel with other reductions");
+                if (a.repair != c.repair) fail("two-row builds of one kernel with other repair properties");
                 size_t ga[5], gc[5], r[5];
                 if (!counts(a, ga) || !counts(c, gc)) fail("a transposed two-row build with fewer adds than its reduction takes");
                 reference(a, r);
@@ -3208,6 +3221,11 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                     const auto per = column_ops.find(a.kernel);
                     if (per == column_ops.end()) fail("two-row builds of other rows without two of the same rows to give a column's products");
                     if (c.rows <= a.rows) fail("a wider two-row build with fewer rows");
+                    // Repair loops may be cloned or rolled at another row count; kinds and pass 0's increments remain checked, and numerical tests hold their results.
+                    if (a.repair) {
+                        ++n.repair_rows;
+                        continue;
+                    }
                     const size_t products = size_t(c.rows) * c.cols - size_t(a.rows) * a.cols, rows = c.rows - a.rows;
                     size_t w[5];
                     for (int k = 0; k < 5; ++k) {
@@ -3286,8 +3304,27 @@ void check_decode_contraction() {
         return check_contraction({{"matmul_row_fixture_1col", row_one}, {"matmul_row_fixture_2col", two},
                                   {"matmul_row_fixture_4col", four}, {"matmul_row_fixture_16col", wide}});
     };
-    (void)row_checks(row_two, row_four, row_wide);
-
+    const auto repair_checks = row_checks(row_two, row_four, row_wide);
+    require(repair_checks.two_rows == 1 && repair_checks.repair_rows == 2, "repair builds lost their exact same-row check or named cross-row tally");
+    auto refuses_rows = [&](const std::string& two, const std::string& four, const std::string& wide) {
+        bool refused = false;
+        try { row_checks(two, four, wide); }
+        catch (const std::runtime_error&) { refused = true; }
+        require(refused, "changed repair metadata, kinds or same-row arithmetic escaped its checks");
+    };
+    refuses_rows(row_two, row_four + "v_mul_f32_e32 v0, v1, v2\n", row_wide);
+    refuses_rows(row_two, repaired(4, 2, 112, 27, 22), row_wide);
+    refuses_rows(row_two, row_four + "v_mac_f32_e32 v0, v1, v2\n", row_wide);
+    refuses_rows(row_two, row_four, repaired(16, 4, 170, 0, 129));
+    refuses_rows(row_two, row_four, repaired(16, 4, 170, 80, 129, " repair=0"));
+    refuses_rows(row_two, row_four, repaired(16, 4, 170, 80, 129, " repair=2"));
+    refuses_rows(row_two, row_four, repaired(16, 4, 170, 80, 129, " repair=1suffix"));
+    refuses_rows(row_two, row_four, repaired(16, 4, 170, 80, 129, " repair="));
+    refuses_rows(repaired(2, 2, 100, 20, 15, ""), repaired(4, 2, 112, 28, 22, ""), repaired(16, 4, 170, 80, 129, ""));
+    bool no_increments = false;
+    try { check_contraction({{"matmul_row_fixture_1col", row_one}, {"matmul_row_fixture_2col", row_two}, {"matmul_row_fixture_16col", row_wide}}); }
+    catch (const std::runtime_error&) { no_increments = true; }
+    require(no_increments, "cross-row repair builds escaped without established same-row increments");
 }
 
 std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {
@@ -3541,8 +3578,9 @@ size_t check_half_weights(backend::Backend& vk) {
                 checked += exact(expected, actual, "packed F16 row position differs from independent widened F32 control");
             }
         }
-        for (size_t nin : {size_t(5), size_t(7), size_t(32), size_t(65), size_t(256), size_t(4096)}) {
-            const size_t nout = 7, experts = 3, k = 2;
+        // The tall 1024-wide case reaches narrow multi-row builds that small output matrices may replace for occupancy.
+        for (size_t nin : {size_t(5), size_t(7), size_t(32), size_t(65), size_t(256), size_t(1024), size_t(4096)}) {
+            const size_t nout = nin == 1024 ? 1024 : 7, experts = 3, k = 2;
             auto packed = matrix(type, nin, experts * nout, 523);
             std::vector<float> values(packed.size() / 2);
             for (size_t i = 0; i < values.size(); ++i) {
@@ -3594,8 +3632,21 @@ size_t check_half_weights(backend::Backend& vk) {
                                                                xs, nin, batch, route, rows, dtype);
                             else vk.matmul_experts_add({t, ws}, xs, ys, nin, nout, batch, route, rows, dtype);
                         };
+                        const bool witness = nin == 1024 && batch == 3 && dtype == backend::Dtype::f32 && op == 0;
+                        if (witness) (void)backend::vulkan_kernel_times(vk);
                         (void)testq::take_matrix_paths(vk);
                         run(type, hw, a);
+                        if (witness) {
+                            const auto times = backend::vulkan_kernel_times(vk);
+                            const std::string family = type == 1 ? "matmul_row_wf16" : "matmul_row_wbf16";
+                            const std::string narrow = profile.row_decode_cols >= 4 ? family + "_4col" : profile.row_decode_cols >= 2 ? family + "_2col" : "";
+                            require(times.empty() || narrow.empty() || std::any_of(times.begin(), times.end(), [&](const auto& t) { return t.first == narrow; }),
+                                    "tall half-weight case did not reach its profile's narrow multi-row build");
+                            std::cout << "backend-vulkan: half-weight narrow row witness type " << type << " requested 3 columns:";
+                            for (const auto& t : times) std::cout << " " << t.first;
+                            if (times.empty()) std::cout << " timing unavailable";
+                            std::cout << "\n";
+                        }
                         require(testq::take_matrix_paths(vk) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : "f32"},
                                 "half weights reported quantized activation arithmetic");
                         run(0, fw, b);
@@ -5867,7 +5918,8 @@ int main(int argc, char** argv) {
             std::cout << "backend-vulkan: " << check_q6_dots(representations) << " Q6 builds retain native 16-bit dots\n";
             const ContractionChecks c = check_contraction(representations);
             std::cout << "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: " << c.same << " the same, "
-                      << c.whole_columns << " those and whole columns, " << c.two_rows << " pairs of two-row builds whole columns apart, " << c.decode
+                      << c.whole_columns << " those and whole columns, " << c.two_rows << " pairs of two-row builds whole columns apart, "
+                      << c.repair_rows << " cross-row repair pairs checked by kinds and same-row increments, " << c.decode
                       << " Q8_0 decode builds those their shape and forms give, "
                       << c.kinds_only << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
             // Where only the backend taking the integer dot built the Q8_0 decode kernel, its builds are written and held to their shapes too.

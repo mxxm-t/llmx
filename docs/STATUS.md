@@ -1,15 +1,5 @@
 # llmx - Development Status
 
-## Q2_K row-repair count regression (2026-11-04, failing test first)
-
-**Goal:** Hold a compiler's rolled whole-row repair loop without requiring its static instructions to be duplicated for every output row.
-
-**Done:** Added a synthetic case to the existing instruction-checker self-test. It preserves operation kinds and same-row increments while changing the row count. The unchanged checker refuses this valid count pattern, reproducing the separately captured MI50 failure.
-
-**Left:** Apply the reviewed metadata-driven checker fix and its numerical witnesses, then complete the applicable landing checks. This first commit intentionally retains the failing regression.
-
-**Gotchas:** No runtime or numerical-limit change. The next commit fixes the checker; do not land this regression alone.
-
 ## Draft price at depth (2026-11-04, SDEV3 and SDEV4, branch sdev2/draft-price-at-depth on main 44c5e56f0; SDEV2's finding and proposal of 2026-11-03 22:39, approved by F2DEV at 22:42 with seven changes and at 2026-11-04 04:09 with four more)
 
 **Goal:** a drafting reply at depth weighs its drafts against fresh prices of the pass it would run: on production's Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 layer split at about 200k tokens, a lone reply drafting took 23-row verifies at about 19 tokens a second where plain decode gives 35.9, because the depth rule read decode cells last measured during old stalls and priced a pass alone as its slowest stage plus a flat offset.
@@ -865,7 +855,7 @@ A 0.6B int8 pp512 cell is bimodal on this card in every arm (runs near 9600 and 
 ## Dashboard absolute time ticks (2026-11-01, branch fix/dashboard-tick-flow-e2-20261101)
 
 - **Problem:** Re-rendering the chart re-anchored its time labels to the moving window start. In the regression fixture, the same tick jumped 4.380px at 1440px and 1.913px at 390px after a two-second sample step.
-- **Change:** Tick timestamps now use absolute multiples of the selected range's tick spacing, so the same timestamp follows the continuous chart motion across redraws. The chart uses a fixed “Delayed view” caption. The cursor targets one collection interval of buffering, but actual lag varies with initial history and sample delivery; the caption does not claim an exact delay.
+- **Change:** Tick timestamps now use absolute multiples of the selected range's tick spacing, so the same timestamp follows the continuous chart motion across redraws. The chart uses a fixed "Delayed view" caption. The cursor targets one collection interval of buffering, but actual lag varies with initial history and sample delivery; the caption does not claim an exact delay.
 - **Checks:** The regression-only commit `ad0abd001` failed before the fix with the measured jumps above. The focused dashboard browser suite passes 12 tests. The same tick moves 0.0000px at 1440px and -0.0003px at 390px across redraws; the caption remains Delayed view across sample arrival and cursor movement. The continuous-segment checks retain their 0.0000px boundary deltas at both widths. On the final Q1-based tree, docs reports zero findings with 21 planted faults and dead-code reports eight listed findings with 19 planted faults; the compatible Q1 CLI was reused because Q1 does not change CLI source. Logs: `scratch/dashboard-tick-flow-20261101/{tick-red-before.log,focused-browser.log,docs-dead-e2-final.log}`.
 - **Integration:** The two commits were cherry-picked onto public-main Q1 head `e2cea5113b882844aab378505042545e82d0c33d`. The HTML, browser test and README blobs match the tested candidate exactly; Q1's intervening changes are outside `tools/health_dashboard`.
 - **Landing:** lands by fast-forward after focused browser, syntax, docs and dead-code checks; no inference/runtime gates apply.
@@ -5893,6 +5883,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Vulkan allocation failure ownership | Done |
 | Vulkan attention width and mixed-cache validation | Done |
 | More quant formats (Q4_0/Q4_1/Q4_K/Q5_K/Q6_K read) | Done |
+| Vulkan row-repair instruction checks | Done; applicable hosted checks and MI50/Radeon ISA plus attention integration pass. Runtime arithmetic and numerical limits are unchanged. [Gate record](benchmarks/q2-k-isa-device-checkpoint-20261104.json); lands by fast-forward. |
 | Read-only Q2_0 CPU/Vulkan inference | Done; qualification, measured tradeoffs and hosted retry are recorded above |
 | Activation dtype: resolution, CPU/Vulkan conformance, reporting and fallback | Done; qualified F16 default, explicit F32 and BF16 emulation, with the gates and retained speed gaps in the 2026-10-02 record below |
 | CPU fit reserve beyond payload buffers | Done; test-first repair, startup under the same 8 GiB limit and integrated server coverage recorded below |

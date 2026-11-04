@@ -158,6 +158,13 @@ On Windows with `LongPathsEnabled` set, the round-trip component also reads a GG
 
 What each test checks is in `docs/TESTS.md`: every CTest and suite component is described there, and a new one is described there in the change that adds it (the `docs` component's `test-name` check holds that).
 
+Vulkan `--isa` count checks follow the declared build shape and repair property,
+as described in `docs/TESTS.md`. A compiler may retain a repair loop instead of
+copying its body for every row. Such builds retain the operation-kind and
+same-row count checks, with cross-row coverage reported separately and held by
+numerical repair tests. Do not change shader arithmetic to satisfy a static
+count equation that assumes those loops were unrolled.
+
 Run the native backend, model, chat-template, KV storage, loader and streaming checks
 after a CMake build:
 ```

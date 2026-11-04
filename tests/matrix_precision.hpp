@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -50,9 +52,182 @@ inline std::vector<std::string> take_matrix_paths(backend::Backend& device) {
     return paths.take();
 }
 
+// Shared wide-only K23 checks; the tree-overflow fixture must not run an explicit F32 backend dot.
+inline size_t check_k23_wide_repair(backend::Backend& b, uint32_t type, const std::vector<uint8_t>& packed,
+                                   const std::vector<float>& weights, const std::vector<float>& x,
+                                   bool expect_repair, bool expect_tree_overflow = false) {
+    if (weights.size() != x.size() || x.empty() || x.size() % 256) throw std::runtime_error("K23 wide fixture shape");
+    const size_t nin = x.size();
+    const auto reconstructed = row_activations(x);
+    float peak = 0;
+    for (size_t i = 0; i < 32; ++i) peak = std::max(peak, std::fabs(x[i]));
+    const float scale = peak / 32767.0f;
+    const bool flagged = scale != 0 && (scale < std::ldexp(1.0f, -80) || scale > std::ldexp(1.0f, 80));
+    if (flagged != expect_repair) throw std::runtime_error("K23 wide fixture does not establish its scale-repair predicate");
+    if (expect_tree_overflow) {
+        if (flagged || nin != 65536 || scale != std::ldexp(1.0f, 79)) throw std::runtime_error("K23 tree repair fixture range");
+        for (size_t i = 0; i < nin; ++i)
+            if (weights[i] != weights[0] || reconstructed[i] != ((i / 32) % 2 ? -peak : peak))
+                throw std::runtime_error("K23 tree repair fixture is not the independently reconstructed constant product");
+        // Each lane takes every 64th 32-value block. Two ordered 16-value products make its block contribution.
+        const float half = weights[0] * float(32767 * 16), block = scale * (half + half);
+        std::vector<float> lane(64, 0.0f);
+        for (size_t i = 0; i < nin / 32; ++i) lane[i % 64] += i % 2 ? -block : block;
+        for (float v : lane) if (!std::isfinite(v)) throw std::runtime_error("K23 tree fixture has a nonfinite lane sum");
+        const float lane_peak = std::fabs(lane[0]);
+        for (size_t off = 32; off; off >>= 1) {
+            const auto previous = lane;
+            for (size_t i = 0; i < lane.size(); ++i) lane[i] = previous[i] + previous[i ^ off];
+        }
+        float serial = 0, serial_peak = 0;
+        for (size_t i = 0; i < nin; ++i) {
+            serial = std::fma(weights[i], reconstructed[i], serial);
+            if (!std::isfinite(serial)) throw std::runtime_error("K23 tree fixture serial repair is not finite");
+            serial_peak = std::max(serial_peak, std::fabs(serial));
+        }
+        if (std::isfinite(lane[0]) || !(serial_peak < std::numeric_limits<float>::max() / 64))
+            throw std::runtime_error("K23 tree fixture lacks overflow or finite serial margin");
+        std::cout << "K23 tree repair host proof type " << type << " scale " << scale << " lane " << lane_peak
+                  << " tree nonfinite, serial peak " << serial_peak << " final " << serial << '\n';
+    }
+    // Five distinct rows: exact power-of-two scales, with two signs at the first two magnitudes.
+    // Use upward factors for tiny scales, downward factors near the finite-half maximum.
+    constexpr size_t rows = 5;
+    const size_t blocks = nin / 256, bytes = packed.size() / blocks, scales = type == quant::GGML_TYPE_Q2_K ? 2 : 1;
+    if (packed.size() != blocks * (type == quant::GGML_TYPE_Q2_K ? 84 : 110)) throw std::runtime_error("K23 wide packed row shape");
+    bool down = false;
+    for (size_t j = 0; j < blocks; ++j) for (size_t k = 0; k < scales; ++k)
+        down = down || (packed[j * bytes + bytes - 2 * scales + 2 * k + 1] & 0x7c) >= 0x74;
+    std::vector<uint8_t> repeated(rows * packed.size());
+    std::vector<float> row_weights(rows * nin), decoded(rows * nin);
+    for (size_t r = 0; r < rows; ++r) {
+        std::copy(packed.begin(), packed.end(), repeated.begin() + r * packed.size());
+        const int shifts = int(r / 2), direction = down ? -1 : 1;
+        const float factor = std::ldexp(r % 2 ? -1.0f : 1.0f, direction * shifts);
+        for (size_t i = 0; i < nin; ++i) row_weights[r * nin + i] = weights[i] * factor;
+        for (size_t j = 0; j < blocks; ++j) for (size_t k = 0; k < scales; ++k) {
+            uint8_t* h = repeated.data() + r * packed.size() + j * bytes + bytes - 2 * scales + 2 * k;
+            unsigned word = unsigned(h[0]) | (unsigned(h[1]) << 8), magnitude = word & 0x7fff;
+            for (int step = 0; step < shifts && magnitude; ++step) {
+                if (down) {
+                    if (magnitude < 0x800 && (magnitude & 1)) throw std::runtime_error("K23 row scale would round a half");
+                    magnitude = magnitude < 0x800 ? magnitude / 2 : magnitude - 0x400;
+                } else magnitude = magnitude < 0x400 ? magnitude * 2 : magnitude + 0x400;
+            }
+            if (magnitude >= 0x7c00) throw std::runtime_error("K23 row scale would overflow a half");
+            word = ((word ^ (r % 2 ? 0x8000 : 0)) & 0x8000) | magnitude;
+            h[0] = uint8_t(word); h[1] = uint8_t(word >> 8);
+        }
+    }
+    quant::Registry::instance().get(type)->dequantize(repeated.data(), decoded.data(), rows * blocks);
+    if (decoded != row_weights) throw std::runtime_error("K23 distinct packed rows differ from independent power-of-two weights");
+    for (size_t r = 0; r < rows; ++r) for (size_t prev = 0; prev < r; ++prev)
+        if (std::equal(row_weights.begin() + r * nin, row_weights.begin() + (r + 1) * nin, row_weights.begin() + prev * nin))
+            throw std::runtime_error("K23 wide fixture weight rows are not distinct");
+    size_t checked = 0;
+#if LLMX_HAS_BACKEND_VULKAN
+    if (!b.is_cpu() && k23_integer(b, backend::Dtype::f16)) {
+        // K23 column chunks choose the narrowest available build, independently of output height.
+        // Five rows leave a partial group in both the two-row (2/4/8 columns) and four-row (16) builds.
+        constexpr size_t most = 17;
+        constexpr float guard = 19;
+        std::vector<float> inputs(most * nin);
+        for (size_t c = 0; c < most; ++c)
+            for (size_t i = 0; i < nin; ++i) inputs[c * nin + i] = c % 2 ? -x[i] : x[i];
+        // A flagged lane selects per-row fallback repair; otherwise the tree fixture's nonfinite sum selects tree repair.
+        const auto rw = b.adopt(repeated.data(), repeated.size()), rx = b.adopt(inputs.data(), inputs.size() * sizeof(float));
+        const auto ry = b.alloc((most * rows + 2) * sizeof(float));
+        std::vector<double> want(rows, 0), bound(rows);
+        const double nu = double(nin + 6) * 0x1p-24;
+        for (size_t r = 0; r < rows; ++r) {
+            double magnitude = 0;
+            for (size_t i = 0; i < nin; ++i) {
+                const double term = double(row_weights[r * nin + i]) * reconstructed[i];
+                want[r] += term; magnitude += std::fabs(term);
+            }
+            bound[r] = nu / (1 - nu) * magnitude + double(nin) * std::numeric_limits<float>::denorm_min();
+        }
+        auto product = [&](size_t col0, size_t cols) {
+            std::vector<float> result(most * rows + 2, guard);
+            b.write(*ry, 0, result.data(), result.size() * sizeof(float));
+            take_matrix_paths(b);
+            backend::vulkan_kernel_times(b);
+            const backend::RowRun run{cols, 1};
+            b.matmul({type, {rw.get(), 0}}, {rx.get(), col0 * nin}, {ry.get(), 1}, nin, rows, cols, {&run, 1}, backend::Dtype::f16);
+            b.read(*ry, 0, result.data(), result.size() * sizeof(float));
+            if (take_matrix_paths(b) != std::vector<std::string>{"block-int16"}) throw std::runtime_error("K23 wide cancellation arithmetic witness");
+            if (result.front() != guard || !std::all_of(result.begin() + 1 + cols * rows, result.end(), [guard](float v) { return v == guard; }))
+                throw std::runtime_error("K23 wide cancellation crossed output guards");
+            for (size_t c = 0; c < cols; ++c) for (size_t r = 0; r < rows; ++r) {
+                const float got = result[1 + c * rows + r];
+                const double expected = (col0 + c) % 2 ? -want[r] : want[r];
+                if (!std::isfinite(got) || std::fabs(double(got) - expected) > bound[r])
+                    throw std::runtime_error("K23 wide cancellation differs from independent reconstructed-input double bound");
+                ++checked;
+            }
+            return result;
+        };
+        const auto positive = product(0, 1), negative = product(1, 1);
+        const std::string kernel = type == quant::GGML_TYPE_Q2_K ? "matmul_row_q2_dot_" : "matmul_row_q3_dot_";
+        const auto profile = backend::vulkan_device_profile(b);
+        std::vector<std::string> dispatched;
+        std::vector<size_t> capacities{1};
+        for (size_t n : {2u, 4u, 8u, 16u}) if (n <= profile.row_decode_cols) capacities.push_back(n);
+        if (capacities.size() == 1) capacities.push_back(8); // The one-row wide fallback, as in column_builds.
+        for (size_t cols : {2u, 3u, 4u, 5u, 8u, 9u, 16u, 17u}) {
+            const auto got = product(0, cols);
+            for (size_t c = 0; c < cols; ++c) {
+                const auto& alone = c % 2 ? negative : positive;
+                if (std::memcmp(got.data() + 1 + c * rows, alone.data() + 1, rows * sizeof(float)))
+                    throw std::runtime_error("K23 repaired wide column differs from its one-column baseline");
+            }
+            // Match the actual whole widest chunk plus the narrowest remainder build, including 17=>16+1.
+            std::vector<std::string> expected;
+            const size_t widest = capacities.back(), whole = cols > widest ? cols / widest : 0, rest = cols - whole * widest;
+            if (whole) expected.push_back(kernel + std::to_string(widest) + "col");
+            if (rest) {
+                const auto n = std::lower_bound(capacities.begin(), capacities.end(), rest);
+                const std::string name = kernel + std::to_string(*n) + "col";
+                if (std::find(expected.begin(), expected.end(), name) == expected.end()) expected.push_back(name);
+            }
+            const auto times = backend::vulkan_kernel_times(b);
+            for (const auto& entry : times) if (entry.first.rfind(kernel, 0) == 0) {
+                const auto found = std::find(expected.begin(), expected.end(), entry.first);
+                if (found == expected.end()) throw std::runtime_error("K23 wide repair dispatched an unexpected column build");
+                expected.erase(found);
+                if (std::find(dispatched.begin(), dispatched.end(), entry.first) == dispatched.end()) dispatched.push_back(entry.first);
+                std::cout << "K23 wide repair type " << type << " cols " << cols << " rows " << rows
+                          << " scale " << scale << " flagged " << flagged << " timed " << entry.first << '\n';
+            }
+            if (times.empty())
+                std::cout << "K23 wide repair type " << type << " cols " << cols << ": timing unavailable, numerical checks only\n";
+            else if (!expected.empty()) throw std::runtime_error("K23 wide repair lacks its timed integer row dispatch");
+        }
+        // Query representations once. Timed names establish dispatch; a returned header adds actual rows/tree evidence.
+        const auto representations = backend::vulkan_kernel_representations(b);
+        for (const auto& name : dispatched) {
+            bool metadata = false;
+            const size_t cols = std::stoul(name.substr(kernel.size()));
+            for (const auto& rep : representations)
+                if (rep.first == name && rep.second.rfind("; row_build ", 0) == 0) {
+                    const size_t build_rows = cols == 16 ? 4 : 2;
+                    if (rep.second.rfind("; row_build cols=" + std::to_string(cols) + " rows=" + std::to_string(build_rows) + " ", 0) != 0)
+                        throw std::runtime_error("K23 wide repair row-build metadata differs");
+                    metadata = true;
+                    std::cout << "K23 wide cancellation " << name << ' ' << rep.second.substr(0, rep.second.find('\n')) << '\n';
+                }
+            if (!metadata) std::cout << "K23 wide cancellation " << name << ": row-build metadata unavailable\n";
+        }
+    }
+#else
+    (void)b; (void)type; (void)packed;
+#endif
+    return checked;
+}
+
 // Opposite blocks cancel before a final small residual; the existing gamma_n magnitude contract still applies to every finite intermediate.
 inline size_t check_k23_cancellation(backend::Backend& b, uint32_t type, const std::vector<uint8_t>& packed,
-                                     const std::vector<float>& weights, const std::vector<float>& x) {
+                                     const std::vector<float>& weights, const std::vector<float>& x, bool expect_repair = false) {
     if (weights.size() != x.size() || x.empty() || x.size() % 256) throw std::runtime_error("K23 cancellation fixture shape");
     const size_t nin = x.size();
     const auto reconstructed = row_activations(x);
@@ -79,7 +254,7 @@ inline size_t check_k23_cancellation(backend::Backend& b, uint32_t type, const s
             throw std::runtime_error("K23 long cancellation differs from independent reconstructed-input double bound");
         ++checked;
     }
-    return checked;
+    return checked + check_k23_wide_repair(b, type, packed, weights, x, expect_repair);
 }
 
 // A unit weight selects a small input beside a peak. Its error is bounded by half a 16-bit reconstruction step, independently of the encoder.

@@ -120,6 +120,13 @@ The Python `half-weights` component independently decodes its stored weights wit
 
 `backend-vulkan` checks every finite F16/BF16 encoding through exact host-ID and device-ID embedding and width-one products against widened F32 storage on the same device, and the F16 products against the CPU. The packed F16 row loader also sees every finite encoding at each of four vector positions, with alternating normal/subnormal neighbors, nonzero inputs of opposite signs and independent widened-F32 product controls. Widths 5 and 7 check the unchanged scalar-row fallback with finite boundary encodings; rows divisible by four use the packed loader. Device-ID embedding also repeats a valid row and holds invalid IDs at the table boundary and `UINT32_MAX` to positive-zero rows. Wider dense, grouped, routed, additive and head products keep that F32 control, covering scalar/vector width tails, unaligned source storage, output guards, decode and tile dispatch under F32/F16/BF16 activation policies. BF16 subnormal products inherit the F32 device path's float controls; exact embedding widening does not promise gradual-underflow arithmetic where that F32 path flushes. The existing BF16 batch-boundary check includes both half storage types beside F32 and the quantized formats, holding a logical row's outputs across batch widths and mixed prompt/decode extents.
 
+The half-weight checks also include a 1024-by-1024 matrix. Its plain three-column
+F32-activation call records actual kernel timings and, where timing is available,
+checks the narrow multi-row build offered by the profile. This gives the ISA
+checker a smaller build at the same row count as its eight-column build; small
+output matrices can instead select the one-row occupancy fallback. The same
+independently widened F32 controls and output guards apply.
+
 `json` checks syntax, numeric/locale boundaries, UTF-8 and escaped Unicode,
 malformed input, nesting limits and JSON output string escaping.
 A float written by `number` is its shortest decimal in the C locale's form under a comma locale too, reads back through `parse` as the same float for every finite value among a million random bit patterns, and is `null` when JSON cannot hold it.
@@ -607,7 +614,41 @@ the driver's per-kernel statistics (registers, shared memory, scratch);
 `--isa DIR` additionally writes the driver's disassembly of each kernel
 to that directory.
 A backend made to time its work must count in its device time every dispatch between two readings, 6000 of them past the 4096 one query pool holds, since the server's `--timing` reads each stage every 32 rounds.
-With `--isa` every row kernel build must then hold its one-column build's counts of float multiplies, multiply-adds that round the product first, fused ones, adds and adds over shuffled lanes: the same counts where the driver keeps the column loop rolled, else those and whole columns of one column's, and for the Q8_0 decode kernel, whose builds also differ in rows, steps, copies of their products and forms, the counts its shape and forms give as the first line of its representation reports them: for each product in the code two multiplies and a separate add, with no fused multiply-add, the half-block order's step among them where the build takes that order, which must be where its one-column build does, and, beside those product adds, per row and column the one-column build's shuffled adds and one residual add, or with the transposed reduction that reduction's pairs and one residual add; a grouped build of the other row kernels must hold the counts of the plain build of its shape, the wide build or, for the Q4 and K-quant families' grouped two-row builds, the two-row build of its columns, or its one-column build's where the driver keeps its column loop rolled, and the two-row builds of the Q4 and K-quant families, whose first line reports their columns, rows and transposed reduction, must differ from each other by whole copies of one row and column's products, the same number a column in every pair, no more than the one-column build holds and in its proportion of fused products, with the transposed reduction's adds and each value a lane stores taken off, and builds of other rows also by whole copies of one row's weight operations, the same number in every pair and no more than the one-column build holds.
+With `--isa`, row builds retain their one-column build's operation kinds:
+float multiplies, rounded multiply-adds, fused products, ordinary adds and
+shuffled adds. A rolled column loop keeps the same counts; an unrolled loop
+adds whole copies of a column's products.
+
+Q8_0 decode counts follow the shape and forms in the representation header.
+Each product has two multiplies and a separate add, with no fused multiply-add.
+The half-block order must agree with the one-column build. Beside product adds,
+each row and column has the baseline shuffled reduction and one residual add,
+or the transposed reduction's pairwise adds and one residual add per 64 values.
+
+A grouped row build matches its plain build at that shape, or the one-column
+build when the compiler keeps the column loop rolled. Builds with equal row
+counts differ by whole copies of one row and column's products: the same
+per-column increment in every pair, no larger than the baseline and with its
+fusion proportion. Transposed reduction and lane-store adds are removed first.
+Builds with different row counts additionally differ by whole copies of a row's
+weight operations, unless their kernel declaration reports whole-row repair.
+The compiler can retain that repair loop in one build and copy it in another.
+Those declared repair builds keep the operation-kind and equal-row increment
+checks, and cross-row comparisons require an established per-column increment
+and report a separate tally instead of asserting the weight-operation equation.
+No kernel-name or driver-name allowance selects this rule.
+
+The focused Q2_K and Q3_K native tests hold repair numerically: five distinct
+weight rows, signed one-column baselines and batches of 2, 3, 4, 5, 8, 9, 16 and
+17 columns. Every output obeys its independent reconstructed-input bound and
+matches its baseline bits, with output guards and, where timestamps are available,
+timed dispatch names. Missing timing is reported as numerical coverage only;
+it does not establish which column builds ran. Extreme
+scales exercise flagged repair. A separate unflagged fixture proves finite lane
+sums, a nonfinite 64-lane reduction and finite serial repair on the host, then
+checks the device's results. This establishes input conditions and results,
+not a hardware branch count. A device's narrower column cap is reported as such.
+
 The Q8_0 decode builds are held to those counts only where the one-column build reduces over both shuffled and plain adds, and elsewhere to its kinds of operation alone; their multiplies also count the one-column build's multiplies beyond its products, and the transposed reduction is accepted only where the one-column build's reduction takes six levels.
 The counts are a screen on how the driver contracts and reduces a column's sums; a reassociation that keeps them shows only in the decode-column comparison below, which is what holds batch invariance.
 The instruction counter excludes the reciprocal scale of integer address division and its captured RADV five-instruction normalization sequence only when all registers match. Its ordinary native run checks this parser on captured instruction forms, retaining neighboring matrix products and unknown sequences, and checks Q8 shape counts with missing-multiply, missing-add and extra-fusion negative controls.

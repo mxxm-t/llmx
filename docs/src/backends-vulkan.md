@@ -8,7 +8,7 @@ Q1_0 uses the shared float tile and embedding families and a compile-time float 
 
 Q2_0 shares uncached format decoding and signed-pair centering in `shaders/low_bits.glsl`. Its integer row and tile consumers share the 256-entry table in `shaders/low_bits_cache.glsl`, initialized before any early return. Integer rows cache unsigned code pairs; integer tiles cache signed pairs. Embedding, conversion and float tiles use only the uncached decoder. The Q2_0 integer row build uses a 64-invocation workgroup. `matmul_row.glsl` sets `LLMX_ROW_THREADS`, `matmul_row.comp` uses it in both row-index mappings, and `VulkanBackend::row_dispatch` uses the same width for workgroup counts. Keep these sites paired; other row builds retain their selected width. Qualification and performance evidence are tracked in [STATUS](../STATUS.md).
 
-On integer-dot profiles F16/int8 requests use block-int16 rows and eligible prompt tiles. Explicit F32 and unsupported profiles retain float paths; BF16 uses the existing input-rounding float path. The shared planner restores value-based work for float fallbacks. The float row rounds products before pairwise addition to preserve cancellation behavior. Integer kernels reuse twin preparation, grouped/routed dispatch and scale/range repair.
+For Q1_0 and Q2_0, integer-dot profiles use block-int16 rows and eligible prompt tiles for F16 and int8 requests. Explicit F32 and unsupported profiles retain float paths; BF16 uses the existing input-rounding float path. The shared planner restores value-based work for float fallbacks. The float row rounds products before pairwise addition to preserve cancellation behavior. Integer kernels reuse twin preparation, grouped/routed dispatch and scale/range repair.
 
 The integer row planner caps the low-bit reduction group at 32 lanes. `kLowBitsRows` selects variant 7 for one-column integer calls with at least two total output rows, including grouped projections: two rows for Q1 and four for Q2. Each projection retains its row bounds and buffer; odd tails clamp unused reads and suppress stores. The rows share activation pairs and consume their weights in turn. Q2 uses `kQ2TreeRows` when `row_decode_tree` is enabled and the runtime cluster matches the 32-lane transposed reduction. This uses the existing reduction body and shared repair flags; narrower clusters keep variant 7. The native `low-bits` check compares grouped and standalone calls and batch columns bitwise, with exact kernel witnesses and Q2 width-boundary checks. Narrow routed integer tiles are classified as tall so their row count matches the dispatch plan. [Q1](../Q1.md) and [STATUS](../STATUS.md) record qualification.
 
@@ -104,7 +104,7 @@ The first three come before the class; the others define members the class decla
   one-column build's counts of float multiplies and adds, each Q8_0
   decode build to the counts its shape and forms give, and a kernel's
   two-row builds to whole copies of one row and column's products apart,
-  and of one row's weight operations where their rows differ,
+  and of one row's weight operations where their rows differ and no row repair is declared,
   as the first line of each build's representation states its shape (docs/TESTS.md). On a queue that
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
@@ -247,7 +247,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
   The two-row kernels (`row_kernel_builds_two_rows`), the Q4 and K-quant families, the F32, F16 and BF16 rows and, on the integer dot, the lookup types (IQ4_NL, IQ4_XS, IQ3_S, IQ3_XXS, IQ2_S, IQ2_XS, IQ2_XXS, IQ1_S, IQ1_M, TQ1_0, TQ2_0, Q1_0), Q2_K, Q3_K and MXFP4, also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
   Where the profile sets `row_decode_tree` (the MI50 under RADV) these builds reduce through the transposed reduction (`row_tree_cluster`, specialization constant 17), and `column_builds` gives them only rows of its cluster width, the rest taking the one-row builds.
-  `kernel_representations` starts such a build's text with `; row_build cols=C rows=R tree=W`.
+  `kernel_representations` starts such a build's text with `; row_build cols=C rows=R tree=W repair=B`. The kernel declaration supplies `repair`, which identifies a whole-row recomputation path whose loop the compiler may keep rolled.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the
@@ -459,8 +459,23 @@ build of its rows with all six.
 
 Other row builds must retain the baseline counts or whole additional copies
 of one column's products, depending on whether the compiler unrolls the
-column loop. Two-row builds keep whole copies and the baseline fusion ratio.
-These checks detect count changes, not every reassociation: the separate
+column loop. Builds of the same row count keep whole copies and the baseline
+fusion ratio. Across different row counts, the weight-operation equation applies
+only when the kernel declares no whole-row repair. A repair loop may remain
+rolled in one build and be copied in another, so static counts cannot establish
+its dynamic work. Those comparisons require the same operation kinds and an
+established per-column increment from equal-row builds, and are reported as a
+separate tally. The declaration comes from the kernel source metadata, never
+from a checker whitelist of kernel or driver names.
+
+Focused Q2_K and Q3_K numerical tests cover flagged-scale repair and nonfinite
+reduction repair with five distinct weight rows, exact and partial column
+batches, per-row reconstructed-input bounds, output guards and bitwise equality
+to the signed one-column results. Where available, timed kernel names establish
+which builds ran. Without timestamps, the test reports numerical coverage only.
+The tree-overflow fixture proves its input conditions on the host; it does not
+count hardware branches. These checks detect count changes, not every
+reassociation: the separate
 decode-column identity checks hold results across widths and tails, as
 described in docs/TESTS.md.
 

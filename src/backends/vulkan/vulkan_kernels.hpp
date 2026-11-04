@@ -1247,8 +1247,8 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_ROW_FLOAT_X, "matmul_row_float_x", kSpvMatmulRowFloatX, sizeof(kSpvMatmulRowFloatX), 12, kMatmulRowCounts, kSpvMatmulRowFloatXPreserve, sizeof(kSpvMatmulRowFloatXPreserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_FLOAT_X_Q2, "matmul_row_float_x_q2", kSpvMatmulRowFloatXQ2, sizeof(kSpvMatmulRowFloatXQ2), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ2Preserve, sizeof(kSpvMatmulRowFloatXQ2Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_FLOAT_X_Q3, "matmul_row_float_x_q3", kSpvMatmulRowFloatXQ3, sizeof(kSpvMatmulRowFloatXQ3), 12, kMatmulRowCounts, kSpvMatmulRowFloatXQ3Preserve, sizeof(kSpvMatmulRowFloatXQ3Preserve), 0, kPreserve32) \
-    X(K_MATMUL_ROW_Q2_DOT, "matmul_row_q2_dot", kSpvMatmulRowQ2Dot, sizeof(kSpvMatmulRowQ2Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ2DotPreserve, sizeof(kSpvMatmulRowQ2DotPreserve), 0, kPreserve32) \
-    X(K_MATMUL_ROW_Q3_DOT, "matmul_row_q3_dot", kSpvMatmulRowQ3Dot, sizeof(kSpvMatmulRowQ3Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ3DotPreserve, sizeof(kSpvMatmulRowQ3DotPreserve), 0, kPreserve32) \
+    X(K_MATMUL_ROW_Q2_DOT, "matmul_row_q2_dot", kSpvMatmulRowQ2Dot, sizeof(kSpvMatmulRowQ2Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ2DotPreserve, sizeof(kSpvMatmulRowQ2DotPreserve), 0, kPreserve32, true) \
+    X(K_MATMUL_ROW_Q3_DOT, "matmul_row_q3_dot", kSpvMatmulRowQ3Dot, sizeof(kSpvMatmulRowQ3Dot), 12, kMatmulRowCounts, kSpvMatmulRowQ3DotPreserve, sizeof(kSpvMatmulRowQ3DotPreserve), 0, kPreserve32, true) \
     X(K_MATMUL_TILE_BF16, "matmul_tile_bf16", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_BF16_TALL, "matmul_tile_bf16_tall", kSpvMatmulTileBf16, sizeof(kSpvMatmulTileBf16), 6, nullptr, kSpvMatmulTileBf16Preserve, sizeof(kSpvMatmulTileBf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_NVFP4, "matmul_row_nvfp4", kSpvMatmulRowNvfp4, sizeof(kSpvMatmulRowNvfp4), 12, kMatmulRowCounts, kSpvMatmulRowNvfp4Preserve, sizeof(kSpvMatmulRowNvfp4Preserve), 0, kPreserve32) \
@@ -1269,9 +1269,9 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_MXFP4_BF16_TALL, "matmul_tile_mxfp4_bf16_tall", kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_REDUCE_MXFP4, "matmul_reduce_mxfp4", kSpvMatmulReduceMxfp4, sizeof(kSpvMatmulReduceMxfp4), 2, kMatmulReduceCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_COPY_MXFP4, "copy_mxfp4", kSpvCopyMxfp4, sizeof(kSpvCopyMxfp4), 2, nullptr) \
-    X(K_MATMUL_ROW_MXFP4, "matmul_row_mxfp4", kSpvMatmulRowMxfp4, sizeof(kSpvMatmulRowMxfp4), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
-    X(K_MATMUL_ROW_MXFP4_DOT, "matmul_row_mxfp4_dot", kSpvMatmulRowMxfp4Dot, sizeof(kSpvMatmulRowMxfp4Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
-    X(K_MATMUL_ROW_MXFP4_FLOAT_X, "matmul_row_mxfp4_float_x", kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
+    X(K_MATMUL_ROW_MXFP4, "matmul_row_mxfp4", kSpvMatmulRowMxfp4, sizeof(kSpvMatmulRowMxfp4), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0, true) \
+    X(K_MATMUL_ROW_MXFP4_DOT, "matmul_row_mxfp4_dot", kSpvMatmulRowMxfp4Dot, sizeof(kSpvMatmulRowMxfp4Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0, true) \
+    X(K_MATMUL_ROW_MXFP4_FLOAT_X, "matmul_row_mxfp4_float_x", kSpvMatmulRowMxfp4FloatX, sizeof(kSpvMatmulRowMxfp4FloatX), 12, kMatmulRowCounts, nullptr, 0, kPreserve32 | kSpecial64, 0, true) \
     X(K_MATMUL_TILE_Q8MX, "matmul_tile_q8mx", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_TILE_Q8MX_TALL, "matmul_tile_q8mx_tall", kSpvMatmulTileQ8mx, sizeof(kSpvMatmulTileQ8mx), 6, kMatmulTileQ8mxCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_ARGMAX_ROWS, "argmax_rows", kSpvArgmaxRows, sizeof(kSpvArgmaxRows), 4, nullptr) \
@@ -1326,21 +1326,21 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_IQ2_XXS_DOT_TALL, "matmul_tile_iq2_xxs_dot_tall", kSpvMatmulTileIq2XxsDot, sizeof(kSpvMatmulTileIq2XxsDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ2_XS_DOT_TALL, "matmul_tile_iq2_xs_dot_tall", kSpvMatmulTileIq2XsDot, sizeof(kSpvMatmulTileIq2XsDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ3_S_DOT_TALL, "matmul_tile_iq3_s_dot_tall", kSpvMatmulTileIq3SDot, sizeof(kSpvMatmulTileIq3SDot), 6, kMatmulTileIq3Counts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_TQ1_0_DOT, "matmul_row_tq1_0_dot", kSpvMatmulRowTq10Dot, sizeof(kSpvMatmulRowTq10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_TQ2_0_DOT, "matmul_row_tq2_0_dot", kSpvMatmulRowTq20Dot, sizeof(kSpvMatmulRowTq20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_Q1_0_DOT, "matmul_row_q1_0_dot", kSpvMatmulRowQ10Dot, sizeof(kSpvMatmulRowQ10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_Q2_0_DOT, "matmul_row_q2_0_dot", kSpvMatmulRowQ20Dot, sizeof(kSpvMatmulRowQ20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ1_S_DOT, "matmul_row_iq1_s_dot", kSpvMatmulRowIq1SDot, sizeof(kSpvMatmulRowIq1SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ1_M_DOT, "matmul_row_iq1_m_dot", kSpvMatmulRowIq1MDot, sizeof(kSpvMatmulRowIq1MDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ2_S_DOT, "matmul_row_iq2_s_dot", kSpvMatmulRowIq2SDot, sizeof(kSpvMatmulRowIq2SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ3_XXS_DOT, "matmul_row_iq3_xxs_dot", kSpvMatmulRowIq3XxsDot, sizeof(kSpvMatmulRowIq3XxsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ2_XXS_DOT, "matmul_row_iq2_xxs_dot", kSpvMatmulRowIq2XxsDot, sizeof(kSpvMatmulRowIq2XxsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ2_XS_DOT, "matmul_row_iq2_xs_dot", kSpvMatmulRowIq2XsDot, sizeof(kSpvMatmulRowIq2XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ3_S_DOT, "matmul_row_iq3_s_dot", kSpvMatmulRowIq3SDot, sizeof(kSpvMatmulRowIq3SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ4_DOT, "matmul_row_iq4_dot", kSpvMatmulRowIq4Dot, sizeof(kSpvMatmulRowIq4Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_MATMUL_ROW_TQ1_0_DOT, "matmul_row_tq1_0_dot", kSpvMatmulRowTq10Dot, sizeof(kSpvMatmulRowTq10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_TQ2_0_DOT, "matmul_row_tq2_0_dot", kSpvMatmulRowTq20Dot, sizeof(kSpvMatmulRowTq20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_Q1_0_DOT, "matmul_row_q1_0_dot", kSpvMatmulRowQ10Dot, sizeof(kSpvMatmulRowQ10Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_Q2_0_DOT, "matmul_row_q2_0_dot", kSpvMatmulRowQ20Dot, sizeof(kSpvMatmulRowQ20Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ1_S_DOT, "matmul_row_iq1_s_dot", kSpvMatmulRowIq1SDot, sizeof(kSpvMatmulRowIq1SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ1_M_DOT, "matmul_row_iq1_m_dot", kSpvMatmulRowIq1MDot, sizeof(kSpvMatmulRowIq1MDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ2_S_DOT, "matmul_row_iq2_s_dot", kSpvMatmulRowIq2SDot, sizeof(kSpvMatmulRowIq2SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ3_XXS_DOT, "matmul_row_iq3_xxs_dot", kSpvMatmulRowIq3XxsDot, sizeof(kSpvMatmulRowIq3XxsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ2_XXS_DOT, "matmul_row_iq2_xxs_dot", kSpvMatmulRowIq2XxsDot, sizeof(kSpvMatmulRowIq2XxsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ2_XS_DOT, "matmul_row_iq2_xs_dot", kSpvMatmulRowIq2XsDot, sizeof(kSpvMatmulRowIq2XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ3_S_DOT, "matmul_row_iq3_s_dot", kSpvMatmulRowIq3SDot, sizeof(kSpvMatmulRowIq3SDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
+    X(K_MATMUL_ROW_IQ4_DOT, "matmul_row_iq4_dot", kSpvMatmulRowIq4Dot, sizeof(kSpvMatmulRowIq4Dot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
     X(K_MATMUL_TILE_IQ4, "matmul_tile_iq4", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ4_TALL, "matmul_tile_iq4_tall", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_ROW_IQ4_XS_DOT, "matmul_row_iq4_xs_dot", kSpvMatmulRowIq4XsDot, sizeof(kSpvMatmulRowIq4XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_MATMUL_ROW_IQ4_XS_DOT, "matmul_row_iq4_xs_dot", kSpvMatmulRowIq4XsDot, sizeof(kSpvMatmulRowIq4XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0, true) \
     X(K_MATMUL_TILE_IQ4_XS, "matmul_tile_iq4_xs", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ4_XS_TALL, "matmul_tile_iq4_xs_tall", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_ADD_BIAS, "add_bias", kSpvAddBias, sizeof(kSpvAddBias), 2, nullptr) \
@@ -1743,6 +1743,7 @@ struct KernelSource {
     size_t preserved_bytes = 0;
     uint32_t controls = 0;
     uint32_t preserved_controls = 0;
+    bool row_repair = false;  // ROW_REPAIR in matmul_row_two.glsl, from this module's shader defines.
 };
 
 const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};

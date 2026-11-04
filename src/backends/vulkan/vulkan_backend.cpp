@@ -646,7 +646,8 @@ public:
                        " halves=" + std::to_string(b.halves) + "\n";
             } else if (build_rows((KernelId)id, variant) > 1) {
                 text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) +
-                       " tree=" + std::to_string(row_tree_cluster((KernelId)id, variant, d.profile, d.caps.subgroup_size)) + "\n";
+                       " tree=" + std::to_string(row_tree_cluster((KernelId)id, variant, d.profile, d.caps.subgroup_size)) +
+                       " repair=" + std::to_string(kKernels[id].row_repair ? 1 : 0) + "\n";
             }
             if (!pipeline_text(k.pipeline, text)) continue;
             out.emplace_back(kernel_variant_name(id, variant), std::move(text));

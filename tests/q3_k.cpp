@@ -186,8 +186,26 @@ void cancellation(backend::Backend& b) {
             }
         }
         x[16 * width] = peak / 1024;
-        checked += testq::check_k23_cancellation(b, type, raw, weights, x);
+        checked += testq::check_k23_cancellation(b, type, raw, weights, x, item < 2);
     }
+}
+// Constant codes/scales from the format specification, independently decoded before any dispatch.
+void tree_repair(backend::Backend& b) {
+    constexpr size_t nin = 65536, blocks = nin / 256;
+    const float weight = half(0x7bff) * 31.0f * 3.0f;
+    std::vector<uint8_t> raw(blocks * block_bytes, 0);
+    for (size_t j = 0; j < blocks; ++j) {
+        uint8_t* p = raw.data() + j * block_bytes;
+        std::fill(p, p + 108, uint8_t(0xff)); // hmask/low codes=3; six-bit scale63-32=31.
+        p[108] = 0xff; p[109] = 0x7b;
+    }
+    std::vector<float> weights(nin, weight), decoded_weights(nin), x(nin);
+    quant::Registry::instance().get(type)->dequantize(raw.data(), decoded_weights.data(), blocks);
+    require(decoded_weights == weights, "Q3_K tree fixture constant encoding differs from independent value");
+    decoded += nin;
+    const float peak = 32767.0f * std::ldexp(1.0f, 79);
+    for (size_t i = 0; i < nin; ++i) x[i] = (i / 32) % 2 ? -peak : peak;
+    checked += testq::check_k23_wide_repair(b, type, raw, weights, x, false, true);
 }
 void ranges(backend::Backend& b) {
     std::array<uint8_t, block_bytes> packed{}; std::array<float, width> x{};
@@ -235,7 +253,7 @@ int main(int argc, char** argv) {
             std::cout << "Vulkan backend not built\n"; return 77;
 #endif
         } else { auto cpu = std::make_shared<backend::CpuBackend>(); cpu->set_threads(1); b = std::move(cpu); }
-        require(b->supports_type(type), "backend refuses Q3_K"); embeddings(*b); ranges(*b); cancellation(*b);
+        require(b->supports_type(type), "backend refuses Q3_K"); embeddings(*b); ranges(*b); cancellation(*b); tree_repair(*b);
         for (size_t nin : {256u, 768u, 4352u}) for (size_t cols : {1u, 3u, 65u, 193u}) projections(*b, nin, cols);
         // Adjacent valid block widths cross the eight-lane row plan's subgroup-fill boundaries.
         for (size_t nin : {512u, 1024u, 1280u, 2048u, 2304u}) projections(*b, nin, 1);

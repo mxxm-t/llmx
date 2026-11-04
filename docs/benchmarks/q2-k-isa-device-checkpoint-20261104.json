@@ -1,0 +1,285 @@
+{
+  "scope": "Diagnostic/test changes only. No inference arithmetic or numerical limit change.",
+  "source_revision": "a83385fc8424abb6fdc4ec03e29262ffded9b320",
+  "mi50_focused": {
+    "state": "PASS",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "binary_pins": {
+      "llmx-q2-k-test": "2301fc64e8eaf2cb7614e85f3f9e57d433a3f113652109616e9e1e1384941eb0",
+      "llmx-q3-k-test": "758f8533737de3eca80f0a7f67523758c0ff49fb6ea8c8e946fcd80bf1024efc",
+      "half-helper": "099c5a2567a54956bab4f7ca030f1c2159f0cb14ac31767daa5bb01c95b9a847"
+    },
+    "tests": [
+      {
+        "binary": "llmx-q2-k-test",
+        "state": "PASS",
+        "exit": 0,
+        "elapsed_seconds": 5.3939809589937795,
+        "oom_killed": false
+      },
+      {
+        "binary": "llmx-q3-k-test",
+        "state": "PASS",
+        "exit": 0,
+        "elapsed_seconds": 4.1421929050120525,
+        "oom_killed": false
+      },
+      {
+        "binary": "half-helper",
+        "state": "PASS",
+        "exit": 0,
+        "elapsed_seconds": 2.3919880210014526,
+        "oom_killed": false
+      }
+    ],
+    "coverage": "Q2_K and Q3_K: five distinct rows, columns 2/3/4/5/8/9/16/17, two flagged and two unflagged fixtures, finite serial repair after overflowing tree, timed four-row build. F16/BF16 helper captures all required plain same-row builds.",
+    "provenance": "Cached runtime has 191 source/config files matching pristine main after CRLF normalization. Frozen focused tests predate timestamp-unavailable handling but have actual timed MI50 witnesses. Fresh current-metadata MI50 backend run remains pending. Historical pending item resolved by mi50_current_metadata and rebased_device_checks below.",
+    "artifact_archive_sha256": "25a69ed93fdb94da2f2b251ae214e3cec8bf5da0238049a5db640df5bf6179c4",
+    "replay": "PASS representations=442 same=10 whole_columns=30 two_rows=120 repair_rows=39 decode=23 kinds_only=0 grouped=85",
+    "replay_inputs": "Original 444 files retained. Derived set replaces complete F16/BF16 families with newly captured same-runtime builds, giving 442 representations. Repair properties in older captures are independently annotated from kernel definitions."
+  },
+  "radeon": {
+    "state": "PASS",
+    "checks": {
+      "terminal success": true,
+      "binary pin": true,
+      "artifact pins": true,
+      "capture count": true,
+      "nonempty captures": true,
+      "matrix precision": true,
+      "half weights": true,
+      "timed dispatch": true,
+      "same-row counts": true,
+      "fused component counts": true
+    },
+    "seconds": 182.68,
+    "captures": 251,
+    "build_revision": "a83385fc8424abb6fdc4ec03e29262ffded9b320",
+    "binary_sha256": "b83d63347d64c32cb0dfe758f5bc5585eadbd4f0829af914800da720a600d361",
+    "limitations": [
+      "One device only; no collective coverage.",
+      "Radeon profile has no MI50 integer repair dispatch; those witnesses are in the focused MI50 run.",
+      "17 forced Q8 builds have kinds-only checks."
+    ],
+    "prior_attempt": "v1 passed numerical and in-memory checks but its runner omitted the capture directory. Preserved as artifact failure; v2 uses the same binary and creates the directory."
+  },
+  "evidence_sha256": {
+    "focused-v4-audit.json": "2d11d4a0b9e73419fba3f88bcd4f5e57babfc2f92754d02a20fa29c8ba79ce7a",
+    "focused-v4-results/receipt.json": "a1f81602deff2d85d1e30ecbc45fcfe9c232b3db68ce8a3dc3941c74718f9d4b",
+    "focused-v4-combined-replay.log": "4ac8eed1e312c87959547de9455fd01471302f52f6440490a1c064e22c2adda3",
+    "radeon-isa-v1/audit.json": "e6b3fd531caa86c2dd93735fba142c1c1ea3092360c01d3cd429451aaef131b5",
+    "radeon-isa-v2/receipt.json": "14ec8eb859a648822751d765d23973f8b8a00081ef4d35b457ce35b13c51a6a3",
+    "radeon-isa-v2/output.log": "4bca820f0152570f60142b8ecadb3881b379bb1fc6b425c35e4ed1f9cbe8f85a",
+    "radeon-isa-v2/audit.json": "f35ad09a7eb692a6bd046bd1a3dce6f4bb65bb09e937bc52c0494ea65f156912"
+  },
+  "remaining": [],
+  "test_first": {
+    "commit": "b91cc0846",
+    "unfixed_checker": {
+      "build_exit": 0,
+      "exit": 1,
+      "output": "FAIL two-row builds of other rows differ by other than whole copies of a row and column's products and of a row's weight operations: matmul_row_fixture_2col and matmul_row_fixture_16col\n",
+      "source_sha256": "8937ef8d172b35652cb1f63ffcd4bae5d0fa3052226915818bae08d91b470d02",
+      "extracted_sha256": "c80645b92b2ec73475415a44662346b435b7b176740b373cc9e14415badd276f",
+      "binary_sha256": "6b2dceb7c7a97227c3f2ca4c8d81949133cb789cbb84d7a81a4781cb5051ab80"
+    },
+    "fixed_checker": {
+      "build_exit": 0,
+      "exit": 0,
+      "output": "PASS checker self-tests\n",
+      "source_sha256": "3d90c662f372efefcd8296cfa315c539f72bf120ff9a9cb380ed4887203f570f",
+      "extracted_sha256": "6f5868ef7833cb2f9cbaeee3decc1667915f19b3ac02e0e061a0eb150c013d0f",
+      "binary_sha256": "a493ec52d6f92bc6756a4e5c154b0edc0356b3088ef003ee3b3d84299c262558"
+    },
+    "scope": "Extracted current checker self-tests compiled on MSVC; unchanged checker fails the new synthetic regression and fixed checker passes.",
+    "rebased_test_commit": "c200f3b3ed129ffb379446952d25a1661acd999a"
+  },
+  "mi50_current_metadata": {
+    "state": "PASS",
+    "captures": 494,
+    "cross_row_repair_pairs": 39,
+    "summary": [
+      "2021320 finite half-weight values and exact F32-control products",
+      "backend-vulkan: 111888 shared matrix precision values passed",
+      "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 10 the same, 32 those and whole columns, 120 pairs of two-row builds whole columns apart, 39 cross-row repair pairs checked by kinds and same-row increments, 23 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 89 grouped builds the same as their wide build"
+    ],
+    "archive_sha256": "a2b67cf854f8ef243b9730a6682fd6e33a075908e1633a7c522e1c128228acf2",
+    "receipt_sha256": "66d9a08f9e7ec3704b94057929fea318618a9310db2839556baabc9f19a04bac",
+    "stdout_sha256": "7f73a93ee608d6825175b3d23c2ea154d868ed6569bc8518a4fffd3d5bc86d3c",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "binary_sha256": "dc9011a680d4d5c55bb192f377aebfa2882400155ef7bd80ae8e9a4333848694",
+    "source_commit": "a83385fc8424abb6fdc4ec03e29262ffded9b320",
+    "audit_note": "Initial local auditor assumed every manifest entry was an ISA file; it also includes stdout/stderr and metadata. Corrected relative-path handling and reused the preserved archive. No GPU rerun.",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "case_exit": 0,
+    "oom_killed": false,
+    "source_sha256": {
+      "src/backends/vulkan/vulkan_backend.cpp": "8527a44b36b1e9af13fce868ff83a3a8f9652e0cbea0a9c7db5d77a8d7d1a94c",
+      "src/backends/vulkan/vulkan_backend.hpp": "2065eee4e1c1183ad23287e4db39db48e890865bc4155c0d671e67bb94c47c3",
+      "src/backends/vulkan/vulkan_kernels.hpp": "34829959a348684946a08299fe08af16e688ec4d5d850808aced2fe4104bacc7",
+      "tests/backend_vulkan.cpp": "235fdbbae8abfc0dce67fc36be12db9f3207f0dddf79cf4c7f98474ec3856cb6"
+    },
+    "audit_checks": 506,
+    "seconds": 201.311971
+  },
+  "rebase": {
+    "base": "840b96ec74304234b81a0f8053af8af770b47419",
+    "original_candidate_ci": 41807529880,
+    "new_main_ci": 41806264577,
+    "cpu_evidence": "Carry by unchanged effective component inputs: Q2/Q3 from original candidate; sparse-attention from new main; remaining CPU paths unchanged.",
+    "new_checks": [
+      "Combined Vulkan hosted job",
+      "MI50 ISA",
+      "Radeon ISA",
+      "Final docs/dead-code"
+    ],
+    "cpu_scope_review": "# Rebase qualification scope: Q2 ISA checker onto 840b96ec7\n\nRead-only review, 2026-11-04. Initially inspected the exact worktree `worktrees/q2-isa-docs-20261104` at `44c0766a5`, feature `b91cc0846` + `fe5090822`, and main delta `9378af02d..840b96ec7`; follow-up inspected the clean rebase `fc801175a` with docs `def9bd9fc`. No build, test, device operation, Git mutation or TUI operation was performed. This is a check-selection review, not execution evidence. The follow-up corrects the initial overly broad CPU hosted-refresh recommendation using target/component dependency boundaries.\n\n## Exact integration delta\n\nMain adds four D256 grouped sparse-attention modules to `CMakeLists.txt` and `vulkan_kernels.hpp`; changes `attention_vec.comp`, `kv_index_scores_tile.comp`, `vulkan_attention.hpp` and `vulkan_buffer.hpp`; extends `tests/sparse_attention.cpp` and `tests/vulkan_index.cpp`; and changes three documentation pages. The new module entries precede later registry entries, so subsequent numeric `KernelId`s and table/data layout move. Enum, names and sources are generated from the same macro, so a numeric shift alone is not evidence of a defect, but an old executable does not test the combined registry.\n\nFeature changes `KernelSource` by adding the default-false `row_repair` property and setting it on the actual repair-enabled families. Its only backend.cpp change reads that property while producing diagnostic representation headers. Main's backend.cpp hunk changes only a scoring comment at another location. No inference arithmetic or dispatch selection is changed by the feature. Main changes neither row shaders nor their CMake defines, row-build metadata functions, device profiles, checker code, K23 fixtures or half-weight fixtures. The registry edits are in disjoint regions.\n\n`a83385fc8..fe5090822` changes only STATUS, the device evidence JSON and the Vulkan source documentation; feature runtime/test inputs match that tested checkpoint. The feature has no CMake changes. Main adds real CPU-executed sparse-attention test cases even when Vulkan is disabled, so its native test delta is not Vulkan-only.\n\n## Carry / refresh matrix\n\n| Evidence | Disposition after clean rebase | Reason / scope |\n|---|---|---|\n| Failing checker regression, fixed mutation controls, parser rejection controls | Carry with exact source/extraction/binary pins | Main does not alter checker or fixtures. A changed commit identity is immaterial. An optional replay is cheap but not a newly necessary numerical gate. |\n| Original MI50 captures, derived replay, 39 repair-pair result | Carry as evidence about those preserved representations | They are immutable input artifacts; main does not alter row arithmetic or defines. Preserve their old revision and limitations. They do not certify newly compiled attention modules or the complete rebased executable. |\n| Q2_K/Q3_K repair numerics, five rows, partial columns, signed baselines, tree-overflow repair; half-weight witnesses | Carry as qualification of unchanged row implementation/fixtures | Recheck the final merge preserves those exact sources, defines, metadata and profile inputs. A fresh whole-binary claim needs new integration evidence; unchanged row arithmetic does not require repeating HF/long-context/model performance. |\n| Old MI50/Radeon entire `backend-vulkan --isa` PASS | Retain as historical qualification; refresh combined executable coverage | These executables predate main's registry, shader modules and attention host logic. Existing `--isa DIR` runs every backend check; it has no checker-only mode. A fresh run on each available qualified driver is the straightforward existing check for combined table/metadata/dispatch integration, without adding a test seam. New captures need new pins. |\n| Main's QSA identity/performance/HF/device evidence | Carry for unchanged QSA arithmetic and test inputs, subject to exact receipt verification | The feature changes diagnostic metadata/table shape, not QSA behavior. Do not repeat 8K/16K/128K comparisons, long HF or matched performance solely due to the rebase. Fresh registry integration is separate from requalifying QSA numerics. |\n| Native/device sparse-attention, vulkan-index and kv-selection results | Carry verified 840 source/input qualification; refresh Vulkan integration | Pre-840 feature CI does not cover added main cases, but green 840 results do. CPU sparse-attention is exactly 840's effective target inputs; the feature's changed matrix-precision header is not a dependency. Vulkan includes both arms' changed inputs and needs fresh integration. |\n| Hosted CPU Linux/Windows/macOS and UBSan | Carry per effective target/component inputs, combining both green heads | Sparse-attention carries 840; Q2/Q3 and other matrix-precision consumers carry cbb. CPU runtime and other components carry either identical input head. No CPU target combines changed executable code from both arms. Final docs checks are refreshed separately. Do not require four full hosted CPU-job reruns. |\n| Hosted Vulkan build | Refresh on rebased head | This target does combine new main shader/CMake/registry input with the feature's KernelSource metadata and backend checker/test input. A fresh scoped Vulkan hosted job is the remaining required hosted integration check. |\n| HF reference, server-only TSan, ROCm-specific gates | No newly required inference rerun | No CPU model arithmetic, server concurrency or ROCm implementation delta. A workflow firing these jobs does not expand the feature's scope. Final docs checks still cover updated build text. |\n| Docs/dead-code and Markdown review | Rerun mechanical checks; review changed pages | The combined CMake, source reachability and docs inputs differ. Carry unchanged-page review, review merged STATUS/TESTS/Vulkan descriptions and the changed evidence/provenance claims. |\n\n## Concrete landing recommendation\n\nInspect the combined diff and verify all four new module names agree across CMake/arrays/registry, existing row entries retain their original arithmetic/control values, and `row_repair` retains its intended final argument/default. Compile fresh Vulkan targets rather than trusting incremental MSVC header rebuilds. Refresh the scoped hosted Vulkan job and integrated MI50/Radeon backend ISA coverage; use main's verified affected attention receipts or run the changed sparse-attention/index cases on both drivers. Record exact rebased revision, binary hashes and captures. Carry CPU hosted evidence at target/component granularity as below, row regression/replay/fixture results, and QSA's independent numerical/performance qualification with explicit old provenance. Run final docs/dead-code and the final fast-forward audit.\n\nThis avoids a full CPU/device/HF/performance rerun while not relabeling a pre-840 whole-binary pass as a combined-tree pass. If an integrated check fails, rerun only the failure's coverage after the fix; arithmetic/dispatch edits would expand the numerical gate accordingly.\n\n## Follow-up: verified CPU dependency split\n\nRoot reports API-verified ALL8 success for main840 run `41806264577` (`main840-ci.json`) and REQUIRED_PASS for feature cbb run `41807529880` (`ci-receipt.json`). This review accepts those receipt statuses from root; it did not query CI itself.\n\nThe union of these results is sufficient for CPU correctness/build qualification because:\n\n- `cbb08518b..fc801175a` changes, outside docs, only Vulkan files, four shader definitions inside `if(LLMX_HAS_BACKEND_VULKAN)`, `tests/sparse_attention.cpp`, and Vulkan-only `tests/vulkan_index.cpp`.\n- `840b96ec7..fc801175a` changes, outside docs/instructions, only Vulkan files, Vulkan-only `tests/backend_vulkan.cpp`, and `tests/matrix_precision.hpp`, `tests/q2_k.cpp`, `tests/q3_k.cpp`.\n- `tests/sparse_attention.cpp` includes `backends/devices.hpp`, `backends/kv_storage.hpp`, and `core/fp16.hpp`; it does not include the changed test matrix-precision header. Its Vulkan API include and timing query are guarded by `LLMX_HAS_BACKEND_VULKAN`. `devices.hpp` similarly guards Vulkan includes and backend construction. `cmake/tests.cmake` links `llmx-vulkan` to sparse-attention only with Vulkan ON. Thus its CPU-effective inputs match green main840.\n- Q2/Q3 and every other matrix-precision consumer match green cbb in CPU mode: main changes no CPU implementation, config or fixture input for them. Its sparse-attention test is a separate executable and is not linked into those targets.\n- A direct diff confirms no changes from main840 to the rebased docs head in `.github/workflows/ci.yml`, `cmake/tests.cmake`, `cmake/llmx-config.hpp.in`, `src/config.hpp`, `build.bat`, `tests/run_tests.py`, `tests/common.py`, `devices.hpp`, `backend.hpp`, `kv_storage.hpp`, `fp16.hpp` or the CPU backend directory. No combined CPU build flag, runner, shared runtime or generated-config template change creates a new CPU interaction. Revision identity changes are recorded metadata, not a changed CPU arithmetic input.\n\nThe docs/dead-code components inspect the combined source/docs tree and do need fresh final checks. Carrying CPU components does not claim a hosted run occurred at the new hash. Record both original tested heads and binary identities, the dependency split, and fresh Vulkan/docs results in the landing record.\n\n## Documentation requiring reconciliation\n\nThe exact `840b96ec7:docs/STATUS.md` text still says QSA MI50 landing CTest/device suite and hosted run are **Left**, and describes the old Q2 failure as Q2_0. The prepared feature correctly identifies Q2_K. Root has now verified main's hosted success externally; reconcile the stale text against actual receipts and preserve historical failures. Similarly the feature's statement that later changes are documentation-only stops being true after this rebase and must describe the QSA delta.\n",
+    "tested_head": "1e15821d67c0a805ce6025f044c250131a1e72e6"
+  },
+  "hosted": {
+    "checked_utc": "2026-11-04T11:30:45.393297+00:00",
+    "run": 41815674112,
+    "head": "1e15821d67c0a805ce6025f044c250131a1e72e6",
+    "required_jobs": [
+      "Vulkan backend (build, Linux)"
+    ],
+    "jobs": [
+      {
+        "id": 126525675883,
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:04Z",
+        "completed_at": "2026-11-04T11:21:04Z"
+      },
+      {
+        "id": 126525675922,
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:05Z",
+        "completed_at": "2026-11-04T11:26:02Z"
+      },
+      {
+        "id": 126525676054,
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:04Z",
+        "completed_at": "2026-11-04T11:30:37Z"
+      },
+      {
+        "id": 126525676102,
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:04Z",
+        "completed_at": "2026-11-04T10:57:49Z"
+      },
+      {
+        "id": 126525676459,
+        "name": "CPU (macos-15-intel)",
+        "status": "in_progress",
+        "conclusion": null,
+        "started_at": "2026-11-04T10:40:06Z",
+        "completed_at": null
+      },
+      {
+        "id": 126525681970,
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:12Z",
+        "completed_at": "2026-11-04T11:22:35Z"
+      },
+      {
+        "id": 126525687206,
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:06Z",
+        "completed_at": "2026-11-04T11:06:37Z"
+      },
+      {
+        "id": 126525689211,
+        "name": "ROCm backend (build only, Linux)",
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-11-04T10:40:07Z",
+        "completed_at": "2026-11-04T10:54:11Z"
+      }
+    ],
+    "state": "REQUIRED_PASS",
+    "main_before": "840b96ec74304234b81a0f8053af8af770b47419",
+    "carry_forward": "Only documentation and evidence differ; runtime, tests, fixtures, build and workflow inputs match the hosted and device-tested trees."
+  },
+  "rebased_device_checks": {
+    "mi50-rebase840-audit.json": {
+      "state": "PASS",
+      "captures": 494,
+      "cross_row_repair_pairs": 39,
+      "summary": [
+        "2021320 finite half-weight values and exact F32-control products",
+        "backend-vulkan: 111888 shared matrix precision values passed",
+        "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 10 the same, 32 those and whole columns, 120 pairs of two-row builds whole columns apart, 39 cross-row repair pairs checked by kinds and same-row increments, 23 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 89 grouped builds the same as their wide build"
+      ],
+      "archive_sha256": "235a0a44cdfe9186843c239aaebec32b46463909a06656b110e59a18b4a513cf",
+      "receipt_sha256": "8763acf7953e351480b7684fee4fa67c7b7ba9244ccc0765036793d4e16636f8",
+      "stdout_sha256": "03baf7f1c587609f73e89662857a7d19da16c0b8f71da8b2cd8d38430edc8aa5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "650c2b28f3bd7b83b62deaf8ae7cc0bc08d379b25419e227cee4524a8797b86e",
+      "source_commit": "1e15821d67c0a805ce6025f044c250131a1e72e6",
+      "audit_note": "Initial local auditor assumed every manifest entry was an ISA file; it also includes stdout/stderr and metadata. Corrected relative-path handling and reused the preserved archive. No GPU rerun.",
+      "audit_sha256": "3059c2a0222e4bfefb2ab28af526885f3dc38e2c067d12a794f61463c1d7dfe9",
+      "audit_checks": 506
+    },
+    "rebase840-radeon/root-audit.json": {
+      "state": "PASS",
+      "captures": 251,
+      "binary_sha256": "d42d7ec5677629b55c83292339b2113b1fca7bc9816f45fbb37894d916fce2c5",
+      "source_revision": "1e15821d67c0a805ce6025f044c250131a1e72e6",
+      "summary": [
+        "2021320 finite half-weight values and exact F32-control products",
+        "backend-vulkan: 111888 shared matrix precision values passed",
+        "backend-vulkan: row kernel builds against their one-column build's float multiplies and adds: 58 the same, 0 those and whole columns, 0 pairs of two-row builds whole columns apart, 0 cross-row repair pairs checked by kinds and same-row increments, 0 Q8_0 decode builds those their shape and forms give, 0 their kinds only; 28 grouped builds the same as their wide build"
+      ],
+      "limitations": "Radeon profile does not select MI50 integer repair. New grouped sparse-attention paths are covered by separate focused integration checks.",
+      "receipt_sha256": "44dfeed13fe9c49ee8b1016663ea2b98291eb151eed00fb294e8c1bd7951e695",
+      "log_sha256": "fe7a836483a1b61447832c1f58e18fed4062fc66440d27eafe5a23b96009c6be",
+      "audit_sha256": "968120d4192da4d6937e5f6ae1e2294427ff5f73ae69b47000405641de8c6e6c",
+      "audit_checks": 264
+    },
+    "rebase840-radeon/attention-root-audit.json": {
+      "state": "PASS",
+      "source": "1e15821d67c0a805ce6025f044c250131a1e72e6",
+      "receipt_sha256": "be449c64722d7595e1f3d6a1b89c3abdbef6eb42619faf533f9d6d8dfabc3328",
+      "note": "Numerical integration and grouped-dispatch coverage only; timings are not a matched performance comparison.",
+      "audit_sha256": "c30b4fe1024793c5020a8358bd090adcf365c33b6f3d8ab40520e7a307353c61",
+      "audit_checks": 26
+    },
+    "rebase840/extra-root-audit.json": {
+      "state": "PASS",
+      "source": "1e15821d67c0a805ce6025f044c250131a1e72e6",
+      "verified_source_and_artifacts": 948,
+      "pin_differences": [],
+      "binary_hashes": {
+        "build/llmx": "9ab3411af11ea2d93fbf89d5e8099a2b846649cdc1cc06017cbbbe47fa8de7e9",
+        "build/llmx-sparse-attention-test": "413652d334b4512472b3a57f9d0e86e798255a289f39a37f7f9805c51946b3c5",
+        "build/llmx-vulkan-index-test": "f75b8d61ff0b4eb01af96421fe84c0d598e422f7273464569688241c7202a935"
+      },
+      "log_hashes": {
+        "extra-build/build.log": "f510641b48ede9ea59cf28d2fcf2bced9ba06bf0938b0949970497e6956e72a9",
+        "extra-build/runner.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "extra-build/sparse-attention.log": "c8ad43bb676438dc6662925a3faf7e3df17e78016a252da5254aef22d4322c1d",
+        "extra-build/vulkan-index.log": "f1287c8a902de555b43688f81437bb08c7bc3592437a50a42f904e90f3b9607e"
+      },
+      "cli_version": "llmx 0.1.0+unknown numerics 81d85ee1a4755034",
+      "audit_correction": "First audit compared build.bat with Windows CRLF working-tree bytes. Remote matches exact committed LF blob; independently verified CRLF normalization explains the only difference. No build or test rerun.",
+      "limitation": "Exported tree has no Git metadata; version says unknown. Archive and complete exported source hashes establish source identity. These checks establish integration correctness, not performance.",
+      "audit_sha256": "e7b9d1fa3d04c31918730bf40d1af894828e73c557e9fb1d9f26234b531ca7c7",
+      "audit_checks": 27
+    }
+  },
+  "landing": "Applicable checks passed. Lands by fast-forward with two commits, failing regression first; numerical limits and inference arithmetic are unchanged.",
+  "historical_pre_landing_checkpoint": "## Q2_K Vulkan instruction-count investigation (2026-11-04, in progress)\n\n**Goal:** Resolve the reported `backend-vulkan --isa` failure comparing the Q2_K two-row builds without hiding an arithmetic defect or weakening output checks.\n\n**Done:** Reproduced the existing MI50 count failure offline from the seven untouched Q2_K representations, which match byte-for-byte between MDEV's main and attention-branch runs. The sixteen-column build retains its four-row repair loop, while the smaller builds copy repair bodies. The fast products scale correctly; the whole-kernel cross-row count equation does not account for that compiler choice. The backend maps `matmul_row_q2_dot` to Q2_K, correcting the initial Q2_0 report. All 444 representations are saved for replay. Work starts on main `091a4cc6b`.\n\n**Rule:** Following F2DEV's review, the existing checker keeps exact operation kinds, contraction proportions and equal-row per-column increments. Only the cross-row equation changes for kernels declaring whole-row repair in their build metadata, with a named tally. Runtime arithmetic and numerical limits stay unchanged.\n\n**Focused coverage:** The added Q2_K/Q3_K tests use five distinct packed weight rows, signed one-column baselines and column counts 2, 3, 4, 5, 8, 9, 16 and 17. They hold independent per-row bounds, output guards and exact column identity, with timed dispatch witnesses. Existing extreme-scale fixtures cover flagged repair. A separate constant-weight fixture has an unflagged scale of 2^79, finite lane sums, an overflowing reduction tree and finite serial repair. CPU native checks and Vulkan-enabled syntax checks pass. Focused MI50 execution now passes for Q2_K (5.39 seconds), Q3_K (4.14 seconds) and the half-weight helper (2.39 seconds), including timed four-row builds and all exact/partial column widths.\n\n**Checker result:** The new mutation controls pass. The seven original captures still reproduce the failure; derived copies carrying the separately recorded kernel repair property pass. The full 444-file replay finds two remaining families, F16 and BF16, with no smaller plain build at the same row count to establish the required increment. Their small requested batches selected an occupancy fallback, so those requests did not establish actual build coverage. The nonrepair check remains strict. The focused half-weight run now supplies complete same-runtime families; replacing those whole families in the derived replay gives 442 representations, all passing, including 39 cross-row repair pairs. The original 444 captures and original failures remain preserved.\n\n**Build checkpoint:** The missing half-weight witness is implemented in the existing test. Both current Vulkan backend and native-test translation units compile on MSVC. The isolated Q2_K, Q3_K and half-weight binaries compile and link on Linux against a cached Vulkan runtime whose 191 relevant source/config files match pristine main after line-ending normalization. The original helper compile attempt omitted two CMake-provided shader metadata definitions; those were restored from the generated project and only the failed translation unit rebuilt. The rig script's final hash command also had a carriage-return suffix; both completed binaries were independently hashed without rebuilding. Neither harness failure is a numerical result.\n\n**Review checkpoint:** The fresh Windows Vulkan build of `cb999251e` passed, as did mechanical documentation checks (zero findings, 21 planted faults) and the earlier source dead-code check (19 planted faults). Independent code review found that the new K23 test required timestamps even when the diagnostic API could not supply them. The test now keeps numerical checks unconditional and reports missing timing as numerical coverage only. Existing exact-name checks remain when timing is present, and MI50 qualification still requires the recorded dispatch evidence. The reviewer accepted the follow-up, Vulkan-enabled Q2_K/Q3_K syntax checks pass, and the mechanical documentation checks pass again. A fresh CMake build of the two affected test targets at `c436290d1` passes; CPU Q2_K and Q3_K checks pass in 4.43 and 1.95 seconds. The full Markdown review remains open.\n\n**Device checkpoint:** The current test binary built from `a83385fc8` passes on Radeon VII in 182.68 seconds, with 251 nonempty, hash-verified instruction captures. It covers 2,021,320 half-weight/control products, 111,888 shared matrix-precision values, 58 same-row and 28 grouped count comparisons, and 21 fused-component comparisons. This profile does not select the MI50 integer repair path; the focused MI50 witnesses cover it. The first Radeon attempt passed in-memory checks but its runner omitted the output directory. That artifact failure is retained; the same binary was rerun with the directory created. [Device evidence and limitations](benchmarks/q2-k-isa-device-checkpoint-20261104.json).\n\n**Final device check:** A fresh MI50 build from `a83385fc8` passes `backend-vulkan --isa` in 201.31 seconds with no container OOM. The local audit verifies all 494 captures and their hashes, both repair-property values, 39 cross-row repair pairs, 120 exact same-row pairs and 89 grouped comparisons. All 506 artifact/coverage checks pass. These source, tests and build inputs match the pre-rebase candidate. Main subsequently advanced to `840b96ec7`, adding sparse-attention modules and changing registry layout. The unchanged row arithmetic and fixtures retain their evidence; the combined Vulkan executable is checked again on both drivers.\n\n**Rebase qualification:** The original candidate passed all five applicable jobs in [run 41807529880](https://github.com/mxxm-t/llmx/actions/runs/41807529880). New main `840b96ec7` passed all eight jobs in [run 41806264577](https://github.com/mxxm-t/llmx/actions/runs/41806264577). CPU evidence carries by component: the added sparse-attention cases and their CPU dependencies match new main; Q2_K/Q3_K and shared precision fixtures match the qualified checker candidate; the workflow, CPU configuration and remaining CPU inputs are unchanged. The new CMake entries are Vulkan-only. A fresh hosted Vulkan job and MI50/Radeon ISA checks cover the combined registry, modules and metadata. No inference arithmetic or numerical limit is changed by this feature.\n\n**Left:** Complete combined Vulkan build/ISA checks and the applicable hosted Vulkan job, then final documentation/dead-code checks and the fast-forward audit. No new HF, long-context or model-performance campaign is required for this diagnostic integration.\n\n**Gotchas:** Preserve the original failure and all numerical checks. No correctness allowance is proposed. The reported `isa2-*` directories hold sparse-attention captures; the relevant Q2_K evidence is under `/zpool1/llmx-mdev4-20261103/isa-main` and `/isa`.\n\n"
+}

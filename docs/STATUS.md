@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Q2_K row-repair count regression (2026-11-04, failing test first)
+
+**Goal:** Hold a compiler's rolled whole-row repair loop without requiring its static instructions to be duplicated for every output row.
+
+**Done:** Added a synthetic case to the existing instruction-checker self-test. It preserves operation kinds and same-row increments while changing the row count. The unchanged checker refuses this valid count pattern, reproducing the separately captured MI50 failure.
+
+**Left:** Apply the reviewed metadata-driven checker fix and its numerical witnesses, then complete the applicable landing checks. This first commit intentionally retains the failing regression.
+
+**Gotchas:** No runtime or numerical-limit change. The next commit fixes the checker; do not land this regression alone.
+
 ## Draft price at depth (2026-11-04, SDEV3 and SDEV4, branch sdev2/draft-price-at-depth on main 44c5e56f0; SDEV2's finding and proposal of 2026-11-03 22:39, approved by F2DEV at 22:42 with seven changes and at 2026-11-04 04:09 with four more)
 
 **Goal:** a drafting reply at depth weighs its drafts against fresh prices of the pass it would run: on production's Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 layer split at about 200k tokens, a lone reply drafting took 23-row verifies at about 19 tokens a second where plain decode gives 35.9, because the depth rule read decode cells last measured during old stalls and priced a pass alone as its slowest stage plus a flat offset.

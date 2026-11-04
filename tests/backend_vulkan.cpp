@@ -3273,6 +3273,21 @@ void check_decode_contraction() {
         catch (const std::runtime_error&) { refused = true; }
         require(refused, "a Q8 one-column build's changed arithmetic escaped its shape counts");
     }
+    // Synthetic repair builds keep same-row counts exact while allowing a rolled repair loop at another row count.
+    auto repaired = [&](unsigned cols, unsigned rows, size_t mul, size_t fused, size_t add, const char* property = " repair=1") {
+        std::string out = "; row_build cols=" + std::to_string(cols) + " rows=" + std::to_string(rows) + " tree=64" + property + "\n";
+        for (size_t i = 0; i < fused; ++i) out += "v_fma_f32 v0, v1, v2, v3\n";
+        return out + code("", mul, add, 1);
+    };
+    const std::string row_one = code("", 10, 2, 1) + "v_fma_f32 v0, v1, v2, v3\nv_fma_f32 v0, v1, v2, v3\n";
+    const std::string row_two = repaired(2, 2, 100, 20, 15), row_four = repaired(4, 2, 112, 28, 22);
+    const std::string row_wide = repaired(16, 4, 170, 80, 129);
+    auto row_checks = [&](const std::string& two, const std::string& four, const std::string& wide) {
+        return check_contraction({{"matmul_row_fixture_1col", row_one}, {"matmul_row_fixture_2col", two},
+                                  {"matmul_row_fixture_4col", four}, {"matmul_row_fixture_16col", wide}});
+    };
+    (void)row_checks(row_two, row_four, row_wide);
+
 }
 
 std::vector<uint8_t> pattern(size_t bytes, uint32_t seed) {

@@ -178,6 +178,7 @@ bool wide_scale(float c) {
 
 
 #define MROWS (TILE_ROWS * TC / 256u)
+#define TROW(i) (NARROW != 0u ? (i) * 64u + tr : tr * MROWS + (i))
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
@@ -286,7 +287,9 @@ void main() {
         part = 0u;
         col_base = 0u;
     }
-    uint tr = tid / TC, tc = tid - tr * TC;           // micro-tile at rows tr*MROWS.., columns tc*4..
+    // Micro-tile at rows TROW(i), columns tc*4..; a narrow build gives each 64 threads one column quad over every row, rotated by workgroup, so the quads past a run's entries skip their dots on every SIMD alike.
+    uint tr = NARROW != 0u ? tid % 64u : tid / TC;
+    uint tc = NARROW != 0u ? (tid / 64u + gl_WorkGroupID.x + gl_WorkGroupID.y) % TC : tid - tr * TC;
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*4..
     uint nblk = p.nin / 32u;
@@ -593,6 +596,7 @@ void main() {
       [[unroll]]
 #endif
       for (uint s = 0u; s < STEP; ++s) {
+        if (NARROW != 0u && tc * 4u >= ncols) continue;
 #if !defined(LLMX_Q6) && !defined(LLMX_K23)
         // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.
         // Each sum still takes the block's eight words in order, so it is the integer a row at a time gave.
@@ -618,7 +622,7 @@ void main() {
             TWORD b0 = xw[s * 8u + w][tc * 4u], b1 = xw[s * 8u + w][tc * 4u + 1u];
             TWORD b2 = xw[s * 8u + w][tc * 4u + 2u], b3 = xw[s * 8u + w][tc * 4u + 3u];
             for (uint i = 0u; i < MROWS; ++i) {
-                TWORD a = wq[s * 8u + w][tr * MROWS + i];
+                TWORD a = wq[s * 8u + w][TROW(i)];
                 t[i][0] = dot_word(a, b0, t[i][0]);
                 t[i][1] = dot_word(a, b1, t[i][1]);
                 t[i][2] = dot_word(a, b2, t[i][2]);
@@ -631,7 +635,7 @@ void main() {
         uvec4 ca = floatBitsToUint(vec4(c0, c1, c2, c3)) & uvec4(0x7fffffffu);
         if (any(lessThan(ca, uvec4(0x17800000u))) || any(greaterThanEqual(ca, uvec4(0x67800000u)))) {
             for (uint i = 0u; i < MROWS; ++i) {
-                float d = wsc[s * TILE_ROWS + tr * MROWS + i];
+                float d = wsc[s * TILE_ROWS + TROW(i)];
                 precise float d0 = d * c0, d1 = d * c1, d2 = d * c2, d3 = d * c3;
                 if (lookup_unsafe_scale(d, c0, d0)) repair[i] |= 1u;
                 if (lookup_unsafe_scale(d, c1, d1)) repair[i] |= 2u;
@@ -644,7 +648,7 @@ void main() {
 #ifdef LLMX_Q8
             // The scales' product, then its product with the sum, each rounded before the add.
             // The general build rounds them so too, since its minimum term, zero for Q8_0, stands between the last product and the add.
-            float d = wsc[s * TILE_ROWS + tr * MROWS + i];
+            float d = wsc[s * TILE_ROWS + TROW(i)];
 #ifdef LLMX_Q8MX
             if (wide_weight(d)) wide |= 1u << (4u + i);
 #endif
@@ -668,7 +672,7 @@ void main() {
             acc[i][2] += p2;
             acc[i][3] += p3;
 #else
-            vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
+            vec4 ws = wsc[s * TILE_ROWS + TROW(i)];
             acc[i][0] += tile_term(ws.x, ws.z, c0, t[i][0]);
             acc[i][1] += tile_term(ws.x, ws.z, c1, t[i][1]);
             acc[i][2] += tile_term(ws.x, ws.z, c2, t[i][2]);
@@ -695,7 +699,7 @@ void main() {
                 high_sum = ivec4(dot_word(ones, h0, high_sum.x), dot_word(ones, h1, high_sum.y), dot_word(ones, h2, high_sum.z), dot_word(ones, h3, high_sum.w));
 #endif
                 for (uint i = 0u; i < MROWS; ++i) {
-                    uint r = tr * MROWS + i;
+                    uint r = TROW(i);
                     TWORD a = wq[s * 8u + w][r], e = wq[s * 8u + w + 4u][r];
                     l[i][0] = dot_word(a, l0, l[i][0]); h[i][0] = dot_word(e, h0, h[i][0]);
                     l[i][1] = dot_word(a, l1, l[i][1]); h[i][1] = dot_word(e, h1, h[i][1]);
@@ -704,7 +708,7 @@ void main() {
                 }
             }
             for (uint i = 0u; i < MROWS; ++i) {
-                vec4 ws = wsc[s * TILE_ROWS + tr * MROWS + i];
+                vec4 ws = wsc[s * TILE_ROWS + TROW(i)];
 #ifdef LLMX_K23
                 if (k23_repair_scale(c0.x)) repair[i] |= 1u;
                 if (k23_repair_scale(c1.x)) repair[i] |= 2u;
@@ -732,7 +736,7 @@ void main() {
         barrier();
     }
     for (uint i = 0u; i < MROWS; ++i) {
-        uint row = row_base + tr * MROWS + i;
+        uint row = row_base + TROW(i);
         if (row >= nout) continue;
         for (uint j = 0u; j < 4u; ++j) {
             uint col = col_base + tc * 4u + j;

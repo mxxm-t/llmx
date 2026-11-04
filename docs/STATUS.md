@@ -1,5 +1,31 @@
 # llmx - Development Status
 
+## Routed narrow tile: column quads past a run's entries skipped (2026-11-04, KDEV4, branch kdev/routed-quads on main 2c463d721, rebased onto a3cb5d0a7 and a359b94e3, B2 of KDEV's castagna gap kernels, proposal of 20:40 approved by F2DEV at 20:47 with changes and to land at 21:31; lands by fast-forward)
+
+**Goal:** Qwen3.8-Flash-Next UD-Q4_K_XL prompts at 2x2 int8 faster with the same bits: at a 320-row chunk an expert averages about six entries, so the 16-column narrow tile computed mostly empty columns (main 091a4cc6b --profile, per card a chunk: routed gate+up 39.5 ms and down 19.9 ms, against 22.2 and 13.3 for the reference).
+**Done:** `matmul_tile_q.comp`'s narrow build gives each 64 threads one column quad over every row (rows lane and lane + 64), rotated by workgroup since wave w of a workgroup runs on SIMD w, and a quad holding no entry of the run skips its dots; the narrow decision, its runs and the profile are unchanged, and every output keeps its integer block sums, float terms and block order.
+Tests: `check_routed_quads` (explicit counts on every quad edge and an empty expert, each entry against itself alone, every type the narrow build takes in int8 and f16), the tensor-width-2 routed shapes and the tile's driver statistics in the occupancy report, a hash of `check_routed_narrow`'s entries, and the `--routed` mode.
+Step 0, one MI50 under RADV, `--routed` in the order a b c e d d e c b a twice, median of 4, ms (a main with the test, b the change, c rows at stride MROWS, e without the rotation, d an 8-column bound):
+
+| shape (512 experts, 10 a row, picks over every expert) | a | b | c | e | d |
+| --- | --- | --- | --- | --- | --- |
+| Q4_K int8, 2560 into two 320-row projections, 320 rows | 2.310 | 1.982 (-14.2%) | 1.991 | 2.205 | 1.889 |
+| Q5_1 int8, 160 into 2560, 320 rows | 1.296 | 1.211 (-6.6%) | 1.227 | 1.278 | 1.100 |
+| Q4_K / Q5_1 f16, 320 rows | 4.034 / 2.250 | 3.479 / 2.122 | 3.431 / 2.114 | 3.655 / 2.181 | 3.417 / 1.982 |
+| Q4_K / Q5_1 int8, 1024 rows | 4.539 / 1.408 | 4.314 / 1.345 | 4.375 / 1.388 | 4.431 / 1.400 | 5.487 / 1.688 |
+| filled tiles (picks over 80 experts), every shape, against a | - | -3% to +4% | -3% to +3% | -4% to +2% | 0% to +67% |
+
+The rotation carries the gain (without it a third remains), the row stride does not; the 8-column bound gains more at six an expert but loses up to 67% where tiles fill. Driver statistics: the int8 narrow builds keep 64 VGPRs and 4 waves a SIMD, the f16 ones go from 104 and 96 to 108 and 100 VGPRs at 2 waves in both.
+Flash-Next UD-Q4_K_XL pp2048 ub320 2x2 int8 (renderD129/130/134/135, a b b a, `--r 3`): main with the test (`llmx 0.1.0+g263ba45757fb`) 1470.96 and 1471.86, the change (`llmx 0.1.0+g25494aa1beb8`) 1508.84 and 1506.08 tok/s, +2.5%; decode never takes the tile.
+Machine activity: load average 11 to 36 from others' work, recorded at each run's edges only, with no per-process monitor, a limitation of this measurement.
+The rule set at 20:40 (-15% on both routed shapes at 320 rows) is missed on the down and by 0.8 points on the gate+up; it lands on the measured end-to-end gain, and the recovery work is a 64-row narrow build (MROWS 1, where `qtile` now forces `kTileRowsTall`), which shortens a workgroup's path rather than relying on co-resident waves.
+Gates at 2607288b8 on main 2c463d721, the head that lands differing from it only by two shortened test comments: `llmx-backend-vulkan-test` whole on an MI50 under RADV rc 0; CTest 97/97; the suite's `dead-code` PASS and `docs` PASS after the comments were shortened; Flash-Next UD-Q4_K_XL 2x2 byte identity against main (renderD129/130/134/135, tensor width 2, layer shares 1,1, ubatch 320, a 1660-token prompt), main `llmx 0.1.0+g2c463d7218cb` against the change `llmx 0.1.0+g2607288b856d`: the last 4 logits rows identical in int8 and in f16, and 64 greedy tokens identical in both, only the timing and load lines differing.
+The Radeon VII under the AMD proprietary driver builds it and `--isa` gives rc 0, stating that the device takes the float tile and so has no narrow routed build; the hosted run on gate/kdev4-routed-quads at 3cd4a4e7e on main 2c463d721 was green in all 8 jobs (41917287640).
+Rebased onto a3cb5d0a7 (pipelined prompts) without a conflict in code, the build and CTest ran again at that head, and onto a359b94e3, which touches no `src/` file, with the hosted run at the head that lands.
+It lands by fast-forward as two commits, the test and the change.
+**Gotchas:** on the MI50 under RADV int8 routed calls never take the 64-column build (`qtile_narrow_per_expert_8bit` is every count), so `check_routed_narrow`'s int8 cells compare the narrow build with itself; its entries hash holds a build to main's.
+The narrow decision (`routed_call`) follows the call's average entries over the experts it can touch, so a run's build follows its neighbours, safe only because both builds give the same bits; ROCm's narrow build chooses per group and puts the entries lane-minor, so its mirror (RDEV) puts them on the wave-uniform axis in quads, rotated, as here.
+
 ## DeepSeek-V4.1 step 2: the tiny reference (2026-11-04, DSDEV3 then DSDEV4, branch feat/deepseek4-reference on main 52c8a3bcb; step 2 of docs/DEEPSEEK4.md, F2DEV's review of 20:42 approving with nine changes, all taken)
 
 - **Goal:** the independent reference of the deepseek41 tiny gate (the plan's section 5.1): DeepSeek's own inference code at 1bae0e10 on an F32 CPU port of its kernels, goldens and tiny files in both `deepseek41` layouts, and hosted checks without torch.

@@ -1,4 +1,4 @@
-# `src/tokenizer/tokenizer.hpp` - byte-level BPE with Qwen2, Qwen3 and Qwen3.5 pretokenization
+# `src/tokenizer/tokenizer.hpp` - byte-level BPE with Qwen2, Qwen3, Qwen3.5 and joyai-llm pretokenization
 
 From-scratch byte-level BPE tokenizer in namespace `bpe`.
 The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
@@ -12,8 +12,12 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
   Three differences from GPT-2 change the resulting ids: a leading punctuation character or underscore binds to the word that follows (`_snake`, `(x`), digits are emitted one at a time, and a whitespace run ending in newlines stays one piece.
   Using the GPT-2 regex here produces valid-looking but wrong ids, which the HF tokenizer fixtures catch.
   The Qwen3.5 regex (pre `qwen35`) adds combining marks (`\p{M}`) to the letter runs of the second alternative and to the class the fourth excludes, which the byte classes below already give, so one routine serves both.
+- `pretokenize_joyai(text)`: the `joyai-llm` pretokenizer (DeepSeek-V4.1's files), its `tokenizer.json`'s three `Isolated` splits in turn, each on the previous one's pieces: number runs of 1 to 3 (`\p{N}{1,3}`), runs of CJK ideographs U+4E00 to U+9FA5 and kana U+3040 to U+30FF, then a split whose alternatives are an ASCII punctuation character before ASCII letters, an optional character that is no newline, letter, punctuation or symbol before a run of letters and marks, an optional space before punctuation and symbols and their trailing newlines, and the three whitespace rules of the qwen2 regex.
+  Each split's matches are pieces and so is each run of text between them, so a digit run of the first split stays whole through the third.
+  The classes are Unicode 16.0's, read from `core/unicode_class.hpp` ([core-unicode_class.md](core-unicode_class.md)), and `\s` is White_Space; a byte that does not begin a valid UTF-8 sequence is read as one character of no class.
+  The file's `tokenizer.ggml.pre` chooses it (`joyai`), and `encode` runs it in place of `pretokenize`, whose qwen2 and qwen35 path it does not touch.
 - `Tokenizer`: reads tokenizer metadata from a GGUF model (`tokenizer.ggml.tokens/token_type/merges/bos/eos_token_id`).
-  - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2` or `qwen35`, and the error names the key and the implemented values.
+  - Refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35` or `joyai-llm`, and the error names the key and the implemented values.
     Without the check, such a file would encode to valid-looking but wrong ids.
     A key the file omits is not checked, so the synthetic test models, which name neither, are read as this tokenizer.
   - `encode(text) -> vector<uint32_t>`: the control and user-defined tokens' texts matched first, the longest at each place, each as its one id, and the text between them pretokenized, byte-encoded, BPE-merged by rank and mapped to ids; a symbol the vocabulary lacks throws.
@@ -25,7 +29,7 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
   - `is_eos(id)`: whether a token ends a generation, for `generate` and the server alike; a model without an EOS id has no stop token.
     `ignore_eos` masks the same id before sampling (`infer::sample`).
 
-Character classes are approximated for UTF-8 without a Unicode table: any byte at or above 0x80 counts as a letter.
+In `pretokenize`, character classes are approximated for UTF-8 without a Unicode table: any byte at or above 0x80 counts as a letter.
 This matches Qwen's classes on the scripts the fixtures cover; it is not a general `\p{L}` implementation.
 
 Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files unless noted:
@@ -45,4 +49,5 @@ Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files 
 `tests/tokenizer_encode.cpp` (CTest `tokenizer-encode`) holds `encode` to the encode it replaced, written out in the test, on a small vocabulary with merges and special tokens.
 `tests/tokenizer.py` does the same for the qwen35 pretokenizer on every build, from `tests/data/baseline_tokenizer_qwen35.json`: HF's ids for 37 texts (the 20 of the Qwen3 fixture, Thai, Devanagari, CJK punctuation and every added token) and the part of the pinned HF vocabulary those texts reach.
 It also requires one id for each of the 7 control tokens above, which the golden keeps apart with the types the GGUF files give them.
+It holds the joyai-llm pretokenizer to HF's ids from `tests/data/baseline_tokenizer_deepseek41.json` the same way: 103 texts (scripts, digits of several kinds, punctuation and symbols, emoji, Unicode-version and whitespace probes, every added token in groups and a 6000-character excerpt with a multilingual tail), with the token types of DeepSeek-V4.1's GGUF file.
 These are the external gates for this file.

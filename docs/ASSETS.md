@@ -532,7 +532,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 | Reference family | Selectors |
 |---|---|
 | Default group | `all` |
-| Tokenizers | `tokenizer`, `tokenizer-qwen35` |
+| Tokenizers | `tokenizer`, `tokenizer-qwen35`, `tokenizer-deepseek41` |
 | Released text models | `logits`, `perplexity`, `qwen35`, `file-exact` |
 | Synthetic graphs and activation policies | `f32`, `moe`, `moe-q8`, `int8`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe` |
 | FP4 formats | `mxfp4`, `nvfp4` |
@@ -661,6 +661,32 @@ That gives 27 control and 6 user-defined tokens in each file.
 
 transformers 5.17.0 loads this repository as `Qwen2Tokenizer`, which replaces the file's pretokenizer with the qwen2 regex and adds the 7 control tokens.
 Its ids therefore differ from `tokenizer.json` on text with combining marks (Thai and Devanagari) and on those 7 tokens, so the qwen35 tokenizer golden takes its ids from `tokenizers` and the file itself, and any qwen35 reference that tokenizes through `AutoTokenizer` must be checked against it.
+
+#### The deepseek41 tokenizer reference
+
+`tokenizer-deepseek41` writes `tests/data/baseline_tokenizer_deepseek41.json` from the `tokenizer.json` of `deepseek-ai/DeepSeek-V4.1-Flash-1017` at commit `1bae0e1088993b9b82de08f59de5be5a34e42170` (SHA-256 `c90dfa01249db1be4245780a052ede752e1361c612ac6d08e2bdada7d599476b`), read with `tokenizers` 0.23.2, and the token types of the first shard's header of the 1017 GGUF file.
+`--checkpoint DIR` names the directory holding that `tokenizer.json`, on the test machine `/zpool1/llmx-dsdev3-20261104/hub-1bae0e10`, fetched for the deepseek41 tiny reference, and `--weights-gguf` the shard, `/zpool1/models/DeepSeek-V4.1-Flash-1017-GGUF/DeepSeek-V4.1-Flash-MXFP4-00001-of-00012.gguf`, of which it reads the metadata alone.
+It refuses a `tokenizer.json` of another SHA-256, a header naming another pretokenizer than `joyai-llm`, and a header whose tokens or merges are not the `tokenizer.json`'s; `tests/reference_generator.py` requires the committed golden to record the generator's texts, commit and digest.
+It is not part of `all` and downloads nothing; it ran offline in the Python 3.12.13 venv at `/opt/claude-work/llmx-dsdev2-env` in the `python:3.12.13-slim` image.
+As for qwen35, it keeps the merges that form a substring of a text with the tokens they form, the 256 byte tokens and the 1283 added tokens, and each fixed text's pretokenized pieces, which `tests/tokenizer.py` prints beside a failing text.
+
+The `tokenizer.json` holds an empty normalizer, three `Split` pretokenizers with `Isolated` behaviour and a `ByteLevel` one without its regex, and BPE without byte fallback over 128000 tokens and 127741 merges, with 1283 added tokens (1229 special, none stripped or single-word).
+The first shard's header names `tokenizer.ggml.pre` `joyai-llm` and holds that file's 129280 tokens (the vocabulary and the added tokens) and merges content for content, which the generator checks; `add_bos_token` is false in both.
+Every added token has type 3 (1278 of them) or 4 (5) there and every other token type 1, so llmx matches all of them before pretokenization, as `tokenizers` matches its added tokens; the golden takes these types from the header, not from a naming rule.
+`tokenizers` 0.23.2's regex engine reads Unicode 16.0, which the golden's version probes pin: letters of 15.0, 15.1 and 16.0 join a letter run and code points 16.0 leaves unassigned do not; its `\s` is White_Space, so U+001C to U+001F, U+180E, U+200B and U+FEFF are not spaces.
+
+#### The Unicode class table
+
+`src/core/unicode_class.hpp` is written by `python tools/gen_unicode_table.py --ucd DIR` from two files of the Unicode 16.0.0 character database, fetched on 2026-11-04 with the coordinator's leave and refused by the generator unless each has its SHA-256:
+
+| File | URL | SHA-256 | Bytes |
+|---|---|---|---:|
+| `DerivedGeneralCategory.txt` | `https://www.unicode.org/Public/16.0.0/ucd/extracted/DerivedGeneralCategory.txt` | `7676ab755a41ef82108460238569e60ad65c191ddafe61b36c6765ec1353f293` | 274423 |
+| `PropList.txt` | `https://www.unicode.org/Public/16.0.0/ucd/PropList.txt` | `53d614508e2a0b2305a8aa21cd60d993de9326cdf65993660dfcce4503548583` | 144253 |
+
+The files are not committed; on the test machine they are kept in `/opt/claude-work/llmx-dsdev5-20261104/ucd16`.
+The header they give has SHA-256 `34d53bf75316d3d440881b39a410236be5f61804e600d13e506c8c77fef8e6b8` and 1586 runs.
+Unicode 16.0 is the version the reference's regex engine reads (The deepseek41 tokenizer reference, above), while Python 3.12's `unicodedata` is at 15.0.0 and 3.13's at 15.1.0; between those and 16.0 no assigned code point changes its category group, so `tests/tokenizer.py` holds the table to `unicodedata` with no exception listed.
 
 #### The image decoding references
 

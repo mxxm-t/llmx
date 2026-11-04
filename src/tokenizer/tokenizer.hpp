@@ -8,14 +8,16 @@
 #include <vector>
 #include <unordered_map>
 #include <stdexcept>
+#include <utility>
 
+#include "core/unicode_class.hpp"
 #include "core/utf8.hpp"
 #include "format/gguf.hpp"
 
 // GPT-2 style byte-level BPE tokenizer, implemented from scratch.
 // Reads tokenizer metadata from a GGUF model:
 //   tokenizer.ggml.model        = "gpt2"           (refused when present with another value)
-//   tokenizer.ggml.pre          = "qwen2"/"qwen35" (refused when present with another value)
+//   tokenizer.ggml.pre          = "qwen2"/"qwen35"/"joyai-llm" (refused when present with another value)
 //   tokenizer.ggml.tokens       = array<string>    (token id -> byte-mapped token)
 //   tokenizer.ggml.token_type   = array<u32>       (per-token type)
 //   tokenizer.ggml.merges       = array<string>    ("s1 s2", rank = index)
@@ -52,6 +54,7 @@ public:
     std::unordered_map<std::string, uint8_t> char_to_byte;
     std::vector<SpecialToken> specials; // control / user-defined tokens
     std::array<bool, 256> special_lead{};   // the bytes a special token begins with, so the scan for one skips every other byte
+    bool joyai = false;                     // whether the file's pretokenizer is joyai-llm rather than qwen2/qwen35
     int32_t bos_id = -1;
     int32_t eos_id = -1;
 
@@ -75,8 +78,9 @@ public:
                                      "; implemented: " + names);
         };
         require("tokenizer.ggml.model", {"gpt2"});
-        // qwen35 differs from qwen2 only in combining marks (see pretokenize).
-        require("tokenizer.ggml.pre", {"qwen2", "qwen35"});
+        // qwen35 differs from qwen2 only in combining marks (see pretokenize); joyai-llm has its own splits (pretokenize_joyai).
+        require("tokenizer.ggml.pre", {"qwen2", "qwen35", "joyai-llm"});
+        if (const gguf::MetaValue* v = m.find("tokenizer.ggml.pre")) joyai = v->s == "joyai-llm";
 
         byte_to_char = build_byte_encoder();
         for (const auto& kv : byte_to_char) char_to_byte[kv.second] = kv.first;
@@ -211,6 +215,94 @@ public:
         return out;
     }
 
+    // joyai-llm: the file's three Isolated splits in turn, each on the previous one's pieces, over Unicode 16.0 classes (docs/src/tokenizer-tokenizer.md).
+    // A byte that does not begin a valid UTF-8 sequence is read as one character of no class.
+    struct CodePoint { uint32_t cp; uint32_t at; uint8_t bits; };
+
+    static size_t joyai_numbers(const std::vector<CodePoint>& t, size_t i, size_t end) {
+        size_t k = i;
+        while (k < end && k - i < 3 && (t[k].bits & unicode_class::N)) k++;
+        return k - i;
+    }
+
+    static size_t joyai_kana_han(const std::vector<CodePoint>& t, size_t i, size_t end) {
+        size_t k = i;
+        while (k < end && ((t[k].cp >= 0x4E00 && t[k].cp <= 0x9FA5) || (t[k].cp >= 0x3040 && t[k].cp <= 0x30FF))) k++;
+        return k - i;
+    }
+
+    static size_t joyai_words(const std::vector<CodePoint>& t, size_t i, size_t end) {
+        using namespace unicode_class;
+        const auto nl = [&](size_t k) { return t[k].cp == '\r' || t[k].cp == '\n'; };
+        const auto run = [&](size_t k, uint8_t bits) { while (k < end && (t[k].bits & bits)) k++; return k; };
+        const auto ascii_letter = [&](size_t k) { return k < end && t[k].cp < 0x80 && (t[k].bits & L); };
+        // ASCII punctuation is exactly the ASCII characters of classes P and S.
+        if (t[i].cp < 0x80 && (t[i].bits & (P | S)) && ascii_letter(i + 1)) {
+            size_t k = i + 1;
+            while (ascii_letter(k)) k++;
+            return k - i;
+        }
+        // The optional character falls back to none when no letter or mark follows it, which matters only when it is itself a mark.
+        if (!nl(i) && !(t[i].bits & (L | P | S))) {
+            size_t k = run(i + 1, L | M);
+            if (k > i + 1) return k - i;
+        }
+        if (size_t k = run(i, L | M); k > i) return k - i;
+        {
+            size_t j = i + (t[i].cp == ' ' ? 1 : 0);
+            size_t k = run(j, P | S);
+            if (k > j) {
+                while (k < end && nl(k)) k++;
+                return k - i;
+            }
+        }
+        size_t k = run(i, W);
+        for (size_t q = k; q > i; q--)
+            if (nl(q - 1)) return q - i;
+        if (k == end && k > i) return k - i;
+        if (k > i + 1) return k - 1 - i;
+        return k - i;
+    }
+
+    static std::vector<std::string> pretokenize_joyai(const std::string& text) {
+        std::vector<CodePoint> t;
+        for (size_t i = 0; i < text.size();) {
+            size_t len = utf8::valid_length(text, i);
+            uint32_t cp = (unsigned char)text[i];
+            if (len > 1) {
+                cp &= 0x7F >> len;
+                for (size_t k = 1; k < len; k++) cp = (cp << 6) | ((unsigned char)text[i + k] & 0x3F);
+            }
+            t.push_back({ cp, (uint32_t)i, len ? unicode_class::of(cp) : (uint8_t)0 });
+            i += len ? len : 1;
+        }
+        using Match = size_t (*)(const std::vector<CodePoint>&, size_t, size_t);
+        std::vector<std::pair<size_t, size_t>> pieces{ { 0, t.size() } }, next;
+        for (Match match : { Match(joyai_numbers), Match(joyai_kana_han), Match(joyai_words) }) {
+            next.clear();
+            for (auto [b, e] : pieces) {
+                size_t gap = b;
+                for (size_t i = b; i < e;) {
+                    size_t m = match(t, i, e);
+                    if (!m) { i++; continue; }
+                    if (gap < i) next.push_back({ gap, i });
+                    next.push_back({ i, i + m });
+                    i += m;
+                    gap = i;
+                }
+                if (gap < e) next.push_back({ gap, e });
+            }
+            pieces.swap(next);
+        }
+        std::vector<std::string> out;
+        out.reserve(pieces.size());
+        for (auto [b, e] : pieces) {
+            size_t from = t[b].at, to = e < t.size() ? t[e].at : text.size();
+            out.push_back(text.substr(from, to - from));
+        }
+        return out;
+    }
+
     std::string byte_encode(const std::string& raw) const {
         std::string s;
         for (unsigned char b : raw) s += byte_to_char.at(b);
@@ -246,7 +338,7 @@ public:
         std::unordered_map<std::string, std::vector<uint32_t>> merged;
         auto flush = [&](size_t from, size_t to) {
             if (from == to) return;
-            for (const auto& tok : pretokenize(text.substr(from, to - from))) {
+            for (const auto& tok : (joyai ? pretokenize_joyai : pretokenize)(text.substr(from, to - from))) {
                 auto known = merged.find(tok);
                 if (known == merged.end()) {
                     std::vector<uint32_t> word;

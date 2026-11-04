@@ -927,6 +927,9 @@ Over two CPU stages, the synthetic Q8_0 model's 40-token prompt and its 199 gree
   The qwen35 pretokenizer must give HF's ids for the 37 texts of `tests/data/baseline_tokenizer_qwen35.json` (the Qwen3 fixture's 20, Thai, Devanagari, CJK punctuation and every added token), read through a file the test writes from the part of the pinned HF vocabulary those texts reach, so it needs no model.
   The 7 control tokens only the GGUF files and `tokenizer_config.json` add must each give their one id, alone and side by side.
   `python tools/gen_baseline.py tokenizer-qwen35` regenerates the file, keeping every merge that forms a substring of a text, so the ids equal the whole vocabulary's however llmx cuts the text.
+  The joyai-llm pretokenizer must give HF's ids for the 103 texts of `tests/data/baseline_tokenizer_deepseek41.json` the same way, with the token types of DeepSeek-V4.1's GGUF file; a failing text prints HF's pieces beside its ids.
+  Its probes put a letter, mark, number, punctuation or symbol of Unicode 15.0, 15.1 and 16.0, and code points 16.0 leaves unassigned, where the class decides the split, and each whitespace candidate before a newline, so the ids pin the Unicode version and what `\s` holds.
+  The Unicode class table, `src/core/unicode_class.hpp`, must give every code point the running Python's `unicodedata` assigns the bit of its general category's group, and White_Space its 25 code points.
 - **Perplexity** (`tests/perplexity.py`): a synthetic model with an analytic
   scoring oracle checks window boundaries, chunk limits, target counts, file
   and inline input parity and invalid flags.

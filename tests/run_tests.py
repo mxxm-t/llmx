@@ -115,7 +115,7 @@ def main():
                   ("arch-boundary", arch_boundary.run),
                   ("version", version.run),
                   ("cli", cli.run),
-                  ("reference-generator", reference_generator.run),
+                  ("reference-generator", lambda: reference_generator.run(require=args.require_tools)),
                   ("reference-consumer", lambda: reference_consumer.run(require=args.require_tools)),
                   ("device-reference", lambda: device_reference.run(require=args.require_tools)),
                   ("roundtrip", roundtrip.run),

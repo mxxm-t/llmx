@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 step 2: the tiny reference (2026-11-04, DSDEV3 then DSDEV4, branch feat/deepseek4-reference on main 52c8a3bcb; step 2 of docs/DEEPSEEK4.md, F2DEV's review of 20:42 approving with nine changes, all taken)
+
+- **Goal:** the independent reference of the deepseek41 tiny gate (the plan's section 5.1): DeepSeek's own inference code at 1bae0e10 on an F32 CPU port of its kernels, goldens and tiny files in both `deepseek41` layouts, and hosted checks without torch.
+- **Done:** `tools/deepseek4_reference.py` behind `gen_baseline.py deepseek41-tiny`, its port `tools/deepseek4_kernel.py`, the environment's hash-pinned `tools/deepseek4_requirements.txt`, the torch-free weights, name map and writer `tests/fixture_deepseek4.py` (the fork's names from the 1017 file's headers, upstream's from its converter), the pure E4M3, E8M0, E2M1 and FP4-per-16 decoders in `tests/spec_decode.py`, the golden `tests/data/deepseek41_reference.json` and `tests/reference_deepseek4.py` in `reference-generator` (docs/ASSETS.md, The deepseek41 tiny reference).
+  `inference/config.json` and the other code and tokenizer files were fetched at the revision on 2026-11-04 with the coordinator's leave (no weights) and pinned by blob oid and SHA-256.
+  Measured on the tiny model: least selection margins 3.8e-5 (index), 1.2e-4 (candidate blocks) and 3.8e-5 (router) over a floor of 2e-5; every whole-prompt and cached path within 9.5e-7 of the 200-token prompt's rows with the same selections; the zero key row's gate sigmoid(+1e-3) = 0.50025, as DSDEV3's note of 20:53 had it.
+- **Left:** F2DEV's review; the layered file-exact reference on the real file (a follow-up branch, reusing `gen_layered_reference.py`'s `FileWeights`, `loaded_modules`, `Provenance` and `label_golden` and `qwen4exp_file_reference.py`'s span reading, its truncated blk.0-2 check reading the other project's shards under decision 3).
+  The goldens' consumer is step 7 (V4.1 on the CPU); the `deepseek4` and `dflash` tiny models of section 5.1 come with steps 15 and 13.
+- **Gotchas:** the tiny files' tokenizer holds the real first 128 tokens and no merges, so step 7 feeds ids; the upstream layout's table is F32 here, since MXFP8 is step 16's; the reference runs in `python:3.12.13-slim` with `--network none`, and the tool refuses any distribution its requirements do not pin.
+
 ## Draft price at depth (2026-11-04, SDEV3 and SDEV4, branch sdev2/draft-price-at-depth on main 44c5e56f0; SDEV2's finding and proposal of 2026-11-03 22:39, approved by F2DEV at 22:42 with seven changes and at 2026-11-04 04:09 with four more)
 
 **Goal:** a drafting reply at depth weighs its drafts against fresh prices of the pass it would run: on production's Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 layer split at about 200k tokens, a lone reply drafting took 23-row verifies at about 19 tokens a second where plain decode gives 35.9, because the depth rule read decode cells last measured during old stalls and priced a pass alone as its slowest stage plus a flat offset.

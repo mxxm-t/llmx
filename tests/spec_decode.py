@@ -447,6 +447,34 @@ def mxfp4(block):
     return [MXFP4_VALUES[q & 15] * scale for q in qs] + [MXFP4_VALUES[q >> 4] * scale for q in qs]
 
 
+# The element formats of DeepSeek-V4.1's caches and tables, from the OCP Microscaling Formats (MX) v1.0 specification.
+# E4M3: sign, four exponent bits of bias 7, three mantissa bits; exponent 0 is subnormal, m / 8 * 2^-6, and 0x7F and 0xFF are NaN, with no infinity.
+def e4m3(byte):
+    sign = -1.0 if byte & 0x80 else 1.0
+    e, m = (byte >> 3) & 15, byte & 7
+    if e == 15 and m == 7:
+        return math.nan
+    return sign * (math.ldexp(m, -9) if e == 0 else math.ldexp(8 + m, e - 10))
+
+
+# E8M0: 2^(e - 127), with 0xFF NaN.
+def e8m0(byte):
+    return math.nan if byte == 0xFF else math.ldexp(1.0, byte - 127)
+
+
+# E2M1: sign, two exponent bits of bias 1, one mantissa bit; code 8 is -0.
+def e2m1(code):
+    e, m = (code >> 1) & 3, code & 1
+    value = math.ldexp(m, -1) if e == 0 else math.ldexp(2 + m, e - 2)
+    return -value if code & 8 else value
+
+
+# DeepSeek-V4.1's compressed entries: 16 E2M1 values under one E4M3 scale; the scale byte, then 8 bytes each holding values 2j (low nibble) and 2j + 1, as float4_e2m1fn_x2 packs them.
+def fp4_e4m3_16(block):
+    scale = e4m3(block[0])
+    return [e2m1(q >> shift & 15) * scale for q in block[1:9] for shift in (0, 4)]
+
+
 # NVFP4 stores four UE4M3 scales and four 16-value groups, low nibbles first.
 # Scale 127 is zero, and other scale bytes ignore bit 7 (docs/src/quant-nvfp4.md).
 def nvfp4(block):

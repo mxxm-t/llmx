@@ -273,7 +273,7 @@ public:
         f2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         f2.pNext = &f11;
         fn.vkGetPhysicalDeviceFeatures2(d.physical, &f2);
-        if (const std::string need = missing_device_need(sg, f2, f11, f12); !need.empty())
+        if (const std::string need = missing_device_need(sg, f2, f11, f12, d.props.limits, kernel_storage_buffers()); !need.empty())
             throw VulkanUnavailable("vulkan: " + d.caps.device + " " + need);
         VkPhysicalDeviceVulkan12Features e12{};
         e12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -1146,7 +1146,6 @@ public:
     }
 
     void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
-    static constexpr size_t kSumSources = 4;
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) override {
         if (!n) return;

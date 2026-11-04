@@ -117,8 +117,10 @@ struct Fn {
 inline bool host_memory_device(VkPhysicalDeviceType type) { return type == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU || type == VK_PHYSICAL_DEVICE_TYPE_CPU; }
 
 // What the kernels need of a device beyond Vulkan 1.2's core, the first one missing as the refusal names it, or empty.
+// `storage_buffers` is the most storage buffers a kernel binds (kernel_storage_buffers).
 inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties& sg, const VkPhysicalDeviceFeatures2& f2,
-                                       const VkPhysicalDeviceVulkan11Features& f11, const VkPhysicalDeviceVulkan12Features& f12) {
+                                       const VkPhysicalDeviceVulkan11Features& f11, const VkPhysicalDeviceVulkan12Features& f12,
+                                       const VkPhysicalDeviceLimits& limits, uint32_t storage_buffers) {
     // The row kernel places one subgroup per row group in a 256-lane workgroup, so the subgroup size must divide it.
     if (!sg.subgroupSize || 256 % sg.subgroupSize) return "has an unsupported subgroup size";
     // A block of 32 activations is quantized across 32 consecutive lanes (shaders/xquant.glsl), and every narrower lane group the kernels fix fits such a subgroup, so the kernel choices do not check the width again.
@@ -134,6 +136,8 @@ inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties&
     if (!f12.shaderInt8) return "has no 8-bit integer arithmetic";
     if (!f11.storageBuffer16BitAccess) return "has no 16-bit storage buffer access";
     if (!f12.storageBuffer8BitAccess) return "has no 8-bit storage buffer access";
+    if (limits.maxPerStageDescriptorStorageBuffers < storage_buffers)
+        return "binds " + std::to_string(limits.maxPerStageDescriptorStorageBuffers) + " storage buffers a stage, fewer than the " + std::to_string(storage_buffers) + " a kernel binds";
     return {};
 }
 

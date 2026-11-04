@@ -478,7 +478,7 @@ std::vector<int> layer_shares(const std::string& value) {
 // A device spec's kind: cpu, or the backend before its index.
 std::string kind_of(const std::string& spec) { return spec.substr(0, spec.find(':')); }
 
-// --tensor-width over the listed devices (docs/TENSOR-SPLIT.md, section 4.6), refused as the command line gives it: whole groups of at most 4 devices of one kind, and one layer share a group.
+// --tensor-width over the listed devices (docs/TENSOR-SPLIT.md, section 4.6), refused as the command line gives it: whole groups of at most backend::kMaxTensorWidth devices of one kind, and one layer share a group.
 // Each group's devices with their PCI roots on stderr, and, where infer::one_root_order finds one, the order of the listed devices that keeps every group under one root, the order given being kept (docs/TENSOR-SPLIT.md, section 4.5).
 void report_groups(const std::vector<std::string>& specs, const std::vector<backend::BackendPtr>& backends, size_t w) {
     std::vector<std::string> roots;
@@ -501,7 +501,8 @@ void tensor_groups(const ExecOptions& exec, const std::vector<std::string>& spec
     const size_t w = (size_t)exec.tensor_width;
     if (w == 1) return;
     const std::string flag = "--tensor-width " + std::to_string(w);
-    if (w > 4) throw UsageError(flag + ": at most 4 devices a group; list more devices to form stages");
+    if (w > backend::kMaxTensorWidth)
+        throw UsageError(flag + ": at most " + std::to_string(backend::kMaxTensorWidth) + " devices a group; list more devices to form stages");
     if (specs.size() % w) throw UsageError(flag + " needs a device list of whole groups: " + std::to_string(specs.size()) + " devices listed");
     const size_t shares = layer_shares(exec.layer_shares).size();
     if (shares && shares != specs.size() / w)

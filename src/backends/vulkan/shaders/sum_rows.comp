@@ -1,21 +1,16 @@
 #version 450
-// A tensor group's sum (VulkanCollective::sum): residual[i] += (((s0[i] + s1[i]) + s2[i]) + s3[i]) in member order, as add.comp adds.
+// A tensor group's sum: residual[i] gains s[0][i] to s[members - 1][i] added in member order, the sources one array of backend::kMaxTensorWidth (kSumRowsCounts).
 // Flag 1 also writes the sum to `kept`; flag 2 writes it over residual, which may be a source, since each invocation reads its float before writing it.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint n; uint members; uint keep; } p;
 layout(set = 0, binding = 0) buffer R { float r[]; };
 layout(set = 0, binding = 1) writeonly buffer K { float kept[]; };
-layout(set = 0, binding = 2) readonly buffer S0 { float s0[]; };
-layout(set = 0, binding = 3) readonly buffer S1 { float s1[]; };
-layout(set = 0, binding = 4) readonly buffer S2 { float s2[]; };
-layout(set = 0, binding = 5) readonly buffer S3 { float s3[]; };
+layout(set = 0, binding = 2) readonly buffer S { float v[]; } s[16];
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= p.n) return;
-    float t = s0[i];
-    if (p.members > 1u) t += s1[i];
-    if (p.members > 2u) t += s2[i];
-    if (p.members > 3u) t += s3[i];
+    float t = s[0].v[i];
+    for (uint m = 1u; m < p.members; ++m) t += s[m].v[i];
     if ((p.keep & 1u) != 0u) kept[i] = t;
     if ((p.keep & 2u) != 0u) r[i] = t;
     else r[i] += t;

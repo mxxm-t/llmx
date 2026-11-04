@@ -13,8 +13,8 @@
 #include "backends/devices.hpp"
 #include "inference/load.hpp"
 
-// A device given as `cpu` or a Vulkan index, in the spelling a device list takes.
-static std::string name(const std::string& spec) { return spec == "cpu" ? spec : "vulkan:" + spec; }
+// A device given as `cpu`, a Vulkan index or a device as --device names it, such as rocm:0, in the spelling a device list takes.
+static std::string name(const std::string& spec) { return spec == "cpu" || spec.find(':') != std::string::npos ? spec : "vulkan:" + spec; }
 
 // A decoding sequence with an established history beside a fresh prompt, then both decoding, in the same row order on one device and the split.
 static size_t mixed(infer::Model& one, infer::Model& two, const std::vector<uint32_t>& ids) {

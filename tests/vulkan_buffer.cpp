@@ -1721,9 +1721,12 @@ int device_need_checks() {
     f12.timelineSemaphore = VK_TRUE;
     f12.shaderInt8 = VK_TRUE;
     f12.storageBuffer8BitAccess = VK_TRUE;
+    VkPhysicalDeviceLimits limits{};
+    const uint32_t buffers = backend::kernel_storage_buffers();
+    limits.maxPerStageDescriptorStorageBuffers = buffers;
     int failures = 0;
     const auto expect = [&](const char* what, const std::string& need) {
-        const std::string got = backend::missing_device_need(sg, f2, f11, f12);
+        const std::string got = backend::missing_device_need(sg, f2, f11, f12, limits, buffers);
         const bool ok = need.empty() ? got.empty() : got.find(need) != std::string::npos;
         std::cout << "device_need " << what << ": \"" << got << "\"" << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
@@ -1738,10 +1741,17 @@ int device_need_checks() {
     f12.shaderInt8 = VK_FALSE; expect("no 8-bit integers", "8-bit integer arithmetic"); f12.shaderInt8 = VK_TRUE;
     f11.storageBuffer16BitAccess = VK_FALSE; expect("no 16-bit storage", "16-bit storage"); f11.storageBuffer16BitAccess = VK_TRUE;
     f12.storageBuffer8BitAccess = VK_FALSE; expect("no 8-bit storage", "8-bit storage"); f12.storageBuffer8BitAccess = VK_TRUE;
+    // A kernel's bindings, the sum of a group of the widest tensor width among them, must fit one stage's storage buffers.
+    std::cout << "the sum kernel binds a source a member of the widest group" << (buffers >= 2 + backend::kMaxTensorWidth ? " PASS\n" : " FAIL\n");
+    failures += buffers < 2 + backend::kMaxTensorWidth;
+    // The kernels' layouts are push-descriptor layouts, and 32 is the least maxPushDescriptors a device may report.
+    std::cout << "the widest kernel's bindings fit the guaranteed push descriptors" << (buffers <= 32 ? " PASS\n" : " FAIL\n");
+    failures += buffers > 32;
+    limits.maxPerStageDescriptorStorageBuffers = buffers - 1; expect("one storage buffer short", "storage buffers a stage"); limits.maxPerStageDescriptorStorageBuffers = buffers;
     // The fused routed step's routing is its own need: a device whose subgroups are not 32 or 64 lanes opens and takes the unfused step, the need named.
     const auto counter = [&](const char* what, const std::string& need) {
         const std::string got = backend::missing_counter_need(sg.subgroupSize);
-        const bool ok = (need.empty() ? got.empty() : got.find(need) != std::string::npos) && backend::missing_device_need(sg, f2, f11, f12).empty();
+        const bool ok = (need.empty() ? got.empty() : got.find(need) != std::string::npos) && backend::missing_device_need(sg, f2, f11, f12, limits, buffers).empty();
         std::cout << "counter_need " << what << ": \"" << got << "\"" << (ok ? " PASS\n" : " FAIL\n");
         if (!ok) ++failures;
     };

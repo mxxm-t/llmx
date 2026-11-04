@@ -1236,13 +1236,13 @@ void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t wi
     }
 }
 
-// The collective over 2, 3 and 4 devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
+// The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
 void collective() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
     real_copy = f.hipMemcpyAsync;
     real_uncached = f.hipExtMallocWithFlags;
-    std::vector<BackendPtr> d = rocm_devices(4);
+    std::vector<BackendPtr> d = rocm_devices(kMaxTensorWidth);
     if (d.size() < 2) {
         std::cout << "backend-rocm: one device, so no collective\n";
         return;
@@ -1360,13 +1360,108 @@ void collective() {
     require(throws([&] { d[0]->join({d[0].get(), cpu.get()}, 1, 1); }), "a ROCm collective over the CPU was made");
     require(throws([&] { d[0]->join({d[0].get(), d[0].get()}, 1, 1); }), "a ROCm collective over one device twice was made");
     std::string why;
-    try { d[0]->join(std::vector<Backend*>(5, d[0].get()), 1, 1); } catch (const std::exception& e) { why = e.what(); }
-    require(why.find("more than 4 devices") != std::string::npos, "a ROCm collective of five devices was not refused for its size");
+    try { d[0]->join(std::vector<Backend*>(kMaxTensorWidth + 1, d[0].get()), 1, 1); } catch (const std::exception& e) { why = e.what(); }
+    require(why.find("more than " + std::to_string(kMaxTensorWidth) + " devices") != std::string::npos, "a ROCm collective wider than the widest group was not refused for its size");
 }
 
 } // namespace
 
-int main() {
+// The fast path's kernel at the widest group on one device: a launch of llmx_group_sum a rank, each on its own stream and area with 16 blocks, two sums each the oracle's bits and no rank giving up (docs/TESTS.md).
+// The launches run at once only with a hardware queue for each, which main sets for this mode alone.
+const unsigned char kF32Module[] = {
+#include "rocm/f32.inc"
+};
+struct SixteenPeers {
+    float* stage[kMaxTensorWidth];
+    unsigned* signal[kMaxTensorWidth];
+    unsigned* status;
+    unsigned* fault;
+};
+static_assert(sizeof(SixteenPeers) == 272 && offsetof(SixteenPeers, status) == 256, "kernels/f32.hip, GroupPeers");
+
+void sixteen_ranks() {
+    HipFn& f = hip();
+    const size_t W = kMaxTensorWidth, n = 16 * 256 * 4 + 3, cap = (n + 3) / 4 * 4, signal = 4096;
+    hip_check(f.hipSetDevice(0), "hipSetDevice");
+    hipModule_t module = nullptr;
+    hipFunction_t sum = nullptr;
+    hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
+    hip_check(f.hipModuleGetFunction(&sum, module, "llmx_group_sum"), "hipModuleGetFunction");
+    int khz = 0;
+    hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
+    unsigned long long timeout = (unsigned long long)khz * 1000;
+    std::vector<void*> area(W), own(W), out(W);
+    std::vector<hipStream_t> streams(W);
+    unsigned *status = nullptr, *fault = nullptr;
+    hip_check(f.hipHostMalloc((void**)&status, W * sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&fault, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    std::memset(status, 0, W * sizeof(unsigned));
+    *fault = 0;
+    for (size_t k = 0; k < W; ++k) {
+        hip_check(f.hipExtMallocWithFlags(&area[k], signal + W * cap * sizeof(float), hipDeviceMallocUncached), "hipExtMallocWithFlags");
+        hip_check(f.hipMalloc(&own[k], n * sizeof(float)), "hipMalloc");
+        hip_check(f.hipMalloc(&out[k], n * sizeof(float)), "hipMalloc");
+        hip_check(f.hipStreamCreateWithFlags(&streams[k], 1), "hipStreamCreateWithFlags");
+        hip_check(f.hipMemsetAsync(area[k], 0, signal, streams[k]), "hipMemsetAsync");
+    }
+    for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
+    SixteenPeers peers{};
+    for (size_t k = 0; k < W; ++k) {
+        peers.stage[k] = (float*)((uint8_t*)area[k] + signal);
+        peers.signal[k] = (unsigned*)area[k];
+    }
+    peers.status = status;
+    peers.fault = fault;
+    // The kernel reads the table from device memory, as the collective writes it at join.
+    void* table = nullptr;
+    hip_check(f.hipMalloc(&table, sizeof(SixteenPeers)), "hipMalloc");
+    hip_check(f.hipMemcpyAsync(table, &peers, sizeof(SixteenPeers), hipMemcpyHostToDevice, streams[0]), "hipMemcpyAsync");
+    hip_check(f.hipStreamSynchronize(streams[0]), "hipStreamSynchronize");
+    uint32_t seed = 1601;
+    for (const bool replace : {false, true}) {
+        const group_sums::Case c = group_sums::make(W, n, seed++);
+        for (size_t k = 0; k < W; ++k) {
+            hip_check(f.hipMemcpyAsync(own[k], c.partial[k].data(), n * sizeof(float), hipMemcpyHostToDevice, streams[k]), "hipMemcpyAsync");
+            hip_check(f.hipMemcpyAsync(out[k], replace ? c.partial[k].data() : c.start.data(), n * sizeof(float), hipMemcpyHostToDevice, streams[k]), "hipMemcpyAsync");
+            hip_check(f.hipStreamSynchronize(streams[k]), "hipStreamSynchronize");
+        }
+        for (size_t k = 0; k < W; ++k) {
+            const float* o = (const float*)own[k];
+            float* x = (float*)(replace ? own[k] : out[k]);
+            unsigned long long nn = n, cc = cap;
+            int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0);
+            void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout};
+            hip_check(f.hipModuleLaunchKernel(sum, 16, 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
+        }
+        for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
+        bool met = !*fault;
+        for (size_t k = 0; k < W; ++k) met = met && !status[k];
+        require(met, "a rank of the sixteen gave up waiting for its peers");
+        const std::vector<float> want = group_sums::oracle(c, replace);
+        for (size_t k = 0; k < W; ++k) {
+            std::vector<float> got(n);
+            hip_check(f.hipMemcpyAsync(got.data(), replace ? own[k] : out[k], n * sizeof(float), hipMemcpyDeviceToHost, streams[k]), "hipMemcpyAsync");
+            hip_check(f.hipStreamSynchronize(streams[k]), "hipStreamSynchronize");
+            require(same(got, want), "rank " + std::to_string(k) + " of sixteen is not the oracle's sum in member order");
+        }
+    }
+    for (size_t k = 0; k < W; ++k) {
+        (void)f.hipStreamDestroy(streams[k]);
+        (void)f.hipFree(area[k]);
+        (void)f.hipFree(own[k]);
+        (void)f.hipFree(out[k]);
+    }
+    (void)f.hipFree(table);
+    (void)f.hipHostFree(status);
+    (void)f.hipHostFree(fault);
+    (void)f.hipModuleUnload(module);
+    std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device, into and in place, each the oracle's bits\n";
+}
+
+int main(int argc, char** argv) {
+    // `sixteen` runs the widest group's 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
+    const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
+    if (sixteen) setenv("GPU_MAX_HW_QUEUES", "32", 1);
     BackendPtr g;
     try {
         g = make_rocm_backend(0);
@@ -1377,6 +1472,11 @@ int main() {
     BackendPtr c = make_cpu_backend();
     c->set_threads(4);
     try {
+        if (sixteen) {
+            sixteen_ranks();
+            std::cout << (failures ? "backend-rocm: FAIL\n" : "backend-rocm: PASS\n");
+            return failures ? 1 : 0;
+        }
         buffers(*g);
         host_views(*g);
         refusals(*g);

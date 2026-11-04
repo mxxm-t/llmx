@@ -165,7 +165,7 @@ Nothing is added to the contract before an architecture uses it.
 
 ### Future split modes
 
-The runtime runs a model as a layer split, a tensor group of two to four devices, or stages each of which is a tensor group ([MULTI-DEVICE](MULTI-DEVICE.md), [TENSOR-SPLIT](TENSOR-SPLIT.md)).
+The runtime runs a model as a layer split, a tensor group of two to sixteen devices, or stages each of which is a tensor group ([MULTI-DEVICE](MULTI-DEVICE.md), [TENSOR-SPLIT](TENSOR-SPLIT.md)).
 Each reaches a module as fields of the contract, not as a rewrite of it:
 - a `Role` says how its tensor shards: by output rows, by input columns, or not at all;
 - a `Step` carries the group member it runs on, the group's width and the range of heads that member holds, and a group-sum hook the parts call where a partial result is summed over the group, which is the identity at width 1.

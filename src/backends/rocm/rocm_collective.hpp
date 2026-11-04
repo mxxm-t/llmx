@@ -13,16 +13,16 @@
 namespace backend {
 namespace {
 
-// The kernel's view of the group (kernels/f32.hip, GroupPeers), passed by value.
+constexpr size_t kGroupMembers = kMaxTensorWidth;   // the kernel's kGroupMembers (kernels/f32.hip)
+
+// The kernel's view of the group (kernels/f32.hip, GroupPeers), written once into each member's device memory and passed by address.
 struct GroupPeers {
-    float* stage[4];
-    unsigned* signal[4];
+    float* stage[kGroupMembers];
+    unsigned* signal[kGroupMembers];
     unsigned* status;
     unsigned* fault;
 };
-static_assert(sizeof(GroupPeers) == 80 && offsetof(GroupPeers, status) == 64, "kernels/f32.hip, GroupPeers");
-
-constexpr size_t kGroupMembers = 4;
+static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 272 && offsetof(GroupPeers, status) == 256, "kernels/f32.hip, GroupPeers");
 constexpr size_t kGroupBlocks = 16;       // the kernel's signal slots a member, so the most blocks a sum takes
 constexpr unsigned kGroupTimeoutMs = 1000;   // how long a member's kernel waits for its peers before the group gives up
 
@@ -57,12 +57,14 @@ public:
             for (size_t m = 0; m < W; ++m) {
                 GroupPeers p{};
                 for (size_t k = 0; k < W; ++k) {
-                    p.stage[k] = (float*)((uint8_t*)area_[k] + kGroupSignalBytes);
+                    p.stage[k] = stage(k);
                     p.signal[k] = (unsigned*)area_[k];
                 }
                 p.status = status_;
                 p.fault = members[m]->fault_;
-                peers_.push_back(p);
+                peers_.push_back(members[m]->alloc(sizeof(GroupPeers), Memory::device));
+                members[m]->write(*peers_.back(), 0, &p, sizeof(GroupPeers));
+                peer_table_.push_back(as_rocm(*peers_.back()).data());
             }
             // Every member's signals are zero before any peer may signal into them, which a zero fill still queued on its own stream would overwrite.
             for (RocmBackend* b : members) b->sync();
@@ -127,7 +129,7 @@ private:
         float* o = RocmBackend::f32(out);
         unsigned long long nn = n, cap = cap_, timeout = timeout_[m];
         int members = (int)members_.size(), rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
-        void* args[] = {&peers_[m], &own, &o, &nn, &cap, &members, &rank, &flags, &timeout};
+        void* args[] = {&peer_table_[m], &own, &o, &nn, &cap, &members, &rank, &flags, &timeout};
         const size_t units = (n + 3) / 4;
         b.group_launch((unsigned)std::min<size_t>(kGroupBlocks, (units + kThreads - 1) / kThreads), args);
     }
@@ -146,7 +148,7 @@ private:
             for (size_t k = 0; k < W; ++k) {
                 if (k == m) continue;
                 hip_check(f.hipStreamWaitEvent(b.stream_, ready_[k], 0), "hipStreamWaitEvent");
-                b.launch_check(f.hipMemcpyAsync(peers_[m].stage[m] + k * cap_, RocmBackend::f32(CSlice(partial(k))), bytes, hipMemcpyDefault, b.stream_), "hipMemcpyAsync");
+                b.launch_check(f.hipMemcpyAsync(stage(m) + k * cap_, RocmBackend::f32(CSlice(partial(k))), bytes, hipMemcpyDefault, b.stream_), "hipMemcpyAsync");
             }
             hip_check(f.hipEventRecord(pulled_[m], b.stream_), "hipEventRecord");
         }
@@ -167,6 +169,9 @@ private:
                 return;
             }
     }
+
+    // A member's staging slots, past its signal block.
+    float* stage(size_t m) const { return (float*)((uint8_t*)area_[m] + kGroupSignalBytes); }
 
     // Every member drained first, so no kernel or copy still names what goes.
     void release() noexcept {
@@ -190,7 +195,8 @@ private:
     std::vector<void*> area_;   // per member: its signal block, then a staging slot per member
     std::vector<hipEvent_t> ready_, pulled_;   // the conservative path's events, per member
     std::vector<unsigned long long> timeout_;   // per member, kGroupTimeoutMs in its wall-clock ticks
-    std::vector<GroupPeers> peers_;
+    std::vector<BufferPtr> peers_;   // per member, its GroupPeers in its device memory
+    std::vector<void*> peer_table_;   // per member, peers_'s device address, the kernel's first argument
     unsigned* status_ = nullptr;   // host memory, a word a member, set by a kernel that gave up
     std::vector<Ticket> last_, before_;   // per member, the ticket holding the last sum and the sum before it
 };

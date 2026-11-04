@@ -5054,6 +5054,26 @@ size_t check_collective(const backend::BackendPtr& first) {
     } else {
         std::cout << "backend-vulkan: no third device, so no sum in two shots\n";
     }
+    // Every wider group the opened devices form, up to the widest: the oracle's sums and sums of 1 and 96 rows of 4097 floats, the latter past the two-shot size.
+    if (third) {
+        std::vector<backend::BackendPtr> more{first, second, third};
+        for (int d = 3; more.size() < backend::kMaxTensorWidth; ++d) {
+            try {
+                more.push_back(backend::make_vulkan_backend(d, false));
+            } catch (const std::exception&) {
+                break;
+            }
+        }
+        for (size_t W = 4; W <= more.size(); ++W) {
+            std::vector<backend::Backend*> group;
+            for (size_t m = 0; m < W; ++m) group.push_back(more[m].get());
+            std::unique_ptr<backend::Collective> c = first->join(group, 96, 4097);
+            checks += group_sums::check(group, *c, 4097, {1, 3}, uint32_t(500 + W), [](bool ok, const std::string& what) { require(ok, what.c_str()); });
+            sums(group, *c, 4097, {1, 96, 1});
+            in_place(group, *c, 4097, {1, 96});
+            std::cout << "backend-vulkan: a collective of " << W << " devices, the oracle's sums and sums in one shot and in two\n";
+        }
+    }
     // After the exchange each member adds every source and its residual in one kernel (sum_rows), in member order, and records no add of its own.
     // Among three devices the same holds below the two-shot size, and from it a sum_rows per share beside the gather's adds of the other shares.
     {
@@ -5094,11 +5114,11 @@ size_t check_collective(const backend::BackendPtr& first) {
     require(refused([&] { first->join(mixed, 1, 1); }), "a Vulkan collective over the CPU was made");
     std::vector<backend::Backend*> twice{first.get(), first.get()};
     require(refused([&] { first->join(twice, 1, 1); }), "a Vulkan collective over one device twice was made");
-    // Five entries of one device, which the device-twice rule would also refuse, so the text shows which refusal fired.
-    std::vector<backend::Backend*> five(5, first.get());
-    std::string five_why;
-    try { first->join(five, 1, 1); } catch (const std::exception& e) { five_why = e.what(); }
-    require(five_why.find("more than 4 devices") != std::string::npos, "a Vulkan collective of five devices was not refused for its size");
+    // One more entry than the widest group, all of one device, which the device-twice rule would also refuse, so the text shows which refusal fired.
+    std::vector<backend::Backend*> wide(backend::kMaxTensorWidth + 1, first.get());
+    std::string wide_why;
+    try { first->join(wide, 1, 1); } catch (const std::exception& e) { wide_why = e.what(); }
+    require(wide_why.find("more than " + std::to_string(backend::kMaxTensorWidth) + " devices") != std::string::npos, "a Vulkan collective wider than the widest group was not refused for its size");
     std::cout << "backend-vulkan: the collective of devices 0 and 1, " << checks << " sums in member order and its refusals\n";
     return checks + 3;
 }

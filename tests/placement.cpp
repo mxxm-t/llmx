@@ -1489,9 +1489,9 @@ struct FormedPass {
 
 constexpr size_t kPassUbatch = 16, kPassSeqs = 5, kPassLogitRows = 2 * kPassSeqs;
 
-// One run over S CPU stages with P pass slots, in which every logits row must be the bytes of its request run alone through prefill and step on one CPU backend.
-// Once in the run, a backend fails a pass of several sequences at its next stage: that pass's histories go back to where it found them in every storage, the other passes go on, and its requests, formed again, still give their rows alone.
-void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t seed) {
+// One run over S stages of W CPU backends with P pass slots, in which every logits row must be the bytes of its request run alone through prefill and step on one stage.
+// At width 1, once in the run, a backend fails a pass of several sequences at its next stage: its histories go back to where it found them, the other passes go on, and its requests, formed again, still give their rows alone.
+void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t seed, size_t W = 1) {
     std::mt19937 rng(seed);
     auto below = [&](size_t n) { return (size_t)(rng() % (uint32_t)n); };
     auto tokens = [&](size_t n) {
@@ -1501,24 +1501,27 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
     };
     infer::ModelOptions options;
     options.kv_tokens = 16 * 128;
-    std::vector<std::shared_ptr<FailingCpu>> stages;
-    for (size_t s = 0; s < S; ++s) {
-        stages.push_back(std::make_shared<FailingCpu>());
-        stages.back()->set_threads(1);
+    std::vector<std::shared_ptr<FailingCpu>> devices;
+    for (size_t d = 0; d < S * W; ++d) {
+        devices.push_back(std::make_shared<FailingCpu>());
+        devices.back()->set_threads(1);
     }
+    // A stage's backend a failure is injected into.
+    auto stages = [&](size_t s) { return devices[s * W]; };
     infer::PlacementRequest request;
-    request.names.assign(S, "cpu");
+    request.names.assign(S * W, "cpu");
     request.shares.assign(S, 1);
     request.ubatch = (int)kPassUbatch;
     request.slots = P;
-    infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::vector<backend::BackendPtr>(stages.begin(), stages.end()), request, options);
+    request.width = W;
+    infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::vector<backend::BackendPtr>(devices.begin(), devices.end()), request, options);
     infer::Model& split = *placed.model;
     require(split.pipelined() && split.stage_count() == S, "the passes' split is not pipelined over every device");
     infer::ExecContext ctx;
     split.reserve_passes(ctx, P, kPassUbatch + kPassSeqs, kPassLogitRows);
-    bool handoffs = ctx.handoff.size() == S;
-    for (size_t s = 0; handoffs && s < S; ++s) handoffs = ctx.handoff[s].size() == (s + 1 < S ? std::max<size_t>(2, P) : 0);
-    require(handoffs, "reserved handoff buffers not one a slot, two at least, on each stage that sends and none on the last");
+    bool handoffs = ctx.handoff.size() == S * W;
+    for (size_t d = 0; handoffs && d < S * W; ++d) handoffs = ctx.handoff[d].size() == (d % W == 0 && d / W + 1 < S ? std::max<size_t>(2, P) : 0);
+    require(handoffs, "reserved handoff buffers not one a slot, two at least, on each stage that sends, from a group's first member, and none on the last");
 
     // Declared after the model, so their sequences return their blocks before it goes.
     std::vector<PassRequest> reqs(kPassSeqs);
@@ -1527,10 +1530,17 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
     reqs[1].prompt = tokens(2 + below(30));
     for (size_t r = 2; r < kPassSeqs; ++r) reqs[r].prompt = tokens(2 + below(60));
     for (auto& q : reqs) q.gen = tokens(1 + below(6));
-    auto one = std::make_shared<backend::CpuBackend>();
-    one->set_threads(1);
-    infer::Model single(infer::gguf_weights(weights), one, options);
-    single.set_ubatch((int)kPassUbatch);
+    std::vector<backend::BackendPtr> group;
+    for (size_t m = 0; m < W; ++m) {
+        group.push_back(std::make_shared<backend::CpuBackend>());
+        group.back()->set_threads(1);
+    }
+    infer::PlacementRequest alone;
+    alone.names.assign(W, "cpu");
+    alone.ubatch = (int)kPassUbatch;
+    alone.width = W;
+    infer::PlacedModel placed_alone = infer::place_model(infer::gguf_weights(weights), group, alone, options);
+    infer::Model& single = *placed_alone.model;
     for (auto& q : reqs) {
         std::vector<uint32_t> all(reqs[0].prompt.begin(), reqs[0].prompt.begin() + (std::ptrdiff_t)q.prefix);
         all.insert(all.end(), q.prompt.begin(), q.prompt.end());
@@ -1622,15 +1632,15 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
     auto advance = [&](size_t k) {
         FormedPass& f = slots[k];
         const size_t s = f.ran;
-        const bool arm = !failed && formed > fail_after && f.reqs.size() > 1;
+        const bool arm = W == 1 && !failed && formed > fail_after && f.reqs.size() > 1;
         if (arm) {
-            if (s + 1 == S && f.want && below(2)) stages[s]->fail_output = true;
-            else stages[s]->fail_attention = 1;
+            if (s + 1 == S && f.want && below(2)) stages(s)->fail_output = true;
+            else stages(s)->fail_attention = 1;
         }
         try {
             split.run_pass_stage(ctx, k, s);
         } catch (const std::runtime_error& e) {
-            require(arm && !std::strcmp(e.what(), "injected") && !stages[s]->fail_output && !stages[s]->fail_attention,
+            require(arm && !std::strcmp(e.what(), "injected") && !stages(s)->fail_output && !stages(s)->fail_attention,
                     "a pass failed where no failure was injected");
             for (size_t r : f.reqs) {
                 require(!reqs[r].seq.in_flight() && reqs[r].seq.length() == reqs[r].prefix + reqs[r].done,
@@ -1697,7 +1707,7 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
         else if (kind == 1) advance(k);
         else retire(k);
     }
-    require(failed, "the failure was never injected");
+    require(failed || W > 1, "the failure was never injected");
     require(most_between >= 2, "no two passes waited between stages at once");
     for (const auto& q : reqs)
         require(q.finished() && q.seen == q.alone.size() && !q.seq.in_flight() && q.seq.length() == q.prefix + q.done,
@@ -1962,9 +1972,10 @@ void passes_continue() {
     }
 }
 
-// A tensor split (docs/TENSOR-SPLIT.md, step 2): one stage of width 2 against two stages of width 2 on four CPU backends, bit for bit, through prompts, decode steps, scored rows and a two-sequence pass; against one device within an F32 bound.
-void tensor_groups() {
-    auto grouped = [](const gguf::GGUFModel& weights, size_t devices, const std::vector<int>& shares, int ubatch) {
+// A tensor split (docs/TENSOR-SPLIT.md, step 2) at width W on a tiny model it divides: one stage of the width against two, bit for bit, through prompts, decode steps, scored rows, a two-sequence pass and a recompute by class.
+// Against one device the prompt and the steps hold an F32 bound.
+void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uint64_t vocab) {
+    auto grouped = [W](const gguf::GGUFModel& weights, size_t devices, const std::vector<int>& shares, int ubatch) {
         std::vector<backend::BackendPtr> cpus;
         for (size_t i = 0; i < devices; ++i) {
             cpus.push_back(std::make_shared<backend::CpuBackend>());
@@ -1974,12 +1985,12 @@ void tensor_groups() {
         request.names.assign(devices, "cpu");
         request.shares = shares;
         request.ubatch = ubatch;
-        request.width = 2;
+        request.width = W;
         return infer::place_model(infer::gguf_weights(weights), std::move(cpus), request, infer::ModelOptions{});
     };
     for (bool tied : {true, false}) {
-        const auto weights = tiny_qwen(3, 2 * 128, tied);
-        infer::PlacedModel one_stage = grouped(weights, 2, {}, 3), two_stages = grouped(weights, 4, {1, 2}, 3), whole = grouped(weights, 2, {}, 13);
+        const auto weights = tiny_qwen_shaped(3, 2 * 128, tied, heads, kv_heads, ff, vocab);
+        infer::PlacedModel one_stage = grouped(weights, W, {}, 3), two_stages = grouped(weights, 2 * W, {1, 2}, 3), whole = grouped(weights, W, {}, 13);
         infer::Model& a = *one_stage.model;
         infer::Model& b = *two_stages.model;
         auto cpu = std::make_shared<backend::CpuBackend>();
@@ -1994,36 +2005,88 @@ void tensor_groups() {
             return ok;
         };
         const std::vector<float> first = a.prefill(kPrompt);
-        exact(first, b.prefill(kPrompt), "two stages of width 2 differ from one stage of width 2 on a prompt");
+        exact(first, b.prefill(kPrompt), "two stages of a group differ from one stage on a prompt");
         exact(first, whole.model->prefill(kPrompt), "a prompt in slices of the ubatch differs from the prompt in one pass on a group");
         require(close(first, single.prefill(kPrompt)), "a group's prompt is not one device's within the F32 bound");
         for (int t : {7, 9, 3}) {
             const std::vector<float> x = step_row(a, t);
-            exact(x, step_row(b, t), "a decode step differs between one and two stages of width 2");
+            exact(x, step_row(b, t), "a decode step differs between one and two stages of a group");
             require(close(x, step_row(single, t)), "a group's decode step is not one device's within the F32 bound");
         }
         const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
-        exact(a.prefill(more), b.prefill(more), "a prompt continuing a history differs between one and two stages of width 2");
+        exact(a.prefill(more), b.prefill(more), "a prompt continuing a history differs between one and two stages of a group");
         std::vector<float> scored;
         a.score(kPrompt, [&](size_t, const float* logits) { scored.insert(scored.end(), logits, logits + V); });
         bool same = true;
         b.score(kPrompt, [&](size_t pos, const float* logits) { same = same && !std::memcmp(logits, &scored[pos * V], V * sizeof(float)); });
-        require(same, "a scored row differs between one and two stages of width 2");
+        require(same, "a scored row differs between one and two stages of a group");
         a.reset();
         b.reset();
-        infer::Sequence sa = a.make_sequence(), ta = a.make_sequence(), sb = b.make_sequence(), tb = b.make_sequence();
-        infer::ExecContext xa, xb;
-        const infer::BatchEntry ha{&sa, kPrompt.data(), 4, false}, hb{&sb, kPrompt.data(), 4, false};
-        a.forward(xa, &ha, 1);
-        b.forward(xb, &hb, 1);
-        const uint32_t next = 6;
-        const infer::BatchEntry ea[2] = {{&sa, &next, 1, true}, {&ta, more.data(), more.size(), true}};
-        const infer::BatchEntry eb[2] = {{&sb, &next, 1, true}, {&tb, more.data(), more.size(), true}};
-        a.forward(xa, ea, 2);
-        b.forward(xb, eb, 2);
-        for (size_t r = 0; r < 2; ++r) require(!std::memcmp(xa.logits(r), xb.logits(r), V * sizeof(float)), "a two-sequence pass differs between one and two stages of width 2");
-        checked += 6;
+        {
+            infer::Sequence sa = a.make_sequence(), ta = a.make_sequence(), sb = b.make_sequence(), tb = b.make_sequence();
+            infer::ExecContext xa, xb;
+            const infer::BatchEntry ha{&sa, kPrompt.data(), 4, false}, hb{&sb, kPrompt.data(), 4, false};
+            a.forward(xa, &ha, 1);
+            b.forward(xb, &hb, 1);
+            const uint32_t next = 6;
+            const infer::BatchEntry ea[2] = {{&sa, &next, 1, true}, {&ta, more.data(), more.size(), true}};
+            const infer::BatchEntry eb[2] = {{&sb, &next, 1, true}, {&tb, more.data(), more.size(), true}};
+            a.forward(xa, ea, 2);
+            b.forward(xb, eb, 2);
+            for (size_t r = 0; r < 2; ++r) require(!std::memcmp(xa.logits(r), xb.logits(r), V * sizeof(float)), "a two-sequence pass differs between one and two stages of a group");
+            checked += 6;
+        }
+
+        // A history recomputed by class, as a paused request's resume does: a 40-token prompt in slices of 16 and 150 greedy tokens as entries of extent 1 of up to 64 rows.
+        // Whole and from a fork at the first block, on one and two stages, it must give the group's own decode.
+        a.reset();
+        const size_t prompt = 40, steps = 150, bt = cpu->kv_layout().block_tokens;
+        std::vector<uint32_t> ids(prompt);
+        for (size_t i = 0; i < prompt; ++i) ids[i] = (uint32_t)((i * 11 + 3) % V);
+        std::vector<float> want = a.prefill(ids);
+        for (size_t t = 0; t < steps; ++t) {
+            uint32_t pick = 0;
+            for (uint32_t v = 1; v < V; ++v)
+                if (want[v] > want[pick]) pick = v;
+            ids.push_back(pick);
+            want = step_row(a, (int)pick);
+        }
+        a.reset();
+        auto replay = [&](infer::Model& m, infer::Sequence& seq) {
+            infer::ExecContext ctx;
+            std::vector<float> got;
+            while (seq.length() < ids.size()) {
+                const size_t at = seq.length();
+                const bool generated = at >= prompt;
+                const size_t n = generated ? std::min<size_t>(64, ids.size() - at) : std::min<size_t>(16, prompt - at);
+                infer::BatchEntry e{&seq, ids.data() + at, n, at + n == ids.size()};
+                e.extent = generated ? 1 : prompt;
+                m.forward(ctx, &e, 1);
+                if (e.want_logits) got.assign(ctx.logits(0), ctx.logits(0) + V);
+            }
+            return got;
+        };
+        for (infer::Model* m : {&a, &b}) {
+            infer::Sequence full = m->make_sequence();
+            exact(replay(*m, full), want, "a history replayed by class on a group differs from its decode");
+            infer::Sequence forked = m->fork(full, bt);
+            m->reset(full);
+            exact(replay(*m, forked), want, "a fork at a block replaying the rest by class on a group differs from its decode");
+            m->reset(forked);
+            checked += 2;
+        }
     }
+    // Passes in flight over two stages of the group at P = S, S + 1 and 2S, every row the bytes of one group's.
+    const auto weights = tiny_qwen_shaped(4, 2 * 128, W % 2 == 0, heads, kv_heads, ff, vocab);
+    for (size_t P : {2, 3, 4}) passes_run(weights, 2, P, (uint32_t)(10000 + 100 * W + P), W);
+}
+
+// Widths 2, 5, 8 and 16, each on a model whose query heads, KV heads (or their replicas), hidden rows and vocabulary it divides: at 16 each of the 4 KV heads is held by 4 members.
+void tensor_widths() {
+    tensor_groups(2, 2, 1, 12, 16);
+    tensor_groups(5, 10, 5, 20, 20);
+    tensor_groups(8, 16, 8, 16, 16);
+    tensor_groups(backend::kMaxTensorWidth, 16, 4, 32, 16);
 }
 
 // Whether the page at `p` is still the process's to read.
@@ -2126,7 +2189,7 @@ void group_fits() {
 
 int main() {
     try {
-        tensor_groups();
+        tensor_widths();
         group_fits();
         context_keeps_logits_pages();
         fitted_rows_counted();

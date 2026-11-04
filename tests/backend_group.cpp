@@ -8,6 +8,7 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include "group_sums.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 #include "quantizers.hpp"
 #include "row_classes.hpp"
@@ -17,7 +18,7 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-// The CPU collective of a tensor group (docs/TENSOR-SPLIT.md, section 4.3): at widths 2, 3 and 4 and 1 and 6 workers every member's residual gains the members' partial rows summed in member order, the oracle's float bits.
+// The CPU collective of a tensor group (docs/TENSOR-SPLIT.md, section 4.3): at widths 2, 3, 4, 5, 8 and 16 and 1 and 6 workers every member's residual gains the members' partial rows summed in member order, the oracle's float bits.
 // A CPU backend that says it is not the CPU, as a device sharing the host's memory would, and the collective's refusals are checked too.
 struct NotCpu : backend::CpuBackend {
     bool is_cpu() const override { return false; }
@@ -26,7 +27,7 @@ struct NotCpu : backend::CpuBackend {
 static size_t check_collective() {
     size_t count = 0;
     const size_t reserved = 41, width = 19;
-    for (size_t W : {size_t(2), size_t(3), size_t(4)})
+    for (size_t W : {size_t(2), size_t(3), size_t(4), size_t(5), size_t(8), backend::kMaxTensorWidth})
         for (int threads : {1, 6}) {
             std::vector<std::unique_ptr<backend::CpuBackend>> cpus;
             std::vector<backend::Backend*> members;
@@ -94,6 +95,8 @@ static size_t check_collective() {
             std::vector<backend::Backend*> mixed = members;
             mixed.back() = &other;
             require(refused([&] { cpus[0]->join(mixed, 1, 1); }), "a CPU collective over a backend not the CPU was made");
+            // The oracle the device collectives are held to, signed zeros, tails and offsets included, at the widths no device here runs.
+            if (W >= 5) count += group_sums::check(members, *cpus[0]->join(members, 64, 97), 97, {1, 3, 64}, uint32_t(W * 31 + threads), [](bool ok, const std::string& what) { require(ok, what.c_str()); });
         }
     return count;
 }

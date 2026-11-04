@@ -33,6 +33,53 @@ Gates on that build: CTest 96 of 96 (32 device tests skipped, no card in the con
 **Left:** F2DEV's final review; lands by fast-forward. After landing, production's tok/s and depth at 128k tokens or more after a day of serving go here (not a landing gate).
 **Gotchas:** `server/policy.hpp` now includes `inference/spec.hpp` for `kForget`, which brings the Windows headers, so `tests/server_passes.cpp`'s local `far`, a macro there, became `distant`; `plan()`'s replies' price for the chunk budget stays the slowest stage's; band 6 spans 128k to 256k tokens, so a wide cell measured at 130k may be cheaper than a narrow one at 250k for real, which ageing bounds; a plain refresh forms only in a pass that takes no prompt rows, so it never rides a prompt's chunk.
 
+## Tensor width 16 (2026-11-03, branch feat/tensor-width-16 on main 840b96ec7; the proposal of 20:43 approved by the reviewer at 20:45 with four changes, the final review of 2026-11-04 10:59 with three, the review of 15:37 with one)
+
+**Goal:** a pure tensor split of up to 16 devices a group (`--tensor-width 16`) on the CPU, Vulkan and ROCm, the member-order sum `t = p0; t += p1; ...; x += t` kept at every width.
+**Done:** one limit, `backend::kMaxTensorWidth = 16` beside `Collective`, which the CLI's usage error reads ("at most 16 devices a group"); the CPU's collective already took any width.
+Vulkan: `sum_rows.comp` reads its sources as one array binding of 16 through the kernel table's `counts` (`kSumRowsCounts`), its dispatch's list fixed at 18 buffers, and `missing_device_need` refuses a device that binds fewer storage buffers a stage than the kernel binding the most (`kernel_storage_buffers`).
+ROCm: `kGroupMembers` is `kMaxTensorWidth`, the kernel's `GroupSignal` (2116 bytes, within the 4096 reserved) and `GroupPeers` (272 bytes, in device memory written once at join and passed by address, so the launch's arguments do not grow with the width) pinned on both sides; no two-shot, which is a later branch with its own measured gain.
+Tests: `placement` runs groups of CPU backends at widths 2, 5, 8 and 16 on tiny models each width divides (16 with four KV heads each held by four members), one stage against two bit for bit through prompts, slices, decode, scored rows, two sequences, a recompute by class whole and from a fork, and passes in flight at P = 2, 3 and 4, and against one device within the F32 bound; `backend-group` holds the CPU collective at 5, 8 and 16 members to the oracle of `tests/group_sums.hpp`; the new `vulkan-sum` drives the sum kernel at 1 to 16 sources on one device; the new `backend-rocm-sixteen` runs the fast sum's kernel at 16 ranks on one device; `backend-vulkan` and `backend-rocm` hold every wider group the opened devices form to the oracle; `cli` refuses `--tensor-width 17`; `llmx-split-check` names ROCm devices.
+**Gates at this head** (MI50s at default clocks, the free cards renderD129, 130, 134 and 135 and the idle GPU 9 at renderD131, never production's or renderD128):
+- CTest after the rebase onto 840b96ec7 (clean, the staging slots' address given one owner, `RocmCollective::stage`): 97 of 97 on the Vulkan build without a device and 81 of 81 on the ROCm build; `docs` and `dead-code` pass there too (device tests skipped there and run on the cards below), and on the cards `backend-rocm` passes over renderD129, 130, 134 and 135 and `backend-rocm-sixteen` on renderD129.
+  The kernel table's new sparse attention kernels bind 8 plain buffers each, so `kernel_storage_buffers` is still the sum's and the routed step's.
+- CPU suite: every component passes but `baseline`, skipped without its fixture models in the container.
+- Byte identity against main 5c77f0d83 at the head before the rebase onto 44c5e56f0 (23c846da0, no conflict in code), Qwen3-0.6B Q8_0, 300 tokens of wikitext, every full logits row batched, per token and over 64 greedy steps (`llmx-model-logits`): CPU groups at widths 1, 2 and 4 identical; on Vulkan and on ROCm over four MI50s at widths 1, 2 and 4 identical too (ROCm's main arm built at 23cdacc2a, whose ROCm sources are 5c77f0d83's).
+- Timing round against main 44c5e56f0 (branch 01060efac, both built alike from detached worktrees; `--version` 0.1.0+g44c5e56f0f6b and 0.1.0+g01060efac331), Qwen3-0.6B Q8_0 `bench --p 512 --n 128 --r 3` and one `Collective::sum` of 20 KiB (p50 of 100, a scratch harness), MI50s at default clocks, renderD129 and 130 (and 134, 135 at width 4).
+  Width 2 is the second round, 8 runs an arm alternated, median [min - max]; width 4 is the first round, ABBA, the mean of 2.
+
+  | backend, width | pp512 tok/s main | branch | tg128 tok/s main | branch | sum p50 us main | branch |
+  |---|---|---|---|---|---|---|
+  | ROCm, 2 | 11402 [11378 - 11409] | 11397 [11377 - 11409] | 328.4 [325.6 - 332.7] | 317.4 [308.8 - 325.6] | 32.5 [30.8 - 33.2] | 33.2 [32.4 - 34.7] |
+  | ROCm, 4 | 4557 | 4537 | 212.9 | 215.9 | 70.7 | 68.3 |
+  | Vulkan, 2 | 10785 [10623 - 10836] | 10764 [10611 - 10856] | 153.5 [138.2 - 165.3] | 149.8 [137.4 - 154.5] | 252.2 [241.3 - 259.5] | 249.7 [233.9 - 262.4] |
+  | Vulkan, 4 | 7402 | 7066 | 73.0 | 74.1 | 517 | 528 |
+
+  The first round's Vulkan width-2 decode (main 153, branch 126) did not repeat over 8 alternated runs, and its width-4 prompt figure carries one run of +- 1358 tok/s.
+  ROCm width-2 decode was 3.4% slower on that branch, every branch run at or below main's slowest; the group sum kernel's ISA was the same instruction for instruction on both arms (gfx906, 553 lines, 16 VGPRs, 54 SGPRs, no scratch), differing only in its kernel arguments (392 to 584 bytes, the peer table passed by value) and the signal offsets.
+- Third round, after the peer table moved into device memory and the rebase onto 9378af02d: main 9378af02d against branch e3e0ae677, both built alike from detached worktrees (`--version` 0.1.0+g9378af02d188 and 0.1.0+ge3e0ae677182), the same bench, harness and cards, 8 pairs an arm alternated, one card lock a pair, median [min - max]; system load 5.8 to 24.6 from other jobs throughout, both arms alike.
+
+  | backend, width | pp512 tok/s main | branch | tg128 tok/s main | branch | sum p50 us main | branch |
+  |---|---|---|---|---|---|---|
+  | ROCm, 2 | 11406 [11401 - 11417] | 11420 [11258 - 11427] | 331.3 [327.1 - 333.8] | 331.6 [315.7 - 336.7] | 33.4 [31.5 - 34.1] | 32.0 [29.9 - 32.4] |
+  | Vulkan, 4 | 7419 [7372 - 7480] | 7389 [7008 - 7469] | 72.5 [72.0 - 74.4] | 74.0 [70.8 - 75.8] | - | - |
+
+  ROCm width-2 decode is level with main (+0.1% median) and its sum 4% faster; the branch's slowest decode run (315.7) is the run whose prompt figure also fell (11258), so it was a contended run.
+  Vulkan width 4 is level over 8 alternated runs (prompt -0.4%, decode +2.1%, each within the other arm's range), so the first round's 7402 against 7066 did not repeat.
+  At e3e0ae677 on the cards `backend-rocm` passed over renderD129, 130, 134 and 135 (widths 2 to 4, fast and by pulls, against the oracle) and `backend-rocm-sixteen` on renderD129; the move changes no arithmetic, so the byte identity above stands.
+- Byte identity on ROCm after the rebase, main 840b96ec7 against the branch, both built alike from detached worktrees (`--version` 0.1.0+g840b96ec7430 and 0.1.0+g2e606639933a), Qwen3-0.6B Q8_0, the same 300 tokens, every full logits row batched, per token and over 64 greedy steps (`llmx-model-logits`, f16 cache, ubatch 64), on renderD129 and 130: widths 1 and 2 identical, six files of six, width 2 summing by peer writes.
+- Devices, width 5 the widest the free cards give and no real file legal at it: a tiny F32 qwen3 of 20 query and 5 KV heads bit-identical across two loads through every prompt position, 8 decode steps, the recompute by class whole and from a fork and a mixed pass (`llmx-split-check`, ubatch 3 and 16 on Vulkan, 3 on ROCm), its last position's top ten logits the CPU's within 1e-6 on Vulkan and exactly on ROCm; a tiny model at width 4 and over two stages of width 2 with P = 2, 3 and 4 passes in flight bit-identical on both backends.
+- Collectives on the cards: `backend-vulkan` and `backend-rocm` at widths 2 to 5 against the oracle, one and two shots on Vulkan, fast and by pulls on ROCm; `vulkan-sum` at 1 to 16 sources and `backend-rocm-sixteen` at 16 ranks on one card.
+- `docs` and `dead-code` pass; the hosted run on gate/tensor-width-16 at the landing head.
+**Left:**
+1. The width-8 check by hand: Qwen3-8B Q8_0 on 8 cards in a window off production, on Vulkan and ROCm, bytes across stages, slices and passes in flight and its HF bounds, which also exercises the imports, files and inbox memory a width-8 group takes.
+2. Widths 8 and 16 on devices are not measured here; the cost a sum past width 4 is extrapolated (docs/TENSOR-SPLIT.md, section 4.5).
+3. The element-share sum in two shots on ROCm, a separate branch with its own measured prompt gain.
+**Gotchas:** the runtime never puts two ranks of a group on one device: `RocmBackend` makes one stream per device and `RocmBackend::join` refuses a device twice, so a real group runs one rank per device, and HIP's hardware queues, which are per device, are never shared between ranks.
+Only `backend-rocm-sixteen`, which runs all 16 ranks on device 0 beside the backend's own stream, needs more hardware queues than HIP gives a process by default.
+On the ROCm 7.2.1 image here the default in force is 4, measured with N one-block kernels on N streams that meet only when all are resident: with `GPU_MAX_HW_QUEUES` unset and set to 4 alike they meet at up to 3 streams and give up from 4, and set to 16 they meet at up to 15; HIP documents 4 as the default.
+The 16 the earlier comment named was a value set for the test, not HIP's default, so the test sets 32 for its own process and the runtime sets none.
+
 ## Vulkan F16 pair widening (2026-11-03, Done, lands by fast-forward)
 
 **Goal:** Improve Vulkan F16 decode while preserving storage, activation, reduction and precision behavior. Weight conversion remains in its existing shader owner. No flags or model representation were added.

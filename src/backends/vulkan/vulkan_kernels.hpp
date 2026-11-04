@@ -1050,7 +1050,7 @@ const uint32_t kSpvHold[] = {
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
     X(K_ADD, "add", kSpvAdd, sizeof(kSpvAdd), 2, nullptr) \
-    X(K_SUM_ROWS, "sum_rows", kSpvSumRows, sizeof(kSpvSumRows), 6, nullptr) \
+    X(K_SUM_ROWS, "sum_rows", kSpvSumRows, sizeof(kSpvSumRows), 3, kSumRowsCounts) \
     X(K_SILU_MUL, "silu_mul", kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr) \
     X(K_GATHER_ROWS, "gather_rows", kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr) \
     X(K_RMS_NORM_ROWS, "rms_norm_rows", kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr) \
@@ -1756,6 +1756,9 @@ const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};
 const uint32_t kMatmulTileQ8mxCounts[6] = {3, 3, 1, 1, 1, 3};
 const uint32_t kMatmulReduceCounts[2] = {3, 1};
+// A tensor group's sum: the residual, the kept rows and one source a member (shaders/sum_rows.comp declares the 16).
+const uint32_t kSumRowsCounts[3] = {1, 1, uint32_t(kMaxTensorWidth)};
+static_assert(kMaxTensorWidth == 16, "shaders/sum_rows.comp declares 16 sources");
 
 #define LLMX_KERNEL_NAME(id, name, ...) name,
 const char* const kKernelNames[K_COUNT] = { LLMX_VULKAN_KERNELS(LLMX_KERNEL_NAME) };
@@ -1867,6 +1870,17 @@ uint32_t spirv_writes(const uint32_t* words, size_t count) {
         if (!fixed[v.second] && !block_fixed) writes |= 1u << b;
     }
     return writes;
+}
+
+// The most storage buffers one kernel binds, which a device must take in one stage (missing_device_need).
+inline uint32_t kernel_storage_buffers() {
+    uint32_t most = 0;
+    for (const KernelSource& s : kKernels) {
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < s.bindings; ++i) n += s.counts ? s.counts[i] : 1;
+        most = std::max(most, n);
+    }
+    return most;
 }
 
 // The bindings each kernel writes (spirv_writes), the union of its plain and its float-preserving module's.

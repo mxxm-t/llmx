@@ -64,10 +64,13 @@ inline void VulkanBackend::external_ownership(Buffer& buffer, size_t offset, siz
 // A tensor group's sum on this member (VulkanCollective): residual += the `members` sources added in member order, or with `replace` residual = them, the summed values also written to `kept` where given (shaders/sum_rows.comp).
 inline void VulkanBackend::sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace) {
     if (!n) return;
-    if (!members || members > kSumSources) throw std::logic_error("vulkan: a sum of no sources or more than the kernel takes");
+    if (!members || members > kMaxTensorWidth) throw std::logic_error("vulkan: a sum of no sources or more than the kernel takes");
     const uint32_t pc[3] = {u32(n), u32(members), (kept ? 1u : 0u) | (replace ? 2u : 0u)};
     auto source = [&](size_t k) { return bind(sources[k < members ? k : 0]); };
-    dispatch(K_SUM_ROWS, {bind(residual), kept ? bind(*kept) : bind(residual), source(0), source(1), source(2), source(3)}, pc, sizeof(pc), groups(n, 256));
+    static_assert(kMaxTensorWidth == 16, "a source a member below");
+    dispatch(K_SUM_ROWS, {bind(residual), kept ? bind(*kept) : bind(residual), source(0), source(1), source(2), source(3), source(4), source(5), source(6), source(7),
+                          source(8), source(9), source(10), source(11), source(12), source(13), source(14), source(15)},
+             pc, sizeof(pc), groups(n, 256));
 }
 
 // Where share k of a two-shot sum of `n` floats over `members` begins; the last shares are empty where n is smaller than the members.
@@ -206,7 +209,7 @@ private:
             VulkanBackend& b = *members_[m];
             acquire_inboxes(m, p, 0, bytes);
             auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
-            CSlice sources[VulkanBackend::kSumSources];
+            CSlice sources[kMaxTensorWidth];
             for (size_t k = 0; k < W; ++k) sources[k] = source(k);
             b.sum_rows(residual[m], sources, W, n, nullptr, replace);
         }
@@ -230,7 +233,7 @@ private:
             acquire_inboxes(k, p, lo(k) * f, len(k) * f);
             auto source = [&](size_t j) { return CSlice{j == k ? partial_[k].get() : inbox_[p][k][j].get(), lo(k)}; };
             const Slice share{scratch_[k].get(), lo(k)};
-            CSlice sources[VulkanBackend::kSumSources];
+            CSlice sources[kMaxTensorWidth];
             for (size_t j = 0; j < W; ++j) sources[j] = source(j);
             b.sum_rows(Slice{residual[k].buffer, residual[k].offset + lo(k)}, sources, W, len(k), &share, replace);
             for (size_t t = 0; t < W; ++t)
@@ -395,7 +398,7 @@ private:
 // A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files, under any PCI root complexes; none where a device lacks them, as on Windows.
 std::unique_ptr<Collective> VulkanBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
     if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
-    if (members.size() > kSumSources) throw std::runtime_error("backend: a Vulkan collective of more than " + std::to_string(kSumSources) + " devices");
+    if (members.size() > kMaxTensorWidth) throw std::runtime_error("backend: a Vulkan collective of more than " + std::to_string(kMaxTensorWidth) + " devices");
     std::vector<VulkanBackend*> group;
     for (Backend* b : members) {
         auto* v = dynamic_cast<VulkanBackend*>(b);

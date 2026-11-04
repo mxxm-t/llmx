@@ -164,8 +164,8 @@ def check_usage_errors():
                                (["serve", model, "--n-cpu-moe", "1", "--cpu-moe"], "serve", "--n-cpu-moe and --cpu-moe set the same thing"),
                                (["generate", model, "a", "--device", "vulkan:0,vulkan:1,vulkan:2", "--tensor-width", "2"], "generate",
                                 "--tensor-width 2 needs a device list of whole groups: 3 devices listed"),
-                               (["logits", model, "a", "--device", ",".join("vulkan:%d" % d for d in range(8)), "--tensor-width", "8"], "logits",
-                                "--tensor-width 8: at most 4 devices a group; list more devices to form stages"),
+                               (["logits", model, "a", "--device", ",".join("vulkan:%d" % d for d in range(17)), "--tensor-width", "17"], "logits",
+                                "--tensor-width 17: at most 16 devices a group; list more devices to form stages"),
                                (["serve", model, "--device", "vulkan:0,vulkan:1,vulkan:2,vulkan:3", "--tensor-width", "2", "--layer-shares", "1,1,1,1"], "serve",
                                 "--layer-shares gives one share a group: 2 groups, 4 shares"),
                                (["generate", model, "a", "--device", "vulkan:0,cpu", "--tensor-width", "2"], "generate", "--tensor-width 2: vulkan:0 and cpu cannot form a group")):

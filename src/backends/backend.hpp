@@ -378,6 +378,9 @@ inline const char* op_name(Op op) {
     return "an unknown op";
 }
 
+// The most devices a tensor group holds (docs/TENSOR-SPLIT.md, section 4.6); a backend's collective sizes its storage by it.
+constexpr size_t kMaxTensorWidth = 16;
+
 // A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): sum_into adds the members' partial rows (partial() says where) into every member's residual in member order.
 class Collective {
 public:

@@ -6,7 +6,7 @@ It is a separate page because the research, the skew analysis, serving and specu
 
 ## 1. Goal
 
-A tensor group runs every layer of its stage on 2 to 4 devices at once, so one request decodes faster than on one device or on a layer split, and a model past one device's memory runs at more than one device's speed per request.
+A tensor group runs every layer of its stage on 2 to 16 devices at once, so one request decodes faster than on one device or on a layer split, and a model past one device's memory runs at more than one device's speed per request.
 The staged tensor split is a layer split whose stages are tensor groups (for example 2 stages of 4 devices on 8 cards), and it is designed in from the first branch, so the first version needs no rewrite for it.
 It serves many users through the same scheduler, pass API and speculative decoding as every other placement, with no separate path.
 
@@ -311,11 +311,20 @@ The exchange and its skew do not shrink with the width while the compute does, s
 - **Launch skew:** a submitting thread per member from width 4 on, under the one-owner-per-backend rule of MULTI-DEVICE (each member's backend belongs to one submitter), measured first at width 2 and 4 in step 0; the fork's concurrent per-card dispatch is the same remedy.
 - **Device-side waits:** the chain stays queued ahead on the devices through sync files, never relayed by the host (227 us); a wait inside a submission is closed on Vulkan here (2.6) and is the ROCm backend's path.
 - **Topology:** a group may span root complexes, which cost the same for the collective's writes (above); a group is refused only where its devices cannot share memory or semaphores, naming each device and its root; the command line reports each group's roots at startup and, where the listed devices allow every group under one root, says which order gives that, keeping the order given (2026-10-05, after the measurement; formerly a group across complexes was refused).
-- **Bounded width, staged beyond it:** a group is at most 4 wide, and more cards form stages: 8 cards as 2 stages of 4 keep width 4's skew per sum, take the same time per token for one request (each token crosses both stages, each with half the layers), and with P = 2 serve twice the requests; the fork measured staged ahead of full width from 6 cards.
+- **Width up to 16, staged where it pays:** a group holds up to 16 devices (`backend::kMaxTensorWidth`, the owner's decision of 2026-11-03, section 8), every width the model's split rules accept, and more cards, or fewer to a group, form stages; 8 cards as 2 stages of 4 keep width 4's cost per sum, take the same time per token for one request (each token crosses both stages, each with half the layers), and with P = 2 serve twice the requests; the fork measured staged ahead of full width from 6 cards.
 
-**Recommended:** width at most 4, 2 on Vulkan unless step 0's 4-card measurement shows width 4 pays there, even shards, a group under any root complexes (one root is no longer required, Topology above, 2026-10-05), a submitting thread per member from width 4, and stages beyond 4 cards.
-At 8 cards an extrapolation of HIP's skew would favour width 8 for one request, but step 0 measured the Vulkan sum growing from 154 us at width 2 to 268 us at width 4, the reference's Qwen3-14B figures put width 8 below width 4 and its staged form ahead from 6 cards, the figures leave out Vulkan's unmeasured skew at 8, one thread cannot record 8 members in time, the eight cards span two root complexes here (four at 83 to 8c, four at c3 to cc), and 2 stages of 4 serve twice the requests at P = 2; width 8 stays refused until a width-8 Vulkan sum is measured with `llmx-vk-handoff exchange`, which this machine cannot do on one complex.
-The reference itself decodes Qwen3.6-27B Q8_0 faster at width 8 than at width 4 (tg256 57.2 tok/s with two-shot, `5f65f9fa38`, against tg128 51.7 at width 4 with whole-token graphs), so the cap is a measured limit of the Vulkan sum, not a rule of the design: it opens once a width-8 Vulkan sum is measured and the model of 4.5 says width 8 pays, and the 8-card comparison is against the reference's best shape at 8 cards, width 8 or staged, whichever is faster on the load measured.
+**Recommended:** the narrowest group that holds the model, staged beyond it, unless a wider group's measured cost a token says it pays; even shards, a group under any root complexes (one root is no longer required, Topology above, 2026-10-05), and a submitting thread per member from width 4.
+Every width keeps the member-order sum `t = p0; t += p1; ...; t += p(W-1)`, in one shot and in two (4.3); a sum of groups of four and then their results would break that order from width 6 and is not built.
+
+**What a sum costs past width 4**, in microseconds a sum, MI50s at default clocks: widths 2 and 4 measured (docs/STATUS.md, ROCm tensor groups: the collective), widths 8 and 16 extrapolated linearly in the width and not measured:
+
+| path | width 2 | width 4 | width 8, extrapolated | width 16, extrapolated |
+|---|---:|---:|---:|---:|
+| ROCm one-shot sum, decode | 32 to 34 | 67 to 70 | about 140 | about 280 |
+
+At Qwen3-8B's 72 sums a token that extrapolation puts a width-16 group's sums near 20 ms a token on ROCm, slower than one card for one request, so a wide group serves a model that needs its memory, and many users' throughput, rather than one request's decode; this conclusion is extrapolated, not measured.
+A prompt's sum in one shot moves (W - 1) times its rows out of each card, so past width 4 a prompt wants the element-share sum in two shots that Vulkan has; on ROCm it is later work, with its own measured gain.
+Widths 8 and 16 have not run on devices on this machine; the width-8 check by hand on 8 cards is pending (section 8, Width 16).
 **Gate:** at every width offered and at 2 stages of 4, the exposed wait a sum and a token, read from GPU timestamps on every member, and the per-token cost against the model above, recorded at each merge that touches the group's execution.
 
 ### 4.6 Placement, fit and flags
@@ -332,11 +341,12 @@ The reference itself decodes Qwen3.6-27B Q8_0 faster at width 8 than at width 4 
 |---|---|---|---|
 | 2 | `--device vulkan:0,vulkan:1` | `--device vulkan:0,vulkan:1 --tensor-width 2` | not applicable |
 | 4 | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3` | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --tensor-width 4` | `--device vulkan:0,vulkan:1,vulkan:2,vulkan:3 --tensor-width 2` (2 stages of 2) |
-| 8 | `--device vulkan:0,...,vulkan:7` | refused until a width-8 Vulkan sum is measured (section 8) | `--device vulkan:0,...,vulkan:7 --tensor-width 4` (2 stages of 4), or `--tensor-width 2` (4 stages of 2) |
+| 8 | `--device vulkan:0,...,vulkan:7` | `--device vulkan:0,...,vulkan:7 --tensor-width 8` | `--device vulkan:0,...,vulkan:7 --tensor-width 4` (2 stages of 4), or `--tensor-width 2` (4 stages of 2) |
+| 16 | `--device vulkan:0,...,vulkan:15` | `--device vulkan:0,...,vulkan:15 --tensor-width 16` | `--tensor-width 8` (2 stages of 8), 4 or 2 |
 
 Refused, each before a model file is read and with the flag named, a usage error (status 2) where the command line alone is wrong:
 - a device list whose length is not a multiple of the width: "--tensor-width 2 needs a device list of whole groups: 3 devices listed";
-- a width above 4: "--tensor-width 8: at most 4 devices a group; list more devices to form stages";
+- a width above 16 (`backend::kMaxTensorWidth`): "--tensor-width 17: at most 16 devices a group; list more devices to form stages";
 - `--layer-shares` with another count than the groups: "--layer-shares gives one share a group: 2 groups, 4 shares";
 - a group mixing backends or device profiles, or the CPU with a card: "--tensor-width 2: vulkan:0 and cpu cannot form a group";
 - a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, named in the refusal.
@@ -639,6 +649,15 @@ A file whose even shares are whole blocks holds exactly what it held; nothing ch
 The cover at width 4 on Qwen3-30B-A3B is uneven, the middle members doing twice the outer ones' expert work; it is allowed and recorded, since the alternative is refusal and that width's decode is bound by its sums.
 Not built, and what to measure if that cell is pursued: three members owning one block each and the fourth none, which puts every member's expert work at 1 of 3 at the price of a member with none.
 Uneven shares on block boundaries open one width of one file at the same critical path, and experts owned whole by members cost an exchange a layer, about 7 ms on a 12 ms token; neither is built.
+
+### Width 16 (the owner, 2026-11-03)
+
+The owner asked for a pure tensor split of up to 16 GPUs, `--tensor-width 16`, on the CPU, Vulkan and ROCm, with the member-order sum kept bit for bit.
+Decision 3's cap of 4 and decision 6's opening rule are replaced: a group holds up to `backend::kMaxTensorWidth` (16) devices, and a wider width's cost is a speed figure recorded per width, not a rule that admits it.
+As built: the CLI's usage error reads that constant; the CPU's collective takes any width; the Vulkan sum kernel binds its sources as one array of 16 (`kSumRowsCounts`), and a device that binds fewer storage buffers a stage than the widest kernel is refused by name; the ROCm collective's signal and peer arrays are 16 wide.
+Measured on this machine: groups of CPU backends at widths 2, 5, 8 and 16 in the native tests, MI50s on Vulkan and ROCm up to width 5, and the sum's kernels at 16 sources and 16 ranks on one card; widths 8 and 16 on devices are not measured.
+Pending, by hand: Qwen3-8B Q8_0 at width 8 on 8 cards in a window off production, on Vulkan and ROCm, its bytes across stages, slices and passes in flight and its HF bounds, which also exercises the imports, files and inbox memory a width-8 group takes.
+The element-share sum in two shots on ROCm is later work, after this, with its own measured gain.
 
 ## 9. Sources (2026-10-03)
 

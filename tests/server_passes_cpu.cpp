@@ -1260,28 +1260,33 @@ void short_newcomer(const gguf::GGUFModel& weights, uint32_t vocab) {
         std::atomic<bool> sent{false};
         size_t misses = 0, before = 0, between = 0, rides = 0;
         bool rode = false, read = false;
-        // Between two steps of a reply, the most other passes that retired and the most prompt rows one of them carried, counted on the scheduler thread and read once it has joined.
-        // Counts rather than times: the 500 ms cap is an objective the prices aim at, and a runner slower at every pass widens the gap without the rule letting any more work in.
+        // Between two steps of a reply, the most other passes that retired and the long prompt's slice furthest past its bound, counted rather than timed, since a slower runner stretches times.
+        // Only the newcomer's rides can be priced within the chunk budget, and which follows the machine, so PriceTable::chunk_rows gives a step or at most twice the largest of them.
         struct Since {
-            size_t passes = 0, rows = 0;
+            size_t passes = 0, rows = 0, bound = 0;
         };
         std::map<const server::Request*, Since> stepped;
-        size_t most_passes = 0, most_rows = 0;
+        size_t most_passes = 0, most_rows = 0, at_bound = 0, newcomer_cell = 0;
+        const auto past = [](size_t rows, size_t bound) { return (long long)rows - (long long)bound; };
         sched.on_retire = [&](const server::Scheduler::Retired& t) {
             ++retired;
-            size_t prompt_rows = 0;
-            for (size_t e = 0; e < t.requests.size(); ++e)
-                if (t.requests[e]->prompt_tokens() != 4) prompt_rows = std::max(prompt_rows, t.rows[e]);
+            size_t long_rows = 0, newcomer_rows = 0;
+            for (size_t e = 0; e < t.requests.size(); ++e) {
+                if (t.requests[e]->prompt_tokens() == slow.prompt.size() && t.from[e] < slow.prompt.size()) long_rows = std::max(long_rows, t.rows[e]);
+                if (t.requests[e]->prompt_tokens() == late.prompt.size() && t.from[e] < late.prompt.size()) newcomer_rows = std::max(newcomer_rows, t.rows[e]);
+            }
+            const size_t bound = std::max(server::kPieceStep, 2 * newcomer_cell);
+            newcomer_cell = std::max(newcomer_cell, server::PriceTable::step_of(newcomer_rows));
             for (auto& entry : stepped) {
                 ++entry.second.passes;
-                entry.second.rows = std::max(entry.second.rows, prompt_rows);
+                if (long_rows && (!entry.second.rows || past(long_rows, bound) > past(entry.second.rows, entry.second.bound))) entry.second.rows = long_rows, entry.second.bound = bound;
             }
             for (size_t e = 0; e < t.requests.size(); ++e)
                 if (t.requests[e]->prompt_tokens() == 4 && t.from[e] >= 4) {
                     const auto it = stepped.find(t.requests[e]);
                     if (it != stepped.end()) {
                         most_passes = std::max(most_passes, it->second.passes - 1);
-                        most_rows = std::max(most_rows, it->second.rows);
+                        if (it->second.rows && (!most_rows || past(it->second.rows, it->second.bound) > past(most_rows, at_bound))) most_rows = it->second.rows, at_bound = it->second.bound;
                     }
                     stepped[t.requests[e]] = {};
                 }
@@ -1328,10 +1333,10 @@ void short_newcomer(const gguf::GGUFModel& weights, uint32_t vocab) {
         require(before <= slots + 2, "a short newcomer under an unmet objective" + where + " waited " + std::to_string(before) + " replies' passes for its first rows, against the passes in flight and two more");
         require(between <= slots, "a short newcomer under an unmet objective" + where + " missed " + std::to_string(between) + " replies' passes in a row between its rides, against the passes in flight");
         require(rides <= 6, "a short newcomer under an unmet objective" + where + " took " + std::to_string(rides) + " passes to read 85 rows, against six learning steps");
-        std::cout << "server-passes-cpu: a quick newcomer" << where << ": at most " << most_passes << " other passes and " << most_rows << " prompt rows a pass between two steps of a reply" << std::endl;
-        // Between two steps of a reply, the passes in flight beside its own, none holding more prompt rows than the newcomer's whole prompt.
+        std::cout << "server-passes-cpu: a quick newcomer" << where << ": at most " << most_passes << " other passes and " << most_rows << " rows of the long prompt a pass between two steps of a reply, against " << at_bound << std::endl;
+        // Between two steps of a reply, the passes in flight beside its own, none holding more of the long prompt than the chunk search gives it beside an unmet objective, never the ubatch or the cut it reads alone.
         require(most_passes <= slots - 1, "a reply saw " + std::to_string(most_passes) + " other passes retire between two steps beside a quick newcomer" + where + ", against the passes in flight beside its own");
-        require(most_rows <= late.prompt.size(), "a pass between two steps of a reply held " + std::to_string(most_rows) + " prompt rows beside a quick newcomer" + where + ", against the newcomer's whole prompt");
+        require(most_rows <= at_bound, "a pass between two steps of a reply held " + std::to_string(most_rows) + " rows of the long prompt beside a quick newcomer" + where + ", against " + std::to_string(at_bound) + ", a step or twice the newcomer's largest slice in steps");
     }
 }
 

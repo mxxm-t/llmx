@@ -1,5 +1,16 @@
 # llmx - Development Status
 
+## The quick newcomer's long-prompt bound follows the chunk search (2026-11-05, PDEV17 then PDEV18, branch fix/server-passes-newcomer on main 1df72137d, tests only; lands by fast-forward)
+
+- **Goal:** `server-passes-cpu`'s `short_newcomer` holds on any machine: on a slow hosted runner (run 41965354179, job 127040987113, a shader-only branch) and once under TSan a pass between two steps of a reply held 96 prompt rows beside the quick newcomer, against the bound of its whole 85-token prompt.
+- **Done:** the 96 rows were the long prompt's, not the newcomer's: its due chunk beside the unmet objective is the price search's (`PriceTable::chunk_rows`), and since a slice alone pays a 70 ms stage past the 62.5 ms chunk budget, only the newcomer's rides, priced as the pass less the replies' price, can be within it.
+  The test machine reads rides of 16, 32 and 37 beside the long prompt too; what follows the machine is which of them are priced, since a ride is recorded only where its pass outlasts the replies' price.
+  Where all three are priced at both stages, the 16-row ride's remainder overwrites that cell's alone measure as its last, cells of 16, 32 and 48 are within, and the search's next probe is twice 48, 96, the figure the hosted runner gave; on the test machine the 16-row cell keeps its alone measure and the due chunk is 16.
+  The check now holds the long prompt's rows in each pass between two steps of a reply to what the search can give it then, a step or twice the largest slice the newcomer has read in steps, at most 192, still far below the ubatch or the 241-row and larger cuts it reads alone once the replies end; the newcomer's own rows need no bound.
+  No failing-test-first commit: ten runs on the test machine at 2, 1 and 0.25 CPUs and beside busy loops all read the same table, and forcing the other one needs a hook into the scheduler's price table, which the product has none of.
+  Gates: CTest `server-passes-cpu` on the CPU (Linux and Windows), `docs` and `dead-code`, and the hosted run at the head that lands.
+- **Left:** nothing; F2DEV approved at 11:04 with one change, the Done text's account of which rides the test machine reads, made.
+
 ## Pipelined slicings test made deterministic (2026-11-05, PDEV16 then PDEV17, branch fix/placement-slicings on main bc1a58efa; lands by fast-forward)
 
 - **Goal:** `placement`'s `pipelined_slicings_match` passes on any machine: on the hosted windows-2022 runner (run 41948650911) it failed "the pipelined prompt was read in one slicing only", since whether its priced prefills chose another slicing than the first followed the periods that machine measured.

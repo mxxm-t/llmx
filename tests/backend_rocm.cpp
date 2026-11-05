@@ -1745,8 +1745,10 @@ void routing(Backend& g, Backend& c) {
 
 // Whether a twin class's routed call groups its entries by expert, from each build's break-even (rocm_backend.cpp, TwinKernels::group_from).
 bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert) {
-    const size_t eighths = type == quant::GGML_TYPE_Q5_K ? (dt == Dtype::f16 ? 4 : 1) : type == quant::GGML_TYPE_Q6_K && dt == Dtype::f16 ? 2 : 0;
-    return entries >= 1 && 8 * entries >= eighths * n_expert;
+    const bool i8 = dt == Dtype::int8;
+    const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 2.5) : type == quant::GGML_TYPE_Q4_K ? (i8 ? 2.5 : 1.25) : type == quant::GGML_TYPE_Q6_K ? (i8 ? 2.5 : 0.25)
+                      : type == quant::GGML_TYPE_Q5_0 ? (i8 ? 5.0 : 1.25) : type == quant::GGML_TYPE_IQ4_NL ? (i8 ? 0.3125 : 0.625) : 1.25;
+    return entries >= 1 && double(entries) >= from * double(n_expert);
 }
 
 // The prompt extent from which a routed build takes the routed tile for gate and up or for the down, the backend's `TwinKernels::tile_from`: 32, but gate and up in block-int16 from 128 for the types other than Q8_0 and IQ4_NL.
@@ -1774,7 +1776,7 @@ void experts(Backend& g, Backend& c) {
                 w.assign((const uint8_t*)v.data(), (const uint8_t*)v.data() + v.size() * 4);
             }
             auto wa = g.adopt(w.data(), w.size()), wb = g.adopt(w.data(), w.size());
-            // Every row count takes a grouped build in the twin classes (the 2-column one to 5 rows, the 8-column one at 33); experts_grouped holds the one-column build below the crossover.
+            // The row counts take the one-column build and, past each build's break-even, a grouped one in the twin classes (groups_at).
             for (size_t rows : {1, 3, 4, 5, 33}) {
                 const std::vector<float> x = row_classes::values(rows * nin, uint32_t(rows + nin));
                 std::vector<uint32_t> idv(rows * k);
@@ -1850,12 +1852,14 @@ void experts(Backend& g, Backend& c) {
 }
 
 // The grouping's own branches, 300 experts 8 a token over 80 rows and skewed ids, every entry its expert's one-column product bit for bit (docs/src/backends-rocm.md).
+// Every twin type takes its grouped builds and its one-column build here, each entry against the same one-column product, so the builds give the same bits whichever the break-evens choose.
 void experts_grouped(Backend& g) {
     struct Case { size_t n_expert, k, rows; bool skew; };
-    // The calls below take the 4-, 8-, 4- and 2-column builds, and 4 rows of 300 Q6_K's one-column build below its block-int16 break-even.
+    // Past each build's break-even the calls below take the 4-, 8-, 4- and 2-column builds, below it the one-column build, and 4 rows of 300 the one-column build below every break-even.
     const Case cases[] = {{300, 8, 80, false}, {16, 8, 33, true}, {16, 8, 5, false}, {64, 2, 64, true}, {300, 8, 4, false}};
     const size_t ff = 256;
-    for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q6_K, 2560}}) {
+    for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
+                                                                             {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}}) {
         const std::string name = quant::storage_type(type)->name;
         const size_t ebytes = quant::row_bytes(type, nin, ff);
         const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, 300 * ff, uint32_t(nin)) : typed_matrix(type, nin, 300 * ff, uint32_t(type * 7 + nin));
@@ -1918,8 +1922,8 @@ void experts_grouped(Backend& g) {
 // Routed products at Flash-Next's expert shapes for every twin type: the one-column build against the build the call takes, medians of five interleaved.
 // Each build's break-even, the figure TwinKernels::group_from holds, follows (docs/src/backends-rocm.md).
 void routed_rates(Backend& g) {
-    const size_t n_expert = 512, past = 1025, k = 10, kCounts = 7;
-    const size_t counts[kCounts] = {1, 2, 4, 8, 16, 32, 64};
+    const size_t n_expert = 512, past = 1025, k = 10, kCounts = 8;
+    const size_t counts[kCounts] = {1, 2, 4, 8, 16, 32, 64, 128};
     std::cout << "backend-rocm: routed rates; type, dtype, shape x projections, generated rows: us a call one-column, taken, ratio, build taken\n";
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL}) {
         const std::string name = quant::storage_type(type)->name;

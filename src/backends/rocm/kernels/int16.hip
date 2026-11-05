@@ -91,12 +91,14 @@ struct Row {
     unsigned long long nout;
 };
 // The kernels pass o through readfirstlane: it is one wave's, so the projection is chosen in scalar registers, which measured 3 to 4 percent faster on the 8B's rows.
+// The projection's fields are picked by adding differences, not by selecting between fields, which the compiler folds into an indexed load that keeps a routed call's copy in scratch.
 __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned long long row_bytes) {
-    const unsigned p = c.nproj > 2 && o >= c.start[2] ? 2 : c.nproj > 1 && o >= c.start[1] ? 1 : 0;
-    const unsigned long long local = o - (p == 2 ? c.start[2] : p == 1 ? c.start[1] : 0);
-    const unsigned char* w = p == 2 ? c.w[2] : p == 1 ? c.w[1] : c.w[0];
-    float* y = p == 2 ? c.y[2] : p == 1 ? c.y[1] : c.y[0];
-    return {w + local * row_bytes, y + local, p == 2 ? c.nout[2] : p == 1 ? c.nout[1] : c.nout[0]};
+    const bool p1 = c.nproj > 1 && o >= c.start[1], p2 = c.nproj > 2 && o >= c.start[2];
+    const auto pick = [&](unsigned long long a, unsigned long long b, unsigned long long d) { return a + (p1 ? b - a : 0) + (p2 ? d - b : 0); };
+    const unsigned long long local = o - pick(0, c.start[1], c.start[2]);
+    const unsigned char* w = (const unsigned char*)pick((unsigned long long)c.w[0], (unsigned long long)c.w[1], (unsigned long long)c.w[2]);
+    float* y = (float*)pick((unsigned long long)c.y[0], (unsigned long long)c.y[1], (unsigned long long)c.y[2]);
+    return {w + local * row_bytes, y + local, pick(c.nout[0], c.nout[1], c.nout[2])};
 }
 
 // A row build's columns: column c reads twin column x(c) and writes output column y(c), c itself for a plain call.

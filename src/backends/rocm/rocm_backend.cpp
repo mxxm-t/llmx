@@ -1191,7 +1191,7 @@ private:
                                          {{kGrouped16x2, kGrouped16x4, kGrouped16x8}, {kGrouped8x2, kGrouped8x4, kGrouped8x8}, {kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8}},
                                          {kRoutedTile16, kRoutedTile8},
                                          {kRoutedNarrow16, kRoutedNarrow8},
-                                         {0.0f, 0.0f},
+                                         {2.5f, 0.0f},
                                          {{32, 32}, {32, 32}}};
     // A K-type's twins from its first kernel, its set in LLMX_KTYPE's order (kernels/int16.hip), which the static_assert below holds.
     static constexpr auto k_twins = [](Kernel first, float group_from16, float group_from8, size_t up_from16, size_t up_from8, size_t down_from16, size_t down_from8) {
@@ -1208,8 +1208,8 @@ private:
                 {group_from16, group_from8},
                 {{up_from16, up_from8}, {down_from16, down_from8}}};
     };
-    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 0.0f, 0.0f, 128, 32, 32, 32), kQ5KTwins = k_twins(kRowsQ5K16x1, 0.5f, 0.125f, 128, 32, 32, 32), kQ6KTwins = k_twins(kRowsQ6K16x1, 0.25f, 0.0f, 128, 32, 32, 32);
-    static constexpr TwinKernels kQ50Twins = k_twins(kRowsQ5016x1, 0.0f, 0.0f, 128, 32, 32, 32), kQ51Twins = k_twins(kRowsQ5116x1, 0.0f, 0.0f, 128, 32, 32, 32), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.0f, 0.0f, 32, 32, 32, 32);
+    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 1.25f, 2.5f, 128, 32, 32, 32), kQ5KTwins = k_twins(kRowsQ5K16x1, 1.25f, 1.25f, 128, 32, 32, 32), kQ6KTwins = k_twins(kRowsQ6K16x1, 0.25f, 2.5f, 128, 32, 32, 32);
+    static constexpr TwinKernels kQ50Twins = k_twins(kRowsQ5016x1, 1.25f, 5.0f, 128, 32, 32, 32), kQ51Twins = k_twins(kRowsQ5116x1, 1.25f, 1.25f, 128, 32, 32, 32), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.625f, 0.3125f, 32, 32, 32, 32);
     static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8, "a K-type's kernels follow LLMX_KTYPE's order");
     // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, its embedding, its routed exact product and its twin kernels.
     // A type without twins takes its exact product in every class.

@@ -1,23 +1,31 @@
 // QSA index selection against pinned HF intermediates and an independent oracle.
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "backends/device_profile.hpp"
 #include "backends/devices.hpp"
 #include "core/json.hpp"
+#if LLMX_HAS_BACKEND_ROCM
+#include "backends/rocm/rocm_backend.hpp"
+#endif
 
 namespace {
 using backend::Backend;
@@ -521,6 +529,188 @@ void synthetic_long(Backend& device) {
                   &across, "selected ties across scan boundary");
 }
 
+// The groups from which the wide selection is taken: the profile's default and every tuned device's (DeviceProfile::select_wide_from), so each device's crossover is checked on every device.
+std::vector<size_t> wide_crossovers() {
+    std::set<size_t> at{backend::DeviceProfile{}.select_wide_from};
+    size_t count = 0;
+    const backend::TunedDevice* table = backend::tuned_devices(count);
+    for (size_t i = 0; i < count; ++i) {
+        backend::DeviceProfile p;
+        table[i].tune(p);
+        at.insert(p.select_wide_from);
+    }
+    return {at.begin(), at.end()};
+}
+
+bool is_rocm(const std::string& name) { return name.rfind("rocm", 0) == 0; }
+
+// The kernels launched since the last reading, on a ROCm device, and nothing elsewhere.
+std::map<std::string, size_t> launches(Backend& device, const std::string& name) {
+    if (!is_rocm(name)) return {};
+#if LLMX_HAS_BACKEND_ROCM
+    return backend::rocm_take_launches(device);
+#else
+    (void)device;
+    return {};
+#endif
+}
+
+// A history of one complete group a given angle, then two tokens.
+struct History {
+    Config c{4, 128, 4, 4, 2048, 1e-6f, 10000.0f};
+    Cache cache;
+    std::vector<int32_t> map;
+    std::vector<float> keys;
+    RopeTables identity;
+    size_t tokens;
+    History(Backend& device, const std::vector<double>& angles)
+        : cache(device, angles.size() * 4 + 2, 128, 4), tokens(angles.size() * 4 + 2) {
+        map.assign(cache.blocks.begin(), cache.blocks.end());
+        keys.reserve(tokens * c.dim);
+        for (const double a : angles) append_group(keys, c.compression, c.dim, a);
+        append_group(keys, 2, c.dim, 0.3);
+        backend::KVView all = cache.view(0, tokens, map);
+        cache.write(&all, 1, keys, tokens);
+        identity.cos.assign(tokens * (c.rope_dim / 2), 1.0f);
+        identity.sin.assign(tokens * (c.rope_dim / 2), 0.0f);
+    }
+    // The ids of `rows` rows after `length` tokens, each required to be the oracle's.
+    std::vector<uint32_t> run(Backend& device, size_t length, size_t rows, const std::string& label) {
+        const backend::KVView view = cache.view(length, rows, map);
+        std::vector<float> q(rows * c.heads * c.dim, 0.0f);
+        for (size_t r = 0; r < rows * c.heads; ++r) q[r * c.dim] = 1.0f;
+        std::vector<uint32_t> pos;
+        std::vector<std::vector<uint32_t>> want;
+        for (size_t r = 0; r < rows; ++r) {
+            pos.push_back(uint32_t(length + r));
+            want.push_back(oracle_row(keys, length + r + 1, c.heads, c.dim, c.compression, c.budget, c.eps));
+        }
+        const std::vector<float> unit(c.dim, 1.0f);
+        return run_selection(device, c, &view, 1, q, rows, unit, unit, identity, pos, &want, label);
+    }
+};
+
+// Distinct scores in no order of time.
+std::vector<double> distinct_angles(size_t groups) {
+    std::vector<double> angles(groups);
+    for (size_t g = 0; g < groups; ++g) angles[g] = double(g * 7919 % 4111) * (1.5 / 4111.0) + double(g / 4111) * 1e-4;
+    return angles;
+}
+
+// 500 groups of distinct scores above 53 groups of one score, of which 12 fit: three early in the first 1024-group slice, 40 across the boundary at 1024, so the twelve taken end in the second slice, and ten in the last slice.
+std::vector<double> tied_angles(size_t groups) {
+    std::vector<double> angles(groups);
+    for (size_t g = 0; g < groups; ++g) angles[g] = 0.9 + double(g * 7919 % groups) * (0.6 / double(groups));
+    for (size_t k = 0; k < 500; ++k) angles[2000 + 6 * k] = 0.05 + double(k * 7 % 500) * 1e-3;
+    for (size_t g : {size_t(500), size_t(501), size_t(502)}) angles[g] = 0.7;
+    for (size_t g = 1018; g < 1058; ++g) angles[g] = 0.7;
+    for (size_t g = groups - 20; g < groups - 10; ++g) angles[g] = 0.7;
+    return angles;
+}
+
+// Decode rows and prompt views on each side of every crossover and across a slice boundary in equal scores (docs/TESTS.md, kv-selection).
+// Every row must give the oracle's ids; on a ROCm device the kernels launched show which form ran, and the same rows with the wide form turned off must give the same ids.
+void wide_crossover(Backend& device, const std::string& name) {
+    const std::vector<size_t> crossovers = wide_crossovers();
+    const size_t groups = crossovers.back() + 80;
+    History distinct(device, distinct_angles(groups)), tied(device, tied_angles(groups));
+    const auto cases = [&](bool witness) {
+        std::vector<std::vector<uint32_t>> ids;
+        for (const size_t x : crossovers) {
+            for (const size_t g : {x - 1, x}) {
+                const std::string at = "a decode row at " + std::to_string(g) + " groups";
+                launches(device, name);
+                ids.push_back(distinct.run(device, g * 4, 1, at));
+                const auto ran = launches(device, name);
+#if LLMX_HAS_BACKEND_ROCM
+                if (witness && is_rocm(name)) {
+                    const bool wide = g >= backend::rocm_profile(device).select_wide_from;
+                    require(ran.count("llmx_kv_index_select_wide") == size_t(wide) && ran.count("llmx_kv_index_select") == size_t(!wide),
+                            at + " ran " + (wide ? "without" : "with") + " the wide selection on " + name);
+                }
+#else
+                (void)ran;
+                (void)witness;
+#endif
+            }
+            ids.push_back(distinct.run(device, (x - 2) * 4, 26, "a prompt view across " + std::to_string(x) + " groups"));
+        }
+        for (const size_t rows : {size_t(1), size_t(15), size_t(17)}) {
+            ids.push_back(distinct.run(device, 2000 * 4 - rows, rows, "a prompt view of " + std::to_string(rows) + " rows at 2000 groups"));
+            ids.push_back(distinct.run(device, distinct.tokens - rows, rows, "a prompt view of " + std::to_string(rows) + " rows past every crossover"));
+        }
+        ids.push_back(tied.run(device, groups * 4, 1, "a decode row whose cut falls in equal scores across a slice boundary"));
+        ids.push_back(tied.run(device, tied.tokens - 17, 17, "a prompt view whose cut falls in equal scores across a slice boundary"));
+        return ids;
+    };
+    const auto natural = cases(true);
+#if LLMX_HAS_BACKEND_ROCM
+    if (is_rocm(name)) {
+        size_t& from = backend::rocm_profile(device).select_wide_from;
+        const size_t kept = from;
+        from = std::numeric_limits<size_t>::max();
+        launches(device, name);
+        const auto normal = cases(false);
+        const auto ran = launches(device, name);
+        from = kept;
+        require(!ran.count("llmx_kv_index_select_wide") && ran.count("llmx_kv_index_select"), "the wide selection ran with it turned off on " + name);
+        require(normal == natural, "the normal selection's ids differ from the profile's forms on " + name);
+    }
+#endif
+}
+
+// The selection's time a call through select_kv, rows of one and of 16 after histories of 1024 to 65536 groups, budget 2048 and compression 4, printed and not checked.
+// On a ROCm device each form is forced through its profile; elsewhere the profile's form runs.
+void selection_rates(Backend& device, const std::string& name) {
+    const Config c{4, 128, 4, 4, 2048, 1e-6f, 10000.0f};
+    const size_t most = 65536, tokens = most * 4 + 16;
+    Cache cache(device, tokens, c.dim, c.compression);
+    const std::vector<int32_t> map(cache.blocks.begin(), cache.blocks.end());
+    std::vector<float> keys;
+    keys.reserve(tokens * c.dim);
+    for (size_t g = 0; g < most + 4; ++g) append_group(keys, c.compression, c.dim, double(g * 7919 % 65543) * (1.5 / 65543.0));
+    // Written 4096 tokens a call, which a device's argument ring holds.
+    for (size_t at = 0; at < tokens; at += 4096) {
+        const size_t n = std::min<size_t>(4096, tokens - at);
+        backend::KVView part = cache.view(at, n, map);
+        cache.write(&part, 1, slice_rows(keys, at, n, c.dim), n);
+    }
+    backend::KVView all = cache.view(0, tokens, map);
+    const std::vector<float> unit(c.dim, 1.0f), cosine(tokens * (c.rope_dim / 2), 1.0f), sine(tokens * (c.rope_dim / 2), 0.0f);
+    BufferPtr gamma = upload(device, unit), cos = upload(device, cosine), sin = upload(device, sine);
+    const Backend::IndexArgs args{c.heads, c.dim, c.rope_dim, c.compression, c.budget, c.eps};
+    device.pool_kv(0, &all, 1, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
+    std::vector<float> query(16 * c.heads * c.dim, 0.0f);
+    for (size_t r = 0; r < 16 * c.heads; ++r) query[r * c.dim] = 1.0f;
+    BufferPtr q = upload(device, query);
+    BufferPtr out = device.alloc(16 * (c.budget + c.compression - 1) * sizeof(uint32_t), backend::Memory::device);
+    std::vector<std::pair<const char*, size_t>> forms{{"profile's", 0}};
+    size_t* from = nullptr;
+#if LLMX_HAS_BACKEND_ROCM
+    if (is_rocm(name)) from = &backend::rocm_profile(device).select_wide_from;
+#endif
+    const size_t kept = from ? *from : 0;
+    if (from) forms = {{"normal", std::numeric_limits<size_t>::max()}, {"wide", 0}};
+    std::cout << "kv-selection: selection rates on " << name << "; groups, rows, form: us a call\n";
+    for (const size_t groups : {size_t(1024), size_t(2048), size_t(3072), size_t(4096), size_t(5120), size_t(6144), size_t(8192), size_t(16384), size_t(32768), size_t(65536)})
+        for (const size_t rows : {size_t(1), size_t(16)})
+            for (const auto& [form, at] : forms) {
+                if (from) *from = at;
+                const backend::KVView view = cache.view(groups * 4 - rows, rows, map);
+                const auto call = [&] { device.select_kv({q.get(), 0}, 0, &view, 1, {out.get(), 0}, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0}); };
+                for (int i = 0; i < 3; ++i) call();
+                device.sync();
+                const int iters = 20;
+                const auto t0 = std::chrono::steady_clock::now();
+                for (int i = 0; i < iters; ++i) call();
+                device.sync();
+                const double us = 1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / iters;
+                std::printf("kv-selection: rate %zu, %zu, %s: %.1f us\n", groups, rows, form, us);
+            }
+    if (from) *from = kept;
+    std::fflush(stdout);
+}
+
 // The pooled rows are kept: pool_kv writes the rows of exactly the groups its rows complete, and a later selection reads a group's kept row rather than pooling it again.
 // Group 0's kept row is replaced by one the query favours; pooled again from its raw keys it would lose to group 5, whose keys lean furthest toward the query.
 void pooled_rows_kept(Backend& device) {
@@ -746,11 +936,19 @@ int main(int argc, char** argv) {
     try {
         std::string reference = "tests/data/qwen4exp_reference.json";
         std::string device_name = "cpu";
+        bool rates = false;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--reference" && i + 1 < argc) reference = argv[++i];
             else if (arg == "--device" && i + 1 < argc) device_name = argv[++i];
-            else throw std::runtime_error("usage: kv-selection-test [--reference FILE] [--device cpu|vulkan:N]");
+            else if (arg == "--rates") rates = true;
+            else throw std::runtime_error("usage: kv-selection-test [--reference FILE] [--device cpu|vulkan:N|rocm:N] [--rates]");
+        }
+        // `--rates` prints the selection's times a call and checks nothing.
+        if (rates) {
+            backend::BackendPtr device = backend::make_backend(device_name);
+            selection_rates(*device, device_name);
+            return 0;
         }
         std::ifstream input(reference, std::ios::binary);
         if (!input) throw std::runtime_error("cannot open HF reference: " + reference);
@@ -778,6 +976,7 @@ int main(int argc, char** argv) {
             invalid_inputs(*device, c, test, qnorm, knorm, rope);
         }
         synthetic_long(*device);
+        wide_crossover(*device, device_name);
         pooled_rows_kept(*device);
         pooled_at_positions(*device);
         std::cout << "kv-selection: PASS (" << checks << " checks) on " << device_name << '\n';

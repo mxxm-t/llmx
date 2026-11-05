@@ -181,6 +181,7 @@ placement contracts in `docs/EXECUTION.md`.
   Device arithmetic uses these handles; host-visible results and transfer
   staging may expose host addresses. An empty allocation resolves to no address and is
   read by nothing, which is how a zero-length batch passes through.
+- `overlaps(a, an, b, bn)`: whether `an` floats at `a` and `bn` floats at `b` share a float of one buffer, the one check every backend makes before writing an output beside its inputs.
 - `span(buffer, off, bytes)`, `size_mul`, `size_add`, `blocks_for(tokens,
   block_tokens)`: the checks every backend makes, a byte range inside a
   buffer and size arithmetic that throws rather than wraps, and the whole

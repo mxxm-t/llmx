@@ -17,6 +17,10 @@ THREADS = (1, 4, 16)
 FILE_EXACT = {"mmproj-BF16.gguf": "file_exact_d312c4d02fd4.json"}
 
 
+class Refused(Exception):
+    """The configured device refuses the encoder (common.encoder_refusal)."""
+
+
 def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-encode-image" + (".exe" if os.name == "nt" else ""))
 
@@ -32,6 +36,8 @@ def encode(tool, mmproj, image, out, threads, max_pixels):
     if max_pixels:
         cmd += ["--image-max-tokens", str(max_pixels // (32 * 32))]
     p = subprocess.run(cmd, capture_output=True, text=True)
+    if common.encoder_refusal(p.returncode, p.stderr):
+        raise Refused(common.encoder_refusal(p.returncode, p.stderr))
     assert p.returncode == 0, "vision: %s failed\n%s%s" % (" ".join(cmd), p.stdout, p.stderr)
     info = json.loads(p.stdout)
     with open(out, "rb") as f:
@@ -85,7 +91,11 @@ def run(require=False):
     with open(mmproj, "rb") as f:
         assert hashlib.sha256(f.read()).hexdigest() == tiny["mmproj_sha256"], "vision: the tiny mmproj is not the one its goldens were made from"
     with tempfile.TemporaryDirectory(prefix="llmx_vision_") as directory:
-        errors = check(tool, mmproj, tiny["cases"], lambda c: c["rows"], TINY_BOUND, directory, "tiny")
+        try:
+            errors = check(tool, mmproj, tiny["cases"], lambda c: c["rows"], TINY_BOUND, directory, "tiny")
+        except Refused as refused:
+            print("vision: SKIP - the device refuses the encoder: %s" % refused)
+            return common.SKIPPED
         print("vision: tiny HF tower, %d images at grids %s, %s threads, worst %.3g of the row scale against %.3g  [ok]"
               % (len(errors), ", ".join("%dx%d" % tuple(c["grid"]) for c in tiny["cases"]), "/".join(map(str, THREADS)), max(errors), TINY_BOUND))
         for name, goldens in FILE_EXACT.items():

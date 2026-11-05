@@ -164,8 +164,6 @@ inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
-inline constexpr int8_t IQ4_NL_VALUES[16] = {-127, -104, -83, -65, -49, -35, -22, -10, 1, 13, 25, 38, 53, 69, 89, 113};
-
 // Both IQ4 formats store each 32-value group's low nibbles before its high nibbles.
 inline void dequantize_iq4_group(const uint8_t* qs, float d, float* dst) {
     for (size_t j = 0; j < 16; ++j) {

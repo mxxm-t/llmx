@@ -41,6 +41,13 @@ def cpp_files(texts, tops=("src", "tests", "tools")):
     return sorted(p for p in texts if p.endswith(CPP_SUFFIXES) and p.split("/")[0] in tops)
 
 
+def rocm_kernels(texts):
+    """The ROCm kernel sources CMake compiles, named by their stems in LLMX_ROCM_KERNELS."""
+    m = re.search(r"set\(LLMX_ROCM_KERNELS ([^)]*)\)", cmake_text(texts))
+    paths = ["src/backends/rocm/kernels/%s.hip" % k for k in (m.group(1).split() if m else [])]
+    return sorted(p for p in paths if p in texts)
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 # C++ tokens and the declarations at namespace, class and enum scope.
 
@@ -399,6 +406,11 @@ def name_findings(texts):
     ds = Declarations(texts, files)
     if len(ds.decls) < 1000:
         raise Layout("the name check found only %d declarations" % len(ds.decls))
+    # The ROCm kernels compile apart and declare only kernels the backend names by string, so what they name counts as a use.
+    for f in rocm_kernels(texts):
+        for t in lex(code_of(texts[f])):
+            if t.kind == "id":
+                ds.uses[t.text]["src"] += 1
     code = {f: code_of(texts[f]) for f in files}
     pinned = pinned_structs(code)
     enums = integer_enums(code, {d["name"] for d in ds.decls if d["kind"] == "enum"})
@@ -1080,7 +1092,7 @@ HAND_BUILT = {"tools/compare_cpu.cpp": "llmx-compare-cpu"}
 def file_findings(texts):
     """`file`: a src/ file no translation unit CMake builds includes, a test or tool source neither CMake nor the linked check builds, and a test or tool header nothing includes."""
     cmake = cmake_text(texts)
-    built = set(re.findall(r"\b((?:src|tests|tools)/[\w/]+\.cpp)\b", cmake)) | set(HAND_BUILT)
+    built = set(re.findall(r"\b((?:src|tests|tools)/[\w/]+\.cpp)\b", cmake)) | set(HAND_BUILT) | set(rocm_kernels(texts))
     reached, work = set(), sorted(built)
     while work:
         p = work.pop()

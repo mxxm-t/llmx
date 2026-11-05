@@ -1,12 +1,15 @@
 // Sparse causal GQA against an independent double-precision oracle.
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <exception>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <stdexcept>
@@ -15,6 +18,9 @@
 #include <vector>
 
 #include "backends/devices.hpp"
+#if LLMX_HAS_BACKEND_ROCM
+#include "backends/rocm/rocm_backend.hpp"
+#endif
 #include "backends/kv_storage.hpp"
 #include "core/fp16.hpp"
 #if LLMX_HAS_BACKEND_VULKAN
@@ -260,7 +266,7 @@ double check_against_oracle(const Data& data, const std::vector<uint32_t>& ids,
     return overall_worst;
 }
 
-void check_per_row(Backend& device, const Data& data, const std::vector<uint32_t>& ids,
+void check_per_row(Backend& device, const Data& data, const std::vector<uint32_t>& ids, size_t id_stride,
                    const std::vector<float>& batch, const std::string& label) {
     const size_t q_width = kQHeads * data.dim, out_width = q_width;
     for (size_t seq = 0; seq < 2; ++seq) for (size_t row = 0; row < kNq; ++row) {
@@ -269,13 +275,13 @@ void check_per_row(Backend& device, const Data& data, const std::vector<uint32_t
                     data.length + row, 1};
         BufferPtr q = upload(device, std::vector<float>(data.queries.begin() + global * q_width,
                                                          data.queries.begin() + (global + 1) * q_width));
-        std::vector<uint32_t> row_ids(ids.begin() + global * data.id_stride,
-                                      ids.begin() + (global + 1) * data.id_stride);
+        std::vector<uint32_t> row_ids(ids.begin() + global * id_stride,
+                                      ids.begin() + (global + 1) * id_stride);
         BufferPtr idbuf = upload(device, row_ids);
         BufferPtr out = device.alloc((out_width + 2) * sizeof(float), backend::Memory::device);
         std::vector<float> init(out_width + 2, -818.25f);
         device.write(*out, 0, init.data(), init.size() * sizeof(float));
-        device.sparse_attention({q.get(), 0}, 0, &view, 1, {idbuf.get(), 0}, data.id_stride,
+        device.sparse_attention({q.get(), 0}, 0, &view, 1, {idbuf.get(), 0}, id_stride,
                                 {out.get(), 1}, int(kQHeads), int(kKVHeads), int(data.dim));
         device.sync();
         const auto guarded = read<float>(device, *out, 0, init.size());
@@ -440,14 +446,52 @@ void refusal_checks(Backend& device, const Data& data) {
                      "invalid second sparse KV view");
 }
 
-void run_case(Backend& device, size_t dim, backend::KVType k_type, backend::KVType v_type) {
+// The same rows' ids at Flash-Next's stride of 2051 slots, each id in a slot of its own spread over the stride and the rest padding, so a device that splits a row's ids by the stride reads ids in several splits and splits of none.
+std::vector<uint32_t> spread_ids(const Data& data, size_t stride) {
+    std::vector<uint32_t> out(2 * kNq * stride, UINT32_MAX);
+    for (size_t r = 0; r < 2 * kNq; ++r) {
+        size_t n = 0;
+        while (n < data.id_stride && data.ids[r * data.id_stride + n] != UINT32_MAX) ++n;
+        for (size_t i = 0; i < n; ++i) out[r * stride + (n > 1 ? i * (stride - 1) / (n - 1) : 0)] = data.ids[r * data.id_stride + i];
+    }
+    return out;
+}
+
+// The kernels launched since the last reading, on a ROCm device, and nothing elsewhere.
+std::map<std::string, size_t> launches(Backend& device, const std::string& name) {
+    if (name.rfind("rocm", 0) != 0) return {};
+#if LLMX_HAS_BACKEND_ROCM
+    return backend::rocm_take_launches(device);
+#else
+    (void)device;
+    return {};
+#endif
+}
+
+void run_case(Backend& device, const std::string& name, size_t dim, backend::KVType k_type, backend::KVType v_type) {
     Data data = make_data(device, dim, k_type, v_type);
     const std::string label = "d" + std::to_string(dim) + "/K" + backend::kv_type_name(k_type) +
                               "/V" + backend::kv_type_name(v_type);
     const auto actual = run_batch(device, data, data.ids, data.id_stride, label);
     const double error = check_against_oracle(data, data.ids, actual, label);
+    // Flash-Next's stride, split in several; and a stride past 256 splits of the profile's ids, whose split doubles so the merge's splits cover it.
+    for (const size_t stride : {size_t(2051), size_t(65537)}) {
+        const std::vector<uint32_t> spread = spread_ids(data, stride);
+        const std::string at = label + " at stride " + std::to_string(stride);
+        launches(device, name);
+        const auto wide = run_batch(device, data, spread, stride, at);
+        check_against_oracle(data, spread, wide, at, stride);
+        // On ROCm heads 128 and 256 wide take the per-row body's sparse build and its split merge, other widths the chunk body's.
+        const auto ran = launches(device, name);
+        if (name.rfind("rocm", 0) == 0) {
+            const std::string body = dim == 256 ? "llmx_sparse_attention_vec256" : dim == 128 ? "llmx_sparse_attention_vec" : "llmx_sparse_attention_chunk";
+            const std::string merge = dim == 256 ? "llmx_sparse_attention_vec_merge256" : dim == 128 ? "llmx_sparse_attention_vec_merge" : "llmx_sparse_attention_merge";
+            require(ran.size() == 2 && ran.count(body) && ran.count(merge), at + " ran other kernels than " + body + " and " + merge + " on " + name);
+        }
+        check_per_row(device, data, spread, stride, wide, at);
+    }
     std::cout << label << " max_abs_error=" << error << '\n';
-    check_per_row(device, data, data.ids, actual, label);
+    check_per_row(device, data, data.ids, data.id_stride, actual, label);
     refusal_checks(device, data);
     if (dim == 8) selector_chain(device, data);
 }
@@ -535,21 +579,69 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
               << (alone_grouped ? ", a row alone grouped too on this device's few compute units" : "") << '\n';
 }
 
+// Each call's time at Flash-Next's main attention, 24 heads 256 wide over 2 KV heads in f16 caches, 2051 ids of a 16384-token history, rows of one and of 16: printed, not checked.
+void rates(Backend& device, const std::string& name) {
+    const size_t heads = 24, kv_heads = 2, dim = 256, stride = 2051, history = 16384, bt = device.kv_layout().block_tokens;
+    const size_t tokens = history + 16, blocks = backend::blocks_for(tokens, bt);
+    auto storage = device.kv_alloc(1, kv_heads, dim, blocks * bt, backend::KVType::f16, backend::KVType::f16, {kAuxDim}, {kCompression});
+    std::vector<int32_t> map(blocks);
+    std::iota(map.begin(), map.end(), 0);
+    for (size_t at = 0; at < tokens; at += 1024) {
+        const size_t n = std::min<size_t>(1024, tokens - at);
+        std::vector<float> kv(n * kv_heads * dim), aux(n * kAuxDim, 0.0f);
+        for (size_t i = 0; i < kv.size(); ++i) kv[i] = key_value(0, at + i / (kv_heads * dim), (i / dim) % kv_heads, i % dim);
+        BufferPtr k = upload(device, kv), a = upload(device, aux);
+        const KVView w{storage.get(), map.data(), map.size(), at, n};
+        device.kv_write(0, &w, 1, {k.get(), 0}, {k.get(), 0}, {a.get(), 0});
+    }
+    std::vector<float> query(16 * heads * dim);
+    for (size_t i = 0; i < query.size(); ++i) query[i] = query_value(0, i / (heads * dim), (i / dim) % heads, i % dim);
+    // 512 groups of four tokens spread over the history, then the row's causal tail, as a selection writes them.
+    std::vector<uint32_t> ids(16 * stride, UINT32_MAX);
+    for (size_t r = 0; r < 16; ++r) {
+        for (size_t g = 0; g < 512; ++g)
+            for (size_t t = 0; t < 4; ++t) ids[r * stride + g * 4 + t] = uint32_t(g * (history / 512) + t);
+        for (size_t t = 0; t < 3; ++t) ids[r * stride + 2048 + t] = uint32_t(history - 3 + t);
+    }
+    BufferPtr q = upload(device, query), idb = upload(device, ids);
+    BufferPtr out = device.alloc(16 * heads * dim * sizeof(float), backend::Memory::device);
+    std::cout << "sparse-attention: rates on " << name << "; rows: us a call\n";
+    for (const size_t rows : {size_t(1), size_t(16)}) {
+        const KVView view{storage.get(), map.data(), map.size(), history - rows + 1, rows};
+        const auto call = [&] { device.sparse_attention({q.get(), 0}, 0, &view, 1, {idb.get(), 0}, stride, {out.get(), 0}, int(heads), int(kv_heads), int(dim)); };
+        for (int i = 0; i < 3; ++i) call();
+        device.sync();
+        const int iters = 50;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i) call();
+        device.sync();
+        std::printf("sparse-attention: rate %zu: %.1f us\n", rows, 1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / iters);
+    }
+    std::fflush(stdout);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
         std::string device_name = "cpu";
+        bool timing = false;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             if (arg == "--device" && i + 1 < argc) device_name = argv[++i];
-            else throw std::runtime_error("usage: sparse-attention-test [--device cpu|vulkan:N]");
+            else if (arg == "--rates") timing = true;
+            else throw std::runtime_error("usage: sparse-attention-test [--device cpu|vulkan:N|rocm:N] [--rates]");
         }
         backend::BackendPtr device = backend::make_backend(device_name, 1);
+        // `--rates` prints each call's time and checks nothing.
+        if (timing) {
+            rates(*device, device_name);
+            return 0;
+        }
         for (size_t dim : {size_t(8), size_t(128), size_t(256)})
             for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
                 for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
-                    run_case(*device, dim, k_type, v_type);
+                    run_case(*device, device_name, dim, k_type, v_type);
         for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
             for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
                 grouped_heads(*device, device_name, k_type, v_type);

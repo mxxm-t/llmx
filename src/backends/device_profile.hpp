@@ -77,6 +77,8 @@ struct DeviceProfile {
     size_t moe_tile_from = 32, moe_tile_from_q4 = 96, moe_tile_from_q4k = 64, moe_tile_from_q5k = 48;
     // Splitting a row's attention history across workgroups: parts of this many tokens, the part doubling until at most this many cover the row, for heads 128 wide and narrower and for 256 wide (docs/STATUS.md), each at most 256.
     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;
+    // Selected ids a split of the per-row sparse attention takes, the split doubling until the merge's 256 splits cover the stride; 256 was best on an MI50 at Flash-Next's 2051 ids (docs/STATUS.md).
+    size_t sparse_split_ids = 256;
     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.
     uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;
     // The float tile's target when it splits, which only a call of a quarter of a workgroup per compute unit or fewer does, such as a router's.
@@ -89,6 +91,8 @@ struct DeviceProfile {
     size_t qtile_narrow_per_expert = 16, qtile_narrow_per_expert_8bit = 16;
     // Complete groups from which the indexer's selection takes its wide form, where the two forms cross; both give the same ids (docs/VULKAN.md).
     size_t select_wide_from = 4096;
+    // Logits a block of argmax_rows reduces before a merge a row takes the slices' results; the id is exact at any slice (docs/STATUS.md).
+    size_t argmax_slice = 4096;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.

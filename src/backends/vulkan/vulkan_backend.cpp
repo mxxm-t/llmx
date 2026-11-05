@@ -1506,8 +1506,7 @@ public:
         if (!rows || !n) return;
         const bool quant = stride == n && n % 32 == 0;
         // Several workgroups a row when the output does not overlap the input (shaders/rms_norm_rows.comp), up to what fills the device: each reads the whole row for its sum, so a pass of many rows takes one a row.
-        const bool overlap = dst.buffer == src.buffer &&
-                             dst.offset < src.offset + rows * stride && src.offset < dst.offset + rows * stride;
+        const bool overlap = overlaps(CSlice(dst), rows * stride, src, rows * stride);
         // Where the integer-dot tile reads dst next, the twin written four values a lane.
         const bool tile = quant && !overlap && tile_reads(n, rows, runs);
         const size_t fill = (4 * dev_->caps.compute_units + rows - 1) / rows;
@@ -1841,9 +1840,6 @@ private:
         const size_t bytes = s.buffer->size();
         if (s.offset * sizeof(float) > bytes) throw std::runtime_error("vulkan: operand outside the allocation");
         return (bytes - s.offset * sizeof(float)) / sizeof(float);
-    }
-    static bool overlaps(CSlice a, size_t an, CSlice b, size_t bn) {
-        return an && bn && a.buffer == b.buffer && a.offset < b.offset + bn && b.offset < a.offset + an;
     }
 
     VkDescriptorBufferInfo bind(CSlice s);

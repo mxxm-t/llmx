@@ -343,7 +343,7 @@ int main(int argc, char** argv) {
             const std::string arg = argv[i];
             if (arg == "--reference" && i + 1 < argc) reference = argv[++i];
             else if (arg == "--device" && i + 1 < argc) device = argv[++i];
-            else throw std::runtime_error("usage: llmx-qwen4exp-graph-test [--reference FILE] [--device cpu|vulkan:N]");
+            else throw std::runtime_error("usage: llmx-qwen4exp-graph-test [--reference FILE] [--device cpu|vulkan:N|rocm:N]");
         }
         const Json root = read_reference(reference);
         const infer::qwen4exp::Config c = config(root);

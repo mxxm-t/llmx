@@ -171,7 +171,8 @@ public:
         dev_.profile = profile_for(dev_.caps);
         // The prompt tiles and the row builds of four columns and more take the dot where there is one; the narrower quarter-layout builds measured faster on the plain module (docs/STATUS.md, ROCm wide decode rows).
         for (size_t k = 0; k < kKernels; ++k) {
-            const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows16x2r4 || k == kRows8x1 || k == kRows8x2 || k == kRows8x2r4 || k == kTileReduce;
+            const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows16x2r4 || k == kRows8x1 || k == kRows8x2 || k == kRows8x2r4 || k == kTileReduce ||
+                               k == kRouted16 || k == kRouted8;
             const hipModule_t m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
@@ -196,6 +197,9 @@ public:
         twin_ = {};
         staged_ = {};
         partials_ = {};
+        scores_ = {};
+        select_state_ = {};
+        argmax_parts_ = {};
         args_ = {};
         stage_ = {};
         pass_ = {};
@@ -225,13 +229,22 @@ public:
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
         return members ? size_mul(members + 1, size_mul(width, sizeof(float))) : 0;
     }
-    bool supports_type(uint32_t type) const override { return type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_Q8_0; }
-    bool implements(Op op) const override { return op == Op::norm_rope_partial; }
-    // No kernel here chooses anything by a row's extent, so a generated token is a class and every prompt row another.
-    // A generated token is a class; a prompt's rows take the product tile, whose inner split follows the extent's column tiles (split_tiles_of), and from the profile's attention_tile_rows the attention tile, so each pair of those is a class.
+    bool supports_type(uint32_t type) const override { return type_kernels(type) != nullptr; }
+    bool implements(Op op) const override {
+        return op == Op::norm_rope_partial || op == Op::sigmoid_mul || op == Op::gated_rms_norm || op == Op::causal_conv_silu ||
+               op == Op::gated_delta_rule || op == Op::routed_experts || op == Op::group_rms_norm || op == Op::silu_scaled || op == Op::mix_streams ||
+               op == Op::inject_streams || op == Op::signed_sqrt_gate || op == Op::dilated_conv_silu_add || op == Op::select_kv || op == Op::sparse_attention || op == Op::argmax_rows || op == Op::embed_ids;
+    }
+    // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-rocm.md, batch invariance).
     size_t row_class(size_t extent) const override {
         if (extent == 1) return 1;
-        return 2 + 2 * split_tiles_of(extent) + (extent >= dev_.profile.attention_tile_rows ? 1 : 0);
+        constexpr size_t entries = sizeof(TwinKernels::tile_from) / sizeof(size_t);   // a type's tile extents, by role and width
+        size_t routed = 0;   // the routed builds whose tile the extent reaches; their entries are ordered, so the count names the set
+        for (const TypeKernels& t : kTypes)
+            if (t.twin)
+                for (const auto& role : t.twin->tile_from)
+                    for (size_t from : role) routed += extent >= from;
+        return 2 + (extent >= dev_.profile.attention_tile_rows ? 1 : 0) + 2 * (routed + (entries * std::size(kTypes) + 1) * split_tiles_of(extent));
     }
     // The column tiles the tile's inner split is chosen for: the prompt's own, counted up to 512 rows, as the Vulkan tile counts them.
     static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + kTileRows - 1) / kTileRows; }
@@ -366,7 +379,8 @@ public:
         // Up to three integer projections into device memory take one twin and one tile call, as the Vulkan tile takes them.
         bool together = projections.size() > 1 && projections.size() <= 3 && nin && nbatch;
         for (const Projection& p : projections)
-            together = together && p.weight.data.buffer && integer(p.weight, dtype) && p.rows && !as_rocm(*p.out.buffer).host_ptr();
+            together = together && p.weight.data.buffer && integer(p.weight, dtype) && p.weight.type == projections.begin()->weight.type && p.rows &&
+                       !as_rocm(*p.out.buffer).host_ptr();
         if (together) {
             Proj proj[3];
             size_t n = 0;
@@ -377,7 +391,7 @@ public:
                 span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(size_mul(p.rows, nbatch), sizeof(float)));
                 proj[n++] = {bytes(p.weight.data), f32(p.out), p.rows};
             }
-            return product_twin(proj, n, X, nin, nbatch, false, runs, true, dtype == Dtype::int8);
+            return product_twin(*type_kernels(projections.begin()->weight.type)->twin, proj, n, X, nin, nbatch, false, runs, true, dtype == Dtype::int8);
         }
         bool twinned = false;
         for (const Projection& p : projections) {
@@ -389,30 +403,64 @@ public:
     std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32, Dtype::int8}; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::f32) return "f32";
-        if (dtype == Dtype::int8)
-            return dev_.caps.integer_dot ? "block-int8 (Q8_0 rows, and tiles on the 8-bit dot), f32 (F32 weights)" : "block-int8 (Q8_0 rows and tiles), f32 (F32 weights)";
-        return dev_.caps.integer_dot ? "block-int16 (Q8_0 rows, and tiles on the 16-bit dot), f32 (F32 weights)" : "block-int16 (Q8_0 rows and tiles), f32 (F32 weights)";
+        // The types without twins take their exact products in every class, wider than asked, and say so.
+        std::string exact = "F32 weights";
+        for (const TypeKernels& t : kTypes)
+            if (!t.twin && t.type != quant::GGML_TYPE_F32) exact += std::string(exact == "F32 weights" ? ", " : "/") + t.name;
+        exact += exact == "F32 weights" ? "" : " rows";
+        std::string twins;
+        for (const TypeKernels& t : kTypes)
+            if (t.twin) twins += std::string(twins.empty() ? "" : "/") + t.name;
+        const std::string form = dtype == Dtype::int8 ? "block-int8 (" : "block-int16 (";
+        return form + twins + (dev_.caps.integer_dot ? std::string(" rows, and tiles on the ") + (dtype == Dtype::int8 ? "8" : "16") + "-bit dot), f32 (" : " rows and tiles), f32 (") + exact + ")";
     }
     void embed(Slice dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) override {
-        check_weight(weight, nin, "embedding");
+        const TypeKernels& kinds = check_weight(weight, nin, "embedding");
         if (!count) return;
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("rocm: embedding row out of range");
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nrows));
-        if (weight.type == quant::GGML_TYPE_F32) return gather(dst, weight.data, nin, ids, count);
-        span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(count, nin), sizeof(float)));
-        float* d = f32(dst);
-        const uint8_t* t = bytes(weight.data);
-        const unsigned* ip = (const unsigned*)arg(ids, count * sizeof(uint32_t));
-        unsigned long long w = nin;
-        void* args[] = {&d, &t, &ip, &w};
-        launch(kGatherQ8, (unsigned)((nin + kThreads - 1) / kThreads), (unsigned)count, args);
+        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)arg(ids, count * sizeof(uint32_t)), count, nrows);
+    }
+    // embed's gather with the ids read where the device holds them; the kernel writes a zero row for an id of `nrows` or more.
+    void embed_ids(Slice dst, WeightView weight, size_t nin, size_t nrows, CSlice ids, size_t count) override {
+        const TypeKernels& kinds = check_weight(weight, nin, "embedding");
+        if (!count) return;
+        if (nrows > UINT32_MAX) throw std::runtime_error("rocm: an embedding of more rows than 32-bit ids name");
+        if (!ids.buffer) throw std::runtime_error("rocm: operand without storage");
+        span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nrows));
+        span(*ids.buffer, ids.offset * sizeof(float), size_mul(count, sizeof(float)));
+        gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)f32(ids), count, nrows);
+    }
+    // For each row of `n` logits the id of the largest (Backend::argmax_rows), in slices of the profile's argmax_slice ids merged a row; no ids is refused, as Vulkan refuses it.
+    void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) override {
+        if (!rows) return;
+        if (!n || n > UINT32_MAX) throw std::runtime_error("rocm: argmax over no ids or more than 32 bits name");
+        if (!ids.buffer || !logits.buffer) throw std::runtime_error("rocm: operand without storage");
+        span(*logits.buffer, logits.offset * sizeof(float), size_mul(size_mul(rows, n), sizeof(float)));
+        span(*ids.buffer, ids.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        if (after.buffer) span(*after.buffer, after.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        const size_t slice = std::max<size_t>(1, std::min(dev_.profile.argmax_slice, n)), nslice = (n + slice - 1) / slice;
+        if (size_mul(rows, nslice) > UINT32_MAX) throw std::runtime_error("rocm: argmax over too many slices");
+        const float* lp = f32(logits);
+        unsigned* ip = (unsigned*)f32(ids);
+        const unsigned* ap = after.buffer ? (const unsigned*)f32(after) : nullptr;
+        const size_t need = size_mul(size_mul(rows, nslice), 2 * sizeof(float));
+        if (nslice > 1 && (!argmax_parts_ || argmax_parts_->size() < need)) argmax_parts_ = alloc(need, Memory::device);
+        float* pp = nslice > 1 ? (float*)as_rocm(*argmax_parts_).data() : nullptr;
+        unsigned nn = (unsigned)n, sl = (unsigned)slice, ns = (unsigned)nslice;
+        void* args[] = {&lp, &ip, &pp, &nn, &sl, &ns, &ap};
+        launch(kArgmaxSlices, (unsigned)(rows * nslice), 1, args);
+        if (nslice > 1) {
+            void* margs[] = {&pp, &ip, &nn, &ns, &ap};
+            launch(kArgmaxMerge, (unsigned)rows, 1, margs, 1, 64);
+        }
     }
     void gather_rows(Slice dst, CSlice src, size_t width, const uint32_t* rows, size_t count) override {
         if (count && !rows) throw std::runtime_error("rocm: gather without rows");
         if (!count) return;
         span(*src.buffer, src.offset * sizeof(float), size_mul(size_mul(size_add(*std::max_element(rows, rows + count), 1), width), sizeof(float)));
-        gather(dst, src, width, rows, count);
+        gather(kGather, dst, f32(src), width, (const unsigned*)arg(rows, count * sizeof(uint32_t)), count, UINT32_MAX);
     }
     void rms_norm_rows(Slice dst, CSlice src, CSlice w, size_t rows, size_t n, size_t stride, float eps, RowRuns runs) override {
         if (!rows) return;
@@ -444,7 +492,7 @@ public:
                            size_t rope_dim, CSlice w, float eps, CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams) override {
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("rocm: invalid partial rope dimensions");
-        if (streams.count != 1) throw std::runtime_error("rocm: a rope of several streams is not implemented");
+        if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("rocm: a rope of several streams without their pairs");
         if (rows && !pos) throw std::runtime_error("rocm: partial rope without positions");
         if (!rows) return;
         const size_t width = size_mul(heads, head_dim), half = rope_dim / 2;
@@ -452,21 +500,244 @@ public:
         const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
         span(*src.buffer, src.offset * sizeof(float), size_mul(last, sizeof(float)));
         if (w.buffer) span(*w.buffer, w.offset * sizeof(float), size_mul(head_dim, sizeof(float)));
-        const size_t table = size_mul(size_add(*std::max_element(pos, pos + rows), 1), half * sizeof(float));
+        const size_t npos = size_mul(rows, streams.count);
+        const size_t table = size_mul(size_add(*std::max_element(pos, pos + npos), 1), half * sizeof(float));
         span(*cos.buffer, cos.offset * sizeof(float), table);
         span(*sin.buffer, sin.offset * sizeof(float), table);
         float* d = f32(dst);
         const float* s = f32(src);
         if ((const float*)d == s && (src_stride != width || src_head_stride != head_dim))
             throw std::runtime_error("rocm: partial rope in place over heads that are not contiguous");
-        const unsigned* p = (const unsigned*)pass_arg(pos, rows * sizeof(uint32_t));
+        const unsigned* p = (const unsigned*)pass_arg(pos, npos * sizeof(uint32_t));
         unsigned long long dst_stride = width, ss = src_stride, shs = src_head_stride;
         int hd = (int)head_dim, hf = (int)half;
         const float* wp = w.buffer ? f32(w) : nullptr;
         const float* c = f32(cos);
         const float* sn = f32(sin);
-        void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p};
-        launch(kNormRope, (unsigned)rows, (unsigned)heads, args);
+        if (streams.count == 1) {
+            void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p};
+            return launch(kNormRope, (unsigned)rows, (unsigned)heads, args);
+        }
+        for (size_t i = 0; i < half; ++i)
+            if (streams.of[i] >= streams.count) throw std::runtime_error("rocm: a rope pair of a stream past the row's");
+        const unsigned char* of = (const unsigned char*)pass_arg(streams.of, half);
+        int count = (int)streams.count;
+        void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p, &of, &count};
+        launch(kNormRopeStreams, (unsigned)rows, (unsigned)heads, args);
+    }
+    void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim, size_t gate_stride, size_t gate_head_stride, RowRuns) override {
+        if (!heads || !dim) throw std::runtime_error("rocm: invalid sigmoid gate dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
+        span(*dst.buffer, dst.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*x.buffer, x.offset * sizeof(float), size_mul(n, sizeof(float)));
+        const size_t last = size_add(size_add(size_mul(rows - 1, gate_stride), size_mul(heads - 1, gate_head_stride)), dim);
+        span(*gate.buffer, gate.offset * sizeof(float), size_mul(last, sizeof(float)));
+        float* d = f32(dst);
+        const float* xp = f32(x);
+        const float* g = f32(gate);
+        unsigned long long nn = n, wd = width, dd = dim, gs = gate_stride, ghs = gate_head_stride;
+        void* args[] = {&d, &xp, &g, &nn, &wd, &dd, &gs, &ghs};
+        launch(kSigmoidMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+    }
+    void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps, RowRuns, NormGate gate) override {
+        if (!heads || !dim) throw std::runtime_error("rocm: invalid gated norm dimensions");
+        const size_t n = size_mul(size_mul(rows, heads), dim);
+        for (const CSlice& v : {CSlice(dst), x, z}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*w.buffer, w.offset * sizeof(float), size_mul(dim, sizeof(float)));
+        if (!rows) return;
+        float* d = f32(dst);
+        const float* xp = f32(x);
+        const float* zp = f32(z);
+        const float* wp = f32(w);
+        int dm = (int)dim, sig = gate == NormGate::sigmoid;
+        void* args[] = {&d, &xp, &zp, &wp, &dm, &eps, &sig};
+        launch(kGatedRmsNorm, (unsigned)size_mul(rows, heads), 1, args);
+    }
+    // The view count, then five words a view (first row, rows, history length, source slot, destination slot), as the state kernels read them.
+    static std::vector<unsigned> state_table(const StateView* views, size_t n_views) {
+        std::vector<unsigned> tab{(unsigned)n_views};
+        size_t row0 = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            const StateView& v = views[i];
+            if (v.storage != views[0].storage) throw std::runtime_error("rocm: state views of two storages in one call");
+            if (v.length > UINT32_MAX || row0 + v.nq > UINT32_MAX) throw std::runtime_error("rocm: a state view past 32-bit rows");
+            tab.insert(tab.end(), {(unsigned)row0, (unsigned)v.nq, (unsigned)v.length, (unsigned)v.src, (unsigned)v.dst});
+            row0 += v.nq;
+        }
+        return tab;
+    }
+    // A block a (view, V head, 32 V columns), in the Vulkan shader's order (kernels/f32.hip, llmx_gated_delta_rule).
+    void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias, size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        const std::vector<unsigned> tab = state_table(views, n_views);
+        const StateStorage& ss = *views[0].storage;
+        const StateShape& sh = ss.shape();
+        const size_t Hk = sh.k_heads, Hv = sh.v_heads, Dk = sh.k_dim, Dv = sh.v_dim, C = sh.channels();
+        // A column's K rows sit 16 in each of eight lanes, and a block stages 128 of each q and k row.
+        if (Dk > 128) throw std::runtime_error("rocm: a linear-attention K head wider than 128");
+        span(*out.buffer, out.offset * sizeof(float), size_mul(size_mul(rows, Hv * Dv), sizeof(float)));
+        span(*qkv.buffer, qkv.offset * sizeof(float), size_mul(size_mul(rows, C), sizeof(float)));
+        for (const CSlice& g : {alpha, b}) span(*g.buffer, g.offset * sizeof(float), size_mul(size_mul(rows, Hv), sizeof(float)));
+        for (const CSlice& g : {a, dt_bias}) span(*g.buffer, g.offset * sizeof(float), size_mul(Hv, sizeof(float)));
+        const size_t blocks = (Dv + 31) / 32, grid = size_mul(size_mul(n_views, Hv), blocks);
+        if (grid > INT32_MAX || C > UINT32_MAX) throw std::runtime_error("rocm: a delta rule past the launch's grid");
+        float* o = f32(out);
+        const float* u = f32(qkv);
+        const float* al = f32(alpha);
+        const float* bp = f32(b);
+        const float* ap = f32(a);
+        const float* dt = f32(dt_bias);
+        float* st = f32(Slice{&ss.layer(layer), 0});
+        const unsigned* tp = (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned));
+        unsigned cc = (unsigned)C, hk = (unsigned)Hk, hv = (unsigned)Hv, dk = (unsigned)Dk, dv = (unsigned)Dv, nb = (unsigned)blocks;
+        unsigned long long slot = ss.slot_floats(layer);
+        float scale = (float)(1.0 / std::sqrt((double)Dk)), eps = kL2NormEps;
+        void* args[] = {&o, &u, &al, &bp, &ap, &dt, &st, &tp, &cc, &hk, &hv, &dk, &dv, &slot, &nb, &scale, &eps};
+        launch(kGatedDeltaRule, (unsigned)grid, 1, args);
+    }
+    // Rows a conv thread walks, a chunk of a view; at least the three a window holds, so only a view's first chunk reads the rows it carries in.
+    static constexpr size_t kConvChunk = 16;
+    void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) override {
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        std::vector<unsigned> tab = state_table(views, n_views);
+        size_t chunks = 0;
+        for (size_t i = 0; i < n_views; ++i)
+            for (size_t b0 = 0; b0 < views[i].nq; b0 += kConvChunk, ++chunks) tab.insert(tab.end(), {(unsigned)i, (unsigned)b0});
+        const StateStorage& ss = *views[0].storage;
+        const StateShape& sh = ss.shape();
+        const size_t C = sh.channels();
+        for (const CSlice& v : {CSlice(out), x}) span(*v.buffer, v.offset * sizeof(float), size_mul(size_mul(rows, C), sizeof(float)));
+        span(*w.buffer, w.offset * sizeof(float), size_mul(size_mul(C, kConvTaps), sizeof(float)));
+        if (chunks > 65535 || C > UINT32_MAX) throw std::runtime_error("rocm: a conv past the launch's grid");
+        float* o = f32(out);
+        const float* xp = f32(x);
+        const float* wp = f32(w);
+        float* st = f32(Slice{&ss.layer(layer), 0});
+        const unsigned* tp = (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned));
+        unsigned cc = (unsigned)C, chunk = (unsigned)kConvChunk;
+        unsigned long long slot = ss.slot_floats(layer), carried = size_mul(sh.v_heads, sh.matrix_floats());
+        void* args[] = {&o, &xp, &wp, &st, &tp, &cc, &slot, &carried, &chunk};
+        launch(kCausalConvSilu, (unsigned)((C + kThreads - 1) / kThreads), (unsigned)chunks, args);
+    }
+    // The Flash-Next stream ops (kernels/f32.hip), plain F32 outputs whose products make their own twins; every refusal comes before any launch.
+    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns) override {
+        if (!groups || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("rocm: invalid grouped norm dimensions or epsilon");
+        if (!rows) return;
+        const size_t width = size_mul(groups, dim), n = size_mul(rows, width), blocks = size_mul(rows, groups);
+        for (const CSlice& v : {CSlice(dst), src}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*w.buffer, w.offset * sizeof(float), size_mul(width, sizeof(float)));
+        if (overlaps(dst, n, src, n) && !(dst.buffer == src.buffer && dst.offset == src.offset)) throw std::runtime_error("rocm: grouped norm output must be disjoint or exactly in place");
+        if (overlaps(dst, n, w, width)) throw std::runtime_error("rocm: grouped norm output overlaps its weights");
+        if (blocks > INT32_MAX || dim > UINT32_MAX) throw std::runtime_error("rocm: a grouped norm past the launch's grid");
+        float* d = f32(dst);
+        const float* s = f32(src);
+        const float* wp = f32(w);
+        unsigned g = (unsigned)groups, dm = (unsigned)dim;
+        void* args[] = {&d, &s, &wp, &g, &dm, &eps};
+        // Slices of a group, each repeating its reduction, up to what gives four blocks a compute unit (Vulkan's split, fc6f53415); one in place, where a slice's writes would meet another's reads.
+        const size_t fill = (4 * size_t(std::max(1u, dev_.caps.compute_units)) + blocks - 1) / blocks;
+        const size_t slices = dst.buffer == src.buffer && dst.offset == src.offset ? 1 : std::max<size_t>(1, std::min((dim + 1023) / 1024, fill));
+        launch(kGroupRmsNorm, (unsigned)blocks, (unsigned)slices, args);
+    }
+    void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns) override {
+        if (!width || !std::isfinite(scale)) throw std::runtime_error("rocm: invalid scaled SiLU dimensions or scale");
+        if (!rows) return;
+        const size_t n = size_mul(rows, width);
+        for (const CSlice& v : {CSlice(dst), src}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        if (overlaps(dst, n, src, n) && !(dst.buffer == src.buffer && dst.offset == src.offset)) throw std::runtime_error("rocm: scaled SiLU output must be disjoint or exactly in place");
+        float* d = f32(dst);
+        const float* s = f32(src);
+        unsigned long long nn = n;
+        void* args[] = {&d, &s, &nn, &scale};
+        launch(kSiluScaled, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+    }
+    void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim, RowRuns) override {
+        if (!streams || !dim) throw std::runtime_error("rocm: invalid stream mix dimensions");
+        if (!rows) return;
+        const size_t n = size_mul(rows, size_mul(streams, dim)), out_n = size_mul(rows, dim);
+        span(*dst.buffer, dst.offset * sizeof(float), size_mul(out_n, sizeof(float)));
+        for (const CSlice& v : {src, gate}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        if (overlaps(dst, out_n, src, n) || overlaps(dst, out_n, gate, n)) throw std::runtime_error("rocm: stream mix output must be disjoint from its inputs");
+        if (streams > UINT32_MAX || dim > UINT32_MAX) throw std::runtime_error("rocm: a stream mix past 32-bit streams or widths");
+        float* d = f32(dst);
+        const float* s = f32(src);
+        const float* g = f32(gate);
+        unsigned long long nn = out_n;
+        unsigned st = (unsigned)streams, dm = (unsigned)dim;
+        void* args[] = {&d, &s, &g, &nn, &st, &dm};
+        launch(kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
+    }
+    void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
+        if (!streams || !dim) throw std::runtime_error("rocm: invalid stream injection dimensions");
+        if (!rows) return;
+        const size_t n = size_mul(rows, size_mul(streams, dim)), bn = size_mul(rows, dim), gn = size_mul(rows, streams);
+        span(*dst.buffer, dst.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*block.buffer, block.offset * sizeof(float), size_mul(bn, sizeof(float)));
+        span(*gate.buffer, gate.offset * sizeof(float), size_mul(gn, sizeof(float)));
+        if (overlaps(dst, n, block, bn) || overlaps(dst, n, gate, gn) || overlaps(block, bn, gate, gn)) throw std::runtime_error("rocm: stream injection operands must be disjoint");
+        const size_t chunks = (dim + kThreads - 1) / kThreads;
+        if (gn > INT32_MAX / chunks || dim > UINT32_MAX) throw std::runtime_error("rocm: a stream injection past the launch's grid");
+        float* d = f32(dst);
+        const float* b = f32(block);
+        const float* g = f32(gate);
+        unsigned st = (unsigned)streams, dm = (unsigned)dim;
+        void* args[] = {&d, &b, &g, &st, &dm};
+        launch(kInjectStreams, (unsigned)(gn * chunks), 1, args);
+    }
+    void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim, RowRuns) override {
+        if (!groups || !dim) throw std::runtime_error("rocm: invalid signed square-root gate dimensions");
+        if (!rows) return;
+        const size_t n = size_mul(rows, size_mul(groups, dim)), vn = size_mul(rows, dim), blocks = size_mul(rows, groups);
+        for (const CSlice& v : {CSlice(dst), key, query}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*value.buffer, value.offset * sizeof(float), size_mul(vn, sizeof(float)));
+        if (overlaps(dst, n, key, n) || overlaps(dst, n, query, n) || overlaps(dst, n, value, vn)) throw std::runtime_error("rocm: signed square-root gate output must be disjoint from its inputs");
+        if (blocks > INT32_MAX || dim > UINT32_MAX) throw std::runtime_error("rocm: a signed square-root gate past the launch's grid");
+        float* d = f32(dst);
+        const float* k = f32(key);
+        const float* q = f32(query);
+        const float* v = f32(value);
+        unsigned g = (unsigned)groups, dm = (unsigned)dim;
+        float scale = 1.0f / std::sqrt(float(dim));
+        void* args[] = {&d, &k, &q, &v, &g, &dm, &scale};
+        launch(kSignedSqrtGate, (unsigned)blocks, 1, args);
+    }
+    // A thread a channel of a chunk of a view, chunks at least the history long so only a view's first chunk reads or leaves its carried rows (kernels/f32.hip).
+    void dilated_conv_silu_add(Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation, size_t layer, const StateView* views,
+                               size_t n_views) override {
+        if (!channels || !taps || !dilation) throw std::runtime_error("rocm: invalid dilated conv dimensions");
+        const size_t rows = check_state_views(views, n_views, layer);
+        if (!rows) return;
+        std::vector<unsigned> tab = state_table(views, n_views);
+        const StateStorage& ss = *views[0].storage;
+        const size_t history = size_mul(taps - 1, dilation), n = size_mul(rows, channels), wn = size_mul(channels, taps);
+        const size_t prefix = ss.shape().slot_floats(), slot = ss.slot_floats(layer);
+        if (slot < size_add(prefix, size_mul(history, channels))) throw std::runtime_error("rocm: recurrent slot lacks dilated conv history");
+        for (const CSlice& v : {CSlice(out), x, residual}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*w.buffer, w.offset * sizeof(float), size_mul(wn, sizeof(float)));
+        if ((overlaps(out, n, residual, n) && !(out.buffer == residual.buffer && out.offset == residual.offset)) || overlaps(out, n, x, n) || overlaps(out, n, w, wn))
+            throw std::runtime_error("rocm: dilated conv output may only alias the residual exactly");
+        const CSlice state{&ss.layer(layer), 0};
+        const size_t sn = ss.layer(layer).size() / sizeof(float);
+        if (overlaps(out, n, state, sn) || overlaps(x, n, state, sn) || overlaps(residual, n, state, sn) || overlaps(w, wn, state, sn))
+            throw std::runtime_error("rocm: dilated conv operand overlaps recurrent state storage");
+        const size_t chunk = std::max(kConvChunk, history);
+        size_t chunks = 0;
+        for (size_t i = 0; i < n_views; ++i)
+            for (size_t b0 = 0; b0 < views[i].nq; b0 += chunk, ++chunks) tab.insert(tab.end(), {(unsigned)i, (unsigned)b0});
+        if (chunks > 65535 || channels > UINT32_MAX || taps > UINT32_MAX || history > UINT32_MAX) throw std::runtime_error("rocm: a dilated conv past the launch's grid");
+        float* o = f32(out);
+        const float* xp = f32(x);
+        const float* rp = f32(residual);
+        const float* wp = f32(w);
+        float* st = f32(Slice{&ss.layer(layer), 0});
+        const unsigned* tp = (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned));
+        unsigned cc = (unsigned)channels, tt = (unsigned)taps, dl = (unsigned)dilation, hs = (unsigned)history, ch = (unsigned)chunk;
+        unsigned long long sl = slot, pf = prefix;
+        void* args[] = {&o, &xp, &rp, &wp, &st, &tp, &cc, &tt, &dl, &hs, &sl, &pf, &ch};
+        launch(kDilatedConvSiluAdd, (unsigned)((channels + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs) override {
         if (!n) return;
@@ -484,6 +755,49 @@ public:
         launch(twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
     }
+    // A row a block of 64, its reductions in one tree through shared memory (kernels/f32.hip, llmx_moe_route).
+    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
+        if (!k || k > n_expert || k > 256 || n_expert > 1024) throw std::runtime_error("rocm: routing takes 1 to 256 of at most 1024 experts");
+        if (!rows) return;
+        span(*scores.buffer, scores.offset * sizeof(float), size_mul(size_mul(rows, n_expert), sizeof(float)));
+        for (const Slice& s : {ids, weights}) span(*s.buffer, s.offset * sizeof(float), size_mul(size_mul(rows, k), sizeof(float)));
+        const float* sc = f32(scores);
+        float* id = f32(ids);
+        float* w = f32(weights);
+        unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
+        int norm = normalize;
+        void* args[] = {&sc, &id, &w, &ne, &kk, &norm};
+        launch(kMoeRoute, (unsigned)rows, 1, args, 1, 64);
+    }
+    void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) override {
+        const size_t entries = size_mul(nrows, routing.k);
+        if (projections.size() > 3) throw std::logic_error("rocm: more than three routed projections");
+        if (!entries || !projections.size()) return;
+        check_runs(nrows, runs);
+        span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nrows, nin), sizeof(float)));
+        routed_runs(projections.begin(), projections.size(), X, nin, nrows, routing, false, runs, dtype);
+    }
+    // The slots' products land in scratch, then each row's weighted sum in slot order joins Y (kernels/f32.hip, llmx_moe_combine).
+    void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) override {
+        const size_t k = routing.k, entries = size_mul(nrows, k);
+        if (!entries || !nout) return;
+        check_runs(nrows, runs);
+        span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(entries, nin), sizeof(float)));
+        span(*Y.buffer, Y.offset * sizeof(float), size_mul(size_mul(nrows, nout), sizeof(float)));
+        span(*routing.weights.buffer, routing.weights.offset * sizeof(float), size_mul(entries, sizeof(float)));
+        const size_t out_bytes = size_mul(size_mul(entries, nout), sizeof(float));
+        if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
+        const Projection one{weight, Slice{moe_out_.get(), 0}, nout};
+        routed_runs(&one, 1, X, nin, nrows, routing, true, runs, dtype);
+        float* y = f32(Y);
+        const float* part = (const float*)as_rocm(*moe_out_).data();
+        const float* w = f32(routing.weights);
+        const float* id = f32(routing.ids);
+        unsigned long long nr = nrows, no = nout;
+        unsigned kk = (unsigned)k;
+        void* args[] = {&y, &part, &w, &id, &nr, &no, &kk};
+        launch(kMoeCombine, (unsigned)((nrows * nout + kThreads - 1) / kThreads), 1, args);
+    }
     void add(Slice dst, CSlice src, size_t n) override {
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), src}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
@@ -499,20 +813,23 @@ public:
                                         const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0) throw std::runtime_error("rocm: invalid KV storage shape");
         if (head_dim > kThreads) throw std::runtime_error("rocm: a KV head wider than " + std::to_string(kThreads) + " is not implemented");
-        for (size_t w : auxiliary_widths)
-            if (w) throw std::runtime_error("rocm: auxiliary KV rows are not implemented");
         return std::make_unique<RocmKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k, CSlice v, CSlice auxiliary) override {
         if (n_views && !views) throw std::runtime_error("rocm: KV write without views");
-        if (auxiliary.buffer) throw std::runtime_error("rocm: auxiliary KV rows are not implemented");
-        if (!n_views) return;
+        if (!n_views) {
+            if (auxiliary.buffer) throw std::runtime_error("rocm: auxiliary KV rows supplied without views");
+            return;
+        }
         const KvTargets t = kv_targets(layer, views, n_views);
-        if (!t.rows) return;
         RocmKVStorage& s = *t.s;
         const size_t floats = size_mul(size_mul(t.rows, s.heads()), s.dim());
         span(*k.buffer, k.offset * sizeof(float), size_mul(floats, sizeof(float)));
         span(*v.buffer, v.offset * sizeof(float), size_mul(floats, sizeof(float)));
+        // A layer's auxiliary rows go into its own plane of the same blocks, token-major, through the shared storage's copies (BlockKVStorage::write_aux).
+        s.validate_auxiliary(layer, auxiliary, t.rows);
+        if (!t.rows) return;
+        s.write_aux(layer, views, n_views, auxiliary);
         void* kc = t.kc;
         void* vc = t.vc;
         const float* kp = f32(k);
@@ -626,14 +943,14 @@ public:
         }
         float* pp = (float*)as_rocm(*parts_).data();
         // Rows of the tile kernel's views were answered above, and every kernel below skips them by their end of 0.
-        // Heads 128 wide take the per-row kernel, its splits chunks of each row's length, as many as the longest row needs (a shorter row's extra splits are empty), within the profile's limit.
-        if (narrow && head_dim == 128) {
+        // Heads 128 and 256 wide take the per-row kernel, its splits chunks of each row's length, as many as the longest row needs (a shorter row's extra splits are empty), within the profile's limit for the width.
+        if (narrow && (head_dim == 128 || head_dim == 256)) {
             const DeviceProfile& prof = dev_.profile;
             int longest = 0;
             for (int32_t e : ends) longest = std::max(longest, e);
-            int chunk = (int)prof.attention_split_chunk, max_parts = (int)prof.attention_split_max;
+            int chunk = (int)prof.attention_split_chunk, max_parts = (int)(head_dim == 256 ? prof.attention_split_max_wide : prof.attention_split_max);
             int nsplit = std::min(max_parts, std::max(1, (longest + chunk - 1) / chunk));
-            const size_t vneed = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul(130, sizeof(float)));
+            const size_t vneed = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul((size_t)head_dim + 2, sizeof(float)));
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
@@ -644,10 +961,10 @@ public:
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
             void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp, &tq, &td,
                             nsplit > 1 ? &none : &tl, &map};
-            launch(twin_build(kAttentionVec, map), (unsigned)(rows * n_head * nsplit), 1, args);
+            launch(twin_build(head_dim == 256 ? kAttentionVec256 : kAttentionVec, map), (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
                 void* margs[] = {&vp, &o, &ep, &n_head, &nsplit, &tq, &td, &tl, &map};
-                launch(twin_build(kAttentionVecMerge, map), (unsigned)(rows * n_head), 1, margs);
+                launch(twin_build(head_dim == 256 ? kAttentionVecMerge256 : kAttentionVecMerge, map), (unsigned)(rows * n_head), 1, margs);
             }
             keep(t, o, floats);
             return;
@@ -662,31 +979,257 @@ public:
         launch(kAttentionMerge, (unsigned)rows, (unsigned)n_head, merge);
     }
 
+    // Attention over each row's selected ids through the dense bodies' sparse builds, per-row for heads 128 and 256 wide and chunked otherwise.
+    // A row's splits follow the id stride alone, never the call.
+    void sparse_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv,
+                          int head_dim) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("rocm: sparse attention without views");
+        if (!id_stride || id_stride > (size_t)INT32_MAX || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || head_dim > (int)kThreads)
+            throw std::runtime_error("rocm: invalid sparse attention dimensions");
+        RocmKVStorage& s = storage(views[0]);
+        if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error("rocm: sparse attention outside the KV view");
+        std::vector<int32_t> table, firsts, ends;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& view = views[vi];
+            if (!view.nq) throw std::runtime_error("rocm: invalid sparse attention dimensions");
+            if (&storage(view) != &s) throw std::runtime_error("rocm: sparse attention over views of different storages");
+            const size_t used = s.check_view(view, layer, false);
+            const int32_t first = (int32_t)table.size();
+            table.insert(table.end(), view.blocks, view.blocks + used);
+            for (size_t b = 0; b < view.nq; ++b) {
+                firsts.push_back(first);
+                ends.push_back((int32_t)(view.length + b + 1));
+            }
+        }
+        const size_t rows = firsts.size(), floats = size_mul(size_mul(rows, (size_t)n_head), (size_t)head_dim), selected = size_mul(rows, id_stride);
+        if (!Q.buffer || !ids.buffer || !out.buffer) throw std::runtime_error("rocm: operand without storage");
+        span(*Q.buffer, Q.offset * sizeof(float), size_mul(floats, sizeof(float)));
+        span(*ids.buffer, ids.offset * sizeof(float), size_mul(selected, sizeof(uint32_t)));
+        span(*out.buffer, out.offset * sizeof(float), size_mul(floats, sizeof(float)));
+        if (overlaps(out, floats, Q, floats) || overlaps(out, floats, ids, selected) || out.buffer == s.k_buffer(layer).get() ||
+            out.buffer == s.v_buffer(layer).get() || out.buffer == s.auxiliary_buffer(layer).get())
+            throw std::runtime_error("rocm: sparse attention output overlaps an input");
+        const float* q = f32(Q);
+        float* o = f32(out);
+        const unsigned* idp = (const unsigned*)f32(ids);
+        const void* kc = as_rocm(*s.k_buffer(layer)).data();
+        const void* vc = as_rocm(*s.v_buffer(layer)).data();
+        const size_t nt = table.size();
+        table.insert(table.end(), firsts.begin(), firsts.end());
+        table.insert(table.end(), ends.begin(), ends.end());
+        const int* tp = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
+        const int* fp = tp + nt;
+        const int* ep = fp + rows;
+        int ratio = n_head / n_head_kv, bt = (int)kBlockTokens, kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16, stride = (int)id_stride;
+        float scale = 1.0f / std::sqrt((float)head_dim);
+        if (head_dim == 128 || head_dim == 256) {
+            size_t ids_per = dev_.profile.sparse_split_ids;
+            while ((id_stride + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
+            int chunk = (int)ids_per, nsplit = (int)((id_stride + ids_per - 1) / ids_per);
+            const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul((size_t)head_dim + 2, sizeof(float)));
+            if (nsplit > 1 && (!parts_ || parts_->size() < need)) parts_ = alloc(need, Memory::device);
+            float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
+            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &vp, &idp, &stride};
+            launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
+            if (nsplit > 1) {
+                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit};
+                launch(head_dim == 256 ? kSparseVecMerge256 : kSparseVecMerge, (unsigned)(rows * n_head), 1, margs);
+            }
+            return;
+        }
+        const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
+        if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
+        float* pp = (float*)as_rocm(*parts_).data();
+        void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale, &idp, &stride};
+        launch(kSparseChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
+        void* margs[] = {&pp, &o, &ep, &n_head, &head_dim, &stride};
+        launch(kSparseMerge, (unsigned)rows, (unsigned)n_head, margs);
+    }
+
+    // The indexer in Vulkan's design: each view's groups pooled, then at most 16 rows at once scored and selected (docs/src/backends-rocm.md).
+    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin, const GroupPositions& positions) override {
+        if (!n_views) return;
+        const IndexCall c = index_call(layer, views, n_views, index, key_norm, cos, sin, positions, false);
+        for (size_t vi = 0; vi < n_views; ++vi) pool_view(c, views[vi], vi, index);
+    }
+    void select_kv(CSlice query, size_t layer, const KVView* views, size_t n_views, Slice ids, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin,
+                   const GroupPositions& positions) override {
+        if (!n_views) return;
+        const IndexCall c = index_call(layer, views, n_views, index, key_norm, cos, sin, positions, true);
+        if (!c.rows) return;
+        const size_t width = size_mul(index.heads, index.dim), stride = size_add(index.budget, index.compression - 1);
+        const size_t queries = size_mul(c.rows, width), outputs = size_mul(c.rows, stride);
+        span(*query.buffer, query.offset * sizeof(float), size_mul(queries, sizeof(float)));
+        if (!ids.buffer) throw std::runtime_error("rocm: operand without storage");
+        span(*ids.buffer, ids.offset * sizeof(float), size_mul(outputs, sizeof(uint32_t)));
+        if (overlaps(ids, outputs, query, queries) || overlaps(ids, outputs, key_norm, index.dim) || overlaps(ids, outputs, cos, c.rope_values) ||
+            overlaps(ids, outputs, sin, c.rope_values))
+            throw std::runtime_error("rocm: index selection output overlaps an input");
+        if (ids.buffer == c.s->auxiliary_buffer(layer).get() || ids.buffer == c.s->k_buffer(layer).get() || ids.buffer == c.s->v_buffer(layer).get())
+            throw std::runtime_error("rocm: index selection output overlaps KV storage");
+        // The scores of 16 rows at most, bounded by the call's longest view and never by its rows.
+        const size_t score_bytes = size_mul(size_mul(std::min<size_t>(c.max_rows, kSelectRows), c.longest / index.compression), sizeof(float));
+        if (score_bytes && (!scores_ || scores_->size() < score_bytes)) scores_ = alloc(score_bytes, Memory::device);
+        const float* q = f32(query);
+        unsigned* out = (unsigned*)f32(ids);
+        float* sc = score_bytes ? f32(Slice{scores_.get(), 0}) : nullptr;
+        unsigned heads = u32(index.heads), dim = u32(index.dim), compression = u32(index.compression), budget = u32(index.budget), ostride = u32(stride), bt = (unsigned)kBlockTokens;
+        float* aux = c.aux;
+        unsigned long long block_floats = c.block_floats;
+        unsigned rows_floats = c.rows_floats;
+        float scale = 1.0f / std::sqrt((float)index.dim);
+        // The wide form's state for the call's most slices, made before the first launch and zeroed as it is made (alloc); each call's emission clears its histograms.
+        size_t most_slices = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const size_t count = (views[vi].length + views[vi].nq) / index.compression;
+            if (views[vi].nq && count >= dev_.profile.select_wide_from) most_slices = std::max(most_slices, (count + kSelectSlice - 1) / kSelectSlice);
+        }
+        const size_t words = size_add(kSelectRows * kSelectRowWords, size_mul(size_mul(kSelectRows, most_slices), 2));
+        if (most_slices && (!select_state_ || select_state_->size() < words * sizeof(uint32_t))) select_state_ = alloc(words * sizeof(uint32_t), Memory::device);
+        unsigned* state = most_slices ? (unsigned*)f32(Slice{select_state_.get(), 0}) : nullptr;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const KVView& v = views[vi];
+            if (!v.nq) continue;
+            pool_view(c, v, vi, index);
+            const size_t count = (v.length + v.nq) / index.compression;
+            const bool wide = count >= dev_.profile.select_wide_from;
+            unsigned groups = u32(count), slices = u32((count + kSelectSlice - 1) / kSelectSlice);
+            const int* blocks = c.blocks + c.first[vi];
+            for (size_t row = 0; row < v.nq; row += kSelectRows) {
+                const size_t rows = std::min<size_t>(kSelectRows, v.nq - row);
+                const float* qr = q + (c.row0[vi] + row) * width;
+                unsigned* o = out + (c.row0[vi] + row) * stride;
+                unsigned hist = u32(v.length + row);
+                if (count) {
+                    void* sargs[] = {&qr, &aux, &sc, &blocks, &hist, &groups, &heads, &dim, &compression, &bt, &block_floats, &rows_floats, &scale};
+                    launch(kKvIndexScores, u32((count + 7) / 8), (unsigned)rows, sargs);
+                }
+                if (!wide) {
+                    void* args[] = {&sc, &o, &hist, &groups, &compression, &budget, &ostride};
+                    launch(kKvIndexSelect, (unsigned)rows, 1, args);
+                    continue;
+                }
+                for (unsigned stage = 0; stage < 5; ++stage) {
+                    void* args[] = {&sc, &o, &state, &hist, &groups, &compression, &budget, &ostride, &stage, &slices};
+                    launch(kKvIndexSelectWide, slices, (unsigned)rows, args);
+                }
+            }
+        }
+    }
+
+    DeviceProfile& profile() { return dev_.profile; }
+
+    // The kernels launched since the last reading, by name, and their counts.
+    std::map<std::string, size_t> take_launches() {
+        std::map<std::string, size_t> m;
+        for (size_t k = 0; k < kKernels; ++k)
+            if (launched_[k]) m[kKernelNames[k]] = launched_[k];
+        std::fill(std::begin(launched_), std::end(launched_), size_t(0));
+        return m;
+    }
 
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
-                  kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
+                  kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
+                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulIQ4NL, kGatherIQ4NL, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
+                  kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
+                  kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kKernels };
+                  kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
+                  kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
+                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
-                                                           "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
+                                                           "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_matmul_q4_k", "llmx_gather_q4_k",
+                                                           "llmx_matmul_q5_k", "llmx_gather_q5_k", "llmx_matmul_q6_k", "llmx_gather_q6_k", "llmx_matmul_q5_0",
+                                                           "llmx_gather_q5_0", "llmx_matmul_q5_1", "llmx_gather_q5_1", "llmx_matmul_bf16", "llmx_gather_bf16",
+                                                           "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_kv_write",
                                                            "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
                                                            "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1",
                                                            "llmx_q8_0_half8_2", "llmx_q8_0_half8_2_r4", "llmx_q8_0_half8_4", "llmx_q8_0_half8_4_r4", "llmx_q8_0_half8_8",
-                                                           "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall"};
+                                                           "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8",
+                                                           "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
+                                                           "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
+                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8"};
+    // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
+    // kKernels marks a build the type lacks.
+    struct TwinKernels {
+        Kernel two[3][5];
+        size_t two_rows[3][5];
+        Kernel four[3][5];
+        Kernel tile[2], tall[2];
+        Kernel routed[3];
+        Kernel grouped[3][3];
+        Kernel routed_tile[2], routed_narrow[2];
+        float group_from[2];
+        size_t tile_from[2][2];
+    };
+    static constexpr TwinKernels kQ8Twins = {{{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
+                                          {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
+                                          {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}},
+                                         {{2, 2, 2, 2, 2}, {2, 2, 2, 2, 4}, {1, 2, 2, 2, 4}},
+                                         {{kKernels, kRows16x2r4, kRows16x4r4, kRows16x8r4, kKernels},
+                                          {kKernels, kRows8x2r4, kRows8x4r4, kRows8x8r4, kKernels},
+                                          {kKernels, kHalf8x2r4, kHalf8x4r4, kHalf8x8r4, kKernels}},
+                                         {kTile16, kTile8},
+                                         {kTile16Tall, kTile8Tall},
+                                         {kRouted16, kRouted8, kRoutedHalf8},
+                                         {{kGrouped16x2, kGrouped16x4, kGrouped16x8}, {kGrouped8x2, kGrouped8x4, kGrouped8x8}, {kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8}},
+                                         {kRoutedTile16, kRoutedTile8},
+                                         {kRoutedNarrow16, kRoutedNarrow8},
+                                         {0.0f, 0.0f},
+                                         {{32, 32}, {32, 32}}};
+    // A K-type's twins from its first kernel, its set in LLMX_KTYPE's order (kernels/int16.hip), which the static_assert below holds.
+    static constexpr auto k_twins = [](Kernel first, float group_from16, float group_from8, size_t up_from16, size_t up_from8, size_t down_from16, size_t down_from8) {
+        const auto k = [first](int i) { return static_cast<Kernel>(first + i); };
+        return TwinKernels{{{k(0), k(1), k(2), k(3), k(4)}, {k(5), k(6), k(7), k(8), k(9)}, {k(5), k(6), k(7), k(8), k(9)}},
+                {{2, 2, 2, 2, 2}, {2, 2, 2, 2, 2}, {2, 2, 2, 2, 2}},
+                {{kKernels, kKernels, kKernels, kKernels, kKernels}, {kKernels, kKernels, kKernels, kKernels, kKernels}, {kKernels, kKernels, kKernels, kKernels, kKernels}},
+                {k(10), k(11)},
+                {kKernels, kKernels},
+                {k(12), k(13), k(13)},
+                {{k(14), k(15), k(16)}, {k(17), k(18), k(19)}, {k(17), k(18), k(19)}},
+                {k(20), k(21)},
+                {k(22), k(23)},
+                {group_from16, group_from8},
+                {{up_from16, up_from8}, {down_from16, down_from8}}};
+    };
+    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 0.0f, 0.0f, 128, 32, 32, 32), kQ5KTwins = k_twins(kRowsQ5K16x1, 0.5f, 0.125f, 128, 32, 32, 32), kQ6KTwins = k_twins(kRowsQ6K16x1, 0.25f, 0.0f, 128, 32, 32, 32);
+    static constexpr TwinKernels kQ50Twins = k_twins(kRowsQ5016x1, 0.0f, 0.0f, 128, 32, 32, 32), kQ51Twins = k_twins(kRowsQ5116x1, 0.0f, 0.0f, 128, 32, 32, 32), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.0f, 0.0f, 32, 32, 32, 32);
+    static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8, "a K-type's kernels follow LLMX_KTYPE's order");
+    // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, its embedding, its routed exact product and its twin kernels.
+    // A type without twins takes its exact product in every class.
+    struct TypeKernels {
+        uint32_t type;
+        const char* name;
+        Kernel exact, embed, routed;
+        const TwinKernels* twin;
+    };
+    static constexpr TypeKernels kTypes[] = {
+        {quant::GGML_TYPE_F32, "F32", kMatmul, kGather, kRoutedExactF32, nullptr},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins},
+        {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins},
+        {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins},
+        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kGatherBF16, kRoutedExactBF16, nullptr},
+        {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins},
+    };
+    static const TypeKernels* type_kernels(uint32_t type) {
+        for (const TypeKernels& t : kTypes)
+            if (t.type == type) return &t;
+        return nullptr;
+    }
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
@@ -729,6 +1272,91 @@ private:
         size_t slot = 0, lap = 0;
     };
     static constexpr size_t kUploads = 8;   // sets kept for a later layer to find: attention's, the KV write's and the positions, of a pass and the one before
+
+    // A 32-bit kernel argument, refused past it.
+    static unsigned u32(size_t v) {
+        if (v > UINT32_MAX) throw std::runtime_error("rocm: a value past 32 bits");
+        return (unsigned)v;
+    }
+    // An indexer call's views on one storage, checked as the CPU and Vulkan check them before any launch: their blocks in device memory, each view's first block and first row, and the group positions.
+    struct IndexCall {
+        RocmKVStorage* s = nullptr;
+        float* aux = nullptr;
+        const float *w = nullptr, *cs = nullptr, *sn = nullptr;
+        const int* blocks = nullptr;
+        const unsigned* gpos = nullptr;
+        const unsigned char* of = nullptr;
+        unsigned streams = 0;
+        std::vector<size_t> first, row0, gpos_at;
+        size_t rows = 0, longest = 0, max_rows = 0, rope_values = 0;
+        unsigned long long block_floats = 0;
+        unsigned rows_floats = 0;
+    };
+    IndexCall index_call(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin, const GroupPositions& positions,
+                         bool selecting) {
+        if (!views) throw std::runtime_error("rocm: index op without views");
+        if (!index.dim || index.dim > kThreads || !index.rope_dim || index.rope_dim % 2 || index.rope_dim > index.dim || !index.compression || !std::isfinite(index.eps) ||
+            index.eps <= 0 || (selecting && (!index.heads || !index.budget || index.budget % index.compression)))
+            throw std::runtime_error("rocm: invalid index dimensions");
+        if (positions.pos && (!positions.streams.count || (positions.streams.count > 1 && !positions.streams.of)))
+            throw std::runtime_error("rocm: invalid group position streams");
+        IndexCall c;
+        c.s = &storage(views[0]);
+        std::vector<int32_t> table;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            if (&storage(views[vi]) != c.s) throw std::runtime_error("rocm: index op over views of different storages");
+            const size_t used = c.s->check_view(views[vi], layer, false), visible = size_add(views[vi].length, views[vi].nq);
+            u32(visible);
+            c.first.push_back(table.size());
+            c.row0.push_back(c.rows);
+            c.gpos_at.push_back(vi ? c.gpos_at.back() + ((views[vi - 1].length + views[vi - 1].nq) / index.compression - views[vi - 1].length / index.compression) * positions.streams.count : 0);
+            table.insert(table.end(), views[vi].blocks, views[vi].blocks + used);
+            c.rows = size_add(c.rows, views[vi].nq);
+            c.longest = std::max(c.longest, visible);
+            c.max_rows = std::max(c.max_rows, views[vi].nq);
+        }
+        if (c.s->auxiliary_width(layer) != index.dim || c.s->auxiliary_pool(layer) != index.compression)
+            throw std::runtime_error("rocm: index op differs from the rows and groups its auxiliary blocks keep");
+        const auto& auxiliary = c.s->auxiliary_buffer(layer);
+        if (!auxiliary) throw std::runtime_error("rocm: index op without auxiliary key storage");
+        c.rope_values = size_mul(c.longest, index.rope_dim / 2);
+        for (const auto& [sl, count] : {std::pair<CSlice, size_t>{key_norm, index.dim}, {cos, c.rope_values}, {sin, c.rope_values}}) {
+            if (!sl.buffer) throw std::runtime_error("rocm: operand without storage");
+            span(*sl.buffer, sl.offset * sizeof(float), size_mul(count, sizeof(float)));
+        }
+        c.aux = f32(Slice{auxiliary.get(), 0});
+        c.w = f32(key_norm);
+        c.cs = f32(cos);
+        c.sn = f32(sin);
+        c.block_floats = c.s->auxiliary_block_bytes(layer) / sizeof(float);
+        c.rows_floats = u32(c.s->auxiliary_rows_bytes(layer) / sizeof(float));
+        c.blocks = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
+        if (positions.pos) {
+            const size_t n = c.gpos_at.back() + ((views[n_views - 1].length + views[n_views - 1].nq) / index.compression - views[n_views - 1].length / index.compression) *
+                                                    positions.streams.count;
+            c.streams = u32(positions.streams.count);
+            c.gpos = (const unsigned*)pass_arg(positions.pos, n * sizeof(uint32_t));
+            if (c.streams > 1) c.of = (const unsigned char*)pass_arg(positions.streams.of, index.rope_dim / 2);
+        }
+        return c;
+    }
+    // The groups view vi's rows complete, pooled into their rows of the auxiliary blocks (kernels/f32.hip, llmx_kv_index_pool).
+    void pool_view(const IndexCall& c, const KVView& v, size_t vi, const IndexArgs& index) {
+        const size_t done = v.length / index.compression, count = (v.length + v.nq) / index.compression;
+        if (count <= done) return;
+        float* aux = c.aux;
+        const float *w = c.w, *cs = c.cs, *sn = c.sn;
+        const int* blocks = c.blocks + c.first[vi];
+        const unsigned* gpos = c.gpos ? c.gpos + c.gpos_at[vi] : nullptr;
+        const unsigned char* of = c.of;
+        unsigned first = u32(done), base = u32(done), dim = u32(index.dim), half = u32(index.rope_dim / 2), compression = u32(index.compression), bt = (unsigned)kBlockTokens;
+        unsigned rows_floats = c.rows_floats, streams = c.streams;
+        unsigned long long block_floats = c.block_floats;
+        float eps = index.eps;
+        void* args[] = {&aux, &w, &cs, &sn, &blocks, &gpos, &of, &first, &base, &dim, &half, &compression, &bt, &block_floats, &rows_floats, &eps, &streams};
+        launch(kKvIndexPool, u32(count - done), 1, args);
+    }
+    static constexpr size_t kSelectRows = 16, kSelectSlice = 1024, kSelectRowWords = 5122;   // a selection's rows at most and the wide form's slice and state a row (kernels/f32.hip)
 
     // Where a write's rows land: each row's KV block and token slot, read by the kernels from the argument ring.
     struct KvTargets {
@@ -793,24 +1421,28 @@ private:
     static float* f32(Slice s) { return (float*)as_rocm(*s.buffer).data() + s.offset; }
     static const float* f32(CSlice s) { return (const float*)as_rocm(*s.buffer).data() + s.offset; }
     static const uint8_t* bytes(CSlice s) { return (const uint8_t*)as_rocm(*s.buffer).data() + s.offset * sizeof(float); }
-    // The weights the products and the embedding read: F32, and Q8_0 decoded exactly into F32 sums, in whole blocks and without scales.
-    static void check_weight(const WeightView& w, size_t nin, const char* what) {
-        if (w.type != quant::GGML_TYPE_F32 && w.type != quant::GGML_TYPE_Q8_0)
-            throw std::runtime_error(std::string("rocm: an ") + what + " of type " + std::to_string(w.type) + " is not implemented");
+    // The weights the products and the embedding read: the types of kTypes, decoded exactly into F32 sums, in whole blocks and without scales.
+    static const TypeKernels& check_weight(const WeightView& w, size_t nin, const char* what) {
+        const TypeKernels* t = type_kernels(w.type);
+        if (!t) throw std::runtime_error(std::string("rocm: an ") + what + " of type " + std::to_string(w.type) + " is not implemented");
         if (w.scales.buffer) throw std::runtime_error(std::string("rocm: a scaled ") + what + " is not implemented");
         if (!w.data.buffer) throw std::runtime_error(std::string("rocm: an ") + what + " without storage");
-        if (w.type == quant::GGML_TYPE_Q8_0 && nin % 32) throw std::runtime_error(std::string("rocm: a Q8_0 ") + what + " row ends inside a block");
+        if (nin % quant::storage_type(w.type)->block_size) throw std::runtime_error(std::string("rocm: a ") + t->name + " " + what + " row ends inside a block");
+        return *t;
     }
     RocmKVStorage& storage(const KVView& v) {
         auto* s = dynamic_cast<RocmKVStorage*>(v.storage);
         if (!s) throw std::runtime_error("rocm: a KV view of another backend");
         return *s;
     }
-    // A Q8_0 product outside the F32 class reads the block-int16 twin; F32 weights and the F32 class read the activations as they are.
-    static bool integer(const WeightView& weight, Dtype dtype) { return weight.type == quant::GGML_TYPE_Q8_0 && dtype != Dtype::f32; }
+    // A product of a type with twins outside the F32 class reads the activations' twin; every other product reads the activations as they are.
+    static bool integer(const WeightView& weight, Dtype dtype) {
+        const TypeKernels* t = type_kernels(weight.type);
+        return t && t->twin && dtype != Dtype::f32;
+    }
     void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, Dtype dtype,
                  bool twin) {
-        check_weight(weight, nin, "matrix");
+        const TypeKernels& kinds = check_weight(weight, nin, "matrix");
         if (!nin || !nout || !nbatch) return;
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nout));
         span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
@@ -826,7 +1458,7 @@ private:
         }
         if (integer(weight, dtype)) {
             const Proj one[1] = {{bytes(weight.data), f32(Y), nout}};
-            return product_twin(one, 1, X, nin, nbatch, accumulate, runs, twin, dtype == Dtype::int8);
+            return product_twin(*kinds.twin, one, 1, X, nin, nbatch, accumulate, runs, twin, dtype == Dtype::int8);
         }
         const uint8_t* w = bytes(weight.data);
         const float* x = f32(X);
@@ -834,7 +1466,7 @@ private:
         unsigned long long ni = nin, no = nout;
         int add = accumulate;
         void* args[] = {&w, &x, &y, &ni, &no, &add};
-        launch(weight.type == quant::GGML_TYPE_Q8_0 ? kMatmulQ8 : kMatmul, (unsigned)nout, (unsigned)nbatch, args);
+        launch(kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
     }
@@ -859,6 +1491,13 @@ private:
     };
     static_assert(sizeof(TileCall) == 136 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120 && offsetof(TileCall, xblock) == 132,
                   "TileCall is the kernel's layout");
+    // The host's copy of a routed tile call's groups (kernels/int16.hip, TileGroups), field for field.
+    struct TileGroups {
+        const unsigned* tab;
+        unsigned long long order0, per, first;
+        unsigned long long stride[3];
+    };
+    static_assert(sizeof(TileGroups) == 56 && offsetof(TileGroups, stride) == 32, "TileGroups is the kernel's layout");
     // The host's copy of the twin's layout (kernels/f32.hip, TwinMap), field for field.
     struct TwinMap {
         static constexpr unsigned kRegions = 8;
@@ -937,6 +1576,150 @@ private:
         unsigned nproj;
     };
     static_assert(sizeof(RowCall) == 112 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 104, "RowCall is the kernel's layout");
+    // The host's copies of the routed calls (kernels/int16.hip, RoutedCall, and kernels/f32.hip, RoutedExact), field for field.
+    struct RoutedCall {
+        RowCall c;
+        unsigned long long stride[3];
+        const unsigned* ids;
+        unsigned long long first, per, n_expert;
+    };
+    static_assert(sizeof(RoutedCall) == 168 && offsetof(RoutedCall, ids) == 136 && offsetof(RoutedCall, n_expert) == 160, "RoutedCall is the kernel's layout");
+    struct RoutedExact {
+        const unsigned* ids;
+        unsigned long long first, per, n_expert, expert_bytes;
+    };
+    static_assert(sizeof(RoutedExact) == 40 && offsetof(RoutedExact, expert_bytes) == 32, "RoutedExact is the kernel's layout");
+    // A call's runs must be in order and end at its rows, as matmul's are, though the routed products read no extent.
+    static void check_runs(size_t rows, RowRuns runs) {
+        if (runs.n) for_each_run(rows, runs, [](const RowRun&) { return 0; }, [](size_t, size_t, int) {});
+    }
+    // A routed call's `nrows` token rows, k entries each, in stretches by kernel: prompt rows from the role's `tile_from` on the routed tile, the rest on the row builds.
+    // X holds a row a token, or for the down a row an entry.
+    void routed_runs(const Projection* proj, size_t nproj, CSlice X, size_t nin, size_t nrows, const Routing& routing, bool down, RowRuns runs, Dtype dtype) {
+        const size_t k = routing.k, per = down ? 1 : k;
+        const auto stretch = [&](size_t first, size_t count, bool tile) {
+            Projection at[3];
+            for (size_t p = 0; p < nproj; ++p) at[p] = {proj[p].weight, {proj[p].out.buffer, proj[p].out.offset + first * k * proj[p].rows}, proj[p].rows};
+            const Routing r{{routing.ids.buffer, routing.ids.offset + first * k}, routing.weights, k, routing.n_expert};
+            const size_t xfirst = per == 1 ? first * k : first, xrows = per == 1 ? count * k : count;
+            routed(at, nproj, {X.buffer, X.offset + xfirst * nin}, nin, xrows, count * k, r, per, dtype, tile);
+        };
+        if (!runs.n) return stretch(0, nrows, false);
+        const TypeKernels* kinds = type_kernels(proj[0].weight.type);
+        const size_t from = kinds && kinds->twin && integer(proj[0].weight, dtype) ? kinds->twin->tile_from[down][dtype == Dtype::int8] : SIZE_MAX;
+        for_each_run(nrows, runs, [from](const RowRun& r) { return r.extent >= from; }, stretch);
+    }
+    void routed(const Projection* proj, size_t nproj, CSlice X, size_t nin, size_t xrows, size_t entries, const Routing& routing, size_t per, Dtype dtype, bool tile) {
+        const uint32_t type = proj[0].weight.type;
+        const TypeKernels& kinds = check_weight(proj[0].weight, nin, "expert matrix");
+        span(*routing.ids.buffer, routing.ids.offset * sizeof(float), size_mul(entries, sizeof(float)));
+        for (size_t p = 0; p < nproj; ++p) {
+            if (proj[p].weight.type != type) throw std::runtime_error("rocm: routed projections of different types");
+            check_weight(proj[p].weight, nin, "expert matrix");
+            span(*proj[p].weight.data.buffer, proj[p].weight.data.offset * sizeof(float), quant::row_bytes(type, nin, size_mul(routing.n_expert, proj[p].rows)));
+            span(*proj[p].out.buffer, proj[p].out.offset * sizeof(float), size_mul(size_mul(entries, proj[p].rows), sizeof(float)));
+            if (as_rocm(*proj[p].out.buffer).host_ptr()) throw std::runtime_error("rocm: a routed product into host memory");
+        }
+        const unsigned* ids = (const unsigned*)f32(routing.ids);
+        constexpr size_t kGridY = 65535, kGroupExperts = 1024;   // HIP's grid height; the experts llmx_moe_group counts in shared memory
+        unsigned long long ni = nin;
+        if (integer(proj[0].weight, dtype)) {
+            const bool int8 = dtype == Dtype::int8;
+            const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
+            auto [q, d] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true);
+            RoutedCall c{};
+            for (size_t p = 0; p < nproj; ++p) {
+                c.c.w[p] = bytes(proj[p].weight.data);
+                c.c.y[p] = f32(proj[p].out);
+                c.c.nout[p] = proj[p].rows;
+                c.c.start[p] = c.c.total;
+                c.c.total += proj[p].rows;
+                c.stride[p] = quant::row_bytes(type, nin, proj[p].rows);
+            }
+            c.c.nproj = (unsigned)nproj;
+            c.ids = ids;
+            c.per = per;
+            c.n_expert = routing.n_expert;
+            if (tile && routing.n_expert <= kGroupExperts) {
+                // A prompt's entries in groups of up to 64 of one expert, each group a block row of the routed tile over its expert's rows (kernels/int16.hip, TileGroups); the tile never splits, so each entry's sums are its own.
+                const unsigned chunk = kTileRows, groups = (unsigned)((entries + chunk - 1) / chunk + std::min(routing.n_expert, entries));
+                const size_t tab_bytes = (4 * size_t(groups) + entries) * sizeof(unsigned);
+                if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
+                unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
+                unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert, ng = groups, ch = chunk;
+                void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &ng, &ch};
+                launch(kMoeGroup, nx, 1, gargs);
+                const size_t nblk = nin / 32;
+                if (nblk * kTileOut * 34 + 64 > 0xffffffffull || (xrows * nblk) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
+                    throw std::runtime_error("rocm: a routed tile's rows are too wide for its 32-bit offsets");
+                TileCall t{};
+                TileGroups tg{tab, 4ull * groups, per, 0, {}};
+                size_t gx = 0;
+                for (size_t p = 0; p < nproj; ++p) {
+                    t.w[p] = c.c.w[p];
+                    t.y[p] = c.c.y[p];
+                    t.nout[p] = proj[p].rows;
+                    t.start[p] = (unsigned)gx;
+                    gx += (proj[p].rows + kTileOut - 1) / kTileOut;
+                    tg.stride[p] = c.stride[p];
+                }
+                t.nproj = (unsigned)nproj;
+                t.nin = nin;
+                t.kper = (unsigned)nblk;
+                t.parts = 1;
+                t.xrow = (unsigned)nblk;
+                t.xblock = 1;
+                // Each group runs in one of the two builds, the narrow one where its entries fit its 16 rows; the other build's workgroups return at once.
+                for (const Kernel kernel : {kinds.twin->routed_tile[int8], kinds.twin->routed_narrow[int8]})
+                    for (size_t first = 0; first < groups; first += kGridY) {
+                        tg.first = first;
+                        void* args[] = {&t, &tg, &q, &d};
+                        launch(kernel, (unsigned)gx, (unsigned)std::min<size_t>(kGridY, groups - first), args);
+                    }
+            } else if (entries && double(entries) >= double(kinds.twin->group_from[int8]) * double(routing.n_expert) && routing.n_expert <= kGroupExperts) {
+                // One expert's entries a group of the narrowest grouped build that holds their average, up to 8, each column the bits of its one-column product.
+                const size_t touched = std::min(routing.n_expert, entries), average = (entries + touched - 1) / touched;
+                const int width = average <= 2 ? 0 : average <= 4 ? 1 : 2;
+                unsigned chunk = 2u << width, groups = (unsigned)((entries + chunk - 1) / chunk + touched);
+                const size_t tab_bytes = (4 * size_t(groups) + entries) * sizeof(unsigned);
+                if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
+                unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
+                unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert;
+                void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &groups, &chunk};
+                launch(kMoeGroup, nx, 1, gargs);
+                unsigned long long order0 = 4ull * groups;
+                const size_t wave_rows = 2 * rows_per_block_;
+                for (size_t first = 0; first < groups; first += kGridY) {
+                    c.first = first;
+                    void* args[] = {&c, &tab, &order0, &q, &d, &ni};
+                    launch(kinds.twin->grouped[form][width], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min<size_t>(kGridY, groups - first), args);
+                }
+            } else {
+                const size_t wave_rows = kinds.twin->two_rows[form][0] * rows_per_block_;
+                for (size_t first = 0; first < entries; first += kGridY) {
+                    c.first = first;
+                    void* args[] = {&c, &q, &d, &ni};
+                    launch(kinds.twin->routed[form], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min(kGridY, entries - first), args);
+                }
+            }
+            record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
+            for (size_t p = 0; p < nproj; ++p)
+                if (kept_.x && c.c.y[p] < kept_.x + kept_.values && kept_.x < c.c.y[p] + proj[p].rows * entries) kept_ = {};
+            return;
+        }
+        const float* x = f32(X);
+        for (size_t p = 0; p < nproj; ++p) {
+            const uint8_t* w = bytes(proj[p].weight.data);
+            float* y = f32(proj[p].out);
+            unsigned long long no = proj[p].rows;
+            RoutedExact r{ids, 0, per, routing.n_expert, quant::row_bytes(type, nin, proj[p].rows)};
+            for (; r.first < entries; r.first += kGridY) {
+                void* args[] = {&w, &x, &y, &ni, &no, &r};
+                launch(kinds.routed, (unsigned)proj[p].rows, (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
+            }
+        }
+        record_matrix_path(MatrixPath::f32);
+    }
     // The blocks a part of a split tile call sums, by the Vulkan tile's rule (split_blocks): a split below the profile's workgroups per compute unit, keeping at least its fewest blocks a part.
     size_t split_blocks(size_t workgroups, size_t nblk) const {
         const DeviceProfile& p = dev_.profile;
@@ -948,20 +1731,13 @@ private:
         const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
         return std::min(kper, nblk);
     }
-    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
-    // Without runs a call of one row is a generated row and any other a prompt's.
-    void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
-        const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
-        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
-        const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
-        TwinMap map = twin_map(all, nbatch, nin);
-        const size_t qbytes = size_mul(map.total, 32 * qsize), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
+    // The twin of X's `rows` rows laid out by `map` (block-int8 for the int8 class), built unless the kept twin holds it or `build` is false.
+    std::pair<const uint8_t*, const float*> twin_of(CSlice X, size_t rows, size_t nin, bool int8, TwinMap map, bool build) {
+        const size_t blocks = size_mul(rows, nin / 32), qbytes = size_mul(map.total, 32 * (int8 ? 1 : 2)), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
         const float* x = f32(X);
-        if (twin) want_twin_ = int8 ? 2 : 1;
-        if (twin && !(kept_.x == x && kept_.values == blocks * 32 && kept_.int8 == int8 && kept_.map == map)) {
-            if (!twin_ || twin_->size() < need) {
-                twin_ = alloc(need, Memory::device);
-            }
+        if (build) want_twin_ = int8 ? 2 : 1;
+        if (build && !(kept_.x == x && kept_.values == blocks * 32 && kept_.int8 == int8 && kept_.map == map)) {
+            if (!twin_ || twin_->size() < need) twin_ = alloc(need, Memory::device);
             uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
             float* d = (float*)(q + qbytes);
             unsigned long long nb = blocks;
@@ -969,7 +1745,16 @@ private:
             launch(twin_build(int8 ? kTwin8 : kTwin16, map), (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
         }
         const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_).data();
-        const float* d0 = (const float*)(q0 + qbytes);
+        return {q0, (const float*)(q0 + qbytes)};
+    }
+    // The twin of X, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
+    // Without runs a call of one row is a generated row and any other a prompt's.
+    void product_twin(const TwinKernels& tk, const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
+        const size_t qsize = int8 ? 1 : 2;
+        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
+        const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
+        TwinMap map = twin_map(all, nbatch, nin);
+        const auto [q0, d0] = twin_of(X, nbatch, nin, int8, map, twin);
         unsigned long long ni = nin;
         int add = accumulate;
         size_t begin = 0;
@@ -1004,12 +1789,12 @@ private:
                     int ncols = (int)rows;
                     void* args[] = {&c, &q, &d, &ni, &ncols, &add};
                     const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                    const RowBuild rb = row_build(form, build, c.total);
+                    const RowBuild rb = row_build(tk, form, build, c.total);
                     const size_t per = rb.rows * rows_per_block_;
                     launch(rb.kernel, (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
-                    tile(proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
+                    tile(tk, proj, nproj, q, d, xrow, xblock, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
                 }
                 at += rows;
             }
@@ -1027,20 +1812,13 @@ private:
     };
     // The build of a form and column count for a call of `total` rows: the four-row build once its waves give each compute unit row_four_waves_per_cu, else the two-row one.
     // A row keeps its lanes and order in every build, so the choice changes no bits; the sweep behind it is in docs/STATUS.md (ROCm many users).
-    RowBuild row_build(int form, int build, size_t total) const {
-        static constexpr Kernel two[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
-                                             {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
-                                             {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
-        static constexpr size_t two_rows[3][5] = {{2, 2, 2, 2, 2}, {2, 2, 2, 2, 4}, {1, 2, 2, 2, 4}};
-        static constexpr Kernel four[3][5] = {{kKernels, kRows16x2r4, kRows16x4r4, kRows16x8r4, kKernels},
-                                              {kKernels, kRows8x2r4, kRows8x4r4, kRows8x8r4, kKernels},
-                                              {kKernels, kHalf8x2r4, kHalf8x4r4, kHalf8x8r4, kKernels}};
-        if (four[form][build] != kKernels && total / 4 >= size_t(dev_.profile.row_four_waves_per_cu) * dev_.caps.compute_units) return {four[form][build], 4};
-        return {two[form][build], two_rows[form][build]};
+    RowBuild row_build(const TwinKernels& tk, int form, int build, size_t total) const {
+        if (tk.four[form][build] != kKernels && total / 4 >= size_t(dev_.profile.row_four_waves_per_cu) * dev_.caps.compute_units) return {tk.four[form][build], 4};
+        return {tk.two[form][build], tk.two_rows[form][build]};
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     // The twin's rows lie `xrow` blocks apart and a row's blocks `xblock` apart (TwinMap).
-    void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, unsigned xrow, unsigned xblock, size_t at, size_t rows, size_t tiles, size_t nin,
+    void tile(const TwinKernels& tk, const Proj* proj, size_t nproj, const uint8_t* q, const float* d, unsigned xrow, unsigned xblock, size_t at, size_t rows, size_t tiles, size_t nin,
               int add, bool int8) {
         // The tall build where the profile's tile_rows_for takes the tallest height; the split stays the 64-output build's, so both builds give the same bits.
         size_t outputs = 0, gx64 = 0;
@@ -1049,9 +1827,9 @@ private:
             gx64 += (proj[pi].nout + kTileOut - 1) / kTileOut;
         }
         const size_t tall_from = int8 ? dev_.profile.qtile_tall_from_8bit : dev_.profile.qtile_tall_from;
-        const bool tall = tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from) == kTileOutTall;
+        const bool tall = tk.tall[int8] != kKernels && tile_rows_for(dev_.caps, dev_.profile, kTileOut, kTileOut, kTileOutTall, outputs, tiles, nin, tall_from) == kTileOutTall;
         const size_t per = tall ? kTileOutTall : kTileOut;
-        // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row.
+        // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, a Q8_0 block's 34 bytes bounding every twin type's bytes for 32 values.
         if ((nin / 32) * per * 34 + 64 > 0xffffffffull || (size_t(kTileRows) * xrow + (nin / 32) * xblock) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
             throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
         TileCall c{};
@@ -1078,7 +1856,7 @@ private:
             c.partials = (float*)as_rocm(*partials_).data();
         }
         void* args[] = {&c, &q, &d};
-        launch(tall ? (int8 ? kTile8Tall : kTile16Tall) : int8 ? kTile8 : kTile16, (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
+        launch(tall ? tk.tall[int8] : tk.tile[int8], (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
         if (c.parts > 1) {
             size_t g = 0;
             for (size_t pi = 0; pi < nproj; ++pi) {
@@ -1089,14 +1867,14 @@ private:
             launch(kTileReduce, (unsigned)g, 1, rargs);
         }
     }
-    void gather(Slice dst, CSlice src, size_t width, const uint32_t* ids, size_t count) {
+    // Rows `ids` of a table through the type's gather kernel, ids on the device; an id of `nrows` or more gives a zero row.
+    void gather(Kernel k, Slice dst, const void* table, size_t width, const unsigned* ids, size_t count, size_t nrows) {
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(count, width), sizeof(float)));
         float* d = f32(dst);
-        const float* s = f32(src);
-        const unsigned* ip = (const unsigned*)arg(ids, count * sizeof(uint32_t));
         unsigned long long w = width;
-        void* args[] = {&d, &s, &ip, &w};
-        launch(kGather, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
+        unsigned nr = (unsigned)std::min<size_t>(nrows, UINT32_MAX);
+        void* args[] = {&d, &table, &ids, &w, &nr};
+        launch(k, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
     }
     // Where a producer writes the twin of its output of `values` floats: once a product has read a twin, in that class, for an output of whole blocks in device memory.
     struct TwinOut {
@@ -1126,6 +1904,8 @@ private:
         case kRmsNorm32Twin8: return kRmsNorm32Twin8Major;
         case kAttentionVec: return kAttentionVecMajor;
         case kAttentionVecMerge: return kAttentionVecMergeMajor;
+        case kAttentionVec256: return kAttentionVec256Major;
+        case kAttentionVecMerge256: return kAttentionVecMerge256Major;
         case kTwin16: return kTwin16Major;
         case kTwin8: return kTwin8Major;
         default: return k;
@@ -1141,6 +1921,7 @@ private:
         // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, threads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
+        ++launched_[k];
     }
     // A launch or copy refused as it is enqueued throws at once; the stream is still the caller's.
     void launch_check(hipError_t e, const char* what) {
@@ -1194,9 +1975,14 @@ private:
         bool int8 = false;
         TwinMap map{};
     } kept_;
+    BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
+    BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.hip, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     BufferPtr staged_;   // a product bound for host memory, formed here first
     BufferPtr partials_;   // the parts of a split tile call, grown as calls need
+    BufferPtr scores_;   // the indexer's scores of 16 rows at most, grown as calls need
+    BufferPtr argmax_parts_;   // argmax_rows' slice maxima and ids, grown as calls need
+    BufferPtr select_state_;   // the wide selection's histograms and slice counts, zero between calls
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};
@@ -1205,6 +1991,7 @@ private:
     size_t next_upload_ = 0;
     TicketLedger tickets_;
     bool opened_ = false;
+    size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
     std::mutex failed_mu_;
     std::string failed_;
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.hip, llmx_group_sum)
@@ -1226,5 +2013,9 @@ void RocmKVStorage::retire(const BufferPtr&) {}
 namespace backend {
 
 BackendPtr make_rocm_backend(int device) { return std::make_shared<RocmBackend>(device); }
+
+std::map<std::string, size_t> rocm_take_launches(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).take_launches(); }
+
+DeviceProfile& rocm_profile(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).profile(); }
 
 } // namespace backend

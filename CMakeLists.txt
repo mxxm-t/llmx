@@ -375,15 +375,17 @@ if(LLMX_HAS_BACKEND_ROCM)
     set(LLMX_ROCM_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/rocm/kernels)
     set(LLMX_ROCM_KERNELS f32 int16)
     set(LLMX_ROCM_OBJECTS)
+    # Every kernel compiles without contraction, so a build of a body cannot fuse a product another build of it keeps apart; a fused multiply-add is written as fmaf (docs/src/backends-rocm.md).
+    set(LLMX_HIP_FLAGS -x hip -std=c++17 -O3 -ffp-contract=off --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only)
     foreach(kernel IN LISTS LLMX_ROCM_KERNELS)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
         set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.inc)
         add_custom_command(OUTPUT ${inc}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
-            COMMAND ${LLMX_HIP_CLANG} -x hip -std=c++17 -O3 --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only --offload-arch=gfx906 --offload-arch=gfx1151
-                    -c ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip -o ${bundle}
+            COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx1151
+                    -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip -o ${bundle}
             COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-            DEPENDS ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip ${LLMX_ROCM_KERNEL_DIR}/quant.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
             COMMENT "hip ${kernel}"
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${inc})
@@ -393,10 +395,10 @@ if(LLMX_HAS_BACKEND_ROCM)
     set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.inc)
     add_custom_command(OUTPUT ${inc}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
-        COMMAND ${LLMX_HIP_CLANG} -x hip -std=c++17 -O3 --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only --offload-arch=gfx906 -DLLMX_DOT16
-                -c ${LLMX_ROCM_KERNEL_DIR}/int16.hip -o ${bundle}
+        COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
+                -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_ROCM_KERNEL_DIR}/int16.hip -o ${bundle}
         COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-        DEPENDS ${LLMX_ROCM_KERNEL_DIR}/int16.hip ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${LLMX_ROCM_KERNEL_DIR}/int16.hip ${LLMX_ROCM_KERNEL_DIR}/quant.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
         COMMENT "hip int16dot"
         VERBATIM)
     list(APPEND LLMX_ROCM_OBJECTS ${inc})

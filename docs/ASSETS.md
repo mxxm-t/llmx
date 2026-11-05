@@ -604,6 +604,7 @@ python -X utf8 tools/qwen4exp_file_reference.py --config config.json --gguf shar
 Attention and experts use HF's eager implementations on CPU F32, and HF's expert loop is kept, an adapter loading only the indexed expert's gate and up or down weights at a time.
 `loaded_modules` loads ordinary weights around each HF module call and releases them after it, on failure too.
 The lookup tables use HF's own row selection, with `tests/spec_decode.py` decoding only the selected spans, so no whole table or expert stack is materialized.
+It reads every tensor type the numpy form of `tests/spec_decode.py` decodes, so a released file of mixed types, such as UD-Q4_K_XL, is read on its own weights.
 `--max-decoded-mib` (default 3072) bounds one decoded span, not the process, and `--max-tokens` (default 128) bounds the sequence.
 The output records each shard's size and SHA-256, the decoded types and coverage, the largest span, the peak RSS, the logits and the mapping round-trip diagnostics.
 

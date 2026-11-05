@@ -98,7 +98,7 @@ def slugs(text):
 
 ID = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CODE_TOPS = ("src/", "tests/", "tools/", "cmake/", "docker/", ".github/")
-CPP_SOURCES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".in")
+CPP_SOURCES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".in", ".hip")
 PY_TEXT = (tokenize.STRING,) + tuple(getattr(tokenize, t) for t in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END") if hasattr(tokenize, t))
 
 

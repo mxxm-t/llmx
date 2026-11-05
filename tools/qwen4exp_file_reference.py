@@ -275,7 +275,7 @@ class FileReference:
         tensor = self.source.tensors[name][1]
         if tuple(tensor.shape) != tuple(shape):
             raise ValueError("unexpected GGUF tensor shape: " + name)
-        if tensor.type not in (spec_decode.F32, spec_decode.F16, spec_decode.BF16, spec_decode.Q8_0):
+        if tensor.type not in spec_decode.NUMPY:
             raise ValueError("unsupported file-exact tensor type: " + name)
 
     def _parts(self, name, shape, validate=False):

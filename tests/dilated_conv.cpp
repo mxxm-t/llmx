@@ -477,7 +477,7 @@ int main(int argc, char** argv) {
     try {
         std::string device_name = "cpu";
         if (argc == 3 && std::string(argv[1]) == "--device") device_name = argv[2];
-        else if (argc != 1) throw std::runtime_error("usage: dilated-conv-test [--device cpu|vulkan:N]");
+        else if (argc != 1) throw std::runtime_error("usage: dilated-conv-test [--device cpu|vulkan:N|rocm:N]");
         auto device = backend::make_backend(device_name);
         std::mt19937 rng(20261014);
         run_case(*device, rng, 1, 4, 2);

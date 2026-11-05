@@ -18,7 +18,8 @@ backend can execute. This is the lowest header of the quant layer.
   Q8_1 and Q8_K are auxiliary layouts with no decoder; IQ3_S has a read-only decoder and CPU/Vulkan inference support. The [README support
   matrix](../../README.md#quantization-types) lists current model-weight
   inference and writer support.
-  BF16 is the one-value, two-byte storage layout.
+  BF16 is the one-value, two-byte storage layout (`BF16_BLOCK`, `BF16_TYPESIZE`).
+  `IQ4_NL_VALUES` is the signed nonuniform table both IQ4 formats' indices name, held here so the CPU decoders and the ROCm kernels read one copy.
   F16 and BF16 have read-only decoders in `quant::Registry`; Vulkan uses compile-time weight loaders for embeddings and matrix products.
 - `row_bytes(type, nin, rows = 1)` sizes rows from this metadata. It refuses
   an unknown or removed type, then a width that ends inside a block, then

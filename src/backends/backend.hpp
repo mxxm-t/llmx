@@ -86,6 +86,11 @@ struct CSlice {
     CSlice(const Slice& s) : buffer(s.buffer), offset(s.offset) {}
 };
 
+// Whether a's an floats and b's bn floats share a float of one buffer; an empty range shares nothing.
+inline bool overlaps(CSlice a, size_t an, CSlice b, size_t bn) {
+    return an && bn && a.buffer == b.buffer && a.offset < size_add(b.offset, bn) && b.offset < size_add(a.offset, an);
+}
+
 // int8 rounds the inputs of matrix products to 8 bits (docs/PRECISION.md): a speed option below the default precision, which auto never chooses.
 enum class Dtype { f32, f16, bf16, int8 };
 enum class MatrixPath { f32, f16, bf16, block_int16, block_int8 };

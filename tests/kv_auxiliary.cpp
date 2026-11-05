@@ -555,7 +555,7 @@ int main(int argc, char** argv) {
     try {
         std::string device = "cpu";
         if (argc == 3 && std::string(argv[1]) == "--device") device = argv[2];
-        else if (argc != 1) throw std::runtime_error("usage: kv-auxiliary-test [--device cpu|vulkan:N]");
+        else if (argc != 1) throw std::runtime_error("usage: kv-auxiliary-test [--device cpu|vulkan:N|rocm:N]");
         backend::BackendPtr storage_device = backend::make_backend(device);
         storage_contract(*storage_device);
         growth_failure_is_atomic();

@@ -32,7 +32,7 @@ There is no second model runtime, graph scheduler or precision system.
 The first delivery target is Linux MI50/gfx906. The completion target is all
 currently supported model operations, quant types and requested dtypes, including
 hybrid layers, routed experts, embedded drafts, layer splits and tensor groups.
-What that means on main as of 2026-10-29 is listed under Scope on main, below.
+What that means on main as of 2026-11-05 is listed under Scope on main, below.
 The dense Qwen3 Q8_0 milestone is a bounded first implementation, not a claim
 that the backend is complete. Unsupported operations/types are refused at load
 through existing capability checks, before uploads or execution.
@@ -57,21 +57,21 @@ This plan adds no runtime dependency. rocBLAS, AITER, PyTorch and Transformer
 Engine remain research inputs for this delivery; no external source is copied
 into llmx.
 
-## Scope on main, 2026-10-29
+## Scope on main, 2026-11-05
 
 The list below names what exists on main and is in the completion target.
 Each item is refused at load by capability until the ROCm backend implements it.
 It is a snapshot, not a second source: the code is the source, and the list is refreshed at the start of step 5.
 
-| Area | What main holds | Where |
-| --- | --- | --- |
-| Operations a backend may lack | 23 named ops: the qwen35 layer ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial`, `sigmoid_mul`), `routed_experts`, `mixed_experts`, the drafter ops (`argmax_rows`, `embed_ids`), the Flash-Next ops (`group_rms_norm`, `silu_scaled`, `mix_streams`, `inject_streams`, `signed_sqrt_gate`, `dilated_conv_silu_add`, `select_kv`, `sparse_attention`, `mix_rows`, `rope_streams`) and the encoder ops (`layer_norm`, `gelu`, `add_bias`, `attention_full`); the backend also has `pool_kv` for the indexer | `Op` and `Backend` in `src/backends/backend.hpp` |
-| Quant layouts | 37 active GGML layouts: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K to Q6_K, the IQ families, TQ1_0, TQ2_0, MXFP4 and NVFP4 | `src/quant/types.hpp`, [quant-types](src/quant-types.md) |
-| Architectures | qwen3, qwen3moe, the hybrid qwen35 and qwen35moe, and qwen4exp (Flash-Next) | `src/model/arch/registry.hpp` |
-| Embedded drafter | The MTP block as a drafter, with checkpoint and rollback | [SPECULATIVE](SPECULATIVE.md), section 7 |
-| Image encoder | The vision encoder and image decoder are implemented; image rows are not yet wired into prompts or the server | `src/model/encoder.hpp`, [VISION](VISION.md) |
-| Host and disk cache tiers | The backend supplies buffer read and write only; tier policy stays in the server cache | `src/server/cache.hpp`, `src/server/disk_tier.hpp`, [DISK-TIER](DISK-TIER.md) |
-| Lookup-table rows | Rows held under the one host budget and read ahead; a backend reads a host-held table, it does not own it | `src/model/weight_rows.hpp` |
+| Area | What main holds | Where | ROCm, 2026-11-05 |
+| --- | --- | --- | --- |
+| Operations a backend may lack | 23 named ops: the qwen35 layer ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial`, `sigmoid_mul`), `routed_experts`, `mixed_experts`, the drafter ops (`argmax_rows`, `embed_ids`), the Flash-Next ops (`group_rms_norm`, `silu_scaled`, `mix_streams`, `inject_streams`, `signed_sqrt_gate`, `dilated_conv_silu_add`, `select_kv`, `sparse_attention`, `mix_rows`, `rope_streams`) and the encoder ops (`layer_norm`, `gelu`, `add_bias`, `attention_full`); the backend also has `pool_kv` for the indexer | `Op` and `Backend` in `src/backends/backend.hpp` | the qwen35 layer ops (`causal_conv_silu`, `gated_delta_rule` in the Vulkan shader's order, `gated_rms_norm`, `norm_rope_partial` over several rope streams, `sigmoid_mul`), `routed_experts` (grouped one-column products and a prompt tile), the drafter ops (`argmax_rows`, `embed_ids`) and Flash-Next's ops (`group_rms_norm`, `silu_scaled`, `mix_streams`, `inject_streams`, `signed_sqrt_gate`, `dilated_conv_silu_add`, `select_kv` with `pool_kv`, `sparse_attention` with heads 256 wide); `mixed_experts`, `mix_rows`, `rope_streams` and the encoder ops are refused by `implements`, so `--mmproj` on ROCm is refused at load naming an op (vision is a plan of its own) |
+| Quant layouts | 37 active GGML layouts: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K to Q6_K, the IQ families, TQ1_0, TQ2_0, MXFP4 and NVFP4 | `src/quant/types.hpp`, [quant-types](src/quant-types.md) | F32, BF16, Q8_0, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1 and IQ4_NL (one descriptor row a type in `rocm_backend.cpp`, one block reader `kernels/quant.h`): each decoded exactly into F32 sums in the F32 class, Q8_0, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1 and IQ4_NL on block-int16 and block-int8 twins in the F16 and int8 classes, BF16 exact in every class |
+| Architectures | qwen3, qwen3moe, the hybrid qwen35 and qwen35moe, and qwen4exp (Flash-Next) | `src/model/arch/registry.hpp` | all five run, their ops implemented; checked against HF: qwen3 (Qwen3-8B Q8_0 on one and two cards), qwen35 (Qwen3.5-0.8B Q4_K_M) and qwen4exp (Qwen3.8-Flash-Next UD-Q4_K_XL at f32 on layer-4 and 2x2, docs/STATUS.md); a qwen3moe or qwen35moe file whose gate and up differ in type needs `mixed_experts` |
+| Embedded drafter | The MTP block as a drafter, with checkpoint and rollback | [SPECULATIVE](SPECULATIVE.md), section 7 | the drafter ops run (`argmax_rows`, `embed_ids`), so the MTP block drafts on ROCm, drafts on and off identical in `llmx-qwen4exp-mtp-test` |
+| Image encoder | The vision encoder and image decoder are implemented; image rows are not yet wired into prompts or the server | `src/model/encoder.hpp`, [VISION](VISION.md) | refused by capability |
+| Host and disk cache tiers | The backend supplies buffer read and write only; tier policy stays in the server cache | `src/server/cache.hpp`, `src/server/disk_tier.hpp`, [DISK-TIER](DISK-TIER.md) | buffer read and write, as every backend |
+| Lookup-table rows | Rows held under the one host budget and read ahead; a backend reads a host-held table, it does not own it | `src/model/weight_rows.hpp` | embed of prepared rows, 64-bit offsets |
 
 Porting a quant layout is more than a decoder: the Vulkan backend carries row kernels, packed layouts and tile kernels for each family.
 The effort re-estimate after step 1 counts that cost per family.
@@ -516,6 +516,31 @@ For each kernel candidate: focused correctness and dispatch witness, short
 matched performance screen, bottleneck diagnosis if it loses, then expensive
 HF/depth qualification for candidates worth integrating. This short screen does
 not replace the complete correctness or final performance matrix.
+
+### Flash-Next on ROCm, plan of 2026-11-04
+
+RDEV's plan, approved by F2DEV on 2026-11-04 with seven changes, brings Qwen3.8-Flash-Next UD-Q4_K_XL to the ROCm backend through step 5's operations for that model, then step 6 for it.
+All of it lives in `src/backends/rocm/`: kernels in `kernels/`, capability and dispatch in `rocm_backend.cpp`, with no model, loader or scheduler change.
+`kernels/quant.h` is the one place a block layout is read on ROCm, its block sizes and bytes taken from `src/quant/types.hpp`, and each type has one row in the backend's descriptor table naming its kernels for every caller.
+Each step runs only its build, one focused test and short microbenchmarks at Flash-Next's shapes beside the Vulkan figures; the landing gates run once a landing is final.
+
+| Step | Work | Focused check |
+| --- | --- | --- |
+| 0 | A ROCm layer split of Qwen3-8B Q8_0 over two and four devices against one; the 2x2 memory fit | `llmx-split-check` bit for bit; free memory per card against the Vulkan fit |
+| 1 | Weight types: Q4_K, Q5_K, Q6_K, then Q5_0, Q5_1, then BF16 and IQ4_NL (twins and prompt tile) | `llmx-backend-rocm-test types`: CPU rows bit for bit, products in each class, dispatch witness at the shapes of 2560->640, 640->2560, 2560->320, 2560->512 and 6144->2560 whose input a type's blocks fill (640 only for the 32-value types) |
+| 2 | The qwen35 layer ops, `norm_rope_partial` over several streams | qwen35-ops cases against the CPU |
+| 3 | Routed experts: route, `matmul_experts(_add)`, the fused step | each token's entry its expert alone, bit for bit |
+| 4 | The six Flash-Next stream and conv ops (`group_rms_norm`, `silu_scaled`, `mix_streams`, `inject_streams`, `signed_sqrt_gate`, `dilated_conv_silu_add`) and the KV auxiliary planes (`kv_alloc`'s widths and pools, `kv_write`'s auxiliary rows) | `stream-ops`, `dilated-conv` and `kv-auxiliary` with `--device rocm:0`, then `llmx-qwen4exp-graph-test --device rocm:0` |
+| 5 | Indexer and sparse attention, with `pool_kv`, which shares `select_kv`'s pooling body and is reached only beside it; sparse attention a flag on the per-row and chunk attention bodies, the per-row body built for heads 128 and 256 wide, since Flash-Next's main heads are 256 wide | `kv-selection`, `sparse-attention` and `llmx-qwen4exp-model-test` on ROCm |
+| 6 | Drafter ops and the dense MTP block's attention, where Flash-Next calls `Backend::attention` with step 5's 256-wide build, a block whose compression ratio is 0 | `llmx-qwen4exp-mtp-test`, drafts on and off identical |
+| 7 | Layer split over four devices, then two groups of two | short generate and bench per placement |
+| 8 | Performance closure, profile first, a branch a lever | each persistent form the bits of the op it replaces |
+
+Landing A is steps 1 to 3, landing B steps 4 to 7; STATUS names their hand checks, since no hosted runner has a ROCm device.
+The kernels compile without contraction (`-ffp-contract=off`, one flag list for every kernel module), and a fused multiply-add is written as `fmaf`, so the bits of a body never rest on how the compiler fused one of its builds.
+The fused designs shared with the Vulkan backend (the HC chain, the Q8_0 prompt tile, the routed GLU tile) keep the Vulkan op boundary, tile and sum order, and each ROCm branch names the commit it mirrors.
+Risks: the size (re-estimated after step 1), the card queue, persistent kernels' residency and bit order.
+The 2x2 memory fit and the layer split are settled by step 0, whose figures STATUS records.
 
 ## Final gate matrix and reporting
 

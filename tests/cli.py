@@ -34,6 +34,17 @@ def check_device(model):
             assert p.returncode == 1 and not p.stdout and any(m in p.stderr for m in messages), (name, args, p.returncode, p.stdout, p.stderr)
 
 
+def check_rocm_vision():
+    """Where rocm:0 opens, an image model with its vision encoder is refused as it loads, naming an op the ROCm backend does not implement, and never run elsewhere (docs/ROCM.md, scope)."""
+    data = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    # The CLI reads an image's bytes before it opens the model, so the image must exist for the load to reach the refusal.
+    p = common.run_process(["generate", os.path.join(data, "vision", "tiny-qwen4exp-image.gguf"), "Describe it.", "--chat", "--mmproj", os.path.join(data, "vision", "tiny-mmproj-qwen4exp.gguf"),
+                            "--image", os.path.join(data, "images", "420-16x16.jpg"), "--device", "rocm:0"], text=True, timeout=120)
+    if any(m in p.stderr for m in NO_ROCM) and "does not implement" not in p.stderr:
+        return
+    assert p.returncode == 1 and not p.stdout and common.encoder_refusal(p.returncode, p.stderr), (p.returncode, p.stdout, p.stderr)
+
+
 def check_expert_flags(model):
     """A model without routed layers refuses experts on the CPU on the CPU as on a device, with status 1 and the name of the flag given, from every command that takes the flags.
     The CPU is always tried, and the configured device as well when it is one device other than the CPU; a stream point beside the flag changes nothing in the refusal."""
@@ -373,6 +384,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_cli_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
         check_device(model)
+        check_rocm_vision()
         check_dtype(model)
         devices = check_expert_flags(model)
         check_info(directory)

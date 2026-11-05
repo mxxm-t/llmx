@@ -276,9 +276,10 @@ def run():
     with tempfile.TemporaryDirectory(prefix="llmx_image_") as directory:
         model = write_fixture(directory)
         p = common.run_process(["logits", model, "a", "--chat", "--mmproj", MMPROJ, "--image", os.path.join(DATA, "images", CASES[0]["images"][0])], cache="f32")
-        refused = qwen35.refusal(p.returncode, p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace"))
-        if refused or "the vision encoder needs" in p.stderr.decode("utf-8", "replace"):
-            print("image: SKIP - the device refuses the model or its encoder: %s" % (refused or p.stderr.decode("utf-8", "replace").strip().splitlines()[-1]))
+        text = p.stdout.decode("utf-8", "replace") + p.stderr.decode("utf-8", "replace")
+        refused = qwen35.refusal(p.returncode, text) or common.encoder_refusal(p.returncode, text)
+        if refused:
+            print("image: SKIP - the device refuses the model or its encoder: %s" % refused)
             return common.SKIPPED
         worst = worst_nll = 0.0
         for case in doc["cases"]:

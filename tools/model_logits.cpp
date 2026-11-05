@@ -26,11 +26,12 @@ static int integer(const char* value, int minimum, const char* name) {
 }
 
 static int capture(int argc, const char* const* argv) {
-    if (argc < 8 || argc > 10) {
-        std::cerr << "usage: llmx-model-logits MODEL IDS OUTPUT_PREFIX DEVICE CACHE UBATCH CPU_EXPERTS [SHARES [TENSOR_WIDTH]]\n"
+    if (argc < 8 || argc > 11) {
+        std::cerr << "usage: llmx-model-logits MODEL IDS OUTPUT_PREFIX DEVICE CACHE UBATCH CPU_EXPERTS [SHARES [TENSOR_WIDTH [DTYPE]]]\n"
                   << "  CACHE: f16 or f32; UBATCH: positive; CPU_EXPERTS: -1 for all, otherwise a count; six CPU threads\n"
                   << "  SHARES: comma-separated whole-number layer proportions, one per device or group; omitted or - uses automatic placement\n"
-                  << "  TENSOR_WIDTH: devices each layer is split across, 1 by default; above 1 a device may be listed more than once\n";
+                  << "  TENSOR_WIDTH: devices each layer is split across, 1 by default; above 1 a device may be listed more than once\n"
+                  << "  DTYPE: activation precision, auto (the default), f16, bf16, f32 or int8\n";
         return 2;
     }
     try {
@@ -46,6 +47,11 @@ static int capture(int argc, const char* const* argv) {
         request.cpu_moe = integer(argv[7], -1, "CPU_EXPERTS");
         if (argc > 8 && std::string(argv[8]) != "-")
             for (const auto& share : core::comma_list(argv[8])) request.shares.push_back(integer(share.c_str(), 0, "SHARES"));
+        if (argc > 10 && std::string(argv[10]) != "auto") {
+            for (backend::Dtype d : {backend::Dtype::f16, backend::Dtype::bf16, backend::Dtype::f32, backend::Dtype::int8})
+                if (argv[10] == std::string(backend::dtype_name(d))) request.dtype = d;
+            if (!request.dtype) throw std::runtime_error("DTYPE must be auto, f16, bf16, f32 or int8");
+        }
         std::ifstream input(std::filesystem::u8path(argv[2]));
         if (!input) throw std::runtime_error("cannot read token IDs");
         std::vector<uint32_t> ids;

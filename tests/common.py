@@ -362,6 +362,12 @@ def device_lacks_kernel(rc, out):
     return True
 
 
+def encoder_refusal(rc, out):
+    """The vision encoder's refusal on a device that lacks one of its ops (model/encoder.hpp), which an image component reports as SKIP, or None."""
+    match = re.search(r"inference: the vision encoder needs [a-z0-9_]+, which its device does not implement", out)
+    return match.group(0) if rc != 0 and match else None
+
+
 def write_bin(path, floats):
     """Write a list of floats as little-endian f32."""
     with open(path, "wb") as f:
@@ -668,7 +674,7 @@ def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=
 # The directories the dead-code and docs checks read, beside the files at the root; build trees and other untracked output at the root are left out.
 TREE_DIRS = ("src", "tests", "tools", "docs", "cmake", "docker", ".github")
 # Files read as text; any other file is only known to exist.
-TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
+TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".hip", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
 
 
 def tree_files():

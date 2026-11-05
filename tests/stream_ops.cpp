@@ -1,5 +1,6 @@
-// Qwen4Exp stream, residual and gate CPU operations against independent double references.
+// Qwen4Exp stream, residual and gate operations against independent double references, each row's bits the same alone as in a batch.
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -141,6 +142,9 @@ void check_group_rms_norm(std::mt19937& rng) {
         if (first.empty()) first = body;
         require(same_bits(body, first), "group RMSNorm changed with thread count");
     }
+    auto alone = zeros(cpu, count);
+    for (size_t r = 0; r < rows; ++r) cpu.group_rms_norm({alone.get(), r * width}, {xb.get(), r * width}, {wb.get(), 0}, 1, groups, dim, eps);
+    require(same_bits(download(cpu, *alone, count), first), "group RMSNorm of a row alone differs from the batch");
     for (size_t r = 0; r < rows; ++r)
         for (size_t g = 0; g < groups; ++g) {
             double square = 0;
@@ -173,6 +177,26 @@ void check_group_rms_norm(std::mt19937& rng) {
     });
     require(download(cpu, *overflow_guard, 1)[0] == 19.0f,
             "group RMSNorm wrote before refusing overflowing dimensions");
+    {
+        // Flash-Next's stream norm, 4 groups of 2560: the batch, each row alone and in place give the same bits, however a device cuts a group's writes.
+        constexpr size_t wide_rows = 5, wide_groups = 4, wide_dim = 2560, wide_width = wide_groups * wide_dim, wide_count = wide_rows * wide_width;
+        const auto wx = random_values(rng, wide_count, -1.4f, 1.4f), ww = random_values(rng, wide_width, 0.6f, 1.4f);
+        auto wxb = upload(cpu, wx), wwb = upload(cpu, ww), batch = zeros(cpu, wide_count), rows_alone = zeros(cpu, wide_count), in_place = upload(cpu, wx);
+        cpu.group_rms_norm({batch.get(), 0}, {wxb.get(), 0}, {wwb.get(), 0}, wide_rows, wide_groups, wide_dim, eps);
+        for (size_t r = 0; r < wide_rows; ++r)
+            cpu.group_rms_norm({rows_alone.get(), r * wide_width}, {wxb.get(), r * wide_width}, {wwb.get(), 0}, 1, wide_groups, wide_dim, eps);
+        cpu.group_rms_norm({in_place.get(), 0}, {in_place.get(), 0}, {wwb.get(), 0}, wide_rows, wide_groups, wide_dim, eps);
+        const auto wide = download(cpu, *batch, wide_count);
+        require(same_bits(download(cpu, *rows_alone, wide_count), wide) && same_bits(download(cpu, *in_place, wide_count), wide),
+                "group RMSNorm of 4 x 2560 differs between the batch, a row alone and in place");
+        for (size_t i = 0; i < wide_count; i += 37) {
+            const size_t row = i / wide_width, g = i % wide_width / wide_dim;
+            double square = 0;
+            for (size_t d = 0; d < wide_dim; ++d) square += double(wx[row * wide_width + g * wide_dim + d]) * wx[row * wide_width + g * wide_dim + d];
+            const double expected = double(wx[i]) / std::sqrt(square / wide_dim + eps) * ww[i % wide_width];
+            close_to(wide[i], expected, (wide_dim + 12) * U * std::fabs(expected) + 1e-30, "group RMSNorm of 4 x 2560");
+        }
+    }
     auto overlap = upload(cpu, std::vector<float>(count + 1, 2.0f));
     refuses("group RMSNorm accepted a partial output overlap", [&] {
         cpu.group_rms_norm({overlap.get(), 1}, {overlap.get(), 0}, {wb.get(), 0}, rows, groups, dim, eps);
@@ -194,6 +218,9 @@ void check_silu_scaled(std::mt19937& rng) {
         if (first.empty()) first = y;
         require(same_bits(y, first), "scaled SiLU changed with thread count");
     }
+    auto alone = zeros(cpu, count);
+    for (size_t r = 0; r < rows; ++r) cpu.silu_scaled({alone.get(), r * width}, {xb.get(), r * width}, 1, width, scale);
+    require(same_bits(download(cpu, *alone, count), first), "scaled SiLU of a row alone differs from the batch");
     for (size_t i = 0; i < count; ++i) {
         const double z = double(x[i]) * scale;
         const double expected = z / (1.0 + std::exp(-z));
@@ -231,6 +258,9 @@ void check_mix_streams(std::mt19937& rng) {
         if (first.empty()) first = y;
         require(same_bits(y, first), "stream mix changed with thread count");
     }
+    auto alone = zeros(cpu, out_count);
+    for (size_t r = 0; r < rows; ++r) cpu.mix_streams({alone.get(), r * dim}, {xb.get(), r * width}, {gb.get(), r * width}, 1, streams, dim);
+    require(same_bits(download(cpu, *alone, out_count), first), "stream mix of a row alone differs from the batch");
     for (size_t r = 0; r < rows; ++r)
         for (size_t d = 0; d < dim; ++d) {
             double sum = 0, magnitude = 0;
@@ -278,6 +308,9 @@ void check_inject_streams(std::mt19937& rng) {
         if (first.empty()) first = body;
         require(same_bits(body, first), "stream injection changed with thread count");
     }
+    auto alone = upload(cpu, initial);
+    for (size_t r = 0; r < rows; ++r) cpu.inject_streams({alone.get(), r * width}, {bb.get(), r * dim}, {gb.get(), r * streams}, 1, streams, dim);
+    require(same_bits(download(cpu, *alone, count), first), "stream injection of a row alone differs from the batch");
     for (size_t r = 0; r < rows; ++r)
         for (size_t s = 0; s < streams; ++s)
             for (size_t d = 0; d < dim; ++d) {
@@ -332,6 +365,10 @@ void check_signed_sqrt_gate(std::mt19937& rng) {
         if (first.empty()) first = body;
         require(same_bits(body, first), "signed gate changed with thread count");
     }
+    auto alone = zeros(cpu, count);
+    for (size_t r = 0; r < rows; ++r)
+        cpu.signed_sqrt_gate({alone.get(), r * width}, {kb.get(), r * width}, {qb.get(), r * width}, {vb.get(), r * dim}, 1, groups, dim);
+    require(same_bits(download(cpu, *alone, count), first), "signed gate of a row alone differs from the batch");
     for (size_t r = 0; r < rows; ++r)
         for (size_t g = 0; g < groups; ++g) {
             double dot = 0;
@@ -618,14 +655,55 @@ void check_twin_producers(std::mt19937& rng) {
     }
 }
 
+// The ops' times at Qwen3.8-Flash-Next's shapes (4 streams of 2560, low rank 320) over 1, 4, 64 and 512 rows, the last two a prompt, medians of five runs of 50 calls in us a call; checks nothing.
+void rates() {
+    Backend& device = *active_backend;
+    constexpr size_t E = 2560, H = 4, L = 320, most = 512;
+    std::mt19937 rng(9);
+    auto xb = upload(device, random_values(rng, most * H * E, -1.0f, 1.0f)), yb = upload(device, random_values(rng, most * H * E, -4.0f, 4.0f));
+    auto zb = upload(device, random_values(rng, most * E, -1.0f, 1.0f)), wb = upload(device, random_values(rng, H * E, 0.6f, 1.4f));
+    auto out = zeros(device, most * H * E), res = upload(device, random_values(rng, most * H * E, -1.0f, 1.0f));
+    std::printf("stream-ops rates on %s; op, shape, rows: us a call\n", device.identity().c_str());
+    const auto time = [&](const char* op, const char* shape, size_t rows, const std::function<void()>& call) {
+        for (int i = 0; i < 3; ++i) call();
+        device.sync();
+        std::vector<double> us;
+        for (int run = 0; run < 5; ++run) {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < 50; ++i) call();
+            device.sync();
+            us.push_back(1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / 50);
+        }
+        std::sort(us.begin(), us.end());
+        std::printf("stream-ops rate %s %s, %zu: %.2f us\n", op, shape, rows, us[2]);
+    };
+    for (size_t rows : {size_t(1), size_t(4), size_t(64), most}) {
+        const backend::RowRun run{rows, rows < 64 ? 1 : rows};
+        const backend::RowRuns runs{&run, 1};
+        time("group_rms_norm", "4 x 2560", rows, [&] { device.group_rms_norm({out.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, H, E, 1e-6f, runs); });
+        time("group_rms_norm in place", "4 x 2560", rows, [&] { device.group_rms_norm({res.get(), 0}, {res.get(), 0}, {wb.get(), 0}, rows, H, E, 1e-6f, runs); });
+        time("silu_scaled", "320", rows, [&] { device.silu_scaled({out.get(), 0}, {xb.get(), 0}, rows, L, 0.25f, runs); });
+        time("mix_streams", "4 x 2560", rows, [&] { device.mix_streams({out.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows, H, E, runs); });
+        time("inject_streams", "4 x 2560", rows, [&] { device.inject_streams({res.get(), 0}, {zb.get(), 0}, {yb.get(), 0}, rows, H, E); });
+        time("signed_sqrt_gate", "4 x 2560", rows, [&] { device.signed_sqrt_gate({out.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, {zb.get(), 0}, rows, H, E, runs); });
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
         std::string device = "cpu";
-        if (argc == 3 && std::string(argv[1]) == "--device") device = argv[2];
-        else if (argc != 1) throw std::runtime_error("usage: stream-ops-test [--device cpu|vulkan:N]");
+        int at = 1;
+        if (argc >= 3 && std::string(argv[1]) == "--device") device = argv[2], at = 3;
+        const bool timed = argc == at + 1 && std::string(argv[at]) == "--rates";
+        if (argc != at + timed) throw std::runtime_error("usage: stream-ops-test [--device cpu|vulkan:N|rocm:N] [--rates]");
         active_backend = backend::make_backend(device);
+        // --rates prints the ops' times at Flash-Next's shapes instead of checking them.
+        if (timed) {
+            rates();
+            return 0;
+        }
         std::mt19937 rng(3802027);
         check_group_rms_norm(rng);
         check_silu_scaled(rng);

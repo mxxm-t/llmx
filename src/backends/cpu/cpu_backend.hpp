@@ -1007,8 +1007,8 @@ public:
         validate_float_slice(Q_s, q_count);
         validate_float_slice(ids_s, ids_count);
         validate_float_slice(CSlice(out_s), output_count);
-        if (slices_overlap(CSlice(out_s), output_count, Q_s, q_count) ||
-            slices_overlap(CSlice(out_s), output_count, ids_s, ids_count))
+        if (overlaps(CSlice(out_s), output_count, Q_s, q_count) ||
+            overlaps(CSlice(out_s), output_count, ids_s, ids_count))
             throw std::runtime_error("backend: sparse attention output overlaps an input");
         for (const ViewPlan& plan : plans) {
             if (out_s.buffer == plan.storage->k_buffer(layer).get() ||
@@ -1217,10 +1217,10 @@ public:
         validate_float_slice(cos_s, table_count);
         validate_float_slice(sin_s, table_count);
         span(*ids_s.buffer, size_mul(ids_s.offset, sizeof(float)), size_mul(output_count, sizeof(uint32_t)));
-        if (slices_overlap(ids_s, output_count, Q_s, q_count) ||
-            slices_overlap(ids_s, output_count, key_norm_s, args.dim) ||
-            slices_overlap(ids_s, output_count, cos_s, table_count) ||
-            slices_overlap(ids_s, output_count, sin_s, table_count))
+        if (overlaps(ids_s, output_count, Q_s, q_count) ||
+            overlaps(ids_s, output_count, key_norm_s, args.dim) ||
+            overlaps(ids_s, output_count, cos_s, table_count) ||
+            overlaps(ids_s, output_count, sin_s, table_count))
             throw std::runtime_error("backend: index selection output overlaps an input");
         for (const ViewPlan& plan : plans) {
             if (!plan.visible) continue;
@@ -1229,7 +1229,7 @@ public:
                 throw std::runtime_error("backend: index selection output overlaps KV storage");
             const Buffer* auxiliary = plan.storage->auxiliary_buffer(layer).get();
             const size_t auxiliary_count = auxiliary->size() / sizeof(float);
-            if (slices_overlap(ids_s, output_count, CSlice{auxiliary, 0}, auxiliary_count))
+            if (overlaps(ids_s, output_count, CSlice{auxiliary, 0}, auxiliary_count))
                 throw std::runtime_error("backend: index selection output overlaps auxiliary keys");
         }
 
@@ -1557,9 +1557,9 @@ public:
         validate_float_slice(src_s, count);
         validate_float_slice(w_s, width);
         const CSlice dst = dst_s;
-        if (slices_overlap(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
+        if (overlaps(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
             throw std::runtime_error("backend: grouped RMS norm output must be disjoint or exactly in place");
-        if (slices_overlap(dst, count, w_s, width))
+        if (overlaps(dst, count, w_s, width))
             throw std::runtime_error("backend: grouped RMS norm output overlaps its weights");
         float* out = at(dst_s);
         const float* x = at(src_s);
@@ -1580,7 +1580,7 @@ public:
         validate_float_slice(dst_s, count);
         validate_float_slice(src_s, count);
         const CSlice dst = dst_s;
-        if (slices_overlap(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
+        if (overlaps(dst, count, src_s, count) && !same_slice(dst, count, src_s, count))
             throw std::runtime_error("backend: scaled SiLU output must be disjoint or exactly in place");
         float* out = at(dst_s);
         const float* x = at(src_s);
@@ -1599,8 +1599,8 @@ public:
         validate_float_slice(src_s, source_count);
         validate_float_slice(gate_s, source_count);
         const CSlice dst = dst_s;
-        if (slices_overlap(dst, output_count, src_s, source_count) ||
-            slices_overlap(dst, output_count, gate_s, source_count))
+        if (overlaps(dst, output_count, src_s, source_count) ||
+            overlaps(dst, output_count, gate_s, source_count))
             throw std::runtime_error("backend: stream mix output must be disjoint from its inputs");
         float* out = at(dst_s);
         const float* x = at(src_s);
@@ -1626,9 +1626,9 @@ public:
         validate_float_slice(block_s, block_count);
         validate_float_slice(gate_s, gate_count);
         const CSlice dst = dst_s;
-        if (slices_overlap(dst, dst_count, block_s, block_count) ||
-            slices_overlap(dst, dst_count, gate_s, gate_count) ||
-            slices_overlap(block_s, block_count, gate_s, gate_count))
+        if (overlaps(dst, dst_count, block_s, block_count) ||
+            overlaps(dst, dst_count, gate_s, gate_count) ||
+            overlaps(block_s, block_count, gate_s, gate_count))
             throw std::runtime_error("backend: stream injection operands must be disjoint");
         float* residual = at(dst_s);
         const float* block = at(block_s);
@@ -1653,9 +1653,9 @@ public:
         validate_float_slice(query_s, grouped_count);
         validate_float_slice(value_s, value_count);
         const CSlice dst = dst_s;
-        if (slices_overlap(dst, grouped_count, key_s, grouped_count) ||
-            slices_overlap(dst, grouped_count, query_s, grouped_count) ||
-            slices_overlap(dst, grouped_count, value_s, value_count))
+        if (overlaps(dst, grouped_count, key_s, grouped_count) ||
+            overlaps(dst, grouped_count, query_s, grouped_count) ||
+            overlaps(dst, grouped_count, value_s, value_count))
             throw std::runtime_error("backend: signed square-root gate output must be disjoint from its inputs");
         float* out = at(dst_s);
         const float* key = at(key_s);
@@ -1666,7 +1666,8 @@ public:
             for (size_t g = 0; g < groups; ++g) {
                 const size_t offset = r * width + g * dim;
                 float dot = 0.0f;
-                for (size_t d = 0; d < dim; ++d) dot += key[offset + d] * query[offset + d];
+                // Written as an FMA so every build of the loop, inlined for one row or not, rounds alike.
+                for (size_t d = 0; d < dim; ++d) dot = std::fma(key[offset + d], query[offset + d], dot);
                 const float score = dot / sqrt_dim;
                 const float magnitude = std::max(std::fabs(score), 1e-6f);
                 const float sign = score > 0.0f ? 1.0f : score < 0.0f ? -1.0f : score == 0.0f ? 0.0f : score;
@@ -1800,9 +1801,9 @@ public:
         validate_float_slice(residual_s, count);
         validate_float_slice(w_s, weight_count);
         const CSlice outc = out_s;
-        if (slices_overlap(outc, count, residual_s, count) && !same_slice(outc, count, residual_s, count))
+        if (overlaps(outc, count, residual_s, count) && !same_slice(outc, count, residual_s, count))
             throw std::runtime_error("backend: dilated convolution output must be disjoint or exactly residual in place");
-        if (slices_overlap(outc, count, x_s, count) || slices_overlap(outc, count, w_s, weight_count))
+        if (overlaps(outc, count, x_s, count) || overlaps(outc, count, w_s, weight_count))
             throw std::runtime_error("backend: dilated convolution output overlaps an input");
 
         std::vector<const float*> src_tails(n_views);
@@ -1820,10 +1821,10 @@ public:
             span(state, 0, size_mul(storage.slots(), storage.slot_bytes(layer)));
             const CSlice state_slice{&state, 0};
             const size_t state_count = state.size() / sizeof(float);
-            if (slices_overlap(state_slice, state_count, CSlice(out_s), count) ||
-                slices_overlap(state_slice, state_count, x_s, count) ||
-                slices_overlap(state_slice, state_count, residual_s, count) ||
-                slices_overlap(state_slice, state_count, w_s, weight_count))
+            if (overlaps(state_slice, state_count, CSlice(out_s), count) ||
+                overlaps(state_slice, state_count, x_s, count) ||
+                overlaps(state_slice, state_count, residual_s, count) ||
+                overlaps(state_slice, state_count, w_s, weight_count))
                 throw std::runtime_error("backend: dilated convolution operands overlap the state layer");
             float* base = state_slot(storage, layer, view.src);
             float* dst = state_slot(storage, layer, view.dst);
@@ -2145,13 +2146,6 @@ private:
     static void validate_float_slice(CSlice slice, size_t count) {
         if (!slice.buffer) throw std::runtime_error("backend: operand without storage");
         span(*slice.buffer, size_mul(slice.offset, sizeof(float)), size_mul(count, sizeof(float)));
-    }
-
-    static bool slices_overlap(CSlice a, size_t a_count, CSlice b, size_t b_count) {
-        if (a.buffer != b.buffer || !a_count || !b_count) return false;
-        const size_t a_end = size_add(a.offset, a_count);
-        const size_t b_end = size_add(b.offset, b_count);
-        return a.offset < b_end && b.offset < a_end;
     }
 
     static bool same_slice(CSlice a, size_t a_count, CSlice b, size_t b_count) {

@@ -275,19 +275,20 @@ int scoring_build() {
     return 0;
 }
 
-// The wide selection's dispatches, five whatever the groups against the one-workgroup selection's one, and each selection's device time, printed and not asserted, up to 38912 groups, Flash's at a 155648-token history.
+// The wide selection's five dispatches against the one-workgroup selection's one, and each selection's device time up to 65536 groups, printed and not asserted.
 int timing() {
     auto owner = std::make_unique<backend::VulkanBackend>(0, true);
     auto& t = *owner;
     int failures = 0;
-    for (const size_t count : {size_t(1025), size_t(2048), size_t(3072), size_t(4096), size_t(5120), size_t(6144), size_t(8192), size_t(16384), size_t(38912)}) {
-        std::vector<float> scores(count);
+    for (const size_t count : {size_t(1025), size_t(2048), size_t(3072), size_t(4096), size_t(5120), size_t(6144), size_t(8192), size_t(16384), size_t(32768), size_t(38912), size_t(65536)}) for (const size_t rows : {size_t(1), size_t(16)}) {
+        std::vector<float> scores(rows * count);
         uint32_t seed = 7;
         for (float& s : scores) { seed = seed * 1664525u + 1013904223u; s = float(seed >> 8) / 16777216.0f; }
+        const uint32_t hist = uint32_t(count * 4 - rows);
         for (const bool wide : {false, true}) {
-            backend::VulkanIndexTest::select(t, scores, 1, count, uint32_t(count * 4 - 1), 4, 2048, wide);
+            backend::VulkanIndexTest::select(t, scores, rows, count, hist, 4, 2048, wide);
             t.kernel_times();
-            for (int i = 0; i < 5; ++i) backend::VulkanIndexTest::select(t, scores, 1, count, uint32_t(count * 4 - 1), 4, 2048, wide);
+            for (int i = 0; i < 5; ++i) backend::VulkanIndexTest::select(t, scores, rows, count, hist, 4, 2048, wide);
             double ms = 0;
             for (const auto& k : t.kernel_times())
                 if (k.first.rfind("kv_index_select", 0) == 0) ms += k.second;
@@ -296,7 +297,7 @@ int timing() {
                 std::cout << "vulkan-index: this device times no dispatches, so the selections' dispatches and times are not checked\n";
                 return failures;
             }
-            std::cout << "vulkan-index: " << (wide ? "wide" : "one-workgroup") << " selection of 512 of " << count << " groups, " << ms / 5
+            std::cout << "vulkan-index: " << (wide ? "wide" : "one-workgroup") << " selection of 512 of " << count << " groups, " << rows << (rows == 1 ? " row, " : " rows, ") << ms / 5
                       << " ms of device time a call over " << dispatches << " dispatches\n";
             if (dispatches != (wide ? 5u : 1u)) {
                 std::cerr << "vulkan-index: a " << (wide ? "wide" : "one-workgroup") << " selection took " << dispatches << " dispatches\n";

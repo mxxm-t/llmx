@@ -3,9 +3,13 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 
+#include "backends/rocm/kernels/quant.h"
+
 namespace {
 
 constexpr int kThreads = 256;
+constexpr unsigned kQ8 = rq::Q8_0::bytes;   // a Q8_0 block's bytes, whose layout the word loads below take: the f16 scale, then 32 int8 values
+static_assert(kQ8 == 34 && rq::Q8_0::values == 32, "the Q8_0 word loads assume 34-byte blocks of 32 values");
 
 #ifdef LLMX_DOT16
 typedef short short2v __attribute__((ext_vector_type(2)));
@@ -95,21 +99,39 @@ __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned lo
     return {w + local * row_bytes, y + local, p == 2 ? c.nout[2] : p == 1 ? c.nout[1] : c.nout[0]};
 }
 
+// A row build's columns: column c reads twin column x(c) and writes output column y(c), c itself for a plain call.
+struct Cols {
+    __device__ unsigned long long x(int c) const { return (unsigned long long)c; }
+    __device__ unsigned long long y(int c) const { return (unsigned long long)c; }
+};
+// A grouped routed call's columns, one expert's entries e[0..n): column c reads entry e[c]'s twin column e[c] / per and writes entry e[c]'s outputs; a column past n reads entry e[0]'s and stores nothing.
+template <int C>
+struct EntryCols {
+    const unsigned* e;
+    unsigned long long xs[C];
+    __device__ EntryCols(const unsigned* entries, int n, unsigned long long per) : e(entries) {
+#pragma unroll
+        for (int c = 0; c < C; ++c) xs[c] = entries[c < n ? c : 0] / per;
+    }
+    __device__ unsigned long long x(int c) const { return xs[c]; }
+    __device__ unsigned long long y(int c) const { return e[c]; }
+};
+
 // Sum s of the wave's row j and column c, stored by its writer lane unless the column is past the call or the row past the end.
 // The lane picks its row from the wave's rows r, which sit in scalar registers, so no lane reads the call's arguments again.
-template <int R>
-__device__ inline void store_sum(const Row (&r)[R], float s, int j, int c, bool writer, unsigned long long o, unsigned long long total, int ncols, int add) {
+template <int R, typename M>
+__device__ inline void store_sum(const Row (&r)[R], float s, int j, int c, bool writer, unsigned long long o, unsigned long long total, int ncols, int add, const M& m) {
     if (!writer || c >= ncols || o + j >= total) return;
 #pragma unroll
     for (int i = 0; i < R; ++i)
         if (j == i) {
-            float* y = r[i].y + (unsigned long long)c * r[i].nout;
+            float* y = r[i].y + m.y(c) * r[i].nout;
             *y = add ? *y + s : s;
         }
 }
 // The R * C sums of a wave's rows o to o + R - 1 and its columns by one transposed tree, each written by its own lane; a column past the call or a row past the end is summed and not stored.
-template <int R, int C>
-__device__ inline void store_sums(float (&acc)[R][C], const Row (&r)[R], int lane, unsigned long long o, unsigned long long total, int ncols, int add) {
+template <int R, int C, typename M = Cols>
+__device__ inline void store_sums(float (&acc)[R][C], const Row (&r)[R], int lane, unsigned long long o, unsigned long long total, int ncols, int add, const M& m = M{}) {
     float v[R * C];
 #pragma unroll
     for (int j = 0; j < R; ++j)
@@ -120,7 +142,7 @@ __device__ inline void store_sums(float (&acc)[R][C], const Row (&r)[R], int lan
     if constexpr (kWave64 || NV <= 32) {
         int k;
         const float s = wave_sums<NV>(v, lane, k);
-        store_sum<R>(r, s, k / C, k % C, lane % (warpSize / NV) == 0, o, total, ncols, add);
+        store_sum<R>(r, s, k / C, k % C, lane % (warpSize / NV) == 0, o, total, ncols, add, m);
     } else {
 #pragma unroll
         for (int p = 0; p < NV; p += NP) {
@@ -129,22 +151,22 @@ __device__ inline void store_sums(float (&acc)[R][C], const Row (&r)[R], int lan
             for (int i = 0; i < NP; ++i) part[i] = v[p + i];
             int k;
             const float s = wave_sums<NP>(part, lane, k);
-            store_sum<R>(r, s, (p + k) / C, (p + k) % C, lane % (warpSize / NP) == 0, o, total, ncols, add);
+            store_sum<R>(r, s, (p + k) / C, (p + k) % C, lane % (warpSize / NP) == 0, o, total, ncols, add, m);
         }
     }
 }
 
 // A wave computes R output rows for up to C generated rows: four lanes a block, eight values each, each lane's part scaled into F32 in block order and folded by wave_sums, the bits of one shuffle tree whatever C and R.
 // With R rows each twin load serves every row and a row keeps its lanes and its order, so it has the bits of the one-row build (docs/STATUS.md, ROCm F16 decode rows).
-template <int C, typename QT, int R, int G>
-__device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) {
+template <int C, typename QT, int R, int G, typename M = Cols>
+__device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     // A wave takes rows o, o + R * waves, ...: the host launches a wave for R rows, and this loop form measured four times faster than an early return on rows of 2048 and 4096 (docs/STATUS.md, ROCm step 3).
     for (unsigned long long o = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); o < rc.total; o += R * waves) {
         Row r[R];
 #pragma unroll
-        for (int j = 0; j < R; ++j) r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * 34);
+        for (int j = 0; j < R; ++j) r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
         float acc[R][C];
 #pragma unroll
         for (int j = 0; j < R; ++j)
@@ -159,7 +181,7 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
             unsigned short sw[R], pw[R][4];
 #pragma unroll
             for (int j = 0; j < R; ++j) {
-                const unsigned char* block = r[j].w + k * 34;
+                const unsigned char* block = r[j].w + k * kQ8;
                 sw[j] = *(const unsigned short*)block;
                 const unsigned short* wp = (const unsigned short*)(block + 2 + part * 8);
 #pragma unroll
@@ -173,7 +195,7 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
                 for (int c = 0; c < G; ++c) {
                     // A build wider than its group takes one 32-bit lane offset for every column, where a pointer a column held it to one wave a SIMD.
                     // The narrower builds measured faster with a pointer a column (docs/STATUS.md, ROCm wide decode rows).
-                    const unsigned long long col = (unsigned long long)(g + c < ncols ? g + c : 0) * blocks;
+                    const unsigned long long col = m.x(g + c < ncols ? g + c : 0) * blocks;
                     const QT* qc = C > G ? q + col * 32 : q + (col + k) * 32 + part * 8;
                     const unsigned off = C > G ? xo : 0;
                     if constexpr (NW == 4) {
@@ -231,15 +253,14 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
                 if constexpr (C > G) __builtin_amdgcn_sched_barrier(0);
             }
         }
-        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add);
+        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
     }
 }
 
-// The int8 class's Q8_0 decode kernel in the half-block order of the Vulkan decode kernel (matmul_vec_q8_one.glsl, HALF), for rows of an even block count: a wave R output rows, two lanes a block, so a wave reads warpSize / 2 blocks a step.
-// The even lane takes the block's bytes [0, 18), the scale and 16 weights, the odd lane bytes [18, 34), each as aligned words realigned in registers without a branch, and the even lane hands the scale to the odd one; a branch on the alignment waited on its loads and measured slower (docs/STATUS.md, ROCm decode products).
-// Each lane scales its halves' integer dots into F32 in block order and the lanes fold by the transposed tree of wave_sums, the bits of one shuffle tree for every column whatever C and R the call takes.
-template <int C, int R, int G>
-__device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
+// The int8 class's Q8_0 decode kernel in the Vulkan decode kernel's half-block order, for rows of an even block count: two lanes a block, the even lane handing the scale to the odd one.
+// Each lane scales its integer dots in block order and the lanes fold by wave_sums' transposed tree, so every column has the same bits whatever C and R the call takes.
+template <int C, int R, int G, typename M = Cols>
+__device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     const unsigned hl = lane & 1;
@@ -249,7 +270,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
         const unsigned* w[R];
 #pragma unroll
         for (int j = 0; j < R; ++j) {
-            r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * 34);
+            r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
             // An even block count puts every row on a word boundary.
             w[j] = (const unsigned*)r[j].w;
         }
@@ -262,7 +283,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
         for (unsigned b = lane >> 1; b < blocks; b += lanes / 2) {
             // The lane's bytes start sh bytes into word wi and its weights s0 bytes in, 4 meaning the next word.
             // The even lane's fifth word lies inside its block and the odd lane's, read only where its bytes do not start on a word, inside the block after it.
-            const unsigned at = b * 34, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
+            const unsigned at = b * kQ8, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
             // Columns in groups of G, a column past the call skipped: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
             int4 xq[G];
             float xd[G];
@@ -271,7 +292,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 for (int c = 0; c < G; ++c) {
                     if (g + c >= ncols) continue;
                     // The column's base is the wave's and the lane's offset 32-bit, one register for every column.
-                    const unsigned long long col = (unsigned long long)(g + c) * blocks;
+                    const unsigned long long col = m.x(g + c) * blocks;
                     xq[c] = *(const int4*)(q + col * 32 + (b * 32 + 16 * hl));
                     xd[c] = dx[col + b];
                 }
@@ -309,7 +330,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 }
             }
         }
-        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add);
+        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
     }
 }
 
@@ -324,7 +345,7 @@ __device__ inline void half_steps(const unsigned* w, const signed char* q, const
     float xd[NS];
 #pragma unroll
     for (int d = 0; d < NS; ++d) {
-        const unsigned bd = b + d * span, start = bd * 34 + 18 * hl, sh = start & 2, wi = start >> 2;
+        const unsigned bd = b + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
         xq[d] = *(const int4*)(q + (unsigned long long)bd * 32 + 16 * hl);
         xd[d] = dx[bd];
         t[d][0] = w[wi];
@@ -336,7 +357,7 @@ __device__ inline void half_steps(const unsigned* w, const signed char* q, const
     __builtin_amdgcn_sched_barrier(0);
 #pragma unroll
     for (int d = 0; d < NS; ++d) {
-        const unsigned start = (b + d * span) * 34 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
+        const unsigned start = (b + d * span) * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
         const bool next = s0 == 4;
         const unsigned t0 = t[d][0], t1 = t[d][1], t2 = t[d][2], t3 = t[d][3], t4 = t[d][4];
         const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
@@ -358,7 +379,7 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     const unsigned hl = lane & 1, span = lanes / 2;
     for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < rc.total; o += waves) {
-        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * 34);
+        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * kQ8);
         const unsigned* w = (const unsigned*)r.w;
         float acc = 0.0f;
         unsigned b = lane >> 1;
@@ -369,7 +390,7 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
     }
 }
 
-constexpr int kTileOut = 64, kTileRows = 64;
+constexpr int kTileOut = 64, kTileRows = 64, kNarrowRows = 16;   // a narrow routed tile's rows: a group of up to 16 entries
 
 // A tile call: up to three projections of one X and one twin, projection p's output tiles from workgroup start[p] on, the inner dimension in parts of kper blocks (blockIdx.z the part).
 // A split call writes part z of projection p at partials + parts * nrows * (outputs of the projections before p) + z * nrows * nout[p], which llmx_tile_reduce adds in part order.
@@ -385,50 +406,62 @@ struct TileCall {
     float* partials;
     unsigned xrow, xblock;   // the twin's blocks from one row to the next and from one block to the next (TwinMap, kernels/f32.hip)
 };
-// Blocks of 32 staged a barrier, as the Vulkan tile stages them: four for the 8-bit twin, two for the 16-bit one, whose widened words are twice as many.
-// A step loads while the previous one computes, but in the tall build over the 16-bit twin, which loads its step after the barrier: holding the next step's loads took it 124 VGPRs and after the barrier it takes 99 (docs/STATUS.md, ROCm tall tile staging).
-// A value at a 32-bit byte offset from a uniform base, so the load takes the base from scalar registers and the offset from one vector register, with no 64-bit address arithmetic; the host bounds every offset (`rocm_backend.cpp`, the tile launch).
+// A routed tile call's groups (kernels/f32.hip, llmx_moe_group): group first + blockIdx.y a tile of its expert's rows, its columns its entries.
+// The call never splits, so an entry's sums do not depend on the entries beside it.
+struct TileGroups {
+    const unsigned* tab;
+    unsigned long long order0, per, first;
+    unsigned long long stride[3];
+};
+// Blocks of 32 staged a barrier as the Vulkan tile stages them, four for the 8-bit twin and two for the 16-bit one, a step loading while the previous one computes but in the tall 16-bit build.
+// Each value sits at a 32-bit byte offset from a uniform base, which the host bounds (`rocm_backend.cpp`, the tile launch).
 template <typename T> __device__ inline T at(const void* base, unsigned off) { return *(const T*)((const unsigned char*)base + off); }
 // WQ quant words as one load: their words are 4-byte aligned, which a global vector load takes.
 template <int WQ> using QWords = unsigned __attribute__((ext_vector_type(WQ), aligned(4)));
 template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; static constexpr bool ahead = RO == 4 || sizeof(QT) == 1; };
 
-// The prompt tile (the Vulkan tile's design, matmul_tile_q.comp): a block of 256 threads 64 outputs by 64 rows, each thread 4 adjacent outputs by 4 adjacent rows, the blocks of a step staged k-major in shared memory, word w of every output and then of every row, the weights widened to the twin's integer type.
-// A thread reads its four outputs' word and its four rows' word as two 16-byte reads and feeds 16 integer sums; each output sums its blocks in order, acc = fma(dw * dx, isum, acc), so a row gives the same bits wherever the tile falls.
-template <typename QT, int RO>
-__device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
+// The prompt tile in the Vulkan tile's design: a block of 256 threads 64 outputs by 64 rows, each thread 4 by 4, the steps staged k-major in shared memory.
+// Each output sums its blocks in order, acc = fma(dw * dx, isum, acc), so a row gives the same bits wherever the tile falls; routed, a block row is a group.
+template <typename QT, int RO, bool ROUTED = false, int ROWS = kTileRows>
+__device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{}) {
     constexpr bool AHEAD = TileStep<QT, RO>::ahead;
     constexpr int STEP = TileStep<QT, RO>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = RO * 16;
     constexpr int WT = kThreads / OUTS, WQ = 32 / WT / 4;   // threads a weight row and the quant words each stages
+    constexpr int J = ROWS / 16;   // a thread's rows
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
-    const unsigned char* W = c.w[pi];
-    const unsigned long long nout = c.nout[pi], nrows = c.nrows, nin = c.nin;
+    const unsigned long long gi = ROUTED ? tg.first + blockIdx.y : 0;
+    const unsigned long long nout = c.nout[pi], nrows = ROUTED ? tg.tab[4 * gi + 2] : c.nrows, nin = c.nin;
+    // A routed group takes the narrow tile when it fits its rows and the 64-row tile otherwise; a column's sums are the same in both.
+    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows))) return;
+    const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
+    const unsigned char* W = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0);
     __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
-    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][kTileRows];
-    __shared__ float wd[STEP][OUTS], xd[STEP][kTileRows];
-    const int t = threadIdx.x, tr = t / 16, tc = t % 16;   // outputs tr * 4.., rows tc * 4..
-    const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = (unsigned long long)blockIdx.y * kTileRows;
+    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
+    __shared__ float wd[STEP][OUTS], xd[STEP][ROWS];
+    const int t = threadIdx.x, tr = t / 16, tc = t % 16;   // outputs tr * RO.., rows tc * J..
+    const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
     const unsigned long long blocks = nin / 32, kbeg = (unsigned long long)blockIdx.z * c.kper;
     const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
-    float acc[RO][4];
+    float acc[RO][J];
     for (int i = 0; i < RO; ++i)
-        for (int j = 0; j < 4; ++j) acc[i][j] = 0.0f;
+        for (int j = 0; j < J; ++j) acc[i][j] = 0.0f;
     // Each weight row takes WT threads, each WQ words of a block's quants (two threads a row on the tall tile, four on the other), and the twin's rows four threads, each a quarter of a block (the Vulkan tile's staging).
     // A stage's blocks are loaded into registers while the previous stage computes, and stored to shared memory after it.
     const int r = t / 4, seg = t % 4, wr = t / WT, ws = t % WT;
     const unsigned long long o = o0 + wr, b = b0 + r;
+    const unsigned xr = ROUTED ? (b < nrows ? (unsigned)(ent[b] / tg.per) : 0u) : (unsigned)r;   // the twin row this thread stages
     unsigned wv[STEP][WQ + 1];   // the thread's quant words and one more: the word after where they straddle, the word before where not
     bool wok[STEP], al[STEP], xok[STEP];
     int xv[STEP][WORDS / 4];       // a quarter of the twin block
     float xs_[STEP];
     // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit bytes (`at`) and its loads take the base from scalar registers.
-    const unsigned char* Wt = W + o0 * blocks * 34;
+    const unsigned char* Wt = W + o0 * blocks * kQ8;
     const unsigned mis = (unsigned)((unsigned long long)Wt & 3);
     const unsigned* W4 = (const unsigned*)(Wt - mis);   // the words around the tile's weights, as a pointer into the same buffer so its loads stay global ones
     const QT* qt = q + b0 * c.xrow * 32;
     const float* dxt = dx + b0 * c.xrow;
-    // A thread's quants sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes: one vector load of WQ words and one word cover them, the word after where they straddle and the word before where not, which holds the scale in its high half; straddling, the first word holds it in its low half.
-    // Every load of a stage goes out before any is waited for: a load out of range reads block 0 and its zero is chosen at the store, so no load sits under a branch the compiler would wait inside.
+    // A thread's quants sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes, so one vector load and one more word cover them.
+    // Every load of a stage goes out before any is waited for, a load out of range reading block 0 and its zero chosen at the store.
     const auto load = [&](unsigned long long k0) {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
@@ -441,7 +474,7 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 #pragma unroll
             for (int i = 0; i < WQ; ++i) wv[s][i] = v[i];
             wv[s][WQ] = at<unsigned>(W4, al[s] ? w - 4u : w + 4u * WQ);
-            const unsigned xb = xok[s] ? (unsigned)r * c.xrow + (unsigned)k * c.xblock : 0u;
+            const unsigned xb = xok[s] ? xr * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
                 const int4 v = at<int4>(qt, xb * 64u + seg * 16u);
                 xv[s][0] = v.x, xv[s][1] = v.y, xv[s][2] = v.z, xv[s][3] = v.w;
@@ -475,8 +508,9 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
             const unsigned short sc = wok[s] ? (unsigned short)(al[s] ? last >> 16 : wv[s][0] & 0xffff) : 0;
             if (ws == 0) wd[s][wr] = __half2float(__ushort_as_half(sc));
 #pragma unroll
-            for (int w = 0; w < WORDS / 4; ++w) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xok[s] ? xv[s][w] : 0;
-            if (seg == 0) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
+            for (int w = 0; w < WORDS / 4; ++w)
+                if (r < ROWS) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xok[s] ? xv[s][w] : 0;
+            if (seg == 0 && r < ROWS) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
         }
     };
     if (AHEAD) load(kbeg);
@@ -488,11 +522,11 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             if (k0 + s >= kend) break;
-            int is[RO][4];
+            int is[RO][J];
 #pragma unroll
             for (int i = 0; i < RO; ++i)
 #pragma unroll
-                for (int j = 0; j < 4; ++j) is[i][j] = 0;
+                for (int j = 0; j < J; ++j) is[i][j] = 0;
 #pragma unroll
             for (int w = 0; w < WORDS; ++w) {
                 int av[RO];
@@ -501,41 +535,429 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
                     const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
                     av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
                 }
-                const int4 b = *(const int4*)&xw[s * WORDS + w][tc * 4];
-                const int bv[4] = {b.x, b.y, b.z, b.w};
+                int bv[J];
+                if constexpr (J == 4) {
+                    const int4 b4 = *(const int4*)&xw[s * WORDS + w][tc * 4];
+                    bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
+                } else {
+                    for (int j = 0; j < J; ++j) bv[j] = xw[s * WORDS + w][tc * J + j];
+                }
 #pragma unroll
                 for (int i = 0; i < RO; ++i)
 #pragma unroll
-                    for (int j = 0; j < 4; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                    for (int j = 0; j < J; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
             }
 #pragma unroll
             for (int i = 0; i < RO; ++i)
 #pragma unroll
-                for (int j = 0; j < 4; ++j) acc[i][j] = fmaf(wd[s][tr * RO + i] * xd[s][tc * 4 + j], (float)is[i][j], acc[i][j]);
+                for (int j = 0; j < J; ++j) acc[i][j] = fmaf(wd[s][tr * RO + i] * xd[s][tc * J + j], (float)is[i][j], acc[i][j]);
         }
         __syncthreads();
     }
     unsigned long long before = 0;
     for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
-    for (int j = 0; j < 4; ++j)
+    for (int j = 0; j < J; ++j)
         for (int i = 0; i < RO; ++i) {
-            const unsigned long long o = o0 + tr * RO + i, b = b0 + tc * 4 + j;
+            const unsigned long long o = o0 + tr * RO + i, b = b0 + tc * J + j;
             if (o >= nout || b >= nrows) continue;
             if (c.parts > 1) {
                 c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + b * nout + o] = acc[i][j];
             } else {
-                float* y = c.y[pi] + b * nout + o;
+                float* y = c.y[pi] + (ROUTED ? ent[b] : b) * nout + o;
                 *y = c.add ? *y + acc[i][j] : acc[i][j];
             }
         }
 }
 
+// The twin products of the K-quants, Q5_0, Q5_1 and IQ4_NL: a lane takes eight values of one 32-value sub-block, whose term is ds * dot(q, x) - dm * sum(x) over the twin's integers.
+// Every fused step is written as fmaf, the kernels compiling without contraction (CMakeLists.txt, LLMX_HIP_FLAGS).
+template <typename KT> struct KRaw;
+// Q4_K and Q5_K: the f16 scale and min word, the 12 packed scale bytes, the lane's eight nibble bytes and Q5_K's eight fifth-bit bytes, all 4-byte aligned since a block is a multiple of 16 bytes.
+template <bool Q5> struct K45Raw {
+    unsigned dm, sc[3], q[2], h[2];
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned* w = (const unsigned*)b;
+        dm = w[0], sc[0] = w[1], sc[1] = w[2], sc[2] = w[3];
+        const unsigned qo = (Q5 ? 48 : 16) + 32 * (sub >> 1) + 8 * part;
+        q[0] = w[qo / 4], q[1] = w[qo / 4 + 1];
+        if constexpr (Q5) h[0] = w[4 + 2 * part], h[1] = w[5 + 2 * part];
+    }
+    __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
+        const auto byte = [&](unsigned i) { return (sc[i >> 2] >> (8 * (i & 3))) & 0xffu; };
+        unsigned s, m;
+        if (sub < 4) {
+            s = byte(sub) & 63, m = byte(sub + 4) & 63;
+        } else {
+            s = (byte(sub + 4) & 0xF) | ((byte(sub - 4) >> 6) << 4);
+            m = (byte(sub + 4) >> 4) | ((byte(sub) >> 6) << 4);
+        }
+        const unsigned sh = 4 * (sub & 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            v[i] = (q[i] >> sh) & 0x0F0F0F0Fu;
+            if constexpr (Q5) v[i] |= ((h[i] >> sub) & 0x01010101u) << 4;
+        }
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff))) * (float)s;
+        dmin = __half2float(__ushort_as_half((unsigned short)(dm >> 16))) * (float)m;
+    }
+};
+template <> struct KRaw<rq::Q4_K> : K45Raw<false> { static constexpr int offset = 0, halves = 1; };
+template <> struct KRaw<rq::Q5_K> : K45Raw<true> { static constexpr int offset = 0, halves = 1; };
+// Q6_K: a 210-byte block is 2-byte aligned only, so its words come as 16-bit loads: the lane's eight low-nibble bytes and eight high-bit bytes, its 16 values' sub-scale and the block's scale.
+// Its scale changes every 16 values, so the tile takes a sub-block as two halves of two parts, each with its own scale and term.
+template <> struct KRaw<rq::Q6_K> {
+    static constexpr int offset = 32, halves = 2;
+    unsigned short lo[4], hi[4], d;
+    signed char sc;
+    __device__ void load(const unsigned char* b, unsigned sub, unsigned part) {
+        const unsigned n = sub >> 2, quarter = sub & 3;
+        const unsigned short* l = (const unsigned short*)(b + 64 * n + 32 * (quarter & 1) + 8 * part);
+        const unsigned short* h = (const unsigned short*)(b + 128 + 32 * n + 8 * part);
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = l[i], hi[i] = h[i];
+        sc = ((const signed char*)b)[192 + 8 * n + (part >> 1) + 2 * quarter];
+        d = *(const unsigned short*)(b + 208);
+    }
+    __device__ void decode(unsigned sub, unsigned, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned quarter = sub & 3, ls = 4 * (quarter >> 1), hs = 2 * quarter;
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            const unsigned l = lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16), h = hi[2 * i] | ((unsigned)hi[2 * i + 1] << 16);
+            v[i] = ((l >> ls) & 0x0F0F0F0Fu) | (((h >> hs) & 0x03030303u) << 4);
+        }
+        ds = __half2float(__ushort_as_half(d)) * (float)sc;
+        dmin = 0.0f;
+    }
+};
+// The fifth bits of a lane's eight values, bits 0 to 7 of h, as bit 4 of each byte of two words.
+__device__ inline void fifth_bits(unsigned h, unsigned (&v)[2]) {
+#pragma unroll
+    for (int i = 0; i < 2; ++i) {
+        const unsigned x = (h >> (4 * i)) & 0xF;
+        v[i] |= ((x & 1) | ((x & 2) << 7) | ((x & 4) << 14) | ((x & 8) << 21)) << 4;
+    }
+}
+// Q5_0: a 22-byte block, 2-byte aligned, its scale, 32 fifth bits and the lane's four nibble bytes' words as 16-bit loads; the values less 16, taken out of the integer sum.
+template <> struct KRaw<rq::Q5_0> {
+    static constexpr int offset = 16, halves = 1;
+    unsigned short d, h[2], lo[4];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        const unsigned short* w = (const unsigned short*)b;
+        d = w[0], h[0] = w[1], h[1] = w[2];
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = w[3 + 4 * (part & 1) + i];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = ((lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16)) >> sh) & 0x0F0F0F0Fu;
+        fifth_bits(((h[0] | ((unsigned)h[1] << 16)) >> (8 * part)) & 0xff, v);
+        ds = __half2float(__ushort_as_half(d));
+        dmin = 0.0f;
+    }
+};
+// Q5_1: a 24-byte block, 4-byte aligned, its scale and min, 32 fifth bits and the lane's nibble words; the min joins as a negative dm, so the term adds it.
+template <> struct KRaw<rq::Q5_1> {
+    static constexpr int offset = 0, halves = 1;
+    unsigned dm, h, lo[2];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        const unsigned* w = (const unsigned*)b;
+        dm = w[0], h = w[1], lo[0] = w[2 + 2 * (part & 1)], lo[1] = w[3 + 2 * (part & 1)];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = (lo[i] >> sh) & 0x0F0F0F0Fu;
+        fifth_bits((h >> (8 * part)) & 0xff, v);
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff)));
+        dmin = -__half2float(__ushort_as_half((unsigned short)(dm >> 16)));
+    }
+};
+// IQ4_NL: an 18-byte block, 2-byte aligned, its scale and the lane's eight nibble bytes as 16-bit loads; each nibble's value from the format's grid as a signed byte.
+template <> struct KRaw<rq::IQ4_NL> {
+    static constexpr int offset = 0, halves = 1;
+    unsigned short d, lo[4];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        const unsigned short* w = (const unsigned short*)b;
+        d = w[0];
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = w[1 + 4 * (part & 1) + i];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            const unsigned l = lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16);
+            v[i] = 0;
+#pragma unroll
+            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)quant::IQ4_NL_VALUES[(l >> (8 * j + sh)) & 0xF] & 0xffu) << (8 * j);
+        }
+        ds = __half2float(__ushort_as_half(d));
+        dmin = 0.0f;
+    }
+};
+// Whether a type's decoded bytes are signed, which its 16-bit words then extend.
+template <typename KT> struct KSigned { static constexpr bool value = false; };
+template <> struct KSigned<rq::IQ4_NL> { static constexpr bool value = true; };
+// The eight byte values as the twin's words: two words of four bytes, or four of two 16-bit values.
+template <typename QT> struct KWords { static constexpr int n = sizeof(QT) == 2 ? 4 : 2; };
+template <typename QT, bool S>
+__device__ inline void widen(const unsigned (&v)[2], int (&w)[KWords<QT>::n]) {
+    if constexpr (sizeof(QT) == 2 && S) {
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            const int x = (int)v[i];
+            w[2 * i] = (((x << 24) >> 24) & 0xffff) | (((x << 16) >> 24) << 16);
+            w[2 * i + 1] = (((x << 8) >> 24) & 0xffff) | ((x >> 24) << 16);
+        }
+    } else if constexpr (sizeof(QT) == 2) {
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            w[2 * i] = (int)__builtin_amdgcn_perm(0u, v[i], 0x0c010c00u);
+            w[2 * i + 1] = (int)__builtin_amdgcn_perm(0u, v[i], 0x0c030c02u);
+        }
+    } else {
+        w[0] = (int)v[0], w[1] = (int)v[1];
+    }
+}
+// A sub-block's term from its exact integer dot and twin sum.
+template <typename KT>
+__device__ inline float k_term(float ds, float dmin, int isum, int xsum) {
+    if constexpr (KRaw<KT>::offset) return ds * (float)(isum - KRaw<KT>::offset * xsum);
+    else return fmaf(ds, (float)isum, -(dmin * (float)xsum));
+}
+
+// A wave computes R output rows for up to C generated rows, four lanes a twin block as q8_0_rows takes them, each lane's terms added into F32 in block order and folded by wave_sums, so a row and a column keep their bits in every build.
+template <typename KT, int C, typename QT, int R, int G, typename M = Cols>
+__device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
+    constexpr int NW = KWords<QT>::n;
+    constexpr int ONES = sizeof(QT) == 2 ? 0x00010001 : 0x01010101;
+    const int lanes = warpSize, lane = threadIdx.x % lanes;
+    const unsigned long long blocks = nin / 32, row_bytes = nin / KT::values * KT::bytes, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
+    for (unsigned long long o = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); o < rc.total; o += R * waves) {
+        Row r[R];
+#pragma unroll
+        for (int j = 0; j < R; ++j) r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), row_bytes);
+        float acc[R][C];
+#pragma unroll
+        for (int j = 0; j < R; ++j)
+#pragma unroll
+            for (int c = 0; c < C; ++c) acc[j][c] = 0.0f;
+        for (unsigned long long u = lane; u < blocks * 4; u += lanes) {
+            const unsigned long long k = u / 4;
+            const unsigned part = (unsigned)(u % 4), sub = (unsigned)(k % (KT::values / 32));
+            KRaw<KT> raw[R];
+#pragma unroll
+            for (int j = 0; j < R; ++j) raw[j].load(r[j].w + (k / (KT::values / 32)) * KT::bytes, sub, part);
+            int ww[R][NW];
+            float ds[R], dm[R];
+#pragma unroll
+            for (int j = 0; j < R; ++j) {
+                unsigned v[2];
+                raw[j].decode(sub, part, v, ds[j], dm[j]);
+                widen<QT, KSigned<KT>::value>(v, ww[j]);
+            }
+#pragma unroll
+            for (int g = 0; g < C; g += G) {
+                int xw[G][NW];
+                float xd[G];
+#pragma unroll
+                for (int c = 0; c < G; ++c) {
+                    const unsigned long long col = m.x(g + c < ncols ? g + c : 0) * blocks;
+                    const QT* qc = q + (col + k) * 32 + part * 8;
+                    if constexpr (NW == 4) {
+                        const int4 x = *(const int4*)qc;
+                        xw[c][0] = x.x, xw[c][1] = x.y, xw[c][2] = x.z, xw[c][3] = x.w;
+                    } else {
+                        const int2 x = *(const int2*)qc;
+                        xw[c][0] = x.x, xw[c][1] = x.y;
+                    }
+                    xd[c] = dx[col + k];
+                }
+#pragma unroll
+                for (int c = 0; c < G; ++c) {
+                    int xsum = 0;
+#pragma unroll
+                    for (int i = 0; i < NW; ++i) xsum = word_dot(ONES, xw[c][i], xsum, QT(0));
+#pragma unroll
+                    for (int j = 0; j < R; ++j) {
+                        int isum = 0;
+#pragma unroll
+                        for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
+                        acc[j][g + c] = fmaf(xd[c], k_term<KT>(ds[j], dm[j], isum, xsum), acc[j][g + c]);
+                    }
+                }
+            }
+        }
+        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
+    }
+}
+
+// The K-quants' prompt tile: q8_0_tile's 64 outputs by 64 rows and its staging, each weight row's twin block staged by four threads with the scale and min of its halves.
+// Each output sums its blocks, and a block its halves, in order, acc = fma(dx, term, acc), so a row gives the same bits wherever the tile falls.
+template <typename KT, typename QT, bool ROUTED = false, int ROWS = kTileRows>
+__device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{}) {
+    constexpr int STEP = TileStep<QT, 4>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = 64, NW = KWords<QT>::n, H = KRaw<KT>::halves;
+    constexpr int ONES = sizeof(QT) == 2 ? 0x00010001 : 0x01010101, J = ROWS / 16;   // J a thread's rows
+    const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
+    const unsigned long long gi = ROUTED ? tg.first + blockIdx.y : 0;
+    const unsigned long long nout = c.nout[pi], nrows = ROUTED ? tg.tab[4 * gi + 2] : c.nrows, nin = c.nin;
+    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows))) return;   // as q8_0_tile's groups
+    const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
+    const unsigned long long blocks = nin / 32, row_bytes = nin / KT::values * KT::bytes;
+    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
+    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
+    __shared__ float wd[STEP][H][OUTS], wm[STEP][H][OUTS], xd[STEP][ROWS];
+    const int t = threadIdx.x, tr = t / 16, tc = t % 16;
+    const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
+    const unsigned long long kbeg = (unsigned long long)blockIdx.z * c.kper;
+    const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
+    float acc[4][J];
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < J; ++j) acc[i][j] = 0.0f;
+    // Weight row wr's twin block takes four threads, part ws each; the twin's row r four threads, a quarter of a block each.
+    const int r = t / 4, seg = t % 4, wr = t / 4, ws = t % 4;
+    const unsigned long long o = o0 + wr, b = b0 + r;
+    const unsigned xr = ROUTED ? (b < nrows ? (unsigned)(ent[b] / tg.per) : 0u) : (unsigned)r;   // the twin row this thread stages
+    const unsigned char* wrow = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0) + (o < nout ? o : 0) * row_bytes;
+    KRaw<KT> raw[STEP];
+    bool wok[STEP], xok[STEP];
+    int xv[STEP][WORDS / 4];
+    float xs_[STEP];
+    const QT* qt = q + b0 * c.xrow * 32;
+    const float* dxt = dx + b0 * c.xrow;
+    const auto load = [&](unsigned long long k0) {
+#pragma unroll
+        for (int s = 0; s < STEP; ++s) {
+            const unsigned long long k = k0 + s;
+            xok[s] = k < kend && b < nrows;
+            wok[s] = k < kend && o < nout;
+            const unsigned long long kk = wok[s] ? k : 0;
+            raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+            const unsigned xb = xok[s] ? xr * c.xrow + (unsigned)k * c.xblock : 0u;
+            if constexpr (sizeof(QT) == 2) {
+                const int4 v = at<int4>(qt, xb * 64u + seg * 16u);
+                xv[s][0] = v.x, xv[s][1] = v.y, xv[s][2] = v.z, xv[s][3] = v.w;
+            } else {
+                const int2 v = at<int2>(qt, xb * 32u + seg * 8u);
+                xv[s][0] = v.x, xv[s][1] = v.y;
+            }
+            xs_[s] = at<float>(dxt, xb * 4u);
+        }
+    };
+    const auto store = [&](unsigned long long k0) {
+#pragma unroll
+        for (int s = 0; s < STEP; ++s) {
+            unsigned v[2];
+            float ds, dm;
+            raw[s].decode((unsigned)((k0 + s) % (KT::values / 32)), ws, v, ds, dm);
+            int w[NW];
+            widen<QT, KSigned<KT>::value>(v, w);
+#pragma unroll
+            for (int i = 0; i < NW; ++i) wq[s * WORDS + ws * NW + i][wr] = wok[s] ? w[i] : 0;
+            if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;
+#pragma unroll
+            for (int w2 = 0; w2 < WORDS / 4; ++w2)
+                if (r < ROWS) xw[s * WORDS + seg * (WORDS / 4) + w2][r] = xok[s] ? xv[s][w2] : 0;
+            if (seg == 0 && r < ROWS) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
+        }
+    };
+    load(kbeg);
+    for (unsigned long long k0 = kbeg; k0 < kend; k0 += STEP) {
+        store(k0);
+        __syncthreads();
+        if (k0 + STEP < kend) load(k0 + STEP);
+#pragma unroll
+        for (int s = 0; s < STEP; ++s) {
+            if (k0 + s >= kend) break;
+#pragma unroll
+            for (int h = 0; h < H; ++h) {
+                int is[4][J], xsum[J];
+#pragma unroll
+                for (int j = 0; j < J; ++j) xsum[j] = 0;
+#pragma unroll
+                for (int i = 0; i < 4; ++i)
+#pragma unroll
+                    for (int j = 0; j < J; ++j) is[i][j] = 0;
+#pragma unroll
+                for (int w = h * (WORDS / H); w < (h + 1) * (WORDS / H); ++w) {
+                    const int4 a = *(const int4*)&wq[s * WORDS + w][tr * 4];
+                    const int av[4] = {a.x, a.y, a.z, a.w};
+                    int bv[J];
+                    if constexpr (J == 4) {
+                        const int4 b4 = *(const int4*)&xw[s * WORDS + w][tc * 4];
+                        bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
+                    } else {
+                        for (int j = 0; j < J; ++j) bv[j] = xw[s * WORDS + w][tc * J + j];
+                    }
+#pragma unroll
+                    for (int j = 0; j < J; ++j) xsum[j] = word_dot(ONES, bv[j], xsum[j], QT());
+#pragma unroll
+                    for (int i = 0; i < 4; ++i)
+#pragma unroll
+                        for (int j = 0; j < J; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                }
+#pragma unroll
+                for (int i = 0; i < 4; ++i)
+#pragma unroll
+                    for (int j = 0; j < J; ++j)
+                        acc[i][j] = fmaf(xd[s][tc * J + j], k_term<KT>(wd[s][h][tr * 4 + i], wm[s][h][tr * 4 + i], is[i][j], xsum[j]), acc[i][j]);
+            }
+        }
+        __syncthreads();
+    }
+    unsigned long long before = 0;
+    for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
+    for (int j = 0; j < J; ++j)
+        for (int i = 0; i < 4; ++i) {
+            const unsigned long long oo = o0 + tr * 4 + i, bb = b0 + tc * J + j;
+            if (oo >= nout || bb >= nrows) continue;
+            if (c.parts > 1) {
+                c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = acc[i][j];
+            } else {
+                float* y = c.y[pi] + (ROUTED ? ent[bb] : bb) * nout + oo;
+                *y = c.add ? *y + acc[i][j] : acc[i][j];
+            }
+        }
+}
+
+// A routed row call (backend.hpp matmul_experts): the row kernel's call over expert 0, each projection's bytes an expert, the entries' ids, the launch's first entry and the entries a twin column serves.
+struct RoutedCall {
+    RowCall c;
+    unsigned long long stride[3];
+    const unsigned* ids;
+    unsigned long long first, per, n_expert;
+};
+// Entry first + blockIdx.y's call over its expert's rows into its own outputs, and its twin column; false for an entry without an expert, which writes nothing.
+__device__ inline bool routed_entry(const RoutedCall& rc, RowCall& c, unsigned long long& col) {
+    const unsigned long long e = rc.first + blockIdx.y;
+    const unsigned id = rc.ids[e];
+    if (id >= rc.n_expert) return false;
+    c = rc.c;
+    for (int p = 0; p < 3; ++p) {
+        c.w[p] += id * rc.stride[p];
+        c.y[p] += e * rc.c.nout[p];
+    }
+    col = e / rc.per;
+    return true;
+}
+// Group first + blockIdx.y of a grouped call (kernels/f32.hip, llmx_moe_group): its expert's call over the expert's rows, its entries from word order0 of tab, and their count, 0 for an unused group.
+__device__ inline int group_entries(const RoutedCall& rc, const unsigned* tab, unsigned long long order0, RowCall& c, const unsigned*& entries) {
+    const unsigned long long g = rc.first + blockIdx.y;
+    const int n = (int)tab[4 * g + 2];
+    if (!n) return 0;
+    const unsigned id = tab[4 * g];
+    c = rc.c;
+    for (int p = 0; p < 3; ++p) c.w[p] += id * rc.stride[p];
+    entries = tab + order0 + tab[4 * g + 1];
+    return n;
+}
+
 } // namespace
 
 
-// Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler: its default assumes 1024 threads and caps a thread at 64 registers, which spilled the tile's prefetch to scratch.
-// The row kernel's builds, the host taking the narrowest that holds a call's columns.
-// R is the output rows a wave takes and G the columns whose loads issue together; a build named _r4 takes four rows where its namesake takes two, the host choosing between them by the call's rows (rocm_backend.cpp, row_build).
+// Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler, since its default of 1024 threads spilled the tile's prefetch to scratch.
+// The row kernel's builds: R output rows a wave and G columns whose loads issue together, the host choosing by the call's columns and rows (rocm_backend.cpp, row_build).
 #define LLMX_ROWS(name, C, QT, R, G)                                                                                                                   \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
         q8_0_rows<C, QT, R, G>(c, q, dx, nin, ncols, add);                                                                                             \
@@ -589,3 +1011,84 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_tile_reduce(TileCall
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8_tall(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 8>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16_tall(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 8>(c, q, dx); }
+// The routed prompt tiles: the 64-output tile over a group a block row (TileGroups), 64 rows a group or, narrow, 16.
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_tile16(TileCall c, TileGroups g, const short* q, const float* dx) { q8_0_tile<short, 4, true>(c, q, dx, g); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_tile8(TileCall c, TileGroups g, const signed char* q, const float* dx) { q8_0_tile<signed char, 4, true>(c, q, dx, g); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_narrow16(TileCall c, TileGroups g, const short* q, const float* dx) { q8_0_tile<short, 4, true, kNarrowRows>(c, q, dx, g); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_narrow8(TileCall c, TileGroups g, const signed char* q, const float* dx) { q8_0_tile<signed char, 4, true, kNarrowRows>(c, q, dx, g); }
+
+// The twin types' row builds and tiles but Q8_0's, a type's set named by its type: the builds the host takes by a call's columns (rocm_backend.cpp, TwinKernels), two rows a wave.
+#define LLMX_KROWS(name, KT, C, QT, G)                                                                                                                 \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
+        k_rows<KT, C, QT, 2, G>(c, q, dx, nin, ncols, add);                                                                                            \
+    }
+#define LLMX_KTILE(name, KT, QT) \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(TileCall c, const QT* q, const float* dx) { k_tile<KT, QT>(c, q, dx); }
+#define LLMX_KTILE_ROUTED(name, KT, QT, ROWS) \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(TileCall c, TileGroups g, const QT* q, const float* dx) { k_tile<KT, QT, true, ROWS>(c, q, dx, g); }
+// A routed build runs a type's one-column body over an entry's expert and twin column, so each entry has the bits of its expert's one-column product.
+#define LLMX_ROUTED(name, QT, ...)                                                                                                       \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(RoutedCall rc, const QT* q, const float* dx, unsigned long long nin) { \
+        RowCall c;                                                                                                                       \
+        unsigned long long col;                                                                                                          \
+        if (!routed_entry(rc, c, col)) return;                                                                                           \
+        __VA_ARGS__(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 1, 0);                                                     \
+    }
+LLMX_ROUTED(llmx_q8_0_routed16, short, q8_0_rows<1, short, 2, 1>)
+LLMX_ROUTED(llmx_q8_0_routed8, signed char, q8_0_rows<1, signed char, 2, 1>)
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_half8(RoutedCall rc, const signed char* q, const float* dx, unsigned long long nin) {
+    RowCall c;
+    unsigned long long col;
+    if (!routed_entry(rc, c, col)) return;
+    q8_0_half_one(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 0);
+}
+// A grouped build runs a row build of C columns over one expert's entries (EntryCols), a column an entry, so each entry has the bits of its one-column product and the expert's rows are read once a group.
+#define LLMX_GROUPED(name, QT, C, ...)                                                                                                                                                 \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(RoutedCall rc, const unsigned* tab, unsigned long long order0, const QT* q, const float* dx, unsigned long long nin) { \
+        RowCall c;                                                                                                                                                                     \
+        const unsigned* e;                                                                                                                                                             \
+        const int n = group_entries(rc, tab, order0, c, e);                                                                                                                            \
+        if (!n) return;                                                                                                                                                                \
+        const EntryCols<C> m(e, n, rc.per);                                                                                                                                            \
+        __VA_ARGS__(c, q, dx, nin, n, 0, m);                                                                                                                                           \
+    }
+LLMX_GROUPED(llmx_q8_0_routed16_g2, short, 2, q8_0_rows<2, short, 2, 2, EntryCols<2>>)
+LLMX_GROUPED(llmx_q8_0_routed16_g4, short, 4, q8_0_rows<4, short, 2, 4, EntryCols<4>>)
+LLMX_GROUPED(llmx_q8_0_routed16_g8, short, 8, q8_0_rows<8, short, 2, 4, EntryCols<8>>)
+LLMX_GROUPED(llmx_q8_0_routed8_g2, signed char, 2, q8_0_rows<2, signed char, 2, 2, EntryCols<2>>)
+LLMX_GROUPED(llmx_q8_0_routed8_g4, signed char, 4, q8_0_rows<4, signed char, 2, 4, EntryCols<4>>)
+LLMX_GROUPED(llmx_q8_0_routed8_g8, signed char, 8, q8_0_rows<8, signed char, 2, 4, EntryCols<8>>)
+LLMX_GROUPED(llmx_q8_0_routed_half8_g2, signed char, 2, q8_0_rows_half<2, 2, 2, EntryCols<2>>)
+LLMX_GROUPED(llmx_q8_0_routed_half8_g4, signed char, 4, q8_0_rows_half<4, 2, 4, EntryCols<4>>)
+LLMX_GROUPED(llmx_q8_0_routed_half8_g8, signed char, 8, q8_0_rows_half<8, 2, 4, EntryCols<8>>)
+#define LLMX_KTYPE(t, KT)                                   \
+    LLMX_KROWS(llmx_##t##_rows16_1, KT, 1, short, 1)        \
+    LLMX_KROWS(llmx_##t##_rows16_2, KT, 2, short, 2)        \
+    LLMX_KROWS(llmx_##t##_rows16_4, KT, 4, short, 4)        \
+    LLMX_KROWS(llmx_##t##_rows16_8, KT, 8, short, 4)        \
+    LLMX_KROWS(llmx_##t##_rows16_16, KT, 16, short, 4)      \
+    LLMX_KROWS(llmx_##t##_rows8_1, KT, 1, signed char, 1)   \
+    LLMX_KROWS(llmx_##t##_rows8_2, KT, 2, signed char, 2)   \
+    LLMX_KROWS(llmx_##t##_rows8_4, KT, 4, signed char, 4)   \
+    LLMX_KROWS(llmx_##t##_rows8_8, KT, 8, signed char, 4)   \
+    LLMX_KROWS(llmx_##t##_rows8_16, KT, 16, signed char, 4) \
+    LLMX_KTILE(llmx_##t##_tile16, KT, short)                \
+    LLMX_KTILE(llmx_##t##_tile8, KT, signed char)           \
+    LLMX_ROUTED(llmx_##t##_routed16, short, k_rows<KT, 1, short, 2, 1>) \
+    LLMX_ROUTED(llmx_##t##_routed8, signed char, k_rows<KT, 1, signed char, 2, 1>)                      \
+    LLMX_GROUPED(llmx_##t##_routed16_g2, short, 2, k_rows<KT, 2, short, 2, 2, EntryCols<2>>)            \
+    LLMX_GROUPED(llmx_##t##_routed16_g4, short, 4, k_rows<KT, 4, short, 2, 4, EntryCols<4>>)            \
+    LLMX_GROUPED(llmx_##t##_routed16_g8, short, 8, k_rows<KT, 8, short, 2, 4, EntryCols<8>>)            \
+    LLMX_GROUPED(llmx_##t##_routed8_g2, signed char, 2, k_rows<KT, 2, signed char, 2, 2, EntryCols<2>>) \
+    LLMX_GROUPED(llmx_##t##_routed8_g4, signed char, 4, k_rows<KT, 4, signed char, 2, 4, EntryCols<4>>) \
+    LLMX_GROUPED(llmx_##t##_routed8_g8, signed char, 8, k_rows<KT, 8, signed char, 2, 4, EntryCols<8>>) \
+    LLMX_KTILE_ROUTED(llmx_##t##_routed_tile16, KT, short, kTileRows)                                  \
+    LLMX_KTILE_ROUTED(llmx_##t##_routed_tile8, KT, signed char, kTileRows)                             \
+    LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow16, KT, short, kNarrowRows)                              \
+    LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow8, KT, signed char, kNarrowRows)
+LLMX_KTYPE(q4_k, rq::Q4_K)
+LLMX_KTYPE(q5_k, rq::Q5_K)
+LLMX_KTYPE(q6_k, rq::Q6_K)
+LLMX_KTYPE(q5_0, rq::Q5_0)
+LLMX_KTYPE(q5_1, rq::Q5_1)
+LLMX_KTYPE(iq4_nl, rq::IQ4_NL)

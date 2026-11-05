@@ -255,6 +255,23 @@ class ReferenceConsumer(unittest.TestCase):
                 os.environ.pop("LLMX_BASELINE_GGUF", None)
                 self.assertEqual(baseline.run(), common.SKIPPED)
 
+    def test_an_encoder_refusal_skips_and_another_failure_fails(self):
+        # A device lacking one of the vision encoder's ops makes image, vision and cli's check skip or pass on that refusal alone.
+        import vision
+        refusal = "error: inference: the vision encoder needs layer_norm, which its device does not implement\n"
+        self.assertEqual(common.encoder_refusal(1, refusal), refusal.strip()[len("error: "):])
+        self.assertIsNone(common.encoder_refusal(0, refusal))
+        self.assertIsNone(common.encoder_refusal(1, "error: inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement"))
+        for stderr, want in ((refusal, common.SKIPPED), ("error: inference: failed during upload\n", AssertionError)):
+            done = subprocess.CompletedProcess([], 1, "", stderr)
+            with self.subTest(stderr=stderr), patch.object(vision, "tool_path", return_value=sys.executable), \
+                    patch.object(vision.subprocess, "run", return_value=done), contextlib.redirect_stdout(io.StringIO()):
+                if want is common.SKIPPED:
+                    self.assertEqual(vision.run(), common.SKIPPED)
+                else:
+                    with self.assertRaisesRegex(AssertionError, "failed during upload"):
+                        vision.run()
+
     def test_required_type_runner_refuses_invalid_selection(self):
         import run_tests
         for required in ("", "Q8_0,", "NO_SUCH_TYPE", "39"):

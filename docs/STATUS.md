@@ -1,5 +1,38 @@
 # llmx - Development Status
 
+## ROCm prompt path: exact products over rows, four-head sparse attention, routed narrow quads (2026-11-05, RDEV26 then RDEV31, branch perf/rocm-prompt on main 1fd20cc87; proposal of 2026-11-05 20:18 approved by F2DEV at 20:25 with six changes; lands by fast-forward)
+
+- **Goal:** Qwen3.8-Flash-Next UD-Q4_K_XL prompts on four MI50s faster on ROCm with the same bits as main: at pp2048 ub320 main gave 947 (2x2 int8), 885 (2x2 auto) and 882 (layer-4 int8) tok/s against Vulkan's 1548, 1112 and 1621.
+  The kernel trace ranked the gap per card of a 2x2 group: the F32 and BF16 exact products (router 2560->512 F32 at 293 rows 1.94 ms a call) +317 ms, the int8 routed tiles +135, sparse attention +100, the group sum's start skew 136 to 391 ms, the gated delta rule +20; the dense Q8_0 tile and, in auto, the routed tiles are level or ahead.
+- **Done:** step 1, `llmx_matmul_rows_<type>` for every exact type, 8 outputs by 8 rows a block, each output the bits of its one-row product (router at 293 rows 1933 -> 366 us); step 2, `llmx_sparse_attention_vec{,256}_g4`, the ROCm mirror of MDEV's Vulkan four-head build, taken where the heads a KV head serves are a multiple of four and rows * heads / 4 fills the compute units, each head the bits of the one-head build (16 rows 1061 -> 666 us); step 3, the narrow routed tile's column quads, the mirror of KDEV4's B2 (`rates tile` at 320 rows -10 to -16%); `bench: ppN slices` gives each run's rate.
+  Tests: `exact_rows` (widths 2560, 2561 and 2080), `sparse_grouped` and `experts_quads` in `llmx-backend-rocm-test`, every output the bits of the build it replaces.
+- **Gates (fresh ROCm and Vulkan builds from detached worktrees, main 1fd20cc87 `llmx 0.1.0+g1fd20cc87ee9` against the branch `0.1.0+g4979257d5692`, four MI50s at default clocks, the machine monitored throughout; load average 7 to 27 beside other jobs on other cards):**
+  Byte identity against main, all 20 cells equal by `cmp` (generation files without their `pp:` and `tg:` timing lines): Flash-Next layer-4 and 2x2, int8 and auto, 64 greedy tokens at ub320 and ub512 and the last four logits rows at ub320; Qwen3.5-0.8B Q4_K_M at auto, int8 and f32 and Qwen3-8B Q8_0 on one card, greedy and logits.
+  The HF cells are unchanged, since every output is main's bits.
+  Kernel traces name the builds the cells ran: 2x2 int8 ub320 `llmx_matmul_rows_f32` and `_bf16`, `llmx_sparse_attention_vec256_g4` and the int8 narrow tile; layer-4 auto ub512 the same with the f16 narrow tile; Qwen3.5-0.8B at `--dtype f32` `llmx_matmul_rows_q4_k`, `_q5_k` and `_q6_k`.
+  CTest ROCm 82/82; CTest Vulkan 97/98, `cache-scenario`'s "write ending while the job is spared" case failing once, a host-timing case of the server's cache the branch does not reach, then passing 3 of 3 on the branch's build and 3 of 3 on main's; device suite on rocm:0 rc 0; docs and dead-code PASS.
+  Timing round main, branch, branch, main, `bench --p 2048 --n 64 --r 5`, tok/s as the mean of the two runs a side, slices as median (range), the branch's per-run rate median (range) from the slices line:
+
+  | cell | main | branch | change | main slices | branch slices | branch per run |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 2x2 int8 ub320 | 1017 | 1372 | +34.9% | 8 (7-14) | 7 (7-8) | 1374 (1363-1377) |
+  | 2x2 auto ub320 | 845 | 1131 | +33.8% | 7 (7-30) | 7 (7-12) | 1146 (1029-1147) |
+  | layer-4 int8 ub320 | 1021 | 1188 | +16.4% | 12 (7-26) | 15 (7-31) | 1194 (836-1486) |
+  | layer-4 auto ub320 | 796 | 958 | +20.4% | 14 (9-43) | 16 (10-82) | 1058 (483-1100) |
+  | 2x2 int8 ub512 | 944 | 1268 | +34.3% | 16 (4-24) | 13 (4-15) | 1230 (1173-1415) |
+  | 2x2 auto ub512 | 797 | 925 | +16.1% | 16 (4-21) | 14 (4-225) | 1010 (217-1182) |
+  | layer-4 int8 ub512 | 1061 | 1345 | +26.8% | 14 (7-18) | 7 (4-12) | 1388 (1066-1462) |
+  | layer-4 auto ub512 | 794 | 989 | +24.6% | 12 (7-105) | 14 (7-179) | 1087 (231-1136) |
+
+  tg64 tok/s, main against the branch: 2x2 int8 33.68 / 33.06 (ub320) and 33.35 / 32.88 (ub512), 2x2 auto 33.30 / 32.94 and 33.34 / 33.07, layer-4 int8 28.12 / 28.18 and 28.38 / 28.12, layer-4 auto 27.65 / 27.71 and 27.61 / 27.57, -1.8% to +0.2%, the lowest the branch's third run on the 2x2 int8 cells.
+  Decode reaches no changed kernel: a generated token keeps the one-row exact product, and a one-row sparse call stays below the compute-unit gate, so it runs main's one-head build (traced, median 13.4 to 13.9 us a call on the branch against 14.2 to 15.0 on main ecfe37e07).
+  The group sum, remeasured on the traces after step 1 (2x2 int8 ub320, 1201 sums a card, one clock): the later starter's time is 161 us a sum on rocm:0+1 and 263 on rocm:2+3 (181 and 165 before), and the start skew grew from 574 and 918 ms to 913 and 848 ms, rocm:0 and rocm:2 now the earlier in 1131 and 1154 of 1201, so with the exact products gone the first card of each pair waits for its partner's heavier rest; that lateness is the collective's and the split's to remove, not this branch's.
+- **Left:** review and landing.
+  No hosted runner has a ROCm device, so the ROCm checks are the rig's hand checks above.
+- **Gotchas:** the exact rows build needs `__launch_bounds__`: without it the compiler capped it at 64 VGPRs and spilled, and it ran no faster than the one-row kernel.
+  On ROCm the pipelined slicing varies run to run (one branch run of 2x2 auto ub512 took 225 slices at 217 tok/s, where its other nine took 4 to 42 at 632 to 1182); the chooser is the runtime's (`model/slicing.hpp`), not this branch's, and the rates above are read beside their slices for that reason.
+  The delta rule's 96 workgroups a call (65 against Vulkan's 45 ms a card) is recorded as a finding for perf/rocm-decode.
+
 ## The quick newcomer's long-prompt bound follows the chunk search (2026-11-05, PDEV17 then PDEV18, branch fix/server-passes-newcomer on main 1df72137d, tests only; lands by fast-forward)
 
 - **Goal:** `server-passes-cpu`'s `short_newcomer` holds on any machine: on a slow hosted runner (run 41965354179, job 127040987113, a shader-only branch) and once under TSan a pass between two steps of a reply held 96 prompt rows beside the quick newcomer, against the bound of its whole 85-token prompt.

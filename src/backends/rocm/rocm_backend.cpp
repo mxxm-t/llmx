@@ -1032,7 +1032,9 @@ public:
             if (nsplit > 1 && (!parts_ || parts_->size() < need)) parts_ = alloc(need, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
             void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &vp, &idp, &stride};
-            launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
+            // Four heads of a KV head a block, each head its one-head bits (kernels/f32.hip, sparse_vec_grouped), where the groups fill the compute units, as the Vulkan backend chooses.
+            if (ratio % 4 == 0 && rows * size_t(n_head) / 4 >= size_t(dev_.caps.compute_units)) launch(head_dim == 256 ? kSparseVec256G4 : kSparseVecG4, (unsigned)(rows * (n_head / 4) * nsplit), 1, args);
+            else launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
                 void* margs[] = {&vp, &o, &ep, &n_head, &nsplit};
                 launch(head_dim == 256 ? kSparseVecMerge256 : kSparseVecMerge, (unsigned)(rows * n_head), 1, margs);
@@ -1139,6 +1141,7 @@ private:
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
@@ -1155,7 +1158,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -1211,20 +1214,20 @@ private:
     static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 1.25f, 2.5f, 128, 32, 32, 32), kQ5KTwins = k_twins(kRowsQ5K16x1, 1.25f, 1.25f, 128, 32, 32, 32), kQ6KTwins = k_twins(kRowsQ6K16x1, 0.25f, 2.5f, 128, 32, 32, 32);
     static constexpr TwinKernels kQ50Twins = k_twins(kRowsQ5016x1, 1.25f, 5.0f, 128, 32, 32, 32), kQ51Twins = k_twins(kRowsQ5116x1, 1.25f, 1.25f, 128, 32, 32, 32), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.625f, 0.3125f, 32, 32, 32, 32);
     static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8, "a K-type's kernels follow LLMX_KTYPE's order");
-    // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, its embedding, its routed exact product and its twin kernels.
+    // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, the same over several rows, its embedding, its routed exact product and its twin kernels.
     // A type without twins takes its exact product in every class.
     struct TypeKernels {
         uint32_t type;
         const char* name;
-        Kernel exact, embed, routed;
+        Kernel exact, rows, embed, routed;
         const TwinKernels* twin;
     };
     static constexpr TypeKernels kTypes[] = {
-        {quant::GGML_TYPE_F32, "F32", kMatmul, kGather, kRoutedExactF32, nullptr},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins},
-        {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins},
-        {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins},
-        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kGatherBF16, kRoutedExactBF16, nullptr},
-        {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins},
+        {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins},
+        {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kRowsExactQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kRowsExactQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins},
+        {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins},
+        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr},
+        {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins},
     };
     static const TypeKernels* type_kernels(uint32_t type) {
         for (const TypeKernels& t : kTypes)
@@ -1234,6 +1237,7 @@ private:
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
+    static constexpr size_t kRowsOut = 8, kRowsIn = 8;   // the blocked exact product's outputs and rows a block (kernels/f32.hip)
     static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64;   // the prompt tile's outputs, its tall build's, and its rows (kernels/int16.hip)
 
     // Memory in slots, pinned host memory the device reads in place or copies from, or device memory: a slot is taken again once the ticket that last read it retires.
@@ -1466,8 +1470,15 @@ private:
         float* y = f32(Y);
         unsigned long long ni = nin, no = nout;
         int add = accumulate;
-        void* args[] = {&w, &x, &y, &ni, &no, &add};
-        launch(kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
+        if (nbatch > 1) {
+            // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.hip, exact_rows).
+            unsigned long long nr = nbatch;
+            void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
+            launch(kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
+        } else {
+            void* args[] = {&w, &x, &y, &ni, &no, &add};
+            launch(kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
+        }
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
     }

@@ -1178,7 +1178,7 @@ It takes Vulkan devices and is refused where a listed device is the CPU; with se
 Copies between buffers and a write's copy into device memory are timed beside the kernels as `copy` and `write`, and each device's line ends with its idle time between timed ops and the part of it in gaps of a millisecond or more.
 Each stage then gets a line of its recordings in the run (`profile pp, stage 1`): how often one started, and the host's time in each, apart its wait for the residual's sending stage, its write of the residual into its device and the rest, recording and submitting, with when the residual reached it after the pass's first stage began.
 
-After the `pp` line, `bench: ppN slices` gives the slices each timed prompt was read in; a pipelined layer split chooses them by the period it measured on its earlier prompts, so the first prompts may take other slices than later ones.
+After the `pp` line, `bench: ppN slices` gives the slices each timed prompt was read in, each with that prompt's rate; a pipelined layer split chooses them by the period it measured on its earlier prompts, so the first prompts may take other slices than later ones.
 
 `--size` and `--iters` belong to the synthetic bench and are refused with `--model`, as the flags only a model run reads are refused without it.
 

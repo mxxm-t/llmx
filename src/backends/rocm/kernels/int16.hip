@@ -441,12 +441,19 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
     __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
     __shared__ float wd[STEP][OUTS], xd[STEP][ROWS];
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;   // outputs tr * RO.., rows tc * J..
+    // The narrow routed build gives each wave one quad of the group's entries, rotated by workgroup since wave w runs on SIMD w; a quad holding no entry skips its dots.
+    constexpr bool QUADS = ROUTED && ROWS == kNarrowRows;
+    constexpr int TO = QUADS ? 1 : RO, TJ = QUADS ? 4 : J;   // a thread's outputs and rows
+    const int quad = (int)((t / 64 + blockIdx.x + blockIdx.y) % 4), lane = t % 64;
+    const auto out_at = [&](int i) { return QUADS ? lane : tr * RO + i; };
+    const auto row_at = [&](int j) { return QUADS ? 4 * quad + j : tc * J + j; };
+    const bool idle = QUADS && 4ull * quad >= nrows;
     const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
     const unsigned long long blocks = nin / 32, kbeg = (unsigned long long)blockIdx.z * c.kper;
     const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
-    float acc[RO][J];
-    for (int i = 0; i < RO; ++i)
-        for (int j = 0; j < J; ++j) acc[i][j] = 0.0f;
+    float acc[TO][TJ];
+    for (int i = 0; i < TO; ++i)
+        for (int j = 0; j < TJ; ++j) acc[i][j] = 0.0f;
     // Each weight row takes WT threads, each WQ words of a block's quants (two threads a row on the tall tile, four on the other), and the twin's rows four threads, each a quarter of a block (the Vulkan tile's staging).
     // A stage's blocks are loaded into registers while the previous stage computes, and stored to shared memory after it.
     const int r = t / 4, seg = t % 4, wr = t / WT, ws = t % WT;
@@ -523,44 +530,48 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
         if (AHEAD && k0 + STEP < kend) load(k0 + STEP);
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
-            if (k0 + s >= kend) break;
-            int is[RO][J];
+            if (k0 + s >= kend || idle) break;
+            int is[TO][TJ];
 #pragma unroll
-            for (int i = 0; i < RO; ++i)
+            for (int i = 0; i < TO; ++i)
 #pragma unroll
-                for (int j = 0; j < J; ++j) is[i][j] = 0;
+                for (int j = 0; j < TJ; ++j) is[i][j] = 0;
 #pragma unroll
             for (int w = 0; w < WORDS; ++w) {
-                int av[RO];
+                int av[TO];
+                if constexpr (QUADS) {
+                    av[0] = wq[s * WORDS + w][lane];
+                } else {
 #pragma unroll
-                for (int h = 0; h < RO / 4; ++h) {
-                    const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
-                    av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
+                    for (int h = 0; h < RO / 4; ++h) {
+                        const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
+                        av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
+                    }
                 }
-                int bv[J];
-                if constexpr (J == 4) {
-                    const int4 b4 = *(const int4*)&xw[s * WORDS + w][tc * 4];
+                int bv[TJ];
+                if constexpr (TJ == 4) {
+                    const int4 b4 = *(const int4*)&xw[s * WORDS + w][row_at(0)];
                     bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
                 } else {
-                    for (int j = 0; j < J; ++j) bv[j] = xw[s * WORDS + w][tc * J + j];
+                    for (int j = 0; j < TJ; ++j) bv[j] = xw[s * WORDS + w][row_at(j)];
                 }
 #pragma unroll
-                for (int i = 0; i < RO; ++i)
+                for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < J; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                    for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
             }
 #pragma unroll
-            for (int i = 0; i < RO; ++i)
+            for (int i = 0; i < TO; ++i)
 #pragma unroll
-                for (int j = 0; j < J; ++j) acc[i][j] = fmaf(wd[s][tr * RO + i] * xd[s][tc * J + j], (float)is[i][j], acc[i][j]);
+                for (int j = 0; j < TJ; ++j) acc[i][j] = fmaf(wd[s][out_at(i)] * xd[s][row_at(j)], (float)is[i][j], acc[i][j]);
         }
         __syncthreads();
     }
     unsigned long long before = 0;
     for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
-    for (int j = 0; j < J; ++j)
-        for (int i = 0; i < RO; ++i) {
-            const unsigned long long o = o0 + tr * RO + i, b = b0 + tc * J + j;
+    for (int j = 0; j < TJ; ++j)
+        for (int i = 0; i < TO; ++i) {
+            const unsigned long long o = o0 + out_at(i), b = b0 + row_at(j);
             if (o >= nout || b >= nrows) continue;
             if (c.parts > 1) {
                 c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + b * nout + o] = acc[i][j];
@@ -811,12 +822,19 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
     __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
     __shared__ float wd[STEP][H][OUTS], wm[STEP][H][OUTS], xd[STEP][ROWS];
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;
+    // The narrow routed build gives each wave one quad of the group's entries, rotated by workgroup since wave w runs on SIMD w; a quad holding no entry skips its dots.
+    constexpr bool QUADS = ROUTED && ROWS == kNarrowRows;
+    constexpr int TO = QUADS ? 1 : 4, TJ = QUADS ? 4 : J;   // a thread's outputs and rows
+    const int quad = (int)((t / 64 + blockIdx.x + blockIdx.y) % 4), lane = t % 64;
+    const auto out_at = [&](int i) { return QUADS ? lane : tr * 4 + i; };
+    const auto row_at = [&](int j) { return QUADS ? 4 * quad + j : tc * J + j; };
+    const bool idle = QUADS && 4ull * quad >= nrows;
     const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
     const unsigned long long kbeg = (unsigned long long)blockIdx.z * c.kper;
     const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
-    float acc[4][J];
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < J; ++j) acc[i][j] = 0.0f;
+    float acc[TO][TJ];
+    for (int i = 0; i < TO; ++i)
+        for (int j = 0; j < TJ; ++j) acc[i][j] = 0.0f;
     // Weight row wr's twin block takes four threads, part ws each; the twin's row r four threads, a quarter of a block each.
     const int r = t / 4, seg = t % 4, wr = t / 4, ws = t % 4;
     const unsigned long long o = o0 + wr, b = b0 + r;
@@ -871,48 +889,53 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
         if (k0 + STEP < kend) load(k0 + STEP);
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
-            if (k0 + s >= kend) break;
+            if (k0 + s >= kend || idle) break;
 #pragma unroll
             for (int h = 0; h < H; ++h) {
-                int is[4][J], xsum[J];
+                int is[TO][TJ], xsum[TJ];
 #pragma unroll
-                for (int j = 0; j < J; ++j) xsum[j] = 0;
+                for (int j = 0; j < TJ; ++j) xsum[j] = 0;
 #pragma unroll
-                for (int i = 0; i < 4; ++i)
+                for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < J; ++j) is[i][j] = 0;
+                    for (int j = 0; j < TJ; ++j) is[i][j] = 0;
 #pragma unroll
                 for (int w = h * (WORDS / H); w < (h + 1) * (WORDS / H); ++w) {
-                    const int4 a = *(const int4*)&wq[s * WORDS + w][tr * 4];
-                    const int av[4] = {a.x, a.y, a.z, a.w};
-                    int bv[J];
-                    if constexpr (J == 4) {
-                        const int4 b4 = *(const int4*)&xw[s * WORDS + w][tc * 4];
+                    int av[TO];
+                    if constexpr (QUADS) {
+                        av[0] = wq[s * WORDS + w][lane];
+                    } else {
+                        const int4 a = *(const int4*)&wq[s * WORDS + w][tr * 4];
+                        av[0] = a.x, av[1] = a.y, av[2] = a.z, av[3] = a.w;
+                    }
+                    int bv[TJ];
+                    if constexpr (TJ == 4) {
+                        const int4 b4 = *(const int4*)&xw[s * WORDS + w][row_at(0)];
                         bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
                     } else {
-                        for (int j = 0; j < J; ++j) bv[j] = xw[s * WORDS + w][tc * J + j];
+                        for (int j = 0; j < TJ; ++j) bv[j] = xw[s * WORDS + w][row_at(j)];
                     }
 #pragma unroll
-                    for (int j = 0; j < J; ++j) xsum[j] = word_dot(ONES, bv[j], xsum[j], QT());
+                    for (int j = 0; j < TJ; ++j) xsum[j] = word_dot(ONES, bv[j], xsum[j], QT());
 #pragma unroll
-                    for (int i = 0; i < 4; ++i)
+                    for (int i = 0; i < TO; ++i)
 #pragma unroll
-                        for (int j = 0; j < J; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                        for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
                 }
 #pragma unroll
-                for (int i = 0; i < 4; ++i)
+                for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < J; ++j)
-                        acc[i][j] = fmaf(xd[s][tc * J + j], k_term<KT>(wd[s][h][tr * 4 + i], wm[s][h][tr * 4 + i], is[i][j], xsum[j]), acc[i][j]);
+                    for (int j = 0; j < TJ; ++j)
+                        acc[i][j] = fmaf(xd[s][row_at(j)], k_term<KT>(wd[s][h][out_at(i)], wm[s][h][out_at(i)], is[i][j], xsum[j]), acc[i][j]);
             }
         }
         __syncthreads();
     }
     unsigned long long before = 0;
     for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
-    for (int j = 0; j < J; ++j)
-        for (int i = 0; i < 4; ++i) {
-            const unsigned long long oo = o0 + tr * 4 + i, bb = b0 + tc * J + j;
+    for (int j = 0; j < TJ; ++j)
+        for (int i = 0; i < TO; ++i) {
+            const unsigned long long oo = o0 + out_at(i), bb = b0 + row_at(j);
             if (oo >= nout || bb >= nrows) continue;
             if (c.parts > 1) {
                 c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + bb * nout + oo] = acc[i][j];

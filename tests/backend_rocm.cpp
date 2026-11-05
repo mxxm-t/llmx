@@ -384,6 +384,53 @@ void types(Backend& g, Backend& c) {
     }
 }
 
+// Every exact type's product over several rows takes the blocked build, whose every output must be the bits of its row alone, plain and added, at each side of a block's outputs and rows.
+// Widths past the 256-lane stride's whole steps (2561 for F32 and BF16, 2080 for the 32-value blocks) give lanes chains of unequal length.
+void exact_rows(Backend& g) {
+    const uint32_t kinds[] = {quant::GGML_TYPE_F32,  quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
+                              quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
+    const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 7, 8, 9, 33};
+    for (uint32_t type : kinds) {
+        const std::string name = quant::storage_type(type)->name;
+        const size_t block = quant::storage_type(type)->block_size;
+        const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
+        for (size_t nin : widths)
+        for (size_t nout : nouts) {
+            std::vector<uint8_t> w;
+            if (type == quant::GGML_TYPE_F32) {
+                const std::vector<float> v = row_classes::values(nin * nout, uint32_t(nout + 3));
+                w.resize(v.size() * 4);
+                std::memcpy(w.data(), v.data(), w.size());
+            } else {
+                w = typed_matrix(type, nin, nout, uint32_t(type * 13 + nout));
+                if (type == quant::GGML_TYPE_Q8_0)
+                    for (size_t b = 0; b < w.size() / 34; ++b) {
+                        const uint16_t h = f32_to_f16(0.01f + 0.001f * float(b % 7));
+                        w[b * 34] = uint8_t(h), w[b * 34 + 1] = uint8_t(h >> 8);
+                    }
+            }
+            const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nout + 11)), y0 = row_classes::values(nout * 33, uint32_t(nout + 17));
+            auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nout * 33 * 4), y1 = g.alloc(nout * 4);
+            for (size_t n : nrows)
+                for (int add = 0; add < 2; ++add) {
+                    const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(nout) + " over " + std::to_string(n) + " rows" + (add ? ", added" : "");
+                    g.write(*yb, 0, y0.data(), y0.size() * 4);
+                    if (add) g.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                    else g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                    const std::vector<float> all = read(g, *yb, nout * 33);
+                    bool ok = std::memcmp(all.data() + n * nout, y0.data() + n * nout, (33 - n) * nout * 4) == 0;
+                    for (size_t r = 0; r < n && ok; ++r) {
+                        g.write(*y1, 0, y0.data() + r * nout, nout * 4);
+                        if (add) g.matmul_add({type, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        else g.matmul({type, {wb.get(), 0}}, {xb.get(), r * nin}, {y1.get(), 0}, nin, nout, 1, {}, Dtype::f32);
+                        ok = std::memcmp(read(g, *y1, nout).data(), all.data() + r * nout, nout * 4) == 0;
+                    }
+                    require(ok, "every row of a " + at + " exact product is the row alone, bit for bit, and nothing past it is written");
+                }
+        }
+    }
+}
+
 void twin_rule(const float* x, float& d, int16_t* q, float L);
 
 // A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q5_1's min; Q6_K, Q5_0 and IQ4_NL have none.
@@ -481,6 +528,39 @@ void twin_types(Backend& g, Backend& c) {
                     require(std::memcmp(read(g, *y1, nout * part).data(), all.data(), nout * part * 4) == 0, what + ": its first " + std::to_string(part) + " rows in a call of their own, bit for bit");
                 }
             }
+        }
+    }
+}
+
+// Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes (the router, the hyper-connection maps), over 1, 2, 8 and 293 rows, in wall time a call.
+void exact_rates(Backend& g) {
+    struct Shape { const char* name; uint32_t type; size_t nin, nout; };
+    const Shape shapes[] = {{"flash router", quant::GGML_TYPE_F32, 2560, 512}, {"flash hc_pre", quant::GGML_TYPE_F32, 10240, 24}, {"flash hc_post", quant::GGML_TYPE_F32, 10240, 4},
+                            {"flash bf16 512", quant::GGML_TYPE_BF16, 2560, 512}, {"flash bf16 128", quant::GGML_TYPE_BF16, 2560, 128}};
+    std::cout << "backend-rocm: exact rates; type, shape (in x out), rows: us a call, kernels\n";
+    for (const Shape& s : shapes) {
+        const std::vector<float> x = row_classes::values(s.nin * 293, 901), v = row_classes::values(s.nin * s.nout, 902);
+        std::vector<uint8_t> w(quant::row_bytes(s.type, s.nin, s.nout));
+        for (size_t i = 0; i < v.size(); ++i) {
+            uint32_t u;
+            std::memcpy(&u, &v[i], 4);
+            if (s.type == quant::GGML_TYPE_F32) std::memcpy(&w[4 * i], &u, 4);
+            else w[2 * i] = uint8_t(u >> 16), w[2 * i + 1] = uint8_t(u >> 24);
+        }
+        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size()), y = g.alloc(s.nout * 293 * 4);
+        for (size_t n : {size_t(1), size_t(2), size_t(8), size_t(293)}) {
+            const auto call = [&] { g.matmul({s.type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, s.nin, s.nout, n, {}, Dtype::f32); };
+            for (int i = 0; i < 3; ++i) call();
+            g.sync();
+            rocm_take_launches(g);
+            const int iters = 20;
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < iters; ++i) call();
+            g.sync();
+            const double us = 1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / iters;
+            std::string ran;
+            for (const auto& [k, n2] : rocm_take_launches(g)) ran += (ran.empty() ? "" : "+") + k;
+            std::printf("backend-rocm: exact rate %s %s (%zu x %zu), %zu: %.1f us, %s\n", quant::storage_type(s.type)->name, s.name, s.nin, s.nout, n, us, ran.c_str());
         }
     }
 }
@@ -2200,6 +2280,110 @@ void experts_tile(Backend& g, Backend& c) {
     }
 }
 
+// The four-head sparse build against the one-head build: 12 heads over one KV head against the same queries over six copies of it, every head the same bits.
+// Over 64 rows (a row alone keeps the one-head build), heads 128 and 256 wide, f16 and f32 caches, 85 ids a row, some past a row's visible tokens and some invalid.
+void sparse_grouped(Backend& g) {
+    const size_t heads = 12, bt = g.kv_layout().block_tokens, length = 3 * bt + 5, stride = 85;
+    uint32_t seed = 977;
+    const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+    for (size_t dim : {size_t(128), size_t(256)})
+        for (KVType kt : {KVType::f16, KVType::f32})
+            for (size_t rows : {size_t(1), size_t(64)}) {
+                const std::string at = "sparse attention " + std::to_string(dim) + " wide, " + kv_type_name(kt) + " cache, " + std::to_string(rows) + " rows";
+                const size_t total = length + rows;
+                std::vector<int32_t> map(blocks_for(total, bt));
+                for (size_t i = 0; i < map.size(); ++i) map[i] = int32_t(map.size() - 1 - i);
+                std::vector<float> k1(total * dim), v1(k1.size()), q(rows * heads * dim);
+                for (size_t i = 0; i < k1.size(); ++i) k1[i] = float(int(next() % 2001u) - 1000) / 1600.0f, v1[i] = float(int(next() % 2001u) - 1000) / 900.0f;
+                for (float& x : q) x = float(int(next() % 2001u) - 1000) / 700.0f;
+                std::vector<uint32_t> ids(rows * stride);
+                for (size_t r = 0; r < rows; ++r)
+                    for (size_t t = 0; t < stride; ++t) {
+                        const uint32_t pick = next();
+                        ids[r * stride + t] = t % 9 == 0 ? (pick % 2 ? UINT32_MAX : uint32_t(length + r + 1)) : uint32_t(pick % (length + r + 1));
+                    }
+                std::vector<float> outs[2];
+                std::string ran[2];
+                for (int side = 0; side < 2; ++side) {
+                    const size_t kv_heads = side ? 6 : 1;
+                    std::vector<float> k(total * kv_heads * dim), v(k.size());
+                    for (size_t t = 0; t < total; ++t)
+                        for (size_t h = 0; h < kv_heads; ++h) {
+                            std::memcpy(&k[(t * kv_heads + h) * dim], &k1[t * dim], dim * 4);
+                            std::memcpy(&v[(t * kv_heads + h) * dim], &v1[t * dim], dim * 4);
+                        }
+                    auto storage = g.kv_alloc(1, kv_heads, dim, map.size() * bt, kt, kt);
+                    KVView w{storage.get(), map.data(), map.size(), 0, total};
+                    auto kb = g.adopt(k.data(), k.size() * 4), vb = g.adopt(v.data(), v.size() * 4), qb = g.adopt(q.data(), q.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
+                    g.kv_write(0, &w, 1, {kb.get(), 0}, {vb.get(), 0});
+                    auto ob = g.alloc(rows * heads * dim * 4);
+                    KVView view{storage.get(), map.data(), map.size(), length, rows};
+                    rocm_take_launches(g);
+                    g.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, stride, {ob.get(), 0}, int(heads), int(kv_heads), int(dim));
+                    for (const auto& [kn, n] : rocm_take_launches(g))
+                        if (kn.find("sparse_attention_vec") != std::string::npos && kn.find("merge") == std::string::npos) ran[side] = kn;
+                    outs[side] = read(g, *ob, rows * heads * dim);
+                }
+                const std::string want = std::string("llmx_sparse_attention_vec") + (dim == 256 ? "256" : "");
+                require(ran[0] == (rows > 1 ? want + "_g4" : want) && ran[1] == want, at + ": one KV head takes " + (rows > 1 ? want + "_g4" : want) + " and six take " + want + ", ran " + ran[0] + " and " + ran[1]);
+                require(same(outs[0], outs[1]), at + ": every head of the four-head build is the one-head build's, bit for bit");
+            }
+}
+
+// The narrow build's column quads: experts of 1 to 16 entries each side of every quad, 17 and 33 on the 64-row build, an empty expert between, every type in f16 and int8.
+// Every entry must be the bits of the same entry routed alone, which sits in quad 0 of the narrow build.
+void experts_quads(Backend& g) {
+    const size_t n_expert = 24, ff = 256, sizes[] = {1, 3, 4, 5, 8, 9, 12, 13, 16, 17, 33};
+    const std::vector<std::pair<uint32_t, size_t>> kinds = {{quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560}, {quant::GGML_TYPE_Q6_K, 2560},
+                                                            {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}};
+    for (const auto& [type, nin] : kinds) {
+        const std::string name = quant::storage_type(type)->name;
+        const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, n_expert * ff, uint32_t(nin + 3)) : typed_matrix(type, nin, n_expert * ff, uint32_t(type * 19 + nin));
+        auto wb = g.adopt(w.data(), w.size());
+        for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+            const std::string at = name + " " + std::to_string(nin) + ", " + dtype_name(dt);
+            const size_t rows = std::max<size_t>(tile_from_at(type, dt, false), 128);
+            const std::vector<float> x = row_classes::values(rows * nin, uint32_t(nin + 47)), wts(rows, 1.0f);
+            auto xb = g.adopt(x.data(), x.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
+            // Expert 2i + 1 takes sizes[i] entries, interleaved with the others' over the rows; the rest have no expert.
+            std::vector<uint32_t> ids(rows, Backend::kNoExpert);
+            std::vector<std::vector<size_t>> of(std::size(sizes));
+            for (size_t r = 0, left = 1; left;) {
+                left = 0;
+                for (size_t i = 0; i < std::size(sizes); ++i)
+                    if (of[i].size() < sizes[i]) {
+                        ids[r] = uint32_t(2 * i + 1);
+                        of[i].push_back(r++);
+                        left = 1;
+                    }
+            }
+            const auto call = [&](const std::vector<uint32_t>& v, std::string& ran) {
+                auto ib = g.adopt(v.data(), v.size() * 4);
+                const std::vector<float> fill(rows * ff, 7.0f);
+                auto yb = g.adopt(fill.data(), fill.size() * 4);
+                const RowRun run{rows, rows};
+                rocm_take_launches(g);
+                g.matmul_experts({Projection{{type, {wb.get(), 0}}, {yb.get(), 0}, ff}}, {xb.get(), 0}, nin, rows, {{ib.get(), 0}, {tb.get(), 0}, 1, n_expert}, RowRuns{&run, 1}, dt);
+                ran.clear();
+                for (const auto& [kn, n] : rocm_take_launches(g)) ran += (ran.empty() ? "" : "+") + kn;
+                return read(g, *yb, rows * ff);
+            };
+            std::string ran;
+            const std::vector<float> all = call(ids, ran);
+            require(ran.find("_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos, at + ": a " + std::to_string(rows) + "-row prompt takes both routed tile builds, ran " + ran);
+            bool same = true;
+            for (size_t i = 0; i < std::size(sizes); ++i)
+                for (size_t r : of[i]) {
+                    std::vector<uint32_t> one(rows, Backend::kNoExpert);
+                    one[r] = ids[r];
+                    const std::vector<float> alone = call(one, ran);
+                    same = same && !std::memcmp(all.data() + r * ff, alone.data() + r * ff, ff * 4);
+                }
+            require(same, at + ": every entry of experts of 1 to 33 entries is the entry routed alone, bit for bit");
+        }
+    }
+}
+
 // The routed tile's time against the grouped row builds over prompts of 32 to 512 rows at Flash-Next's expert shapes, medians of five interleaved; checks nothing.
 // The tile arm times the tile only from the role's `tile_from`, so an entry is derived lower by building with it at 32.
 void routed_tile_rates(Backend& g) {
@@ -2422,7 +2606,7 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm: FAIL\n" : "backend-rocm: PASS\n");
             return failures ? 1 : 0;
         }
-        // `rates` prints the twin types' product times at Flash-Next's shapes, attention's times and the routed products' times and break-evens, and checks nothing; `rates attention`, `rates argmax`, `rates routed` or `rates tile` prints one part.
+        // `rates` prints the products', attention's and the routed products' times and break-evens and checks nothing; `rates attention`, `argmax`, `routed`, `tile` or `exact` prints one part.
         if (argc > 1 && std::string(argv[1]) == "rates") {
             const std::string part = argc > 2 ? argv[2] : "";
             if (part.empty()) rates(*g);
@@ -2430,6 +2614,7 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "argmax") argmax_rates(*g);
             if (part.empty() || part == "routed") routed_rates(*g);
             if (part.empty() || part == "tile") routed_tile_rates(*g);
+            if (part.empty() || part == "exact") exact_rates(*g);
             return 0;
         }
         // `qwen35` runs only the qwen35 layers' ops against the CPU and the device's bit-for-bit rules for them (qwen35_checks.hpp).
@@ -2444,6 +2629,7 @@ int main(int argc, char** argv) {
             experts(*g, *c);
             experts_grouped(*g);
             experts_tile(*g, *c);
+            experts_quads(*g);
             experts_add(*g);
             std::cout << (failures ? "backend-rocm moe: FAIL\n" : "backend-rocm moe: PASS\n");
             return failures ? 1 : 0;
@@ -2456,12 +2642,14 @@ int main(int argc, char** argv) {
             attention_twins(*g, Dtype::int8);
             attention_chunks(*g);
             vec_bits(*g);
+            sparse_grouped(*g);
             std::cout << (failures ? "backend-rocm attention: FAIL\n" : "backend-rocm attention: PASS\n");
             return failures ? 1 : 0;
         }
         // `types` runs only the weight types' check, the focused test of their kernels.
         if (argc > 1 && std::string(argv[1]) == "types") {
             types(*g, *c);
+            exact_rows(*g);
             twin_types(*g, *c);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
@@ -2471,6 +2659,7 @@ int main(int argc, char** argv) {
         refusals(*g);
         ops(*g, *c);
         types(*g, *c);
+        exact_rows(*g);
         twin_types(*g, *c);
         attention(*g, *c);
         classes(*g);
@@ -2484,6 +2673,7 @@ int main(int argc, char** argv) {
         host_output(*g);
         attention_chunks(*g);
         vec_bits(*g);
+        sparse_grouped(*g);
         pass_args(*g);
         failure();
         collective();
@@ -2491,6 +2681,7 @@ int main(int argc, char** argv) {
         routing(*g, *c);
         experts(*g, *c);
         experts_add(*g);
+        experts_quads(*g);
     } catch (const std::exception& e) {
         std::cout << "FAIL threw: " << e.what() << "\n";
         ++failures;

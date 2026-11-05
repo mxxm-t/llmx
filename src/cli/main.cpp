@@ -1234,11 +1234,13 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     pp();
     tg({});
     std::vector<double> ppv, tgv;
-    // Each timed prompt's slices (Model::prefill_slices), which a pipelined split chooses by its own measured period.
+    // Each timed prompt's slices (Model::prefill_slices), which a pipelined split chooses by its own measured period, beside that prompt's rate.
     std::string slices;
     for (int r = 0; r < R; r++) {
         ppv.push_back(pp());
-        slices += (r ? ", " : "") + std::to_string(model.prefill_slices());
+        char rate[32];
+        std::snprintf(rate, sizeof rate, " (%.2f tok/s)", ppv.back());
+        slices += (r ? ", " : "") + std::to_string(model.prefill_slices()) + rate;
     }
     for (int r = 0; r < R; r++) tgv.push_back(tg({}));
     report("pp", P, ppv);

@@ -502,6 +502,19 @@ struct ExactF32 {
         for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) s = fmaf(w[i], x[i], s);
         return s;
     }
+    template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
+        for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) {
+            float w[O], v[R];
+#pragma unroll
+            for (int o = 0; o < O; ++o) w[o] = ((const float*)rows[o])[i];
+#pragma unroll
+            for (int r = 0; r < R; ++r) v[r] = x[r][i];
+#pragma unroll
+            for (int o = 0; o < O; ++o)
+#pragma unroll
+                for (int r = 0; r < R; ++r) s[o][r] = fmaf(w[o], v[r], s[o][r]);
+        }
+    }
 };
 struct ExactQ8 {
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin / rq::Q8_0::values * rq::Q8_0::bytes; }
@@ -510,6 +523,13 @@ struct ExactQ8 {
         for (unsigned long long k = threadIdx.x; k < nin / rq::Q8_0::values; k += kThreads) s += q8_0_block_dot(row + k * rq::Q8_0::bytes, x + k * rq::Q8_0::values);
         return s;
     }
+    template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
+        for (unsigned long long k = threadIdx.x; k < nin / rq::Q8_0::values; k += kThreads)
+#pragma unroll
+            for (int o = 0; o < O; ++o)
+#pragma unroll
+                for (int r = 0; r < R; ++r) s[o][r] += q8_0_block_dot(rows[o] + k * rq::Q8_0::bytes, x[r] + k * rq::Q8_0::values);
+    }
 };
 template <class T> struct ExactDecoded {
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin / T::values * T::bytes; }
@@ -517,6 +537,19 @@ template <class T> struct ExactDecoded {
         float s = 0.0f;
         for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) s = fmaf(T::value(row + i / T::values * T::bytes, (int)(i % T::values)), x[i], s);
         return s;
+    }
+    template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
+        for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) {
+            float w[O], v[R];
+#pragma unroll
+            for (int o = 0; o < O; ++o) w[o] = T::value(rows[o] + i / T::values * T::bytes, (int)(i % T::values));
+#pragma unroll
+            for (int r = 0; r < R; ++r) v[r] = x[r][i];
+#pragma unroll
+            for (int o = 0; o < O; ++o)
+#pragma unroll
+                for (int r = 0; r < R; ++r) s[o][r] = fmaf(w[o], v[r], s[o][r]);
+        }
     }
 };
 // Output (o, b), a block an output: Y[b * nout + o] = dot(W row o, X row b), added to Y with `add`.
@@ -527,6 +560,52 @@ __device__ void exact(const unsigned char* W, const float* X, float* Y, unsigned
     if (threadIdx.x == 0) {
         float* y = Y + b * nout + o;
         *y = add ? *y + dot : dot;
+    }
+}
+// kRowsOut outputs by kRowsIn rows a block, each output the bits of exact(): every lane keeps its strided chain for each, folded by block_sum's tree.
+// Sixteen threads an output take the tree's levels 128 to 16 from shared memory and 8 to 1 by shuffles; rows and outputs past the call repeat the last and are not written.
+constexpr int kRowsOut = 8, kRowsIn = 8, kRowsChunk = kThreads / 16;
+template <class D>
+__device__ void exact_rows(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) {
+    __shared__ float lds[kRowsChunk][kThreads + 16];
+    const unsigned long long o0 = (unsigned long long)blockIdx.x * kRowsOut, b0 = (unsigned long long)blockIdx.y * kRowsIn;
+    const unsigned char* rows[kRowsOut];
+    const float* x[kRowsIn];
+#pragma unroll
+    for (int o = 0; o < kRowsOut; ++o) rows[o] = W + (o0 + o < nout ? o0 + o : nout - 1) * D::row_bytes(nin);
+#pragma unroll
+    for (int r = 0; r < kRowsIn; ++r) x[r] = X + (b0 + r < nrows ? b0 + r : nrows - 1) * nin;
+    float s[kRowsOut][kRowsIn];
+#pragma unroll
+    for (int o = 0; o < kRowsOut; ++o)
+#pragma unroll
+        for (int r = 0; r < kRowsIn; ++r) s[o][r] = 0.0f;
+    D::template parts<kRowsOut, kRowsIn>(rows, x, nin, s);
+    const int t = threadIdx.x, v = t / 16, j = t % 16;
+#pragma unroll
+    for (int c0 = 0; c0 < kRowsOut * kRowsIn; c0 += kRowsChunk) {
+#pragma unroll
+        for (int c = 0; c < kRowsChunk; ++c) lds[c][t] = s[(c0 + c) / kRowsIn][(c0 + c) % kRowsIn];
+        __syncthreads();
+        // Lane l's level-64 sum is (p[l] + p[l + 128]) + (p[l + 64] + p[l + 192]); levels 32 and 16 pair lanes j, j + 16, j + 32 and j + 48, which this thread holds.
+        const float* p = lds[v];
+        float q[4];
+#pragma unroll
+        for (int k = 0; k < 4; ++k) {
+            const int l = j + 16 * k;
+            q[k] = (p[l] + p[l + 128]) + (p[l + 64] + p[l + 192]);
+        }
+        float a = (q[0] + q[2]) + (q[1] + q[3]);
+#pragma unroll
+        for (int h = 8; h > 0; h >>= 1) a += __shfl_down(a, h, 16);
+        if (j == 0) {
+            const unsigned long long o = o0 + (c0 + v) / kRowsIn, b = b0 + (c0 + v) % kRowsIn;
+            if (o < nout && b < nrows) {
+                float* y = Y + b * nout + o;
+                *y = add ? *y + a : a;
+            }
+        }
+        __syncthreads();
     }
 }
 // A routed exact call (backend.hpp matmul_experts): the entries' ids, the launch's first entry, the entries an X row serves, the experts and an expert's bytes.
@@ -547,6 +626,10 @@ template <class D> __device__ void routed_exact(const unsigned char* W, const fl
     }                                                                                                                                                              \
     extern "C" __global__ void llmx_routed_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r) { \
         routed_exact<__VA_ARGS__>(W, X, Y, nin, nout, r);                                                                                                       \
+    }                                                                                                                                                              \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_rows_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,          \
+                                                    unsigned long long nrows, int add) {                                                                          \
+        exact_rows<__VA_ARGS__>(W, X, Y, nin, nout, nrows, add);                                                                                                \
     }
 LLMX_EXACT(f32, ExactF32)
 LLMX_EXACT(q8_0, ExactQ8)
@@ -910,6 +993,96 @@ extern "C" __global__ void llmx_attention_vec256_major(const float* Q, float* O,
     }
 LLMX_SPARSE_VEC(llmx_sparse_attention_vec, 128)
 LLMX_SPARSE_VEC(llmx_sparse_attention_vec256, 256)
+
+// Sparse attention_vec over G heads of one KV head, a block a (row, G heads, split), each selected token's keys and values loaded once for the G heads.
+// Each head keeps attention_vec's streams, chains and merge, so its output has the bits of attention_vec<DIM, true>.
+template <int DIM, int G>
+__device__ inline void sparse_vec_grouped(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends, int n_head,
+                                          int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk, float* partials, const unsigned* ids,
+                                          int stride) {
+    constexpr int LANES = DIM / 8, STREAMS = kThreads / LANES;
+    __shared__ float ms[G][STREAMS], ls[G][STREAMS];
+    __shared__ float accs[STREAMS * DIM];
+    const int split = blockIdx.x % nsplit, rg = blockIdx.x / nsplit, r = rg / (n_head / G), h0 = rg % (n_head / G) * G, kvh = h0 / (n_head / heads_kv);
+    const int len = ends[r];
+    if (len == 0) return;
+    const int lid = threadIdx.x, stream = lid / LANES, d0 = (lid % LANES) * 8;
+    const int* blocks = table + firsts[r];
+    float qv[G][8], acc[G][8], m[G], l[G];
+#pragma unroll
+    for (int g = 0; g < G; ++g) {
+        const unsigned long long qrow = ((unsigned long long)r * n_head + h0 + g) * DIM;
+        for (int e = 0; e < 8; ++e) {
+            qv[g][e] = Q[qrow + d0 + e];
+            acc[g][e] = 0.0f;
+        }
+        m[g] = -INFINITY;
+        l[g] = 0.0f;
+    }
+    const int start = min(split * chunk, stride), end = start + min(chunk, stride - start);
+    for (int slot = start + stream; slot < end; slot += STREAMS) {
+        const unsigned id = ids[(unsigned long long)r * stride + slot];
+        if (id >= (unsigned)len) continue;
+        const int t = (int)id;
+        const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + d0;
+        float k8[8], v8[8];
+        load8(kc, at, k_half, k8);
+        load8(vc, at, v_half, v8);
+#pragma unroll
+        for (int g = 0; g < G; ++g) {
+            float part = 0.0f;
+            for (int e = 0; e < 8; ++e) part = fmaf(qv[g][e], k8[e], part);
+            for (int o = LANES / 2; o > 0; o /= 2) part += __shfl_xor(part, o, LANES);
+            const float sc = part * scale, mn = fmaxf(m[g], sc);
+            const float corr = expf(m[g] - mn), w = expf(sc - mn);
+            l[g] = fmaf(l[g], corr, w);
+            for (int e = 0; e < 8; ++e) acc[g][e] = fmaf(w, v8[e], acc[g][e] * corr);
+            m[g] = mn;
+        }
+    }
+    if (lid == stream * LANES)
+#pragma unroll
+        for (int g = 0; g < G; ++g) {
+            ms[g][stream] = m[g];
+            ls[g][stream] = l[g];
+        }
+#pragma unroll
+    for (int g = 0; g < G; ++g) {
+        for (int e = 0; e < 8; ++e) accs[stream * DIM + d0 + e] = acc[g][e];
+        __syncthreads();
+        if (lid < DIM) {
+            const unsigned long long rh = (unsigned long long)r * n_head + h0 + g;
+            float M = ms[g][0];
+            for (int i = 1; i < STREAMS; ++i) M = fmaxf(M, ms[g][i]);
+            float L = 0.0f, A = 0.0f;
+            for (int i = 0; i < STREAMS; ++i) {
+                if (isinf(ms[g][i])) continue;
+                const float c = expf(ms[g][i] - M);
+                L = fmaf(ls[g][i], c, L);
+                A = fmaf(accs[i * DIM + lid], c, A);
+            }
+            if (nsplit == 1) {
+                O[rh * DIM + lid] = !(L > 0.0f) ? 0.0f : A / L;
+            } else {
+                float* out = partials + (rh * nsplit + split) * (DIM + 2);
+                out[2 + lid] = A;
+                if (lid == 0) {
+                    out[0] = M;
+                    out[1] = L;
+                }
+            }
+        }
+        __syncthreads();
+    }
+}
+#define LLMX_SPARSE_VEC_GROUPED(name, D, G) \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, \
+                                                                const int* ends, int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, \
+                                                                int chunk, float* partials, const unsigned* ids, int stride) { \
+        sparse_vec_grouped<D, G>(Q, O, kc, vc, table, firsts, ends, n_head, heads_kv, bt, k_half, v_half, scale, nsplit, chunk, partials, ids, stride); \
+    }
+LLMX_SPARSE_VEC_GROUPED(llmx_sparse_attention_vec_g4, 128, 4)
+LLMX_SPARSE_VEC_GROUPED(llmx_sparse_attention_vec256_g4, 256, 4)
 
 // The splits of one (row, head) merged (the Vulkan split merge's order, attention_merge.comp): the largest maximum, then the sums in split order, a split without tokens weighing nothing.
 // SPARSE gives zeros for a row whose splits saw no selected id.

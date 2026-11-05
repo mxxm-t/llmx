@@ -2367,7 +2367,7 @@ def starting_health(port):
 def check_startup(model, directory):
     """The server listens before it loads (docs/SERVER.md, Startup): with a model whose path is a pipe nothing writes yet, its load waits in reading the metadata, and /v1/health answers 503 with the start's record, the devices done and the metadata running, the server's and the requests' objects in their shapes, /v1/live answers 200, and every other route answers 503 in its clients' shape.
     SIGTERM then ends it within seconds and nothing listens on its port; a pipe given bytes that are no model ends the load, and the server exits nonzero with the error.
-    A server that loads its model keeps the record once it serves: every phase in order done, the weights' bytes all read and each file streamed named, and the phase ready."""
+    A server that loads its model keeps the record once it serves: every phase in its load mode's order done, the weights' bytes all read and each file streamed named, and the phase ready."""
     if sys.platform == "win32":
         return False
     for ending in ("signal", "fault"):
@@ -2428,10 +2428,15 @@ def check_startup(model, directory):
     try:
         startup = srv.get("/v1/health")["startup"]
         names = [p["name"] for p in startup["phases"]]
-        assert names == ["devices", "metadata", "fit", "allocate", "weights", "ready"] and all(p["state"] == "done" for p in startup["phases"]), startup
+        # A mapped load warms its weights before the fit, since the model adopts each weight as it resolves it; the other modes read them once every weight has storage.
+        if os.environ.get("LLMX_LOAD_MODE") == "mapped":
+            order = ["devices", "metadata", "weights", "fit", "allocate", "ready"]
+        else:
+            order = ["devices", "metadata", "fit", "allocate", "weights", "ready"]
+        assert names == order and all(p["state"] == "done" for p in startup["phases"]), startup
         assert startup["phase"] == "ready" and "error" not in startup, startup
         assert abs(startup["elapsed_s"] - sum(p["seconds"] for p in startup["phases"])) < 0.5 and srv.get("/v1/health")["startup"]["elapsed_s"] == startup["elapsed_s"], startup
-        weights = startup["phases"][4]
+        weights = startup["phases"][names.index("weights")]
         assert weights["bytes_total"] > 0 and weights["bytes_done"] == weights["bytes_total"], weights
         # A file is named where its weights are streamed to a device; a host that reads its weights in place warms them, which names none.
         assert all(f["bytes_done"] == f["bytes_total"] for f in weights["files"]), weights

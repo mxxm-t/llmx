@@ -35,6 +35,15 @@ It lands by fast-forward as two commits, the test and the change.
 **Gotchas:** on the MI50 under RADV int8 routed calls never take the 64-column build (`qtile_narrow_per_expert_8bit` is every count), so `check_routed_narrow`'s int8 cells compare the narrow build with itself; its entries hash holds a build to main's.
 The narrow decision (`routed_call`) follows the call's average entries over the experts it can touch, so a run's build follows its neighbours, safe only because both builds give the same bits; ROCm's narrow build chooses per group and puts the entries lane-minor, so its mirror (RDEV) puts them on the wave-uniform axis in quads, rotated, as here.
 
+## Server startup order under a mapped load (2026-11-05, PDEV16 then PDEV17, branch fix/server-mapped on fix/placement-slicings c7246fb5c on main bc1a58efa; lands by fast-forward after it)
+
+- **Goal:** the `server` component passes under `--load-mode mapped`, where it failed on main every run (RDEV21's finding): its startup check expected `weights` after `allocate`.
+- **Done:** the test was wrong and the server right: a mapped load warms its weights before the model is fitted and built, since the model adopts each weight as it resolves it (`src/inference/load.hpp`), and docs/SERVER.md already said they come before `allocate`.
+  The check now expects devices, metadata, weights, fit, allocate and ready under a mapped load and the weights after `allocate` otherwise, and reads the weights phase by its name; docs/SERVER.md adds that the warm also comes before `fit` for a model without lookup tables.
+  The failing test is main's own, so the branch is one commit.
+  Gates, all passing: `python tests/run_tests.py --only server` in the auto, mapped and direct load modes on the CPU and on one MI50 (`--device vulkan:0`) of a Vulkan build, the real-model pass skipped for want of its fixture, `docs` and `dead-code`, and the hosted run at the head that lands.
+- **Left:** nothing; F2DEV approved at 08:03.
+
 ## DeepSeek-V4.1 step 2: the tiny reference (2026-11-04, DSDEV3 then DSDEV4, branch feat/deepseek4-reference on main 52c8a3bcb; step 2 of docs/DEEPSEEK4.md, F2DEV's review of 20:42 approving with nine changes, all taken)
 
 - **Goal:** the independent reference of the deepseek41 tiny gate (the plan's section 5.1): DeepSeek's own inference code at 1bae0e10 on an F32 CPU port of its kernels, goldens and tiny files in both `deepseek41` layouts, and hosted checks without torch.

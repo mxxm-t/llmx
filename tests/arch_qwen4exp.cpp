@@ -213,22 +213,22 @@ void configuration() {
     require(c.hc_count == 4 && c.hc_low_rank == 4 && c.indexer_n_heads == 2 &&
                 c.indexer_kv_heads == 1 && c.indexer_head_dim == 4 && c.indexer_budget == 8,
             "hyper-connection and QSA geometry");
-    require(c.has_ple && c.ple_layer == 2 && c.ple_ngram_size == 3 &&
-                c.ple_layer_multipliers == std::vector<uint64_t>({1, 3, 5}) &&
-                c.ple_head_offsets.size() == 4 && c.ple_head_vocab_sizes[3] == 10,
+    require(c.has_ple && c.ple_layer == 2 && c.ple_hash.ngram_size == 3 &&
+                c.ple_hash.multipliers == std::vector<uint64_t>({1, 3, 5}) &&
+                c.ple_hash.head_offsets.size() == 4 && c.ple_hash.head_vocab_sizes[3] == 10,
             "exact-width PLE constants and layer");
 
     refuses("direct query/KV head mismatch", "head count must be divisible by KV head count", [&] {
         auto bad = c; bad.n_head_kv = 3; infer::qwen4exp::check_config(bad);
     });
     refuses("direct PLE head range", "PLE head range does not fit the int32 row index", [&] {
-        auto bad = c; bad.ple_head_offsets[0] = uint64_t(std::numeric_limits<int32_t>::max());
+        auto bad = c; bad.ple_hash.head_offsets[0] = uint64_t(std::numeric_limits<int32_t>::max());
         infer::qwen4exp::check_config(bad);
     });
     {
         auto edge = c;
-        edge.ple_head_offsets[0] = uint64_t(std::numeric_limits<int32_t>::max());
-        edge.ple_head_vocab_sizes[0] = 1;
+        edge.ple_hash.head_offsets[0] = uint64_t(std::numeric_limits<int32_t>::max());
+        edge.ple_hash.head_vocab_sizes[0] = 1;
         infer::qwen4exp::check_config(edge);
         require(true, "PLE row at INT32_MAX is representable");
     }
@@ -307,13 +307,13 @@ void configuration() {
 }
 
 void ple_selection() {
-    using infer::qwen4exp::ple_rows;
+    using infer::blocks::ngram_rows;
     const auto c = read(tiny());
     const uint32_t ids[] = {1, 2, 3, 4};
     const int32_t expected[] = {8, 18, 27, 37, 1, 11, 24, 34,
                                 5, 15, 20, 30, 3, 13, 22, 32};
     int32_t rows[16] = {};
-    require(ple_rows(c, 10, nullptr, 0, ids, 4, rows, 16) == 16,
+    require(ngram_rows(c.ple_hash, 10, nullptr, 0, ids, 4, rows, 16) == 16,
             "PLE row count for a token chunk");
     require(std::equal(std::begin(expected), std::end(expected), rows),
             "PLE n-gram hashes, EOS padding, and head order");
@@ -321,54 +321,54 @@ void ple_selection() {
     // Splitting after two tokens with their oldest-first tail preserves lookup rows.
     const uint32_t tail[] = {1, 2};
     int32_t sliced[8] = {};
-    require(ple_rows(c, 10, tail, 2, ids + 2, 2, sliced, 8) == 8 &&
+    require(ngram_rows(c.ple_hash, 10, tail, 2, ids + 2, 2, sliced, 8) == 8 &&
                 std::equal(std::begin(expected) + 8, std::end(expected), sliced),
             "PLE rows are invariant across a cached token slice");
 
     // EOS is hashed with its own preceding context; it resets history for the next token.
     const uint32_t before_eos[] = {2};
     int32_t eos_rows[8] = {};
-    require(ple_rows(c, 10, before_eos, 1, ids + 2, 2, eos_rows, 8) == 8 &&
+    require(ngram_rows(c.ple_hash, 10, before_eos, 1, ids + 2, 2, eos_rows, 8) == 8 &&
                 std::equal(std::begin(expected) + 8, std::end(expected), eos_rows),
             "PLE EOS token keeps its own context and resets the following context");
 
     int32_t untouched[16];
     std::fill(std::begin(untouched), std::end(untouched), 71);
     refuses("PLE output capacity", "output buffer is too small", [&] {
-        (void)ple_rows(c, 10, nullptr, 0, ids, 4, untouched, 15);
+        (void)ngram_rows(c.ple_hash, 10, nullptr, 0, ids, 4, untouched, 15);
     });
     require(std::all_of(std::begin(untouched), std::end(untouched), [](int32_t x) { return x == 71; }),
             "small PLE output buffer is rejected before writing");
     const uint32_t invalid[] = {1, 10};
     refuses("PLE invalid current id", "token id is outside the vocabulary", [&] {
-        (void)ple_rows(c, 10, nullptr, 0, invalid, 2, untouched, 16);
+        (void)ngram_rows(c.ple_hash, 10, nullptr, 0, invalid, 2, untouched, 16);
     });
     require(std::all_of(std::begin(untouched), std::end(untouched), [](int32_t x) { return x == 71; }),
             "invalid current token is rejected before writing");
     const uint32_t invalid_tail[] = {10};
     refuses("PLE invalid history id", "token id is outside the vocabulary", [&] {
-        (void)ple_rows(c, 10, invalid_tail, 1, ids, 4, untouched, 16);
+        (void)ngram_rows(c.ple_hash, 10, invalid_tail, 1, ids, 4, untouched, 16);
     });
     require(std::all_of(std::begin(untouched), std::end(untouched), [](int32_t x) { return x == 71; }),
             "invalid history token is rejected before writing");
     refuses("PLE hash product overflow", "hash product exceeds int64 range", [&] {
         auto bad = c;
-        bad.ple_layer_multipliers[0] = uint64_t(std::numeric_limits<int64_t>::max());
-        (void)ple_rows(bad, 10, nullptr, 0, ids, 4, untouched, 16);
+        bad.ple_hash.multipliers[0] = uint64_t(std::numeric_limits<int64_t>::max());
+        (void)ngram_rows(bad.ple_hash, 10, nullptr, 0, ids, 4, untouched, 16);
     });
     require(std::all_of(std::begin(untouched), std::end(untouched), [](int32_t x) { return x == 71; }),
             "overflowing hash product is rejected before writing");
     refuses("PLE EOS outside vocabulary", "token id is outside the vocabulary", [&] {
-        auto bad = c; bad.ple_eos_token_id = 10;
-        (void)ple_rows(bad, 10, nullptr, 0, ids, 4, untouched, 16);
+        auto bad = c; bad.ple_hash.fill_id = 10;
+        (void)ngram_rows(bad.ple_hash, 10, nullptr, 0, ids, 4, untouched, 16);
     });
 
     auto large = c;
-    large.ple_eos_token_id = 16777218;
+    large.ple_hash.fill_id = 16777218;
     const uint32_t wide_ids[] = {16777216, 16777217};
     const int32_t wide_expected[] = {8, 18, 24, 34, 3, 13, 23, 33};
     int32_t wide_rows[8] = {};
-    require(ple_rows(large, 16777219, nullptr, 0, wide_ids, 2, wide_rows, 8) == 8 &&
+    require(ngram_rows(large.ple_hash, 16777219, nullptr, 0, wide_ids, 2, wide_rows, 8) == 8 &&
                 std::equal(std::begin(wide_expected), std::end(wide_expected), wide_rows),
             "PLE hashes preserve uint32 token ids above the exact float-integer range");
 }
@@ -399,16 +399,16 @@ void ple_reference(const infer::qwen4exp::Config& c, uint32_t vocab_size, const 
             throw std::runtime_error("reference case is missing PLE inputs or rows");
         std::vector<uint32_t> ids;
         for (const jmini::Value& value : input->asArray()) ids.push_back(json_token(value));
-        std::vector<int32_t> rows(ids.size() * c.ple_head_offsets.size());
-        ple_rows(c, vocab_size, nullptr, 0, ids.data(), ids.size(), rows.data(), rows.size());
+        std::vector<int32_t> rows(ids.size() * c.ple_hash.head_offsets.size());
+        ngram_rows(c.ple_hash, vocab_size, nullptr, 0, ids.data(), ids.size(), rows.data(), rows.size());
         if (expected->asArray().size() != ids.size())
             throw std::runtime_error("reference PLE prompt row count mismatch");
         for (size_t i = 0; i < ids.size(); ++i) {
             const jmini::Value& expected_row = expected->asArray()[i];
-            if (!expected_row.isArray() || expected_row.asArray().size() != c.ple_head_offsets.size())
+            if (!expected_row.isArray() || expected_row.asArray().size() != c.ple_hash.head_offsets.size())
                 throw std::runtime_error("reference PLE prompt head count mismatch");
-            for (size_t h = 0; h < c.ple_head_offsets.size(); ++h)
-                if (rows[i * c.ple_head_offsets.size() + h] != int32_t(json_token(expected_row.asArray()[h])))
+            for (size_t h = 0; h < c.ple_hash.head_offsets.size(); ++h)
+                if (rows[i * c.ple_hash.head_offsets.size() + h] != int32_t(json_token(expected_row.asArray()[h])))
                     throw std::runtime_error("PLE prompt rows differ from the HF reference");
         }
         ++verified;
@@ -416,11 +416,11 @@ void ple_reference(const infer::qwen4exp::Config& c, uint32_t vocab_size, const 
         for (size_t slice_size = 1; slice_size <= 4; ++slice_size) {
             std::vector<int32_t> sliced(rows.size());
             std::vector<uint32_t> history;
-            const size_t max_history = size_t(c.ple_ngram_size - 1);
+            const size_t max_history = size_t(c.ple_hash.ngram_size - 1);
             for (size_t start = 0; start < ids.size();) {
                 const size_t count = std::min(slice_size, ids.size() - start);
-                const size_t offset = start * c.ple_head_offsets.size();
-                ple_rows(c, vocab_size, history.data(), history.size(), ids.data() + start, count,
+                const size_t offset = start * c.ple_hash.head_offsets.size();
+                ngram_rows(c.ple_hash, vocab_size, history.data(), history.size(), ids.data() + start, count,
                          sliced.data() + offset, sliced.size() - offset);
                 history.insert(history.end(), ids.begin() + start, ids.begin() + start + count);
                 if (history.size() > max_history)
@@ -433,13 +433,13 @@ void ple_reference(const infer::qwen4exp::Config& c, uint32_t vocab_size, const 
 
             if (token->t != jmini::Value::T::Null) {
                 const uint32_t decode_id = json_token(*token);
-                std::vector<int32_t> decoded(c.ple_head_offsets.size());
-                ple_rows(c, vocab_size, history.data(), history.size(), &decode_id, 1,
+                std::vector<int32_t> decoded(c.ple_hash.head_offsets.size());
+                ngram_rows(c.ple_hash, vocab_size, history.data(), history.size(), &decode_id, 1,
                          decoded.data(), decoded.size());
                 if (decode_expected->asArray().size() != 1 || !decode_expected->asArray()[0].isArray() ||
-                    decode_expected->asArray()[0].asArray().size() != c.ple_head_offsets.size())
+                    decode_expected->asArray()[0].asArray().size() != c.ple_hash.head_offsets.size())
                     throw std::runtime_error("reference PLE decode row shape mismatch");
-                for (size_t h = 0; h < c.ple_head_offsets.size(); ++h)
+                for (size_t h = 0; h < c.ple_hash.head_offsets.size(); ++h)
                     if (decoded[h] != int32_t(json_token(decode_expected->asArray()[0].asArray()[h])))
                         throw std::runtime_error("PLE decode rows differ after a sliced prompt");
                 ++verified;
@@ -449,14 +449,14 @@ void ple_reference(const infer::qwen4exp::Config& c, uint32_t vocab_size, const 
         if (token->t != jmini::Value::T::Null) {
             if (ids.empty()) throw std::runtime_error("reference decode has no preceding prompt");
             const uint32_t decode_id = json_token(*token);
-            const size_t tail_count = std::min(ids.size(), size_t(c.ple_ngram_size - 1));
+            const size_t tail_count = std::min(ids.size(), size_t(c.ple_hash.ngram_size - 1));
             const uint32_t* tail = ids.data() + (ids.size() - tail_count);
-            std::vector<int32_t> decoded(c.ple_head_offsets.size());
-            ple_rows(c, vocab_size, tail, tail_count, &decode_id, 1, decoded.data(), decoded.size());
+            std::vector<int32_t> decoded(c.ple_hash.head_offsets.size());
+            ngram_rows(c.ple_hash, vocab_size, tail, tail_count, &decode_id, 1, decoded.data(), decoded.size());
             if (decode_expected->asArray().size() != 1 || !decode_expected->asArray()[0].isArray() ||
-                decode_expected->asArray()[0].asArray().size() != c.ple_head_offsets.size())
+                decode_expected->asArray()[0].asArray().size() != c.ple_hash.head_offsets.size())
                 throw std::runtime_error("reference PLE decode row shape mismatch");
-            for (size_t h = 0; h < c.ple_head_offsets.size(); ++h)
+            for (size_t h = 0; h < c.ple_hash.head_offsets.size(); ++h)
                 if (decoded[h] != int32_t(json_token(decode_expected->asArray()[0].asArray()[h])))
                     throw std::runtime_error("PLE decode rows differ from the HF reference");
             ++verified;
@@ -485,14 +485,14 @@ infer::qwen4exp::Config reference_config() {
     // These are the exact uint64 hash constants and table ranges in run10's HF state dict.
     auto c = read(tiny());
     c.ple_layer = 0;
-    c.ple_ngram_size = 3;
-    c.ple_heads_per_ngram = 2;
-    c.ple_eos_token_id = 31;
+    c.ple_hash.ngram_size = 3;
+    c.ple_hash.heads_per_ngram = 2;
+    c.ple_hash.fill_id = 31;
     c.ple_embedding_length = 2;
     c.ple_embedding_dim = 8;
-    c.ple_layer_multipliers = {57442287457681827ull, 29154299761009867ull, 208413376719075541ull};
-    c.ple_head_offsets = {0, 17, 36, 59};
-    c.ple_head_vocab_sizes = {17, 19, 23, 29};
+    c.ple_hash.multipliers = {57442287457681827ull, 29154299761009867ull, 208413376719075541ull};
+    c.ple_hash.head_offsets = {0, 17, 36, 59};
+    c.ple_hash.head_vocab_sizes = {17, 19, 23, 29};
     return c;
 }
 

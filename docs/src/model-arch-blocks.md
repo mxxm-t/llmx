@@ -35,6 +35,12 @@ run them.
   two put side by side a row each, token first, through `side` (a single
   row already is), and projected by `eh_proj` into `out` with the step's
   runs.
+- `NgramHash` and `ngram_rows(hash, vocab_size, previous, current, output)`: token-major table rows of an n-gram hash, computed without allocating; qwen4exp's PLE runs it.
+  The oldest-first history tail may hold at most `ngram_size - 1` tokens.
+  Missing predecessors, and history at or before a `fill_id` in text, are filled with `fill_id`; a current `fill_id` token still hashes its own context.
+  Each order past the first folds the token ids, each times its multiplier, by xor and gives `heads_per_ngram` rows, the fold modulo a head's vocabulary size plus its offset.
+  The fill id, every token id, the output capacity and the signed hash-product bound are checked before output is written.
+- `NgramGateWeights`, `NgramGateScratch` and `ngram_gate(step, weights, embeddings, embedding_dim, E, H, eps, gated, scratch)`: the n-gram gate over the gathered rows: the H streams' keys and the value as one `matmul_group`, `group_rms_norm` of the keys and of the stream rows, and `signed_sqrt_gate` of the value into `gated`; qwen4exp's `ple` runs it before its convolution.
 - `head(step, norm, out, eps, rows)`: the rows that want logits gathered
   into the slot `rows`, since they are not contiguous once entries mix,
   normed, and projected once through `matmul_logits`.

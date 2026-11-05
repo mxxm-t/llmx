@@ -158,14 +158,14 @@ infer::qwen4exp::Config config(const Json& root) {
     out.v_heads = int(integer(c, "linear_num_value_heads"));
     out.k_dim = int(integer(c, "linear_key_head_dim"));
     out.v_dim = int(integer(c, "linear_value_head_dim"));
-    out.ple_ngram_size = int(integer(c, "ngram_size"));
-    out.ple_heads_per_ngram = int(integer(c, "heads_per_ngram"));
+    out.ple_hash.ngram_size = int(integer(c, "ngram_size"));
+    out.ple_hash.heads_per_ngram = int(integer(c, "heads_per_ngram"));
     out.ple_conv_kernel = int(integer(c, "ple_conv_kernel_size"));
     out.ple_embedding_dim = int(integer(c, "ple_embed_dim"));
-    out.ple_embedding_length = out.ple_embedding_dim / ((out.ple_ngram_size - 1) * out.ple_heads_per_ngram);
+    out.ple_embedding_length = out.ple_embedding_dim / ((out.ple_hash.ngram_size - 1) * out.ple_hash.heads_per_ngram);
     require(out.n_embd == 32 && out.hc_count == 4 && out.hc_low_rank == 4 && out.ple_embedding_dim == 8,
             "fixture dimensions changed from the native graph case");
-    require(out.ple_embedding_length * (out.ple_ngram_size - 1) * out.ple_heads_per_ngram == out.ple_embedding_dim,
+    require(out.ple_embedding_length * (out.ple_hash.ngram_size - 1) * out.ple_hash.heads_per_ngram == out.ple_embedding_dim,
             "fixture PLE embedding width does not factor into its n-gram heads");
     return out;
 }
@@ -190,7 +190,7 @@ PleRun run_ple(Backend& b, const infer::qwen4exp::Config& c, const Json& state,
                const FixtureCase& test, size_t chunk) {
     using namespace infer::qwen4exp;
     const size_t rows = 13, H = size_t(c.hc_count), E = size_t(c.n_embd), width = H * E;
-    const size_t embdim = size_t(c.ple_embedding_dim), history = (size_t(c.ple_conv_kernel) - 1) * size_t(c.ple_ngram_size);
+    const size_t embdim = size_t(c.ple_embedding_dim), history = (size_t(c.ple_conv_kernel) - 1) * size_t(c.ple_hash.ngram_size);
     const size_t tail_floats = history * width;
     const backend::StateShape shape{size_t(c.k_heads), size_t(c.v_heads), size_t(c.k_dim), size_t(c.v_dim)};
     Weight key = weight(b, state, "model.layers.0.ple.key_proj.weight", {width, embdim}, embdim, width);

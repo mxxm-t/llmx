@@ -23,14 +23,11 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
 - `check_config(config)`: the geometry constraints, apart from metadata parsing: positive dimensions, divisible query/KV and V/K heads, an even rotary width no wider than an attention head, four MRoPE sections covering the rotary width, valid HC dimensions, and products and cache sizes within supported integer and allocation bounds.
   PLE may only be attached to a linear layer.
 - `fill_tables`: builds the F32 rotary frequency and position tables; the `arch-qwen4exp` CTest checks cells of them against values from the pinned HF rotary module.
-- `ple_rows(config, vocab_size, previous, current, output)`: computes token-major PLE gather rows without allocating.
-  The oldest-first history tail may contain at most `ngram_size - 1` tokens.
-  Missing predecessors and history at or before EOS are padded with EOS; the current EOS token still hashes its own context.
-  All token IDs, output capacity and signed hash-product bounds are checked before output is written.
+- `Config::ple_hash`, a `blocks::NgramHash` ([blocks](model-arch-blocks.md)), holds the PLE hash's n-gram size, heads per order, multipliers, head offsets and vocabulary sizes, and its fill id, the PLE EOS id; `blocks::ngram_rows(config.ple_hash, vocab_size, previous, current, output)` computes the token-major PLE gather rows.
 - `lookup_ids(step)`: applies those rules to each entry's token snapshot and fills the runtime's ID scratch without backend work or I/O.
   The PLE layer declares its table role and head count in `lookup`.
   With an external row source, `apply_ple` gathers the runtime's packed unique rows through remapped IDs; a resident table uses the same hash and the backend's embedding path.
-- `ple(config, step, weights, embeddings, out, scratch)`: projects the gathered n-gram embeddings into per-stream keys and a value, normalizes the keys and current streams, applies the signed square-root gate, then runs the causal dilated convolution, SiLU and residual add.
+- `ple(config, step, weights, embeddings, out, scratch)`: `blocks::ngram_gate` over the gathered n-gram embeddings (the per-stream keys and a value projected, the keys and current streams normalized, the signed square-root gate into `scratch.gated`), then the gated rows normalized and the causal dilated convolution, SiLU and residual add.
   Its convolution tail is the layer's F32 `state_tail`; `ple_recur` replays that update from saved normalized and gated rows during a recurrent rerun.
 - `mix(config, step, weights, out, scratch, inject, gates)` and `inject(config, step, block, gates)`: mix normalized streams through the learned down and up projections, keeping the normalized streams in `scratch.normed`, and for a layer's part make its per-stream inject gates from them into their own slot (`hc_inject`) beside the down product, the two recorded unordered (`Backend::unordered`); then inject a block result into the original streams through those gates.
   The attention parts' input products (linear attention's qkv beside its gate, alpha and beta; sparse attention's q, k, v beside the indexer's q and k) are recorded unordered too, each reading the mixed rows and writing a slot of its own.

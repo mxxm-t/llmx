@@ -34,9 +34,9 @@ struct Config {
     int nextn_compress_ratio = 0;
     int hc_count = 0, hc_low_rank = 0;
     bool has_ple = false;
-    int ple_layer = -1, ple_ngram_size = 0, ple_heads_per_ngram = 0;
-    int ple_conv_kernel = 0, ple_embedding_length = 0, ple_embedding_dim = 0, ple_eos_token_id = 0;
-    std::vector<uint64_t> ple_layer_multipliers, ple_head_offsets, ple_head_vocab_sizes;
+    int ple_layer = -1;
+    int ple_conv_kernel = 0, ple_embedding_length = 0, ple_embedding_dim = 0;
+    blocks::NgramHash ple_hash;
 };
 
 struct PleWeights {
@@ -51,18 +51,15 @@ struct PleScratch {
 // Replay just the PLE state update from its saved normalized and gated values.
 inline void ple_recur(const Config& c, const Step& s, const Weight& conv, backend::Slice out, const PleScratch& tmp) {
     s.b.dilated_conv_silu_add(out, tmp.normed, tmp.gated, conv.slice(), size_t(c.hc_count) * size_t(c.n_embd),
-                             size_t(c.ple_conv_kernel), size_t(c.ple_ngram_size), s.state_layer, s.states, s.n_views);
+                             size_t(c.ple_conv_kernel), size_t(c.ple_hash.ngram_size), s.state_layer, s.states, s.n_views);
 }
 
 // The PLE contribution before its caller adds it to the stream residual; embeddings are the ordered, concatenated n-gram rows.
 inline void ple(const Config& c, const Step& s, const PleWeights& w, backend::CSlice embeddings,
                 backend::Slice out, const PleScratch& tmp) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count);
-    s.b.matmul_group({blocks::projection(w.key, tmp.key), blocks::projection(w.value, tmp.value)},
-                     embeddings, size_t(c.ple_embedding_dim), s.rows, s.runs, s.dtype);
-    s.b.group_rms_norm(tmp.key, tmp.key, w.norm_key.slice(), s.rows, H, E, c.rms_eps, s.runs);
-    s.b.group_rms_norm(tmp.query, s.x, w.norm_query.slice(), s.rows, H, E, c.rms_eps, s.runs);
-    s.b.signed_sqrt_gate(tmp.gated, tmp.key, tmp.query, tmp.value, s.rows, H, E, s.runs);
+    blocks::ngram_gate(s, {w.key, w.value, w.norm_key, w.norm_query}, embeddings, size_t(c.ple_embedding_dim), E, H, c.rms_eps,
+                       tmp.gated, {tmp.key, tmp.value, tmp.query});
     s.b.group_rms_norm(tmp.normed, tmp.gated, w.norm_conv.slice(), s.rows, H, E, c.rms_eps, s.runs);
     ple_recur(c, s, w.conv, out, tmp);
 }
@@ -199,34 +196,34 @@ inline void check_config(const Config& c) {
     if (c.has_ple) {
         if (c.ple_layer < 0 || c.ple_layer >= c.n_layer || c.layers[size_t(c.ple_layer)] != linear_attention)
             throw std::runtime_error("inference: PLE layer must be an in-range linear-attention layer");
-        if (c.ple_ngram_size < 2 || c.ple_heads_per_ngram <= 0)
+        if (c.ple_hash.ngram_size < 2 || c.ple_hash.heads_per_ngram <= 0)
             throw std::runtime_error("inference: PLE n-gram size is out of range");
-        const uint64_t heads = uint64_t(c.ple_ngram_size - 1) * uint64_t(c.ple_heads_per_ngram);
+        const uint64_t heads = uint64_t(c.ple_hash.ngram_size - 1) * uint64_t(c.ple_hash.heads_per_ngram);
         if (!heads || heads > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: PLE head count is out of range");
         if (c.ple_conv_kernel != 4 || c.ple_embedding_length <= 0)
             throw std::runtime_error("inference: unsupported PLE convolution or embedding width");
-        if (c.ple_eos_token_id < 0)
+        if (c.ple_hash.fill_id < 0)
             throw std::runtime_error("inference: invalid PLE EOS token id");
         if (heads * uint64_t(c.ple_embedding_length) > uint64_t(std::numeric_limits<int>::max()) ||
             c.ple_embedding_dim != int(heads * uint64_t(c.ple_embedding_length)))
             throw std::runtime_error("inference: PLE embedding dimensions exceed the supported range");
-        if (c.ple_layer_multipliers.size() != size_t(c.ple_ngram_size) ||
-            c.ple_head_offsets.size() != size_t(heads) || c.ple_head_vocab_sizes.size() != size_t(heads))
+        if (c.ple_hash.multipliers.size() != size_t(c.ple_hash.ngram_size) ||
+            c.ple_hash.head_offsets.size() != size_t(heads) || c.ple_hash.head_vocab_sizes.size() != size_t(heads))
             throw std::runtime_error("inference: PLE integer array length mismatch");
-        for (uint64_t multiplier : c.ple_layer_multipliers)
+        for (uint64_t multiplier : c.ple_hash.multipliers)
             if (!multiplier || !(multiplier & 1) || multiplier > uint64_t(std::numeric_limits<int64_t>::max()))
                 throw std::runtime_error("inference: invalid PLE layer multiplier");
         for (size_t head = 0; head < size_t(heads); ++head) {
-            const uint64_t offset = c.ple_head_offsets[head], size = c.ple_head_vocab_sizes[head];
+            const uint64_t offset = c.ple_hash.head_offsets[head], size = c.ple_hash.head_vocab_sizes[head];
             if (!size || offset > uint64_t(std::numeric_limits<int32_t>::max()) ||
                 size > uint64_t(std::numeric_limits<int32_t>::max()) ||
                 size - 1 > uint64_t(std::numeric_limits<int32_t>::max()) - offset)
                 throw std::runtime_error("inference: PLE head range does not fit the int32 row index");
         }
-    } else if (c.ple_layer != -1 || c.ple_ngram_size || c.ple_heads_per_ngram || c.ple_conv_kernel ||
-               c.ple_embedding_length || c.ple_eos_token_id || !c.ple_layer_multipliers.empty() ||
-               !c.ple_head_offsets.empty() || !c.ple_head_vocab_sizes.empty()) {
+    } else if (c.ple_layer != -1 || c.ple_hash.ngram_size || c.ple_hash.heads_per_ngram || c.ple_conv_kernel ||
+               c.ple_embedding_length || c.ple_hash.fill_id || !c.ple_hash.multipliers.empty() ||
+               !c.ple_hash.head_offsets.empty() || !c.ple_hash.head_vocab_sizes.empty()) {
         throw std::runtime_error("inference: PLE metadata without qwen4exp.ple.layers");
     }
 
@@ -241,70 +238,6 @@ inline void check_config(const Config& c) {
         throw std::runtime_error("inference: Qwen4Exp dimensions or context exceed allocation limit");
     if (has_qsa && uint64_t(c.context_length) > max_floats / uint64_t(c.indexer_head_dim))
         throw std::runtime_error("inference: QSA indexer cache exceeds allocation limit");
-}
-
-// Select the PLE table rows for a token chunk using the pinned HF n-gram hash.
-// previous is the oldest-first tail immediately before current; output is token-major.
-inline size_t ple_rows(const Config& c, uint32_t vocab_size,
-                      const uint32_t* previous, size_t previous_count,
-                      const uint32_t* current, size_t current_count,
-                      int32_t* output, size_t output_capacity) {
-    if (!c.has_ple) throw std::runtime_error("inference: PLE rows requested without PLE metadata");
-    if (!vocab_size || c.ple_eos_token_id < 0 || uint32_t(c.ple_eos_token_id) >= vocab_size)
-        throw std::runtime_error("inference: PLE token id is outside the vocabulary");
-    if (c.ple_ngram_size < 2 || c.ple_heads_per_ngram <= 0 ||
-        size_t(c.ple_ngram_size) != c.ple_layer_multipliers.size())
-        throw std::runtime_error("inference: invalid PLE n-gram metadata");
-    const size_t max_previous = size_t(c.ple_ngram_size - 1);
-    if (previous_count > max_previous || (previous_count && !previous) || (current_count && !current))
-        throw std::runtime_error("inference: invalid PLE token history");
-    const size_t heads = size_t(c.ple_ngram_size - 1) * size_t(c.ple_heads_per_ngram);
-    if (c.ple_head_offsets.size() != heads || c.ple_head_vocab_sizes.size() != heads)
-        throw std::runtime_error("inference: invalid PLE head metadata");
-    if (current_count && heads > std::numeric_limits<size_t>::max() / current_count)
-        throw std::runtime_error("inference: PLE output size overflow");
-    const size_t required = current_count * heads;
-    if (required > output_capacity || (required && !output))
-        throw std::runtime_error("inference: PLE output buffer is too small");
-
-    const uint64_t largest_token = uint64_t(vocab_size - 1);
-    for (uint64_t multiplier : c.ple_layer_multipliers) {
-        if (multiplier > uint64_t(std::numeric_limits<int64_t>::max()) ||
-            (largest_token && multiplier > uint64_t(std::numeric_limits<int64_t>::max()) / largest_token))
-            throw std::runtime_error("inference: PLE token hash product exceeds int64 range");
-    }
-    for (size_t i = 0; i < previous_count; ++i)
-        if (previous[i] >= vocab_size)
-            throw std::runtime_error("inference: PLE token id is outside the vocabulary");
-    for (size_t i = 0; i < current_count; ++i)
-        if (current[i] >= vocab_size)
-            throw std::runtime_error("inference: PLE token id is outside the vocabulary");
-
-    const size_t ngram = size_t(c.ple_ngram_size);
-    const size_t per_ngram = size_t(c.ple_heads_per_ngram);
-    const size_t history_count = previous_count;
-    for (size_t i = 0; i < current_count; ++i) {
-        auto token_before = [&](size_t distance) -> uint32_t {
-            const size_t prefix_count = history_count + i;
-            if (distance > prefix_count) return uint32_t(c.ple_eos_token_id);
-            const size_t index = prefix_count - distance;
-            return index < history_count ? previous[index] : current[index - history_count];
-        };
-        uint64_t mixed = uint64_t(current[i]) * c.ple_layer_multipliers[0];
-        bool cut = false;
-        for (size_t s = 1; s < ngram; ++s) {
-            const uint32_t token = cut ? uint32_t(c.ple_eos_token_id) : token_before(s);
-            cut = cut || token == uint32_t(c.ple_eos_token_id);
-            mixed ^= uint64_t(token) * c.ple_layer_multipliers[s];
-            const size_t first_head = (s - 1) * per_ngram;
-            for (size_t g = 0; g < per_ngram; ++g) {
-                const size_t head = first_head + g;
-                output[i * heads + head] = int32_t(
-                    mixed % c.ple_head_vocab_sizes[head] + c.ple_head_offsets[head]);
-            }
-        }
-    }
-    return required;
 }
 
 inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
@@ -421,24 +354,24 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
         if (ple_layers.size() != 1) throw std::runtime_error("inference: only one PLE layer is supported");
         c.has_ple = true;
         c.ple_layer = ple_layers[0];
-        c.ple_ngram_size = integer(m, p + "ple.ngram_size");
-        c.ple_heads_per_ngram = integer(m, p + "ple.heads_per_ngram");
+        c.ple_hash.ngram_size = integer(m, p + "ple.ngram_size");
+        c.ple_hash.heads_per_ngram = integer(m, p + "ple.heads_per_ngram");
         c.ple_conv_kernel = integer(m, p + "ple.conv_kernel");
         c.ple_embedding_length = integer(m, p + "embedding_length_per_layer_input");
         if (!m.find(p + "ple.eos_token_id"))
             throw std::runtime_error("inference: missing metadata " + p + "ple.eos_token_id");
-        c.ple_eos_token_id = metadata::count(m, p + "ple.eos_token_id", 0);
-        if (c.ple_ngram_size < 2 || c.ple_heads_per_ngram <= 0 ||
-            uint64_t(c.ple_ngram_size - 1) * uint64_t(c.ple_heads_per_ngram) > uint64_t(std::numeric_limits<int>::max()))
+        c.ple_hash.fill_id = metadata::count(m, p + "ple.eos_token_id", 0);
+        if (c.ple_hash.ngram_size < 2 || c.ple_hash.heads_per_ngram <= 0 ||
+            uint64_t(c.ple_hash.ngram_size - 1) * uint64_t(c.ple_hash.heads_per_ngram) > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: PLE n-gram/head dimensions are out of range");
-        const uint64_t ple_head_count = uint64_t(c.ple_ngram_size - 1) * uint64_t(c.ple_heads_per_ngram);
+        const uint64_t ple_head_count = uint64_t(c.ple_hash.ngram_size - 1) * uint64_t(c.ple_hash.heads_per_ngram);
         const size_t ple_heads = size_t(ple_head_count);
         if (uint64_t(c.ple_embedding_length) * ple_head_count > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: PLE embedding dimensions exceed the supported range");
         c.ple_embedding_dim = int(uint64_t(c.ple_embedding_length) * ple_head_count);
-        c.ple_layer_multipliers = uint64_array(m, p + "ple.layer_multipliers", size_t(c.ple_ngram_size));
-        c.ple_head_offsets = uint64_array(m, p + "ple.head_offsets", ple_heads);
-        c.ple_head_vocab_sizes = uint64_array(m, p + "ple.head_vocab_sizes", ple_heads);
+        c.ple_hash.multipliers = uint64_array(m, p + "ple.layer_multipliers", size_t(c.ple_hash.ngram_size));
+        c.ple_hash.head_offsets = uint64_array(m, p + "ple.head_offsets", ple_heads);
+        c.ple_hash.head_vocab_sizes = uint64_array(m, p + "ple.head_vocab_sizes", ple_heads);
     } else if (m.find(p + "ple.ngram_size") || m.find(p + "ple.heads_per_ngram") ||
                m.find(p + "ple.conv_kernel") || m.find(p + "ple.eos_token_id") ||
                m.find(p + "ple.layer_multipliers") || m.find(p + "ple.head_offsets") ||
@@ -599,7 +532,7 @@ public:
             throw std::runtime_error("inference: invalid vocabulary dimension");
         if (cfg_.n_expert_used > 256)
             throw std::runtime_error("inference: more than 256 experts per token are unsupported");
-        if (cfg_.has_ple) ple_rows(cfg_, vocab_, nullptr, 0, nullptr, 0, nullptr, 0);
+        if (cfg_.has_ple) blocks::ngram_rows(cfg_.ple_hash, vocab_, nullptr, 0, nullptr, 0, nullptr, 0);
     }
 
     ModelPlan plan(const TensorIndex& tensors) const override {
@@ -645,7 +578,7 @@ public:
         // A group sums a part's block, and each member injects the sum into its streams (join).
         p.partial = size_t(c.n_embd);
         p.slots = slot_widths(c);
-        p.index_width = std::max(size_t(c.hc_count), c.ple_head_offsets.size());
+        p.index_width = std::max(size_t(c.hc_count), c.ple_hash.head_offsets.size());
         p.kv_heads = size_t(c.n_head_kv);
         p.head_dim = size_t(c.head_dim);
         p.state = {size_t(c.k_heads), size_t(c.v_heads), size_t(c.k_dim), size_t(c.v_dim)};
@@ -679,16 +612,16 @@ public:
     }
 
     void lookup_ids(const Step& s) const override {
-        const size_t heads = cfg_.ple_head_offsets.size(), count = backend::size_mul(s.rows, heads);
+        const size_t heads = cfg_.ple_hash.head_offsets.size(), count = backend::size_mul(s.rows, heads);
         require_indices(s, count);
-        if (!s.tokens || !s.states || s.previous_count != size_t(cfg_.ple_ngram_size - 1) || !s.previous_tokens)
+        if (!s.tokens || !s.states || s.previous_count != size_t(cfg_.ple_hash.ngram_size - 1) || !s.previous_tokens)
             throw std::runtime_error("inference: Qwen4Exp PLE token history is missing");
         size_t first = 0;
         for (size_t v = 0; v < s.n_views; ++v) {
             const size_t n = s.states[v].nq;
             if (n > s.rows - first) throw std::runtime_error("inference: Qwen4Exp PLE views exceed the pass");
-            ple_rows(cfg_, vocab_, s.previous_tokens + v * s.previous_count, s.previous_count,
-                     s.tokens + first, n, reinterpret_cast<int32_t*>(s.indices + first * heads), n * heads);
+            blocks::ngram_rows(cfg_.ple_hash, vocab_, s.previous_tokens + v * s.previous_count, s.previous_count,
+                               s.tokens + first, n, reinterpret_cast<int32_t*>(s.indices + first * heads), n * heads);
             first += n;
         }
         if (first != s.rows) throw std::runtime_error("inference: Qwen4Exp PLE views do not cover the pass");
@@ -926,8 +859,8 @@ private:
         const TensorView& table = tensors.view(tensors.at("per_layer_token_embd.weight"));
         if (table.shape.size() < 2 || !table.shape[1] || table.shape[1] > uint64_t(std::numeric_limits<int32_t>::max()))
             throw std::runtime_error("inference: invalid PLE table row count");
-        for (size_t h = 0; h < cfg_.ple_head_offsets.size(); ++h)
-            if (cfg_.ple_head_offsets[h] + cfg_.ple_head_vocab_sizes[h] > table.shape[1])
+        for (size_t h = 0; h < cfg_.ple_hash.head_offsets.size(); ++h)
+            if (cfg_.ple_hash.head_offsets[h] + cfg_.ple_hash.head_vocab_sizes[h] > table.shape[1])
                 throw std::runtime_error("inference: PLE head range exceeds the embedding table");
         layer.roles.insert(layer.roles.end(), {
             {ple_table, Part::mixer, RoleKind::gather, "per_layer_token_embd.weight", "", uint64_t(cfg_.ple_embedding_length), table.shape[1]},
@@ -939,10 +872,10 @@ private:
             {ple_conv, Part::mixer, RoleKind::table, pre + "ple_conv1d.weight", "", uint64_t(cfg_.ple_conv_kernel), R}});
         layer.ops.push_back({Part::mixer, backend::Op::signed_sqrt_gate});
         layer.ops.push_back({Part::mixer, backend::Op::dilated_conv_silu_add});
-        layer.state_tail = backend::size_mul(backend::size_mul(size_t(cfg_.ple_conv_kernel - 1), size_t(cfg_.ple_ngram_size)), size_t(R));
-        layer.token_history = size_t(cfg_.ple_ngram_size - 1);
-        layer.token_padding = uint32_t(cfg_.ple_eos_token_id);
-        layer.lookup = Lookup{ple_table, cfg_.ple_head_offsets.size()};
+        layer.state_tail = backend::size_mul(backend::size_mul(size_t(cfg_.ple_conv_kernel - 1), size_t(cfg_.ple_hash.ngram_size)), size_t(R));
+        layer.token_history = size_t(cfg_.ple_hash.ngram_size - 1);
+        layer.token_padding = uint32_t(cfg_.ple_hash.fill_id);
+        layer.lookup = Lookup{ple_table, cfg_.ple_hash.head_offsets.size()};
         layer.saved.insert(layer.saved.end(), {{ple_normed, size_t(R), 0, true}, {ple_gated, size_t(R), 0, true}});
         layer.recur_writes.push_back(ple_output);
     }
@@ -1000,7 +933,7 @@ private:
     }
 
     void apply_ple(const Step& s) const {
-        const size_t heads = cfg_.ple_head_offsets.size(), count = backend::size_mul(s.rows, heads);
+        const size_t heads = cfg_.ple_hash.head_offsets.size(), count = backend::size_mul(s.rows, heads);
         const Weight* w = s.w;
         const Weight& table = w[ple_table];
         if (s.lookup) {

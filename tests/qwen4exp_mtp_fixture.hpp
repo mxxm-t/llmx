@@ -65,9 +65,9 @@ struct Fixture {
         c.indexer_n_heads = 1; c.indexer_head_dim = E; c.indexer_budget = 4; c.indexer_compress_ratio = 2;
         c.nextn_compress_ratio = compression; c.hc_count = H; c.hc_low_rank = 2;
         if (ple) {
-            c.has_ple = true; c.ple_layer = 0; c.ple_ngram_size = 3; c.ple_heads_per_ngram = 1;
-            c.ple_conv_kernel = 4; c.ple_embedding_length = 1; c.ple_embedding_dim = 2; c.ple_eos_token_id = 0;
-            c.ple_layer_multipliers = {1, 3, 5}; c.ple_head_offsets = {0, V}; c.ple_head_vocab_sizes = {V, V};
+            c.has_ple = true; c.ple_layer = 0; c.ple_hash.ngram_size = 3; c.ple_hash.heads_per_ngram = 1;
+            c.ple_conv_kernel = 4; c.ple_embedding_length = 1; c.ple_embedding_dim = 2; c.ple_hash.fill_id = 0;
+            c.ple_hash.multipliers = {1, 3, 5}; c.ple_hash.head_offsets = {0, V}; c.ple_hash.head_vocab_sizes = {V, V};
         }
         observed = std::make_shared<Observed>(std::make_shared<Qwen4Exp>(c, uint32_t(V)));
         weights.arch = observed;
@@ -137,14 +137,14 @@ inline std::pair<gguf::GGUFModel, gguf::GGUFModel> headers(const Fixture& f, int
     kv.push_back({"qwen4exp.rope.freq_base", theta});
     if (f.c.has_ple) {
         kv.push_back({"qwen4exp.ple.layers", array({uint64_t(f.c.ple_layer)})});
-        kv.push_back({"qwen4exp.ple.ngram_size", integer(uint64_t(f.c.ple_ngram_size))});
-        kv.push_back({"qwen4exp.ple.heads_per_ngram", integer(uint64_t(f.c.ple_heads_per_ngram))});
+        kv.push_back({"qwen4exp.ple.ngram_size", integer(uint64_t(f.c.ple_hash.ngram_size))});
+        kv.push_back({"qwen4exp.ple.heads_per_ngram", integer(uint64_t(f.c.ple_hash.heads_per_ngram))});
         kv.push_back({"qwen4exp.ple.conv_kernel", integer(uint64_t(f.c.ple_conv_kernel))});
         kv.push_back({"qwen4exp.embedding_length_per_layer_input", integer(uint64_t(f.c.ple_embedding_length))});
-        kv.push_back({"qwen4exp.ple.eos_token_id", integer(uint64_t(f.c.ple_eos_token_id))});
-        kv.push_back({"qwen4exp.ple.layer_multipliers", array64(f.c.ple_layer_multipliers)});
-        kv.push_back({"qwen4exp.ple.head_offsets", array64(f.c.ple_head_offsets)});
-        kv.push_back({"qwen4exp.ple.head_vocab_sizes", array64(f.c.ple_head_vocab_sizes)});
+        kv.push_back({"qwen4exp.ple.eos_token_id", integer(uint64_t(f.c.ple_hash.fill_id))});
+        kv.push_back({"qwen4exp.ple.layer_multipliers", array64(f.c.ple_hash.multipliers)});
+        kv.push_back({"qwen4exp.ple.head_offsets", array64(f.c.ple_hash.head_offsets)});
+        kv.push_back({"qwen4exp.ple.head_vocab_sizes", array64(f.c.ple_hash.head_vocab_sizes)});
     }
     kv.push_back({"tokenizer.ggml.model", string("gpt2")});
     kv.push_back({"tokenizer.ggml.pre", string("qwen2")});

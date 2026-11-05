@@ -207,6 +207,28 @@ Gotchas: mid-development only the build, the focused test and short microbenchma
 - The golden's long text is 6000 characters, since `llmx tokenize` takes its text as one argument and Windows limits a command line to 32767 characters.
 - The table check accepts Python's Unicode 15.0.0, 15.1.0 and 16.0.0, between which and 16.0 no assigned code point changes group; a later Python fails it by name until its moves are listed.
 
+## DeepSeek-V4.1 step 4a: the n-gram hash and gate hoisted (2026-11-05, DSDEV7, branch feat/deepseek4-hoist on main e66541e77; step 4a of docs/DEEPSEEK4.md, DSDEV6's proposal of 2026-11-04 23:21 approved by F2DEV at 23:31 with two changes)
+
+**Goal:** qwen4exp's PLE n-gram hash and gate become the shared graph pieces of `src/model/arch/blocks.hpp`, which DeepSeek-V4.1's Engram reuses, behaviour unchanged and Qwen3.8-Flash-Next byte-identical (docs/DEEPSEEK4.md, section 4.4).
+
+**Done:**
+- `blocks::NgramHash` (`ngram_size`, `heads_per_ngram` and `fill_id` as `int`, as qwen4exp held them, and the three `uint64_t` arrays) and `blocks::ngram_rows`, the body of qwen4exp's `ple_rows` reading the struct, with its refusal texts.
+- `blocks::ngram_gate` with `NgramGateWeights` and `NgramGateScratch`: `ple`'s first four calls in their order with the same arguments, the gated value into an output argument; qwen4exp's `ple` runs it, then its norm and `ple_recur`, and `PleWeights` and `PleScratch` stay qwen4exp's.
+- qwen4exp's `Config` holds one `blocks::NgramHash ple_hash` in place of its six hash fields; `read_config`, `check_config`, the model and the tests read it.
+- `ple_rows`'s refusal of a configuration without PLE ("PLE rows requested without PLE metadata") is dropped, since the struct does not carry `has_ple` and both callers run only on a model with PLE: the model's construction check calls it under `has_ple`, and `lookup_ids` runs on the PLE layer alone; no test named it.
+
+- The gates, run by DSDEV8 on the Linux test machine at b2b04850a on main a359b94e3, both arms built the same way (Release, Vulkan on): the branch `0.1.0+gb2b04850a1e0` (sha256 d1d6b55a) and main `0.1.0+ga359b94e3b21` (sha256 d822d14a); CTest 97/97 (the Vulkan-only types skipped); `docs` and `dead-code` pass.
+- Qwen3.8-Flash-Next UD-Q4_K_XL on the CPU (`--threads 2`, `--load-mode auto`): (a) one token, (b) two tokens and (c) 38 tokens with the EOS id 248044 at position 20 read through `--then-ids` at `--ubatch 16`; each `logits --last` over the prompt's rows and 8 greedy tokens, (c)'s with `--ignore-eos` since its first greedy token is an end token; main's bytes, timing lines aside.
+- The same file at the 2x2 `--dtype int8` placement on four MI50s (Vulkan, f16 cache, `--lookup-storage file`): a 363-token prompt holding the EOS text, read at `--ubatch 256`, `logits --last 16` and 48 greedy tokens, main's bytes, timing lines aside.
+- The timing round there, bench pp512 and tg128 three runs each, main, branch, branch, main: pp512 1102.6, 1100.9, 1102.2 and 1100.8 tok/s, tg128 54.24, 53.59, 52.73 and 53.43 tok/s, so level (main 1101.7 and 53.84, branch 1101.6 and 53.16, the tg difference the drift of the run order); the machine's load average stood at 8 to 37 from others' work.
+- Rebased onto main d398f5dff and then e66541e77 without a conflict in code; the builds, CTest, `docs` and `dead-code` are rerun at the head and the hosted run is the head's.
+
+**Left:**
+- F2DEV approved on 2026-11-05 with two changes, both folded in (docs/CACHE-PLAN.md names `ngram_rows` in `blocks.hpp`, and DEEPSEEK4.md's step row names four MI50s at 2x2); the branch lands by fast-forward once its hosted run is green.
+
+**Gotchas:**
+- Step 4b generalizes the hash (the fill rule, the map, per-layer ranges) and the gate's sign-at-zero mode; this step changes no type and no behaviour.
+
 ## Draft price at depth (2026-11-04, SDEV3 and SDEV4, branch sdev2/draft-price-at-depth on main 44c5e56f0; SDEV2's finding and proposal of 2026-11-03 22:39, approved by F2DEV at 22:42 with seven changes and at 2026-11-04 04:09 with four more)
 
 **Goal:** a drafting reply at depth weighs its drafts against fresh prices of the pass it would run: on production's Qwen3.8-Flash-Next UD-Q4_K_XL over a 2x2 layer split at about 200k tokens, a lone reply drafting took 23-row verifies at about 19 tokens a second where plain decode gives 35.9, because the depth rule read decode cells last measured during old stalls and priced a pass alone as its slowest stage plus a flat offset.

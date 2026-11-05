@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -134,6 +135,93 @@ inline void nextn_input(const Step& s, const Weight& enorm, const Weight& hnorm,
         in = side;
     }
     s.b.matmul(eh_proj.operand(), in, out, eh_proj.nin, eh_proj.nout, n, s.runs, s.dtype);
+}
+
+// An n-gram hash's fields, read by ngram_rows; `fill_id` stands in before the start and after itself in text.
+struct NgramHash {
+    int ngram_size = 0, heads_per_ngram = 0, fill_id = 0;
+    std::vector<uint64_t> multipliers, head_offsets, head_vocab_sizes;
+};
+
+// The table rows of a token chunk by the n-gram hash: previous is the oldest-first tail immediately before current, and output is token-major, `heads_per_ngram` rows for each order past the first.
+inline size_t ngram_rows(const NgramHash& h, uint32_t vocab_size,
+                         const uint32_t* previous, size_t previous_count,
+                         const uint32_t* current, size_t current_count,
+                         int32_t* output, size_t output_capacity) {
+    if (!vocab_size || h.fill_id < 0 || uint32_t(h.fill_id) >= vocab_size)
+        throw std::runtime_error("inference: PLE token id is outside the vocabulary");
+    if (h.ngram_size < 2 || h.heads_per_ngram <= 0 ||
+        size_t(h.ngram_size) != h.multipliers.size())
+        throw std::runtime_error("inference: invalid PLE n-gram metadata");
+    const size_t max_previous = size_t(h.ngram_size - 1);
+    if (previous_count > max_previous || (previous_count && !previous) || (current_count && !current))
+        throw std::runtime_error("inference: invalid PLE token history");
+    const size_t heads = size_t(h.ngram_size - 1) * size_t(h.heads_per_ngram);
+    if (h.head_offsets.size() != heads || h.head_vocab_sizes.size() != heads)
+        throw std::runtime_error("inference: invalid PLE head metadata");
+    if (current_count && heads > std::numeric_limits<size_t>::max() / current_count)
+        throw std::runtime_error("inference: PLE output size overflow");
+    const size_t required = current_count * heads;
+    if (required > output_capacity || (required && !output))
+        throw std::runtime_error("inference: PLE output buffer is too small");
+
+    const uint64_t largest_token = uint64_t(vocab_size - 1);
+    for (uint64_t multiplier : h.multipliers) {
+        if (multiplier > uint64_t(std::numeric_limits<int64_t>::max()) ||
+            (largest_token && multiplier > uint64_t(std::numeric_limits<int64_t>::max()) / largest_token))
+            throw std::runtime_error("inference: PLE token hash product exceeds int64 range");
+    }
+    for (size_t i = 0; i < previous_count; ++i)
+        if (previous[i] >= vocab_size)
+            throw std::runtime_error("inference: PLE token id is outside the vocabulary");
+    for (size_t i = 0; i < current_count; ++i)
+        if (current[i] >= vocab_size)
+            throw std::runtime_error("inference: PLE token id is outside the vocabulary");
+
+    const size_t ngram = size_t(h.ngram_size);
+    const size_t per_ngram = size_t(h.heads_per_ngram);
+    const size_t history_count = previous_count;
+    for (size_t i = 0; i < current_count; ++i) {
+        auto token_before = [&](size_t distance) -> uint32_t {
+            const size_t prefix_count = history_count + i;
+            if (distance > prefix_count) return uint32_t(h.fill_id);
+            const size_t index = prefix_count - distance;
+            return index < history_count ? previous[index] : current[index - history_count];
+        };
+        uint64_t mixed = uint64_t(current[i]) * h.multipliers[0];
+        bool cut = false;
+        for (size_t s = 1; s < ngram; ++s) {
+            const uint32_t token = cut ? uint32_t(h.fill_id) : token_before(s);
+            cut = cut || token == uint32_t(h.fill_id);
+            mixed ^= uint64_t(token) * h.multipliers[s];
+            const size_t first_head = (s - 1) * per_ngram;
+            for (size_t g = 0; g < per_ngram; ++g) {
+                const size_t head = first_head + g;
+                output[i * heads + head] = int32_t(
+                    mixed % h.head_vocab_sizes[head] + h.head_offsets[head]);
+            }
+        }
+    }
+    return required;
+}
+
+
+struct NgramGateWeights {
+    const Weight &key, &value, &norm_key, &norm_query;
+};
+
+struct NgramGateScratch {
+    backend::Slice key, value, query;
+};
+
+// The n-gram gate over the gathered rows `embeddings`, `embedding_dim` wide: the H streams' keys and the value projected, the keys and the stream rows normed, and the value gated by each stream's signed square root into `gated`.
+inline void ngram_gate(const Step& s, const NgramGateWeights& w, backend::CSlice embeddings, size_t embedding_dim, size_t E, size_t H, float eps,
+                       backend::Slice gated, const NgramGateScratch& tmp) {
+    s.b.matmul_group({projection(w.key, tmp.key), projection(w.value, tmp.value)},
+                     embeddings, embedding_dim, s.rows, s.runs, s.dtype);
+    s.b.group_rms_norm(tmp.key, tmp.key, w.norm_key.slice(), s.rows, H, E, eps, s.runs);
+    s.b.group_rms_norm(tmp.query, s.x, w.norm_query.slice(), s.rows, H, E, eps, s.runs);
+    s.b.signed_sqrt_gate(gated, tmp.key, tmp.query, tmp.value, s.rows, H, E, s.runs);
 }
 
 // The head: the rows that want logits are not contiguous once entries mix, so they are compacted into `rows` first, then normed and projected once over exactly those rows.

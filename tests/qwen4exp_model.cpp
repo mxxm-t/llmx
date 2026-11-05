@@ -614,7 +614,7 @@ void host_snapshot_restore_parity(const infer::ModelWeights& base,
                                   const std::string& name) {
     infer::qwen4exp::Config cfg = configuration;
     cfg.context_length = 512;
-    if (!cfg.has_ple || cfg.ple_ngram_size < 2 ||
+    if (!cfg.has_ple || cfg.ple_hash.ngram_size < 2 ||
         std::find(cfg.layers.begin(), cfg.layers.end(), infer::qwen4exp::qwen_sparse_attention) == cfg.layers.end())
         throw std::runtime_error(name + ": host restore fixture needs PLE and QSA");
     infer::ModelWeights weights = base;

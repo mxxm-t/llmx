@@ -301,7 +301,8 @@ The historical 492/512 failed the former 512/512 depth rule and is not a pass un
 5. Run the frozen native candidate once per input against canonical HF.
    Each input must independently meet all three limits.
    Also report signed mean and every miss's position, canonical margin and reference-arm agreement; do not cancel biases across inputs or exclude ambiguous rows.
-   An exceeded limit means NOT QUALIFIED, with its cause still to investigate.
+   An exceeded limit means NOT QUALIFIED, with its cause still to investigate, unless a per-layer probe of the candidate against a second native arm at the same precision on the same input, at the first row where the two part, shows them equal, to about 1e-5 relative in the residual after every layer, up to a router whose top-k margin (its k-th against its next expert) is below 1e-4, with HF's margin at that router read beside them.
+   Such a cell is routing-sensitive and counts as qualified, with the probe's record (the parting rows, the layer, both arms' margins and HF's there) written beside the cell; an arm parting before any such near-tie still fails, and no limit is widened (the owner's decision of 2026-11-05).
 6. Retain existing common-input CPU F32/Vulkan F32/F64 two-chunk evidence without repeating it.
    It does not reproduce accumulated native 16K history.
    Full-model CPU execution is no longer a precondition.

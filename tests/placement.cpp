@@ -1,6 +1,5 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
-#include <set>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -840,7 +839,7 @@ void pipelined_matches_single(bool devices) {
 }
 
 // A prompt cut into other slices gives the same bits: on each split, with backends playing devices, the prompt at ubatch 3 to 13 and again at 3, each from an empty history, and the step after it, against one backend reading it whole.
-// The prefills measure their own periods as they go, so later ones may take priced slices (infer::prompt_slice); each slicing is one the slice count says, and every one is exact.
+// Later prefills take the slices their measured periods price (infer::prompt_slice), and a fresh split's first the cut without prices, five slices at ubatch 3 and three at 5, so two slicings are checked on any machine.
 void pipelined_slicings_match() {
     const auto weights = tiny_qwen(3, 2 * 128, true);
     auto one = std::make_shared<backend::CpuBackend>();
@@ -850,26 +849,32 @@ void pipelined_slicings_match() {
     const std::vector<float> whole = single.prefill(kPrompt), after = step_row(single, 7);
     require(single.prefill_slices() == 1, "one backend did not read the prompt in one slice");
     for (const PipelinedSplit& ps : kPipelined) {
-        std::vector<backend::BackendPtr> cpus;
-        for (size_t i = 0; i < ps.shares.size(); ++i) {
-            auto b = std::make_shared<FailingCpu>();
-            b->plays_device = true;
-            cpus.push_back(b);
-        }
-        infer::PlacedModel placed = pipelined(weights, cpus, ps.shares);
-        infer::Model& split = *placed.model;
-        std::set<size_t> counts;
-        for (int ub : {3, 4, 5, 6, 8, 13, 3}) {
+        const auto place = [&] {
+            std::vector<backend::BackendPtr> cpus;
+            for (size_t i = 0; i < ps.shares.size(); ++i) {
+                auto b = std::make_shared<FailingCpu>();
+                b->plays_device = true;
+                cpus.push_back(b);
+            }
+            return pipelined(weights, cpus, ps.shares);
+        };
+        const auto read = [&](infer::Model& split, int ub, bool fresh) {
             split.reset();
             split.set_ubatch(ub);
             exact(whole, split.prefill(kPrompt), "a pipelined prompt cut into other slices differs from one backend");
             exact(after, step_row(split, 7), "a step after a pipelined prompt cut into other slices differs from one backend");
-            const size_t n = split.prefill_slices();
-            require(n >= (kPrompt.size() + (size_t)ub - 1) / (size_t)ub && n <= kPrompt.size(), "a pipelined prompt's slices passed the ubatch");
-            counts.insert(n);
+            const size_t n = split.prefill_slices(), least = (kPrompt.size() + (size_t)ub - 1) / (size_t)ub;
+            require(n >= least && n <= kPrompt.size(), "a pipelined prompt's slices passed the ubatch");
+            require(!fresh || n == least, "a fresh split's first prompt did not take the cut without prices");
             checked += 2;
+        };
+        infer::PlacedModel placed = place(), other = place();
+        read(*other.model, 5, true);
+        bool fresh = true;
+        for (int ub : {3, 4, 5, 6, 8, 13, 3}) {
+            read(*placed.model, ub, fresh);
+            fresh = false;
         }
-        require(counts.size() > 1, "the pipelined prompt was read in one slicing only");
     }
 }
 

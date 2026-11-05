@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Pipelined slicings test made deterministic (2026-11-05, PDEV16 then PDEV17, branch fix/placement-slicings on main bc1a58efa; lands by fast-forward)
+
+- **Goal:** `placement`'s `pipelined_slicings_match` passes on any machine: on the hosted windows-2022 runner (run 41948650911) it failed "the pipelined prompt was read in one slicing only", since whether its priced prefills chose another slicing than the first followed the periods that machine measured.
+- **Done:** each split's check now opens with a second fresh split read at ubatch 5, and a fresh split's first prompt must take the cut without prices exactly, five slices at ubatch 3 and three at 5, so two slicings are checked whatever the timing, and the priced prefills that follow are still each held exact to one backend.
+  No product hook: the cut without prices is the slicing owner's own rule for a model that has measured nothing (`infer::prompt_slice`).
+  The failure cannot be forced before the fix without a hook into `Model`'s measured periods, which the product has none of; it needs every priced prefill to choose the unpriced cut of ubatch 3.
+  Gates, all passing: CTest `placement` three times on Windows (MSVC, fresh build directory) and four on Linux, 1150 checks, `docs` and `dead-code`, and the hosted run at the head that lands.
+- **Left:** nothing; F2DEV approved at 08:03 with one change, the leftover check of two slicings removed, since the fresh cuts now hold it.
+
 ## Routed narrow tile: column quads past a run's entries skipped (2026-11-04, KDEV4, branch kdev/routed-quads on main 2c463d721, rebased onto a3cb5d0a7 and a359b94e3, B2 of KDEV's castagna gap kernels, proposal of 20:40 approved by F2DEV at 20:47 with changes and to land at 21:31; lands by fast-forward)
 
 **Goal:** Qwen3.8-Flash-Next UD-Q4_K_XL prompts at 2x2 int8 faster with the same bits: at a 320-row chunk an expert averages about six entries, so the 16-column narrow tile computed mostly empty columns (main 091a4cc6b --profile, per card a chunk: routed gate+up 39.5 ms and down 19.9 ms, against 22.2 and 13.3 for the reference).

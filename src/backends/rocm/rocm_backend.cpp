@@ -687,7 +687,7 @@ public:
         void* args[] = {&d, &b, &g, &st, &dm};
         launch(kInjectStreams, (unsigned)(gn * chunks), 1, args);
     }
-    void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim, RowRuns) override {
+    void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim, RowRuns, ZeroSign zero) override {
         if (!groups || !dim) throw std::runtime_error("rocm: invalid signed square-root gate dimensions");
         if (!rows) return;
         const size_t n = size_mul(rows, size_mul(groups, dim)), vn = size_mul(rows, dim), blocks = size_mul(rows, groups);
@@ -701,7 +701,8 @@ public:
         const float* v = f32(value);
         unsigned g = (unsigned)groups, dm = (unsigned)dim;
         float scale = 1.0f / std::sqrt(float(dim));
-        void* args[] = {&d, &k, &q, &v, &g, &dm, &scale};
+        unsigned kept = zero == ZeroSign::kept ? 1u : 0u;
+        void* args[] = {&d, &k, &q, &v, &g, &dm, &scale, &kept};
         launch(kSignedSqrtGate, (unsigned)blocks, 1, args);
     }
     // A thread a channel of a chunk of a view, chunks at least the history long so only a view's first chunk reads or leaves its carried rows (kernels/f32.hip).

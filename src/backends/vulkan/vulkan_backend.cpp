@@ -1332,7 +1332,7 @@ public:
     }
 
     void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups_count, size_t dim,
-                          RowRuns runs = {}) override {
+                          RowRuns runs = {}, ZeroSign zero = ZeroSign::none) override {
         if (!groups_count || !dim) throw std::runtime_error("vulkan: invalid signed square-root gate dimensions");
         if (!rows) return;
         validate_runs(rows, runs);
@@ -1345,9 +1345,9 @@ public:
         const bool quant = dim % 32 == 0;
         const bool tile = quant && tile_reads(width, rows, runs);
         const uint32_t major = tile ? x8_major(width, rows) : 0;
-        struct { uint32_t rows, groups, dim, quant, n, major; float scale; }
+        struct { uint32_t rows, groups, dim, quant, n, major; float scale; uint32_t kept; }
             pc{u32(rows), u32(groups_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major,
-               1.0f / std::sqrt(float(dim))};
+               1.0f / std::sqrt(float(dim)), zero == ZeroSign::kept ? 1u : 0u};
         const size_t slot = quant ? take_twin(n) : 0;
         dispatch(K_SIGNED_SQRT_GATE, {bind(dst), bind(key), bind(query), bind(value), quant ? twin_binding(slot) : bind(dst)},
                  &pc, sizeof(pc), groups(size_mul(rows, groups_count), 1), 1, quant ? twin_variant() : 0, {n, 0, 0, 0, n});

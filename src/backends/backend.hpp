@@ -350,6 +350,8 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 }
 
 enum class NormGate : uint8_t { silu, sigmoid };
+// The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
+enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
@@ -841,9 +843,9 @@ public:
         lacks(Op::inject_streams);
     }
 
-    // For each normalized key/query group, g = dot(key, query) / sqrt(dim), then sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))) gates the row's shared dim-wide value.
+    // For each normalized key/query group, g = dot(key, query) / sqrt(dim), then sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))) gates the row's shared dim-wide value, sign(0) as `zero` gives it.
     virtual void signed_sqrt_gate(Slice /*dst*/, CSlice /*key*/, CSlice /*query*/, CSlice /*value*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/,
-                                  RowRuns /*runs*/ = {}) {
+                                  RowRuns /*runs*/ = {}, ZeroSign /*zero*/ = ZeroSign::none) {
         lacks(Op::signed_sqrt_gate);
     }
 

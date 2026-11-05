@@ -22,6 +22,7 @@ using backend::BufferPtr;
 using backend::Backend;
 using backend::CSlice;
 backend::BackendPtr active_backend;
+std::string active_device = "cpu";
 
 constexpr double U = 0x1p-24;
 const int thread_counts[] = {1, 2, 3, 5, 8, 16};
@@ -517,6 +518,50 @@ TwinConsumer prepare_twin_consumer(Backend& device, const std::vector<float>& ex
     return consumer;
 }
 
+// A zero dot under each ZeroSign: none gates by 0.5, kept by sigmoid(+-sqrt(1e-6)) by the zero's sign, and a nonzero dot keeps its bits under both.
+// Underflowing products reach -0 only through an fma chain (the CPU, and ROCm once dim fills its 256 lanes); Vulkan adds rounded products to +0.
+void check_zero_sign(std::mt19937& rng) {
+    Backend& b = *active_backend;
+    constexpr size_t rows = 2, groups = 3;
+    // engram.zero_key.gate of tests/data/deepseek41_reference.json: DeepSeek's gate at a dot of +0, sigmoid(1e-3) in F32.
+    const double kept_positive = 0.500249981880188;
+    const double kept_negative = 1.0 - kept_positive;
+    for (size_t dim : {size_t(13), size_t(64), size_t(256)}) {
+        const bool negative_zero = b.is_cpu() || (active_device.rfind("rocm", 0) == 0 && dim >= 256);
+        const size_t width = groups * dim, count = rows * width;
+        auto key = random_values(rng, count, -1.0f, 1.0f);
+        auto query = random_values(rng, count, -1.0f, 1.0f);
+        const auto value = random_values(rng, rows * dim, -2.0f, 2.0f);
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t d = 0; d < dim; ++d) {
+                query[r * width + d] = 0.0f;
+                key[r * width + dim + d] = 1e-30f;
+                query[r * width + dim + d] = -1e-30f;
+            }
+        auto kb = upload(b, key), qb = upload(b, query), vb = upload(b, value);
+        auto out = zeros(b, count);
+        std::vector<float> y[2];
+        for (int kept = 0; kept < 2; ++kept) {
+            b.signed_sqrt_gate({out.get(), 0}, {kb.get(), 0}, {qb.get(), 0}, {vb.get(), 0}, rows, groups, dim, {},
+                               kept ? backend::ZeroSign::kept : backend::ZeroSign::none);
+            y[kept] = download(b, *out, count);
+        }
+        const std::string label = " at dim " + std::to_string(dim);
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t d = 0; d < dim; ++d) {
+                const float v = value[r * dim + d];
+                const double bound = 8 * U * std::fabs(v) + 1e-30;
+                const size_t positive = r * width + d, underflow = r * width + dim + d, control = r * width + 2 * dim + d;
+                require(y[0][positive] == v * 0.5f, "zero sign none: a dot of +0 does not gate by 0.5" + label);
+                close_to(y[1][positive], v * kept_positive, bound, "zero sign kept: a dot of +0" + label);
+                require(y[0][underflow] == v * 0.5f, "zero sign none: an underflowing dot does not gate by 0.5" + label);
+                close_to(y[1][underflow], v * (negative_zero ? kept_negative : kept_positive), bound,
+                         std::string("zero sign kept: an underflowing dot, ") + (negative_zero ? "-0" : "+0") + label);
+                require(std::memcmp(&y[0][control], &y[1][control], sizeof(float)) == 0, "zero sign changed a nonzero dot's gate" + label);
+            }
+    }
+}
+
 // A first producer pass selects unambiguous packing witnesses from its F32 values; a second queues the consumer immediately after production.
 // Every F32 output is still checked against the independent mathematical oracle.
 void check_twin_producers(std::mt19937& rng) {
@@ -699,6 +744,7 @@ int main(int argc, char** argv) {
         const bool timed = argc == at + 1 && std::string(argv[at]) == "--rates";
         if (argc != at + timed) throw std::runtime_error("usage: stream-ops-test [--device cpu|vulkan:N|rocm:N] [--rates]");
         active_backend = backend::make_backend(device);
+        active_device = device;
         // --rates prints the ops' times at Flash-Next's shapes instead of checking them.
         if (timed) {
             rates();
@@ -711,7 +757,8 @@ int main(int argc, char** argv) {
         check_inject_streams(rng);
         check_signed_sqrt_gate(rng);
         check_twin_producers(rng);
-        std::puts("Qwen4Exp stream ops: grouped RMSNorm, scaled SiLU, stream mixing/injection and signed gate passed");
+        check_zero_sign(rng);
+        std::puts("Qwen4Exp stream ops: grouped RMSNorm, scaled SiLU, stream mixing/injection and signed gate with both zero signs passed");
         return 0;
     } catch (const std::exception& error) {
         std::fprintf(stderr, "Qwen4Exp stream ops: FAIL: %s\n", error.what());

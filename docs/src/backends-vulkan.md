@@ -858,7 +858,7 @@ The residual is updated in place; the block and gate inputs must be disjoint fro
 ### `src/backends/vulkan/shaders/signed_sqrt_gate.comp`
 
 One workgroup reduces each normalized key/query group's dot, scales by the inverse square root of its width, and applies the signed square-root sigmoid gate to the shared value row.
-Zero retains zero sign before sigmoid.
+A zero dot takes the sign 0 before sigmoid, or with the `kept` push constant (`ZeroSign::kept`) its own sign bit.
 Aligned groups also produce the activation twin, with every lane participating in the packing rounds even when a final round has inactive elements.
 
 Optional F32 scalar/per-expert weight scales travel in the shared `WeightView`, validated before dispatch and consumed by the existing embedding and matrix owners. Grouped and routed calls preserve each operand's scale association, including mixed scaled/unscaled groups. The fused `moe_step` validates routed and shared weight views before dispatch; NVFP4 is not a current fused-build type, so those calls use the base step and its ordinary matrix owners. Radeon VII controls cover signed-zero scales, exhaustive embedding values, all six matrix entry points, F32/F16/BF16 requests, overflow and grouped-invalid refusal before writes. Released-file/HF/performance qualification is separate from these operator controls.

@@ -622,6 +622,12 @@ list(APPEND LLMX_TARGETS llmx-arch-qwen4exp-test)
 add_test(NAME arch-qwen4exp COMMAND llmx-arch-qwen4exp-test --reference ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen4exp_reference.json)
 set_tests_properties(arch-qwen4exp PROPERTIES TIMEOUT 30)
 
+add_executable(llmx-ngram-hash-test tests/ngram_hash.cpp)
+target_include_directories(llmx-ngram-hash-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-ngram-hash-test)
+add_test(NAME ngram-hash COMMAND llmx-ngram-hash-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek41_reference.json)
+set_tests_properties(ngram-hash PROPERTIES TIMEOUT 30)
+
 add_executable(llmx-qwen4exp-mtp-test tests/qwen4exp_mtp.cpp)
 target_include_directories(llmx-qwen4exp-mtp-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(LLMX_HAS_BACKEND_VULKAN)

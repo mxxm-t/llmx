@@ -1230,15 +1230,15 @@ extern "C" __global__ void llmx_inject_streams(float* dst, const float* block, c
     dst[i] = fmaf(block[r * dim + d], weight, dst[i]);
 }
 
-// A block a (row, group): g = dot(key, query) * scale over the group in block_sum's order, and the row's values times sigmoid(sign(g) sqrt(max(|g|, 1e-6))).
+// A block a (row, group): g = dot(key, query) * scale over the group in block_sum's order, and the row's values times sigmoid(sign(g) sqrt(max(|g|, 1e-6))), sign(0) being 0, or with `kept` the zero's own sign.
 // A NaN score is kept as the CPU keeps it.
-extern "C" __global__ void llmx_signed_sqrt_gate(float* dst, const float* key, const float* query, const float* value, unsigned groups, unsigned dim, float scale) {
+extern "C" __global__ void llmx_signed_sqrt_gate(float* dst, const float* key, const float* query, const float* value, unsigned groups, unsigned dim, float scale, unsigned kept) {
     __shared__ float lds[kThreads];
     const unsigned long long o = (unsigned long long)blockIdx.x * dim, v0 = (unsigned long long)(blockIdx.x / groups) * dim;
     float s = 0.0f;
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(key[o + i], query[o + i], s);
     const float g = block_sum(s, lds) * scale;
-    const float sign = g > 0.0f ? 1.0f : g < 0.0f ? -1.0f : g == 0.0f ? 0.0f : g, magnitude = fabsf(g) < 1e-6f ? 1e-6f : fabsf(g);
+    const float sign = g > 0.0f ? 1.0f : g < 0.0f ? -1.0f : g == 0.0f ? (kept ? copysignf(1.0f, g) : 0.0f) : g, magnitude = fabsf(g) < 1e-6f ? 1e-6f : fabsf(g);
     const float factor = 1.0f / (1.0f + expf(-(sign * sqrtf(magnitude))));
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) dst[o + i] = value[v0 + i] * factor;
 }

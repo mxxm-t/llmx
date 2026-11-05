@@ -1643,7 +1643,7 @@ public:
     }
 
     void signed_sqrt_gate(Slice dst_s, CSlice key_s, CSlice query_s, CSlice value_s,
-                          size_t rows, size_t groups, size_t dim, RowRuns = {}) override {
+                          size_t rows, size_t groups, size_t dim, RowRuns = {}, ZeroSign zero = ZeroSign::none) override {
         if (!groups || !dim) throw std::runtime_error("backend: invalid signed square-root gate dimensions");
         if (!rows) return;
         const size_t width = size_mul(groups, dim), grouped_count = size_mul(rows, width);
@@ -1670,7 +1670,8 @@ public:
                 for (size_t d = 0; d < dim; ++d) dot = std::fma(key[offset + d], query[offset + d], dot);
                 const float score = dot / sqrt_dim;
                 const float magnitude = std::max(std::fabs(score), 1e-6f);
-                const float sign = score > 0.0f ? 1.0f : score < 0.0f ? -1.0f : score == 0.0f ? 0.0f : score;
+                const float at_zero = zero == ZeroSign::kept ? std::copysign(1.0f, score) : 0.0f;
+                const float sign = score > 0.0f ? 1.0f : score < 0.0f ? -1.0f : score == 0.0f ? at_zero : score;
                 const float gate = sigmoid_of(sign * std::sqrt(magnitude));
                 for (size_t d = 0; d < dim; ++d) out[offset + d] = value[r * dim + d] * gate;
             }

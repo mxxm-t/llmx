@@ -279,7 +279,8 @@ placement contracts in `docs/EXECUTION.md`.
   `signed_sqrt_gate` takes a normalized key/query dot divided by the square root
   of their width, applies its sign times the square root of its absolute value
   clamped below at 1e-6, then sigmoid, and scales a value row for each group.
-  A zero dot has zero sign. Mixing and signed-gate outputs must be disjoint
+  A zero dot has zero sign under `ZeroSign::none`, the default, so its gate is 0.5,
+  and under `ZeroSign::kept` the zero's own sign bit, as copysign takes it. Mixing and signed-gate outputs must be disjoint
   from their inputs; injection operands are disjoint. Matrix dtype policy is
   applied by the subsequent matrix call, not by these operations.
 - `BackendPtr`: the shared handle a backend is held by. The factories live

@@ -1,9 +1,9 @@
 #version 450
-// Group dot gate from normalized key/query: sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))).
+// Group dot gate from normalized key/query: sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))), sign(0) being 0, or with `kept` the zero's own sign.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint groups; uint dim; uint quant; uint n; uint major; float scale; } p;
+layout(push_constant) uniform P { uint rows; uint groups; uint dim; uint quant; uint n; uint major; float scale; uint kept; } p;
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer K { float key[]; };
 layout(set = 0, binding = 2) readonly buffer Q { float query[]; };
@@ -25,7 +25,8 @@ void main() {
         barrier();
     }
     float g = red[0] * p.scale;
-    float signed_root = g == 0.0 ? 0.0 : sign(g) * sqrt(max(abs(g), 1.0e-6));
+    float zero_sign = p.kept != 0u ? ((floatBitsToUint(g) >> 31) != 0u ? -1.0 : 1.0) : 0.0;
+    float signed_root = (g == 0.0 ? zero_sign : sign(g)) * sqrt(max(abs(g), 1.0e-6));
     float factor = 1.0 / (1.0 + exp(-signed_root));
     if (p.quant == 2u) {
         for (uint chunk = 0u; chunk < (p.dim / 4u + 255u) / 256u; ++chunk) {

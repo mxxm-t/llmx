@@ -280,7 +280,9 @@ Fewer checks never loosen the architecture: each step states its layer and the o
   A change of numerics also records its error against the HF reference and the headroom to its bound.
 - Carry forward prior evidence only when the checked source, tests, fixtures, configuration and relevant build inputs are unchanged. Record the exact tested revision and binary identity, then state the intervening delta; rerun checks when that delta changes their coverage or inputs. Commit hashes alone do not invalidate evidence.
 
-A branch lands when its applicable checks pass for the tree that lands and main has not moved since: main is fast-forwarded to it. The hosted workflow policy remains as listed above for runtime and numerical changes; static UI-only changes do not wait for unrelated hosted inference jobs.
+A branch lands when its applicable checks pass for the tree that lands and main has not moved since: main is fast-forwarded to it.
+Branches ready at the same time land together: stacked in landing order, each branch's checks run once at the stacked head with the reviews already given, and main is fast-forwarded to that head.
+A branch rebased without a conflict over commits that touch none of its checks' inputs reruns its builds and CTest, and takes the hosted run of the head that lands. The hosted workflow policy remains as listed above for runtime and numerical changes; static UI-only changes do not wait for unrelated hosted inference jobs.
 The landing commit's own STATUS entry is the record: it gives what the applicable gates measured and says the change lands by fast-forward, and the merge adds no commit of its own. Where a hosted run is part of the applicable gate, its commit hash identifies it on GitHub.
 Comparisons against the reference runtimes belong to the phase's final gate, not to each branch.
 

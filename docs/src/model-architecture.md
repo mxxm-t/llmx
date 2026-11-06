@@ -31,10 +31,13 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   sequence start;
   `kv_aux`, an optional F32 width per KV position, stored in the same physical
   blocks as the layer's K and V and held whole on each tensor-group member,
-  and `kv_pool`, the groups of positions whose pooled rows those blocks also keep
+  and `kv_pool`, the groups of positions whose pooled rows of `kv_pool_width` floats those blocks also keep
   (`kv_aux_floats()` counts both for the fit);
+  `headroom`, the positions an entries layer's rings hold beyond those its rows read, the most rows a pass after a mark may take;
+  `entry_source`, an earlier entries layer whose pooled rows an entries layer without its own reads, or -1: its source's storage layer on the source's device, and on a later device a replica there, which the first such reader fills (`Step::appends`);
   `lookup`, an optional `Lookup` naming a mixer gather role and its requested
   table rows per token; and
+  `Cache`, what a layer keeps between passes: `kv`, `state`, `entries` (a state slot of its `state_tail` floats over the plan's state and, with `kv_pool`, pooled rows in the KV blocks with no K or V, docs/DEEPSEEK4.md section 4.3) or `none`; `keeps_slot(layer)` is true of a state and an entries layer and `keeps_kv(layer)` of a KV layer and an entries layer with pooled rows;
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the
   pass's roles and optional `pass_ops` (`OpUse`s issued by embedding or head
   parts beyond the common backend ops), each layer's roles and ops, the context
@@ -44,7 +47,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   KV, the common recurrent-state prefix shape (`backend::StateShape`) of every layer
   whose cache is a state, with each layer's optional `state_tail` extending only
   its own slots, and the position
-  tables' sizes, `image_streams` (per rotated pair, which of an image row's three positions turns it, empty where the model takes no image rows), `index_width`, the maximum number of host `uint32_t` lookup
+  tables' sizes, `unserved` (why the server refuses the model, naming it, while a step its serving needs is not built, empty where it serves it), `image_streams` (per rotated pair, which of an image row's three positions turns it, empty where the model takes no image rows), `index_width`, the maximum number of host `uint32_t` lookup
   indices per activation row, reused by token embedding expansion and
   gathered-weight lookups (zero means no index scratch), and an embedded
   drafter's `LayerPlan` when a caller asked
@@ -57,8 +60,10 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     read by a product, `gather` is checked as a matrix and gathered by the
     embedding, `experts` is exactly `[in, out, experts]`, and `table` is
     an F32 `[in, out]` an op reads whole, such as a convolution's taps,
-    which the fit does not count as a product; a norm, matrix or table
-    takes trailing axes of one up to rank four.
+    which the fit does not count as a product, and `source` is an
+    `[in, out]` of any type read on the host only to fill a table, never
+    placed on a device nor counted in a device's bytes; a norm, matrix,
+    table or source takes trailing axes of one up to rank four.
   - A `Stream` says what a routed layer run beside its mixer for a long
     prompt does with a role: nothing, a copy adopted on the mixer's device
     at load, or a copy written into that device's window in each pass that
@@ -79,7 +84,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   device's arena with each slot's offset (`slot(i)`), the residual at the
   call's first row (`x`), the rows and their runs, the row of weights by
   role id (the layer's, the pass's, or a streamed layer's copies and
-  windows), the layer's kind, the cache views and the layer's index in its
+  windows), the layer's kind and the model's layer it belongs to (`layer`, -1 for the embedding, the head, the drafter and a group's sum), the cache views and the layer's index in its
   storage, the rows' positions, one a row or three where a pass holds an image's rows (`streams`), the position tables on that device, a
   run list the part may rebuild, which the runtime reserves at a run per
   row so the part does not allocate, and for a layer whose cache is a state
@@ -112,9 +117,14 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     own refusals. It declares optional embedding and head backend ops in
     `ModelPlan::pass_ops`; the runtime checks them on the backend assigned to
     that part before adopting weights.
-  - `fill_tables(tables)`: the position tables' values, into vectors the
-    runtime sized as the plan says; the runtime keeps them for the model's
-    life and adopts them on every device that runs a mixer part.
+  - `fill_tables(tables, sources)`: the position tables' values, into
+    vectors the runtime sized as the plan says, and any table derived from
+    weights, from `sources`, host views of the plan's `source` roles in plan
+    order (the layers ascending, a layer's roles in order), read only during
+    the call; the loader reads their bytes from each tensor's file span in
+    every load mode and drops them once the model is built. The runtime
+    keeps the tables for the model's life and adopts them on every device
+    that runs a mixer part.
   - `embed(step, ids)`, `mixer(step)`, `ffn(step)` and `head(step)`, whose
     step is a `HeadStep`: the parts as backend ops. The runtime calls each once per layer per
     pass, or once per group of entries when a routed layer streams, and a

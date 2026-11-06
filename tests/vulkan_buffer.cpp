@@ -2494,7 +2494,7 @@ int unordered_checks() {
                  const size_t sr = r * kk * ff;
                  const backend::MoeShared sh{{{quant::GGML_TYPE_Q8_0, {sgw.get(), 0}}, {g.get(), sr}, ff}, {{quant::GGML_TYPE_Q8_0, {suw.get(), 0}}, {u.get(), sr}, ff},
                                              {quant::GGML_TYPE_Q8_0, {sdw.get(), 0}}, {act.get(), sr}, {{quant::GGML_TYPE_F32, {rgw.get(), 0}}, {sg.get(), 0}, 1}};
-                 const backend::MoeStep m{{{quant::GGML_TYPE_F32, {router.get(), 0}}, {scores.get(), 0}, n_expert}, kk, true, {ids.get(), 0}, {wts.get(), 0},
+                 const backend::MoeStep m{{{quant::GGML_TYPE_F32, {router.get(), 0}}, {scores.get(), 0}, n_expert}, kk, backend::RouteRule::softmax(true), {ids.get(), 0}, {wts.get(), 0},
                                           {{quant::GGML_TYPE_Q4_K, {gw.get(), 0}}, {g.get(), 0}, ff}, {{quant::GGML_TYPE_Q4_K, {uw.get(), 0}}, {u.get(), 0}, ff},
                                           {quant::GGML_TYPE_Q5_1, {dw.get(), 0}}, {act.get(), 0}, &sh, zero.get(), &scratch};
                  const backend::RowRun run{r, r};

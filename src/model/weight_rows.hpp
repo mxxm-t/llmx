@@ -179,7 +179,8 @@ public:
             const size_t lanes = std::min(spans.size(), kReadThreads);
             readers->threads->run(lanes, [&](size_t lane) {
                 for (size_t i = lane; i < spans.size(); i += lanes) {
-                    if (reader->direct()) read_direct(*reader, spans[i], readers->windows[lane].data(), reader->granule());
+                    if (reader->direct())
+                        format::read_aligned(*reader, spans[i].source, spans[i].destination, spans[i].bytes, readers->windows[lane].data(), reader->granule(), "weight rows");
                     else if (reader->read(spans[i].source, spans[i].destination, spans[i].bytes) != spans[i].bytes)
                         throw std::runtime_error("weight rows: short file read");
                 }
@@ -321,24 +322,6 @@ private:
         std::unique_ptr<Store> store;
     };
 
-    // A span read through an aligned window, a chunk the window holds at a time.
-    static void read_direct(const format::FileReader& reader, const Span& s, uint8_t* window, size_t capacity) {
-        const size_t g = reader.granule();
-        size_t done = 0;
-        while (done < s.bytes) {
-            const uint64_t at = s.source + done;
-            const uint64_t aligned = at / g * g;
-            const size_t lead = size_t(at - aligned);
-            const size_t room = capacity - lead;
-            const size_t take = std::min(s.bytes - done, room);
-            if (!take) throw std::logic_error("weight rows: I/O window cannot hold one aligned chunk");
-            const size_t request = (lead + take + g - 1) / g * g;
-            const size_t got = reader.read(aligned, window, request);
-            if (got < lead || got - lead < take) throw std::runtime_error("weight rows: short file read");
-            std::memcpy(s.destination + done, window + lead, take);
-            done += take;
-        }
-    }
 
     uint32_t type_;
     size_t columns_, rows_, row_bytes_, bytes_ = 0;

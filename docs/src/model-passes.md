@@ -5,6 +5,8 @@ They are members of `Model`, declared in its class in `model/runtime.hpp` ([runt
 The context and the pass are plain data in `model/runtime.hpp` (`ExecContext`, `Pass`).
 
 The residual stream crosses devices wherever the placement changes, in two halves: the source copies the rows into its handoff buffer inside its own work (`send`), and the destination waits that submission's ticket and writes them (`receive`); inside a stage both run at once (`cross`).
+Each carried slot of the plan (`ModelPlan::carried`) goes with the residual in every one of them: a handoff buffer holds slot 0's rows, then each carried slot's, each a region of the buffer's rows, so a plan without carried slots makes the copies it made before them.
+A reader of an earlier layer's pooled rows (`LayerPlan::entry_source`) is handed its device's storage views with `kv_layer` the source's storage layer or its replica, and `appends` where it fills that replica.
 
 `start_lookup` starts reading a layer's external lookup rows as its stage begins, and `finish_lookup` takes them just before the layer and uploads them, for a single device or a tensor group.
 `single_record` and `group_record` start every lookup of their stage before recording the layer operations and finish each before its layer's mixers, so the layers before it record and run while the rows are read.
@@ -78,7 +80,7 @@ reads saved inputs and performs no table lookup.
   and returns its wanting row `i`, written from row `logits_base` on; it refuses an argmax pass, whose rows stay on the device.
   `end_pass` takes a pass whose last stage has run out of flight, and
   `abort_pass` abandons one at any point: every device drained, then only
-  its entries truncated in every storage to where it found them, its sequences' later passes rolled back first, newest first, and their slots returned. Each
+  its entries truncated in every storage to where it found them, its sequences' later passes rolled back first, newest first, each by the rows up to the furthest end in flight, so a rollback by length counts every chunk against the rings' headroom, and their slots returned. Each
   pass's stages run in order; passes interleave as the caller likes, since
   each device runs the stages recorded on it in that order and a pass
   keeps its own handoff buffer, logits rows and ticket. `forward`,

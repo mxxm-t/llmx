@@ -229,9 +229,9 @@ void rope_streams() {
         BufferPtr xb = upload(cpu, x), wb = upload(cpu, w), cb = upload(cpu, cosv), sb = upload(cpu, sinv);
         BufferPtr one = upload(cpu, std::vector<float>(x.size(), 0.0f)), three = upload(cpu, std::vector<float>(x.size(), 0.0f));
         cpu.norm_rope_partial(Slice{one.get(), 0}, CSlice(xb.get(), 0), rows, heads * dim, dim, heads, dim, rope, CSlice(wb.get(), 0), 1e-6f,
-                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos.data());
+                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos.data(), backend::RopeForm{});
         cpu.norm_rope_partial(Slice{three.get(), 0}, CSlice(xb.get(), 0), rows, heads * dim, dim, heads, dim, rope, CSlice(wb.get(), 0), 1e-6f,
-                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos3.data(), backend::RopeStreams{3, of.data()});
+                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos3.data(), backend::RopeForm{}, backend::RopeStreams{3, of.data()});
         require(same_bits(download(cpu, *one, x.size()), download(cpu, *three, x.size())), "rope: three equal streams differ from one stream");
     }
     // One stream with a norm rotates any width, as the synthetic bench's one head of 2048 rotated whole does; only the gathering path is bounded, and refuses a wider rope by name.
@@ -259,12 +259,12 @@ void rope_streams() {
         BufferPtr xb = upload(cpu, x), wb = upload(cpu, w), cb = upload(cpu, cosv), sb = upload(cpu, sinv);
         const uint32_t one = 1;
         cpu.norm_rope_partial(Slice{xb.get(), 0}, CSlice(xb.get(), 0), 1, dim, dim, 1, dim, dim, CSlice(wb.get(), 0), 1e-6f,
-                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), &one);
+                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), &one, backend::RopeForm{});
         const double e = worst(download(cpu, *xb, dim), ref, [](double v) { return 16.0 * std::ldexp(std::max(std::fabs(v), 1.0), -23); });
         require(e <= 1.0, "rope of 1024 pairs with a norm: " + std::to_string(e) + " of its bound");
         bool refused = false;
         try {
-            cpu.norm_rope_partial(Slice{xb.get(), 0}, CSlice(xb.get(), 0), 1, dim, dim, 1, dim, dim, CSlice{}, 0.0f, CSlice(cb.get(), 0), CSlice(sb.get(), 0), &one);
+            cpu.norm_rope_partial(Slice{xb.get(), 0}, CSlice(xb.get(), 0), 1, dim, dim, 1, dim, dim, CSlice{}, 0.0f, CSlice(cb.get(), 0), CSlice(sb.get(), 0), &one, backend::RopeForm{});
         } catch (const std::runtime_error& err) {
             refused = std::string(err.what()).find("at most") != std::string::npos;
         }
@@ -304,7 +304,7 @@ void rope_streams() {
         cpu.set_threads(t);
         BufferPtr xb = upload(cpu, x), cb = upload(cpu, cosv), sb = upload(cpu, sinv);
         cpu.norm_rope_partial(Slice{xb.get(), 0}, CSlice(xb.get(), 0), rows, heads * dim, dim, heads, dim, dim, CSlice{}, 0.0f,
-                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos.data(), backend::RopeStreams{2, of.data()});
+                              CSlice(cb.get(), 0), CSlice(sb.get(), 0), pos.data(), backend::RopeForm{}, backend::RopeStreams{2, of.data()});
         const std::vector<float> got = download(cpu, *xb, x.size());
         if (first.empty()) {
             first = got;
@@ -325,7 +325,7 @@ void rope_streams() {
         bool refused = false;
         try {
             cpu.norm_rope_partial(Slice{xb.get(), 0}, CSlice(xb.get(), 0), rows, heads * dim, dim, heads, dim, dim, CSlice{}, 0.0f, CSlice(cb.get(), 0),
-                                  CSlice(sb.get(), 0), k == 1 ? bad_pos.data() : pos.data(),
+                                  CSlice(sb.get(), 0), k == 1 ? bad_pos.data() : pos.data(), backend::RopeForm{},
                                   backend::RopeStreams{k == 2 ? size_t(0) : size_t(2), k == 0 ? bad_of.data() : of.data()});
         } catch (const std::runtime_error&) {
             refused = true;

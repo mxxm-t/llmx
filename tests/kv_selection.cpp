@@ -195,7 +195,7 @@ struct Cache {
         const size_t block_count = (max_tokens + block_tokens - 1) / block_tokens;
         const size_t padded_tokens = block_count * block_tokens;
         storage = device.kv_alloc(1, 1, kv_width, padded_tokens, backend::KVType::f32,
-                                  backend::KVType::f32, {aux_width}, {pool});
+                                  backend::KVType::f32, {aux_width}, {{pool, aux_width}});
         blocks.resize(block_count);
         for (size_t i = 0; i < block_count; ++i) blocks[i] = int32_t(i);
     }
@@ -238,7 +238,7 @@ std::vector<uint32_t> run_selection(Backend& device, const Config& c,
 
     device.norm_rope_partial({qbuf.get(), 0}, {qsrc.get(), 0}, rows, row_width, c.dim,
                              c.heads, c.dim, c.rope_dim, {q_gamma.get(), 0}, c.eps,
-                             {cos.get(), 0}, {sin.get(), 0}, positions.data());
+                             {cos.get(), 0}, {sin.get(), 0}, positions.data(), backend::RopeForm{});
     const Backend::IndexArgs args{c.heads, c.dim, c.rope_dim, c.compression, c.budget, c.eps};
     device.unordered(unordered);
     // The rows written before the selected ones pool their groups first, as the passes that wrote them would have (Backend::pool_kv); groups pooled already are pooled again to the same values.
@@ -871,7 +871,7 @@ void invalid_inputs(Backend& device, const Config& c, const FixtureCase& test,
     const std::vector<uint32_t> q_positions = positions(0, test.input_ids.size());
     device.norm_rope_partial({qnorm_buf.get(), 0}, {q.get(), 0}, test.input_ids.size(), row_width, c.dim,
                              c.heads, c.dim, c.rope_dim, {q_gamma.get(), 0}, c.eps,
-                             {cos.get(), 0}, {sin.get(), 0}, q_positions.data());
+                             {cos.get(), 0}, {sin.get(), 0}, q_positions.data(), backend::RopeForm{});
     const Backend::IndexArgs args{c.heads, c.dim, c.rope_dim, c.compression, c.budget, c.eps};
     must_reject_unchanged({qnorm_buf.get(), 0}, Backend::IndexArgs{0, c.dim, c.rope_dim, c.compression, c.budget, c.eps},
                           {k_gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0}, "invalid index dimensions");
@@ -904,7 +904,7 @@ void invalid_inputs(Backend& device, const Config& c, const FixtureCase& test,
     const std::vector<uint32_t> pos14 = positions(0, test.input_ids.size() + 1);
     device.norm_rope_partial({q14norm.get(), 0}, {q14src.get(), 0}, test.input_ids.size() + 1,
                              row_width, c.dim, c.heads, c.dim, c.rope_dim,
-                             {q_gamma.get(), 0}, c.eps, {cos.get(), 0}, {sin.get(), 0}, pos14.data());
+                             {q_gamma.get(), 0}, c.eps, {cos.get(), 0}, {sin.get(), 0}, pos14.data(), backend::RopeForm{});
     const std::vector<uint32_t> multi_before(test.input_ids.size() * out_width + out_width + 2,
                                              0x87654321u);
     BufferPtr multi_out = device.alloc(multi_before.size() * sizeof(uint32_t), backend::Memory::device);

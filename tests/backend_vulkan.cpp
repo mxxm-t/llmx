@@ -586,7 +586,7 @@ size_t check_twin_table() {
             for (int i = 0; i < 8; ++i) ys.push_back(vk.alloc(rows * n_out * sizeof(float), backend::Memory::device));
             const backend::Slice A{arena.get(), 0}, D{arena.get(), 3 * n};
             const backend::Backend::Routing routing{{idsb.get(), 0}, {wtsb.get(), 0}, k, n_expert};
-            vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, true, {idsb.get(), 0}, {wtsb.get(), 0});
+            vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {idsb.get(), 0}, {wtsb.get(), 0});
             // The first 8-bit matmul has the producers after it write the 8-bit twin.
             if (dtype == backend::Dtype::int8)
                 vk.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {otherb.get(), 0}, {ys[7].get(), 0}, n_in, n_out, rows, rr, dtype);
@@ -620,7 +620,7 @@ size_t check_twin_table() {
                 quantizes_nothing("a routed sum into another region dropped a norm's twin", [&] { matmul(A, ys[1]); });
                 vk.copy(*arena, n * sizeof(float), *otherb, 0, bytes);
                 quantizes_nothing("a copy into another region dropped a norm's twin", [&] { matmul(A, ys[2]); });
-                vk.silu_mul(D, {gb.get(), 0}, {ub.get(), 0}, n, rr);
+                vk.silu_mul(D, {gb.get(), 0}, {ub.get(), 0}, n, 0.0f, rr);
                 quantizes_nothing("a second producer's twin replaced the first", [&] {
                     matmul(A, ys[3]);
                     matmul(D, ys[4]);
@@ -629,7 +629,7 @@ size_t check_twin_table() {
                 // In place over part of a buffer and without a twin, a norm of rows narrower than their stride and a SiLU of a length off the blocks must drop the twins they overwrite.
                 vk.rms_norm_rows(D, D, {wnb.get(), 0}, rows, n_in - 24, n_in, 1e-6f, rr);
                 matmul(D, ys[5]);
-                vk.silu_mul(A, A, {ub.get(), 0}, n - 16, rr);
+                vk.silu_mul(A, A, {ub.get(), 0}, n - 16, 0.0f, rr);
                 matmul(A, ys[6]);
                 const auto a1 = floats(arena, 0, n), d1 = floats(arena, 3 * n, n);
                 std::vector<std::vector<float>> got;
@@ -833,8 +833,8 @@ size_t check_kernels(backend::Backend& vk) {
         const auto g = uniform(n, 3, -6.0f, 6.0f), u = uniform(n, 4);
         Pair::In gi = p.in(g), ui = p.in(u);
         Pair::Out d = p.out(n);
-        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n);
-        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n);
+        p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, 0.0f);
+        p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, 0.0f);
         auto r = p.results(d);
         values += close(r.first, r.second, 1e-6, "silu_mul differs beyond 1e-6");
     }
@@ -901,13 +901,13 @@ size_t check_kernels(backend::Backend& vk) {
                 p.dev.write(*d.v, 0, x.data(), x.size() * sizeof(float));
             }
             const backend::CSlice cs_src = c.in_place ? backend::CSlice(d.cs()) : xi.cs(), vs_src = c.in_place ? backend::CSlice(d.vs()) : xi.vs();
-            p.cpu.norm_rope_partial(d.cs(), cs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.cs(), 1e-6f, ci.cs(), si.cs(), pos);
-            p.dev.norm_rope_partial(d.vs(), vs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), pos);
+            p.cpu.norm_rope_partial(d.cs(), cs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.cs(), 1e-6f, ci.cs(), si.cs(), pos, backend::RopeForm{});
+            p.dev.norm_rope_partial(d.vs(), vs_src, rows, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), pos, backend::RopeForm{});
             auto r = p.results(d);
             values += close(r.first, r.second, 1e-5, "norm_rope_partial differs beyond 1e-5");
             const uint32_t beyond[1] = {12};
             bool rejected = false;
-            try { p.dev.norm_rope_partial(d.vs(), vs_src, 1, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), beyond); }
+            try { p.dev.norm_rope_partial(d.vs(), vs_src, 1, c.src_stride, c.head_stride, c.heads, c.dim, c.rope, wi.vs(), 1e-6f, ci.vs(), si.vs(), beyond, backend::RopeForm{}); }
             catch (const std::runtime_error&) { rejected = true; }
             require(rejected, "position beyond the table accepted");
         }
@@ -1579,7 +1579,7 @@ size_t check_kernels(backend::Backend& vk) {
             };
             auto silu = [&](bool told) {
                 auto f = vk.alloc(bytes, backend::Memory::device);
-                vk.silu_mul({f.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, rows * n_in, told ? rr : backend::RowRuns{});
+                vk.silu_mul({f.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, rows * n_in, 0.0f, told ? rr : backend::RowRuns{});
                 return f;
             };
             // Eight heads of 128 over two KV heads, n_in wide, one prompt of `rows` rows, which takes the tiled kernel with or without its extent.
@@ -1622,14 +1622,14 @@ size_t check_kernels(backend::Backend& vk) {
                     const auto scoresb = vk.adopt(scores.data(), scores.size() * sizeof(float));
                     const auto idsb = vk.alloc(entries * sizeof(float), backend::Memory::device);
                     const auto wtsb = vk.alloc(entries * sizeof(float), backend::Memory::device);
-                    vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, true, {idsb.get(), 0}, {wtsb.get(), 0});
+                    vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {idsb.get(), 0}, {wtsb.get(), 0});
                     const backend::Backend::Routing routing{{idsb.get(), 0}, {wtsb.get(), 0}, k, n_expert};
                     const auto ge = uniform(entries * n_in, 101, -6.0f, 6.0f), ue = uniform(entries * n_in, 102);
                     const auto geb = vk.adopt(ge.data(), ebytes), ueb = vk.adopt(ue.data(), ebytes);
                     auto routed = [&](bool told) {
                         const auto f = vk.alloc(ebytes, backend::Memory::device);
                         const auto yb = vk.alloc(rows * n_out * sizeof(float), backend::Memory::device);
-                        vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in,
+                        vk.silu_mul({f.get(), 0}, {geb.get(), 0}, {ueb.get(), 0}, entries * n_in, 0.0f,
                                     told ? backend::RowRuns{eruns.data(), eruns.size()} : backend::RowRuns{});
                         vk.matmul_experts_add({quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {f.get(), 0}, {yb.get(), 0}, n_in, n_out, rows, routing, rr, dtype);
                         std::vector<float> y(rows * n_out);
@@ -1676,8 +1676,8 @@ size_t check_kernels(backend::Backend& vk) {
                     vk.rms_norm_rows({h2.get(), 0}, {h2.get(), 0}, {wnb.get(), 0}, r2, n_in / 2, n_in, 1e-6f);
                     const auto after_norm = product(h2);
                     values += exact(after_norm, refresh(), "a matmul read a norm's twin after a norm without a twin wrote over it");
-                    vk.silu_mul({h2.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, r2 * n_in);
-                    vk.silu_mul({h2.get(), 0}, {h2.get(), 0}, {ub.get(), 0}, r2 * n_in - 16);
+                    vk.silu_mul({h2.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, r2 * n_in, 0.0f);
+                    vk.silu_mul({h2.get(), 0}, {h2.get(), 0}, {ub.get(), 0}, r2 * n_in - 16, 0.0f);
                     const auto after_silu = product(h2);
                     values += exact(after_silu, refresh(), "a matmul read a SiLU's twin after a SiLU without a twin wrote over it");
                 }
@@ -1836,10 +1836,10 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::Out d1 = p.out(rows * nout), d2 = p.out(rows * nout);
             p.dev.rms_norm_rows(h.vs(), si.vs(), wni.vs(), rows, nin, nin, 1e-6f);
             p.dev.matmul({quant::GGML_TYPE_Q8_0, wqi.vs()}, h.vs(), d1.vs(), nin, nout, rows);
-            p.dev.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin);
+            p.dev.silu_mul(f.vs(), gi.vs(), ui.vs(), rows * nin, 0.0f);
             p.dev.matmul({quant::GGML_TYPE_Q4_0, w4i.vs()}, f.vs(), d2.vs(), nin, nout, rows);
             p.cpu.rms_norm_rows(h.cs(), si.cs(), wni.cs(), rows, nin, nin, 1e-6f);
-            p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin);
+            p.cpu.silu_mul(f.cs(), gi.cs(), ui.cs(), rows * nin, 0.0f);
             std::vector<float> hc(rows * nin), fc(rows * nin);
             p.cpu.read(*h.c, 0, hc.data(), hc.size() * sizeof(float));
             p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
@@ -2156,9 +2156,9 @@ size_t check_kernels(backend::Backend& vk) {
         const auto hwb = vk.adopt(hw.data(), hw.size() * sizeof(float));
         const uint32_t pos0 = 7;
         time("norm_rope_partial 1 row 16 heads", [&] {
-            vk.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, 1, 16 * 128, 128, 16, 128, 128, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, &pos0);
+            vk.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, 1, 16 * 128, 128, 16, 128, 128, {hwb.get(), 0}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, &pos0, backend::RopeForm{});
         });
-        time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072); });
+        time("silu_mul 3072", [&] { vk.silu_mul({xb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, 3072, 0.0f); });
         time("kv_write 1 row", [&] { vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0}); });
     }
     // Decode bandwidth of the row kernel on a Qwen3-8B-sized projection, reported and not asserted: 4096 x 4096 Q8_0 is 17 MiB per column.
@@ -2207,8 +2207,8 @@ size_t check_kernels(backend::Backend& vk) {
             const auto scores = uniform(rows * n_expert, 90 + (uint32_t)rows + (uint32_t)sh.runs.size(), -3.0f, 3.0f);
             Pair::In si = p.in(scores);
             Pair::Out ids = p.out(entries), wts = p.out(entries);
-            p.cpu.route_experts(si.cs(), rows, n_expert, k, true, ids.cs(), wts.cs());
-            p.dev.route_experts(si.vs(), rows, n_expert, k, true, ids.vs(), wts.vs());
+            p.cpu.route_experts(si.cs(), rows, n_expert, k, backend::RouteRule::softmax(true), ids.cs(), wts.cs());
+            p.dev.route_experts(si.vs(), rows, n_expert, k, backend::RouteRule::softmax(true), ids.vs(), wts.vs());
             auto ri = p.results(ids);
             values += exact(ri.first, ri.second, "routed expert ids differ");
             auto rw = p.results(wts);
@@ -2625,7 +2625,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, const De
     const auto scores = uniform(most * n_expert, 310, -3.0f, 3.0f), base = uniform(most * nout, 313);
     const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
     const auto ids = vk.alloc(most * k * sizeof(float)), wts = vk.alloc(most * k * sizeof(float));
-    vk.route_experts({sb.get(), 0}, most, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+    vk.route_experts({sb.get(), 0}, most, n_expert, k, backend::RouteRule::softmax(true), {ids.get(), 0}, {wts.get(), 0});
     auto routing = [&](size_t first) { return backend::Backend::Routing{{ids.get(), first * k}, {wts.get(), first * k}, k, n_expert}; };
     for (size_t rin : {size_t(4096), size_t(1280)}) {
         const auto x = uniform(most * rin, 311), x2 = uniform(most * k * rin, 312);
@@ -2831,12 +2831,12 @@ size_t check_timing_coverage() {
     const auto xb = tb->adopt(x.data(), n * sizeof(float));
     const auto yb = tb->alloc(n * sizeof(float), backend::Memory::device);
     tb->device_ms();
-    tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n);
+    tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
     tb->device_ms();
     const size_t per = backend::vulkan_timed_dispatches(*tb);
     require(per >= 1, "a timed dispatch was not timed");
     const size_t calls = 6000;
-    for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n);
+    for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
     const double ms = tb->device_ms();
     require(backend::vulkan_timed_dispatches(*tb) == calls * per, "device timing missed the dispatches past one query pool");
     require(ms > 0.0, "device timing read no time");
@@ -3986,12 +3986,12 @@ size_t check_ops(backend::Backend& vk) {
             const backend::RopeStreams streams = mode == 2 ? backend::RopeStreams{} : backend::RopeStreams{2, of.data()};
             const bool norm = mode == 1;
             Pair::Out d = p.out(src.size());
-            p.cpu.norm_rope_partial(d.cs(), si.cs(), rows, width, hd, heads, hd, hd, norm ? wi.cs() : backend::CSlice{}, 1e-6f, ci.cs(), sni.cs(), pos.data(), streams);
-            p.dev.norm_rope_partial(d.vs(), si.vs(), rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), streams);
+            p.cpu.norm_rope_partial(d.cs(), si.cs(), rows, width, hd, heads, hd, hd, norm ? wi.cs() : backend::CSlice{}, 1e-6f, ci.cs(), sni.cs(), pos.data(), backend::RopeForm{}, streams);
+            p.dev.norm_rope_partial(d.vs(), si.vs(), rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), backend::RopeForm{}, streams);
             auto r = p.results(d);
             values += close(r.first, r.second, 1e-5, "the rope over streams differs from the CPU beyond 1e-5");
             Pair::Out ip = seeded(p, src);
-            p.dev.norm_rope_partial(ip.vs(), {ip.v.get(), 0}, rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), streams);
+            p.dev.norm_rope_partial(ip.vs(), {ip.v.get(), 0}, rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), backend::RopeForm{}, streams);
             std::vector<float> in_place(src.size());
             p.dev.read(*ip.v, 0, in_place.data(), in_place.size() * sizeof(float));
             require(q35::same_bits(in_place, r.second), "the rope over streams in place differs on the device");
@@ -4912,7 +4912,7 @@ size_t check_route_edges(backend::Backend& vk) {
             for (size_t e = 0; e < n_expert; ++e) scores[2 * n_expert + e] = e == 3 ? nan : 0.25f * (float)e;
             const auto sb = b->adopt(scores.data(), scores.size() * sizeof(float));
             const auto ib = b->alloc(rows * k * sizeof(float), backend::Memory::device), wb = b->alloc(rows * k * sizeof(float), backend::Memory::device);
-            b->route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            b->route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
             std::vector<uint32_t> ids(rows * k);
             std::vector<float> w(rows * k);
             b->read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
@@ -4930,7 +4930,7 @@ size_t check_route_edges(backend::Backend& vk) {
             const std::vector<float> scores = {0.0f, -100.0f, -95.0f, -90.0f, -200.0f, -87.0f, -200.0f, -200.0f};
             const auto sb = b->adopt(scores.data(), scores.size() * sizeof(float));
             const auto ib = b->alloc(k * sizeof(float), backend::Memory::device), wb = b->alloc(k * sizeof(float), backend::Memory::device);
-            b->route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            b->route_experts({sb.get(), 0}, 1, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
             std::vector<uint32_t> ids(k);
             std::vector<float> w(k);
             b->read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
@@ -4959,7 +4959,7 @@ size_t check_route_edges(backend::Backend& vk) {
             const auto gb = b->alloc(entries * nout * sizeof(float), backend::Memory::device), yb = b->alloc(rows * nout * sizeof(float), backend::Memory::device);
             b->write(*gb, 0, sentinel.data(), sentinel.size() * sizeof(float));
             b->write(*yb, 0, y0.data(), y0.size() * sizeof(float));
-            b->route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            b->route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
             const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, n_expert};
             b->matmul_experts({{{quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
             b->matmul_experts_add({quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
@@ -5026,9 +5026,9 @@ size_t check_route_shapes() {
                 }
                 Pair::In si = p.in(scores);
                 Pair::Out ids = p.out(rows * k), wts = p.out(rows * k);
-                p.cpu.route_experts(si.cs(), rows, n, k, normalize, ids.cs(), wts.cs());
+                p.cpu.route_experts(si.cs(), rows, n, k, backend::RouteRule::softmax(normalize), ids.cs(), wts.cs());
                 (void)backend::vulkan_kernel_times(vk);
-                p.dev.route_experts(si.vs(), rows, n, k, normalize, ids.vs(), wts.vs());
+                p.dev.route_experts(si.vs(), rows, n, k, backend::RouteRule::softmax(normalize), ids.vs(), wts.vs());
                 const auto ri = p.results(ids), rw = p.results(wts);
                 const std::string label = std::to_string(n) + " experts (" + sh.build + "), k " + std::to_string(k) + (normalize ? ", normalized" : "");
                 // Where the device times its dispatches, the call took the build the shape names.
@@ -5055,7 +5055,7 @@ size_t check_route_shapes() {
         Pair::Out ids = p.out(8), wts = p.out(8);
         bool refused = false;
         try {
-            p.dev.route_experts(si.vs(), 1, 1025, 8, true, ids.vs(), wts.vs());
+            p.dev.route_experts(si.vs(), 1, 1025, 8, backend::RouteRule::softmax(true), ids.vs(), wts.vs());
         } catch (const std::runtime_error&) {
             refused = true;
         }

@@ -344,8 +344,8 @@ bool show_progress(const ExecOptions& exec) {
 
 infer::ModelOptions model_options(const ExecOptions& exec) {
     infer::ModelOptions o;
-    if (!exec.cache_type_k.empty()) o.kv_k = backend::kv_type_of(exec.cache_type_k);
-    if (!exec.cache_type_v.empty()) o.kv_v = backend::kv_type_of(exec.cache_type_v);
+    if (!exec.cache_type_k.empty()) o.kv_k = backend::kv_type_of(exec.cache_type_k), o.kv_k_given = true;
+    if (!exec.cache_type_v.empty()) o.kv_v = backend::kv_type_of(exec.cache_type_v), o.kv_v_given = true;
     o.kv_tokens = exec.kv_tokens > 0 ? (size_t)exec.kv_tokens : 0;
     return o;
 }
@@ -1103,7 +1103,7 @@ int cmd_bench(int size, int iters, int threads, int prefill, int decode,
     t0 = clock::now();
     for (int it = 0; it < iters; it++)
         b->norm_rope_partial({dst_buf.get(), 0}, {dst_buf.get(), 0}, 1, (size_t)size, (size_t)size, 1, (size_t)size, (size_t)size,
-                             {w_buf.get(), 0}, 1e-6f, {cos_buf.get(), 0}, {sin_buf.get(), 0}, &pos0);
+                             {w_buf.get(), 0}, 1e-6f, {cos_buf.get(), 0}, {sin_buf.get(), 0}, &pos0, backend::RopeForm{});
     double rp_ms = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / iters;
 
     double mm_gflops = 2.0 * (double)size * (double)size / (mm_ms * 1e6);

@@ -21,7 +21,7 @@ struct Observed final : infer::Architecture {
     explicit Observed(std::shared_ptr<const infer::Architecture> a) : base(std::move(a)) {}
     infer::ModelPlan plan(const infer::TensorIndex& t) const override { return base->plan(t); }
     void plan_drafter(const infer::TensorIndex& t, infer::ModelPlan& p) const override { base->plan_drafter(t, p); }
-    void fill_tables(std::vector<std::vector<float>>& t) const override { base->fill_tables(t); }
+    void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }

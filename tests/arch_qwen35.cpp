@@ -327,6 +327,7 @@ void state_rules() {
 }
 
 struct TokenHistoryCall {
+    const backend::Backend* b = nullptr;
     size_t previous_count = 0;
     std::vector<std::vector<uint32_t>> current, previous;
 };
@@ -336,17 +337,20 @@ struct TokenHistoryLog {
 };
 
 // Test adapter: only the plan and token plumbing differ; all model math stays in Qwen35.
+// Each of `owners` keeps a history of one width and padding, and each call records the backend it ran on.
 struct TokenHistoryArchitecture final : infer::Architecture {
-    TokenHistoryArchitecture(std::shared_ptr<const infer::Architecture> base, std::shared_ptr<TokenHistoryLog> log, size_t owner)
-        : base(std::move(base)), log(std::move(log)), owner(owner) {}
+    TokenHistoryArchitecture(std::shared_ptr<const infer::Architecture> base, std::shared_ptr<TokenHistoryLog> log, std::vector<size_t> owners)
+        : base(std::move(base)), log(std::move(log)), owners(std::move(owners)) {}
     infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
         infer::ModelPlan p = base->plan(tensors);
-        require(owner < p.layers.size() && p.layers[owner].cache == infer::Cache::state, "token-history owner is not recurrent");
-        p.layers[owner].token_history = 2;
-        p.layers[owner].token_padding = 31;
+        for (size_t owner : owners) {
+            require(owner < p.layers.size() && p.layers[owner].cache == infer::Cache::state, "token-history owner is not recurrent");
+            p.layers[owner].token_history = 2;
+            p.layers[owner].token_padding = 31;
+        }
         return p;
     }
-    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override {
         // Large raw IDs are preserved in Step::tokens; only this tiny fixture's embedding lookup is mapped into its 32-row table.
         std::vector<uint32_t> mapped(s.rows);
@@ -357,6 +361,7 @@ struct TokenHistoryArchitecture final : infer::Architecture {
         if (s.previous_count) {
             require(s.tokens && s.previous_tokens && s.states && s.n_views, "token-history mixer fields are incomplete");
             TokenHistoryCall call;
+            call.b = &s.b;
             call.previous_count = s.previous_count;
             size_t row = 0;
             for (size_t e = 0; e < s.n_views; ++e) {
@@ -384,11 +389,11 @@ struct TokenHistoryArchitecture final : infer::Architecture {
 
     std::shared_ptr<const infer::Architecture> base;
     std::shared_ptr<TokenHistoryLog> log;
-    size_t owner;
+    std::vector<size_t> owners;
 };
 
-void use_token_history(infer::ModelWeights& weights, const std::shared_ptr<TokenHistoryLog>& log, size_t owner) {
-    weights.arch = std::make_shared<const TokenHistoryArchitecture>(weights.arch, log, owner);
+void use_token_history(infer::ModelWeights& weights, const std::shared_ptr<TokenHistoryLog>& log, std::vector<size_t> owners) {
+    weights.arch = std::make_shared<const TokenHistoryArchitecture>(weights.arch, log, std::move(owners));
 }
 
 void expect_token_call(const TokenHistoryLog& log, size_t index, const std::vector<std::vector<uint32_t>>& current,
@@ -403,7 +408,7 @@ void token_history_short_reset_failure() {
     const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     infer::ModelWeights weights = infer::gguf_weights(file);
     const auto log = std::make_shared<TokenHistoryLog>();
-    use_token_history(weights, log, 0);
+    use_token_history(weights, log, {0});
     auto cpu = backend::make_cpu_backend();
     cpu->set_threads(1);
     infer::ModelOptions options;
@@ -458,7 +463,7 @@ void token_history_fork_and_marks() {
         const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
         infer::ModelWeights weights = infer::gguf_weights(file);
         const auto log = std::make_shared<TokenHistoryLog>();
-        use_token_history(weights, log, 0);
+        use_token_history(weights, log, {0});
         auto cpu = backend::make_cpu_backend();
         cpu->set_threads(1);
         infer::ModelOptions options;
@@ -492,7 +497,7 @@ void token_history_fork_and_marks() {
         const gguf::GGUFModel file = tiny();
         infer::ModelWeights weights = infer::gguf_weights(file);
         const auto log = std::make_shared<TokenHistoryLog>();
-        use_token_history(weights, log, 0);
+        use_token_history(weights, log, {0});
         auto cpu = backend::make_cpu_backend();
         cpu->set_threads(1);
         infer::ModelOptions options;
@@ -550,7 +555,7 @@ void token_history_host(bool split) {
     const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
     infer::ModelWeights weights = infer::gguf_weights(file);
     const auto log = std::make_shared<TokenHistoryLog>();
-    use_token_history(weights, log, owner);
+    use_token_history(weights, log, {owner});
     const infer::ModelPlan planned = infer::plan_model(weights);
     const size_t token_bytes = 2 * sizeof(uint32_t);
     std::vector<std::shared_ptr<TokenTransferOrderProbe>> probes;
@@ -2319,6 +2324,191 @@ void experts() {
 
 } // namespace
 
+// Two history layers, 0 and 2, on two CPU stages (docs/DEEPSEEK4.md, section 4.3): the first stage owns the tails and the second reads its pass's snapshot.
+struct TwoLookups {
+    std::shared_ptr<TokenHistoryLog> log = std::make_shared<TokenHistoryLog>(), alone_log = std::make_shared<TokenHistoryLog>();
+    gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
+    infer::ModelWeights weights = infer::gguf_weights(file), alone_weights = infer::gguf_weights(file);
+    std::vector<backend::BackendPtr> cpus;
+    std::unique_ptr<infer::Model> split, alone;
+    explicit TwoLookups(const infer::ModelOptions& options) {
+        use_token_history(weights, log, {0, 2});
+        use_token_history(alone_weights, alone_log, {0, 2});
+        for (int i = 0; i < 2; ++i) {
+            cpus.push_back(backend::make_cpu_backend());
+            cpus.back()->set_threads(1);
+        }
+        infer::Placement placement;
+        placement.mixer_device = placement.ffn_device = {0, 0, 1, 1};
+        placement.output_device = 1;
+        split = std::make_unique<infer::Model>(weights, cpus, placement, options);
+        auto one = backend::make_cpu_backend();
+        one->set_threads(1);
+        alone = std::make_unique<infer::Model>(alone_weights, std::move(one), options);
+        require(split->stage_count() == 2 && split->pipelined(), "the two history layers are not on two pipelined stages");
+    }
+    // Calls [from, from + n) of the split's log, each on the CPU of its stage, with these entries' current and preceding IDs.
+    void expect(size_t from, const std::vector<size_t>& stage, const std::vector<std::vector<std::vector<uint32_t>>>& current,
+                const std::vector<std::vector<std::vector<uint32_t>>>& previous, const std::string& what) const {
+        require(log->calls.size() == from + stage.size(), what + ": the history layers ran another number of times");
+        for (size_t i = 0; i < stage.size(); ++i) {
+            const TokenHistoryCall& c = log->calls[from + i];
+            require(c.b == cpus[stage[i]].get() && c.previous_count == 2 && c.current == current[i] && c.previous == previous[i],
+                    what + ": call " + std::to_string(i) + " saw other IDs or ran on another stage");
+        }
+    }
+    // A pass through every stage of a reserved context's slot, ended.
+    void run(infer::ExecContext& ctx, size_t slot, infer::BatchEntry* entries, size_t n) const {
+        split->begin_pass(ctx, slot, entries, n, 0);
+        for (size_t s = 0; s < split->stage_count(); ++s) split->run_pass_stage(ctx, slot, s);
+        split->end_pass(ctx, slot);
+    }
+};
+
+std::vector<uint32_t> raw_ids(uint32_t first, size_t n) {
+    std::vector<uint32_t> ids(n);
+    for (size_t i = 0; i < n; ++i) ids[i] = 0x01000000u + first + (uint32_t)i;
+    return ids;
+}
+
+// A prompt's chunk B begun once chunk A has committed its first stage, and run there before A's second history layer runs: A's second layer still reads A's own snapshot, and B's both read A's last IDs.
+// Then passes of different sequences overlap, one of them of two entries, and each sequence's logits are those of one CPU fed the same passes.
+void token_history_overlapping_passes() {
+    infer::ModelOptions options;
+    options.state_slots = 4;
+    TwoLookups t(options);
+    infer::Model& m = *t.split;
+    infer::ExecContext ctx;
+    m.reserve_passes(ctx, 2, 16, 4);
+    const std::vector<uint32_t> P = raw_ids(1, 10);
+    infer::Sequence q = m.make_sequence();
+    infer::BatchEntry a{&q, P.data(), 4, false}, b{&q, P.data() + 4, 3, false}, c{&q, P.data() + 7, 3, true};
+    a.extent = b.extent = c.extent = P.size();
+    m.begin_pass(ctx, 0, &a, 1, 0);
+    m.run_pass_stage(ctx, 0, 0);
+    m.begin_pass(ctx, 1, &b, 1, 0);
+    m.run_pass_stage(ctx, 1, 0);
+    m.run_pass_stage(ctx, 0, 1);
+    m.end_pass(ctx, 0);
+    m.run_pass_stage(ctx, 1, 1);
+    m.end_pass(ctx, 1);
+    const std::vector<uint32_t> A(P.begin(), P.begin() + 4), B(P.begin() + 4, P.begin() + 7), C(P.begin() + 7, P.end());
+    t.expect(0, {0, 0, 1, 1}, {{A}, {B}, {A}, {B}}, {{{31u, 31u}}, {{P[2], P[3]}}, {{31u, 31u}}, {{P[2], P[3]}}}, "chunk B begun inside chunk A");
+    m.begin_pass(ctx, 0, &c, 1, 0);
+    m.run_pass_stage(ctx, 0, 0);
+    m.run_pass_stage(ctx, 0, 1);
+    const std::vector<float> split_c(m.pass_logits(ctx, 0, 0), m.pass_logits(ctx, 0, 0) + VOCAB);
+    m.end_pass(ctx, 0);
+    t.expect(4, {0, 1}, {{C}, {C}}, {{{P[5], P[6]}}, {{P[5], P[6]}}}, "the chunk after them");
+    infer::Sequence lone = t.alone->make_sequence();
+    infer::ExecContext own;
+    for (infer::BatchEntry e : {a, b, c}) {
+        e.seq = &lone;
+        t.alone->forward(own, &e, 1);
+    }
+    require(!std::memcmp(own.logits(0), split_c.data(), VOCAB * sizeof(float)), "a prompt in overlapping chunks differs from one CPU");
+
+    // x's pass waits at its second stage while y's runs its first, then a pass of both runs ahead of z's.
+    const std::vector<uint32_t> X = raw_ids(20, 4), Y = raw_ids(40, 3), Z = raw_ids(60, 2);
+    infer::Sequence x = m.make_sequence(), y = m.make_sequence(), z = m.make_sequence();
+    const size_t from = t.log->calls.size();
+    infer::BatchEntry x0{&x, X.data(), 3, false}, y0{&y, Y.data(), 2, false};
+    m.begin_pass(ctx, 0, &x0, 1, 0);
+    m.run_pass_stage(ctx, 0, 0);
+    m.begin_pass(ctx, 1, &y0, 1, 0);
+    m.run_pass_stage(ctx, 1, 0);
+    m.run_pass_stage(ctx, 0, 1);
+    m.end_pass(ctx, 0);
+    m.run_pass_stage(ctx, 1, 1);
+    m.end_pass(ctx, 1);
+    infer::BatchEntry both[] = {{&x, X.data() + 3, 1, true}, {&y, Y.data() + 2, 1, true}};
+    infer::BatchEntry z0{&z, Z.data(), 2, true};
+    m.begin_pass(ctx, 0, both, 2, 0);
+    m.run_pass_stage(ctx, 0, 0);
+    m.begin_pass(ctx, 1, &z0, 1, 2);
+    m.run_pass_stage(ctx, 1, 0);
+    m.run_pass_stage(ctx, 0, 1);
+    m.run_pass_stage(ctx, 1, 1);
+    std::vector<std::vector<float>> rows;
+    for (size_t i = 0; i < 2; ++i) rows.emplace_back(m.pass_logits(ctx, 0, i), m.pass_logits(ctx, 0, i) + VOCAB);
+    rows.emplace_back(m.pass_logits(ctx, 1, 0), m.pass_logits(ctx, 1, 0) + VOCAB);
+    m.end_pass(ctx, 0);
+    m.end_pass(ctx, 1);
+    const std::vector<uint32_t> x3{X[3]}, y2{Y[2]}, X3(X.begin(), X.begin() + 3), Y2(Y.begin(), Y.begin() + 2);
+    t.expect(from, {0, 0, 1, 1, 0, 0, 1, 1}, {{X3}, {Y2}, {X3}, {Y2}, {x3, y2}, {Z}, {x3, y2}, {Z}},
+             {{{31u, 31u}}, {{31u, 31u}}, {{31u, 31u}}, {{31u, 31u}}, {{X[1], X[2]}, {Y[0], Y[1]}}, {{31u, 31u}}, {{X[1], X[2]}, {Y[0], Y[1]}}, {{31u, 31u}}},
+             "overlapping passes");
+    infer::Sequence lx = t.alone->make_sequence(), ly = t.alone->make_sequence(), lz = t.alone->make_sequence();
+    infer::BatchEntry lone_firsts[] = {{&lx, X.data(), 3, false}, {&ly, Y.data(), 2, false}};
+    for (infer::BatchEntry& e : lone_firsts) t.alone->forward(own, &e, 1);
+    infer::BatchEntry lone_both[] = {{&lx, X.data() + 3, 1, true}, {&ly, Y.data() + 2, 1, true}};
+    t.alone->forward(own, lone_both, 2);
+    for (size_t i = 0; i < 2; ++i) require(!std::memcmp(own.logits(i), rows[i].data(), VOCAB * sizeof(float)), "a pass of two entries in flight differs from one CPU");
+    infer::BatchEntry lone_z{&lz, Z.data(), 2, true};
+    t.alone->forward(own, &lone_z, 1);
+    require(!std::memcmp(own.logits(0), rows[2].data(), VOCAB * sizeof(float)), "a pass behind another in flight differs from one CPU");
+    for (infer::Sequence* s : {&q, &x, &y, &z}) m.reset(*s);
+    for (infer::Sequence* s : {&lone, &lx, &ly, &lz}) t.alone->reset(*s);
+}
+
+// Both history layers read the kept history's last IDs after a checkpoint restored, by a fork and by a retract to it, and after a partial accept of a verify.
+void token_history_restores() {
+    {
+        infer::ModelOptions options;
+        options.state_slots = 2;
+        options.checkpoint_slots = 2;
+        TwoLookups t(options);
+        infer::Model& m = *t.split;
+        infer::ExecContext ctx;
+        m.reserve_passes(ctx, 2, 136, 4);
+        const std::vector<uint32_t> P = raw_ids(1, 128), more = raw_ids(200, 5);
+        infer::Sequence q = m.make_sequence();
+        infer::BatchEntry kept{&q, P.data(), P.size(), false};
+        kept.keep = true;
+        kept.extent = P.size();
+        t.run(ctx, 0, &kept, 1);
+        require(m.checkpoint(q) == P.size(), "the prompt's checkpoint was not kept at 128");
+        infer::BatchEntry on{&q, more.data(), more.size(), false};
+        t.run(ctx, 0, &on, 1);
+        infer::Sequence r = m.fork(q, P.size());
+        require(m.retract(q, P.size()) == P.size(), "a retract to the checkpoint did not reach it");
+        const size_t from = t.log->calls.size();
+        const std::vector<uint32_t> T = raw_ids(300, 1);
+        infer::BatchEntry pair[] = {{&q, T.data(), 1, true}, {&r, T.data(), 1, true}};
+        t.run(ctx, 0, pair, 2);
+        t.expect(from, {0, 1}, {{T, T}, {T, T}}, {{{P[126], P[127]}, {P[126], P[127]}}, {{P[126], P[127]}, {P[126], P[127]}}}, "a checkpoint restored");
+        m.reset(q);
+        m.reset(r);
+    }
+    const std::vector<uint32_t> base = raw_ids(1, 3), verify = raw_ids(10, 3), trigger = raw_ids(20, 1);
+    for (size_t accepted = 0; accepted <= verify.size(); ++accepted) {
+        infer::ModelOptions options;
+        options.state_slots = 1;
+        options.mark_slots = 1;
+        options.mark_rows = 4;
+        TwoLookups t(options);
+        infer::Model& m = *t.split;
+        infer::ExecContext ctx;
+        m.reserve_passes(ctx, 2, 8, 2);
+        infer::Sequence q = m.make_sequence();
+        infer::BatchEntry first{&q, base.data(), base.size(), false};
+        t.run(ctx, 0, &first, 1);
+        require(m.mark(q), "the mark before a verify was refused");
+        infer::BatchEntry draft{&q, verify.data(), verify.size(), false};
+        t.run(ctx, 0, &draft, 1);
+        const size_t target = base.size() + accepted;
+        require(m.retract(q, target) == target, "a partial accept reached another length");
+        const size_t from = t.log->calls.size();
+        infer::BatchEntry after{&q, trigger.data(), 1, false};
+        t.run(ctx, 0, &after, 1);
+        std::vector<uint32_t> kept = base;
+        kept.insert(kept.end(), verify.begin(), verify.begin() + (std::ptrdiff_t)accepted);
+        const std::vector<uint32_t> want{kept[kept.size() - 2], kept.back()};
+        t.expect(from, {0, 1}, {{trigger}, {trigger}}, {{want}, {want}}, "a partial accept of " + std::to_string(accepted));
+        m.reset(q);
+    }
+}
+
 int main(int argc, char** argv) {
     const std::string part = argc > 1 ? argv[1] : "";
     if (!part.empty() && part != "fit" && part != "models") {
@@ -2335,6 +2525,8 @@ int main(int argc, char** argv) {
             token_history_fork_and_marks();
             token_history_host(false);
             token_history_host(true);
+            token_history_overlapping_passes();
+            token_history_restores();
             checkpoints();
             host_round_trip();
             host_restore_submit_failure();

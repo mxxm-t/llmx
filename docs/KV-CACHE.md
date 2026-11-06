@@ -169,11 +169,12 @@ backend implementation details.
 The backend validates all views and source spans before it writes K, V or auxiliary data.
 The auxiliary plane follows the same physical block IDs as K and V, so the sequence, block table, growth and release still have one owner.
 Tensor-group members each retain the full auxiliary row under the shared block IDs.
-Qwen4Exp keeps its raw indexer keys in this plane, and with a pool of its compression the pooled key of each complete group after a block's token rows (`auxiliary_pools`), written once as the group completes.
+Qwen4Exp keeps its raw indexer keys in this plane, and with a pool of its compression the pooled key of each complete group after a block's token rows (`auxiliary_pools`, a group size and a row width per layer), written once as the group completes.
+An entries layer (`Cache::entries`, docs/DEEPSEEK4.md section 4.3) keeps pooled rows alone, in a storage of no heads.
 
 ### CPU physical layout
 
-Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim` elements of each side's cache type, f16 by default or f32, plus an optional F32 auxiliary pool of `n_blocks * (block_tokens + block_tokens / auxiliary_pool) * auxiliary_width` elements, each block's token rows then, with a pool, one row a group.
+Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim` elements of each side's cache type, f16 by default or f32, plus an optional F32 auxiliary pool of `n_blocks * (block_tokens * auxiliary_width + block_tokens / pool.tokens * pool.width)` elements, each block's token rows then, with a pool, one row a group.
 All three planes use the same block ids.
 Inside a K or V block the order is `[kv_head][token][head_dim]`, so each head's history within a
 block is contiguous and the existing dot and weighted-value loops run

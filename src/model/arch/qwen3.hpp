@@ -188,7 +188,7 @@ public:
     }
 
     // The RoPE cos and sin tables for every position up to the context length, indexed as [pos*(head_dim/2) + i].
-    void fill_tables(std::vector<std::vector<float>>& tables) const override {
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         std::vector<float>& rope_cos = tables[0];
         std::vector<float>& rope_sin = tables[1];
         int half = cfg_.head_dim / 2;
@@ -239,7 +239,7 @@ public:
         b.rms_norm_rows(h, x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
 
         if (s.kind == routed) {
-            blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+            blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, backend::RouteRule::softmax(cfg_.expert_norm),
                              h, gate, up, ffn, s.slot(9), s.slot(10), s.slot(11));
             return;
         }

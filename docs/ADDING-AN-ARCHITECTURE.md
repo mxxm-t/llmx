@@ -122,7 +122,7 @@ Until the architecture's math runs, its `plan` refuses the architecture by name 
 
 ### The position tables
 
-`fill_tables` computes them once at load, as values that depend only on the position and the configuration.
+`fill_tables` computes them once at load, as values that depend only on the position and the configuration, or on a weight read only for it: a `source` role, whose host view the call is handed and which no device holds.
 The runtime keeps them for the model's life and adopts them on every device the model uses, since any part may read a table.
 
 ### The math

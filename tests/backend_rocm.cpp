@@ -700,12 +700,12 @@ void decode_rates(Backend& g) {
         const std::vector<float> sc = row_classes::values(n_expert, 921, 4.0f);
         auto sb = g.adopt(sc.data(), sc.size() * 4), ib = g.alloc(k * 4), wb = g.alloc(k * 4);
         rocm_take_launches(g);
-        const auto [us, spread] = median_us(g, [&] { g.route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0}); });
+        const auto [us, spread] = median_us(g, [&] { g.route_experts({sb.get(), 0}, 1, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0}); });
         // A hash of 256 rows' picks and weights, which two builds of the router compare bit for bit.
         const size_t hr = 256;
         const std::vector<float> hs = row_classes::values(hr * n_expert, 922, 4.0f);
         auto hsb = g.adopt(hs.data(), hs.size() * 4), hib = g.alloc(hr * k * 4), hwb = g.alloc(hr * k * 4);
-        g.route_experts({hsb.get(), 0}, hr, n_expert, k, true, {hib.get(), 0}, {hwb.get(), 0});
+        g.route_experts({hsb.get(), 0}, hr, n_expert, k, backend::RouteRule::softmax(true), {hib.get(), 0}, {hwb.get(), 0});
         std::vector<float> out = read(g, *hib, hr * k), wout = read(g, *hwb, hr * k);
         out.insert(out.end(), wout.begin(), wout.end());
         uint64_t h = 1469598103934665603ull;
@@ -776,7 +776,7 @@ void ops(Backend& g, Backend& c) {
             auto xb = b.adopt(x.data(), x.size() * 4), wb = b.adopt(w.data(), w.size() * 4), yb = b.adopt(y.data(), y.size() * 4), ob = b.alloc(x.size() * 4);
             b.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
             norm[k] = read(b, *ob, rows * stride);
-            b.silu_mul({ob.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows * stride);
+            b.silu_mul({ob.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, rows * stride, 0.0f);
             sm[k] = read(b, *ob, rows * stride);
             b.add({ob.get(), 0}, {yb.get(), 0}, rows * stride);
             ad[k] = read(b, *ob, rows * stride);
@@ -804,7 +804,7 @@ void ops(Backend& g, Backend& c) {
             auto xb = b.adopt(x.data(), x.size() * 4), wb = b.adopt(w.data(), w.size() * 4);
             auto cb = b.adopt(cos.data(), cos.size() * 4), sb = b.adopt(sin.data(), sin.size() * 4);
             b.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, rows, heads * head_dim, head_dim, heads, head_dim, 2 * half,
-                                weighted ? CSlice{wb.get(), 0} : CSlice{}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, pos);
+                                weighted ? CSlice{wb.get(), 0} : CSlice{}, 1e-6f, {cb.get(), 0}, {sb.get(), 0}, pos, backend::RopeForm{});
             out[k] = read(b, *xb, x.size());
         }
         close(out[0], out[1], std::string("norm_rope_partial ") + (weighted ? "with" : "without") + " a norm against the CPU");
@@ -1368,7 +1368,7 @@ void producer_twins(Backend& g, Dtype dt) {
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, prows, {prun, 1}, dt);
         norms = norms && same(read(g, *y, nout * prows), read(g, *yc, nout * prows));
         if (stride != n) continue;
-        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, {run, 1});
+        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, {run, 1});
         g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
         g.copy(*cb, 0, *ob, 0, rows * n * 4);
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
@@ -1405,7 +1405,7 @@ void producer_twins(Backend& g, Dtype dt) {
             g.copy(*cb, 0, *ob, 0, rows * n * 4);
             g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
             norms = norms && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
-            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, produced);
+            g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, produced);
             g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, read_as, dt);
             g.copy(*cb, 0, *ob, 0, rows * n * 4);
             g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, read_as, dt);
@@ -2118,7 +2118,7 @@ void routing(Backend& g, Backend& c) {
                 Backend* bs[2] = {&g, &c};
                 for (int b = 0; b < 2; ++b) {
                     auto sb = bs[b]->adopt(s.data(), s.size() * 4), ib = bs[b]->alloc(rows * k * 4), wb = bs[b]->alloc(rows * k * 4);
-                    bs[b]->route_experts({sb.get(), 0}, rows, n_expert, k, normalize, {ib.get(), 0}, {wb.get(), 0});
+                    bs[b]->route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(normalize), {ib.get(), 0}, {wb.get(), 0});
                     ids[b] = read(*bs[b], *ib, rows * k);
                     ws[b] = read(*bs[b], *wb, rows * k);
                 }

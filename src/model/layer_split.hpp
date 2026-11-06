@@ -39,6 +39,9 @@ struct Footprint {
     std::vector<Matrix> head_aux;               // additional head matrices or norms, counted on the output device
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
     std::vector<size_t> cache;                 // each layer's cache: a KV layer's for every position the budget allows, a state layer's for every slot; none for every layer when empty
+    // Each layer's entry source (LayerPlan::entry_source) or -1, and its pooled rows, which a device running a reader of it and not it keeps again as a replica; empty where no layer reads another's.
+    std::vector<int> reads;
+    std::vector<size_t> pooled;
     size_t tables = 0;                         // position tables: the host keeps them while the model lives, and every device that copies weights holds its own
     size_t activations_per_row = 0;            // one row of a pass's activations on each device
     size_t logits_per_row = 0;                 // one row of logits where the head runs
@@ -165,6 +168,17 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);
     for (size_t l = 0; l < L; ++l) cached[l + 1] = backend::size_add(cached[l], fp.cache.empty() ? 0 : fp.cache[l]);
+    // The replicas a device running layers [i, i + k) keeps: each source before i that a layer there reads, its pooled rows once.
+    auto replicas = [&](size_t i, size_t k) {
+        size_t n = 0;
+        for (size_t s = 0; s < i && s < fp.pooled.size(); ++s)
+            for (size_t j = i; j < i + k; ++j)
+                if (fp.reads[j] == (int)s) {
+                    n = backend::size_add(n, fp.pooled[s]);
+                    break;
+                }
+        return n;
+    };
 
     auto resident = [&](size_t d, const Matrix& m) -> size_t {
         if (devices[d].host) return 0;
@@ -222,7 +236,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[i + k] - cached[i] + (last ? fp.drafter_cache : 0)),
+        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[i + k] - cached[i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
                                  backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row + (devices[d].argmax ? std::min(logit_rows.value_or(rows), fp.argmax_rows) * fp.argmax_per_row : 0) : 0), overhead(d, h)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
@@ -312,7 +326,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     for (size_t d : used) {
         LayerSplit::Stage& st = out.stages[d];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
-        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + (d == used.back() ? fp.drafter_cache : 0);
+        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0);
         st.other = backend::size_add(overhead(d, h), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {

@@ -117,7 +117,7 @@ Data make_data(Backend& device, size_t dim, backend::KVType k_type, backend::KVT
     const size_t logical_blocks = backend::blocks_for(data.total_tokens, data.block_tokens);
     const size_t per_view = next_power_of_two(logical_blocks);
     data.storage = device.kv_alloc(1, kKVHeads, dim, 2 * per_view * data.block_tokens,
-                                   k_type, v_type, {kAuxDim}, {kCompression});
+                                   k_type, v_type, {kAuxDim}, {{kCompression, kAuxDim}});
     data.maps[0] = block_map(logical_blocks, 0, per_view);
     data.maps[1] = block_map(logical_blocks, per_view, per_view);
     data.views = {
@@ -317,7 +317,7 @@ void selector_chain(Backend& device, const Data& data) {
     BufferPtr cosbuf = upload(device, cos), sinbuf = upload(device, sin);
     device.norm_rope_partial({norm_q.get(), 0}, {raw_q.get(), 0}, rows, q_width, data.dim,
                              kQHeads, data.dim, 4, {q_gamma.get(), 0}, 1e-6f,
-                             {cosbuf.get(), 0}, {sinbuf.get(), 0}, pos.data());
+                             {cosbuf.get(), 0}, {sinbuf.get(), 0}, pos.data(), backend::RopeForm{});
 
     constexpr size_t compression = kCompression, budget = 4;
     const size_t stride = budget + compression - 1;
@@ -583,7 +583,7 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
 void rates(Backend& device, const std::string& name) {
     const size_t heads = 24, kv_heads = 2, dim = 256, stride = 2051, history = 16384, bt = device.kv_layout().block_tokens;
     const size_t tokens = history + 16, blocks = backend::blocks_for(tokens, bt);
-    auto storage = device.kv_alloc(1, kv_heads, dim, blocks * bt, backend::KVType::f16, backend::KVType::f16, {kAuxDim}, {kCompression});
+    auto storage = device.kv_alloc(1, kv_heads, dim, blocks * bt, backend::KVType::f16, backend::KVType::f16, {kAuxDim}, {{kCompression, kAuxDim}});
     std::vector<int32_t> map(blocks);
     std::iota(map.begin(), map.end(), 0);
     for (size_t at = 0; at < tokens; at += 1024) {

@@ -11,7 +11,7 @@ External PLE rows are read once by the group's first member and uploaded to each
 Legal widths depend on the plan's head, vocabulary and quant-block spans.
 
 - `Config`: decoder and optional MTP counts, MoE dimensions, attention and GDN geometry, normalized layer kinds, QSA compression and indexer geometry, hyper-connection dimensions and optional PLE hash metadata.
-  PLE integer arrays stay `uint64_t`, since the GGUF writer emits `ARRAY<UINT64>` and the shared `metadata::counts` helper would narrow the multipliers.
+  PLE integer arrays stay `uint64_t`, read by `metadata::uint64s` at their exact lengths, since the GGUF writer emits `ARRAY<UINT64>` and `metadata::counts` would narrow the multipliers.
 - `read_config(file, prefix)`: reads the `block_count`, text widths, expert keys, attention head and RoPE keys, SSM keys, hyper-connection keys, per-layer recurrent flags and compression ratios, QSA indexer keys, and the optional PLE keys under the registry prefix.
   A missing recurrent array uses `full_attention_interval` (default 4), and its full-attention entries normalize to `qwen_sparse_attention`.
   A present array must cover all blocks, including a non-recurrent MTP block.

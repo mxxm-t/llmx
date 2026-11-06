@@ -80,7 +80,7 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
     const backend::BufferPtr sb = b.adopt(scores.data(), scores.size() * sizeof(float));
     const backend::BufferPtr xb = b.adopt(x.data(), x.size() * sizeof(float)), x2b = b.adopt(x2.data(), x2.size() * sizeof(float));
     const backend::BufferPtr ids = b.alloc(rows * k * sizeof(float)), wts = b.alloc(rows * k * sizeof(float));
-    b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+    b.route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ids.get(), 0}, {wts.get(), 0});
     const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
     for (backend::Dtype dtype : dtypes)
       for (uint32_t type : types) {

@@ -213,7 +213,7 @@ public:
     }
 
     // The rope's cos and sin for every position of the context over the rotated pairs only, indexed as [pos * (rope_dim / 2) + i].
-    void fill_tables(std::vector<std::vector<float>>& tables) const override {
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         const size_t half = (size_t)cfg_.rope_dim / 2;
         std::vector<float> freq(half);
         for (size_t i = 0; i < half; ++i) freq[i] = std::pow(cfg_.rope_theta, -2.0f * (float)i / (float)cfg_.rope_dim);
@@ -252,7 +252,7 @@ public:
             return;
         }
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], &w[ffn_gate_inp_shexp]};
-        blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+        blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, backend::RouteRule::softmax(cfg_.expert_norm),
                          h, g, u, act, s.slot(10), s.slot(11), s.slot(12), &shared, s.slot(13));
     }
 
@@ -310,7 +310,7 @@ public:
         b.rms_norm_rows(h, u, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
         b.matmul_group({blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
-        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, (size_t)cfg_.rope_dim, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, (size_t)cfg_.rope_dim, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
     }
 
@@ -436,8 +436,8 @@ private:
         b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
         const size_t R = (size_t)cfg_.rope_dim;
-        b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
-        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+        b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
+        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
         b.attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D);
         b.sigmoid_mul(o, o, backend::CSlice{r.buffer, r.offset + D}, s.rows, Hq, D, 2 * Hq * D, 2 * D, s.runs);

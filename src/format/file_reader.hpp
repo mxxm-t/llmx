@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -192,5 +193,24 @@ private:
     int fd_ = -1;
 #endif
 };
+
+// `bytes` at `offset` read into `dst` through `window`, `capacity` bytes on a page holding at least a granule, a chunk the window holds at a time, so a direct reader reads any span; a failure's text starts with `what`.
+inline void read_aligned(const FileReader& reader, uint64_t offset, uint8_t* dst, size_t bytes, uint8_t* window, size_t capacity, const char* what) {
+    const size_t g = reader.granule();
+    size_t done = 0;
+    while (done < bytes) {
+        const uint64_t at = offset + done;
+        const uint64_t aligned = at / g * g;
+        const size_t lead = size_t(at - aligned);
+        const size_t room = capacity > lead ? capacity - lead : 0;
+        const size_t take = std::min(bytes - done, room);
+        if (!take) throw std::logic_error(std::string(what) + ": I/O window cannot hold one aligned chunk");
+        const size_t request = (lead + take + g - 1) / g * g;
+        const size_t got = reader.read(aligned, window, request);
+        if (got < lead || got - lead < take) throw std::runtime_error(std::string(what) + ": short file read");
+        std::memcpy(dst + done, window + lead, take);
+        done += take;
+    }
+}
 
 } // namespace format

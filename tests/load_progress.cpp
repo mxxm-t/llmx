@@ -254,6 +254,133 @@ void loader_checks(const std::string& path) {
     }
 }
 
+// What a SourceArchitecture saw of its source, and whether its fill fails after reading it, as a model that fails as it is built does.
+struct SourceSeen {
+    std::vector<uint8_t> bytes;
+    bool fail = false;
+};
+
+// qwen3 with one more role, a source (infer::RoleKind::source) that fills one more table, whose bytes as fill_tables sees them it keeps.
+class SourceArchitecture final : public infer::Architecture {
+public:
+    SourceArchitecture(std::shared_ptr<const infer::Architecture> base, std::shared_ptr<SourceSeen> seen) : base_(std::move(base)), seen_(std::move(seen)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = base_->plan(tensors);
+        const infer::TensorView& t = tensors.view(tensors.at("blk.0.src.weight"));
+        p.layers[0].roles.push_back({uint16_t(p.role_ids), infer::Part::mixer, infer::RoleKind::source, t.name, "", t.shape[0], t.shape[1]});
+        ++p.role_ids;
+        p.tables.push_back(size_t(t.shape[0] * t.shape[1]));
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override {
+        require(sources.size() == 1 && sources[0].data && sources[0].name == "blk.0.src.weight", "fill_tables was not handed the source's host view");
+        seen_->bytes.assign(sources[0].data, sources[0].data + sources[0].bytes);
+        if (seen_->fail) throw std::runtime_error("injected table failure");
+        std::vector<std::vector<float>> own(tables.begin(), tables.end() - 1);
+        base_->fill_tables(own, {});
+        std::copy(own.begin(), own.end(), tables.begin());
+    }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base_->mixer(s); }
+    void ffn(const infer::Step& s) const override { base_->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base_->head(s); }
+
+private:
+    std::shared_ptr<const infer::Architecture> base_;
+    std::shared_ptr<SourceSeen> seen_;
+};
+
+// A source's unaligned span reaches fill_tables in every mode on the CPU, a copying backend and a split of two, and nothing places it (docs/TESTS.md).
+// A load that fails after reading it, as its model is built, leaves the next load whole.
+void source_checks(const std::string& path) {
+    gguf::GGUFModel source = with_tokens(tiny_qwen(2, 2 * 128, false));
+    const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(source), backend::make_cpu_backend()).prefill(ids);
+    {
+        const uint64_t width = source.tensors[0].ne[0];
+        gguf::TensorInfo t{"blk.0.src.weight", {width, 2}, quant::GGML_TYPE_BF16, 0};
+        std::vector<uint8_t> bytes(size_t(t.data_size()));
+        for (size_t i = 0; i < bytes.size(); ++i) bytes[i] = uint8_t(i * 37 + 11);
+        source.tensors.push_back(t);
+        source.add_tensor_data(bytes);
+    }
+    gguf::write_gguf(source, path);
+    const size_t last = source.tensors.size() - 1;
+    const std::vector<uint8_t> want(source.tensor_data(last), source.tensor_data(last) + source.tensor_bytes(last));
+    {
+        // The fit counts the table and not the source: layer 0's weights are the model's without it, and the tables hold one more of width x 2 floats.
+        infer::ModelWeights plain = infer::gguf_weights(source), with = plain;
+        with.arch = std::make_shared<SourceArchitecture>(plain.arch, std::make_shared<SourceSeen>());
+        const infer::Footprint a = infer::footprint(plain, infer::plan_model(plain), {}), b = infer::footprint(with, infer::plan_model(with), {});
+        size_t wa = 0, wb = 0;
+        for (const infer::Matrix& m : a.layers[0]) wa += m.bytes;
+        for (const infer::Matrix& m : b.layers[0]) wb += m.bytes;
+        require(wa == wb && b.tables == a.tables + want.size() * 2, "the fit counted a source's bytes, or not its table");
+        infer::Model model(with, backend::make_cpu_backend());
+        require(model.prefill(ids) == expected, "a model built in memory with a source gives other logits");
+        // The loader's hook records no upload of it and no host read of it, deferred or not.
+        for (const bool defer : {true, false}) {
+            infer::WeightPlan plan;
+            { infer::Model hooked(with, {std::make_shared<LoadingBackend>()}, infer::Placement{}, {}, infer::planning_adopt(with, 1, plan, defer)); }
+            require(plan.host_reads[last] == 0 && std::none_of(plan.uploads.begin(), plan.uploads.end(), [&](const infer::Upload& u) { return u.tensor == last; }),
+                    "the loader's hook recorded the source");
+        }
+        // A source without bytes, as a view of a file not mapped has, is refused by name as the model is built.
+        infer::ModelWeights empty = with;
+        empty.tensors[last].data = nullptr;
+        std::string error;
+        try { infer::Model refused(empty, backend::make_cpu_backend()); } catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == "inference: no bytes for the source tensor blk.0.src.weight", "a source without bytes was not refused by name");
+    }
+    const auto load = [&](infer::LoadMode mode, std::vector<backend::BackendPtr> backends, const std::shared_ptr<SourceSeen>& seen) {
+        auto loaded = std::make_unique<infer::LoadedModel>();
+        loaded->file = gguf::read_gguf(path);
+        loaded->tok.emplace(loaded->file);
+        infer::ModelWeights weights = infer::gguf_weights(loaded->file);
+        weights.arch = std::make_shared<SourceArchitecture>(weights.arch, seen);
+        infer::PlacementRequest request;
+        request.names.assign(backends.size(), "cpu");
+        if (backends.size() > 1) request.shares.assign(backends.size(), 1);
+        return infer::detail::load_weights(std::move(loaded), std::move(weights), std::move(backends), request, {}, {}, mode);
+    };
+    require(gguf::read_gguf(path).span(last).offset % core::page_size() != 0, "the source's span lies on a page, so no unaligned read is made");
+    for (const infer::LoadMode mode : load_modes(path))
+        for (const int arm : {0, 1, 2}) {
+            auto seen = std::make_shared<SourceSeen>();
+            std::vector<std::shared_ptr<CopyingBackend>> copiers;
+            std::vector<backend::BackendPtr> backends;
+            if (arm == 0) backends.push_back(backend::make_cpu_backend());
+            for (int d = 0; d < arm; ++d) {
+                copiers.push_back(std::make_shared<CopyingBackend>());
+                backends.push_back(copiers.back());
+            }
+            const auto loaded = load(mode, backends, seen);
+            require(seen->bytes == want, "fill_tables did not see the source's bytes from the file");
+            for (const auto& c : copiers)
+                require(std::none_of(c->weights.begin(), c->weights.end(), [&](const backend::BufferPtr& w) {
+                            return w->size() == want.size() && std::memcmp(w->host_ptr(), want.data(), w->size()) == 0;
+                        }) && (mode == infer::LoadMode::mapped || !c->weights.empty()),
+                        "a copying backend took the source");
+            if (arm == 1 && mode != infer::LoadMode::mapped)
+                require(copiers[0]->weights.size() == source.tensors.size() - 1, "a streamed load placed the source or left another weight out");
+            const std::vector<float> logits = loaded->model->prefill(ids);
+            require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                    "a model with a source gives other logits than the model without it");
+        }
+    // A load whose model fails as it is built, after its source was read, then a whole one.
+    for (const infer::LoadMode mode : load_modes(path)) {
+        auto seen = std::make_shared<SourceSeen>();
+        seen->fail = true;
+        std::string error;
+        try { load(mode, {std::make_shared<CopyingBackend>()}, seen); } catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == "injected table failure" && seen->bytes == want, "a load failing after its source was read lost the failure");
+        seen->fail = false;
+        seen->bytes.clear();
+        const auto loaded = load(mode, {std::make_shared<CopyingBackend>()}, seen);
+        require(seen->bytes == want && loaded->model->prefill(ids) == expected, "the load after a failed one was not whole");
+    }
+}
+
 // A small qwen3moe model with tokenizer metadata (tiny_qwen_moe).
 gguf::GGUFModel tiny_moe() { return with_tokens(tiny_qwen_moe(2, 2 * 128, false)); }
 
@@ -778,12 +905,13 @@ int main(int argc, char** argv) {
         stream_checks(path);
         ring_checks();
         experts_checks(path);
+        source_checks(path);
         split_checks(path);
         shard_checks(std::filesystem::u8path(path).parent_path());
         plan_checks();
         choice_checks(path);
         std::filesystem::remove(path);
-        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, experts on the CPU, splits, shards, the planned reads, the read choice and the stream\n";
+        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, experts on the CPU, a table's source, splits, shards, the planned reads, the read choice and the stream\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

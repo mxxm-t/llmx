@@ -77,6 +77,8 @@ struct Placement {
 struct ModelOptions {
     backend::KVType kv_k = backend::KVType::f16;
     backend::KVType kv_v = backend::KVType::f16;
+    // Whether the CLI's flag gave each side, which a model whose entries are kept in f32 alone refuses for another type.
+    bool kv_k_given = false, kv_v_given = false;
     // Tokens the KV pool holds in total, shared by every sequence; zero means one model context, which is what one conversation needs and what a server divides among its requests unless told otherwise.
     size_t kv_tokens = 0;
     // Sequences that may hold a recurrent state at once, for a model whose layers keep one: each state storage holds this many slots from load on and never grows.
@@ -270,6 +272,7 @@ struct Pass {
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
+    size_t committed = 0;                              // the stages stage_commit has committed, on every path a pass runs
 };
 
 // Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.
@@ -431,14 +434,44 @@ public:
             }
             if (layer.kv_aux && layer.cache != Cache::kv)
                 throw std::logic_error("inference: auxiliary KV rows need a KV layer");
+            if (layer.kv_pool && !keeps_kv(layer)) throw std::logic_error("inference: pooled KV rows need a KV or entries layer");
+            if (layer.cache == Cache::entries && !layer.headroom) throw std::logic_error("inference: an entries layer needs headroom for a pass after a mark");
+            if (layer.entry_source >= 0) {
+                const size_t s = (size_t)layer.entry_source, l = (size_t)(&layer - plan_.layers.data());
+                if (s >= l || layer.cache != Cache::entries || layer.kv_pool || plan_.layers[s].cache != Cache::entries || !plan_.layers[s].kv_pool)
+                    throw std::logic_error("inference: an entries layer reads the pooled rows of an earlier entries layer and keeps none of its own");
+            }
+            entries_ = entries_ || layer.cache == Cache::entries;
+            if (layer.cache == Cache::entries) entries_headroom_ = entries_headroom_ ? std::min(entries_headroom_, layer.headroom) : layer.headroom;
             kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(layer.kv_aux_floats(), sizeof(float)));
             if (!layer.token_history) continue;
-            if (token_width_ || layer.cache != Cache::state || layer.token_padding >= plan_.vocab)
-                throw std::logic_error("inference: token history needs one recurrent layer and a padding ID in the vocabulary");
+            // Several layers may read the history, one tail a sequence, so they agree on its width and padding (docs/DEEPSEEK4.md, section 4.3).
+            if ((token_width_ && (layer.token_history != token_width_ || layer.token_padding != token_padding_)) || !keeps_slot(layer) ||
+                layer.token_padding >= plan_.vocab)
+                throw std::logic_error("inference: token history needs recurrent layers of one width and padding, a padding ID in the vocabulary");
             token_width_ = layer.token_history;
             token_padding_ = layer.token_padding;
         }
         if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux_floats(), sizeof(float)));
+        for (size_t i = 0; i < plan_.carried.size(); ++i)
+            if (!plan_.carried[i] || plan_.carried[i] >= plan_.slots.size() || (i && plan_.carried[i] <= plan_.carried[i - 1]))
+                throw std::logic_error("inference: carried slots must be ascending arena slots past the residual");
+        // One storage gives every layer of a device the same heads, so entries, which keep none, and K and V do not share a model.
+        if (entries_ && std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::kv; }))
+            throw std::logic_error("inference: a plan keeps KV layers or entries layers, not both");
+        if (std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; })) entries_headroom_ = 0;
+        // An entries layer keeps no saved inputs: a retract inside a mark sets lengths alone, which holds while a pass after a mark stays within every ring's headroom.
+        for (const LayerPlan& layer : plan_.layers)
+            if (layer.cache == Cache::entries && options_.mark_slots && options_.mark_rows > layer.headroom)
+                throw std::runtime_error("inference: a mark of " + std::to_string(options_.mark_rows) + " rows passes the " + std::to_string(layer.headroom) +
+                                         " an entries layer's rings hold beyond what its rows read");
+        // An entries storage holds f32 until its packed form exists (docs/DEEPSEEK4.md, section 1.3), so a cache type given as another is refused by the flag's name.
+        if (entries_) {
+            if (options_.kv_k_given && options_.kv_k != backend::KVType::f32)
+                throw std::runtime_error(std::string("--cache-type-k: this model's entries are kept in f32 only, not ") + backend::kv_type_name(options_.kv_k));
+            if (options_.kv_v_given && options_.kv_v != backend::KVType::f32)
+                throw std::runtime_error(std::string("--cache-type-v: this model's entries are kept in f32 only, not ") + backend::kv_type_name(options_.kv_v));
+        }
 
         if (place_.mixer_device.empty() && place_.ffn_device.empty()) {
             place_.mixer_device.assign(n_layer, 0);
@@ -477,8 +510,9 @@ public:
             const quant::StorageType* type = quant::storage_type(id);
             return type ? std::string(type->name) + " (" + std::to_string(id) + ")" : std::to_string(id);
         };
+        // A source is read on the host to fill a table, never by a backend.
         auto accepts = [&](const Role& role, size_t device) {
-            return !role.tensor || backends[device]->supports_type(weights.tensors[*role.tensor].type);
+            return !role.tensor || role.kind == RoleKind::source || backends[device]->supports_type(weights.tensors[*role.tensor].type);
         };
         auto require_type = [&](const Role& role, size_t device, const std::string& part, bool lookup = false) {
             if (role.tensor && weights.tensors[*role.tensor].row_source && !lookup)
@@ -551,18 +585,30 @@ public:
         for (auto& b : backends) {
             devices_.push_back(std::make_unique<Device>());
             devices_.back()->b = std::move(b);
-            devices_.back()->local_layer.assign(n_layer, -1);
+            devices_.back()->kv_local.assign(n_layer, -1);
+            devices_.back()->state_local.assign(n_layer, -1);
         }
+        appends_.assign(n_layer, false);
         devices_[(size_t)place_.embed_device]->used = true;
         devices_[(size_t)place_.output_device]->used = true;
         for (int l = 0; l < (int)n_layer; ++l) {
             Device& a = *devices_[device_index(place_.mixer_device[(size_t)l])];
             ++a.mixer_layers;
-            if (plan_.layers[(size_t)l].cache == Cache::kv) {
-                a.local_layer[(size_t)l] = a.kv_layers++;
+            if (keeps_kv(plan_.layers[(size_t)l])) {
+                a.kv_local[(size_t)l] = a.kv_layers++;
                 ++kv_layers_;
-            } else if (plan_.layers[(size_t)l].cache == Cache::state) {
-                a.local_layer[(size_t)l] = a.state_layers++;
+            }
+            // A reader takes its source's storage layer, which on a device the source does not run on is a replica the first reader there makes and fills.
+            if (const int s = plan_.layers[(size_t)l].entry_source; s >= 0) {
+                if (a.kv_local[(size_t)s] < 0) {
+                    a.kv_local[(size_t)s] = a.kv_layers++;
+                    appends_[(size_t)l] = true;
+                    kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.layers[(size_t)s].kv_aux_floats(), sizeof(float)));
+                }
+                a.kv_local[(size_t)l] = a.kv_local[(size_t)s];
+            }
+            if (keeps_slot(plan_.layers[(size_t)l])) {
+                a.state_local[(size_t)l] = a.state_layers++;
                 ++state_layers_;
             }
             a.used = true;
@@ -626,7 +672,8 @@ public:
                 m.mixer_layers = first.mixer_layers;
                 m.kv_layers = first.kv_layers;
                 m.state_layers = first.state_layers;
-                m.local_layer = first.local_layer;
+                m.kv_local = first.kv_local;
+                m.state_local = first.state_local;
             }
         }
         try {
@@ -647,15 +694,16 @@ public:
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
                 // A tensor group's members each keep their KV heads, in blocks of the one pool its first member holds, so one block table serves them all.
-                std::vector<size_t> auxiliary((size_t)d.kv_layers, 0), pools((size_t)d.kv_layers, 0);
+                std::vector<size_t> auxiliary((size_t)d.kv_layers, 0);
+                std::vector<backend::AuxiliaryPool> pools((size_t)d.kv_layers);
                 for (size_t l = 0; l < plan_.layers.size(); ++l)
-                    if (plan_.layers[l].cache == Cache::kv && d.local_layer[l] >= 0) {
-                        auxiliary[(size_t)d.local_layer[l]] = plan_.layers[l].kv_aux;
-                        pools[(size_t)d.local_layer[l]] = plan_.layers[l].kv_pool;
+                    if (d.kv_local[l] >= 0 && plan_.layers[l].entry_source < 0) {
+                        auxiliary[(size_t)d.kv_local[l]] = plan_.layers[l].kv_aux;
+                        pools[(size_t)d.kv_local[l]] = {plan_.layers[l].kv_pool, plan_.layers[l].kv_pool_width};
                     }
                 if (plan_.drafter && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
                     auxiliary[drafter_kv_] = plan_.drafter->kv_aux;
-                    pools[drafter_kv_] = plan_.drafter->kv_pool;
+                    pools[drafter_kv_] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
                 }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
                                           budget, options_.kv_k, options_.kv_v, auxiliary, pools);
@@ -673,7 +721,8 @@ public:
             if (state_layers_) {
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
                 if (token_width_) {
-                    for (size_t s = 0; s < stages_.size(); ++s)
+                    // The first stage with a history layer owns the tails: it snapshots a pass's preceding ids and its commit advances them, and later history layers read the pass's snapshot.
+                    for (size_t s = stages_.size(); s-- > 0;)
                         for (int l = stages_[s].first; l < stages_[s].end; ++l)
                             if (plan_.layers[(size_t)l].token_history) token_stage_ = s;
                     token_tails_.resize(backend::size_mul(slots, token_width_));
@@ -684,15 +733,21 @@ public:
                     if (!d.state_layers) continue;
                     std::vector<size_t> tails((size_t)d.state_layers, 0);
                     for (size_t l = 0; l < n_layer; ++l)
-                        if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
-                            tails[(size_t)d.local_layer[l]] = plan_.layers[l].state_tail;
+                        if (place_.mixer_device[l] == (int)(di - d.member) && keeps_slot(plan_.layers[l]))
+                            tails[(size_t)d.state_local[l]] = plan_.layers[l].state_tail;
                     d.states = d.b->state_alloc((size_t)d.state_layers, slots, shard::state(plan_, width_), tails);
                     // Each mark's room for the recurrent inputs of its rows, per state layer of the device.
                     if (!options_.mark_slots) continue;
                     for (size_t l = 0; l < n_layer; ++l)
                         if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
                             d.saved_floats = std::max(d.saved_floats, shard::saved_floats(plan_.layers[l], width_));
-                    if (!d.saved_floats) throw std::logic_error("inference: a state layer that saves no inputs for a mark");
+                    // A device of entries layers alone saves nothing for a mark.
+                    if (!d.saved_floats) {
+                        for (size_t l = 0; l < n_layer; ++l)
+                            if (place_.mixer_device[l] == (int)(di - d.member) && plan_.layers[l].cache == Cache::state)
+                                throw std::logic_error("inference: a state layer that saves no inputs for a mark");
+                        continue;
+                    }
                     // After every mark's inputs, each state layer's room for the slots its update writes, mark_rows rows of each, so a rerun reads the inputs where they were saved and runs the layers unordered.
                     d.rerun_base = backend::size_mul(backend::size_mul(options_.mark_slots, (size_t)d.state_layers), backend::size_mul(options_.mark_rows, d.saved_floats));
                     for (size_t l = 0; l < n_layer; ++l)
@@ -718,7 +773,15 @@ public:
             // The architecture's tables can be read by any part, so every used device adopts them; CPU buffers borrow the shared host vectors for the model's lifetime.
             tables_.resize(plan_.tables.size());
             for (size_t t = 0; t < tables_.size(); ++t) tables_[t].assign(plan_.tables[t], 0.0f);
-            arch_->fill_tables(tables_);
+            // The source roles' host views, in plan order, read only while the tables are filled.
+            std::vector<TensorView> sources;
+            for (const LayerPlan& layer : plan_.layers)
+                for (const Role& role : layer.roles)
+                    if (role.kind == RoleKind::source) {
+                        sources.push_back(weights.tensors[*role.tensor]);
+                        if (!sources.back().data) throw std::runtime_error("inference: no bytes for the source tensor " + sources.back().name);
+                    }
+            arch_->fill_tables(tables_, sources);
             for (auto& d : devices_)
                 if (d->used)
                     for (const std::vector<float>& t : tables_) d->tables.push_back(d->b->adopt(t.data(), t.size() * sizeof(float)));
@@ -1012,6 +1075,7 @@ public:
     void add_media(MediaRun run) { add_media(seq_, std::move(run)); }
     // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams).
     bool takes_images() const { return !plan_.image_streams.empty(); }
+    const std::string& unserved() const { return plan_.unserved; }
     // The rows of a sequence's images, [first, end) in order, which a drafter does not draft from; the CLI's own sequence without one.
     std::vector<std::pair<size_t, size_t>> image_rows(const Sequence& s) const {
         std::vector<std::pair<size_t, size_t>> rows;
@@ -1252,10 +1316,10 @@ private:
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
         size_t member = 0;                       // its place in its tensor group, 0 for the first member, which a placement names
         int mixer_layers = 0;
-        int kv_layers = 0;                       // its mixer layers whose cache is KV
-        int state_layers = 0;                    // and those whose cache is a state
+        int kv_layers = 0;                       // its mixer layers that keep rows in the KV blocks
+        int state_layers = 0;                    // and those that keep a state slot
         int storage_index = -1;
-        std::vector<int> local_layer;            // model layer -> layer in the storage of its cache
+        std::vector<int> kv_local, state_local;  // model layer -> layer in the KV storage, and in the state storage, or -1; a reader's is its source's, and a source another device runs has its replica's here
         std::unique_ptr<backend::KVStorage> storage;
         BlockPool pool;
         std::unique_ptr<backend::StateStorage> states;
@@ -1279,8 +1343,11 @@ private:
     std::vector<std::unique_ptr<Device>> devices_;
     std::vector<Device*> storages_;              // the devices whose mixer layers keep KV
     size_t kv_layers_ = 0;                       // the model's layers that keep KV
+    std::vector<bool> appends_;                  // each layer: whether it fills its device's replica of its source (Step::appends)
     size_t kv_aux_ = 0;                          // auxiliary bytes per position over those layers
-    size_t state_layers_ = 0;                    // and those that keep a state
+    size_t state_layers_ = 0;                    // and those that keep a state slot
+    bool entries_ = false;                       // some layer keeps entries
+    size_t entries_headroom_ = 0;                // the fewest rows past a history every ring holds beyond what its rows read, where every layer keeping a slot keeps entries; 0 otherwise
     // Host-visible memory for copies of histories (Model::save_host), in slabs a released copy leaves per device for the next, since allocating and pinning host memory costs far more than copying into it.
     static constexpr size_t kHostSlab = size_t(64) << 20;
     std::vector<size_t> host_copy_bytes(size_t length, bool blocks, size_t first, bool state) const;
@@ -1382,16 +1449,22 @@ private:
             const TensorView& t = weights.tensors[i];
             if (!role_fits(role, t.shape, t.type)) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
             Weight weight{t.type, {}, size_t(role.in), size_t(role.out), t.row_source};
+            if (role.kind == RoleKind::source) {
+                if (t.row_source || t.scale) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
+                return weight;
+            }
             weight.scale_count = weight_scale_count(weights, i);
             if (weight.scale_count) weight.scales = take(*t.scale, device + member);
             if (t.row_source) return weight;
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
-            if (width_ > 1 && role.shard.axis != Axis::none) {
+            if (role.tensor_rows || (width_ > 1 && role.shard.axis != Axis::none)) {
                 const shard::Held held = shard::held(role, t, width_, member);
                 backend::BufferPtr buffer;
                 if (adopt) {
                     buffer = adopt(i, b, &held);
+                } else if (held.parts.size() == 1 && held.parts[0].own.begin == held.parts[0].cover.begin && held.parts[0].own.count == held.parts[0].cover.count) {
+                    buffer = b.adopt(t.data + held.parts[0].cover.begin * held.row, held.bytes);
                 } else {
                     packed_.emplace_back(held.bytes);
                     shard::pack(held, t.data, packed_.back().data());
@@ -1481,6 +1554,7 @@ private:
     // Defined in model/history.hpp, the owner of a sequence's history (docs/SPECULATIVE.md, section 1).
     void settle(Sequence& s, const char* what);
     size_t rewind(Sequence& s, size_t length, const Defer* defer = nullptr) noexcept;
+    bool rewind_by_length(Sequence& s, size_t length, size_t rows, const uint32_t* tail) noexcept;
     size_t saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const;
     void save(ExecContext& ctx, const Pass& p, size_t dev, int l);
     void save_h(ExecContext& ctx, const Pass& p);
@@ -1523,7 +1597,7 @@ private:
     void advance_tokens(uint32_t* dst, const uint32_t* previous, size_t history, const uint32_t* ids, size_t n) const noexcept;
     void draft_context(ExecContext& ctx, Pass& p, size_t s);
     void finish(ExecContext& ctx, const Pass& p);
-    void roll_back(Pass& p) noexcept;
+    void roll_back(Pass& p, const size_t* ends = nullptr) noexcept;
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers);
     bool argmax_buffers(ExecContext& ctx, size_t end);
@@ -1531,7 +1605,7 @@ private:
     std::pair<double, double> receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
-    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs) const;
+    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1) const;
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
     std::vector<Sequence::Media> carried(const Sequence& s, size_t length) const;

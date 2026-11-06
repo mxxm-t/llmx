@@ -42,9 +42,10 @@ public:
     size_t v_block_bytes() const { return vblock_; }
     size_t auxiliary_width(size_t layer) const { return aux_widths_.at(layer); }
     size_t auxiliary_block_bytes(size_t layer) const { return auxblock_.at(layer); }
-    // A layer's auxiliary block holds its tokens' rows, then with a pool of c one row of the width for each complete group of c tokens, which select_kv writes as the group completes.
+    // A layer's auxiliary block holds its tokens' rows, then with a pool of c one row of the pool's width for each complete group of c tokens, which select_kv writes as the group completes.
     // Those rows follow from the tokens' rows and their positions, so whatever moves a token's position later must drop or recompute them; nothing does today.
-    size_t auxiliary_pool(size_t layer) const { return aux_pools_.at(layer); }
+    size_t auxiliary_pool(size_t layer) const { return aux_pools_.at(layer).tokens; }
+    size_t auxiliary_pool_width(size_t layer) const { return aux_pools_.at(layer).width; }
     size_t auxiliary_rows_bytes(size_t layer) const { return size_mul(size_mul(bt_, aux_widths_.at(layer)), sizeof(float)); }
     size_t total_block_bytes() const { return total_block_bytes_; }
     bool backed(size_t id) const { return id < backed_; }
@@ -61,24 +62,22 @@ public:
         const size_t kbytes = size_mul(want, kblock_), vbytes = size_mul(want, vblock_);
         // The old buffers and the new are held together while the copies run.
         const size_t peak = std::max(peak_.load(), size_add(allocated_bytes(), size_mul(want, total_block_bytes_)));
+        // A storage of no heads holds no K or V buffer, only its pooled rows.
         std::vector<BufferPtr> nk(layers()), nv(layers()), na(layers());
         try {
             for (size_t l = 0; l < layers(); ++l) {
-                nk[l] = owner_->alloc(kbytes, Memory::device);
-                nv[l] = owner_->alloc(vbytes, Memory::device);
+                if (kblock_) nk[l] = owner_->alloc(kbytes, Memory::device);
+                if (vblock_) nv[l] = owner_->alloc(vbytes, Memory::device);
                 if (auxblock_[l]) na[l] = owner_->alloc(size_mul(want, auxblock_[l]), Memory::device);
-                if (k_[l]) {
-                    owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
-                    owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
-                    if (auxiliary_[l]) owner_->copy(*na[l], 0, *auxiliary_[l], 0, auxiliary_[l]->size());
-                }
+                if (k_[l]) owner_->copy(*nk[l], 0, *k_[l], 0, k_[l]->size());
+                if (v_[l]) owner_->copy(*nv[l], 0, *v_[l], 0, v_[l]->size());
+                if (auxiliary_[l]) owner_->copy(*na[l], 0, *auxiliary_[l], 0, auxiliary_[l]->size());
             }
-            for (size_t l = 0; l < layers(); ++l)
-                if (k_[l]) {
-                    retire(k_[l]);
-                    retire(v_[l]);
-                    if (auxiliary_[l]) retire(auxiliary_[l]);
-                }
+            for (size_t l = 0; l < layers(); ++l) {
+                if (k_[l]) retire(k_[l]);
+                if (v_[l]) retire(v_[l]);
+                if (auxiliary_[l]) retire(auxiliary_[l]);
+            }
             after_growth(nk, nv);
         } catch (...) {
             // The new buffers can already be queued copy destinations, so the stream drains before they are released.
@@ -148,7 +147,7 @@ protected:
     // Nothing is backed yet: the whole budget, `max_tokens` rounded up to whole blocks of every layer's K, V and auxiliary rows, is checked here in bytes.
     // `prefix` starts every error the storage throws, the backend's own.
     BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, size_t layers, size_t heads, size_t dim,
-                   size_t max_tokens, KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {})
+                   size_t max_tokens, KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {})
         : owner_(&owner), prefix_(prefix), bt_(block_tokens), heads_(heads), dim_(dim), layers_(layers),
           max_(blocks_for(max_tokens, block_tokens)), kt_(kt), vt_(vt),
           kblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(kt))),
@@ -161,11 +160,15 @@ protected:
         size_t total = size_mul(layers, size_add(kblock_, vblock_));
         for (size_t l = 0; l < layers; ++l) {
             aux_widths_[l] = auxiliary_widths.empty() ? 0 : auxiliary_widths[l];
-            aux_pools_[l] = auxiliary_pools.empty() ? 0 : auxiliary_pools[l];
-            if (aux_pools_[l] && (!aux_widths_[l] || block_tokens % aux_pools_[l])) fail("an auxiliary pool needs auxiliary rows and a block of whole groups");
-            auxblock_[l] = size_mul(size_mul(size_add(block_tokens, aux_pools_[l] ? block_tokens / aux_pools_[l] : 0), aux_widths_[l]), sizeof(float));
+            aux_pools_[l] = auxiliary_pools.empty() ? AuxiliaryPool{} : auxiliary_pools[l];
+            const AuxiliaryPool& pool = aux_pools_[l];
+            if (!pool.tokens != !pool.width || (pool.tokens && block_tokens % pool.tokens)) fail("an auxiliary pool needs rows of some width and a block of whole groups");
+            auxblock_[l] = size_mul(size_add(size_mul(block_tokens, aux_widths_[l]), pool.tokens ? size_mul(block_tokens / pool.tokens, pool.width) : 0), sizeof(float));
             total = size_add(total, auxblock_[l]);
         }
+        // A storage of no heads holds pooled rows alone, on every layer.
+        if (!kblock_ && std::any_of(aux_pools_.begin(), aux_pools_.end(), [&](const AuxiliaryPool& p) { return !p.tokens || aux_widths_[size_t(&p - aux_pools_.data())]; }))
+            fail("a KV storage of no heads holds only pooled rows on every layer");
         total_block_bytes_ = total;
         size_mul(max_, total_block_bytes_);
     }
@@ -208,7 +211,9 @@ private:
     size_t kblock_, vblock_, total_block_bytes_ = 0;
     std::vector<BufferPtr> k_, v_;
     std::vector<BufferPtr> auxiliary_;
-    std::vector<size_t> aux_widths_, aux_pools_, auxblock_;
+    std::vector<size_t> aux_widths_;
+    std::vector<AuxiliaryPool> aux_pools_;
+    std::vector<size_t> auxblock_;
 };
 
 } // namespace backend

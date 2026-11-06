@@ -277,8 +277,8 @@ public:
             b.add_bias(q, bias, n, D);
             b.add_bias(k, {bias.buffer, bias.offset + D}, n, D);
             b.add_bias(v, {bias.buffer, bias.offset + 2 * D}, n, D);
-            b.norm_rope_partial(q, q, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeStreams{2, of});
-            b.norm_rope_partial(k, k, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeStreams{2, of});
+            b.norm_rope_partial(q, q, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
+            b.norm_rope_partial(k, k, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeForm{}, backend::RopeStreams{2, of});
             b.kv_write(0, s.view, 1, k, v);
             return;
         }

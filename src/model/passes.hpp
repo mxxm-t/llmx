@@ -158,19 +158,25 @@ inline void Model::end_pass(ExecContext& ctx, size_t slot) {
 // Later passes of its sequences go first, newest first, so the history ends where this pass found it; their slots are returned, abandoned too.
 inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
     Pass& p = in_flight(ctx, slot);
-    std::vector<size_t> later;
+    std::vector<size_t> later, entry(ctx.passes.size()), ends(p.entries.size());
+    for (size_t e = 0; e < p.entries.size(); ++e) ends[e] = p.start[e] + p.entries[e].n;
     for (size_t k = 0; k < ctx.passes.size(); ++k) {
         const Pass& o = ctx.passes[k];
         if (k == slot || !o.in_flight) continue;
         for (size_t e = 0; e < p.entries.size(); ++e)
-            if (o.entries.size() == 1 && o.entries[0].seq == p.entries[e].seq && o.start[0] > p.start[e]) later.push_back(k);
+            if (o.entries.size() == 1 && o.entries[0].seq == p.entries[e].seq && o.start[0] > p.start[e]) {
+                later.push_back(k);
+                entry[k] = e;
+                ends[e] = std::max(ends[e], o.start[0] + o.entries[0].n);
+            }
     }
     std::sort(later.begin(), later.end(), [&](size_t a, size_t b) { return ctx.passes[a].start[0] > ctx.passes[b].start[0]; });
+    // The rows every later pass wrote count against each ring's headroom, so each goes back by the furthest end in flight.
     for (size_t k : later) {
-        roll_back(ctx.passes[k]);
+        roll_back(ctx.passes[k], &ends[entry[k]]);
         release(ctx.passes[k]);
     }
-    roll_back(p);
+    roll_back(p, ends.data());
     release(p);
     return later;
 }
@@ -241,7 +247,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.argmax = want && width_ == 1 && std::all_of(entries, entries + n_entries, [](const BatchEntry& en) { return !en.want_logits || en.argmax; }) && argmax_buffers(ctx, logits_base + want);
     p.handoff = 0;
     p.logits_base = logits_base;
-    p.ran = 0;
+    p.ran = p.committed = 0;
     p.ids.resize(rows);
     p.previous_tokens.resize(backend::size_mul(n_entries, token_width_));
     p.image_rows = image_rows;
@@ -522,7 +528,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
         }
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
         if (f != cur) { cross(ctx, cur, f, 0, p.rows); cur = f; }
-        arch_->ffn(part(ctx, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all));
+        arch_->ffn(part(ctx, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));
     }
     if (s + 1 < stages_.size()) {
         // A residual already where the next stage runs stays there.
@@ -616,7 +622,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
         const auto layer_row = [&](size_t m) { return home_row(m, (size_t)l); };
         summed([&] { group_sum(ctx, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
         for (size_t m = 0; m < W; ++m) {
-            Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all);
+            Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
             step.width = W;
             step.partial = sum.partial(m);
             if (has_experts(plan_.layers[(size_t)l])) clear_partial(ctx, g + m, step.partial, p.rows);
@@ -697,6 +703,7 @@ inline void Model::stage_commit(Pass& p, size_t s) {
         // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
         if (s + 1 == stages_.size() && p.kept[e].held()) q.kept_ = std::move(p.kept[e]);
     }
+    p.committed = s + 1;
     if (s + 1 == stages_.size())
         for (size_t e = 0; e < p.entries.size(); ++e) release_media(*p.entries[e].seq);
 }
@@ -745,9 +752,15 @@ inline void Model::finish(ExecContext& ctx, const Pass& p) {
 }
 
 // A failed pass: every device drained, every entry's histories back to where the pass found them (rewind, to the checkpoint on a model that keeps a state), and the blocks and checkpoint slots its stages took returned.
-inline void Model::roll_back(Pass& p) noexcept {
+// `ends`, per entry, is the furthest row any pass in flight of its sequence wrote to, where later passes continue it.
+inline void Model::roll_back(Pass& p, const size_t* ends) noexcept {
     retire();
-    for (size_t e = 0; e < p.entries.size(); ++e) rewind(*p.entries[e].seq, p.start[e]);
+    for (size_t e = 0; e < p.entries.size(); ++e) {
+        // The token stage's snapshot is the tail the pass found, once that stage committed and advanced it.
+        const uint32_t* tail = token_width_ && p.committed > token_stage_ ? p.previous_tokens.data() + e * token_width_ : nullptr;
+        const size_t rows = !ends ? p.entries[e].n : std::max(p.entries[e].n, ends[e] - p.start[e]);
+        if (!rewind_by_length(*p.entries[e].seq, p.start[e], rows, tail)) rewind(*p.entries[e].seq, p.start[e]);
+    }
     p.kept.clear();
 }
 
@@ -842,7 +855,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     for (const auto& d : devices_) used += d->used;
     if (used > 1 && ctx.handoff_rows < rows) {
         std::vector<std::vector<backend::BufferPtr>> handoff(devices_.size());
-        const size_t bytes = mul(mul(rows, plan_.residual), sizeof(float));
+        const size_t bytes = mul(mul(rows, handoff_width(plan_)), sizeof(float));
         for (size_t d = 0; d < devices_.size(); ++d)
             for (size_t i = 0; devices_[d]->sends && i < buffers; ++i)
                 handoff[d].push_back(devices_[d]->b->alloc(bytes, backend::Memory::host_visible));
@@ -902,25 +915,33 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     }
 }
 
-// The residual stream moves from one device's x slot to another's through host memory, `rows` rows from `base`; a few kilobytes on a decode token.
-// `send` copies them into the source's host-visible handoff buffer inside the source's own work, so they outlast the source moving on to its next pass, and the submission that carries the copy says when they are there.
+// The residual stream and each carried slot move between devices through host memory, `rows` rows from `base`, in a buffer of one region of handoff_rows rows a slot.
+// `send` copies them into the source's host-visible handoff buffer inside its own work, and the submission carrying the copy says when they are there.
 inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows) {
-    const size_t E = plan_.residual;
-    const backend::Slice x = slot(ctx, from, 0);
-    devices_[from]->b->copy(*ctx.handoff[from][handoff], base * E * sizeof(float), *x.buffer,
-                            (x.offset + base * E) * sizeof(float), rows * E * sizeof(float));
+    size_t region = 0;
+    for (size_t i = 0; i <= plan_.carried.size(); ++i) {
+        const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
+        const backend::Slice x = slot(ctx, from, k);
+        devices_[from]->b->copy(*ctx.handoff[from][handoff], (region + base * W) * sizeof(float), *x.buffer,
+                                (x.offset + base * W) * sizeof(float), rows * W * sizeof(float));
+        region += ctx.handoff_rows * W;
+    }
 }
 
 // `receive` waits for that submission and writes the rows into the destination's residual, enqueued there; it returns the host's milliseconds in the wait and in the write.
 inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
     using clock = std::chrono::steady_clock;
-    const size_t E = plan_.residual;
     const auto t0 = clock::now();
     devices_[from]->b->wait(sent);
     const auto t1 = clock::now();
-    const backend::Slice x = slot(ctx, to, 0);
-    const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][handoff]->host_ptr() + base * E * sizeof(float);
-    devices_[to]->b->write(*x.buffer, (x.offset + base * E) * sizeof(float), rows_out, rows * E * sizeof(float));
+    size_t region = 0;
+    for (size_t i = 0; i <= plan_.carried.size(); ++i) {
+        const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
+        const backend::Slice x = slot(ctx, to, k);
+        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][handoff]->host_ptr() + (region + base * W) * sizeof(float);
+        devices_[to]->b->write(*x.buffer, (x.offset + base * W) * sizeof(float), rows_out, rows * W * sizeof(float));
+        region += ctx.handoff_rows * W;
+    }
     return {std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(clock::now() - t1).count()};
 }
 
@@ -955,24 +976,25 @@ inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l)
                         b.write(*streamed[role.id].data, 0, home[role.id].data->host_ptr(), home[role.id].data->size());
                 copied = true;
             }
-            arch_->ffn(part(ctx, dev, streamed.data(), kind, base, end - base, runs));
+            arch_->ffn(part(ctx, dev, streamed.data(), kind, base, end - base, runs, l));
         } else {
             cross(ctx, dev, host, base, end - base);
-            arch_->ffn(part(ctx, host, home.data(), kind, base, end - base, runs));
+            arch_->ffn(part(ctx, host, home.data(), kind, base, end - base, runs, l));
             cross(ctx, host, dev, base, end - base);
         }
         base = end;
     }
 }
 
-// A call of a part on device `dev`: `rows` rows of the residual from row `base` with their runs, and the row of weights `w` by role id, the layer's kind with it.
-inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs) const {
+// A call of a part on device `dev`: `rows` rows of the residual from row `base` with their runs, and the row of weights `w` by role id, the layer's kind and index with it.
+inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer) const {
     ExecContext::Scratch& sc = ctx.scratch[dev];
     const Device& d = *devices_[dev];
     Step step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
                 rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &sc.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
     step.indices = sc.indices.data();
     step.indices_size = sc.indices.size();
+    step.layer = layer;
     return step;
 }
 
@@ -980,15 +1002,17 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
 inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const {
     const Device& d = *devices_[dev];
     const LayerPlan& layer = plan_.layers[(size_t)l];
-    Step s = part(ctx, dev, home_row(d.member, (size_t)l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()});
-    if (layer.cache == Cache::kv) {
+    Step s = part(ctx, dev, home_row(d.member, (size_t)l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()}, l);
+    if (keeps_kv(layer) || layer.entry_source >= 0) {
         s.views = p.views[(size_t)d.storage_index * width_ + d.member].data();
         s.n_views = p.entries.size();
-        s.kv_layer = (size_t)d.local_layer[(size_t)l];
-    } else if (layer.cache == Cache::state) {
+        s.kv_layer = (size_t)d.kv_local[(size_t)l];
+        s.appends = appends_[(size_t)l];
+    }
+    if (keeps_slot(layer)) {
         s.states = p.states[dev].data();
         s.n_views = p.entries.size();
-        s.state_layer = (size_t)d.local_layer[(size_t)l];
+        s.state_layer = (size_t)d.state_local[(size_t)l];
     }
     s.pos = p.pos.data();
     if (p.image_rows) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};

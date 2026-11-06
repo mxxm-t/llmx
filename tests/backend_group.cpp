@@ -412,7 +412,7 @@ static size_t check_row_positions(backend::CpuBackend& cpu) {
     std::vector<float> out(rows * heads * head_dim);
     const auto o_buf = cpu.adopt(out.data(), out.size() * sizeof(float));
     cpu.norm_rope_partial({o_buf.get(), 0}, {x_buf.get(), 0}, rows, stride, head_dim, heads, head_dim, head_dim, {w_buf.get(), 0}, 1e-6f,
-                          {c_buf.get(), 0}, {s_buf.get(), 0}, pos);
+                          {c_buf.get(), 0}, {s_buf.get(), 0}, pos, backend::RopeForm{});
     size_t count = 0;
     for (size_t r = 0; r < rows; ++r)
         for (size_t h = 0; h < heads; ++h) {
@@ -511,7 +511,7 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
         std::vector<float> ids_w(rows * k), w(rows * k);
         const auto sb = cpu.adopt(scores.data(), scores.size() * sizeof(float));
         const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
-        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
         std::vector<uint32_t> ids(rows * k);
         std::vector<float> got(rows * k);
         cpu.read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
@@ -530,7 +530,7 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
         std::vector<float> ids_w(k), w(k);
         const auto sb = cpu.adopt(scores.data(), scores.size() * sizeof(float));
         const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
-        cpu.route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        cpu.route_experts({sb.get(), 0}, 1, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
         std::vector<uint32_t> ids(k);
         std::vector<float> got(k);
         cpu.read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
@@ -562,7 +562,7 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
         const auto x2b = cpu.adopt(x2.data(), x2.size() * sizeof(float)), yb = cpu.adopt(y.data(), y.size() * sizeof(float));
         const auto gb = cpu.adopt(g.data(), g.size() * sizeof(float));
         const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
-        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ib.get(), 0}, {wb.get(), 0});
         const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, n_expert};
         cpu.matmul_experts({{{quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
         cpu.matmul_experts_add({quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);

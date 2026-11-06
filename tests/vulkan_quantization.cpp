@@ -290,7 +290,7 @@ void check_combine_identity(backend::VulkanBackend& preserved, backend::VulkanBa
                 const auto db = b.adopt(down.data(), down.size() * sizeof(float)), sb = b.adopt(scores.data(), scores.size() * sizeof(float));
                 const auto xb = b.adopt(x.data(), x.size() * sizeof(float)), yb = b.adopt(y.data(), y.size() * sizeof(float));
                 const auto ids = b.alloc(rows * k * sizeof(float), backend::Memory::device), wts = b.alloc(rows * k * sizeof(float), backend::Memory::device);
-                b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+                b.route_experts({sb.get(), 0}, rows, n_expert, k, backend::RouteRule::softmax(true), {ids.get(), 0}, {wts.get(), 0});
                 const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
                 const backend::RowRun decode{rows, 1};
                 b.matmul_experts_add({quant::GGML_TYPE_F32, {db.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, {&decode, 1}, backend::Dtype::f16);
@@ -383,7 +383,7 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
             if (producer == 1) {
                 for (size_t j = 0; j < width; ++j) source[j] = input[j] / 32;
                 const auto up = b.adopt(source.data(), source.size() * sizeof(float));
-                b.silu_mul({produced.get(), 0}, {a.get(), 0}, {up.get(), 0}, width);
+                b.silu_mul({produced.get(), 0}, {a.get(), 0}, {up.get(), 0}, width, 0.0f);
                 b.sync();
             } else if (producer == 3) {
                 b.silu_scaled({produced.get(), 0}, {x.get(), 0}, 1, width, 1.0f);

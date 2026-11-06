@@ -123,17 +123,23 @@ struct Held {
 };
 
 // Member `member` of `width`'s copy of `role`'s tensor `t`.
+// A role over a run of rows (Role::first_row) holds its run's rows, and its member's share of them, as a row shard does.
 inline Held held(const Role& role, const TensorView& t, size_t width, size_t member) {
     Held h;
-    if (role.shard.axis == Axis::none || width == 1) {
+    if (role.tensor_rows && role.shard.axis == Axis::columns) throw std::logic_error("shard: a run of rows split by columns " + role.name);
+    if (!role.tensor_rows && (role.shard.axis == Axis::none || width == 1)) {
         h.bytes = t.bytes;
         return h;
     }
-    h.axis = role.shard.axis;
+    h.axis = role.tensor_rows ? Axis::rows : role.shard.axis;
     const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);
     h.row = quant::row_bytes(t.type, nin);
     if (h.axis == Axis::rows) {
         h.parts = parts(role, width, member);
+        for (Part& p : h.parts) {
+            p.own.begin += role.first_row;
+            p.cover.begin += role.first_row;
+        }
         for (const Part& p : h.parts) h.bytes = backend::size_add(h.bytes, backend::size_mul(size_t(p.cover.count), h.row));
         return h;
     }
@@ -205,6 +211,7 @@ inline uint64_t share(const Role& role, size_t width, size_t member) {
 // The shape of a member's copy of `role`'s tensor `t`, the fastest dimension first.
 inline std::vector<uint64_t> shape(const Role& role, const TensorView& t, size_t width, size_t member) {
     std::vector<uint64_t> out = t.shape;
+    if (role.tensor_rows && out.size() >= 2) out[1] = role.out;
     if (role.shard.axis == Axis::none || width == 1) return out;
     out.at(role.shard.axis == Axis::columns ? 0 : 1) = share(role, width, member);
     return out;

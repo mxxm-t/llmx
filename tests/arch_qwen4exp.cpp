@@ -147,7 +147,7 @@ void rotary_tables() {
     tables[0].resize(size_t(c.context_length) * 32);
     tables[1].resize(tables[0].size());
     tables[2].resize(size_t(c.hc_count) * size_t(c.n_embd));
-    arch.fill_tables(tables);
+    arch.fill_tables(tables, {});
     struct Cell { size_t position, column; float cosine, sine; };
     // Original HF rotary outputs, including all 32 frequencies at the 16K boundary; provenance is in docs/QWEN38-FLASH.md.
     const Cell cells[] = {

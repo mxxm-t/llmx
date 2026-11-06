@@ -1141,6 +1141,18 @@ inline size_t Model::rewind(Sequence& s, size_t length, const Defer* defer) noex
     return to;
 }
 
+// A failed pass's `rows` from `length` undone by lengths alone, its state and the token tail it found (`tail`) kept, where docs/DEEPSEEK4.md, section 4.3 allows it; false leaves the history to rewind.
+inline bool Model::rewind_by_length(Sequence& s, size_t length, size_t rows, const uint32_t* tail) noexcept {
+    if (!entries_headroom_ || rows > entries_headroom_ || !length || plan_.drafter || s.mark_.held() || !s.state_.held() ||
+        std::any_of(s.from_.begin(), s.from_.end(), [](size_t f) { return f != Sequence::kLive; }))
+        return false;
+    if (tail) std::copy_n(tail, token_width_, token_tails_.data() + s.state_.slot() * token_width_);
+    for (size_t& n : s.length_) n = std::min(n, length);
+    for (auto& kv : s.kv_) kv.truncate(length);
+    drop_media(s, length, nullptr);
+    return true;
+}
+
 // Where row 0 of saved item `item` of local state layer `layer` of mark buffer `buffer` sits in device d's saved buffer, in floats; its rows follow one another, each as wide as a member's share of the item on a tensor group.
 inline size_t Model::saved_at(const Device& d, const LayerPlan& lp, size_t buffer, size_t layer, size_t item) const {
     size_t before = 0;
@@ -1159,7 +1171,7 @@ inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
         const size_t r0 = e ? p.runs[e - 1].end : 0, n = p.entries[e].n;
         for (size_t i = 0; i < lp.saved.size(); ++i) {
             const Saved v = shard::saved(lp.saved[i], width_);
-            d.b->copy(*d.saved, saved_at(d, lp, m.hold.buffer(), (size_t)d.local_layer[(size_t)l], i) * sizeof(float), *sc.arena,
+            d.b->copy(*d.saved, saved_at(d, lp, m.hold.buffer(), (size_t)d.state_local[(size_t)l], i) * sizeof(float), *sc.arena,
                       sc.offset[v.slot] + (v.plane * p.rows + r0) * v.width * sizeof(float), n * v.width * sizeof(float));
         }
     }
@@ -1279,7 +1291,7 @@ inline void Model::rerun_on(size_t dev, const Rerun& a) {
             for (int l = stages_[st].first; l < stages_[st].end; ++l) {
                 const LayerPlan& lp = plan_.layers[(size_t)l];
                 if (lp.cache != Cache::state || phase >= lp.recur_phases) continue;
-                const size_t layer = (size_t)d.local_layer[(size_t)l];
+                const size_t layer = (size_t)d.state_local[(size_t)l];
                 size_t at = d.rerun_base + layer * options_.mark_rows * d.rerun_floats;
                 std::fill(offsets.begin(), offsets.end(), 0);
                 for (size_t slot : lp.recur_writes) {
@@ -1288,7 +1300,7 @@ inline void Model::rerun_on(size_t dev, const Rerun& a) {
                 }
                 for (size_t i = 0; i < lp.saved.size(); ++i)
                     if (!lp.saved[i].plane) offsets[lp.saved[i].slot] = saved_at(d, lp, a.buffer, layer, i) * sizeof(float);
-                Step step = part(ctx_, dev, home_row(d.member, (size_t)l), lp.kind, 0, options_.mark_rows, {&run, 1});
+                Step step = part(ctx_, dev, home_row(d.member, (size_t)l), lp.kind, 0, options_.mark_rows, {&run, 1}, l);
                 step.width = width_;
                 step.arena = d.saved.get();
                 step.offsets = offsets.data();

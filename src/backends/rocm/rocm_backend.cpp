@@ -147,7 +147,7 @@ const RocmBuffer& as_rocm(const Buffer& b) {
 class RocmKVStorage final : public BlockKVStorage {
 public:
     RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
-                  const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools);
+                  const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools);
 private:
     void retire(const BufferPtr& old) override;
 };
@@ -489,7 +489,8 @@ public:
         keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
-                           size_t rope_dim, CSlice w, float eps, CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams) override {
+                           size_t rope_dim, CSlice w, float eps, CSlice cos, CSlice sin, const uint32_t* pos, const RopeForm& form, RopeStreams streams) override {
+        form.plain_only("rocm");
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("rocm: invalid partial rope dimensions");
         if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("rocm: a rope of several streams without their pairs");
@@ -753,7 +754,8 @@ public:
         void* args[] = {&o, &xp, &rp, &wp, &st, &tp, &cc, &tt, &dl, &hs, &sl, &pf, &ch};
         launch(kDilatedConvSiluAdd, (unsigned)((channels + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs) override {
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs) override {
+        no_clamp("rocm", limit);
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), gate, up}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
         float* d = f32(dst);
@@ -770,7 +772,8 @@ public:
         keep(t, d, n);
     }
     // A row a block of 64, its reductions in one tree of 64 pairs (kernels/f32.hip, llmx_moe_route).
-    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
+    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) override {
+        const bool normalize = rule.softmax_only("rocm");
         if (!k || k > n_expert || k > 256 || n_expert > 1024) throw std::runtime_error("rocm: routing takes 1 to 256 of at most 1024 experts");
         if (!rows) return;
         span(*scores.buffer, scores.offset * sizeof(float), size_mul(size_mul(rows, n_expert), sizeof(float)));
@@ -824,9 +827,9 @@ public:
 
     KVLayout kv_layout() const override { return {kBlockTokens}; }
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim, size_t max_tokens, KVType k_type, KVType v_type,
-                                        const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools) override {
-        if (layers == 0 || n_head_kv == 0 || head_dim == 0) throw std::runtime_error("rocm: invalid KV storage shape");
-        if (head_dim > kThreads) throw std::runtime_error("rocm: a KV head wider than " + std::to_string(kThreads) + " is not implemented");
+                                        const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools) override {
+        if (layers == 0 || (n_head_kv && head_dim == 0)) throw std::runtime_error("rocm: invalid KV storage shape");
+        if (n_head_kv && head_dim > kThreads) throw std::runtime_error("rocm: a KV head wider than " + std::to_string(kThreads) + " is not implemented");
         return std::make_unique<RocmKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k, CSlice v, CSlice auxiliary) override {
@@ -2119,7 +2122,7 @@ private:
 };
 
 RocmKVStorage::RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
-                             const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
+                             const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
     : BlockKVStorage(owner, "rocm", kBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
 // Dropping the old buffer is enough: its memory waits in the graves for the copies recorded before.

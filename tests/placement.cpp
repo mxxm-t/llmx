@@ -325,6 +325,258 @@ void heterogeneous_saved_fits() {
     }
 }
 
+// An error's text, or empty where `f` returns.
+std::string refusal(const std::function<void()>& f) {
+    try { f(); } catch (const std::exception& e) { return e.what(); }
+    return {};
+}
+
+// A plan whose layers all keep entries (docs/DEEPSEEK4.md, section 4.3): no K or V, a state slot of its tail each, and pooled rows of groups of 2 and of 1 on two layers and none on the third.
+// The fit, the storage made whole and its blocks must hold exactly those, and the plans, marks and cache types the kind refuses are refused by their texts.
+void entries_kept() {
+    const gguf::GGUFModel file = tiny_qwen(3, 2 * 128, true);
+    const infer::ModelWeights weights = infer::gguf_weights(file);
+    infer::ModelPlan plan = infer::plan_model(weights);
+    plan.kv_heads = 0;
+    const size_t tails[3] = {100, 36, 52}, pools[3] = {2, 1, 0}, widths[3] = {16, 8, 0};
+    for (size_t l = 0; l < 3; ++l) {
+        infer::LayerPlan& layer = plan.layers[l];
+        layer.cache = infer::Cache::entries;
+        layer.state_tail = tails[l];
+        layer.kv_pool = pools[l];
+        layer.kv_pool_width = widths[l];
+        layer.headroom = 128;
+    }
+    require(infer::keeps_kv(plan.layers[0]) && infer::keeps_kv(plan.layers[1]) && !infer::keeps_kv(plan.layers[2]) && infer::keeps_slot(plan.layers[2]),
+            "an entries layer keeps a slot, and rows in the KV blocks only with a pool");
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 1;
+    options.kv_backed = true;
+    const size_t slots = 3, tokens = plan.context_length;
+    const infer::Footprint fp = infer::footprint(weights, plan, options);
+    for (size_t l = 0; l < 3; ++l) {
+        const size_t pooled = pools[l] ? tokens * ((widths[l] + pools[l] - 1) / pools[l]) : 0;
+        require(fp.cache.at(l) == (pooled + slots * tails[l]) * sizeof(float), "an entries layer's fit is not its slots and its pooled rows");
+    }
+    backend::BackendPtr cpu = backend::make_cpu_backend();
+    const size_t bt = cpu->kv_layout().block_tokens;
+    {
+        infer::Model model(weights, plan, {cpu}, infer::Placement{}, options);
+        const size_t blocks = backend::blocks_for(tokens, bt);
+        require(model.keeps_state() && model.state_slots() == 2, "an entries plan keeps state slots");
+        require(model.kv_allocated_bytes() == blocks * (bt / 2 * 16 + bt * 8) * sizeof(float), "a storage of no heads does not hold its pooled rows alone");
+    }
+    // A pass after a mark stays within the headroom.
+    options.mark_slots = 1;
+    options.mark_rows = 128;
+    { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }
+    options.mark_rows = 129;
+    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) ==
+                "inference: a mark of 129 rows passes the 128 an entries layer's rings hold beyond what its rows read",
+            "a mark past an entries layer's headroom accepted");
+    options.mark_slots = options.mark_rows = 0;
+    // The f16 default reaches no storage, an f32 cache given is taken, and any other given type is refused by its flag.
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    options.kv_k_given = options.kv_v_given = true;
+    { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }
+    options.kv_k = backend::KVType::f16;
+    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-k: this model's entries are kept in f32 only, not f16",
+            "an f16 key cache given for entries accepted");
+    options.kv_k = backend::KVType::f32;
+    options.kv_v = backend::KVType::f16;
+    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-v: this model's entries are kept in f32 only, not f16",
+            "an f16 value cache given for entries accepted");
+    options.kv_v_given = false;
+    { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }
+    // The plans the kind refuses.
+    infer::ModelPlan bad = plan;
+    bad.layers[2].headroom = 0;
+    require(refusal([&] { infer::Model model(weights, bad, {cpu}, infer::Placement{}, options); }) == "inference: an entries layer needs headroom for a pass after a mark",
+            "an entries layer without headroom accepted");
+    bad = plan;
+    bad.layers[2].cache = infer::Cache::kv;
+    bad.kv_heads = 1;
+    require(refusal([&] { infer::Model model(weights, bad, {cpu}, infer::Placement{}, options); }) == "inference: a plan keeps KV layers or entries layers, not both",
+            "KV and entries layers in one plan accepted");
+    bad = plan;
+    bad.layers[2].cache = infer::Cache::state;
+    bad.layers[2].kv_pool = 2;
+    bad.layers[2].kv_pool_width = 4;
+    require(refusal([&] { infer::Model model(weights, bad, {cpu}, infer::Placement{}, options); }) == "inference: pooled KV rows need a KV or entries layer",
+            "pooled rows on a state layer accepted");
+    bad = plan;
+    bad.layers[0].kv_pool_width = 0;
+    require(refusal([&] { infer::Model model(weights, bad, {cpu}, infer::Placement{}, options); }) == "backend: an auxiliary pool needs rows of some width and a block of whole groups",
+            "a pool of no width accepted");
+    checked += 11;
+}
+
+// Qwen3 with one arena slot more, the residual's width, which layer 0's mixer fills with its residual rows and layer 1's mixer adds to its residual, carried when `carry` (ModelPlan::carried).
+struct Carrying final : infer::Architecture {
+    Carrying(std::shared_ptr<const infer::Architecture> base, bool carry) : base(std::move(base)), carry(carry) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override {
+        infer::ModelPlan p = base->plan(t);
+        slot = p.slots.size();
+        p.slots.push_back(p.residual);
+        residual = p.residual;
+        if (carry) p.carried = {slot};
+        p.layers.at(1).kind |= 0x80;
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override {
+        infer::Step own = s;
+        own.kind &= 0x7f;
+        const size_t R = s.rows * residual;
+        if (s.kind & 0x80) s.b.add(s.x, s.slot(slot), R);
+        base->mixer(own);
+        if (!(s.kind & 0x80)) s.b.copy(*s.arena, s.offsets[slot], *s.x.buffer, s.x.offset * sizeof(float), R * sizeof(float));
+    }
+    void ffn(const infer::Step& s) const override {
+        infer::Step own = s;
+        own.kind &= 0x7f;
+        base->ffn(own);
+    }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    std::shared_ptr<const infer::Architecture> base;
+    bool carry;
+    mutable size_t slot = 0, residual = 0;
+};
+
+// Two layers on two CPU stages, layer 1 reading the slot layer 0 filled: carried, the split gives one CPU's bytes and its handoff rows hold the slot's rows beside the residual's; not carried, the second stage reads its own arena and differs.
+// A carried slot that is the residual's or past the arena is refused.
+void carried_rows() {
+    const gguf::GGUFModel file = fixture();
+    for (bool carry : {true, false}) {
+        infer::ModelWeights w = infer::gguf_weights(file);
+        w.arch = std::make_shared<const Carrying>(w.arch, carry);
+        const infer::ModelPlan plan = infer::plan_model(w);
+        require(infer::footprint(w, plan, infer::ModelOptions{}).handoff_per_row == (carry ? 2 : 1) * plan.residual * sizeof(float),
+                "a handoff row is not the residual's and the carried slot's");
+        backend::BackendPtr one = backend::make_cpu_backend(), a = backend::make_cpu_backend(), b = backend::make_cpu_backend();
+        for (auto* c : {&one, &a, &b}) (*c)->set_threads(1);
+        infer::Model single(w, one);
+        infer::Placement p;
+        p.mixer_device = {0, 1};
+        p.ffn_device = {0, 1};
+        p.embed_device = 0;
+        p.output_device = 1;
+        infer::Model split(w, {a, b}, p);
+        single.set_ubatch(2);
+        split.set_ubatch(2);
+        const std::vector<uint32_t> prompt{3, 1, 4, 1, 5};
+        const std::vector<float> x = single.prefill(prompt), y = split.prefill(prompt);
+        if (carry) {
+            exact(x, y, "a split with a carried slot differs from one device");
+            for (int t : {9, 2, 6}) exact(step_row(single, t), step_row(split, t), "a split's step with a carried slot differs from one device");
+        } else {
+            require(x != y, "a slot that is not carried reached the second stage");
+        }
+        checked += 2;
+    }
+    infer::ModelWeights w = infer::gguf_weights(file);
+    w.arch = std::make_shared<const Carrying>(w.arch, true);
+    for (bool past : {false, true}) {
+        infer::ModelPlan plan = infer::plan_model(w);
+        const size_t bad = past ? plan.slots.size() : 0;
+        plan.carried = {bad};
+        require(refusal([&] { infer::Model model(w, plan, {backend::make_cpu_backend()}, infer::Placement{}); }) ==
+                    "inference: carried slots must be ascending arena slots past the residual",
+                ("a carried slot " + std::to_string(bad) + " accepted").c_str());
+    }
+    checked += 2;
+}
+
+// Three entries layers, layer 0 pooling rows of groups of 2 and layers 1 and 2 reading them (LayerPlan::entry_source); each mixer records the storage layer and Step::appends it is given, and the rest is qwen3's.
+struct Reading final : infer::Architecture {
+    explicit Reading(std::shared_ptr<const infer::Architecture> base) : base(std::move(base)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override {
+        infer::ModelPlan p = base->plan(t);
+        p.kv_heads = 0;
+        for (size_t l = 0; l < p.layers.size(); ++l) {
+            infer::LayerPlan& layer = p.layers[l];
+            layer.cache = infer::Cache::entries;
+            layer.state_tail = 8;
+            layer.headroom = 128;
+            layer.kind = uint8_t(layer.kind | (l << 4));
+            if (l) layer.entry_source = 0;
+            else {
+                layer.kv_pool = 2;
+                layer.kv_pool_width = 16;
+            }
+        }
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { seen.push_back({s.kind >> 4, s.kv_layer, s.appends}); }
+    void ffn(const infer::Step& s) const override {
+        infer::Step own = s;
+        own.kind &= 0x0f;
+        base->ffn(own);
+    }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    struct Seen {
+        int layer;
+        size_t kv_layer;
+        bool appends;
+    };
+    std::shared_ptr<const infer::Architecture> base;
+    mutable std::vector<Seen> seen;
+};
+
+// A reader on its source's device takes the source's storage layer; on another device the first reader there makes a replica of the source's pooled rows and fills it, and a later reader there shares it.
+// The fit charges a stage each source before it that its layers read, once.
+void entry_replicas() {
+    const gguf::GGUFModel file = tiny_qwen(3, 2 * 128, true);
+    infer::ModelWeights w = infer::gguf_weights(file);
+    const auto arch = std::make_shared<const Reading>(w.arch);
+    w.arch = arch;
+    infer::ModelOptions options;
+    options.state_slots = 1;
+    options.kv_backed = true;
+    const infer::ModelPlan plan = infer::plan_model(w);
+    const infer::Footprint fp = infer::footprint(w, plan, options);
+    const size_t pooled = plan.context_length / 2 * 16 * sizeof(float);
+    require(fp.reads == std::vector<int>{-1, 0, 0} && fp.pooled == std::vector<size_t>{pooled, 0, 0}, "the fit does not hold the readers' source and its pooled rows");
+    infer::DeviceBudget d;
+    d.name = "cpu";
+    d.bytes = size_t(1) << 30;
+    const infer::LayerSplit split = infer::split_layers(fp, {d, d}, 4, {1, 2});
+    require(split.stages.at(0).cache == fp.cache[0] && split.stages.at(1).cache == fp.cache[1] + fp.cache[2] + pooled,
+            "a stage reading an earlier stage's source is not charged its replica once");
+    struct Case {
+        std::vector<int> mixer;
+        std::vector<bool> appends;
+        size_t copies;
+    };
+    const Case cases[] = {{{0, 0, 0}, {false, false, false}, 1}, {{0, 1, 1}, {false, true, false}, 2}, {{0, 0, 1}, {false, false, true}, 2}, {{0, 1, 2}, {false, true, true}, 3}};
+    for (const Case& c : cases) {
+        std::vector<backend::BackendPtr> cpus;
+        for (int i = 0; i <= c.mixer.back(); ++i) cpus.push_back(backend::make_cpu_backend());
+        infer::Placement p;
+        p.mixer_device = p.ffn_device = c.mixer;
+        p.embed_device = 0;
+        p.output_device = c.mixer.back();
+        infer::Model model(w, cpus, p, options);
+        require(model.kv_allocated_bytes() == c.copies * pooled, "a split does not hold its source's pooled rows once a device");
+        arch->seen.clear();
+        model.prefill({1, 2, 3});
+        require(arch->seen.size() == 3, "a pass did not run each layer's mixer once");
+        for (const Reading::Seen& seen : arch->seen)
+            require(seen.kv_layer == 0 && seen.appends == c.appends.at(size_t(seen.layer)), ("layer " + std::to_string(seen.layer) + " given another storage layer or fill").c_str());
+        checked += 2;
+    }
+    infer::ModelPlan bad = plan;
+    bad.layers[1].entry_source = 2;
+    require(refusal([&] { infer::Model model(w, bad, {backend::make_cpu_backend()}, infer::Placement{}, options); }) ==
+                "inference: an entries layer reads the pooled rows of an earlier entries layer and keeps none of its own",
+            "a reader of a later layer accepted");
+    checked += 2;
+}
+
 void external_lookup_fits() {
     const auto file = fixture();
     infer::ModelWeights weights = infer::gguf_weights(file);
@@ -997,7 +1249,7 @@ struct LookupArchitecture : infer::Architecture {
         p.layers[0].lookup = infer::Lookup{role.id, 2};
         return p;
     }
-    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }
@@ -1188,7 +1440,7 @@ struct TwoLookups : infer::Architecture {
         }
         return p;
     }
-    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }
@@ -2236,6 +2488,9 @@ int main() {
         head_aux_footprint_fits();
         lookup_scratch_fits();
         heterogeneous_saved_fits();
+        entries_kept();
+        carried_rows();
+        entry_replicas();
         external_lookup_fits();
         lookup_storage_planned();
         host_budget_shared();

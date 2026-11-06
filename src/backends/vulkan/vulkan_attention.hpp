@@ -76,10 +76,10 @@ inline KVLayout VulkanBackend::kv_layout() const { return KVLayout{kVkBlockToken
 inline std::unique_ptr<KVStorage> VulkanBackend::kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                                           size_t max_tokens, KVType k_type,
                                                           KVType v_type,
-                                                          const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools) {
-    if (!layers || !n_head_kv || !head_dim)
-        throw std::runtime_error("vulkan: KV storage without layers, heads or width");
-    if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
+                                                          const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools) {
+    if (!layers || (n_head_kv && !head_dim))
+        throw std::runtime_error("vulkan: KV storage without layers, or heads without width");
+    if (n_head_kv && !attention_head_fits(head_dim, dev_->caps.subgroup_size))
         throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
                                  std::to_string(attention_row_width(dev_->caps.subgroup_size)));
     return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
@@ -585,7 +585,7 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
 }
 
 VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,
-                                 KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
+                                 KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
     : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
 void VulkanKVStorage::retire(const BufferPtr& old) {

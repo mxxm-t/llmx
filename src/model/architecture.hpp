@@ -24,6 +24,7 @@ enum class RoleKind : uint8_t {
     gather,   // checked as a matrix, its rows gathered by the embedding
     experts,  // exactly [in, out, experts], a routed stack
     table,    // F32, [in, out], trailing axes of one, read whole by an op rather than by a matrix product
+    source,   // [in, out] of any type, trailing axes of one, read on the host only to fill a table (Architecture::fill_tables), never placed on a device
 };
 
 // What a routed layer run beside its mixer for a long prompt (Placement::stream_from) does with a feed-forward role: nothing, a copy adopted on the mixer's device at load, or a copy written into its window in each pass that needs it.
@@ -56,12 +57,14 @@ struct Role {
     std::string name, alias;
     uint64_t in = 0, out = 1, experts = 0;
     Stream stream = Stream::none;
+    // A role over a run of its tensor's output rows reads `out` rows from `first_row` of the tensor's `tensor_rows`; 0 reads the whole tensor.
+    uint64_t first_row = 0, tensor_rows = 0;
     std::optional<size_t> tensor = std::nullopt;   // the view it reads, its name's or else its alias's, absent when the file has neither
     bool aliased = false;                          // that view is its alias's
     Shard shard{};
 };
 
-// Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, and every further axis one.
+// Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, or a run of rows inside `tensor_rows`, and every further axis one.
 inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint32_t type) {
     if (role.kind == RoleKind::experts) return shape.size() == 3 && shape[0] == role.in && shape[1] == role.out && shape[2] == role.experts;
     const bool norm = role.kind == RoleKind::norm;
@@ -69,15 +72,17 @@ inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint
     if (norm) {
         valid = valid && type == quant::GGML_TYPE_F32;
     } else {
-        valid = valid && shape.size() >= 2 && shape[1] == role.out;
+        const bool run = role.tensor_rows && role.kind == RoleKind::matrix && role.first_row <= role.tensor_rows && role.out <= role.tensor_rows - role.first_row;
+        valid = valid && shape.size() >= 2 && (role.tensor_rows ? run && shape[1] == role.tensor_rows : shape[1] == role.out);
         if (role.kind == RoleKind::table) valid = valid && type == quant::GGML_TYPE_F32;
     }
     for (size_t d = norm ? 1 : 2; d < shape.size(); ++d) valid = valid && shape[d] == 1;
     return valid;
 }
 
-// What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, or nothing.
-enum class Cache : uint8_t { kv, state, none };
+// What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, entries, or nothing.
+// Entries are a state slot of fixed size and, with LayerPlan::kv_pool, pooled rows in the KV blocks with no K or V, every piece indexed by absolute position (docs/DEEPSEEK4.md, section 4.3).
+enum class Cache : uint8_t { kv, state, entries, none };
 
 // An op a part issues beyond those every backend has, which the backend of the part's device must implement.
 struct OpUse {
@@ -116,15 +121,24 @@ struct LayerPlan {
     size_t state_tail = 0;
     // Additional F32 values per KV position, held whole on every tensor-group member under the same block IDs as K and V.
     size_t kv_aux = 0;
-    // With kv_aux, the groups of this many positions whose pooled rows of kv_aux floats its blocks also keep (BlockKVStorage::auxiliary_pool), or 0.
-    size_t kv_pool = 0;
+    // The groups of this many positions whose pooled rows of kv_pool_width floats its blocks also keep (BlockKVStorage::auxiliary_pool), or 0.
+    size_t kv_pool = 0, kv_pool_width = 0;
     // The auxiliary floats a position takes, its row and its share of a pooled row rounded up, as the fit counts them.
-    size_t kv_aux_floats() const { return kv_aux + (kv_pool ? (kv_aux + kv_pool - 1) / kv_pool : 0); }
+    size_t kv_aux_floats() const { return kv_aux + (kv_pool ? (kv_pool_width + kv_pool - 1) / kv_pool : 0); }
+    // An entries layer's rings hold this many positions beyond those its rows read, so a pass after a mark takes at most this many rows (docs/DEEPSEEK4.md, section 4.3).
+    size_t headroom = 0;
+    // An entries layer without pooled rows of its own may read an earlier layer's, or -1: on its source's device that storage layer, and on a later device a replica there, which the first such reader fills (Step::appends).
+    int entry_source = -1;
     // One recurrent layer may keep this many preceding token IDs on the host under its existing state slots, padded before sequence start.
     size_t token_history = 0;
     uint32_t token_padding = 0;
     std::optional<Lookup> lookup;
 };
+
+// Whether a layer holds a state slot for each sequence, as a state layer and an entries layer do.
+inline bool keeps_slot(const LayerPlan& layer) { return layer.cache == Cache::state || layer.cache == Cache::entries; }
+// Whether a layer holds rows in the KV blocks, as a KV layer and an entries layer with pooled rows do.
+inline bool keeps_kv(const LayerPlan& layer) { return layer.cache == Cache::kv || (layer.cache == Cache::entries && layer.kv_pool); }
 
 // What an architecture declares of a model: the size of every resolved row of weights, the vocabulary, the roles of the pass and each layer's, the positions a sequence may reach, and what the arena, the caches and the tables take.
 // Every role id is below role_ids, and slot 0 is as wide as the residual, which plan_model holds every plan to.
@@ -139,6 +153,8 @@ struct ModelPlan {
     // Floats in a row of a tensor group member's partial rows (Step::partial), which the group sums: 0 for the residual's, which the sum adds to; narrower where each member joins the summed rows into its residual itself (Architecture::join).
     size_t partial = 0;
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
+    // Arena slots past 0, ascending, whose rows go wherever the residual goes, through every handoff and crossing, as a layer's rows that a later device's layers read (docs/DEEPSEEK4.md, section 4.3).
+    std::vector<size_t> carried;
     size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
@@ -151,10 +167,19 @@ struct ModelPlan {
     // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves, and a draft step's residual rows are in arena slot `draft_x`, which a tensor group sums its members' partial rows into.
     std::optional<LayerPlan> drafter;
     size_t draft_h = 0, draft_x = 0;
+    // Why the server refuses this model, naming it, while a step its serving needs is not built; empty where it serves it.
+    std::string unserved;
 };
 
 // Floats in a row a tensor group sums (ModelPlan::partial).
 inline size_t sum_width(const ModelPlan& plan) { return plan.partial ? plan.partial : plan.residual; }
+
+// Floats in a row a handoff carries: the residual's and each carried slot's.
+inline size_t handoff_width(const ModelPlan& plan) {
+    size_t n = plan.residual;
+    for (size_t slot : plan.carried) n = backend::size_add(n, plan.slots.at(slot));
+    return n;
+}
 
 // Whether a layer's roles hold an expert stack, whose routed sum a tensor group's member adds to partial rows it is handed cleared (Step::partial).
 inline bool has_experts(const LayerPlan& layer) {
@@ -214,10 +239,14 @@ struct Step {
     backend::RopeStreams streams{};
     // Where a history holds an image, the positions the groups of a pooled layer's rows complete turn at, which may be an image's rows below the pass; else none.
     backend::GroupPositions group_pos{};
+    // Whether this layer is the first on its device to read a source on an earlier device (LayerPlan::entry_source), so it writes the pass's carried rows that complete a group into the replica at kv_layer.
+    bool appends = false;
+    // The model's layer this part belongs to, -1 for the embedding, the head, the drafter and a group's sum.
+    int layer = -1;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 
-// The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan without KV layers has.
+// The KV heads a member of a tensor group of `width` keeps of `kv_heads`: its share, or one where the width is a multiple of them and each is replicated; none of none, which only a plan whose layers keep no K or V has.
 inline size_t kv_share(size_t kv_heads, size_t width) { return kv_heads >= width ? kv_heads / width : (kv_heads ? 1 : 0); }
 
 // The head's call: the rows that want logits, their runs, and where their logits go.
@@ -249,8 +278,8 @@ class Architecture {
 public:
     virtual ~Architecture() = default;
     virtual ModelPlan plan(const TensorIndex& tensors) const = 0;
-    // The tables come sized as the plan says.
-    virtual void fill_tables(std::vector<std::vector<float>>& tables) const = 0;
+    // The tables come sized as the plan says; `sources` are host views of the plan's RoleKind::source roles in plan order, the layers ascending and a layer's roles in order, read only during the call.
+    virtual void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>& sources) const = 0;
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
     // Fill Step::indices from the pass's tokens and preceding token snapshots, without backend work, allocation or I/O.
     virtual void lookup_ids(const Step&) const { throw std::runtime_error("inference: this architecture has no weight-row lookup"); }

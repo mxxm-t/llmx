@@ -122,13 +122,21 @@ struct WeightPlan {
 };
 
 // The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies, and one that copies adopts it there and then unless `defer`, which gives it storage to stream into (plan.uploads).
-// The model hands each tensor to each of `backends` at most once whole and once as a shard, so the records are sized before the model is built and recording cannot fail while a buffer is held.
+// The model hands each tensor to each of `backends` about once whole and once as a shard, which sizes the records; a record that cannot be kept drains the backend before its storage goes, as a failed write does.
 inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
     plan.uploads.reserve(defer ? 2 * weights.tensors.size() * backends : 0);
     return [&weights, &plan, defer](size_t i, backend::Backend& b, const shard::Held* held) {
         const TensorView& t = weights.tensors[i];
+        const auto record = [&](const backend::BufferPtr& buffer, std::optional<shard::Held> part) {
+            try {
+                plan.uploads.push_back({i, &b, buffer, std::move(part)});
+            } catch (...) {
+                b.sync();
+                throw;
+            }
+        };
         if (held) {
             backend::BufferPtr buffer = b.alloc_weight(held->bytes);
             // A shard's zero runs are written here, in either load, so no storage is trusted to hold zeros; the file's runs are streamed or written from the mapping.
@@ -147,7 +155,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
                 b.sync();
                 throw;
             }
-            if (defer) plan.uploads.push_back({i, &b, buffer, *held});
+            if (defer) record(buffer, *held);
             return buffer;
         }
         if (b.reads_in_place()) {
@@ -156,7 +164,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         }
         if (!defer) return b.adopt(t.data, t.bytes);
         backend::BufferPtr buffer = b.alloc_weight(t.bytes);
-        plan.uploads.push_back({i, &b, buffer, std::nullopt});
+        record(buffer, std::nullopt);
         return buffer;
     };
 }
@@ -365,14 +373,21 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         if (paths.empty() || paths.back() != seg.path) paths.push_back(seg.path);
     std::vector<std::shared_ptr<const format::FileReader>> readers(paths.size());
     auto file_index = [&](const std::string& p) { return size_t(std::find(paths.begin(), paths.end(), p) - paths.begin()); };
+    // A file's reader, opened once, direct under direct and buffered otherwise, and held to the size its header gives.
+    const auto reader_of = [&](size_t f) -> const format::FileReader& {
+        if (!readers[f]) {
+            readers[f] = std::make_shared<const format::FileReader>(paths[f], mode == LoadMode::direct);
+            gguf::check_size(file, paths[f], readers[f]->size());
+        }
+        return *readers[f];
+    };
     if (mode == LoadMode::direct) {
         for (size_t f = 0; f < paths.size(); ++f) {
             try {
-                readers[f] = std::make_shared<const format::FileReader>(paths[f], true);
+                reader_of(f);
             } catch (const format::DirectUnavailable& e) {
                 throw std::runtime_error(std::string("--load-mode direct: ") + e.what());
             }
-            gguf::check_size(file, paths[f], readers[f]->size());
         }
     }
     std::vector<LookupCandidate> lookups;
@@ -387,10 +402,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         if (t.shape.size() != 2) throw std::runtime_error("loading: lookup table is not a matrix: " + t.name);
         const format::FileSpan span = file.span(i);
         const size_t f = file_index(span.file);
-        if (!readers[f]) {
-            readers[f] = std::make_shared<const format::FileReader>(paths[f], mode == LoadMode::direct);
-            gguf::check_size(file, paths[f], readers[f]->size());
-        }
+        reader_of(f);
         lookups.push_back({i, std::make_shared<const WeightRows>(t.type, size_t(t.shape[0]), size_t(t.shape[1]), readers[f], span.offset, span.bytes)});
     }
     std::optional<PlannedModel> placement;
@@ -423,6 +435,30 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         t.row_source = lookups[n].file;
         t.data = nullptr;
     }
+    // Source roles' bytes, read from their spans in every mode for fill_tables and never placed; they go when the load ends (docs/src/inference-load.md).
+    std::vector<std::vector<uint8_t>> sources;
+    std::vector<size_t> source_tensors;
+    core::HostPages window;
+    for (const LayerPlan& layer : architecture.layers)
+        for (const Role& role : layer.roles) {
+            if (role.kind != RoleKind::source || !role.tensor || external[*role.tensor]) continue;
+            const size_t i = *role.tensor;
+            const format::FileSpan span = file.span(i);
+            const format::FileReader& reader = reader_of(file_index(span.file));
+            sources.emplace_back(span.bytes);
+            if (reader.direct()) {
+                if (!window.data()) {
+                    window = core::HostPages::reserved(reader.granule());
+                    window.commit(0, reader.granule());
+                }
+                format::read_aligned(reader, span.offset, sources.back().data(), span.bytes, window.data(), reader.granule(), "loading");
+            } else if (reader.read(span.offset, sources.back().data(), span.bytes) != span.bytes) {
+                throw std::runtime_error("loading: short file read");
+            }
+            weights.tensors[i].data = sources.back().data();
+            external[i] = 1;
+            source_tensors.push_back(i);
+        }
     // The bytes of the weights read, of every file, for the report.
     const format::LoadProgress progress = [&](size_t completed, size_t total) {
         if (report) report({"weights", completed, total});
@@ -451,6 +487,9 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     loaded->checkpoint_kv_tokens = placed.checkpoint_kv_tokens;
     loaded->kv_kept_context = placed.kv_kept_context;
     loaded->model = std::move(placed.model);
+    // The model filled its tables from the sources as it was built and keeps no view of them.
+    for (size_t i : source_tensors) weights.tensors[i].data = nullptr;
+    sources.clear();
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.
         // The payload the backends take, each tensor read once: copied weights streamed in file order, host-read ones read into the host's copy (direct), from which a device that also takes one is written, or warmed from the mapping after (auto).

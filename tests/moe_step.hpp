@@ -33,9 +33,9 @@ struct CountingCpu : backend::CpuBackend {
         }
         inside = false;
     }
-    void route_experts(backend::CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, backend::Slice ids, backend::Slice weights) override {
+    void route_experts(backend::CSlice scores, size_t rows, size_t n_expert, size_t k, const backend::RouteRule& rule, backend::Slice ids, backend::Slice weights) override {
         outside += inside ? 0 : 1;
-        backend::CpuBackend::route_experts(scores, rows, n_expert, k, normalize, ids, weights);
+        backend::CpuBackend::route_experts(scores, rows, n_expert, k, rule, ids, weights);
     }
     void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin, size_t rows, const Routing& routing,
                         backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
@@ -142,7 +142,7 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
                                 {{s.t.sh_gate, {w.sh_up.get(), 0}}, {u.get(), routed}, s.ff},
                                 {s.t.sh_down, {w.sh_down.get(), 0}}, {act.get(), routed},
                                 {{quant::GGML_TYPE_F32, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}};
-    const backend::MoeStep m{{{quant::GGML_TYPE_F32, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, true,
+    const backend::MoeStep m{{{quant::GGML_TYPE_F32, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, backend::RouteRule::softmax(true),
                              {ids.get(), 0}, {wts.get(), 0}, {{s.t.gate, {w.gate.get(), 0}}, {g.get(), 0}, s.ff},
                              {{s.t.gate, {w.up.get(), 0}}, {u.get(), 0}, s.ff}, {s.t.down, {w.down.get(), 0}},
                              {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch};
@@ -162,17 +162,17 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
             }
         }
         b.matmul(m.router.weight, h0, m.router.out, s.E, s.n_expert, rows, rr, backend::Dtype::f32);
-        b.route_experts(m.router.out, rows, s.n_expert, s.k, true, m.ids, m.weights);
+        b.route_experts(m.router.out, rows, s.n_expert, s.k, backend::RouteRule::softmax(true), m.ids, m.weights);
         const backend::Backend::Routing routing{m.ids, m.weights, s.k, s.n_expert};
         b.matmul_experts({m.gate, m.up}, h0, s.E, rows, routing, rr, dtype);
         std::vector<backend::RowRun> entry_runs;
         for (const backend::RowRun& r : runs) entry_runs.push_back({r.end * s.k, r.extent});
-        b.silu_mul(m.act, m.gate.out, m.up.out, routed, {entry_runs.data(), entry_runs.size()});
+        b.silu_mul(m.act, m.gate.out, m.up.out, routed, 0.0f, {entry_runs.data(), entry_runs.size()});
         b.matmul_experts_add(m.down, m.act, y, s.ff, s.E, rows, routing, rr, dtype);
         if (shared) {
             b.matmul(sh.row_gate.weight, h0, sh.row_gate.out, s.E, 1, rows, rr, dtype);
             b.matmul_group({sh.gate, sh.up}, h0, s.E, rows, rr, dtype);
-            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, rr);
+            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, 0.0f, rr);
             b.sigmoid_mul(sh.act, sh.act, sh.row_gate.out, rows, s.ff, 1, 1, 0, rr);
             b.matmul_add(sh.down, sh.act, y, s.ff, s.E, rows, rr, dtype);
         }

@@ -1277,9 +1277,9 @@ struct ImageProbe : backend::CpuBackend {
     }
     void norm_rope_partial(backend::Slice dst, backend::CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
                            size_t rope_dim, backend::CSlice w, float eps, backend::CSlice cos, backend::CSlice sin, const uint32_t* pos,
-                           backend::RopeStreams streams = {}) override {
+                           const backend::RopeForm& form, backend::RopeStreams streams = {}) override {
         ropes.push_back(three(pos, rows, streams));
-        CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, streams);
+        CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, form, streams);
     }
     void record(const backend::KVView* views, size_t n_views, size_t c, const backend::GroupPositions& at) {
         size_t count = 0;

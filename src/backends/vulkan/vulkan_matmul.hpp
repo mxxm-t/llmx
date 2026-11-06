@@ -505,7 +505,8 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
 
 // Routed entries take row kernels or per-expert tiles according to prompt extent and the type's crossover.
 // Routed tiles never split, keeping each entry's arithmetic independent of neighbouring entries.
-inline void VulkanBackend::route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) {
+inline void VulkanBackend::route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
+    const bool normalize = rule.softmax_only("vulkan");
     if (!k || k > n_expert || k > 256 || n_expert > 1024)
         throw std::runtime_error("vulkan: routing takes 1 to 256 of at most 1024 experts");
     if (!rows) return;

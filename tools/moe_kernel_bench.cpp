@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
     std::vector<Case> cases;
     // The floor: dependent dispatches that do almost nothing.
     cases.push_back({"floor silu_mul 2048", 0.0, [&] {
-        b.silu_mul({g.get(), 0}, {up_out.get(), 0}, {g.get(), 0}, E);
+        b.silu_mul({g.get(), 0}, {up_out.get(), 0}, {g.get(), 0}, E, 0.0f);
     }});
     cases.push_back({"floor add 2048", 0.0, [&] { b.add({y.get(), 0}, {xf.get(), 0}, E); }});
     // A MoE layer's small ops at one token: its norm, the F32 router, the choice of experts, the SwiGLU.
@@ -110,10 +110,10 @@ int main(int argc, char** argv) {
             }});
         }
         cases.push_back({"route" + t, 0.0, [&, T] {
-            b.route_experts({scores.get(), 0}, T, NE, K, true, {rid.get(), 0}, {rwt.get(), 0});
+            b.route_experts({scores.get(), 0}, T, NE, K, backend::RouteRule::softmax(true), {rid.get(), 0}, {rwt.get(), 0});
         }});
         if (T <= TMAX)
-            cases.push_back({"silu_mul" + t, 0.0, [&, T] { b.silu_mul({g.get(), 0}, {g.get(), 0}, {up_out.get(), 0}, T * K * F); }});
+            cases.push_back({"silu_mul" + t, 0.0, [&, T] { b.silu_mul({g.get(), 0}, {g.get(), 0}, {up_out.get(), 0}, T * K * F, 0.0f); }});
     }
     const double gu_bytes = 2.0 * row_bytes(gt, E) * F * K, dn_bytes = (double)row_bytes(dt, F) * E * K;
     cases.push_back({"dense " + std::to_string(2 * F * K) + "x" + std::to_string(E), gu_bytes, [&] {

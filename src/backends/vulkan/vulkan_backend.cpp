@@ -658,7 +658,12 @@ public:
     }
 
     // State, gating and the vision encoder's ops are supported; grouped expert projections must share one storage type.
-    bool implements(Op op) const override { return op != Op::mixed_experts; }
+    bool implements(Op op) const override {
+        switch (op) {
+            case Op::mixed_experts: return false;
+            default: return true;
+        }
+    }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1152,7 +1157,8 @@ public:
 
     void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
 
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) override {
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) override {
+        no_clamp("vulkan", limit);
         if (!n) return;
         const bool quant = n % 32 == 0;
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).
@@ -1523,7 +1529,8 @@ public:
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                           CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams = {}) override {
+                           CSlice cos, CSlice sin, const uint32_t* pos, const RopeForm& form, RopeStreams streams = {}) override {
+        form.plain_only("vulkan");
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("vulkan: invalid partial rope dimensions");
         const size_t half = rope_dim / 2;
@@ -1671,7 +1678,7 @@ public:
                       size_t nin, size_t nbatch, size_t col0, size_t ncols, bool accumulate, int variant,
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0);
-    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override;
+    void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) override;
     template <typename Fn>
     void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each);
     static CSlice at_float(CSlice s, size_t floats);
@@ -1724,7 +1731,7 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override;
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {}) override;
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v, CSlice auxiliary = {}) override;
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,

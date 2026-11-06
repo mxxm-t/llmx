@@ -239,7 +239,7 @@ struct EditedPlan final : infer::Architecture {
         edit(p);
         return p;
     }
-    void fill_tables(std::vector<std::vector<float>>& tables) const override { arch->fill_tables(tables); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { arch->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { arch->embed(s, ids); }
     void mixer(const infer::Step& s) const override { arch->mixer(s); }
     void ffn(const infer::Step& s) const override { arch->ffn(s); }
@@ -1196,6 +1196,128 @@ void shard_checks() {
     }
 }
 
+// An architecture whose layers read their query and key projections as two runs of one tensor's output rows (infer::Role::first_row), as DeepSeek-V4.1's engram_wkv is read.
+class RowRunArchitecture final : public infer::Architecture {
+public:
+    RowRunArchitecture(std::shared_ptr<const infer::Architecture> base, uint64_t q, uint64_t k, uint64_t extra = 0)
+        : base_(std::move(base)), q_(q), k_(k), extra_(extra) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = base_->plan(tensors);
+        for (size_t l = 0; l < p.layers.size(); ++l)
+            for (infer::Role& role : p.layers[l].roles) {
+                const std::string pre = "blk." + std::to_string(l) + ".";
+                const bool q = role.name == pre + "attn_q.weight", k = role.name == pre + "attn_k.weight";
+                if (!q && !k) continue;
+                role.name = pre + "attn_qk.weight";
+                role.first_row = q ? 0 : q_ + extra_;
+                role.tensor_rows = q_ + k_;
+            }
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base_->fill_tables(tables, sources); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base_->mixer(s); }
+    void ffn(const infer::Step& s) const override { base_->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base_->head(s); }
+
+private:
+    std::shared_ptr<const infer::Architecture> base_;
+    uint64_t q_, k_, extra_;
+};
+
+// Roles over runs of one tensor's rows give the bytes of separate tensors: in place, through the hook, as streamed row parts, over a layer split and a group of two.
+void row_run_checks() {
+    const gguf::GGUFModel m = tiny_qwen(2, 64, false);
+    const infer::ModelWeights base = infer::gguf_weights(m);
+    auto run = [](infer::Model& model) {
+        std::vector<float> logits = model.prefill({0, 1, 2, 5});
+        for (uint32_t id : {3u, 4u}) {
+            const auto row = step_row(model, id);
+            logits.insert(logits.end(), row.begin(), row.end());
+        }
+        return logits;
+    };
+    auto cpu = [] {
+        auto b = std::make_shared<backend::CpuBackend>();
+        b->set_threads(1);
+        return b;
+    };
+    std::vector<float> expected;
+    { infer::Model model(base, {cpu()}); expected = run(model); }
+    // Each layer's query rows (8 heads' worth) then its key rows, in one tensor, the separate tensors dropped.
+    infer::ModelWeights runs;
+    std::vector<std::vector<uint8_t>> joined;
+    joined.reserve(2);
+    for (const infer::TensorView& t : base.tensors) {
+        if (t.name.find(".attn_q.weight") == std::string::npos && t.name.find(".attn_k.weight") == std::string::npos) runs.tensors.push_back(t);
+    }
+    uint64_t q = 0, k = 0;
+    for (int l = 0; l < 2; ++l) {
+        const std::string pre = "blk." + std::to_string(l) + ".";
+        const auto find = [&](const std::string& name) {
+            return *std::find_if(base.tensors.begin(), base.tensors.end(), [&](const infer::TensorView& t) { return t.name == name; });
+        };
+        const infer::TensorView tq = find(pre + "attn_q.weight"), tk = find(pre + "attn_k.weight");
+        q = tq.shape[1];
+        k = tk.shape[1];
+        joined.emplace_back(tq.data, tq.data + tq.bytes);
+        joined.back().insert(joined.back().end(), tk.data, tk.data + tk.bytes);
+        runs.tensors.push_back({pre + "attn_qk.weight", {tq.shape[0], q + k}, quant::GGML_TYPE_F32, joined.back().data(), joined.back().size()});
+    }
+    runs.arch = std::make_shared<RowRunArchitecture>(base.arch, q, k);
+    const auto same_as = [&](const std::vector<float>& got, const std::vector<float>& want, const char* what) {
+        require(got.size() == want.size() && std::memcmp(got.data(), want.data(), got.size() * sizeof(float)) == 0, what);
+        ++checks;
+    };
+    const auto same = [&](const std::vector<float>& got, const char* what) { same_as(got, expected, what); };
+    { infer::Model model(runs, {cpu()}); same(run(model), "roles over runs of rows adopted in place changed the logits"); }
+    {
+        infer::WeightPlan plan;
+        infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, false));
+        same(run(model), "roles over runs of rows written by the hook changed the logits");
+    }
+    {
+        infer::Placement split;
+        split.mixer_device = {0, 1};
+        split.ffn_device = {0, 1};
+        split.output_device = 1;
+        infer::Model model(runs, {cpu(), cpu()}, split);
+        same(run(model), "roles over runs of rows over a layer split changed the logits");
+    }
+    {
+        infer::Placement group;
+        group.mixer_device = {0, 0};
+        group.ffn_device = {0, 0};
+        group.width = 2;
+        // A group sums its members' partial products, so its bytes are the separate tensors' on the same group, not one CPU's.
+        std::vector<float> grouped;
+        { infer::Model model(base, {cpu(), cpu()}, group); grouped = run(model); }
+        infer::Model model(runs, {cpu(), cpu()}, group);
+        same_as(run(model), grouped, "roles over runs of rows over a tensor group of two changed the logits");
+    }
+    // A streamed load records each run as a part of its tensor's rows, the key run after the query rows.
+    {
+        infer::WeightPlan plan;
+        { infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, true)); }
+        size_t parts = 0;
+        for (const infer::Upload& u : plan.uploads) {
+            if (runs.tensors[u.tensor].name.find("attn_qk") == std::string::npos) continue;
+            require(u.shard && u.shard->axis == infer::Axis::rows && u.shard->parts.size() == 1, "a run of rows was not recorded as a row part");
+            const auto& p = u.shard->parts[0];
+            const bool first = p.own.begin == 0 && p.own.count == q, second = p.own.begin == q && p.own.count == k;
+            require((first || second) && p.cover.begin == p.own.begin && p.cover.count == p.own.count && u.shard->bytes == p.own.count * 8 * sizeof(float),
+                    "a run of rows was recorded over other rows");
+            ++parts;
+        }
+        require(parts == 4, "a streamed load did not record every run of rows");
+        ++checks;
+    }
+    // A run that reaches past its tensor's rows is refused as the model is built.
+    infer::ModelWeights past = runs;
+    past.arch = std::make_shared<RowRunArchitecture>(base.arch, q, k, 1);
+    rejects("row run past the tensor", [&] { infer::Model model(past, {cpu()}); });
+}
+
 // With a list, every refusal must have its label and text; with --write, the refusals are written as that list.
 int main(int argc, char** argv) {
     try {
@@ -1217,6 +1339,7 @@ int main(int argc, char** argv) {
         plan_checks();
         hook_checks();
         shard_checks();
+        row_run_checks();
         if (write) {
             std::ofstream out(argv[2], std::ios::binary);
             for (const auto& r : refusals) out << r << '\n';

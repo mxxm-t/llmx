@@ -85,7 +85,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             }
         }
         for (const Role& role : layer.roles)
-            if (role.tensor && !(lookup_role == &role && weights.tensors[*role.tensor].row_source))
+            if (role.tensor && role.kind != RoleKind::source && !(lookup_role == &role && weights.tensors[*role.tensor].row_source))
                 taken.push_back({*role.tensor, &role});
         std::stable_sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         for (size_t k = 0; k < taken.size(); ++k) {
@@ -183,12 +183,20 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
                 saved_max = std::max(saved_max, shard::saved_floats(layer, width));
                 rerun_max = std::max(rerun_max, recur_floats(plan, layer));
             }
+    const bool reads = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.entry_source >= 0; });
     for (const LayerPlan& layer : plan.layers) {
         size_t bytes = 0;
-        if (layer.cache == Cache::kv) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux_floats()));
-        else if (layer.cache == Cache::state) {
+        // An entries layer takes its slots and its pooled rows, and saves nothing for a mark.
+        if (keeps_kv(layer)) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux_floats()));
+        if (reads) {
+            fp.reads.push_back(layer.entry_source);
+            fp.pooled.push_back(layer.cache == Cache::entries ? bytes : 0);
+        }
+        if (keeps_slot(layer)) {
             const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-            bytes = backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float));
+            bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float)));
+        }
+        if (layer.cache == Cache::state) {
             bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_max, sizeof(float))));
             if (options.mark_slots) bytes = backend::size_add(bytes, backend::size_mul(options.mark_rows, backend::size_mul(rerun_max, sizeof(float))));
         }
@@ -200,7 +208,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         }
     }
     for (size_t n : plan.tables) fp.tables += n * sizeof(float);
-    fp.handoff_per_row = plan.residual * sizeof(float);
+    fp.handoff_per_row = backend::size_mul(handoff_width(plan), sizeof(float));
     fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
     for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
@@ -546,7 +554,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         return lo * block;
     };
     // The budget without checkpoint slots first, on a reading taken once the devices' free memory has settled, since a card still taking back an ended process's memory would leave room for none.
-    const bool keeps_state = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
+    const bool keeps_state = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return keeps_slot(l); });
     const bool choose = request.fit_checkpoints && kept && keeps_state;
     const size_t most_marks = options.mark_slots;
     const bool marks = request.fit_marks && most_marks > 1 && keeps_state;

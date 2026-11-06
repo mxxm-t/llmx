@@ -66,6 +66,9 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
 }
 
 inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
+    const bool normalize = m.rule.softmax_only("vulkan");
+    no_clamp("vulkan", m.limit);
+    if (m.shared) no_clamp("vulkan", m.shared->limit);
     const OpSteps steps(*this);
     const MoeBuild* build = moe_build(m, nin, rows, runs, dtype);
     if (!build) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
@@ -118,7 +121,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         const uint32_t gr = u32(groups(n_expert, per_group)), gg = s ? 1u : 0u, gy = u32((rows + cols - 1) / cols);
         const uint32_t pc[26] = {u32(nin), u32(rows), 0, 0, plan.cluster, S / plan.cluster, s ? 2u : 1u,
                                  u32(n_expert), quant::GGML_TYPE_F32, 0, 0, 1, quant::GGML_TYPE_F32, 0, gr, 0, 0, 0, 0, 0, 0, 0,
-                                 u32(n_expert), u32(k), m.normalize ? 1u : 0u, (gr + gg) * gy};
+                                 u32(n_expert), u32(k), normalize ? 1u : 0u, (gr + gg) * gy};
         const VkDescriptorBufferInfo sc = bind(m.router.out), hf = bind(h), rw = bind(m.router.weight.data);
         const VkDescriptorBufferInfo sg = s ? bind(s->row_gate.out) : sc, gw = s ? bind(s->row_gate.weight.data) : rw;
         dispatch(moe_route_kernel(n_expert), {sc, sg, sc, rw, gw, rw, rw, gw, rw, rw, gw, rw, hf, rw, gw, rw, hf, hf, hf, hf, hf, hf,
@@ -135,7 +138,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     if (!s) {
         // D2 and D2b: without a shared expert the routed row kernel and the SiLU run as the unfused step runs them.
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
-        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, {entry_runs.data(), entry_runs.size()});
+        silu_mul(m.act, m.gate.out, m.up.out, entries * ff, 0.0f, {entry_runs.data(), entry_runs.size()});
     } else {
         // D2: the routed entries' gate and up rows beside each token's shared expert's.
         const RowPlan rp = row_plan(m.gate.weight.type, nin, dtype), sp = row_plan(s->gate.weight.type, nin, dtype);

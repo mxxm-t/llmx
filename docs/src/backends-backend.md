@@ -136,7 +136,8 @@ placement contracts in `docs/EXECUTION.md`.
   `auxiliary_widths` is empty for zero width on every layer or supplies one F32 width per KV layer.
   `kv_write` requires its token-major `[rows, width]` source on enabled layers, refuses one on disabled layers, and validates all views and sources before writing.
   The optional plane uses the same block ids as K and V; `select_kv` reads it for QSA, where qwen4exp keeps its raw indexer keys.
-  `auxiliary_pools` is empty or supplies, per layer, the groups of tokens whose pooled rows each block also keeps after its token rows (0 for none), which `pool_kv` and `select_kv` write.
+  `auxiliary_pools` is empty or supplies, per layer, an `AuxiliaryPool`: the groups of `tokens` whose pooled rows of `width` floats each block also keeps after its token rows (0 tokens for none), which `pool_kv` and `select_kv` write.
+  A storage of no heads keeps no K or V and holds pooled rows alone, on every layer, as an entries layer's are.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output
@@ -205,8 +206,8 @@ placement contracts in `docs/EXECUTION.md`.
   against a shared weight. `runs`, when given, are the row runs of the matmul
   that reads `dst` next, so a device can also write `dst` in the form that
   matmul's kernel reads.
-- `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, streams)`:
-  per-head RMS norm over `head_dim`, then RoPE on the first `rope_dim` dims
+- `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, form, streams)`:
+  per-head RMS norm over `head_dim`, then RoPE on `rope_dim` dims of it
   only, over a batch of rows, from heads read at a stride of their own into
   contiguous heads, so qwen35 reads q between its gates in `attn_q`'s rows.
   `cos`/`sin` are buffers holding the per-position tables of `rope_dim / 2`
@@ -215,11 +216,13 @@ placement contracts in `docs/EXECUTION.md`.
   it is Qwen3's rope; for qwen35's text the rope sections give every
   frequency the same position, so they reduce to it. The two are one op
   because the model never applies one without the other.
+  `RopeForm` says which dims and which way: the plain form, its default, rotates pairs (j, j + rope_dim / 2) of the head's first `rope_dim` dims; `offset` starts the rotated dims later in the head, `adjacent` takes pairs (2j, 2j + 1) as DeepSeek-V4.1's complex rotation does, and `inverse` turns each pair by minus its angle, which removes a query's rotation from the attention output.
+  Every backend runs the plain form and refuses the others by name (`RopeForm::plain_only`).
 - `norm_rope_kv(...)`: a layer's attention inputs in one op, q normed and
   rotated in place, k normed and rotated into its KV block and v copied
   into its block. The default runs `norm_rope_partial` at the full width on
   q and k in place, then `kv_write`; the Vulkan backend fuses them.
-- `silu_mul(dst, gate, up, n, runs)`: the SwiGLU elementwise stage. `runs`,
+- `silu_mul(dst, gate, up, n, limit, runs)`: the SwiGLU elementwise stage, with a limit L > 0 silu(min(gate, L)) * clamp(up, -L, L) as DeepSeek-V4.1's experts take it, and with 0 unclamped; a negative or infinite limit is refused, and every backend refuses any limit but 0 by name (`no_clamp`). `runs`,
   when given, group `dst`'s rows by prompt for the matmul that reads it next,
   as for `rms_norm_rows`; a routed layer passes its entries' runs.
 - `add(dst, src, n)`: the residual add.
@@ -227,10 +230,11 @@ placement contracts in `docs/EXECUTION.md`.
   `rows[i]` of `src`. Compacts the rows of a pass that want logits, which a
   batch mixing prefill and decode entries leaves non-contiguous, so the
   output head runs once over exactly them.
-- `Routing`, `route_experts(scores, rows, n_expert, k, normalize, ids,
-  weights)`: a mixture-of-experts layer's routing, the k experts of highest
-  softmax probability per row, most probable first and ties to the lower
-  id, with their probabilities renormalized over the k when asked. Slot `j`
+- `Routing`, `RouteRule`, `route_experts(scores, rows, n_expert, k, rule, ids,
+  weights)`: a mixture-of-experts layer's routing, the k experts the rule ranks highest per row, highest first and ties to the lower id.
+  `RouteRule::softmax(normalize)` ranks by softmax probability and weighs by the probabilities, renormalized over the k when asked.
+  `RouteRule::sqrt_softplus(bias, scale, normalize)`, DeepSeek-V4.1's, scores sqrt(softplus(x)), softplus being x above 20 as torch's threshold has it, ranks by score + bias and weighs by the unbiased scores over their sum + 1e-20 when `normalize` and k > 1, then times `scale`; a row with a score + bias that is not finite has no candidate.
+  Every backend runs the softmax rule and refuses the other by name (`RouteRule::softmax_only`). Slot `j`
   of row `r` is entry `r*k + j`; the ids are 32-bit integers in float-sized
   slots, so they stay in the activation arena. A row whose probabilities are
   not finite has no candidate: its k ids are `kNoExpert` with weights 0, and
@@ -248,7 +252,7 @@ placement contracts in `docs/EXECUTION.md`.
   the weighted sum of its k slots, formed in slot order before the add.
 - `RopeStreams` gives `norm_rope_partial` several positions a row: row `r`'s stream `k` is `pos[r * count + k]` and frequency `j` of the rope's half turns by stream `of[j]`, as Qwen's three position components and a vision encoder's patch row and column do; one stream is the plain rope, and a `w` with no buffer takes the rope without the norm. `implements(Op::rope_streams)` says a backend reads more than one stream or no norm.
 - The vision encoder's ops (`docs/VISION.md`, section 3), each with a base refusal until a backend implements it and an `Op` that says it does: `layer_norm_rows(dst, src, w, b, rows, n, stride, eps)`, the mean and biased variance of each row then `(x - mean) / sqrt(var + eps) * w + b`; `gelu(dst, src, n, form)`, `GeluForm::erf` or `GeluForm::tanh`; `add_bias(dst, bias, rows, width)`, a bias row added to each row; and `mix_rows(dst, table, width, table_rows, idx, weight, rows, taps)`, each row adding the weighted sum of its taps' table rows, taken in order, a row past the table refused.
-- `moe_step(m, h, y, nin, rows, runs, dtype)`: a routed feed-forward step, `MoeStep` its operands: the F32 router into its scores, `route_experts`, `matmul_experts` for gate and up, the routed `silu_mul` over runs of `end * k` (built in `m.scratch`) and `matmul_experts_add` into `y`, then, with `m.shared` (`MoeShared`), the row gate's F32 product in the step's dtype where the expert has one, `matmul_group` for its gate and up, `silu_mul`, `sigmoid_mul` by the row gate, and `matmul_add` into `y`; `m.zero`, a row of zeros, clears `y` first through `repeat_row`. Its projections and down weights carry `WeightView`s, including optional scale storage, through both the base operations and device override.
+- `moe_step(m, h, y, nin, rows, runs, dtype)`: a routed feed-forward step, `MoeStep` its operands: the F32 router into its scores, `route_experts` under `m.rule`, `matmul_experts` for gate and up, the routed `silu_mul` at `m.limit` over runs of `end * k` (built in `m.scratch`) and `matmul_experts_add` into `y`, then, with `m.shared` (`MoeShared`), the row gate's F32 product in the step's dtype where the expert has one, `matmul_group` for its gate and up, `silu_mul` at its `limit`, `sigmoid_mul` by the row gate, and `matmul_add` into `y`; `m.zero`, a row of zeros, clears `y` first through `repeat_row`. Its projections and down weights carry `WeightView`s, including optional scale storage, through both the base operations and device override; Vulkan's fused step refuses a rule other than softmax and a clamp by name before it builds, and ROCm, which keeps the base, refuses them in its `route_experts` and `silu_mul`.
   The base runs exactly those calls in that order, so a backend that does not override it, the CPU among them, computes what the routed layers computed before the op; a device overrides it where it fuses the step with the same bits (`backends-vulkan.md`, the fused routed step), and calls the base otherwise.
 - `repeat_row(dst, row, rows, width)`: copies a row of `width` floats into each of `rows` rows of dst, then doubles the copied rows, so clearing rows takes no host buffer or per-token upload; the base `moe_step` and qwen4exp's injection into a tensor group's partial rows use it.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
@@ -258,7 +262,7 @@ placement contracts in `docs/EXECUTION.md`.
     It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); the five qwen35 ops are pure virtual, while optional additions such as `select_kv` and `sparse_attention` keep the base refusal until implemented by a backend.
   - `StateShape`: the common linear-attention state prefix for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, and `slot_floats()` counts every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.
     `kConvTaps` is the conv's width, 4 in every qwen35 file, and `kL2NormEps` the L2 norms' epsilon, 1e-6, which no file carries.
-  - `state_alloc(layers, slots, shape, tail_floats)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state. `tail_floats` is optional; when supplied it has one count per layer. Each slot then holds the common `StateShape` prefix followed by that layer's additional F32 values, so layers without a tail do not pay for one. `slot_floats(layer)` and `slot_bytes(layer)` report the complete stride for that layer.
+  - `state_alloc(layers, slots, shape, tail_floats)`: a `StateStorage` of one buffer per layer holding every slot back to back, allocated through `alloc` and zero-filled when it is made and never grown, so no pass allocates state. `tail_floats` is optional; when supplied it has one count per layer. Each slot then holds the common `StateShape` prefix followed by that layer's additional F32 values, so layers without a tail do not pay for one. A shape of all zeros holds the tails alone, every layer having one, as entries layers' slots do. `slot_floats(layer)` and `slot_bytes(layer)` report the complete stride for that layer.
     It refuses zero layers, zero slots, a shape with zero K or V heads or a zero width, and V heads that are no multiple of the K heads.
     It is the same on every backend, over its own `alloc`.
     It refuses a tail list with the wrong layer count, arithmetic overflow, a missing buffer or one smaller than that layer's full slot strides, so a storage made by hand cannot send an op past a buffer's end. `check_state_views` also requires matching full per-layer strides across views. State ops use the common prefix; an architecture-specific tail remains in the same slot and is untouched unless that architecture updates it.

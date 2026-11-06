@@ -96,25 +96,6 @@ inline void inject(const Config& c, const Step& s, backend::CSlice block, backen
     if (s.width == 1) s.b.inject_streams(s.x, block, gates, s.rows, size_t(c.hc_count), size_t(c.n_embd));
 }
 
-inline std::vector<uint64_t> uint64_array(const gguf::GGUFModel& m, const std::string& key, size_t expected) {
-    const gguf::MetaValue* value = m.find(key);
-    if (!value) throw std::runtime_error("inference: missing metadata " + key);
-    if (value->vtype != gguf::V_ARRAY || value->u != gguf::V_UINT64)
-        throw std::runtime_error("inference: invalid uint64 array type " + key);
-    if (value->arr.size() != expected)
-        throw std::runtime_error("inference: invalid uint64 array length " + key);
-    std::vector<uint64_t> result;
-    if (value->arr.size() > result.max_size())
-        throw std::runtime_error("inference: metadata array exceeds allocation limit " + key);
-    result.reserve(value->arr.size());
-    for (const gguf::MetaValue& item : value->arr) {
-        if (item.vtype != gguf::V_UINT64)
-            throw std::runtime_error("inference: invalid uint64 array element " + key);
-        result.push_back(item.u);
-    }
-    return result;
-}
-
 inline void check_config(const Config& c) {
     if (c.n_layer <= 0) throw std::runtime_error("inference: a model without decoder layers");
     if (c.n_nextn < 0 || c.n_nextn > 1)
@@ -369,9 +350,9 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p) {
         if (uint64_t(c.ple_embedding_length) * ple_head_count > uint64_t(std::numeric_limits<int>::max()))
             throw std::runtime_error("inference: PLE embedding dimensions exceed the supported range");
         c.ple_embedding_dim = int(uint64_t(c.ple_embedding_length) * ple_head_count);
-        c.ple_hash.multipliers = uint64_array(m, p + "ple.layer_multipliers", size_t(c.ple_hash.ngram_size));
-        c.ple_hash.head_offsets = uint64_array(m, p + "ple.head_offsets", ple_heads);
-        c.ple_hash.head_vocab_sizes = uint64_array(m, p + "ple.head_vocab_sizes", ple_heads);
+        c.ple_hash.multipliers = metadata::uint64s(m, p + "ple.layer_multipliers", size_t(c.ple_hash.ngram_size));
+        c.ple_hash.head_offsets = metadata::uint64s(m, p + "ple.head_offsets", ple_heads);
+        c.ple_hash.head_vocab_sizes = metadata::uint64s(m, p + "ple.head_vocab_sizes", ple_heads);
     } else if (m.find(p + "ple.ngram_size") || m.find(p + "ple.heads_per_ngram") ||
                m.find(p + "ple.conv_kernel") || m.find(p + "ple.eos_token_id") ||
                m.find(p + "ple.layer_multipliers") || m.find(p + "ple.head_offsets") ||
@@ -590,7 +571,7 @@ public:
         return p;
     }
 
-    void fill_tables(std::vector<std::vector<float>>& tables) const override {
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         const size_t half = size_t(cfg_.rope_dim / 2);
         for (size_t i = 0; i < half; ++i) {
             const float freq = 1.0f / std::pow(cfg_.rope_theta, 2.0f * float(i) / float(cfg_.rope_dim));
@@ -645,7 +626,7 @@ public:
         block.width = 1;
         const Weight* w = s.w;
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], &w[ffn_gate_inp_shexp]};
-        blocks::moe_step(block, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used), cfg_.expert_norm,
+        blocks::moe_step(block, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used), backend::RouteRule::softmax(cfg_.expert_norm),
                          s.slot(mixed), s.slot(expert_gate), s.slot(expert_up), s.slot(expert_act), s.slot(scores), s.slot(expert_ids), s.slot(expert_weights),
                          &shared, s.slot(shared_gate), s.tables[2].get());
         inject(cfg_, s, block.x, s.slot(hc_inject));
@@ -888,6 +869,7 @@ private:
         layer.cache = Cache::kv;
         layer.kv_aux = sparse ? size_t(I) : 0;
         layer.kv_pool = compression;
+        layer.kv_pool_width = layer.kv_aux;
         layer.roles.insert(layer.roles.end(), {
             {attn_q, Part::mixer, RoleKind::matrix, pre + "attn_q.weight", "", E, 2 * Q},
             {attn_k, Part::mixer, RoleKind::matrix, pre + "attn_k.weight", "", E, KV},
@@ -979,7 +961,7 @@ private:
                          s.slot(mixed), E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, size_t(cfg_.rope_dim),
-                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{});
         backend::CSlice auxiliary;
         if (s.kind == mtp_qsa_kind) {
             s.b.matmul(w[index_k].operand(), s.slot(mixed), s.slot(index_key), E, size_t(cfg_.indexer_head_dim), s.rows, s.runs, s.dtype);
@@ -1008,15 +990,15 @@ private:
                               blocks::projection(w[index_k], s.slot(index_key))}, s.slot(mixed), E, s.rows, s.runs, s.dtype);
         s.b.unordered(false);
         s.b.norm_rope_partial(s.slot(query), s.slot(raw), s.rows, 2 * H * D, 2 * D, H, D, R,
-                              w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+                              w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, R,
-                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
         if (s.kind == dense_kind) {
             s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate));
             s.b.attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(recurrent), int(H), int(HK), int(D));
         } else {
             s.b.norm_rope_partial(s.slot(index_query), s.slot(index_query), s.rows, IH * I, I, IH, I, R,
-                                  w[index_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+                                  w[index_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, backend::RopeForm{}, s.streams);
             s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate), s.slot(index_key));
             const size_t compression = s.kind == mtp_qsa_kind ? size_t(cfg_.nextn_compress_ratio) : size_t(cfg_.indexer_compress_ratio);
             const backend::Backend::IndexArgs args{IH, I, R, compression, size_t(cfg_.indexer_budget), cfg_.rms_eps};

@@ -54,7 +54,7 @@ static const size_t KV_BLOCK_TOKENS = 128;
 class CpuKVStorage final : public BlockKVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
-                 const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
+                 const std::vector<size_t>& auxiliary_widths, const std::vector<AuxiliaryPool>& auxiliary_pools)
         : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools),
           kp_(layers, nullptr), vp_(layers, nullptr) {}
 
@@ -69,6 +69,14 @@ public:
     const float* v(size_t layer, int32_t id) const { return (const float*)vraw(layer, id); }
     uint16_t* kh(size_t layer, int32_t id) { return (uint16_t*)kraw(layer, id); }
     uint16_t* vh(size_t layer, int32_t id) { return (uint16_t*)vraw(layer, id); }
+    // The one address of `group`'s pooled row of `layer` for `view` (BlockKVStorage::auxiliary_pool): in the block of the group's first token, after that block's token rows.
+    // The owner allocates every block buffer, so the auxiliary plane is a CpuBuffer as the K and V planes after_growth checks are.
+    float* pooled_row(size_t layer, const KVView& view, size_t group) const {
+        const size_t tokens = auxiliary_pool(layer), token = size_mul(group, tokens), bt = block_tokens();
+        uint8_t* plane = (uint8_t*)static_cast<const CpuBuffer&>(*auxiliary_buffer(layer)).host_address();
+        return (float*)(plane + (size_t)view.blocks[token / bt] * auxiliary_block_bytes(layer) + auxiliary_rows_bytes(layer) +
+                        (token % bt) / tokens * auxiliary_pool_width(layer) * sizeof(float));
+    }
 
 private:
     void retire(const BufferPtr&) override {}
@@ -76,8 +84,8 @@ private:
     void after_growth(const std::vector<BufferPtr>& keys, const std::vector<BufferPtr>& values) override {
         std::vector<uint8_t*> kp(keys.size()), vp(values.size());
         for (size_t l = 0; l < keys.size(); ++l) {
-            kp[l] = host_bytes(*keys[l]);
-            vp[l] = host_bytes(*values[l]);
+            kp[l] = keys[l] ? host_bytes(*keys[l]) : nullptr;
+            vp[l] = values[l] ? host_bytes(*values[l]) : nullptr;
         }
         kp_.swap(kp);
         vp_.swap(vp);
@@ -747,8 +755,8 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override {
-        if (layers == 0 || n_head_kv == 0 || head_dim == 0)
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<AuxiliaryPool>& auxiliary_pools = {}) override {
+        if (layers == 0 || (n_head_kv && head_dim == 0))
             throw std::runtime_error("backend: invalid KV storage shape");
         return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
@@ -1095,12 +1103,12 @@ public:
     void pool_view(CpuKVStorage& storage, size_t layer, const KVView& view, const IndexArgs& args, const float* gamma, const float* cosine, const float* sine,
                    const uint32_t* pos = nullptr, RopeStreams streams = {}) {
         const size_t aux_width = storage.auxiliary_width(layer), block_bytes = storage.auxiliary_block_bytes(layer);
-        const size_t rows_bytes = storage.auxiliary_rows_bytes(layer), bt = storage.block_tokens(), half = args.rope_dim / 2;
+        const size_t bt = storage.block_tokens(), half = args.rope_dim / 2;
         uint8_t* plane = (uint8_t*)at(Slice{storage.auxiliary_buffer(layer).get(), 0});
         const size_t groups = size_add(view.length, view.nq) / args.compression;
         for (size_t group = view.length / args.compression; group < groups; ++group) {
             const size_t first_token = size_mul(group, args.compression);
-            float* pooled = (float*)(plane + (size_t)view.blocks[first_token / bt] * block_bytes + rows_bytes + (first_token % bt) / args.compression * aux_width * sizeof(float));
+            float* pooled = storage.pooled_row(layer, view, group);
             std::fill(pooled, pooled + args.dim, 0.0f);
             for (size_t token = first_token; token < first_token + args.compression; ++token) {
                 const float* raw = (const float*)(plane + (size_t)view.blocks[token / bt] * block_bytes + (token % bt) * aux_width * sizeof(float));
@@ -1173,7 +1181,6 @@ public:
         struct ViewPlan {
             CpuKVStorage* storage = nullptr;
             const KVView* view = nullptr;
-            float* auxiliary = nullptr;
             size_t first_row = 0, visible = 0, groups = 0;
         };
         std::vector<ViewPlan> plans;
@@ -1199,7 +1206,6 @@ public:
                 const auto& auxiliary = plan.storage->auxiliary_buffer(layer);
                 if (!auxiliary) throw std::runtime_error("backend: index selection without auxiliary key storage");
                 span(*auxiliary, 0, auxiliary->size());
-                plan.auxiliary = at(Slice{auxiliary.get(), 0});
             }
             rows = size_add(rows, view.nq);
             max_position = std::max(max_position, plan.visible);
@@ -1251,16 +1257,7 @@ public:
         const std::vector<size_t> offsets = group_offsets(views, n_views, args.compression, positions);
         for (ViewPlan& plan : plans) {
             const KVView& view = *plan.view;
-            const size_t aux_width = plan.storage->auxiliary_width(layer);
-            const size_t block_bytes = plan.storage->auxiliary_block_bytes(layer);
-            const size_t rows_bytes = plan.storage->auxiliary_rows_bytes(layer);
-            const size_t bt = plan.storage->block_tokens();
-            // A complete group's pooled row in its block, after the block's token rows.
-            const auto pooled_row = [&](size_t group) {
-                const size_t token = size_mul(group, args.compression);
-                const size_t offset = (size_t)view.blocks[token / bt] * block_bytes + rows_bytes + (token % bt) / args.compression * aux_width * sizeof(float);
-                return (float*)((uint8_t*)plan.auxiliary + offset);
-            };
+            const auto pooled_row = [&](size_t group) { return plan.storage->pooled_row(layer, view, group); };
             pool_view(*plan.storage, layer, view, args, gamma, cosine, sine, positions.pos ? positions.pos + offsets[size_t(&plan - plans.data())] : nullptr,
                       positions.streams);
 
@@ -1366,9 +1363,10 @@ public:
 
     void norm_rope_partial(Slice dst_s, CSlice src_s, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w_s, float eps,
-                           CSlice cos_s, CSlice sin_s, const uint32_t* pos, RopeStreams streams = {}) override {
+                           CSlice cos_s, CSlice sin_s, const uint32_t* pos, const RopeForm& form, RopeStreams streams = {}) override {
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("backend: invalid partial rope dimensions");
+        form.plain_only("backend");
         if (rows && !pos) throw std::runtime_error("backend: partial rope without positions");
         const size_t half = rope_dim / 2;
         if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("backend: invalid rope streams");
@@ -1520,7 +1518,8 @@ public:
         });
     }
 
-    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, RowRuns = {}) override {
+    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, float limit, RowRuns = {}) override {
+        no_clamp("backend", limit);
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
@@ -2031,10 +2030,11 @@ public:
         });
     }
 
-    void route_experts(CSlice scores_s, size_t rows, size_t n_expert, size_t k, bool normalize,
+    void route_experts(CSlice scores_s, size_t rows, size_t n_expert, size_t k, const RouteRule& rule,
                        Slice ids_s, Slice weights_s) override {
         if (!k || k > n_expert) throw std::runtime_error("backend: routing selects no expert or more than exist");
         if (k > 256) throw std::runtime_error("backend: more than 256 experts per token");
+        const bool normalize = rule.softmax_only("backend");
         if (!rows) return;
         span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
         span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));

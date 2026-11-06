@@ -56,12 +56,12 @@ struct RopeProbe : backend::CpuBackend {
     std::vector<std::pair<size_t, std::vector<uint32_t>>> calls;
     void norm_rope_partial(backend::Slice dst, backend::CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
                            size_t rope_dim, backend::CSlice w, float eps, backend::CSlice cos, backend::CSlice sin, const uint32_t* pos,
-                           backend::RopeStreams streams = {}) override {
+                           const backend::RopeForm& form, backend::RopeStreams streams = {}) override {
         std::vector<uint32_t> three;
         for (size_t r = 0; r < rows; ++r)
             for (size_t k = 0; k < 3; ++k) three.push_back(pos[r * streams.count + (streams.count == 3 ? k : 0)]);
         calls.push_back({rows, std::move(three)});
-        CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, streams);
+        CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, form, streams);
     }
 };
 

@@ -768,7 +768,7 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
     for (int t : kThreadCounts) {
         cpu.set_threads(t);
         cpu.norm_rope_partial({dst.get(), 0}, {src.get(), 0}, rows, heads * 2 * head_dim, 2 * head_dim, heads, head_dim, rope_dim,
-                              {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data());
+                              {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data(), backend::RopeForm{});
         const auto y = download(cpu, *dst, rows * heads * head_dim);
         if (first.empty()) first = y;
         require(same_bits(y, first), "partial rope: the thread count changed a result");
@@ -797,7 +797,7 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
     for (size_t r : {size_t(0), size_t(7), rows - 1}) {
         BufferPtr one = zeros(cpu, heads * head_dim * sizeof(float));
         cpu.norm_rope_partial({one.get(), 0}, {src.get(), r * heads * 2 * head_dim}, 1, heads * 2 * head_dim, 2 * head_dim, heads,
-                              head_dim, rope_dim, {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data() + r);
+                              head_dim, rope_dim, {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data() + r, backend::RopeForm{});
         const size_t o = r * heads * head_dim;
         require(same_bits(download(cpu, *one, heads * head_dim), std::vector<float>(first.begin() + o, first.begin() + o + heads * head_dim)),
                 "partial rope: a row alone differs from the row in a batch");
@@ -808,12 +808,12 @@ size_t check_partial_rope(std::mt19937& g, size_t heads, size_t head_dim, size_t
             std::memcpy(&k[(r * heads + h) * head_dim], &r_rows[r * heads * 2 * head_dim + h * 2 * head_dim], head_dim * sizeof(float));
     BufferPtr kb = upload(cpu, k);
     cpu.norm_rope_partial({kb.get(), 0}, {kb.get(), 0}, rows, heads * head_dim, head_dim, heads, head_dim, rope_dim, {wb.get(), 0}, eps,
-                          {cb.get(), 0}, {sb.get(), 0}, pos.data());
+                          {cb.get(), 0}, {sb.get(), 0}, pos.data(), backend::RopeForm{});
     require(same_bits(download(cpu, *kb, k.size()), first), "partial rope: k in place differs from q read between its gates");
     bool refused = false;
     try {
         cpu.norm_rope_partial({src.get(), 0}, {src.get(), 0}, rows, heads * 2 * head_dim, 2 * head_dim, heads, head_dim, rope_dim,
-                              {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data());
+                              {wb.get(), 0}, eps, {cb.get(), 0}, {sb.get(), 0}, pos.data(), backend::RopeForm{});
     } catch (const std::runtime_error&) { refused = true; }
     require(refused, "partial rope in place over heads that are not contiguous was taken");
     return rows * heads;
@@ -839,7 +839,7 @@ void check_rope_tail(std::mt19937& g) {
     CpuBackend cpu;
     BufferPtr xb = upload(cpu, x), wb = upload(cpu, w), cb = upload(cpu, cos), sb = upload(cpu, sin);
     cpu.norm_rope_partial({xb.get(), 0}, {xb.get(), 0}, rows, head_dim, head_dim, 1, head_dim, head_dim, {wb.get(), 0}, 1e-6f, {cb.get(), 0},
-                          {sb.get(), 0}, pos.data());
+                          {sb.get(), 0}, pos.data(), backend::RopeForm{});
     const auto y = download(cpu, *xb, x.size());
     for (size_t r = 0; r < rows; ++r)
         for (size_t i = 0; i < 4; ++i)

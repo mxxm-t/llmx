@@ -148,6 +148,22 @@ struct RowRuns {
     size_t n = 0;
 };
 
+// How route_experts ranks a row's logits and weighs its picks (docs/src/backends-backend.md); bias and scale belong to sqrt_softplus alone.
+struct RouteRule {
+    enum class Score : uint8_t { softmax, sqrt_softplus };
+    Score score;
+    bool normalize;
+    CSlice bias;
+    float scale;
+    static RouteRule softmax(bool normalize) { return {Score::softmax, normalize, {}, 1.0f}; }
+    static RouteRule sqrt_softplus(CSlice bias, float scale, bool normalize) { return {Score::sqrt_softplus, normalize, bias, scale}; }
+    // The normalize flag of a softmax rule, for a backend that refuses the other scores by name.
+    bool softmax_only(const char* backend) const {
+        if (score != Score::softmax || bias.buffer || scale != 1.0f) throw std::runtime_error(std::string(backend) + ": route_experts has no sqrt_softplus scores");
+        return normalize;
+    }
+};
+
 // A routed feed-forward step's operands (Backend::moe_step): the shared expert's, beside the routed experts' below.
 // Its gate and up project one row a token into `out`, its row gate, an F32 vector, gives one value a row and has no data on an ungated expert.
 struct MoeShared {
@@ -155,13 +171,14 @@ struct MoeShared {
     WeightView down;
     Slice act;
     Projection row_gate;
+    float limit = 0.0f;  // silu_mul's clamp, 0 for none
 };
 // The F32 router's n_expert scores into router.out, a row's k picks and weights, each stack's n_expert matrices of gate.rows rows writing k rows a token, and the slot the SiLU writes.
-// `zero`, a row of zeros as wide as y's rows, clears y before the sums join it; `scratch` holds the entry runs the routed SiLU takes.
+// `rule` picks and weighs the experts, `limit` clamps their SiLU (0 for none), `zero` clears y first and `scratch` holds the SiLU's entry runs.
 struct MoeStep {
     Projection router;
     size_t k;
-    bool normalize;
+    RouteRule rule;
     Slice ids, weights;
     Projection gate, up;
     WeightView down;
@@ -169,6 +186,7 @@ struct MoeStep {
     const MoeShared* shared;
     const Buffer* zero;
     std::vector<RowRun>* scratch;
+    float limit = 0.0f;
 };
 
 // Calls `each(first, count, key)` over the stretches of adjacent runs whose `key(run)` is equal, once the runs are known to be in row order and to end at row `n`.
@@ -215,6 +233,11 @@ inline KVType kv_type_of(const std::string& name) {
 }
 inline const char* kv_type_name(KVType t) { return t == KVType::f16 ? "f16" : "f32"; }
 
+// A layer's pooled rows in its KV blocks: one row of `width` F32 values for each complete group of `tokens` positions, or none where `tokens` is 0 (BlockKVStorage::auxiliary_pool).
+struct AuxiliaryPool {
+    size_t tokens = 0, width = 0;
+};
+
 class KVStorage {
 public:
     virtual ~KVStorage() = default;
@@ -238,6 +261,19 @@ struct KVView {
     size_t extent = 0;
     // A non-causal view's rows attend every position of the view, length + nq, as a vision encoder's rows see their whole image (docs/VISION.md, section 3).
     bool causal = true;
+};
+
+
+// Which dims of a head norm_rope_partial rotates and which way (docs/src/backends-backend.md); the default is the plain rope.
+struct RopeForm {
+    bool adjacent = false;
+    size_t offset = 0;
+    bool inverse = false;
+    bool plain() const { return !adjacent && !offset && !inverse; }
+    // A backend with the plain rope alone refuses the other forms by name.
+    void plain_only(const char* backend) const {
+        if (!plain()) throw std::runtime_error(std::string(backend) + ": norm_rope_partial has no adjacent, offset or inverse form");
+    }
 };
 
 // Several positions a row for a rope: row r's stream k is pos[r * count + k], and frequency j turns by stream of[j]'s (docs/VISION.md, section 4).
@@ -353,6 +389,7 @@ enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
+// The last three are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp and norm_rope_partial's adjacent, offset and inverse forms.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full };
@@ -594,13 +631,13 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer, and pools the groups whose pooled rows each layer's blocks also keep (BlockKVStorage::auxiliary_pool).
+    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer, and pools the pooled rows each layer's blocks also keep (AuxiliaryPool); a storage of no heads holds those rows alone.
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,
                                                 KVType v_type = KVType::f32,
                                                 const std::vector<size_t>& auxiliary_widths = {},
-                                                const std::vector<size_t>& auxiliary_pools = {}) = 0;
+                                                const std::vector<AuxiliaryPool>& auxiliary_pools = {}) = 0;
 
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows, which go to positions length to length + nq of its sequence, and several views carry several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
@@ -646,11 +683,11 @@ public:
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
-    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position, without the norm where `w` has no buffer.
+    // Per-head RMS norm over `head_dim` floats, then RoPE on `rope_dim` of them in `form`, pair j at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position, without the norm where `w` has no buffer.
     // Head h of row r starts at src + r * src_stride + h * src_head_stride, dst may alias src only if identical and contiguous, and `streams` give a row several positions (docs/src/backends-backend.md).
     virtual void norm_rope_partial(Slice /*dst*/, CSlice /*src*/, size_t /*rows*/, size_t /*src_stride*/, size_t /*src_head_stride*/,
                                    size_t /*heads*/, size_t /*head_dim*/, size_t /*rope_dim*/, CSlice /*w*/, float /*eps*/,
-                                   CSlice /*cos*/, CSlice /*sin*/, const uint32_t* /*pos*/, RopeStreams /*streams*/ = {}) {
+                                   CSlice /*cos*/, CSlice /*sin*/, const uint32_t* /*pos*/, const RopeForm& /*form*/, RopeStreams /*streams*/ = {}) {
         lacks(Op::norm_rope_partial);
     }
 
@@ -667,8 +704,8 @@ public:
                               const RopeArgs& rope, size_t rows, size_t layer,
                               const KVView* views, size_t n_views) {
         const size_t dim = 2 * rope.half;
-        norm_rope_partial(q, q, rows, q_stride, dim, n_head, dim, dim, q_w, rope.eps, rope.cos, rope.sin, rope.pos);
-        norm_rope_partial(k, k, rows, kv_stride, dim, n_head_kv, dim, dim, k_w, rope.eps, rope.cos, rope.sin, rope.pos);
+        norm_rope_partial(q, q, rows, q_stride, dim, n_head, dim, dim, q_w, rope.eps, rope.cos, rope.sin, rope.pos, backend::RopeForm{});
+        norm_rope_partial(k, k, rows, kv_stride, dim, n_head_kv, dim, dim, k_w, rope.eps, rope.cos, rope.sin, rope.pos, backend::RopeForm{});
         kv_write(layer, views, n_views, k, v);
     }
 
@@ -694,9 +731,13 @@ public:
         lacks(Op::mix_rows);
     }
 
-    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
+    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2); a limit of 0 clamps nothing.
     // `runs`, when given, group dst's rows of n / rows floats, `rows` being the last run's end, by prompt as matmul's runs do, for the matmul that reads dst next, as for rms_norm_rows.
-    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) = 0;
+    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) = 0;
+    // A backend without silu_mul's clamp refuses a limit by name.
+    static void no_clamp(const char* backend, float limit) {
+        if (limit != 0.0f) throw std::runtime_error(std::string(backend) + ": silu_mul has no clamp");
+    }
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;
@@ -717,9 +758,10 @@ public:
     static constexpr uint32_t kNoExpert = 0xffffffffu;
     // A probability below FLT_MIN counts as 0, so such picks go by lower id whatever a device's denormal mode; HF orders them by value, which changes no output, since their weights are below 1e-38.
 
-    // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability over all n_expert, the most probable first and ties to the lower id, with their probabilities, divided by their sum when `normalize`.
-    // A row without a candidate gives k picks of kNoExpert with weights 0.
-    virtual void route_experts(CSlice /*scores*/, size_t /*rows*/, size_t /*n_expert*/, size_t /*k*/, bool /*normalize*/,
+
+    // For each of `rows` rows of `scores` (n_expert floats each), the k experts the rule ranks highest, the highest first and ties to the lower id, with their weights.
+    // A row without a candidate gives k picks of kNoExpert with weights 0: under softmax its probabilities are not finite, under sqrt_softplus a score + bias is not.
+    virtual void route_experts(CSlice /*scores*/, size_t /*rows*/, size_t /*n_expert*/, size_t /*k*/, const RouteRule& /*rule*/,
                                Slice /*ids*/, Slice /*weights*/) {
         lacks(Op::routed_experts);
     }
@@ -744,21 +786,21 @@ public:
         if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const size_t n_expert = m.router.rows, ff = m.gate.rows;
         matmul(m.router.weight, h, m.router.out, nin, n_expert, rows, runs, Dtype::f32);
-        route_experts(m.router.out, rows, n_expert, m.k, m.normalize, m.ids, m.weights);
+        route_experts(m.router.out, rows, n_expert, m.k, m.rule, m.ids, m.weights);
         const Routing routing{m.ids, m.weights, m.k, n_expert};
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
         // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
         std::vector<RowRun>& entry_runs = *m.scratch;
         entry_runs.clear();
         for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
-        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, {entry_runs.data(), entry_runs.size()});
+        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, m.limit, {entry_runs.data(), entry_runs.size()});
         matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
         if (!m.shared) return;
         const MoeShared& s = *m.shared;
         const bool gated = s.row_gate.weight.data.buffer != nullptr;
         if (gated) matmul(s.row_gate.weight, h, s.row_gate.out, nin, 1, rows, runs, dtype);
         matmul_group({s.gate, s.up}, h, nin, rows, runs, dtype);
-        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, runs);
+        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, s.limit, runs);
         if (gated) sigmoid_mul(s.act, s.act, s.row_gate.out, rows, s.gate.rows, 1, 1, 0, runs);
         matmul_add(s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
     }
@@ -777,9 +819,12 @@ public:
     // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 
     // The recurrent state of `layers` linear-attention layers with `slots` slots each, allocated now and zero-filled, so no pass allocates state.
+    // A shape of all zeros holds every layer's tail alone, as an entries layer's slot does.
     std::unique_ptr<StateStorage> state_alloc(size_t layers, size_t slots, const StateShape& shape,
                                              const std::vector<size_t>& tail_floats = {}) {
-        if (!layers || !slots || !shape.k_heads || !shape.k_dim || !shape.v_dim || !shape.v_heads || shape.v_heads % shape.k_heads)
+        const bool tails = !shape.k_heads && !shape.k_dim && !shape.v_dim && !shape.v_heads && !tail_floats.empty() &&
+                           std::none_of(tail_floats.begin(), tail_floats.end(), [](size_t n) { return n == 0; });
+        if (!layers || !slots || (!tails && (!shape.k_heads || !shape.k_dim || !shape.v_dim || !shape.v_heads || shape.v_heads % shape.k_heads)))
             throw std::runtime_error("backend: invalid state shape");
         if (!tail_floats.empty() && tail_floats.size() != layers)
             throw std::runtime_error("backend: state tail count differs from its layers");

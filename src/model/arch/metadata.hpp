@@ -120,6 +120,22 @@ inline std::vector<bool> booleans(const gguf::GGUFModel& m, const std::string& k
     return out;
 }
 
+// An array of UINT64 values, which a count would narrow, of `expected` entries unless that is SIZE_MAX; an absent key is refused.
+inline std::vector<uint64_t> uint64s(const gguf::GGUFModel& m, const std::string& k, size_t expected = SIZE_MAX) {
+    const gguf::MetaValue* v = m.find(k);
+    if (!v) throw std::runtime_error("inference: missing metadata " + k);
+    if (v->vtype != gguf::V_ARRAY || v->u != gguf::V_UINT64) throw std::runtime_error("inference: invalid uint64 array type " + k);
+    if (expected != SIZE_MAX && v->arr.size() != expected) throw std::runtime_error("inference: invalid uint64 array length " + k);
+    std::vector<uint64_t> out;
+    if (v->arr.size() > out.max_size()) throw std::runtime_error("inference: metadata array exceeds allocation limit " + k);
+    out.reserve(v->arr.size());
+    for (const gguf::MetaValue& e : v->arr) {
+        if (e.vtype != gguf::V_UINT64) throw std::runtime_error("inference: invalid uint64 array element " + k);
+        out.push_back(e.u);
+    }
+    return out;
+}
+
 // A mixture-of-experts file's routing keys under `p`: experts per layer, experts each token takes, an expert's hidden width, and whether the chosen probabilities are renormalized to sum to one.
 // Routing is a softmax over the scores, gating function 1, unscaled; any other gating or a scale is refused.
 struct Experts {

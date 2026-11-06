@@ -296,7 +296,7 @@ public:
         if (non_kv_) p.layers.at(layer_).cache = infer::Cache::none;
         return p;
     }
-    void fill_tables(std::vector<std::vector<float>>& tables) const override { base_->fill_tables(tables); }
+    void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base_->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base_->mixer(s); }
     void recur(const infer::Step& s) const override { base_->recur(s); }
@@ -348,7 +348,7 @@ public:
                                                   size_t max_tokens, backend::KVType k_type,
                                                   backend::KVType v_type,
                                                   const std::vector<size_t>& auxiliary_widths = {},
-                                                  const std::vector<size_t>& auxiliary_pools = {}) override {
+                                                  const std::vector<backend::AuxiliaryPool>& auxiliary_pools = {}) override {
         auxiliary_allocations.push_back(auxiliary_widths);
         return backend::CpuBackend::kv_alloc(layers, n_head_kv, head_dim, max_tokens,
                                              k_type, v_type, auxiliary_widths, auxiliary_pools);

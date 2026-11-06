@@ -395,3 +395,4 @@ tensor width quant blocks: inference: a tensor width of 8 splits blk.0.ffn_down.
 tensor width vocabulary: inference: a tensor width of 2 does not divide the 15 vocabulary rows of output.weight
 tensor width K heads: inference: a tensor width of 4 does not divide the 2 K heads of blk.0.attn_qkv.weight
 tensor width saved row: inference: a tensor width of 2 does not divide the 513 floats layer 0 saves a row for a mark
+row run past the tensor: inference: incompatible tensor layout blk.0.attn_qk.weight

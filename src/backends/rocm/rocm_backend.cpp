@@ -1157,7 +1157,7 @@ private:
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
-                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
@@ -1175,7 +1175,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -1269,13 +1269,14 @@ private:
         const char* name;
         Kernel exact, rows, embed, routed;
         const TwinKernels* twin;
+        Kernel cols;   // the few-row builds of the exact product, 2 and 4 rows from here on; kKernels where the type has none
     };
     static constexpr TypeKernels kTypes[] = {
-        {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins},
-        {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kRowsExactQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kRowsExactQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins},
-        {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins},
-        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr},
-        {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins},
+        {quant::GGML_TYPE_F32, "F32", kMatmul, kRowsExactF32, kGather, kRoutedExactF32, nullptr, kColsF32x2},          {quant::GGML_TYPE_Q8_0, "Q8_0", kMatmulQ8, kRowsExactQ8, kGatherQ8, kRoutedExactQ8, &kQ8Twins, kKernels},
+        {quant::GGML_TYPE_Q4_K, "Q4_K", kMatmulQ4K, kRowsExactQ4K, kGatherQ4K, kRoutedExactQ4K, &kQ4KTwins, kKernels}, {quant::GGML_TYPE_Q5_K, "Q5_K", kMatmulQ5K, kRowsExactQ5K, kGatherQ5K, kRoutedExactQ5K, &kQ5KTwins, kKernels},
+        {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins, kKernels}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins, kKernels},
+        {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kKernels},
+        {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
     };
     static const TypeKernels* type_kernels(uint32_t type) {
         for (const TypeKernels& t : kTypes)
@@ -1518,7 +1519,13 @@ private:
         float* y = f32(Y);
         unsigned long long ni = nin, no = nout;
         int add = accumulate;
-        if (nbatch > 1) {
+        if (nbatch > 1 && nbatch <= 4 && kinds.cols != kKernels) {
+            // Up to four rows take a wave an output over all of them, each output the bits of its one-row product (kernels/f32.hip, exact_cols); at eight the blocked build measured faster on the router (docs/STATUS.md).
+            unsigned long long nr = nbatch;
+            void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
+            const size_t waves = kThreads / dev_.caps.subgroup_size;
+            launch_writing({{y, size_mul(nout, nbatch)}}, static_cast<Kernel>(kinds.cols + (nbatch <= 2 ? 0 : 1)), (unsigned)((nout + waves - 1) / waves), 1, args);
+        } else if (nbatch > 1) {
             // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.hip, exact_rows).
             unsigned long long nr = nbatch;
             void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};

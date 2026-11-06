@@ -636,6 +636,88 @@ __device__ void exact_wave(const unsigned char* W, const float* X, float* Y, uns
         for (int j = 0; j < h; ++j) s[j] += s[j + h];
     if (t == 0) Y[o] = add ? Y[o] + s[0] : s[0];
 }
+// vector_steps over C rows of X, nin apart: the weights loaded once for all of them, each row's chains stepped as exact_wave steps its one.
+template <class D, int J, int U, int C>
+__device__ inline void vector_steps_cols(const unsigned char* row, const float* const (&X)[C], unsigned long long u, float (&s)[C][J]) {
+    float4 a[U][J / 4], b[C][U][J / 4];
+#pragma unroll
+    for (int q = 0; q < U; ++q)
+#pragma unroll
+        for (int k = 0; k < J / 4; ++k) {
+            a[q][k] = D::load4(row, u + 4 * k + q * kThreads);
+#pragma unroll
+            for (int c = 0; c < C; ++c) b[c][q][k] = ((const float4*)X[c])[(u + 4 * k + q * kThreads) / 4];
+        }
+    __builtin_amdgcn_sched_barrier(0);
+#pragma unroll
+    for (int c = 0; c < C; ++c)
+#pragma unroll
+        for (int q = 0; q < U; ++q)
+#pragma unroll
+            for (int k = 0; k < J / 4; ++k) {
+                s[c][4 * k] = fmaf(a[q][k].x, b[c][q][k].x, s[c][4 * k]);
+                s[c][4 * k + 1] = fmaf(a[q][k].y, b[c][q][k].y, s[c][4 * k + 1]);
+                s[c][4 * k + 2] = fmaf(a[q][k].z, b[c][q][k].z, s[c][4 * k + 2]);
+                s[c][4 * k + 3] = fmaf(a[q][k].w, b[c][q][k].w, s[c][4 * k + 3]);
+            }
+}
+template <class D, int J, int U, int C>
+__device__ inline void vector_run_cols(const unsigned char* row, const float* const (&X)[C], unsigned long long first, unsigned long long full, unsigned long long m, float (&s)[C][J]) {
+    for (; m + U <= full; m += U) vector_steps_cols<D, J, U, C>(row, X, first + m * kThreads, s);
+    if constexpr (U > 1) vector_run_cols<D, J, U / 2, C>(row, X, first, full, m, s);
+}
+// exact_wave over up to C rows of X at once, a wave an output reading its weight row once: each row's output the bits of exact_wave on that row alone; rows past `nrows` repeat the last and are not written.
+template <class D, int C>
+__device__ void exact_cols(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, unsigned long long nrows, int add) {
+    constexpr int J = kThreads / kWave;
+    const int t = threadIdx.x % kWave;
+    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
+    if (o >= nout) return;
+    const unsigned char* row = W + o * D::row_bytes(nin);
+    const unsigned long long n = D::units(nin), full = n / kThreads, first = (unsigned long long)J * t;
+    const float* x[C];
+    bool aligned = (unsigned long long)row % D::align == 0;
+#pragma unroll
+    for (int c = 0; c < C; ++c) {
+        x[c] = X + (c < (int)nrows ? c : (int)nrows - 1) * nin;
+        aligned = aligned && (unsigned long long)x[c] % 16 == 0;
+    }
+    float s[C][J];
+#pragma unroll
+    for (int c = 0; c < C; ++c)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[c][j] = 0.0f;
+    bool done = false;
+    if constexpr (D::vector)
+        if (aligned) {
+            done = true;
+            vector_run_cols<D, J, kBatchBytes / (J * D::weight_bytes), C>(row, x, first, full, 0, s);
+        }
+    if (!done) {
+        for (unsigned long long m = 0; m < full; ++m)
+#pragma unroll
+            for (int c = 0; c < C; ++c)
+#pragma unroll
+                for (int j = 0; j < J; ++j) s[c][j] = D::step(row, x[c], first + j + m * kThreads, s[c][j]);
+    }
+#pragma unroll
+    for (int c = 0; c < C; ++c)
+#pragma unroll
+        for (int j = 0; j < J; ++j)
+            if (first + j + full * kThreads < n) s[c][j] = D::step(row, x[c], first + j + full * kThreads, s[c][j]);
+#pragma unroll
+    for (int c = 0; c < C; ++c) {
+#pragma unroll
+        for (int h = kThreads / 2; h >= J; h >>= 1)
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[c][j] += __shfl_down(s[c][j], h / J, kWave);
+#pragma unroll
+        for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+            for (int j = 0; j < h; ++j) s[c][j] += s[c][j + h];
+        if (t == 0 && c < (int)nrows) Y[c * nout + o] = add ? Y[c * nout + o] + s[c][0] : s[c][0];
+    }
+}
 // kRowsOut outputs by kRowsIn rows a block, each output the bits of exact_wave: every lane keeps its strided chain for each, folded by block_sum's tree.
 // Sixteen threads an output take the tree's levels 128 to 16 from shared memory and 8 to 1 by shuffles; rows and outputs past the call repeat the last and are not written.
 constexpr int kRowsOut = 8, kRowsIn = 8, kRowsChunk = kThreads / 16;
@@ -707,6 +789,9 @@ template <class D> __device__ void routed_exact(const unsigned char* W, const fl
     }
 LLMX_EXACT(f32, ExactF32)
 LLMX_EXACT(q8_0, ExactQ8)
+#define LLMX_COLS(t, C, D)     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_cols##C##_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,                                                     unsigned long long nrows, int add) {                                                                                  exact_cols<D, C>(W, X, Y, nin, nout, nrows, add);                                                                                                           }
+LLMX_COLS(f32, 2, ExactF32)
+LLMX_COLS(f32, 4, ExactF32)
 
 // Rows of a table of type T decoded: dst row i = table row ids[i], `width` floats each, and a zero row for an id of `nrows` or more; offsets are 64-bit, since a lookup table passes 4 GiB.
 template <class T> __device__ void gather_decoded(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {

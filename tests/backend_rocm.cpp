@@ -393,10 +393,13 @@ void types(Backend& g, Backend& c) {
 void exact_rows(Backend& g) {
     const uint32_t kinds[] = {quant::GGML_TYPE_F32,  quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
                               quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
-    const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 7, 8, 9, 33};
+    const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 3, 4, 5, 7, 8, 9, 33};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const size_t block = quant::storage_type(type)->block_size;
+        std::string tname = name;
+        for (char& ch : tname) ch = char(std::tolower(ch));
+        const auto build = [&](size_t n) { return type == quant::GGML_TYPE_F32 && n <= 4 ? std::string(n <= 2 ? "llmx_matmul_cols2_f32" : "llmx_matmul_cols4_f32") : "llmx_matmul_rows_" + tname; };
         const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561, 100, 10240} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
         for (size_t nin : widths)
         for (size_t nout : nouts) {
@@ -419,8 +422,10 @@ void exact_rows(Backend& g) {
                 for (int add = 0; add < 2; ++add) {
                     const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(nout) + " over " + std::to_string(n) + " rows" + (add ? ", added" : "");
                     g.write(*yb, 0, y0.data(), y0.size() * 4);
+                    rocm_take_launches(g);
                     if (add) g.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
                     else g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {}, Dtype::f32);
+                    require(rocm_take_launches(g).count(build(n)) == 1, "a " + at + " exact product takes " + build(n));
                     const std::vector<float> all = read(g, *yb, nout * 33);
                     bool ok = std::memcmp(all.data() + n * nout, y0.data() + n * nout, (33 - n) * nout * 4) == 0;
                     for (size_t r = 0; r < n && ok; ++r) {
@@ -568,7 +573,7 @@ void twin_types(Backend& g, Backend& c) {
     }
 }
 
-// Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes (the router, the hyper-connection maps), over 1, 2, 8 and 293 rows, in wall time a call.
+// Printed, never asserted: the exact products at Qwen3.8-Flash-Next's F32 and BF16 shapes (the router, the hyper-connection maps), over 1, 2, 3, 4, 8, 9 and 293 rows, in wall time a call.
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
     const Shape shapes[] = {{"flash router", quant::GGML_TYPE_F32, 2560, 512}, {"flash hc_pre", quant::GGML_TYPE_F32, 10240, 24}, {"flash hc_post", quant::GGML_TYPE_F32, 10240, 4},
@@ -585,7 +590,7 @@ void exact_rates(Backend& g) {
             else w[2 * i] = uint8_t(u >> 16), w[2 * i + 1] = uint8_t(u >> 24);
         }
         auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size()), y = g.alloc(s.nout * 293 * 4);
-        for (size_t n : {size_t(1), size_t(2), size_t(8), size_t(293)}) {
+        for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(8), size_t(9), size_t(293)}) {
             const auto call = [&] { g.matmul({s.type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, s.nin, s.nout, n, {}, Dtype::f32); };
             for (int i = 0; i < 3; ++i) call();
             g.sync();

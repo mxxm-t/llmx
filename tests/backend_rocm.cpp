@@ -239,6 +239,49 @@ std::vector<uint8_t> q8_matrix(size_t nin, size_t rows, uint32_t seed) {
 }
 
 // A product into pinned host memory, as the logits are, gives the bits of the same product into device memory, both written and added, for a generated row and a prompt's rows.
+// A copy between two host memories, as a tensor group's head copies its member logits into the rows every member wraps: enqueued behind queued work, it returns at once and holds the source's bytes once that work retires.
+void host_copies(Backend& g) {
+    const size_t nin = 4096, nout = 4096, cols = 64, n = 124160;
+    const std::vector<float> x = row_classes::values(nin * cols, 61), v = row_classes::values(nin * nout, 62), want = row_classes::values(n + 3, 63);
+    auto wb = g.adopt(v.data(), v.size() * 4), xb = g.adopt(x.data(), x.size() * 4), y = g.alloc(nout * cols * 4);
+    const auto work = [&](int calls) {
+        for (int i = 0; i < calls; ++i) g.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, nout, cols, {}, Dtype::f32);
+    };
+    // Enough queued work to take 200 ms at least on this device.
+    int calls = 1;
+    for (;; calls *= 2) {
+        g.sync();
+        const auto t0 = std::chrono::steady_clock::now();
+        work(calls);
+        g.sync();
+        if (std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() >= 200) break;
+    }
+    core::HostPages pages((n + 3) * sizeof(float));
+    BufferPtr view = g.wrap_host(pages.data(), pages.size()), src = g.alloc((n + 3) * sizeof(float), Memory::host_visible);
+    require(view && src, "the host memories of a host copy were not made");
+    g.write(*src, 0, want.data(), (n + 3) * sizeof(float));
+    std::memset(pages.data(), 0, pages.size());
+    g.sync();
+    // A whole-word copy and one of three floats at an offset of one, which takes the byte loop.
+    const auto t0 = std::chrono::steady_clock::now();
+    work(calls);
+    const auto t1 = std::chrono::steady_clock::now();
+    g.copy(*view, 0, *src, 0, n * sizeof(float));
+    g.copy(*view, (n + 1) * sizeof(float), *src, n * sizeof(float), 2 * sizeof(float));
+    const auto t2 = std::chrono::steady_clock::now();
+    g.wait(g.submit());
+    const auto t3 = std::chrono::steady_clock::now();
+    const double queued = std::chrono::duration<double, std::milli>(t3 - t1).count(), call = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    std::printf("backend-rocm: two host-to-host copies behind %d products: %.3f ms in the calls, %.1f ms until the work retired (%.1f ms to queue it)\n", calls, call,
+                queued, std::chrono::duration<double, std::milli>(t1 - t0).count());
+    require(call < queued / 4, "a copy between host memories waited for the work queued before it");
+    const float* got = (const float*)pages.data();
+    require(std::memcmp(got, want.data(), n * sizeof(float)) == 0, "a host-to-host copy is not the source's bytes");
+    require(got[n] == 0.0f && std::memcmp(got + n + 1, want.data() + n, 2 * sizeof(float)) == 0, "an unaligned host-to-host copy is not the source's bytes or wrote past them");
+    view.reset();
+    g.sync();
+}
+
 void host_output(Backend& g) {
     const size_t nin = 256, nout = 300;
     const std::vector<uint8_t> w = q8_matrix(nin, nout, 51);
@@ -3021,6 +3064,7 @@ int main(int argc, char** argv) {
         attention_twins(*g, Dtype::f16);
         attention_twins(*g, Dtype::int8);
         host_output(*g);
+        host_copies(*g);
         attention_chunks(*g);
         vec_bits(*g);
         sparse_grouped(*g);

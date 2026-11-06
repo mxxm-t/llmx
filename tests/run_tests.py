@@ -35,6 +35,7 @@ import low_bits
 import tq
 import nvfp4
 import qwen35
+import deepseek4
 import split
 import tensor_split
 import decode_probe
@@ -145,6 +146,7 @@ def main():
                   ("tq2-0", tq.run_tq2),
                   ("nvfp4", nvfp4.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
+                  ("deepseek4", lambda: deepseek4.run(require=args.require_tools)),
                   ("vision", lambda: vision.run(require=args.require_tools)),
                   ("image", image.run),
                   ("split", lambda: split.run(require=args.require_tools)),

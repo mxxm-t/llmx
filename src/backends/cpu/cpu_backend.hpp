@@ -22,6 +22,7 @@
 #include "core/cpus.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
+#include "quant/model_formats.hpp"
 #include "quant/quant.hpp"
 
 #include <immintrin.h>
@@ -1364,14 +1365,13 @@ public:
     void norm_rope_partial(Slice dst_s, CSlice src_s, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w_s, float eps,
                            CSlice cos_s, CSlice sin_s, const uint32_t* pos, const RopeForm& form, RopeStreams streams = {}) override {
-        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim || form.offset > head_dim - rope_dim)
             throw std::runtime_error("backend: invalid partial rope dimensions");
-        form.plain_only("backend");
         if (rows && !pos) throw std::runtime_error("backend: partial rope without positions");
         const size_t half = rope_dim / 2;
         if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("backend: invalid rope streams");
         // Only the gathering path holds a row's angles on the stack; one stream with a weight rotates any width, as it always has.
-        if ((streams.count > 1 || !w_s.buffer) && half > kRopeHalfMax)
+        if ((streams.count > 1 || !w_s.buffer || !form.plain()) && half > kRopeHalfMax)
             throw std::runtime_error("backend: a rope gathered from streams or without a norm rotates at most " + std::to_string(kRopeHalfMax) + " pairs");
         if (streams.count > 1)
             for (size_t j = 0; j < half; ++j)
@@ -1390,7 +1390,7 @@ public:
         const float* src = at(src_s);
         if ((const float*)dst == src && (src_stride != width || src_head_stride != head_dim))
             throw std::runtime_error("backend: partial rope in place over heads that are not contiguous");
-        if (streams.count == 1 && w_s.buffer) {
+        if (streams.count == 1 && w_s.buffer && form.plain()) {
             norm_rope_raw(dst, width, src, src_stride, src_head_stride, rows, heads, head_dim, half,
                           at(w_s), eps, at(cos_s), at(sin_s), pos);
             return;
@@ -1412,9 +1412,20 @@ public:
                 const float* from = src + r * src_stride + h * src_head_stride;
                 if (w) rms_norm_raw(head, from, w, head_dim, eps);
                 else if (head != from) std::memmove(head, from, head_dim * sizeof(float));
-                rope_raw(head, c, s, (int)half);
+                if (form.plain()) rope_raw(head, c, s, (int)half);
+                else rope_form_raw(head + form.offset, c, s, half, form);
             }
         });
+    }
+
+    // The rotation of a rope form other than the plain one, pair by pair with rope_raw's multiply-adds, minus each angle's sine when inverse.
+    static void rope_form_raw(float* x, const float* cos, const float* sin, size_t half, const RopeForm& form) {
+        for (size_t j = 0; j < half; ++j) {
+            const size_t a = form.adjacent ? 2 * j : j, b = form.adjacent ? 2 * j + 1 : j + half;
+            const float xa = x[a], xb = x[b], sn = form.inverse ? -sin[j] : sin[j];
+            x[a] = std::fma(-xb, sn, xa * cos[j]);
+            x[b] = std::fma(xa, sn, xb * cos[j]);
+        }
     }
 
     // The widest rope half whose angles a row gathers, a 256-wide head rotated whole.
@@ -1519,10 +1530,22 @@ public:
     }
 
     void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, float limit, RowRuns = {}) override {
-        no_clamp("backend", limit);
+        if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
+        // The clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both.
+        if (limit > 0.0f) {
+            for (const CSlice& s : {CSlice(dst_s), gate_s, up_s}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
+            chunk(n, [&](size_t begin, size_t end) {
+                for (size_t i = begin; i < end; i++) {
+                    const float u = up[i] < -limit ? -limit : up[i] > limit ? limit : up[i];
+                    const float g = gate[i] > limit ? limit : gate[i];
+                    dst[i] = silu_of(g) * u;
+                }
+            });
+            return;
+        }
         chunk(n, [&](size_t begin, size_t end) {
             for (size_t i = begin; i < end; i++)
                 dst[i] = silu_of(gate[i]) * up[i];
@@ -1639,6 +1662,442 @@ public:
                     residual[r * width + s * dim + d] += block[r * dim + d] * weight;
             }
         });
+    }
+
+    void hc_coeffs(Slice pre_s, Slice post_s, Slice comb_s, CSlice mixes_s, CSlice stream_s, CSlice scale_s, CSlice base_s,
+                   size_t rows, size_t hc, size_t dim, float norm_eps, float eps, size_t iters) override {
+        if (!hc || !dim || !iters || !std::isfinite(norm_eps) || norm_eps < 0.0f || !std::isfinite(eps) || eps < 0.0f)
+            throw std::runtime_error("backend: invalid mHC coefficient dimensions or epsilon");
+        if (!rows) return;
+        const size_t mix = size_mul(hc + 2, hc), width = size_mul(hc, dim);
+        const size_t pre_count = size_mul(rows, hc), comb_count = size_mul(rows, size_mul(hc, hc));
+        const size_t mix_count = size_mul(rows, mix), stream_count = size_mul(rows, width);
+        validate_float_slice(pre_s, pre_count);
+        validate_float_slice(post_s, pre_count);
+        validate_float_slice(comb_s, comb_count);
+        validate_float_slice(mixes_s, mix_count);
+        validate_float_slice(stream_s, stream_count);
+        validate_float_slice(scale_s, 3);
+        validate_float_slice(base_s, mix);
+        const CSlice outs[3] = {pre_s, post_s, comb_s};
+        const size_t counts[3] = {pre_count, pre_count, comb_count};
+        for (int a = 0; a < 3; ++a) {
+            for (int b = a + 1; b < 3; ++b)
+                if (overlaps(outs[a], counts[a], outs[b], counts[b])) throw std::runtime_error("backend: mHC coefficient outputs must be disjoint");
+            if (overlaps(outs[a], counts[a], mixes_s, mix_count) || overlaps(outs[a], counts[a], stream_s, stream_count) ||
+                overlaps(outs[a], counts[a], scale_s, 3) || overlaps(outs[a], counts[a], base_s, mix))
+                throw std::runtime_error("backend: mHC coefficient outputs overlap their inputs");
+        }
+        float* pre = at(pre_s);
+        float* post = at(post_s);
+        float* comb = at(comb_s);
+        const float* mixes = at(mixes_s);
+        const float* x = at(stream_s);
+        const float* scale = at(scale_s);
+        const float* base = at(base_s);
+        spread(rows, [&](size_t r) {
+            const float* xr = x + r * width;
+            float squares = 0.0f;
+            for (size_t i = 0; i < width; ++i) squares = std::fma(xr[i], xr[i], squares);
+            const float rs = 1.0f / std::sqrt(squares / float(width) + norm_eps);
+            const float* m = mixes + r * mix;
+            for (size_t k = 0; k < hc; ++k) {
+                pre[r * hc + k] = sigmoid_of(std::fma(m[k] * rs, scale[0], base[k])) + eps;
+                post[r * hc + k] = 2.0f * sigmoid_of(std::fma(m[hc + k] * rs, scale[1], base[hc + k]));
+            }
+            float* c = comb + r * hc * hc;
+            for (size_t i = 0; i < hc; ++i) {
+                float peak = -std::numeric_limits<float>::infinity();
+                for (size_t j = 0; j < hc; ++j) {
+                    c[i * hc + j] = std::fma(m[2 * hc + i * hc + j] * rs, scale[2], base[2 * hc + i * hc + j]);
+                    peak = std::fmax(peak, c[i * hc + j]);
+                }
+                float sum = 0.0f;
+                for (size_t j = 0; j < hc; ++j) sum += c[i * hc + j] = std::exp(c[i * hc + j] - peak);
+                for (size_t j = 0; j < hc; ++j) c[i * hc + j] = c[i * hc + j] / sum + eps;
+            }
+            for (size_t round = 0; round < iters; ++round) {
+                if (round) {
+                    for (size_t i = 0; i < hc; ++i) {
+                        float sum = 0.0f;
+                        for (size_t j = 0; j < hc; ++j) sum += c[i * hc + j];
+                        for (size_t j = 0; j < hc; ++j) c[i * hc + j] /= sum + eps;
+                    }
+                }
+                for (size_t j = 0; j < hc; ++j) {
+                    float sum = 0.0f;
+                    for (size_t i = 0; i < hc; ++i) sum += c[i * hc + j];
+                    for (size_t i = 0; i < hc; ++i) c[i * hc + j] /= sum + eps;
+                }
+            }
+        });
+    }
+
+    void hc_collapse_norm(Slice dst_s, CSlice stream_s, CSlice pre_s, CSlice w_s, size_t rows, size_t hc, size_t dim, float eps) override {
+        if (!hc || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("backend: invalid mHC collapse dimensions or epsilon");
+        if (!rows) return;
+        const size_t width = size_mul(hc, dim), dst_count = size_mul(rows, dim), stream_count = size_mul(rows, width), pre_count = size_mul(rows, hc);
+        validate_float_slice(dst_s, dst_count);
+        validate_float_slice(stream_s, stream_count);
+        validate_float_slice(pre_s, pre_count);
+        validate_float_slice(w_s, dim);
+        const CSlice dst = dst_s;
+        if (overlaps(dst, dst_count, stream_s, stream_count) || overlaps(dst, dst_count, pre_s, pre_count) || overlaps(dst, dst_count, w_s, dim))
+            throw std::runtime_error("backend: mHC collapse output must be disjoint from its inputs");
+        float* out = at(dst_s);
+        const float* x = at(stream_s);
+        const float* pre = at(pre_s);
+        const float* w = at(w_s);
+        spread(rows, [&](size_t r) {
+            float* u = out + r * dim;
+            const float* xr = x + r * width;
+            const float* p = pre + r * hc;
+            for (size_t d = 0; d < dim; ++d) {
+                float sum = p[0] * xr[d];
+                for (size_t k = 1; k < hc; ++k) sum = std::fma(p[k], xr[k * dim + d], sum);
+                u[d] = sum;
+            }
+            rms_norm_raw(u, u, w, dim, eps);
+        });
+    }
+
+    void hc_expand(Slice dst_s, CSlice f_s, CSlice stream_s, CSlice post_s, CSlice comb_s, size_t rows, size_t hc, size_t dim) override {
+        if (!hc || !dim) throw std::runtime_error("backend: invalid mHC expansion dimensions");
+        if (!rows) return;
+        const size_t width = size_mul(hc, dim), count = size_mul(rows, width), f_count = size_mul(rows, dim);
+        const size_t post_count = size_mul(rows, hc), comb_count = size_mul(rows, size_mul(hc, hc));
+        validate_float_slice(dst_s, count);
+        validate_float_slice(f_s, f_count);
+        validate_float_slice(stream_s, count);
+        validate_float_slice(post_s, post_count);
+        validate_float_slice(comb_s, comb_count);
+        const CSlice dst = dst_s;
+        if ((overlaps(dst, count, stream_s, count) && !same_slice(dst, count, stream_s, count)) || overlaps(dst, count, f_s, f_count) ||
+            overlaps(dst, count, post_s, post_count) || overlaps(dst, count, comb_s, comb_count))
+            throw std::runtime_error("backend: mHC expansion output must be disjoint or exactly the stream");
+        float* out = at(dst_s);
+        const float* f = at(f_s);
+        const float* x = at(stream_s);
+        const float* post = at(post_s);
+        const float* comb = at(comb_s);
+        spread(rows, [&](size_t r) {
+            // Every new stream reads every old one, so a row in place is built aside first.
+            thread_local std::vector<float> row;
+            row.resize(width);
+            const float* xr = x + r * width;
+            const float* c = comb + r * hc * hc;
+            for (size_t k = 0; k < hc; ++k)
+                for (size_t d = 0; d < dim; ++d) {
+                    float sum = c[k] * xr[d];
+                    for (size_t j = 1; j < hc; ++j) sum = std::fma(c[j * hc + k], xr[j * dim + d], sum);
+                    row[k * dim + d] = std::fma(post[r * hc + k], f[r * dim + d], sum);
+                }
+            std::copy(row.begin(), row.end(), out + r * width);
+        });
+    }
+
+    // U32 values held in a float slice, as the id ops read them.
+    static uint32_t u32_at(const float* p, size_t i) {
+        uint32_t v;
+        std::memcpy(&v, p + i, sizeof v);
+        return v;
+    }
+    static void put_u32(float* p, size_t i, uint32_t v) { std::memcpy(p + i, &v, sizeof v); }
+    // The total order of the selections (docs/DEEPSEEK4.md, section 4.2): higher score first, then lower index.
+    static bool ranks_above(float a, size_t ia, float b, size_t ib) { return a > b || (a == b && ia < ib); }
+    static void refuse_nan(const float* p, size_t n, const char* what) {
+        for (size_t i = 0; i < n; ++i)
+            if (std::isnan(p[i])) throw std::runtime_error(std::string("backend: ") + what + " over a NaN score");
+    }
+    // The k best of n scores in the selections' order, kept in a heap of k so a row of any length needs O(k) workspace, returned by ascending index.
+    static void best_k(std::vector<std::pair<float, uint32_t>>& heap, const float* s, size_t n, size_t k) {
+        const auto worse_on_top = [](const std::pair<float, uint32_t>& a, const std::pair<float, uint32_t>& b) { return ranks_above(a.first, a.second, b.first, b.second); };
+        heap.clear();
+        for (size_t i = 0; i < n; ++i) {
+            if (heap.size() < k) {
+                heap.emplace_back(s[i], (uint32_t)i);
+                std::push_heap(heap.begin(), heap.end(), worse_on_top);
+            } else if (k && ranks_above(s[i], i, heap.front().first, heap.front().second)) {
+                std::pop_heap(heap.begin(), heap.end(), worse_on_top);
+                heap.back() = {s[i], (uint32_t)i};
+                std::push_heap(heap.begin(), heap.end(), worse_on_top);
+            }
+        }
+        std::sort(heap.begin(), heap.end(), [](const std::pair<float, uint32_t>& a, const std::pair<float, uint32_t>& b) { return a.second < b.second; });
+    }
+
+    void model_format_qdq(Slice x_s, size_t count, ModelFormat format) override {
+        const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
+        if (count % block) throw std::runtime_error("backend: a model format's values are not whole blocks");
+        if (!count) return;
+        validate_float_slice(x_s, count);
+        float* x = at(x_s);
+        spread(count / block, [&](size_t i) {
+            namespace mf = quant::model_formats;
+            float* b = x + i * block;
+            if (format == ModelFormat::fp8_power) mf::qdq_fp8_power(b, block);
+            else if (format == ModelFormat::fp4_power) mf::qdq_fp4_power(b, block);
+            else mf::qdq_fp4_e4m3(b, block);
+        });
+    }
+
+    // Each row's view and position in a call over views' rows (sparse_attention_sink, indexer_scores), the views checked as readers of `layer`'s pooled rows of at least `dim` floats.
+    struct PooledRows {
+        std::vector<const KVView*> view;
+        std::vector<size_t> position;
+    };
+    PooledRows pooled_rows(size_t layer, const KVView* views, size_t n_views, size_t rows, size_t dim, const char* op) {
+        if (!views) throw std::runtime_error(std::string("backend: ") + op + " without views");
+        PooledRows out;
+        out.view.reserve(rows);
+        out.position.reserve(rows);
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            CpuKVStorage& storage = storage_of(views[vi]);
+            storage.check_view(views[vi], layer, false);
+            if (!storage.auxiliary_pool(layer) || storage.auxiliary_pool_width(layer) < dim)
+                throw std::runtime_error(std::string("backend: ") + op + " reads pooled rows its layer does not keep");
+            for (size_t i = 0; i < views[vi].nq && out.view.size() <= rows; ++i) {
+                out.view.push_back(&views[vi]);
+                out.position.push_back(views[vi].length + i);
+            }
+        }
+        if (out.view.size() != rows) throw std::runtime_error(std::string("backend: ") + op + " views do not cover its rows");
+        return out;
+    }
+
+    void sparse_attention_sink(Slice out_s, CSlice q_s, CSlice kv_s, CSlice ids_s, CSlice sink_s, size_t rows, size_t heads, size_t dim,
+                               size_t kv_rows, size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids_s,
+                               size_t entry_k) override {
+        if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("backend: invalid sparse attention dimensions or scale");
+        if (!n_views && (entry_k || entry_ids_s.buffer)) throw std::runtime_error("backend: sparse attention entries without views");
+        if (!rows) return;
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, dim), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        validate_float_slice(out_s, qn);
+        validate_float_slice(q_s, qn);
+        validate_float_slice(kv_s, kvn);
+        validate_float_slice(ids_s, idn);
+        validate_float_slice(sink_s, heads);
+        if (en) validate_float_slice(entry_ids_s, en);
+        const CSlice out_c = out_s;
+        if (overlaps(out_c, qn, q_s, qn) || overlaps(out_c, qn, kv_s, kvn) || overlaps(out_c, qn, ids_s, idn) || overlaps(out_c, qn, sink_s, heads) ||
+            (en && overlaps(out_c, qn, entry_ids_s, en)))
+            throw std::runtime_error("backend: sparse attention output must be disjoint from its inputs");
+        const float* ids = at(ids_s);
+        for (size_t i = 0; i < idn; ++i) {
+            const uint32_t id = u32_at(ids, i);
+            if (id != UINT32_MAX && id >= kv_rows) throw std::runtime_error("backend: sparse attention id past its kv rows");
+        }
+        PooledRows pooled;
+        const float* entries = en ? at(entry_ids_s) : nullptr;
+        if (n_views) {
+            pooled = pooled_rows(layer, views, n_views, rows, dim, "sparse attention");
+            for (size_t r = 0; r < rows && entries; ++r) {
+                const size_t visible = (pooled.position[r] + 1) / static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->auxiliary_pool(layer);
+                for (size_t t = 0; t < entry_k; ++t) {
+                    const uint32_t id = u32_at(entries, r * entry_k + t);
+                    if (id != UINT32_MAX && id >= visible) throw std::runtime_error("backend: sparse attention id past its kv rows");
+                }
+            }
+        }
+        float* out = at(out_s);
+        const float* q = at(q_s);
+        const float* kv = at(kv_s);
+        const float* sink = at(sink_s);
+        const size_t named = k + entry_k;
+        spread(size_mul(rows, heads), [&](size_t rh) {
+            const size_t r = rh / heads, h = rh % heads;
+            thread_local std::vector<float> p;
+            p.assign(named, 0.0f);
+            const float* qr = q + rh * dim;
+            const float* id = ids + r * k;
+            // The kv rows first, then the entries, as model.py concatenates the window before the compressed rows.
+            const auto row = [&](size_t t) -> const float* {
+                const uint32_t j = t < k ? u32_at(id, t) : u32_at(entries, r * entry_k + t - k);
+                if (j == UINT32_MAX) return nullptr;
+                if (t < k) return kv + size_t(j) * dim;
+                return static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->pooled_row(layer, *pooled.view[r], j);
+            };
+            float peak = -1e30f;
+            for (size_t t = 0; t < named; ++t) {
+                const float* kr = row(t);
+                if (!kr) continue;
+                float dot = 0.0f;
+                for (size_t d = 0; d < dim; ++d) dot = std::fma(qr[d], kr[d], dot);
+                p[t] = dot * scale;
+                peak = std::fmax(peak, p[t]);
+            }
+            float sum = 0.0f;
+            for (size_t t = 0; t < named; ++t)
+                if (row(t)) sum += p[t] = std::exp(p[t] - peak);
+            const float denominator = sum + std::exp(sink[h] - peak);
+            float* o = out + rh * dim;
+            std::fill(o, o + dim, 0.0f);
+            for (size_t t = 0; t < named; ++t) {
+                const float* kr = row(t);
+                if (!kr) continue;
+                for (size_t d = 0; d < dim; ++d) o[d] = std::fma(p[t], kr[d], o[d]);
+            }
+            for (size_t d = 0; d < dim; ++d) o[d] /= denominator;
+        });
+    }
+
+    void topk_rows(Slice ids_s, CSlice scores_s, CSlice lens_s, size_t rows, size_t n, size_t k, uint32_t offset) override {
+        if (k > n || n >= UINT32_MAX || size_t(offset) + n >= UINT32_MAX) throw std::runtime_error("backend: invalid top-k rows dimensions");
+        if (!rows) return;
+        const size_t sn = size_mul(rows, n), idn = size_mul(rows, k);
+        validate_float_slice(ids_s, idn);
+        validate_float_slice(scores_s, sn);
+        validate_float_slice(lens_s, rows);
+        const CSlice ids_c = ids_s;
+        if (overlaps(ids_c, idn, scores_s, sn) || overlaps(ids_c, idn, lens_s, rows)) throw std::runtime_error("backend: top-k rows output must be disjoint from its inputs");
+        const float* scores = at(scores_s);
+        const float* lens = at(lens_s);
+        refuse_nan(scores, sn, "top-k rows");
+        float* ids = at(ids_s);
+        spread(rows, [&](size_t r) {
+            thread_local std::vector<std::pair<float, uint32_t>> heap;
+            best_k(heap, scores + r * n, n, k);
+            const uint32_t len = u32_at(lens, r);
+            for (size_t i = 0; i < k; ++i) put_u32(ids, r * k + i, heap[i].second < len ? heap[i].second + offset : UINT32_MAX);
+        });
+    }
+
+    void candidate_blocks(Slice blocks_s, CSlice scores_s, CSlice lens_s, size_t rows, size_t n, size_t block_size, size_t k) override {
+        if (!block_size || !n || n >= UINT32_MAX) throw std::runtime_error("backend: invalid candidate block dimensions");
+        if (!rows) return;
+        const size_t sn = size_mul(rows, n), bn = size_mul(rows, k), blocks_n = (n + block_size - 1) / block_size, picks = std::min(k, blocks_n);
+        validate_float_slice(blocks_s, bn);
+        validate_float_slice(scores_s, sn);
+        validate_float_slice(lens_s, rows);
+        const CSlice blocks_c = blocks_s;
+        if (overlaps(blocks_c, bn, scores_s, sn) || overlaps(blocks_c, bn, lens_s, rows)) throw std::runtime_error("backend: candidate blocks output must be disjoint from its inputs");
+        const float* scores = at(scores_s);
+        const float* lens = at(lens_s);
+        refuse_nan(scores, sn, "candidate blocks");
+        float* blocks = at(blocks_s);
+        spread(rows, [&](size_t r) {
+            thread_local std::vector<float> best;
+            thread_local std::vector<std::pair<float, uint32_t>> heap;
+            best.assign(blocks_n, -std::numeric_limits<float>::infinity());
+            const float* s = scores + r * n;
+            for (size_t i = 0; i < n; ++i) best[i / block_size] = std::fmax(best[i / block_size], s[i]);
+            const uint32_t len = u32_at(lens, r);
+            if (len && (len - 1) / block_size < blocks_n) best[(len - 1) / block_size] = std::numeric_limits<float>::infinity();
+            best_k(heap, best.data(), blocks_n, picks);
+            size_t kept = 0;
+            for (const std::pair<float, uint32_t>& pick : heap)
+                if (pick.first > -std::numeric_limits<float>::infinity()) put_u32(blocks, r * k + kept++, pick.second);
+            for (; kept < k; ++kept) put_u32(blocks, r * k + kept, UINT32_MAX);
+        });
+    }
+
+    void compress_pool(Slice out_s, CSlice kv_s, CSlice score_s, CSlice w_s, size_t groups, size_t ratio, size_t dim, float eps) override {
+        if (!ratio || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("backend: invalid compressor pooling dimensions or epsilon");
+        if (!groups) return;
+        const size_t on = size_mul(groups, dim), in = size_mul(size_mul(groups, ratio), dim);
+        validate_float_slice(out_s, on);
+        validate_float_slice(kv_s, in);
+        validate_float_slice(score_s, in);
+        validate_float_slice(w_s, dim);
+        const CSlice out_c = out_s;
+        if (overlaps(out_c, on, kv_s, in) || overlaps(out_c, on, score_s, in) || overlaps(out_c, on, w_s, dim))
+            throw std::runtime_error("backend: compressor pooling output must be disjoint from its inputs");
+        float* out = at(out_s);
+        const float* kv = at(kv_s);
+        const float* score = at(score_s);
+        const float* w = at(w_s);
+        spread(groups, [&](size_t g) {
+            float* o = out + g * dim;
+            const float* kg = kv + g * ratio * dim;
+            const float* sg = score + g * ratio * dim;
+            for (size_t d = 0; d < dim; ++d) {
+                float peak = -std::numeric_limits<float>::infinity();
+                for (size_t i = 0; i < ratio; ++i) peak = std::fmax(peak, sg[i * dim + d]);
+                float sum = 0.0f;
+                for (size_t i = 0; i < ratio; ++i) sum += std::exp(sg[i * dim + d] - peak);
+                float acc = 0.0f;
+                for (size_t i = 0; i < ratio; ++i) acc = std::fma(kg[i * dim + d], std::exp(sg[i * dim + d] - peak) / sum, acc);
+                o[d] = acc;
+            }
+            rms_norm_raw(o, o, w, dim, eps);
+        });
+    }
+
+    void indexer_scores(Slice out_s, CSlice q_s, size_t layer, const KVView* views, size_t n_views, CSlice w_s, float w_scale, size_t heads, size_t dim,
+                        size_t n, CSlice blocks_s, size_t block_k, size_t block_size) override {
+        if (!heads || !dim || n >= UINT32_MAX || (blocks_s.buffer && !block_size) || !std::isfinite(w_scale))
+            throw std::runtime_error("backend: invalid index score dimensions");
+        size_t rows = 0;
+        for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
+        if (!rows) return;
+        const PooledRows pooled = pooled_rows(layer, views, n_views, rows, dim, "index scores");
+        const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads);
+        const size_t bn = blocks_s.buffer ? size_mul(rows, block_k) : 0;
+        validate_float_slice(out_s, on);
+        validate_float_slice(q_s, qn);
+        validate_float_slice(w_s, wn);
+        if (bn) validate_float_slice(blocks_s, bn);
+        const CSlice out_c = out_s;
+        if (overlaps(out_c, on, q_s, qn) || overlaps(out_c, on, w_s, wn) || (bn && overlaps(out_c, on, blocks_s, bn)))
+            throw std::runtime_error("backend: index scores output must be disjoint from its inputs");
+        for (size_t r = 0; r < rows; ++r)
+            if ((pooled.position[r] + 1) / static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->auxiliary_pool(layer) > n)
+                throw std::runtime_error("backend: index scores narrower than a row's groups");
+        float* out = at(out_s);
+        const float* q = at(q_s);
+        const float* w = at(w_s);
+        const float* blocks = bn ? at(blocks_s) : nullptr;
+        spread(rows, [&](size_t r) {
+            const CpuKVStorage& storage = *static_cast<const CpuKVStorage*>(pooled.view[r]->storage);
+            const size_t len = (pooled.position[r] + 1) / storage.auxiliary_pool(layer), key_at = storage.auxiliary_pool_width(layer) - dim;
+            float* o = out + r * n;
+            thread_local std::vector<float> scaled;
+            scaled.resize(heads);
+            for (size_t h = 0; h < heads; ++h) scaled[h] = w[r * heads + h] * w_scale;
+            for (size_t t = 0; t < n; ++t) {
+                bool reached = t < len;
+                if (reached && blocks) {
+                    reached = false;
+                    for (size_t b = 0; b < block_k && !reached; ++b) reached = u32_at(blocks, r * block_k + b) == t / block_size;
+                }
+                if (!reached) {
+                    o[t] = -std::numeric_limits<float>::infinity();
+                    continue;
+                }
+                const float* kt = storage.pooled_row(layer, *pooled.view[r], t) + key_at;
+                float sum = 0.0f;
+                for (size_t h = 0; h < heads; ++h) {
+                    const float* qh = q + (r * heads + h) * dim;
+                    float dot = 0.0f;
+                    for (size_t d = 0; d < dim; ++d) dot = std::fma(qh[d], kt[d], dot);
+                    sum = std::fma(std::fmax(dot, 0.0f), scaled[h], sum);
+                }
+                o[t] = sum;
+            }
+        });
+    }
+
+    void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows_s) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("backend: pooled rows written without views");
+        size_t groups = 0, width = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            CpuKVStorage& storage = storage_of(views[vi]);
+            storage.check_view(views[vi], layer, true);
+            const size_t tokens = storage.auxiliary_pool(layer);
+            if (!tokens || (vi && storage.auxiliary_pool_width(layer) != width))
+                throw std::runtime_error("backend: pooled rows written to a layer that keeps none of their width");
+            width = storage.auxiliary_pool_width(layer);
+            groups = size_add(groups, size_add(views[vi].length, views[vi].nq) / tokens - views[vi].length / tokens);
+        }
+        if (!groups) return;
+        validate_float_slice(rows_s, size_mul(groups, width));
+        const float* src = at(rows_s);
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            const CpuKVStorage& storage = storage_of(views[vi]);
+            const size_t tokens = storage.auxiliary_pool(layer), end = size_add(views[vi].length, views[vi].nq) / tokens;
+            for (size_t g = views[vi].length / tokens; g < end; ++g, src += width) std::memcpy(storage.pooled_row(layer, views[vi], g), src, width * sizeof(float));
+        }
     }
 
     void signed_sqrt_gate(Slice dst_s, CSlice key_s, CSlice query_s, CSlice value_s,
@@ -2034,6 +2493,7 @@ public:
                        Slice ids_s, Slice weights_s) override {
         if (!k || k > n_expert) throw std::runtime_error("backend: routing selects no expert or more than exist");
         if (k > 256) throw std::runtime_error("backend: more than 256 experts per token");
+        if (rule.score == RouteRule::Score::sqrt_softplus) return route_sqrt_softplus(scores_s, rows, n_expert, k, rule, ids_s, weights_s);
         const bool normalize = rule.softmax_only("backend");
         if (!rows) return;
         span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
@@ -2075,6 +2535,51 @@ public:
                 p[best] = -1.0f;
             }
             for (size_t j = 0; j < k; ++j) weights[r * k + j] = normalize ? chosen[j] / total : chosen[j];
+        });
+    }
+
+    // route_experts' sqrt_softplus rule in the reference's order (model.py:811-829 at e5decd76): the score, the pick by score + bias, the weight s / (sum + 1e-20), then times scale.
+    void route_sqrt_softplus(CSlice scores_s, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids_s, Slice weights_s) {
+        if (!std::isfinite(rule.scale)) throw std::runtime_error("backend: a routing scale that is not finite");
+        if (!rows) return;
+        span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
+        span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
+        span(*weights_s.buffer, weights_s.offset * sizeof(float), size_mul(rows, k) * sizeof(float));
+        if (rule.bias.buffer) span(*rule.bias.buffer, rule.bias.offset * sizeof(float), n_expert * sizeof(float));
+        const float* scores = at(scores_s);
+        const float* bias = rule.bias.buffer ? at(rule.bias) : nullptr;
+        float* ids = at(ids_s);
+        float* weights = at(weights_s);
+        spread(rows, [&](size_t r) {
+            const float* x = scores + r * n_expert;
+            std::vector<float> s(n_expert), b(n_expert);
+            std::vector<char> taken(n_expert, 0);
+            bool finite = true;
+            for (size_t e = 0; e < n_expert; ++e) {
+                s[e] = std::sqrt(x[e] > 20.0f ? x[e] : std::log1p(std::exp(x[e])));
+                b[e] = bias ? s[e] + bias[e] : s[e];
+                finite = finite && std::isfinite(b[e]);
+            }
+            if (!finite) {
+                for (size_t j = 0; j < k; ++j) {
+                    std::memcpy(ids + r * k + j, &kNoExpert, sizeof(kNoExpert));
+                    weights[r * k + j] = 0.0f;
+                }
+                return;
+            }
+            float chosen[256], total = 0.0f;
+            for (size_t j = 0; j < k; ++j) {
+                size_t best = n_expert;
+                for (size_t e = 0; e < n_expert; ++e)
+                    if (!taken[e] && (best == n_expert || b[e] > b[best])) best = e;
+                taken[best] = 1;
+                chosen[j] = s[best];
+                total += s[best];
+                const uint32_t id = (uint32_t)best;
+                std::memcpy(ids + r * k + j, &id, sizeof(id));
+            }
+            const bool divide = rule.normalize && k > 1;
+            for (size_t j = 0; j < k; ++j) weights[r * k + j] = (divide ? chosen[j] / (total + 1e-20f) : chosen[j]) * rule.scale;
         });
     }
 

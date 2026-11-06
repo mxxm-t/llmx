@@ -220,6 +220,8 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
     // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one; the vision tower's layer norm is one it lacks.
     require(!g.implements(Op::layer_norm), "the backend does not report the layer norm it lacks");
+    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs})
+        require(!g.implements(op), std::string("the backend does not report the ") + backend::op_name(op) + " it lacks");
     require(throws([&] { g.layer_norm_rows({y.get(), 0}, {x.get(), 0}, {x.get(), 0}, {x.get(), 0}, 1, 4, 4, 1e-6f); }), "an op the backend lacks throws");
 }
 

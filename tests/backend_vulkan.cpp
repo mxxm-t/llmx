@@ -3618,6 +3618,9 @@ size_t check_half_weights(backend::Backend& vk) {
 
 size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
+    // DeepSeek-V4.1's ops and modes, which a model needing them is refused for at load.
+    for (backend::Op op : {backend::Op::sqrt_softplus_routing, backend::Op::silu_mul_clamp, backend::Op::rope_forms, backend::Op::hc_coeffs, backend::Op::pool_write})
+        require(!vk.implements(op), (std::string("Vulkan advertises ") + backend::op_name(op)).c_str());
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
     const bool integer_dot = prof.prefer_integer_dot;
     const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, i16 = 25;   // Valid storage without an execution kernel.

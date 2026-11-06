@@ -4,7 +4,7 @@ The reads of a GGUF file's metadata that every architecture's reader
 shares, in namespace `infer::metadata`, so a value's type and range checks
 and their refusal texts have one owner. Which keys an architecture reads,
 their defaults and its other refusals are its reader's
-([qwen3](model-arch-qwen3.md), [qwen35](model-arch-qwen35.md), [qwen4exp](model-arch-qwen4exp.md)).
+([qwen3](model-arch-qwen3.md), [qwen35](model-arch-qwen35.md), [qwen4exp](model-arch-qwen4exp.md), [deepseek4](model-arch-deepseek4.md)).
 
 - `integer(file, key, fallback = 0)`: a positive INT32, UINT32, INT64 or
   UINT64 value up to `INT_MAX`. An absent key takes `fallback` and is
@@ -41,4 +41,5 @@ their defaults and its other refusals are its reader's
   as `count` reads one, and an array of booleans; an absent key gives an
   empty list, a key that is not an array is refused ("invalid array
   type") and so is an element of another type.
-- `uint64s(file, key, expected = SIZE_MAX)`: an array of UINT64 values, which a count would narrow, as qwen4exp's PLE arrays are; an absent key ("missing metadata"), another array type ("invalid uint64 array type"), a length other than `expected` when one is given ("invalid uint64 array length") and an element of another type ("invalid uint64 array element") are refused.
+- `uint64s(file, key, expected = SIZE_MAX)`: an array of UINT64 values, which a count would narrow, as qwen4exp's PLE and deepseek41's Engram arrays are; an absent key ("missing metadata"), another array type ("invalid uint64 array type"), a length other than `expected` when one is given ("invalid uint64 array length") and an element of another type ("invalid uint64 array element") are refused.
+- `reals(file, key)`: an array of finite F32 or F64 values, as deepseek41's SwiGLU clamps are; an absent key gives none, a key that is not an array ("invalid array type"), an element of another type ("invalid floating-point type") and one that is not finite ("invalid float") are refused.

@@ -16,8 +16,6 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representatio
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_prefer_integer_dot | 1 | has a test's backend take the integer-dot kernels, which backend-vulkan needs to reach the Q8_0 decode kernel's builds on a device whose profile does not prefer the integer dot; goes only with that check
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
 
-# Interfaces of an approved plan whose product caller is a later step.
-
 # Functions only test executables keep, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const read of a key block, which kv-cache takes on a storage it holds const; product code holds its storage mutable
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::kraw(unsigned long, int) const | 1 | what the const k reads through; goes with it

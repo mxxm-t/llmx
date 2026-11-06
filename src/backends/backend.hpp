@@ -264,6 +264,9 @@ struct KVView {
 };
 
 
+// DeepSeek-V4.1's storage formats as model math (quant/model_formats.hpp): the window's FP8 under a power-of-two scale per 32, the index keys' FP4 under one per 32, the entries' FP4 under an E4M3 scale per 16.
+enum class ModelFormat : uint8_t { fp8_power, fp4_power, fp4_e4m3 };
+
 // Which dims of a head norm_rope_partial rotates and which way (docs/src/backends-backend.md); the default is the plain rope.
 struct RopeForm {
     bool adjacent = false;
@@ -392,7 +395,9 @@ enum class ZeroSign : uint8_t { none, kept };
 // The last three are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp and norm_rope_partial's adjacent, offset and inverse forms.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
-                          layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full };
+                          layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
+                          sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, pool_write,
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -418,6 +423,19 @@ inline const char* op_name(Op op) {
         case Op::mix_rows: return "mix_rows";
         case Op::rope_streams: return "rope_streams";
         case Op::attention_full: return "attention_full";
+        case Op::hc_coeffs: return "hc_coeffs";
+        case Op::hc_collapse_norm: return "hc_collapse_norm";
+        case Op::hc_expand: return "hc_expand";
+        case Op::sparse_attention_sink: return "sparse_attention_sink";
+        case Op::topk_rows: return "topk_rows";
+        case Op::candidate_blocks: return "candidate_blocks";
+        case Op::compress_pool: return "compress_pool";
+        case Op::indexer_scores: return "indexer_scores";
+        case Op::pool_write: return "pool_write";
+        case Op::model_format_qdq: return "model_format_qdq";
+        case Op::sqrt_softplus_routing: return "sqrt_softplus_routing";
+        case Op::silu_mul_clamp: return "silu_mul_clamp";
+        case Op::rope_forms: return "rope_forms";
     }
     return "an unknown op";
 }
@@ -780,6 +798,14 @@ public:
         lacks(Op::routed_experts);
     }
 
+    // DeepSeek-V4.1's grouped output projection, matmul_experts at k = 1 over each row's groups, group_ids naming each pair's group (docs/src/backends-backend.md).
+    void matmul_grouped(const Projection& p, CSlice X, size_t nin, size_t rows, size_t groups, CSlice group_ids, RowRuns runs, Dtype dtype,
+                        std::vector<RowRun>& scratch) {
+        scratch.clear();
+        for (size_t i = 0; i < runs.n; ++i) scratch.push_back(RowRun{runs.runs[i].end * groups, runs.runs[i].extent});
+        matmul_experts({p}, X, nin, rows * groups, Routing{group_ids, {}, 1, groups}, {scratch.data(), scratch.size()}, dtype);
+    }
+
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
     // The base runs those ops in that order; a device may fuse them where it gives the same bits.
     virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
@@ -900,6 +926,59 @@ public:
                                        size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/) {
         lacks(Op::dilated_conv_silu_add);
     }
+
+    // The mHC coefficients pre, post and the hc x hc comb of each row of hc streams of dim floats, from its (2 + hc) * hc mixes in the reference's order (docs/DEEPSEEK4.md, section 4.2).
+    virtual void hc_coeffs(Slice /*pre*/, Slice /*post*/, Slice /*comb*/, CSlice /*mixes*/, CSlice /*stream*/, CSlice /*scale*/, CSlice /*base*/,
+                           size_t /*rows*/, size_t /*hc*/, size_t /*dim*/, float /*norm_eps*/, float /*eps*/, size_t /*iters*/) {
+        lacks(Op::hc_coeffs);
+    }
+
+    // The collapse of hc streams to one dim-wide row, u = sum over k in order of pre[k] X_k, then its RMSNorm with w; dst is disjoint from the inputs.
+    virtual void hc_collapse_norm(Slice /*dst*/, CSlice /*stream*/, CSlice /*pre*/, CSlice /*w*/, size_t /*rows*/, size_t /*hc*/, size_t /*dim*/, float /*eps*/) {
+        lacks(Op::hc_collapse_norm);
+    }
+
+    // The expansion of a sublayer's dim-wide output f back to hc streams, X'_k = post[k] f + sum over j in order of comb[j][k] X_j; dst may be the stream exactly, in place.
+    virtual void hc_expand(Slice /*dst*/, CSlice /*f*/, CSlice /*stream*/, CSlice /*post*/, CSlice /*comb*/, size_t /*rows*/, size_t /*hc*/, size_t /*dim*/) {
+        lacks(Op::hc_expand);
+    }
+
+    // Quantize and dequantize `count` floats in place in `format`'s blocks, each block on its own, so a row's values do not depend on its neighbours; count is whole blocks.
+    virtual void model_format_qdq(Slice /*x*/, size_t /*count*/, ModelFormat /*format*/) { lacks(Op::model_format_qdq); }
+
+    // Attention of each query head over the kv rows its row's k U32 ids name, UINT32_MAX naming none, one row serving as K and V (docs/DEEPSEEK4.md, section 4.2).
+    // With views, each row's entry_k entry ids also name the first dim floats of its view's pooled rows of `layer`, below (p + 1) / tokens, under one softmax with a sink.
+    virtual void sparse_attention_sink(Slice /*out*/, CSlice /*q*/, CSlice /*kv*/, CSlice /*ids*/, CSlice /*sink*/, size_t /*rows*/, size_t /*heads*/,
+                                       size_t /*dim*/, size_t /*kv_rows*/, size_t /*k*/, float /*scale*/, size_t /*layer*/, const KVView* /*views*/,
+                                       size_t /*n_views*/, CSlice /*entry_ids*/, size_t /*entry_k*/) {
+        lacks(Op::sparse_attention_sink);
+    }
+
+    // The k best of each row's n scores by score, then lower index, as U32 positions in ascending order plus offset; a pick at or past the row's U32 length is UINT32_MAX.
+    virtual void topk_rows(Slice /*ids*/, CSlice /*scores*/, CSlice /*lens*/, size_t /*rows*/, size_t /*n*/, size_t /*k*/, uint32_t /*offset*/) {
+        lacks(Op::topk_rows);
+    }
+
+    // The k best blocks of block_size positions of each row, each scored by its best position, the block of the row's newest position pinned first.
+    // Picks scoring -inf are dropped and the rest written as ascending U32 ids padded with UINT32_MAX.
+    virtual void candidate_blocks(Slice /*blocks*/, CSlice /*scores*/, CSlice /*lens*/, size_t /*rows*/, size_t /*n*/, size_t /*block_size*/, size_t /*k*/) {
+        lacks(Op::candidate_blocks);
+    }
+
+    // One pooled row a group of ratio rows, each channel the kv values weighted by the softmax of their scores over the group, then its RMSNorm with w.
+    virtual void compress_pool(Slice /*out*/, CSlice /*kv*/, CSlice /*score*/, CSlice /*w*/, size_t /*groups*/, size_t /*ratio*/, size_t /*dim*/, float /*eps*/) {
+        lacks(Op::compress_pool);
+    }
+
+    // Index scores out[r][t] = sum over heads of w[r][h] w_scale ReLU(q[r][h] dot key[t]), key t the last dim floats of the view's pooled row t of `layer`.
+    // A position at or past (p + 1) / tokens, or outside the row's candidate blocks where they are given, is -inf.
+    virtual void indexer_scores(Slice /*out*/, CSlice /*q*/, size_t /*layer*/, const KVView* /*views*/, size_t /*n_views*/, CSlice /*w*/, float /*w_scale*/,
+                                size_t /*heads*/, size_t /*dim*/, size_t /*n*/, CSlice /*blocks*/ = {}, size_t /*block_k*/ = 0, size_t /*block_size*/ = 0) {
+        lacks(Op::indexer_scores);
+    }
+
+    // The pooled rows of `layer`'s groups each view's rows complete, in view order and each view's groups in order, stored into their blocks as kv_write stores token rows; a row is the storage's pool width.
+    virtual void pool_write(size_t /*layer*/, const KVView* /*views*/, size_t /*n_views*/, CSlice /*rows*/) { lacks(Op::pool_write); }
 protected:
     void record_matrix_path(MatrixPath path) { matrix_paths_.record(path); }
 

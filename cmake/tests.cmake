@@ -628,6 +628,18 @@ list(APPEND LLMX_TARGETS llmx-ngram-hash-test)
 add_test(NAME ngram-hash COMMAND llmx-ngram-hash-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek41_reference.json)
 set_tests_properties(ngram-hash PROPERTIES TIMEOUT 30)
 
+add_executable(llmx-arch-deepseek4-test tests/arch_deepseek4.cpp)
+target_include_directories(llmx-arch-deepseek4-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-arch-deepseek4-test)
+add_test(NAME arch-deepseek4 COMMAND llmx-arch-deepseek4-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek41_reference.json)
+set_tests_properties(arch-deepseek4 PROPERTIES TIMEOUT 30)
+
+add_executable(llmx-deepseek4-ops-test tests/deepseek4_ops.cpp)
+target_include_directories(llmx-deepseek4-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-deepseek4-ops-test)
+add_test(NAME deepseek4-ops COMMAND llmx-deepseek4-ops-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/deepseek4_codecs.txt)
+set_tests_properties(deepseek4-ops PROPERTIES TIMEOUT 60)
+
 add_executable(llmx-qwen4exp-mtp-test tests/qwen4exp_mtp.cpp)
 target_include_directories(llmx-qwen4exp-mtp-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
 if(LLMX_HAS_BACKEND_VULKAN)

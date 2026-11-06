@@ -136,6 +136,29 @@ inline std::vector<uint64_t> uint64s(const gguf::GGUFModel& m, const std::string
     return out;
 }
 
+// An array of finite F32 or F64 values; an absent key gives none.
+inline std::vector<double> reals(const gguf::GGUFModel& m, const std::string& k) {
+    const auto* v = m.find(k);
+    if (!v) return {};
+    if (v->vtype != gguf::V_ARRAY) throw std::runtime_error("inference: invalid array type " + k);
+    std::vector<double> out;
+    for (const gguf::MetaValue& e : v->arr) {
+        double n;
+        if (e.vtype == gguf::V_FLOAT32) {
+            float value;
+            std::memcpy(&value, &e.fb, sizeof(value));
+            n = value;
+        } else if (e.vtype == gguf::V_FLOAT64) {
+            n = e.f64;
+        } else {
+            throw std::runtime_error("inference: invalid floating-point type " + k);
+        }
+        if (!std::isfinite(n)) throw std::runtime_error("inference: invalid float " + k);
+        out.push_back(n);
+    }
+    return out;
+}
+
 // A mixture-of-experts file's routing keys under `p`: experts per layer, experts each token takes, an expert's hidden width, and whether the chosen probabilities are renormalized to sum to one.
 // Routing is a softmax over the scores, gating function 1, unscaled; any other gating or a scale is refused.
 struct Experts {

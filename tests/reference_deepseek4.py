@@ -194,6 +194,7 @@ class Golden(unittest.TestCase):
         self.assertEqual([(r["kind"], r["length"]) for r in doc["runs"]],
                          [("whole", n) for n in reference.WHOLE_LENGTHS] + [("prefill_then_decode", n) for n in reference.DECODE_FROM])
         self.assertTrue(all(r["max_abs_diff"] <= reference.EQUAL_BOUND for r in doc["runs"]))
+        self.assertTrue(all(r["outputs_max_abs_diff"] <= reference.EQUAL_BOUND for r in doc["runs"]))
         self.assertEqual(len(doc["logits"]), reference.SEQUENCE_LENGTH)
         self.assertTrue(all(len(row) == fixture.TINY_ARGS["vocab_size"] and all(math.isfinite(v) for v in row) for row in doc["logits"]))
 
@@ -217,6 +218,12 @@ class Golden(unittest.TestCase):
         for block, parts in doc["sinkhorn"].items():
             for part, positions in parts.items():
                 self.assertEqual(sorted(positions, key=int), [str(p) for p in reference.SINKHORN_POSITIONS], (block, part))
+        self.assertEqual(sorted(doc["outputs"], key=int), [str(n) for n in range(args["n_layers"])])
+        for block, parts in doc["outputs"].items():
+            self.assertEqual(sorted(parts), sorted(reference.SUBLAYERS), block)
+            for part, positions in parts.items():
+                self.assertEqual(sorted(positions, key=int), [str(p) for p in reference.SINKHORN_POSITIONS], (block, part))
+                self.assertTrue(all(len(row) == args["dim"] and all(math.isfinite(v) for v in row) for row in positions.values()), (block, part))
 
     def test_engram_pins(self):
         engram, args = self.doc["engram"], fixture.TINY_ARGS

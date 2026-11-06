@@ -658,9 +658,12 @@ public:
     }
 
     // State, gating and the vision encoder's ops are supported; grouped expert projections must share one storage type.
+    // Every op but mixed routed products and DeepSeek-V4.1's ops and modes, which the kernels do not have.
     bool implements(Op op) const override {
         switch (op) {
-            case Op::mixed_experts: return false;
+            case Op::mixed_experts: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
+            case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::model_format_qdq:
+            case Op::pool_write: case Op::sqrt_softplus_routing: case Op::silu_mul_clamp: case Op::rope_forms: return false;
             default: return true;
         }
     }

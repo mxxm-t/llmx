@@ -14,7 +14,7 @@ which variant it reads and under which prefix.
   name's prefix: `qwen3` (`qwen3::open_dense`) and `qwen3moe`
   (`qwen3::open_routed`), [qwen3](model-arch-qwen3.md), and `qwen35`
   (`qwen35::open_dense`) and `qwen35moe` (`qwen35::open_routed`),
-  [qwen35](model-arch-qwen35.md), and `qwen4exp` (`qwen4exp::open`), [qwen4exp](model-arch-qwen4exp.md).
+  [qwen35](model-arch-qwen35.md), `qwen4exp` (`qwen4exp::open`), [qwen4exp](model-arch-qwen4exp.md), and `deepseek41` (`deepseek4::open_v41`), [deepseek4](model-arch-deepseek4.md), whose plan refuses the architecture by name until its math runs.
   An optional `normalize_drafter(target, side)` callback adapts a same-architecture sidecar's headers to the blocks-only pairing contract.
   The pairing owner calls it after tokenizer equality and before classifying the file.
   Only qwen4exp supplies it; its module validates every exception before changing metadata or tensor names and preserves storage.

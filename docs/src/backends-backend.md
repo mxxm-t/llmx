@@ -217,12 +217,12 @@ placement contracts in `docs/EXECUTION.md`.
   frequency the same position, so they reduce to it. The two are one op
   because the model never applies one without the other.
   `RopeForm` says which dims and which way: the plain form, its default, rotates pairs (j, j + rope_dim / 2) of the head's first `rope_dim` dims; `offset` starts the rotated dims later in the head, `adjacent` takes pairs (2j, 2j + 1) as DeepSeek-V4.1's complex rotation does, and `inverse` turns each pair by minus its angle, which removes a query's rotation from the attention output.
-  Every backend runs the plain form and refuses the others by name (`RopeForm::plain_only`).
+  The device backends run the plain form and refuse the others by name (`RopeForm::plain_only`).
 - `norm_rope_kv(...)`: a layer's attention inputs in one op, q normed and
   rotated in place, k normed and rotated into its KV block and v copied
   into its block. The default runs `norm_rope_partial` at the full width on
   q and k in place, then `kv_write`; the Vulkan backend fuses them.
-- `silu_mul(dst, gate, up, n, limit, runs)`: the SwiGLU elementwise stage, with a limit L > 0 silu(min(gate, L)) * clamp(up, -L, L) as DeepSeek-V4.1's experts take it, and with 0 unclamped; a negative or infinite limit is refused, and every backend refuses any limit but 0 by name (`no_clamp`). `runs`,
+- `silu_mul(dst, gate, up, n, limit, runs)`: the SwiGLU elementwise stage, with a limit L > 0 silu(min(gate, L)) * clamp(up, -L, L) as DeepSeek-V4.1's experts take it, and with 0 unclamped; a negative or infinite limit is refused, and the device backends refuse any limit but 0 by name (`no_clamp`). `runs`,
   when given, group `dst`'s rows by prompt for the matmul that reads it next,
   as for `rms_norm_rows`; a routed layer passes its entries' runs.
 - `add(dst, src, n)`: the residual add.
@@ -234,7 +234,7 @@ placement contracts in `docs/EXECUTION.md`.
   weights)`: a mixture-of-experts layer's routing, the k experts the rule ranks highest per row, highest first and ties to the lower id.
   `RouteRule::softmax(normalize)` ranks by softmax probability and weighs by the probabilities, renormalized over the k when asked.
   `RouteRule::sqrt_softplus(bias, scale, normalize)`, DeepSeek-V4.1's, scores sqrt(softplus(x)), softplus being x above 20 as torch's threshold has it, ranks by score + bias and weighs by the unbiased scores over their sum + 1e-20 when `normalize` and k > 1, then times `scale`; a row with a score + bias that is not finite has no candidate.
-  Every backend runs the softmax rule and refuses the other by name (`RouteRule::softmax_only`). Slot `j`
+  The device backends run the softmax rule and refuse the other by name (`RouteRule::softmax_only`). Slot `j`
   of row `r` is entry `r*k + j`; the ids are 32-bit integers in float-sized
   slots, so they stay in the activation arena. A row whose probabilities are
   not finite has no candidate: its k ids are `kNoExpert` with weights 0, and
@@ -242,6 +242,7 @@ placement contracts in `docs/EXECUTION.md`.
   A probability below FLT_MIN counts as 0, so such picks go by lower id on every
   device whatever its denormal mode, where HF orders them by value; their weights
   are below 1e-38, so no output changes.
+- `matmul_grouped(p, X, nin, rows, groups, group_ids, runs, dtype, scratch)`: DeepSeek-V4.1's grouped output projection, input g of each row projected by the g-th stack of `p.rows` rows of p's one matrix, as `matmul_experts` at k = 1 over the (row, group) pairs with `group_ids` giving each pair its group and each pair in its token's run, so the placed matrix is read as it lies and the output row is the next projection's input.
 - `matmul_experts(projections, X, nin, nrows, routing, runs, dtype)`: up to three
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its
@@ -257,7 +258,7 @@ placement contracts in `docs/EXECUTION.md`.
 - `repeat_row(dst, row, rows, width)`: copies a row of `width` floats into each of `rows` rows of dst, then doubles the copied rows, so clearing rows takes no host buffer or per-token upload; the base `moe_step` and qwen4exp's injection into a tensor group's partial rows use it.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   The CPU (`backends-cpu.md`) and Vulkan (`backends-vulkan.md`) implement them. ROCm does not advertise the qwen35 state ops, so placement there is refused before execution.
-  - `Op` names these five, the routed products and the mixed routed projection capability above, the embedded drafter's `argmax_rows` and `embed_ids`, the separate PLE `dilated_conv_silu_add` primitive, QSA `select_kv` and `sparse_attention`, and the vision encoder's six (`layer_norm`, `gelu`, `add_bias`, `mix_rows`, `rope_streams`, `attention_full`); `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five qwen35 ops, the drafter's two, `dilated_conv_silu_add`, `select_kv` and `sparse_attention`.
+  - `Op` names these five, the routed products and the mixed routed projection capability above, the embedded drafter's `argmax_rows` and `embed_ids`, the separate PLE `dilated_conv_silu_add` primitive, QSA `select_kv` and `sparse_attention`, the vision encoder's six (`layer_norm`, `gelu`, `add_bias`, `mix_rows`, `rope_streams`, `attention_full`), DeepSeek-V4.1's ten (`hc_coeffs`, `hc_collapse_norm`, `hc_expand`, `sparse_attention_sink`, `topk_rows`, `candidate_blocks`, `compress_pool`, `indexer_scores`, `model_format_qdq`, `pool_write`), which only the CPU implements, and three modes of other calls that only the CPU has: `sqrt_softplus_routing` (`route_experts` under `RouteRule::sqrt_softplus`), `silu_mul_clamp` (`silu_mul` with a limit) and `rope_forms` (`norm_rope_partial` in a form other than the plain one); `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five qwen35 ops, the drafter's two, `dilated_conv_silu_add`, `select_kv` and `sparse_attention`.
     A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
     It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); the five qwen35 ops are pure virtual, while optional additions such as `select_kv` and `sparse_attention` keep the base refusal until implemented by a backend.
   - `StateShape`: the common linear-attention state prefix for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, and `slot_floats()` counts every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.
@@ -287,6 +288,16 @@ placement contracts in `docs/EXECUTION.md`.
   and under `ZeroSign::kept` the zero's own sign bit, as copysign takes it. Mixing and signed-gate outputs must be disjoint
   from their inputs; injection operands are disjoint. Matrix dtype policy is
   applied by the subsequent matrix call, not by these operations.
+  DeepSeek-V4.1's mHC ops (docs/DEEPSEEK4.md, section 4.2) work on hc residual streams of dim floats a row.
+  `hc_coeffs` turns each row's (2 + hc) * hc mixes, scaled by the reciprocal root mean square of the row's streams, into pre, post and the hc x hc comb of 20 Sinkhorn rounds in the reference's order; its three outputs are disjoint from each other and its inputs.
+  `hc_collapse_norm` sums pre_k X_k in stream order and normalizes the sum with a weight, into an output disjoint from its inputs.
+  `hc_expand` writes X'_k = post_k f + sum over j of comb[j][k] X_j, the sum in j order before post_k f is added, out of place or exactly over the stream.
+  Its selection and attention ops read U32 ids and lengths held in float slices, UINT32_MAX naming none, and rank by score, then lower index, refusing a NaN score.
+  `indexer_scores` writes sum over heads of w_h w_scale ReLU(q_h . k_t) for the rows of its KV views in order, key t the last dim floats of the view's pooled row t of the layer, -inf at or past (p + 1) / tokens for a row at position p and outside its candidate blocks when given; a row's groups past the scores' width are refused.
+  `pool_write` stores the pooled rows of the groups each view's rows complete, in view order, into their blocks, as `kv_write` stores token rows, each row the storage's pool width; it is the store alone, so a source's rows and a replica's carried rows go through the same call.
+  `topk_rows` keeps each row's k best positions in ascending order plus an offset, a reachable pick of -inf kept and one at or past the length written as none; `candidate_blocks` keeps a row's k best blocks, each scored by its best position, the block of its newest position pinned and picks of -inf dropped.
+  `compress_pool` pools each group of ratio rows by a softmax per channel and normalizes the pooled row; `sparse_attention_sink` attends each head over the rows its ids name, one row as K and V, the max from -1e30 over the named scores and the sink in the denominator after it, so a row naming nothing gives zeros; with KV views each row's entry ids then name the first dim floats of its view's pooled rows of the layer, read in place after the kv rows under the one softmax, an id its row cannot see yet refused, and with none it reads the kv rows alone.
+  `model_format_qdq` quantizes and dequantizes a run of whole blocks in place in one of DeepSeek-V4.1's storage formats (`ModelFormat`: the window's FP8 under a power-of-two scale per 32, the index keys' FP4 under one per 32, the entries' FP4 under an E4M3 scale per 16), each block on its own as `quant/model_formats.hpp` gives it.
 - `BackendPtr`: the shared handle a backend is held by. The factories live
   with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and
   `make_vulkan_backend` in `vulkan/vulkan_backend.hpp`, and `devices.hpp`

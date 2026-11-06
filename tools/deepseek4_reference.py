@@ -61,7 +61,9 @@ DECODE_FROM = (1, 128, 129)
 ZERO_KEY = (1, 5)
 # The token whose raw id the sequence holds at this position, and the pad id in text.
 PAD_POSITION = 9
+# The positions the golden records the Sinkhorn split and each sublayer's output at.
 SINKHORN_POSITIONS = (0, 1, 127, 128, 199)
+SUBLAYERS = ("attn", "ffn")
 # Every selection's margin at its cut must clear the tiny models' per-logit bound, and every cached row equal the whole prompt's within half of it.
 MARGIN_FLOOR = 2e-5
 EQUAL_BOUND = 1e-5
@@ -195,7 +197,7 @@ class _Adapter:
 
 
 class _Trace:
-    """Observes DeepSeek's forward: replaces top-k with llmx's total order (score, then lower index) and records every selection, the Sinkhorn split, the n-gram hash and Engram's gate."""
+    """Observes DeepSeek's forward: replaces top-k with llmx's total order (score, then lower index) and records every selection, the Sinkhorn split, each sublayer's output (hc_post's input), the n-gram hash and Engram's gate."""
 
     def __init__(self, torch, model_module, kernel_port):
         from torch.overrides import TorchFunctionMode
@@ -203,6 +205,7 @@ class _Trace:
         self.owner = None
         self.engram_layer = None
         self.block = None
+        self.sublayer = 0
         self.position = 0
         self.in_expert = False
         self.records = {}
@@ -218,6 +221,7 @@ class _Trace:
 
         self.mode = Mode()
         self.handles = []
+        self.patched = []
         self.model_module = model_module
         self.port = kernel_port
         self.original_select = model_module.select_candidate_blocks
@@ -291,10 +295,20 @@ class _Trace:
         def block_pre(layer):
             def hook(_module, _inputs):
                 self.block = layer
+                self.sublayer = 0
             return hook
+
+        def hc_post(layer, original):
+            def wrapper(x, *args, **kwargs):
+                self.add(("output", layer, SUBLAYERS[self.sublayer]), x[0].tolist())
+                self.sublayer += 1
+                return original(x, *args, **kwargs)
+            return wrapper
 
         for layer, block in enumerate(model.layers):
             self.handles.append(block.register_forward_pre_hook(block_pre(layer)))
+            block.hc_post = hc_post(layer, block.hc_post)
+            self.patched.append(block)
             if block.attn.indexer is not None:
                 self.handles.append(block.attn.indexer.register_forward_pre_hook(pre(("index", layer))))
                 self.handles.append(block.attn.indexer.register_forward_hook(index_after(layer)))
@@ -328,6 +342,8 @@ class _Trace:
     def close(self):
         for handle in self.handles:
             handle.remove()
+        for block in self.patched:
+            del block.hc_post
         self.model_module.select_candidate_blocks = self.original_select
 
 
@@ -502,6 +518,11 @@ def _selections(trace, args, length):
     return out
 
 
+def _outputs(trace, args):
+    """Each layer's sublayer outputs by position, every row the run computed."""
+    return {str(layer): {part: _rows(trace.records, ("output", layer, part)) for part in SUBLAYERS} for layer in range(args["n_layers"])}
+
+
 def generate(output_dir, checkpoint):
     """Check the environment and the source, run the tiny model on every path, and publish the golden and both tiny files whole."""
     torch = pinned_environment()
@@ -543,14 +564,17 @@ def generate(output_dir, checkpoint):
         if trace.clamped == 0:
             raise RuntimeError("the SwiGLU clamp never engaged")
         selections = _selections(trace, args, len(ids))
+        outputs = _outputs(trace, args)
+        if any(len(rows) != len(ids) for parts in outputs.values() for rows in parts.values()):
+            raise RuntimeError("a sublayer's output was not recorded at every position")
 
         runs = []
         for length in WHOLE_LENGTHS:
             logits, other = _case(model_module, model_args, tokenizer, state, torch, port, ids[:length], length)
-            runs.append(_compare("whole", length, logits, whole, _selections(other, args, length), selections))
+            runs.append(_compare("whole", length, logits, whole, _selections(other, args, length), selections, _outputs(other, args), outputs))
         for prefill in DECODE_FROM:
             logits, other = _case(model_module, model_args, tokenizer, state, torch, port, ids, prefill)
-            runs.append(_compare("prefill_then_decode", prefill, logits, whole, _selections(other, args, len(ids)), selections))
+            runs.append(_compare("prefill_then_decode", prefill, logits, whole, _selections(other, args, len(ids)), selections, _outputs(other, args), outputs))
             check_margins(other.margins)
 
         gates = {}
@@ -611,28 +635,40 @@ def generate(output_dir, checkpoint):
             "margins": {kind: {"minimum": min(values), "count": len(values)} for kind, values in trace.margins.items()},
             "margin_floor": MARGIN_FLOOR,
             "sinkhorn": sinkhorn,
+            "outputs": {layer: {part: {str(p): [_short(v) for v in rows[p]] for p in SINKHORN_POSITIONS} for part, rows in parts.items()}
+                        for layer, parts in outputs.items()},
             "runs": runs, "equal_bound": EQUAL_BOUND,
             "activation_qdq_skipped": trace.skipped_activation_qdq, "bf16_casts_kept_f32": trace.bf16_casts,
             "swiglu_clamped": trace.clamped,
         }
         (stage / OUTPUT_NAME).write_text(json.dumps(doc, separators=(",", ":")) + "\n", encoding="utf-8")
         publish_staged(stage, out)
-    print("wrote %s: margins %s, largest cached difference %.3g" % (
-        out / OUTPUT_NAME, {k: v["minimum"] for k, v in doc["margins"].items()}, max(r["max_abs_diff"] for r in runs)))
+    print("wrote %s: margins %s, largest cached difference %.3g in logits, %.3g in sublayer outputs" % (
+        out / OUTPUT_NAME, {k: v["minimum"] for k, v in doc["margins"].items()}, max(r["max_abs_diff"] for r in runs),
+        max(r["outputs_max_abs_diff"] for r in runs)))
     return out / OUTPUT_NAME
 
 
-def _compare(kind, length, logits, whole, selections, reference):
-    """A path's rows held to the whole prompt's: logits within EQUAL_BOUND and every selection the same."""
+def _compare(kind, length, logits, whole, selections, reference, outputs, reference_outputs):
+    """A path's rows held to the whole prompt's: logits and every sublayer output within EQUAL_BOUND and every selection the same."""
     largest = max(abs(a - b) for row, ref in zip(logits, whole) for a, b in zip(row, ref))
     if largest > EQUAL_BOUND:
         raise RuntimeError("%s %d differs from the whole prompt by %.3g" % (kind, length, largest))
+    output_largest = 0.0
+    for layer, parts in reference_outputs.items():
+        for part, ref_rows in parts.items():
+            rows = outputs[layer][part]
+            if len(rows) != len(logits):
+                raise RuntimeError("%s %d recorded %d %s outputs of layer %s" % (kind, length, len(rows), part, layer))
+            output_largest = max([output_largest] + [abs(a - b) for row, ref in zip(rows, ref_rows) for a, b in zip(row, ref)])
+    if output_largest > EQUAL_BOUND:
+        raise RuntimeError("%s %d's sublayer outputs differ from the whole prompt by %.3g" % (kind, length, output_largest))
     rows = len(logits)
     for part in reference:
         for layer, ref_rows in reference[part].items():
             if selections[part].get(layer, [[]] * rows) != ref_rows[:rows]:
                 raise RuntimeError("%s %d selects otherwise than the whole prompt at %s %s" % (kind, length, part, layer))
-    return {"kind": kind, "length": length, "rows": rows, "max_abs_diff": largest}
+    return {"kind": kind, "length": length, "rows": rows, "max_abs_diff": largest, "outputs_max_abs_diff": output_largest}
 
 
 def self_test():
@@ -669,12 +705,80 @@ def self_test():
     print("deepseek4 codec self-test: 256 E4M3 and E8M0 bytes, 16 E2M1 codes and ties to even agree")
 
 
+CODEC_SEED = 0x9E3779B97F4A7C15
+CODEC_BLOCKS = 20000
+CODEC_RUN = 100
+CODEC_FORMATS = (("fp8_power", 32), ("fp4_power", 32), ("fp4_e4m3", 16))
+
+
+def codec_inputs(seed=CODEC_SEED, blocks=CODEC_BLOCKS):
+    """The blocks tests/deepseek4_ops.cpp draws with the same generator: block 0 all zeros, block 1 all 1e6, the rest values of 24 bits across exponents -164 to 20, one in 17 a signed zero."""
+    state = seed
+    mask = (1 << 64) - 1
+
+    def draw():
+        nonlocal state
+        state = (state * 6364136223846793005 + 1442695040888963407) & mask
+        return state >> 32
+
+    out = []
+    for _, width in CODEC_FORMATS:
+        rows = [[0.0] * width, [1e6] * width]
+        for _ in range(blocks - 2):
+            top = -140 + draw() % 161
+            row = []
+            for _ in range(width):
+                r = draw()
+                if r % 17 == 0:
+                    row.append(-0.0 if r & 1 else 0.0)
+                else:
+                    row.append(math.ldexp(float(r >> 8), top - r % 5 - 24) * (-1.0 if r & 2 else 1.0))
+            rows.append(row)
+        out.append(rows)
+    return out
+
+
+def codecs(path):
+    """Writes the port's codec outputs on codec_inputs as FNV-1a 64 digests of runs of CODEC_RUN blocks, leaving out a block where the port gives NaN, which deepseek4-ops reads."""
+    torch = pinned_environment()
+    import deepseek4_kernel as port
+    lines = ["# DeepSeek-V4.1 storage formats through the step 2 port's codecs (tools/deepseek4_kernel.py), written by tools/deepseek4_reference.py --codecs.",
+             "seed %d blocks %d run %d" % (CODEC_SEED, CODEC_BLOCKS, CODEC_RUN)]
+    for (name, width), rows in zip(CODEC_FORMATS, codec_inputs()):
+        x = torch.tensor(rows, dtype=torch.float32)
+        if name == "fp8_power":
+            port.act_quant(x, width, "ue8m0", inplace=True)
+        elif name == "fp4_power":
+            port.fp4_act_quant(x, width, inplace=True, scale_dtype=torch.float8_e8m0fnu)
+        else:
+            port.fp4_act_quant(x, width, inplace=True, scale_dtype=torch.float8_e4m3fn)
+        data = x.numpy()
+        left_out, digests = 0, []
+        for start in range(0, CODEC_BLOCKS, CODEC_RUN):
+            h = 0xCBF29CE484222325
+            for b in range(start, start + CODEC_RUN):
+                if any(math.isnan(v) for v in data[b].tolist()):
+                    left_out += 1
+                    continue
+                for byte in data[b].tobytes():
+                    h = ((h ^ byte) * 0x100000001B3) & ((1 << 64) - 1)
+            digests.append("%016x" % h)
+        lines.append("%s %d %d %s" % (name, width, left_out, " ".join(digests)))
+    with open(path, "w", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
+    print("wrote %d blocks of each format to %s" % (CODEC_BLOCKS, path))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Generate the tiny deepseek41 reference from DeepSeek's own code.")
     parser.add_argument("--output-dir", required=False, help="where the golden and both tiny files go")
     parser.add_argument("--checkpoint", help="the directory holding DeepSeek's files at the pinned revision")
     parser.add_argument("--self-test", action="store_true", help="check the port's codecs against the pure decoders and its Sinkhorn against float64")
+    parser.add_argument("--codecs", metavar="FILE", help="write the port's codec outputs on seeded blocks, which deepseek4-ops reads")
     args = parser.parse_args(argv)
+    if args.codecs:
+        codecs(args.codecs)
+        return 0
     if args.self_test:
         self_test()
         return 0

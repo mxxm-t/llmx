@@ -11,6 +11,7 @@
 #include "model/arch/qwen3.hpp"
 #include "model/arch/qwen35.hpp"
 #include "model/arch/qwen4exp.hpp"
+#include "model/arch/deepseek4.hpp"
 #include "model/arch/qwen3vl_vision.hpp"
 #include "model/encoder.hpp"
 
@@ -34,6 +35,7 @@ inline const ArchEntry kArchitectures[] = {
     {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
     {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
     {"qwen4exp", qwen4exp::open, backend::Dtype::bf16, qwen4exp::normalize_drafter},
+    {"deepseek41", deepseek4::open_v41, backend::Dtype::bf16},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

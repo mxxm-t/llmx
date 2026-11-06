@@ -8,6 +8,11 @@
 namespace {
 
 constexpr int kThreads = 256;
+#if defined(__GFX9__)
+constexpr int kWave = 64;
+#else
+constexpr int kWave = 32;
+#endif
 
 // The sum of each thread's value over the block, the same tree for every block and wave width: levels across waves in shared memory, the rest by shuffles in wave 0, each adding the pair the shared-memory level would.
 __device__ float block_sum(float v, float* lds) {
@@ -502,15 +507,16 @@ __device__ inline float q8_0_block_dot(const unsigned char* block, const float* 
     return d * s;
 }
 
-// The exact products' parts, a lane's strided sum of a row against x that exact() folds by block_sum: F32 rows, Q8_0 rows by blocks, and rows of a type decoded value by value (kernels/quant.h).
+// The exact products over F32 rows, Q8_0 rows by blocks and rows of a type decoded value by value (kernels/quant.h): an output is 256 strided chains, chain l over units l, l + 256 and so on in order from +0, folded by block_sum's pairs.
+// units() and step() are a chain one unit at a time; a type whose `vector` is set loads four weights at once (load4) where the row is aligned to `align` bytes, `weight_bytes` a weight.
 struct ExactF32 {
+    static constexpr bool vector = true;
+    static constexpr int weight_bytes = 4;
+    static constexpr unsigned long long align = 16;
+    static __device__ float4 load4(const unsigned char* row, unsigned long long u) { return ((const float4*)row)[u / 4]; }
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin * sizeof(float); }
-    static __device__ float part(const unsigned char* row, const float* x, unsigned long long nin) {
-        const float* w = (const float*)row;
-        float s = 0.0f;
-        for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) s = fmaf(w[i], x[i], s);
-        return s;
-    }
+    static __device__ unsigned long long units(unsigned long long nin) { return nin; }
+    static __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) { return fmaf(((const float*)row)[u], x[u], s); }
     template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
         for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) {
             float w[O], v[R];
@@ -526,11 +532,11 @@ struct ExactF32 {
     }
 };
 struct ExactQ8 {
+    static constexpr bool vector = false;
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin / rq::Q8_0::values * rq::Q8_0::bytes; }
-    static __device__ float part(const unsigned char* row, const float* x, unsigned long long nin) {
-        float s = 0.0f;
-        for (unsigned long long k = threadIdx.x; k < nin / rq::Q8_0::values; k += kThreads) s += q8_0_block_dot(row + k * rq::Q8_0::bytes, x + k * rq::Q8_0::values);
-        return s;
+    static __device__ unsigned long long units(unsigned long long nin) { return nin / rq::Q8_0::values; }
+    static __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) {
+        return s + q8_0_block_dot(row + u * rq::Q8_0::bytes, x + u * rq::Q8_0::values);
     }
     template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
         for (unsigned long long k = threadIdx.x; k < nin / rq::Q8_0::values; k += kThreads)
@@ -541,11 +547,17 @@ struct ExactQ8 {
     }
 };
 template <class T> struct ExactDecoded {
+    static constexpr bool vector = __is_same(T, rq::BF16);
+    static constexpr int weight_bytes = 2;
+    static constexpr unsigned long long align = 8;
+    static __device__ float4 load4(const unsigned char* row, unsigned long long u) {
+        const uint2 b = ((const uint2*)row)[u / 4];
+        return make_float4(__uint_as_float(b.x << 16), __uint_as_float(b.x & 0xffff0000u), __uint_as_float(b.y << 16), __uint_as_float(b.y & 0xffff0000u));
+    }
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin / T::values * T::bytes; }
-    static __device__ float part(const unsigned char* row, const float* x, unsigned long long nin) {
-        float s = 0.0f;
-        for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) s = fmaf(T::value(row + i / T::values * T::bytes, (int)(i % T::values)), x[i], s);
-        return s;
+    static __device__ unsigned long long units(unsigned long long nin) { return nin; }
+    static __device__ float step(const unsigned char* row, const float* x, unsigned long long u, float s) {
+        return fmaf(T::value(row + u / T::values * T::bytes, (int)(u % T::values)), x[u], s);
     }
     template <int O, int R> static __device__ void parts(const unsigned char* const* rows, const float* const* x, unsigned long long nin, float (&s)[O][R]) {
         for (unsigned long long i = threadIdx.x; i < nin; i += kThreads) {
@@ -561,17 +573,70 @@ template <class T> struct ExactDecoded {
         }
     }
 };
-// Output (o, b), a block an output: Y[b * nout + o] = dot(W row o, X row b), added to Y with `add`.
-template <class D>
-__device__ void exact(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add, unsigned long long o, unsigned long long b) {
-    __shared__ float lds[kThreads];
-    const float dot = block_sum(D::part(W + o * D::row_bytes(nin), X + b * nin, nin), lds);
-    if (threadIdx.x == 0) {
-        float* y = Y + b * nout + o;
-        *y = add ? *y + dot : dot;
-    }
+// A lane's weight bytes a batch of steps: 128 measured slower than 64 on the 2560 x 512 F32 router, more loads in flight than memory takes (docs/STATUS.md).
+constexpr int kBatchBytes = 64;
+// U whole steps of a lane's chains from unit u on, every load issued before the first product (held there by a scheduling barrier), so the wave waits on memory once for all of them.
+template <class D, int J, int U> __device__ inline void vector_steps(const unsigned char* row, const float* X, unsigned long long u, float (&s)[J]) {
+    float4 a[U][J / 4], b[U][J / 4];
+#pragma unroll
+    for (int q = 0; q < U; ++q)
+#pragma unroll
+        for (int k = 0; k < J / 4; ++k) a[q][k] = D::load4(row, u + 4 * k + q * kThreads), b[q][k] = ((const float4*)X)[(u + 4 * k + q * kThreads) / 4];
+    __builtin_amdgcn_sched_barrier(0);
+#pragma unroll
+    for (int q = 0; q < U; ++q)
+#pragma unroll
+        for (int k = 0; k < J / 4; ++k) {
+            s[4 * k] = fmaf(a[q][k].x, b[q][k].x, s[4 * k]);
+            s[4 * k + 1] = fmaf(a[q][k].y, b[q][k].y, s[4 * k + 1]);
+            s[4 * k + 2] = fmaf(a[q][k].z, b[q][k].z, s[4 * k + 2]);
+            s[4 * k + 3] = fmaf(a[q][k].w, b[q][k].w, s[4 * k + 3]);
+        }
 }
-// kRowsOut outputs by kRowsIn rows a block, each output the bits of exact(): every lane keeps its strided chain for each, folded by block_sum's tree.
+// The whole steps from step m on in batches of U, then the rest in halving batches, each step once and in order.
+template <class D, int J, int U>
+__device__ inline void vector_run(const unsigned char* row, const float* X, unsigned long long first, unsigned long long full, unsigned long long m, float (&s)[J]) {
+    for (; m + U <= full; m += U) vector_steps<D, J, U>(row, X, first + m * kThreads, s);
+    if constexpr (U > 1) vector_run<D, J, U / 2>(row, X, first, full, m, s);
+}
+// One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
+// The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
+template <class D>
+__device__ void exact_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) {
+    constexpr int J = kThreads / kWave;
+    const int t = threadIdx.x % kWave;
+    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
+    if (o >= nout) return;
+    const unsigned char* row = W + o * D::row_bytes(nin);
+    const unsigned long long n = D::units(nin), full = n / kThreads, first = (unsigned long long)J * t;
+    float s[J];
+#pragma unroll
+    for (int j = 0; j < J; ++j) s[j] = 0.0f;
+    bool done = false;
+    if constexpr (D::vector)
+        if (((unsigned long long)row % D::align | (unsigned long long)X % 16) == 0) {
+            done = true;
+            vector_run<D, J, kBatchBytes / (J * D::weight_bytes)>(row, X, first, full, 0, s);
+        }
+    if (!done) {
+        for (unsigned long long m = 0; m < full; ++m)
+#pragma unroll
+            for (int j = 0; j < J; ++j) s[j] = D::step(row, X, first + j + m * kThreads, s[j]);
+    }
+#pragma unroll
+    for (int j = 0; j < J; ++j)
+        if (first + j + full * kThreads < n) s[j] = D::step(row, X, first + j + full * kThreads, s[j]);
+#pragma unroll
+    for (int h = kThreads / 2; h >= J; h >>= 1)
+#pragma unroll
+        for (int j = 0; j < J; ++j) s[j] += __shfl_down(s[j], h / J, kWave);
+#pragma unroll
+    for (int h = J / 2; h > 0; h >>= 1)
+#pragma unroll
+        for (int j = 0; j < h; ++j) s[j] += s[j + h];
+    if (t == 0) Y[o] = add ? Y[o] + s[0] : s[0];
+}
+// kRowsOut outputs by kRowsIn rows a block, each output the bits of exact_wave: every lane keeps its strided chain for each, folded by block_sum's tree.
 // Sixteen threads an output take the tree's levels 128 to 16 from shared memory and 8 to 1 by shuffles; rows and outputs past the call repeat the last and are not written.
 constexpr int kRowsOut = 8, kRowsIn = 8, kRowsChunk = kThreads / 16;
 template <class D>
@@ -622,18 +687,18 @@ struct RoutedExact {
     const unsigned* ids;
     unsigned long long first, per, n_expert, expert_bytes;
 };
-// Entry e = first + blockIdx.y, output blockIdx.x: its expert's row against X row e / per into Y + e * nout, the one-row product's arithmetic; an entry without an expert writes nothing.
+// Entry e = first + blockIdx.y: its expert's rows against X row e / per into Y + e * nout through the one-row build, a wave an output; an entry without an expert writes nothing.
 template <class D> __device__ void routed_exact(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r) {
     const unsigned long long e = r.first + blockIdx.y;
     const unsigned id = r.ids[e];
     if (id >= r.n_expert) return;
-    exact<D>(W + id * r.expert_bytes, X + e / r.per * nin, Y + e * nout, nin, nout, 0, blockIdx.x, 0);
+    exact_wave<D>(W + id * r.expert_bytes, X + e / r.per * nin, Y + e * nout, nin, nout, 0);
 }
 #define LLMX_EXACT(t, ...)                                                                                                                                         \
-    extern "C" __global__ void llmx_matmul_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) {     \
-        exact<__VA_ARGS__>(W, X, Y, nin, nout, add, blockIdx.x, blockIdx.y);                                                                                    \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) { \
+        exact_wave<__VA_ARGS__>(W, X, Y, nin, nout, add);                                        \
     }                                                                                                                                                              \
-    extern "C" __global__ void llmx_routed_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r) { \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_routed_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, RoutedExact r) { \
         routed_exact<__VA_ARGS__>(W, X, Y, nin, nout, r);                                                                                                       \
     }                                                                                                                                                              \
     extern "C" __global__ void __launch_bounds__(kThreads) llmx_matmul_rows_##t(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout,          \

@@ -386,8 +386,8 @@ void types(Backend& g, Backend& c) {
     }
 }
 
-// Every exact type's product over several rows takes the blocked build, whose every output must be the bits of its row alone, plain and added, at each side of a block's outputs and rows.
-// Widths past the 256-lane stride's whole steps (2561 for F32 and BF16, 2080 for the 32-value blocks) give lanes chains of unequal length.
+// Every exact type's product over several rows must give each output the bits of its row alone through the one-row build, plain and added, at each side of a block's outputs and rows.
+// The widths give lanes chains of unequal length (2561, 2080), lanes without one (100), the hyper-connection maps' 10240 and F32 rows off the vector loads' alignment (2561).
 void exact_rows(Backend& g) {
     const uint32_t kinds[] = {quant::GGML_TYPE_F32,  quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
                               quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
@@ -395,7 +395,7 @@ void exact_rows(Backend& g) {
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const size_t block = quant::storage_type(type)->block_size;
-        const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
+        const std::vector<size_t> widths = block == 1 ? std::vector<size_t>{2560, 2561, 100, 10240} : block == 32 ? std::vector<size_t>{2560, 2080} : std::vector<size_t>{2560};
         for (size_t nin : widths)
         for (size_t nout : nouts) {
             std::vector<uint8_t> w;
@@ -570,6 +570,7 @@ void twin_types(Backend& g, Backend& c) {
 void exact_rates(Backend& g) {
     struct Shape { const char* name; uint32_t type; size_t nin, nout; };
     const Shape shapes[] = {{"flash router", quant::GGML_TYPE_F32, 2560, 512}, {"flash hc_pre", quant::GGML_TYPE_F32, 10240, 24}, {"flash hc_post", quant::GGML_TYPE_F32, 10240, 4},
+                            {"flash ssm_alpha", quant::GGML_TYPE_F32, 2560, 24}, {"flash shexp gate", quant::GGML_TYPE_F32, 2560, 1},
                             {"flash bf16 512", quant::GGML_TYPE_BF16, 2560, 512}, {"flash bf16 128", quant::GGML_TYPE_BF16, 2560, 128}};
     std::cout << "backend-rocm: exact rates; type, shape (in x out), rows: us a call, kernels\n";
     for (const Shape& s : shapes) {

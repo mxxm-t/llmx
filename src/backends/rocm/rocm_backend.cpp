@@ -1521,8 +1521,10 @@ private:
             void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
             launch_writing({{y, size_mul(nout, nbatch)}}, kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
         } else {
+            // One row takes a wave an output (kernels/f32.hip, exact_wave).
             void* args[] = {&w, &x, &y, &ni, &no, &add};
-            launch_writing({{y, size_mul(nout, nbatch)}}, kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
+            const size_t waves = kThreads / dev_.caps.subgroup_size;
+            launch_writing({{y, nout}}, kinds.exact, (unsigned)((nout + waves - 1) / waves), 1, args);
         }
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
@@ -1798,9 +1800,11 @@ private:
             float* y = f32(proj[p].out);
             unsigned long long no = proj[p].rows;
             RoutedExact r{ids, 0, per, routing.n_expert, quant::row_bytes(type, nin, proj[p].rows)};
+            // An entry's outputs a wave each, as the one-row product takes them (kernels/f32.hip, exact_wave).
+            const size_t waves = kThreads / dev_.caps.subgroup_size;
             for (; r.first < entries; r.first += kGridY) {
                 void* args[] = {&w, &x, &y, &ni, &no, &r};
-                launch_writing({{y, size_mul(proj[p].rows, entries)}}, kinds.routed, (unsigned)proj[p].rows, (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
+                launch_writing({{y, size_mul(proj[p].rows, entries)}}, kinds.routed, (unsigned)((proj[p].rows + waves - 1) / waves), (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
             }
         }
         record_matrix_path(MatrixPath::f32);

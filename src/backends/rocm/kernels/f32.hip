@@ -79,19 +79,28 @@ __device__ inline unsigned long long twin_block(const TwinMap& m, unsigned b, un
 }
 
 // The twin block of the block numbered fb = b * blocks + k as the floats lie; a null map lays every row row after row, as the map-free builds take it.
+__device__ inline unsigned long long twin_block(const TwinMap& m, unsigned long long fb) {
+    const unsigned b = (unsigned)((fb * ((unsigned long long)m.magic_hi << 32 | m.magic_lo)) >> m.shift);
+    return twin_block(m, b, (unsigned)fb - b * m.blocks);
+}
 __device__ inline unsigned long long twin_block(const TwinMap* m, unsigned long long fb) {
-    if (!m) return fb;
-    const unsigned b = (unsigned)((fb * ((unsigned long long)m->magic_hi << 32 | m->magic_lo)) >> m->shift);
-    return twin_block(*m, b, (unsigned)fb - b * m->blocks);
+    return m ? twin_block(*m, fb) : fb;
 }
 
-// Value v at element i of an output whose twin a later product reads, at the class `level` names (1 block-int16, 2 block-int8, 0 none); the 32 lanes of i's block call it together.
-__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level, const TwinMap* m) {
-    if (!level) return;
+// Value v at element i of an output, its twin block b, at the class `level` names (1 block-int16, 2 block-int8); the 32 lanes of i's block call it together.
+__device__ inline void twin_put(float v, unsigned long long i, unsigned long long b, void* q, float* d, int level) {
     const float amax = block_amax(v);
-    const unsigned long long b = twin_block(m, i / 32);
     if (level == 2) twin_value<signed char, 127>(v, amax, (signed char*)q + b * 32 + i % 32, d + b, (int)(i % 32));
     else twin_value<short, 32767>(v, amax, (short*)q + b * 32 + i % 32, d + b, (int)(i % 32));
+}
+
+// Value v at element i of an output whose twin a later product reads, at the class `level` names (0 none); the 32 lanes of i's block call it together.
+__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level, const TwinMap* m) {
+    if (level) twin_put(v, i, twin_block(m, i / 32), q, d, level);
+}
+// The same with the map read where `major` is set: a pointer chosen at run time between the map and null would put the map in scratch.
+__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level, const TwinMap& m, int major) {
+    if (level) twin_put(v, i, major ? twin_block(m, i / 32) : i / 32, q, d, level);
 }
 
 // The twin of `blocks` blocks of 32 floats, 32 threads a block.
@@ -1163,16 +1172,19 @@ extern "C" __global__ void llmx_sparse_attention_merge(const float* part, float*
 // The qwen35 layers' ops (backend.hpp), each as the CPU computes it, the transcendental steps with expf.
 
 // dst[i] = x[i] * sigmoid(g), g being element d of head h of row r's gate at r * gs + h * ghs + d, where i = (r * heads + h) * dim + d; dst may be x.
+// Each of the stream and gate ops below also writes its output's twin at the class tlevel names, laid out by tm where major is set (twin_at); the host asks for it only for outputs of whole blocks a row, so a block's 32 lanes run together.
 extern "C" __global__ void llmx_sigmoid_mul(float* dst, const float* x, const float* gate, unsigned long long n, unsigned long long width,
-                                            unsigned long long dim, unsigned long long gs, unsigned long long ghs) {
+                                            unsigned long long dim, unsigned long long gs, unsigned long long ghs, void* tq, float* td, int tlevel, TwinMap tm, int major) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (i >= n) return;
     const unsigned long long r = i / width, rem = i - r * width, h = rem / dim, d = rem - h * dim;
-    dst[i] = x[i] * (1.0f / (1.0f + expf(-gate[r * gs + h * ghs + d])));
+    const float v = x[i] * (1.0f / (1.0f + expf(-gate[r * gs + h * ghs + d])));
+    dst[i] = v;
+    twin_at(v, i, tq, td, tlevel, tm, major);
 }
 
 // A block a (row, head): x's RMS norm against w, times SiLU or, with `sig`, the sigmoid of z; dst may be x, since every value is read into the sum before the block's barrier.
-extern "C" __global__ void llmx_gated_rms_norm(float* dst, const float* x, const float* z, const float* w, int dim, float eps, int sig) {
+extern "C" __global__ void llmx_gated_rms_norm(float* dst, const float* x, const float* z, const float* w, int dim, float eps, int sig, void* tq, float* td, int tlevel, TwinMap tm, int major) {
     __shared__ float lds[kThreads];
     const unsigned long long o = (unsigned long long)blockIdx.x * dim;
     float s = 0.0f;
@@ -1180,7 +1192,9 @@ extern "C" __global__ void llmx_gated_rms_norm(float* dst, const float* x, const
     const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)dim + eps);
     for (int i = threadIdx.x; i < dim; i += kThreads) {
         const float zz = z[o + i], g = sig ? 1.0f / (1.0f + expf(-zz)) : zz / (1.0f + expf(-zz));
-        dst[o + i] = x[o + i] * (r * w[i]) * g;
+        const float v = x[o + i] * (r * w[i]) * g;
+        dst[o + i] = v;
+        twin_at(v, o + i, tq, td, tlevel, tm, major);
     }
 }
 
@@ -1250,11 +1264,13 @@ __device__ float log1p_of(float y) {
 }
 
 // The gated delta rule (backend.hpp, gated_delta_rule) in the Vulkan shader's order: a block a (view, V head, 32 V columns), every sum a lane's fused multiply-adds then lanes8.
-// A sequence gives the same bits alone, batched or cut into passes, and a decay below 2^-126 is 0.
-extern "C" __global__ void llmx_gated_delta_rule(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st,
-                                                 const unsigned* tab, unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim,
-                                                 unsigned long long slot, unsigned blocks, float scale, float eps) {
-    constexpr unsigned kRows = 16, kTb = 16;
+// A sequence gives the same bits alone, batched or cut into passes, and with kTb tokens staged a barrier in either build (docs/src/backends-rocm.md); a decay below 2^-126 is 0.
+template <unsigned kTb>
+__device__ void gated_delta_rule(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st,
+                                 const unsigned* tab, unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim,
+                                 unsigned long long slot, unsigned blocks, float scale, float eps) {
+    constexpr unsigned kRows = 16;
+    static_assert(kTb >= 1 && kTb <= 16, "a block of 256 threads stages at most 16 tokens' q and k rows");
     __shared__ float kn[kTb][128], qn[kTb][128], vs[kTb][32], betas[kTb], decays[kTb];
     const unsigned wg = blockIdx.x, per_view = v_heads * blocks;
     const unsigned v = wg / per_view, rest = wg - v * per_view, j = rest / blocks, blk = rest - j * blocks;
@@ -1357,12 +1373,22 @@ extern "C" __global__ void llmx_gated_delta_rule(float* o, const float* u, const
         }
     }
 }
+// The decode build stages 4 tokens, for calls whose every view holds at most 8 rows, as Vulkan's short build does; the prompt build stages 16.
+// Both are bounded to 256 threads and two waves a SIMD, so a lane keeps its state rows in registers rather than scratch (docs/src/backends-rocm.md).
+#define LLMX_DELTA_RULE(name, tb)                                                                                                                                       \
+    extern "C" __global__ void __launch_bounds__(kThreads, 2) name(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st, const unsigned* tab, \
+                                    unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim, unsigned long long slot, unsigned blocks,            \
+                                    float scale, float eps) {                                                                                                           \
+        gated_delta_rule<tb>(o, u, alpha, bb, a, dt_bias, st, tab, C, k_heads, v_heads, k_dim, v_dim, slot, blocks, scale, eps);                                       \
+    }
+LLMX_DELTA_RULE(llmx_gated_delta_rule, 16)
+LLMX_DELTA_RULE(llmx_gated_delta_rule_short, 4)
 
 // The Flash-Next stream ops (backend.hpp), each at its Vulkan kernel's op boundary and in its order, every value a function of its own row.
 
 // A block a (row, group) and slice of rows: the group's RMS norm against its own weights, each thread's squares in order, then block_sum's tree.
 // Every slice repeats the whole reduction, so a group's bits do not depend on its slices.
-extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, const float* w, unsigned groups, unsigned dim, float eps) {
+extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, const float* w, unsigned groups, unsigned dim, float eps, void* tq, float* td, int tlevel, TwinMap tm, int major) {
     __shared__ float lds[kThreads];
     const unsigned long long o = (unsigned long long)blockIdx.x * dim;
     const float* wg = w + (unsigned long long)(blockIdx.x % groups) * dim;
@@ -1370,19 +1396,24 @@ extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, con
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(src[o + i], src[o + i], s);
     const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)dim + eps);
     for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y)
-        for (unsigned i = c * 1024u + threadIdx.x; i < dim && i < (c + 1u) * 1024u; i += kThreads) dst[o + i] = src[o + i] * (r * wg[i]);
+        for (unsigned i = c * 1024u + threadIdx.x; i < dim && i < (c + 1u) * 1024u; i += kThreads) {
+            const float v = src[o + i] * (r * wg[i]);
+            dst[o + i] = v;
+            twin_at(v, o + i, tq, td, tlevel, tm, major);
+        }
 }
 
 // dst[i] = silu(src[i] * scale); dst may be src.
-extern "C" __global__ void llmx_silu_scaled(float* dst, const float* src, unsigned long long n, float scale) {
+extern "C" __global__ void llmx_silu_scaled(float* dst, const float* src, unsigned long long n, float scale, void* tq, float* td, int tlevel, TwinMap tm, int major) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (i >= n) return;
-    const float v = src[i] * scale;
-    dst[i] = v / (1.0f + expf(-v));
+    const float v = src[i] * scale, y = v / (1.0f + expf(-v));
+    dst[i] = y;
+    twin_at(y, i, tq, td, tlevel, tm, major);
 }
 
 // dst[r][d] = the sum over streams s in order of src[r][s][d] * sigmoid(gate[r][s][d]), divided by the streams.
-extern "C" __global__ void llmx_mix_streams(float* dst, const float* src, const float* gate, unsigned long long n, unsigned streams, unsigned dim) {
+extern "C" __global__ void llmx_mix_streams(float* dst, const float* src, const float* gate, unsigned long long n, unsigned streams, unsigned dim, void* tq, float* td, int tlevel, TwinMap tm, int major) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     if (i >= n) return;
     const unsigned long long r = i / dim, d = i - r * dim;
@@ -1391,7 +1422,9 @@ extern "C" __global__ void llmx_mix_streams(float* dst, const float* src, const 
         const unsigned long long j = (r * streams + s) * dim + d;
         sum = fmaf(src[j], 1.0f / (1.0f + expf(-gate[j])), sum);
     }
-    dst[i] = sum / (float)streams;
+    const float v = sum / (float)streams;
+    dst[i] = v;
+    twin_at(v, i, tq, td, tlevel, tm, major);
 }
 
 // dst[r][s][d] += block[r][d] * 2 sigmoid(gate[r][s] / streams), the residual streams in place; block b takes row and stream b / chunks, so blocks walk memory in order and no index divides 64 bits.
@@ -1457,43 +1490,22 @@ extern "C" __global__ void llmx_dilated_conv_silu_add(float* o, const float* x, 
 }
 
 // Expert routing (backend.hpp route_experts), a row a block of kRouteThreads: the softmax over the row's experts, then k picks of the largest probability, ties to the lower id, in Vulkan's order (moe_route.glsl).
-// The reductions run through shared memory in one fixed tree, so a row's picks and weights do not depend on the wave size.
+// Each reduction is the 64-pair tree, lane t adding lane t + s at level s, so a row's picks and weights do not depend on the wave size (docs/src/backends-rocm.md).
 constexpr unsigned kRouteThreads = 64, kRouteExperts = 1024, kNoExpert = 0xffffffffu;
-__device__ inline float route_max(float v, float* red) {
+template <typename T, typename Op>
+__device__ inline T route_tree(T v, T* red, Op op) {
     const unsigned t = threadIdx.x;
-    red[t] = v;
-    __syncthreads();
     for (unsigned s = kRouteThreads / 2; s; s /= 2) {
-        if (t < s) red[t] = fmaxf(red[t], red[t + s]);
-        __syncthreads();
+        if (s >= (unsigned)warpSize) {
+            red[t] = v;
+            __syncthreads();
+            v = op(v, red[t ^ s]);
+            __syncthreads();
+        } else {
+            v = op(v, __shfl_xor(v, (int)s, warpSize));
+        }
     }
-    const float r = red[0];
-    __syncthreads();
-    return r;
-}
-__device__ inline float route_sum(float v, float* red) {
-    const unsigned t = threadIdx.x;
-    red[t] = v;
-    __syncthreads();
-    for (unsigned s = kRouteThreads / 2; s; s /= 2) {
-        if (t < s) red[t] = red[t] + red[t + s];
-        __syncthreads();
-    }
-    const float r = red[0];
-    __syncthreads();
-    return r;
-}
-__device__ inline unsigned route_min(unsigned v, unsigned* red) {
-    const unsigned t = threadIdx.x;
-    red[t] = v;
-    __syncthreads();
-    for (unsigned s = kRouteThreads / 2; s; s /= 2) {
-        if (t < s) red[t] = min(red[t], red[t + s]);
-        __syncthreads();
-    }
-    const unsigned r = red[0];
-    __syncthreads();
-    return r;
+    return v;
 }
 extern "C" __global__ void __launch_bounds__(kRouteThreads) llmx_moe_route(const float* scores, unsigned* ids, float* weights, unsigned n_expert, unsigned k, int normalize) {
     __shared__ float p[kRouteExperts], red[kRouteThreads], chosen[256];
@@ -1501,19 +1513,21 @@ extern "C" __global__ void __launch_bounds__(kRouteThreads) llmx_moe_route(const
     const unsigned t = threadIdx.x;
     const unsigned long long r = blockIdx.x;
     const float* s = scores + r * n_expert;
+    const auto larger = [](float a, float b) { return fmaxf(a, b); };
     float top = -INFINITY;
     for (unsigned e = t; e < n_expert; e += kRouteThreads) {
         p[e] = s[e];
         top = fmaxf(top, p[e]);
     }
-    top = route_max(top, red);
+    top = route_tree(top, red, larger);
     float part = 0.0f;
     for (unsigned e = t; e < n_expert; e += kRouteThreads) {
         const float v = expf(p[e] - top);
         p[e] = v;
         part += v;
     }
-    const float sum = route_sum(part, red);
+    // Both partners of a level add the same two values, so every lane holds the tree's lane-0 sum.
+    const float sum = route_tree(part, red, [](float a, float b) { return a + b; });
     // Probabilities that are not finite, from a NaN or infinite score or every score -inf, give no candidate.
     if (isnan(sum)) {
         for (unsigned j = t; j < k; j += kRouteThreads) {
@@ -1527,7 +1541,6 @@ extern "C" __global__ void __launch_bounds__(kRouteThreads) llmx_moe_route(const
         const float v = p[e] / sum;
         p[e] = v < __uint_as_float(0x00800000u) ? 0.0f : v;
     }
-    __syncthreads();
     float total = 0.0f;
     for (unsigned j = 0; j < k; ++j) {
         // The largest untaken probability, then the lowest id holding it; a taken expert holds -1, below every probability.
@@ -1535,16 +1548,15 @@ extern "C" __global__ void __launch_bounds__(kRouteThreads) llmx_moe_route(const
         unsigned bi = kNoExpert;
         for (unsigned e = t; e < n_expert; e += kRouteThreads)
             if (p[e] > bv) bv = p[e], bi = e;
-        const float m = route_max(bv, red);
-        const unsigned id = route_min(bv == m ? bi : kNoExpert, redi);
+        const float m = route_tree(bv, red, larger);
+        const unsigned id = route_tree(bv == m ? bi : kNoExpert, redi, [](unsigned a, unsigned b) { return min(a, b); });
         const float c = id < n_expert ? m : 0.0f;
         total += c;
-        if (t == 0) {
-            if (id < n_expert) p[id] = -1.0f;
+        if (id < n_expert && id % kRouteThreads == t) p[id] = -1.0f;
+        if (j % kRouteThreads == t) {
             chosen[j] = c;
             chosen_id[j] = id;
         }
-        __syncthreads();
     }
     for (unsigned j = t; j < k; j += kRouteThreads) {
         ids[r * k + j] = chosen_id[j];

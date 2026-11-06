@@ -525,7 +525,7 @@ public:
         void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p, &of, &count};
         launch(kNormRopeStreams, (unsigned)rows, (unsigned)heads, args);
     }
-    void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim, size_t gate_stride, size_t gate_head_stride, RowRuns) override {
+    void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim, size_t gate_stride, size_t gate_head_stride, RowRuns runs) override {
         if (!heads || !dim) throw std::runtime_error("rocm: invalid sigmoid gate dimensions");
         if (!rows) return;
         const size_t width = size_mul(heads, dim), n = size_mul(rows, width);
@@ -537,10 +537,12 @@ public:
         const float* xp = f32(x);
         const float* g = f32(gate);
         unsigned long long nn = n, wd = width, dd = dim, gs = gate_stride, ghs = gate_head_stride;
-        void* args[] = {&d, &xp, &g, &nn, &wd, &dd, &gs, &ghs};
+        StreamTwin t = stream_twin(dst, rows, width, runs);
+        void* args[] = {&d, &xp, &g, &nn, &wd, &dd, &gs, &ghs, &t.q, &t.d, &t.level, &t.map, &t.major};
         launch(kSigmoidMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        keep(t.t, d, n);
     }
-    void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps, RowRuns, NormGate gate) override {
+    void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps, RowRuns runs, NormGate gate) override {
         if (!heads || !dim) throw std::runtime_error("rocm: invalid gated norm dimensions");
         const size_t n = size_mul(size_mul(rows, heads), dim);
         for (const CSlice& v : {CSlice(dst), x, z}) span(*v.buffer, v.offset * sizeof(float), size_mul(n, sizeof(float)));
@@ -551,8 +553,10 @@ public:
         const float* zp = f32(z);
         const float* wp = f32(w);
         int dm = (int)dim, sig = gate == NormGate::sigmoid;
-        void* args[] = {&d, &xp, &zp, &wp, &dm, &eps, &sig};
+        StreamTwin t = stream_twin(dst, rows, size_mul(heads, dim), runs, dim % 32 == 0);
+        void* args[] = {&d, &xp, &zp, &wp, &dm, &eps, &sig, &t.q, &t.d, &t.level, &t.map, &t.major};
         launch(kGatedRmsNorm, (unsigned)size_mul(rows, heads), 1, args);
+        keep(t.t, d, n);
     }
     // The view count, then five words a view (first row, rows, history length, source slot, destination slot), as the state kernels read them.
     static std::vector<unsigned> state_table(const StateView* views, size_t n_views) {
@@ -595,7 +599,10 @@ public:
         unsigned long long slot = ss.slot_floats(layer);
         float scale = (float)(1.0 / std::sqrt((double)Dk)), eps = kL2NormEps;
         void* args[] = {&o, &u, &al, &bp, &ap, &dt, &st, &tp, &cc, &hk, &hv, &dk, &dv, &slot, &nb, &scale, &eps};
-        launch(kGatedDeltaRule, (unsigned)grid, 1, args);
+        // The short build where every view holds at most 8 rows, as the Vulkan backend chooses it; the staged count changes no bits (kernels/f32.hip).
+        bool short_build = true;
+        for (size_t i = 0; i < n_views; ++i) short_build = short_build && views[i].nq <= 8;
+        launch(short_build ? kGatedDeltaRuleShort : kGatedDeltaRule, (unsigned)grid, 1, args);
     }
     // Rows a conv thread walks, a chunk of a view; at least the three a window holds, so only a view's first chunk reads the rows it carries in.
     static constexpr size_t kConvChunk = 16;
@@ -623,7 +630,7 @@ public:
         launch(kCausalConvSilu, (unsigned)((C + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
     // The Flash-Next stream ops (kernels/f32.hip), plain F32 outputs whose products make their own twins; every refusal comes before any launch.
-    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns) override {
+    void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs) override {
         if (!groups || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("rocm: invalid grouped norm dimensions or epsilon");
         if (!rows) return;
         const size_t width = size_mul(groups, dim), n = size_mul(rows, width), blocks = size_mul(rows, groups);
@@ -636,13 +643,15 @@ public:
         const float* s = f32(src);
         const float* wp = f32(w);
         unsigned g = (unsigned)groups, dm = (unsigned)dim;
-        void* args[] = {&d, &s, &wp, &g, &dm, &eps};
+        StreamTwin t = stream_twin(dst, rows, width, runs, dim % 32 == 0);
+        void* args[] = {&d, &s, &wp, &g, &dm, &eps, &t.q, &t.d, &t.level, &t.map, &t.major};
         // Slices of a group, each repeating its reduction, up to what gives four blocks a compute unit (Vulkan's split, fc6f53415); one in place, where a slice's writes would meet another's reads.
         const size_t fill = (4 * size_t(std::max(1u, dev_.caps.compute_units)) + blocks - 1) / blocks;
         const size_t slices = dst.buffer == src.buffer && dst.offset == src.offset ? 1 : std::max<size_t>(1, std::min((dim + 1023) / 1024, fill));
         launch(kGroupRmsNorm, (unsigned)blocks, (unsigned)slices, args);
+        keep(t.t, d, n);
     }
-    void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns) override {
+    void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs) override {
         if (!width || !std::isfinite(scale)) throw std::runtime_error("rocm: invalid scaled SiLU dimensions or scale");
         if (!rows) return;
         const size_t n = size_mul(rows, width);
@@ -651,10 +660,12 @@ public:
         float* d = f32(dst);
         const float* s = f32(src);
         unsigned long long nn = n;
-        void* args[] = {&d, &s, &nn, &scale};
+        StreamTwin t = stream_twin(dst, rows, width, runs);
+        void* args[] = {&d, &s, &nn, &scale, &t.q, &t.d, &t.level, &t.map, &t.major};
         launch(kSiluScaled, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        keep(t.t, d, n);
     }
-    void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim, RowRuns) override {
+    void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim, RowRuns runs) override {
         if (!streams || !dim) throw std::runtime_error("rocm: invalid stream mix dimensions");
         if (!rows) return;
         const size_t n = size_mul(rows, size_mul(streams, dim)), out_n = size_mul(rows, dim);
@@ -667,8 +678,10 @@ public:
         const float* g = f32(gate);
         unsigned long long nn = out_n;
         unsigned st = (unsigned)streams, dm = (unsigned)dim;
-        void* args[] = {&d, &s, &g, &nn, &st, &dm};
+        StreamTwin t = stream_twin(dst, rows, dim, runs);
+        void* args[] = {&d, &s, &g, &nn, &st, &dm, &t.q, &t.d, &t.level, &t.map, &t.major};
         launch(kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
+        keep(t.t, d, out_n);
     }
     void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
         if (!streams || !dim) throw std::runtime_error("rocm: invalid stream injection dimensions");
@@ -756,7 +769,7 @@ public:
         launch(twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
     }
-    // A row a block of 64, its reductions in one tree through shared memory (kernels/f32.hip, llmx_moe_route).
+    // A row a block of 64, its reductions in one tree of 64 pairs (kernels/f32.hip, llmx_moe_route).
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize, Slice ids, Slice weights) override {
         if (!k || k > n_expert || k > 256 || n_expert > 1024) throw std::runtime_error("rocm: routing takes 1 to 256 of at most 1024 experts");
         if (!rows) return;
@@ -768,7 +781,7 @@ public:
         unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
         int norm = normalize;
         void* args[] = {&sc, &id, &w, &ne, &kk, &norm};
-        launch(kMoeRoute, (unsigned)rows, 1, args, 1, 64);
+        launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kMoeRoute, (unsigned)rows, 1, args, 1, 64);
     }
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) override {
         const size_t entries = size_mul(nrows, routing.k);
@@ -797,7 +810,7 @@ public:
         unsigned long long nr = nrows, no = nout;
         unsigned kk = (unsigned)k;
         void* args[] = {&y, &part, &w, &id, &nr, &no, &kk};
-        launch(kMoeCombine, (unsigned)((nrows * nout + kThreads - 1) / kThreads), 1, args);
+        launch_writing({{y, size_mul(nrows, nout)}}, kMoeCombine, (unsigned)((nrows * nout + kThreads - 1) / kThreads), 1, args);
     }
     void add(Slice dst, CSlice src, size_t n) override {
         if (!n) return;
@@ -1138,15 +1151,16 @@ private:
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
                   kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulIQ4NL, kGatherIQ4NL, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
-                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
+                  kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
+                  kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
-                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kKernels };
+                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8,
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -1158,16 +1172,17 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
-                                                           "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1",
+                                                           "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1", "llmx_q8_0_half8_1p", "llmx_q8_0_half8_1r2",
                                                            "llmx_q8_0_half8_2", "llmx_q8_0_half8_2_r4", "llmx_q8_0_half8_4", "llmx_q8_0_half8_4_r4", "llmx_q8_0_half8_8",
                                                            "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8",
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
-                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8"};
+                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8",
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -1180,6 +1195,10 @@ private:
         Kernel routed_tile[2], routed_narrow[2];
         float group_from[2];
         size_t tile_from[2][2];
+        size_t block_values;   // a weight block's values
+        unsigned row_lanes;    // the row kernel's lanes a weight block (kernels/int16.hip, KRaw's Lane), 0 where a wave takes a row
+        bool k45;              // Q4_K or Q5_K, whose rows take at most the profile's k45_row_lanes
+        const TwinKernels* quarter;   // the quarter form's row, routed and grouped builds (kernels/int16.hip, QuarterLane), which row_form may take instead
     };
     static constexpr TwinKernels kQ8Twins = {{{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
                                           {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
@@ -1194,10 +1213,14 @@ private:
                                          {{kGrouped16x2, kGrouped16x4, kGrouped16x8}, {kGrouped8x2, kGrouped8x4, kGrouped8x8}, {kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8}},
                                          {kRoutedTile16, kRoutedTile8},
                                          {kRoutedNarrow16, kRoutedNarrow8},
-                                         {2.5f, 0.0f},
-                                         {{32, 32}, {32, 32}}};
+                                         {1.25f, 0.0f},
+                                         {{32, 32}, {32, 32}},
+                                         32,
+                                         0,
+                                         false,
+                                         nullptr};
     // A K-type's twins from its first kernel, its set in LLMX_KTYPE's order (kernels/int16.hip), which the static_assert below holds.
-    static constexpr auto k_twins = [](Kernel first, float group_from16, float group_from8, size_t up_from16, size_t up_from8, size_t down_from16, size_t down_from8) {
+    static constexpr auto k_twins = [](Kernel first, float group_from16, float group_from8, size_t up_from16, size_t up_from8, size_t down_from16, size_t down_from8, size_t block_values, unsigned row_lanes, bool k45) {
         const auto k = [first](int i) { return static_cast<Kernel>(first + i); };
         return TwinKernels{{{k(0), k(1), k(2), k(3), k(4)}, {k(5), k(6), k(7), k(8), k(9)}, {k(5), k(6), k(7), k(8), k(9)}},
                 {{2, 2, 2, 2, 2}, {2, 2, 2, 2, 2}, {2, 2, 2, 2, 2}},
@@ -1209,11 +1232,33 @@ private:
                 {k(20), k(21)},
                 {k(22), k(23)},
                 {group_from16, group_from8},
-                {{up_from16, up_from8}, {down_from16, down_from8}}};
+                {{up_from16, up_from8}, {down_from16, down_from8}},
+                block_values,
+                row_lanes,
+                k45,
+                nullptr};
     };
-    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 1.25f, 2.5f, 128, 32, 32, 32), kQ5KTwins = k_twins(kRowsQ5K16x1, 1.25f, 1.25f, 128, 32, 32, 32), kQ6KTwins = k_twins(kRowsQ6K16x1, 0.25f, 2.5f, 128, 32, 32, 32);
-    static constexpr TwinKernels kQ50Twins = k_twins(kRowsQ5016x1, 1.25f, 5.0f, 128, 32, 32, 32), kQ51Twins = k_twins(kRowsQ5116x1, 1.25f, 1.25f, 128, 32, 32, 32), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.625f, 0.3125f, 32, 32, 32, 32);
+    // The quarter form of a 32-value type from its first quarter build, in LLMX_KQUARTER's order (kernels/int16.hip): four lanes a block, its tiles the type's own.
+    static constexpr auto quarter_twins = [](const TwinKernels& base, Kernel first, float group_from16, float group_from8) {
+        const auto k = [first](int i) { return static_cast<Kernel>(first + i); };
+        TwinKernels q = base;
+        for (int f = 0; f < 3; ++f)
+            for (int b = 0; b < 5; ++b) q.two[f][b] = k((f ? 5 : 0) + b);
+        q.routed[0] = k(10), q.routed[1] = q.routed[2] = k(11);
+        for (int f = 0; f < 3; ++f)
+            for (int b = 0; b < 3; ++b) q.grouped[f][b] = k((f ? 15 : 12) + b);
+        q.group_from[0] = group_from16, q.group_from[1] = group_from8;
+        q.row_lanes = 4;
+        q.quarter = nullptr;
+        return q;
+    };
+    static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ5KTwins = k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ6KTwins = k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false);
+    static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
+    static constexpr TwinKernels kQ50Quarter = quarter_twins(kQ50Base, kQuarterQ5016x1, 1.25f, 1.25f), kQ51Quarter = quarter_twins(kQ51Base, kQuarterQ5116x1, 1.25f, 2.5f);
+    static constexpr auto with_quarter = [](TwinKernels t, const TwinKernels* q) { t.quarter = q; return t; };
+    static constexpr TwinKernels kQ50Twins = with_quarter(kQ50Base, &kQ50Quarter), kQ51Twins = with_quarter(kQ51Base, &kQ51Quarter);
     static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8, "a K-type's kernels follow LLMX_KTYPE's order");
+    static_assert(kQ51Quarter.two[1][4] == kQuarterQ518x16 && kQ51Quarter.routed[1] == kQuarterRoutedQ518 && kQ51Quarter.grouped[1][2] == kQuarterGroupedQ518x8 && kQ51Quarter.tile[1] == kTileQ518, "a quarter form's kernels follow LLMX_KQUARTER's order");
     // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, the same over several rows, its embedding, its routed exact product and its twin kernels.
     // A type without twins takes its exact product in every class.
     struct TypeKernels {
@@ -1474,10 +1519,10 @@ private:
             // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.hip, exact_rows).
             unsigned long long nr = nbatch;
             void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
-            launch(kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
+            launch_writing({{y, size_mul(nout, nbatch)}}, kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
         } else {
             void* args[] = {&w, &x, &y, &ni, &no, &add};
-            launch(kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
+            launch_writing({{y, size_mul(nout, nbatch)}}, kinds.exact, (unsigned)nout, (unsigned)nbatch, args);
         }
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
@@ -1586,8 +1631,33 @@ private:
         unsigned long long start[3];
         unsigned long long total;
         unsigned nproj;
+        unsigned cluster;
     };
-    static_assert(sizeof(RowCall) == 112 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 104, "RowCall is the kernel's layout");
+    static_assert(sizeof(RowCall) == 112 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 104 && offsetof(RowCall, cluster) == 108, "RowCall is the kernel's layout");
+    // The lanes a row takes in the row kernel: a wave for Q8_0, else the power of two covering the row's lane units (kernels/int16.hip, KRaw's Lane), at most the wave.
+    // Q4_K and Q5_K take at most the profile's k45_row_lanes, as the Vulkan row plan has it; the width and type alone decide, so a row keeps its bits in every build.
+    unsigned row_cluster(const TwinKernels& tk, size_t nin) const {
+        const unsigned wave = dev_.caps.subgroup_size;
+        if (!tk.row_lanes) return wave;
+        const size_t units = nin / tk.block_values * tk.row_lanes;
+        unsigned cl = 1;
+        while (cl < wave && cl < units) cl *= 2;
+        if (tk.k45) cl = std::min(cl, std::max(8u, (unsigned)dev_.profile.k45_row_lanes));
+        return cl;
+    }
+    // The lane form of a row of nin values: for Q5_0 and Q5_1 the quarter form where its lane units fill the cluster's steps fuller than one lane a block does, one lane a block on a tie; every other type its one form.
+    // Like row_cluster it reads the row's width and type alone, so a dense row and a routed entry of one weight row take one form and one order.
+    const TwinKernels& row_form(const TwinKernels& tk, size_t nin) const {
+        if (!tk.quarter) return tk;
+        const auto fill = [&](const TwinKernels& f, size_t& span) {
+            const size_t units = nin / f.block_values * f.row_lanes, cl = row_cluster(f, nin);
+            span = (units + cl - 1) / cl * cl;
+            return units;
+        };
+        size_t one_span, quarter_span;
+        const size_t one_units = fill(tk, one_span), quarter_units = fill(*tk.quarter, quarter_span);
+        return quarter_units * one_span > one_units * quarter_span ? *tk.quarter : tk;
+    }
     // The host's copies of the routed calls (kernels/int16.hip, RoutedCall, and kernels/f32.hip, RoutedExact), field for field.
     struct RoutedCall {
         RowCall c;
@@ -1638,6 +1708,7 @@ private:
         if (integer(proj[0].weight, dtype)) {
             const bool int8 = dtype == Dtype::int8;
             const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
+            const TwinKernels& rk = row_form(*kinds.twin, nin);
             auto [q, d] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true);
             RoutedCall c{};
             for (size_t p = 0; p < nproj; ++p) {
@@ -1649,6 +1720,8 @@ private:
                 c.stride[p] = quant::row_bytes(type, nin, proj[p].rows);
             }
             c.c.nproj = (unsigned)nproj;
+            c.c.cluster = row_cluster(rk, nin);
+            const size_t clusters = dev_.caps.subgroup_size / c.c.cluster;
             c.ids = ids;
             c.per = per;
             c.n_expert = routing.n_expert;
@@ -1660,7 +1733,7 @@ private:
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert, ng = groups, ch = chunk;
                 void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &ng, &ch};
-                launch(kMoeGroup, nx, 1, gargs);
+                launch_writing({{tab, tab_bytes / sizeof(float)}}, kMoeGroup, nx, 1, gargs);
                 const size_t nblk = nin / 32;
                 if (nblk * kTileOut * 34 + 64 > 0xffffffffull || (xrows * nblk) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
                     throw std::runtime_error("rocm: a routed tile's rows are too wide for its 32-bit offsets");
@@ -1688,7 +1761,7 @@ private:
                         void* args[] = {&t, &tg, &q, &d};
                         launch(kernel, (unsigned)gx, (unsigned)std::min<size_t>(kGridY, groups - first), args);
                     }
-            } else if (entries && double(entries) >= double(kinds.twin->group_from[int8]) * double(routing.n_expert) && routing.n_expert <= kGroupExperts) {
+            } else if (entries && double(entries) >= double(rk.group_from[int8]) * double(routing.n_expert) && routing.n_expert <= kGroupExperts) {
                 // One expert's entries a group of the narrowest grouped build that holds their average, up to 8, each column the bits of its one-column product.
                 const size_t touched = std::min(routing.n_expert, entries), average = (entries + touched - 1) / touched;
                 const int width = average <= 2 ? 0 : average <= 4 ? 1 : 2;
@@ -1698,20 +1771,20 @@ private:
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert;
                 void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &groups, &chunk};
-                launch(kMoeGroup, nx, 1, gargs);
+                launch_writing({{tab, tab_bytes / sizeof(float)}}, kMoeGroup, nx, 1, gargs);
                 unsigned long long order0 = 4ull * groups;
-                const size_t wave_rows = 2 * rows_per_block_;
+                const size_t wave_rows = 2 * rows_per_block_ * clusters;
                 for (size_t first = 0; first < groups; first += kGridY) {
                     c.first = first;
                     void* args[] = {&c, &tab, &order0, &q, &d, &ni};
-                    launch(kinds.twin->grouped[form][width], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min<size_t>(kGridY, groups - first), args);
+                    launch(rk.grouped[form][width], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min<size_t>(kGridY, groups - first), args);
                 }
             } else {
-                const size_t wave_rows = kinds.twin->two_rows[form][0] * rows_per_block_;
+                const size_t wave_rows = rk.two_rows[form][0] * rows_per_block_ * clusters;
                 for (size_t first = 0; first < entries; first += kGridY) {
                     c.first = first;
                     void* args[] = {&c, &q, &d, &ni};
-                    launch(kinds.twin->routed[form], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min(kGridY, entries - first), args);
+                    launch(rk.routed[form], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min(kGridY, entries - first), args);
                 }
             }
             record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
@@ -1727,7 +1800,7 @@ private:
             RoutedExact r{ids, 0, per, routing.n_expert, quant::row_bytes(type, nin, proj[p].rows)};
             for (; r.first < entries; r.first += kGridY) {
                 void* args[] = {&w, &x, &y, &ni, &no, &r};
-                launch(kinds.routed, (unsigned)proj[p].rows, (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
+                launch_writing({{y, size_mul(proj[p].rows, entries)}}, kinds.routed, (unsigned)proj[p].rows, (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
             }
         }
         record_matrix_path(MatrixPath::f32);
@@ -1755,6 +1828,8 @@ private:
             unsigned long long nb = blocks;
             void* args[] = {&x, &q, &d, &nb, &map};
             launch(twin_build(int8 ? kTwin8 : kTwin16, map), (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
+            // Kept for the next product of the same activations, unless the host may write them in place.
+            if (!as_rocm(*X.buffer).host_ptr()) kept_ = {x, blocks * 32, int8, map};
         }
         const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_).data();
         return {q0, (const float*)(q0 + qbytes)};
@@ -1798,11 +1873,17 @@ private:
                         c.total += proj[pi].nout;
                     }
                     c.nproj = (unsigned)nproj;
+                    const TwinKernels& rk = row_form(tk, nin);
+                    c.cluster = row_cluster(rk, nin);
                     int ncols = (int)rows;
                     void* args[] = {&c, &q, &d, &ni, &ncols, &add};
                     const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                    const RowBuild rb = row_build(tk, form, build, c.total);
-                    const size_t per = rb.rows * rows_per_block_;
+                    // A one-column half-block row of at most 16 blocks takes a 64-lane wave's halves as two rows, and from q8_decode_two_rows_from output rows the others take two rows a wave.
+                    // Both keep the one-row build's bits and read the row width, the output count and the type, never the call's columns (kernels/int16.hip).
+                    const bool half1 = rk.two[form][0] == kHalf8x1 && build == 0;
+                    const bool paired = half1 && nin / 32 <= 16 && dev_.caps.subgroup_size == 64;
+                    const RowBuild rb = paired ? RowBuild{kHalf8x1p, 2} : half1 && c.total >= dev_.profile.q8_decode_two_rows_from ? RowBuild{kHalf8x1r2, 2} : row_build(rk, form, build, c.total);
+                    const size_t per = rb.rows * rows_per_block_ * (dev_.caps.subgroup_size / c.cluster);
                     launch(rb.kernel, (unsigned)((c.total + per - 1) / per), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
@@ -1925,6 +2006,29 @@ private:
     }
     void keep(const TwinOut& t, const float* x, size_t values) {
         if (t.q) kept_ = {x, values, t.int8, t.map};
+    }
+    // A stream or gate op's twin of its `rows` rows `width` wide, written where a product reads one next and each row is whole blocks (kernels/f32.hip, twin_at): where it goes, its level, its map and whether the map is read.
+    struct StreamTwin {
+        TwinOut t;
+        void* q;
+        float* d;
+        int level, major;
+        TwinMap map;
+    };
+    StreamTwin stream_twin(Slice dst, size_t rows, size_t width, RowRuns runs, bool whole = true) {
+        const TwinOut t = whole && width % 32 == 0 ? twin_out(dst, size_mul(rows, width), twin_map(runs, rows, width)) : TwinOut{};
+        return {t, t.q, t.d, !t.q ? 0 : t.int8 ? 2 : 1, t.q && t.map.regions && !t.map.flat() ? 1 : 0, t.map};
+    }
+    // Forgets the kept twin where `n` floats written at y meet its input.
+    void forget_written(const float* y, size_t n) {
+        if (kept_.x && y < kept_.x + kept_.values && kept_.x < y + n) kept_ = {};
+    }
+    // A launch that writes only `writes`, an exact product's or a router's outputs: it keeps the twin a later product may read unless one of them meets its input.
+    void launch_writing(std::initializer_list<std::pair<const void*, size_t>> writes, Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
+        const auto kept = kept_;
+        launch(k, gx, gy, args, gz, threads);
+        kept_ = kept;
+        for (const auto& [y, n] : writes) forget_written((const float*)y, n);
     }
     void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
         raise_failed();

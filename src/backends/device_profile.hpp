@@ -45,7 +45,7 @@ struct DeviceCaps {
 // Numbers found by measuring the kernels on a device, which nothing in DeviceCaps implies.
 // Every device takes these defaults except where its row in tuned_devices below sets a number; the defaults of those numbers are a compromise between the devices measured (docs/VULKAN.md).
 struct DeviceProfile {
-    // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels; a short row spread over a whole subgroup leaves each lane a few bytes to read.
+    // Lanes a Q4_K or Q5_K row takes at most in the integer-dot row kernels of Vulkan and ROCm; a short row spread over a whole subgroup leaves each lane a few bytes to read.
     uint32_t k45_row_lanes = 32;
     // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens; a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
     uint32_t q8_decode_cols = 8;
@@ -60,6 +60,7 @@ struct DeviceProfile {
     // Row width below which the Q8_0 decode kernel's one-column chunk takes its build of two rows and one step, since a lane of a narrow row has too few blocks to load ahead.
     uint32_t q8_decode_narrow_below = 1024;
     // Output rows of a call from which a wider one-column chunk over 8-bit activations takes the build of two rows and two steps ahead rather than one row and four steps, which gives a call of few rows twice the subgroups.
+    // The Vulkan and ROCm backends both read it; on ROCm the knee measured between 1280 and 2560 rows (docs/STATUS.md, ROCm decode).
     uint32_t q8_decode_two_rows_from = 2560;
     // Output rows below which such a chunk over 16-bit activations takes the build of one row and four steps, and from which it keeps two rows and one step.
     uint32_t q8_decode_one_row_below_16bit = 1024;

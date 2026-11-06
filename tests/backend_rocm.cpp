@@ -2,6 +2,7 @@
 #include "backends/cpu/cpu_backend.hpp"
 #include "backends/kv_storage.hpp"
 #include "backends/rocm/rocm_backend.hpp"
+#include "backends/rocm/rocm_device.hpp"
 #include "backends/rocm/rocm_runtime.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
@@ -21,6 +22,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <string>
@@ -460,15 +462,46 @@ bool twin_close(uint32_t type, const std::vector<uint8_t>& w, const std::vector<
     return std::fabs(got - sum) <= 1e-6 * mag + 1e-30;
 }
 
+// Whether the backend's row_form takes the quarter form's builds for a row of nin values, restated from its rule: for Q5_0 and Q5_1, where four lanes a block fill the cluster's steps fuller than one lane a block, one lane on a tie.
+bool quarter_form(uint32_t type, size_t nin) {
+    if (type != quant::GGML_TYPE_Q5_0 && type != quant::GGML_TYPE_Q5_1) return false;
+    const size_t W = rocm_device(0).caps.subgroup_size, blocks = nin / 32;
+    const auto span = [W](size_t units) {
+        size_t cl = 1;
+        while (cl < W && cl < units) cl *= 2;
+        return (units + cl - 1) / cl * cl;
+    };
+    return 4 * blocks * span(blocks) > blocks * span(4 * blocks);
+}
+
+// Widths whose rows take every lane cluster a type's rule gives (kernels/int16.hip, k_rows): lane units below the wave, at the Q4_K and Q5_K cap, above it and not a multiple of the cluster.
+// Q5_0's and Q5_1's also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 37 outputs, which no block's rows divide.
+std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
+    const bool k = quant::storage_type(type)->block_size == 256;
+    const std::vector<size_t> widths = k ? std::vector<size_t>{256, 512, 768, 1024, 4096} : std::vector<size_t>{32, 64, 96, 640, 1024, 1056, 2048, 2080, 4096};
+    std::vector<std::array<size_t, 2>> out;
+    for (size_t nin : widths) out.push_back({nin, 37});
+    return out;
+}
+
 // The twin products of the K-quants, Q5_0, Q5_1 and IQ4_NL at Flash-Next's shapes in the F16 and int8 classes, extents on both sides of each crossover, each output against a double sum over the twin.
-// The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class.
+// The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class; the cluster widths (cluster_shapes) take the generated rows alone.
 void twin_types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL};
     const size_t cols[] = {1, 2, 3, 5, 8, 9, 16, 17, 33}, extents[] = {2, 33, 64, 65, 320};
     for (uint32_t type : kinds) {
         std::string tname = quant::storage_type(type)->name;
         for (char& ch : tname) ch = char(std::tolower(ch));
-        for (const auto& sh : flash_shapes(type)) {
+        std::vector<std::array<size_t, 2>> shapes = flash_shapes(type);
+        const size_t flash = shapes.size();
+        for (const auto& sh : cluster_shapes(type)) shapes.push_back(sh);
+        if (type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1) {
+            size_t quarter = 0;
+            for (const auto& sh : shapes) quarter += quarter_form(type, sh[0]);
+            require(quarter > 0 && quarter < shapes.size(), tname + "'s widths take both lane forms");
+        }
+        for (size_t si = 0; si < shapes.size(); ++si) {
+            const auto& sh = shapes[si];
             const size_t nin = sh[0], nout = sh[1], nmax = 320;
             const std::string at = tname + " " + std::to_string(nin) + "->" + std::to_string(nout);
             const std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 17 + nin + nout));
@@ -507,7 +540,7 @@ void twin_types(Backend& g, Backend& c) {
                     std::map<std::string, size_t> want;
                     for (size_t left = n; left; left -= std::min<size_t>(left, 16)) {
                         const size_t m = std::min<size_t>(left, 16), b = m <= 1 ? 1 : m <= 2 ? 2 : m <= 4 ? 4 : m <= 8 ? 8 : 16;
-                        ++want["llmx_" + tname + "_rows" + form + "_" + std::to_string(b)];
+                        ++want["llmx_" + tname + (quarter_form(type, nin) ? "_quarter" : "") + "_rows" + form + "_" + std::to_string(b)];
                     }
                     const std::string what = "a " + cls + " call of " + std::to_string(n) + " generated rows";
                     require(run(n, 1, *yb, 0) == want, what + " runs its row builds alone");
@@ -518,6 +551,7 @@ void twin_types(Backend& g, Backend& c) {
                 }
                 // Prompt rows: the tile, and the first rows of a prompt the same bits in a call of fewer of its rows.
                 for (size_t e : extents) {
+                    if (si >= flash) break;
                     const std::string what = "a " + cls + " prompt of " + std::to_string(e) + " rows";
                     const std::map<std::string, size_t> ran = run(e, e, *yb, 0);
                     require(ran.size() == 1 && ran.begin()->first == "llmx_" + tname + "_tile" + form, what + " runs the tile alone");
@@ -596,6 +630,90 @@ void rates(Backend& g) {
                                 n, us, double(s.nin) * s.nout * n / us / 1e6, ran.c_str());
                 }
         }
+    }
+    std::fflush(stdout);
+}
+
+// The median wall time of `call` in us over seven rounds of 100 calls after a warm-up, which the decode rates print; a round's spread is printed beside it so a busy machine shows.
+std::pair<double, double> median_us(Backend& g, const std::function<void()>& call) {
+    for (int i = 0; i < 5; ++i) call();
+    g.sync();
+    std::vector<double> t;
+    for (int round = 0; round < 7; ++round) {
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 100; ++i) call();
+        g.sync();
+        t.push_back(1e6 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() / 100);
+    }
+    std::sort(t.begin(), t.end());
+    return {t[3], t[6] - t[0]};
+}
+
+// Decode calls at Flash-Next's shapes, printed, never asserted: one generated row's dense Q8_0 products in both twin classes, the gated delta rule and the router.
+// Each with its median us a call, the kernels taken and, for the products, an FNV-1a hash of the outputs, which two builds compare.
+void decode_rates(Backend& g) {
+    struct Shape { const char* name; size_t nin, nout; };
+    const Shape shapes[] = {{"hc_up", 512, 10240}, {"hc_down", 10240, 320}, {"shexp_down", 768, 2560}, {"shexp_gate_up", 2560, 1280},
+                            {"attn_gate", 2560, 6144}, {"attn_qkv", 2560, 10240}, {"ssm_out", 6144, 2560}, {"narrow_odd", 576, 333}};
+    const auto kernels = [&] {
+        std::string ran;
+        for (const auto& [k, v] : rocm_take_launches(g)) ran += (ran.empty() ? "" : "+") + k;
+        return ran;
+    };
+    for (const Shape& s : shapes) {
+        const std::vector<float> x = row_classes::values(s.nin, 901);
+        const std::vector<uint8_t> w = typed_matrix(quant::GGML_TYPE_Q8_0, s.nin, s.nout, 8);
+        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size()), y = g.alloc(s.nout * 4);
+        for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+            const RowRun rr{1, 1};
+            rocm_take_launches(g);
+            const auto [us, spread] = median_us(g, [&] { g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, s.nin, s.nout, 1, {&rr, 1}, dt); });
+            const std::string ran = kernels();
+            const std::vector<float> out = read(g, *y, s.nout);
+            uint64_t h = 1469598103934665603ull;
+            for (const float f : out) {
+                uint32_t u;
+                std::memcpy(&u, &f, 4);
+                for (int i = 0; i < 4; ++i) h = (h ^ ((u >> (8 * i)) & 0xff)) * 1099511628211ull;
+            }
+            std::printf("backend-rocm: decode rate Q8_0 %s %s (%zu x %zu): %.1f us (spread %.1f), %s, hash %016llx\n", dtype_name(dt), s.name, s.nin, s.nout, us, spread, ran.c_str(),
+                        (unsigned long long)h);
+        }
+    }
+    // The gated delta rule of one sequence at Flash-Next's linear-attention heads, 1 and 4 rows a call and a 9-row prompt slice, on a state with a history.
+    const StateShape sh{16, 48, 128, 128};
+    const size_t C = sh.channels();
+    auto storage = g.state_alloc(1, 1, sh);
+    for (size_t nq : {size_t(1), size_t(4), size_t(9)}) {
+        const std::vector<float> u = row_classes::values(nq * C, 911, 0.5f), ab = row_classes::values(2 * nq * sh.v_heads, 912), adt = row_classes::values(2 * sh.v_heads, 913, 0.1f);
+        auto ub = g.adopt(u.data(), u.size() * 4), abb = g.adopt(ab.data(), ab.size() * 4), adb = g.adopt(adt.data(), adt.size() * 4), ob = g.alloc(nq * sh.v_heads * sh.v_dim * 4);
+        const StateView view{storage.get(), 0, 0, 5, nq};
+        rocm_take_launches(g);
+        const auto [us, spread] = median_us(g, [&] {
+            g.gated_delta_rule({ob.get(), 0}, {ub.get(), 0}, {abb.get(), 0}, {abb.get(), nq * sh.v_heads}, {adb.get(), 0}, {adb.get(), sh.v_heads}, 0, &view, 1);
+        });
+        std::printf("backend-rocm: decode rate delta rule %zu rows (%zu V heads of %zu x %zu): %.1f us (spread %.1f), %s\n", nq, sh.v_heads, sh.k_dim, sh.v_dim, us, spread, kernels().c_str());
+    }
+    // The router of one generated row over 256 and 512 experts.
+    for (const auto& [n_expert, k] : {std::pair<size_t, size_t>{256, 8}, {512, 10}}) {
+        const std::vector<float> sc = row_classes::values(n_expert, 921, 4.0f);
+        auto sb = g.adopt(sc.data(), sc.size() * 4), ib = g.alloc(k * 4), wb = g.alloc(k * 4);
+        rocm_take_launches(g);
+        const auto [us, spread] = median_us(g, [&] { g.route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0}); });
+        // A hash of 256 rows' picks and weights, which two builds of the router compare bit for bit.
+        const size_t hr = 256;
+        const std::vector<float> hs = row_classes::values(hr * n_expert, 922, 4.0f);
+        auto hsb = g.adopt(hs.data(), hs.size() * 4), hib = g.alloc(hr * k * 4), hwb = g.alloc(hr * k * 4);
+        g.route_experts({hsb.get(), 0}, hr, n_expert, k, true, {hib.get(), 0}, {hwb.get(), 0});
+        std::vector<float> out = read(g, *hib, hr * k), wout = read(g, *hwb, hr * k);
+        out.insert(out.end(), wout.begin(), wout.end());
+        uint64_t h = 1469598103934665603ull;
+        for (const float f : out) {
+            uint32_t u;
+            std::memcpy(&u, &f, 4);
+            for (int i = 0; i < 4; ++i) h = (h ^ ((u >> (8 * i)) & 0xff)) * 1099511628211ull;
+        }
+        std::printf("backend-rocm: decode rate route %zu of %zu experts: %.1f us (spread %.1f), %s, hash %016llx\n", k, n_expert, us, spread, kernels().c_str(), (unsigned long long)h);
     }
     std::fflush(stdout);
 }
@@ -797,6 +915,96 @@ std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
     row[b * 34 + 1] = uint8_t(one >> 8);
     row[b * 34 + 2 + j] = 1;
     return row;
+}
+
+// The one-column Q8_0 decode row of one wave of W lanes, on the host, in the kernels' order, then the xor tree from W / 2.
+// The half-block layout (int8 twin, an even block count) takes two lanes a block, each lane's half-block dots scaled in block order, and the quarter layout four lanes a block.
+float q8_row_host(const uint8_t* row, const std::vector<float>& d, const std::vector<int16_t>& q, size_t blocks, bool half, unsigned W) {
+    std::vector<float> acc(W, 0.0f);
+    const size_t parts = half ? 2 : 4, per = 32 / parts;
+    for (size_t u = 0; u < blocks * parts; ++u) {
+        const size_t b = u / parts, p = u % parts;
+        const uint8_t* block = row + b * 34;
+        int s = 0;
+        for (size_t j = p * per; j < (p + 1) * per; ++j) s += int(int8_t(block[2 + j])) * q[b * 32 + j];
+        const float dw = f16_to_f32(uint16_t(block[0] | block[1] << 8)), dd = dw * d[b];
+        float& a = acc[half ? (b % (W / 2)) * 2 + p : u % W];
+        a = std::fmaf(dd, float(s), a);
+    }
+    for (unsigned m = W / 2; m; m /= 2) {
+        std::vector<float> next(W);
+        for (unsigned l = 0; l < W; ++l) next[l] = acc[l] + acc[l ^ m];
+        acc = next;
+    }
+    return acc[0];
+}
+
+// Each one-column Q8_0 decode build against the host's one-row build bit for bit, the paired build (two rows a wave, rows of at most 16 blocks) among them, whose idle half the one-row tree adds as +0.
+// The rows pin the zero's sign: all-zero weights, a negative scale against a zero integer dot (dw * xd = -0), and lanes whose partials cancel to an exact zero from nonzero terms.
+void q8_decode_bits(Backend& g) {
+    const unsigned W = rocm_device(0).caps.subgroup_size;
+    const size_t nout = 33;
+    for (size_t nin : {size_t(256), size_t(512), size_t(576), size_t(768), size_t(2560), size_t(6144)}) {
+        const size_t blocks = nin / 32;
+        std::vector<uint8_t> w = q8_matrix(nin, nout, uint32_t(nin + 5));
+        const auto set_scale = [&](size_t o, size_t b, float s) {
+            const uint16_t h = f32_to_f16(s);
+            w[(o * blocks + b) * 34] = uint8_t(h), w[(o * blocks + b) * 34 + 1] = uint8_t(h >> 8);
+        };
+        for (size_t b = 0; b < blocks; ++b) {
+            std::memset(&w[(0 * blocks + b) * 34], 0, 34);          // row 0: all zero
+            std::memset(&w[(1 * blocks + b) * 34 + 2], 0, 32);      // row 1: values zero under negative scales
+            set_scale(1, b, -0.25f - 0.01f * float(b));
+            if (b % 2) {
+                // Row 2: each odd block the even block before it negated, so on a block-periodic twin a lane's partial cancels its partner's exactly.
+                std::memcpy(&w[(2 * blocks + b) * 34], &w[(2 * blocks + b - 1) * 34], 34);
+                for (size_t j = 0; j < 32; ++j) w[(2 * blocks + b) * 34 + 2 + j] = uint8_t(-int8_t(w[(2 * blocks + b) * 34 + 2 + j]));
+            }
+        }
+        const std::vector<float> rnd = row_classes::values(nin, uint32_t(nin + 6));
+        std::vector<float> periodic(nin);
+        for (size_t i = 0; i < nin; ++i) periodic[i] = rnd[i % 32];
+        // Rows past the special ones repeat the first 33, so a call of many outputs holds them too.
+        const size_t nmax = 4097;
+        const std::vector<uint8_t> first = w;
+        for (size_t o = nout; o < nmax; ++o) w.insert(w.end(), first.begin() + (o % nout) * blocks * 34, first.begin() + (o % nout + 1) * blocks * 34);
+        auto wb = g.adopt(w.data(), w.size()), yb = g.alloc(nmax * 4);
+        const std::vector<float>* inputs[] = {&rnd, &periodic};
+        for (const std::vector<float>* xv : inputs) {
+            auto xb = g.adopt(xv->data(), nin * 4);
+            for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+                const bool half = dt == Dtype::int8 && blocks % 2 == 0;
+                const float L = dt == Dtype::int8 ? 127.0f : 32767.0f;
+                std::vector<float> d(blocks);
+                std::vector<int16_t> q(nin);
+                for (size_t b = 0; b < blocks; ++b) twin_rule(xv->data() + b * 32, d[b], q.data() + b * 32, L);
+                for (size_t n : {size_t(1), size_t(2), nout, size_t(4097)}) {
+                    const RowRun rr{1, 1};
+                    rocm_take_launches(g);
+                    g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, 1, {&rr, 1}, dt);
+                    const std::vector<float> y = read(g, *yb, n);
+                    std::string ran;
+                    for (const auto& [k, v] : rocm_take_launches(g))
+                        if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
+                    // The half-block rows take one row a wave for few outputs and two for many, paired where a row has at most 16 blocks.
+                    const std::string want = !half ? "llmx_q8_0_rows" + std::string(dt == Dtype::int8 ? "8" : "16") + "_1"
+                                                   : W == 64 && blocks <= 16 ? "llmx_q8_0_half8_1p" : n <= nout ? "llmx_q8_0_half8_1" : "llmx_q8_0_half8_1r2";
+                    const std::string what = "a Q8_0 decode row " + std::to_string(nin) + " wide, " + std::to_string(n) + " outputs, " + dtype_name(dt) + (xv == &periodic ? ", periodic twin" : "");
+                    require(ran == want, what + " runs " + want + " (ran " + ran + ")");
+                    bool ok = true;
+                    for (size_t o = 0; o < n; ++o) {
+                        const float h = q8_row_host(w.data() + o * blocks * 34, d, q, blocks, half, W);
+                        ok = ok && std::memcmp(&h, &y[o], 4) == 0;
+                    }
+                    require(ok, what + ": every row the one-row build's bits");
+                    bool zero = true;
+                    for (size_t o = 0; o < std::min<size_t>(n, 2); ++o) zero = zero && y[o] == 0.0f && !std::signbit(y[o]);
+                    require(zero, what + ": the zero rows are +0");
+                    if (xv == &periodic && n > 2) require(y[2] == 0.0f && !std::signbit(y[2]), what + ": the cancelling row is +0");
+                }
+            }
+        }
+    }
 }
 
 // A class's Q8_0 products, f16 on the block-int16 twin and int8 on the block-int8 one, against the twin's rule and a double oracle on the twin.
@@ -1206,6 +1414,70 @@ void producer_twins(Backend& g, Dtype dt) {
     require(norms, form + ": a product of rms_norm_rows' output gives the bits of a product of its copy");
     require(silus, form + ": a product of silu_mul's output gives the bits of a product of its copy");
     require(dropped, form + ": a write or a product into a producer's output drops its twin");
+}
+
+// The stream and gate ops write their outputs' twins as the other producers do: a product of the output launches no twin build and gives the bits of the same product of a copy, over generated rows and over runs of both kernels.
+// The kept twin of a product's input survives an exact product beside it and goes once anything writes that input or the twin's buffer grows.
+void stream_twins(Backend& g, Dtype dt) {
+    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
+    const size_t nin = 1024, nout = 40, rows = 13;
+    const std::vector<uint8_t> m = q8_matrix(nin, nout, 131);
+    const std::vector<float> a = row_classes::values(rows * 4 * nin, 132), b = row_classes::values(rows * 4 * nin, 133), w = row_classes::values(nin, 134);
+    auto mb = g.adopt(m.data(), m.size()), ab = g.adopt(a.data(), a.size() * 4), bb = g.adopt(b.data(), b.size() * 4), wb = g.adopt(w.data(), w.size() * 4);
+    auto ob = g.alloc(rows * nin * 4), cb = g.alloc(rows * nin * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+    const auto twins = [&] {
+        size_t n = 0;
+        for (const auto& [k, v] : rocm_take_launches(g))
+            if (k.rfind("llmx_twin", 0) == 0) n += v;
+        return n;
+    };
+    // The product of ob, then of its copy: the same bits, and the first builds no twin when `kept`.
+    const auto product_of = [&](RowRuns runs, size_t n, bool kept, const std::string& what) {
+        rocm_take_launches(g);
+        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, n, runs, dt);
+        const size_t built = twins();
+        g.copy(*cb, 0, *ob, 0, n * nin * 4);
+        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, nin, nout, n, runs, dt);
+        require(same(read(g, *y, nout * n), read(g, *yc, nout * n)), form + ": " + what + " gives the bits of a product of its copy");
+        require((built == 0) == kept, form + ": " + what + (kept ? " reads the kept twin" : " builds its twin"));
+    };
+    const RowRun decode[1] = {{rows, 1}}, mixed[3] = {{3, 1}, {10, 7}, {13, 1}};
+    // A product in the class first, so the producers write its twins.
+    g.matmul(wv, {ab.get(), 0}, {y.get(), 0}, nin, nout, 1, {}, dt);
+    for (const RowRuns runs : {RowRuns{decode, 1}, RowRuns{mixed, 3}}) {
+        const std::string at = runs.n == 1 ? "generated rows" : "runs of both kernels";
+        g.sigmoid_mul({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows, 8, 128, nin, 128, runs);
+        product_of(runs, rows, true, "a product of sigmoid_mul's output, " + at);
+        g.gated_rms_norm({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, {wb.get(), 0}, rows, 8, 128, 1e-6f, runs, NormGate::silu);
+        product_of(runs, rows, true, "a product of gated_rms_norm's output, " + at);
+        g.group_rms_norm({ob.get(), 0}, {ab.get(), 0}, {wb.get(), 0}, rows, 4, 256, 1e-6f, runs);
+        product_of(runs, rows, true, "a product of group_rms_norm's output, " + at);
+        g.silu_scaled({ob.get(), 0}, {ab.get(), 0}, rows, nin, 0.75f, runs);
+        product_of(runs, rows, true, "a product of silu_scaled's output, " + at);
+        g.mix_streams({ob.get(), 0}, {ab.get(), 0}, {bb.get(), 0}, rows, 4, nin, runs);
+        product_of(runs, rows, true, "a product of mix_streams' output, " + at);
+    }
+    // A product's own twin is kept beside an exact product of the same input, and dropped by an exact product into it, a write into it or a grown twin buffer.
+    const std::vector<float> wf = row_classes::values(nin * 8, 135);
+    auto fb = g.adopt(wf.data(), wf.size() * 4), fy = g.alloc(8 * rows * 4);
+    const WeightView fv{quant::GGML_TYPE_F32, {fb.get(), 0}};
+    const RowRuns one{decode, 1};
+    g.silu_scaled({ob.get(), 0}, {ab.get(), 0}, rows, nin, 1.0f, {});
+    g.copy(*cb, 0, *ob, 0, rows * nin * 4);
+    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
+    g.matmul(fv, {ob.get(), 0}, {fy.get(), 0}, nin, 8, rows, one, dt);
+    product_of(one, rows, true, "a product after an exact product of its input");
+    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
+    g.matmul(fv, {ab.get(), 0}, {ob.get(), 0}, nin, 8, 1, {}, dt);
+    product_of(one, rows, false, "a product after an exact product into its input");
+    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
+    g.write(*ob, 0, b.data(), nin * 4);
+    product_of(one, rows, false, "a product after a write into its input");
+    g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, nin, nout, rows, one, dt);
+    auto big = g.adopt(a.data(), a.size() * 4);
+    g.matmul(wv, {big.get(), 0}, {fy.get(), 0}, nin, 1, rows * 4, {}, dt);
+    product_of(one, rows, false, "a product after a larger twin grew the buffer");
 }
 
 // Attention times at heads 128 and 256 wide over an f16 cache, generated rows after a history and prompts on the tile; checks nothing.
@@ -1795,6 +2067,41 @@ void collective() {
 } // namespace
 
 // The qwen35 layers' ops every device takes (q35::check_ops).
+
+// Routing on the host in the kernel's order (kernels/f32.hip, llmx_moe_route): lane t of 64 takes experts t, t + 64, ..., the softmax's sum by the 64-pair tree, then k picks, ties to the lowest id.
+// Its expf is the host's, so its weights may differ from the device's in the last bits.
+void route_host(const float* s, size_t n_expert, size_t k, bool normalize, uint32_t* ids, float* weights) {
+    constexpr size_t L = 64;
+    float top = -INFINITY;
+    for (size_t e = 0; e < n_expert; ++e) top = std::fmax(top, s[e]);
+    std::vector<float> p(n_expert), part(L, 0.0f);
+    for (size_t e = 0; e < n_expert; ++e) {
+        p[e] = std::exp(s[e] - top);
+        part[e % L] += p[e];
+    }
+    for (size_t h = L / 2; h; h /= 2)
+        for (size_t t = 0; t < h; ++t) part[t] = part[t] + part[t + h];
+    const float sum = part[0];
+    if (std::isnan(sum)) {
+        for (size_t j = 0; j < k; ++j) ids[j] = Backend::kNoExpert, weights[j] = 0.0f;
+        return;
+    }
+    for (float& v : p) v = v / sum < FLT_MIN ? 0.0f : v / sum;
+    float total = 0.0f;
+    std::vector<float> chosen(k);
+    for (size_t j = 0; j < k; ++j) {
+        float m = -2.0f;
+        uint32_t id = Backend::kNoExpert;
+        for (size_t e = 0; e < n_expert; ++e)
+            if (p[e] > m) m = p[e], id = uint32_t(e);
+        chosen[j] = id < n_expert ? m : 0.0f;
+        total += chosen[j];
+        if (id < n_expert) p[id] = -1.0f;
+        ids[j] = id;
+    }
+    for (size_t j = 0; j < k; ++j) weights[j] = ids[j] >= n_expert ? 0.0f : normalize ? chosen[j] / total : chosen[j];
+}
+
 // Routing against the CPU: the same picks, ties to the lower id, rows without a candidate giving kNoExpert, and weights within the F32 bound.
 void routing(Backend& g, Backend& c) {
     for (size_t n_expert : {16, 128, 1024})
@@ -1820,14 +2127,20 @@ void routing(Backend& g, Backend& c) {
                 uint32_t none;
                 std::memcpy(&none, &ids[0][2 * k], 4);
                 require(none == Backend::kNoExpert, "a row with a NaN score routes to no expert");
+                // The device's picks are the host's in the kernel's order, ties to the lower id, whatever the device's wave width; the weights hold the CPU's bound, since the host's expf is not the device's.
+                std::vector<uint32_t> hid(rows * k);
+                std::vector<float> hw(rows * k);
+                for (size_t r = 0; r < rows; ++r) route_host(s.data() + r * n_expert, n_expert, k, normalize, hid.data() + r * k, hw.data() + r * k);
+                require(std::memcmp(hid.data(), ids[0].data(), rows * k * 4) == 0, "routing " + at + " picks the host's experts in the kernel's order");
             }
 }
 
 // Whether a twin class's routed call groups its entries by expert, from each build's break-even (rocm_backend.cpp, TwinKernels::group_from).
-bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert) {
-    const bool i8 = dt == Dtype::int8;
-    const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 2.5) : type == quant::GGML_TYPE_Q4_K ? (i8 ? 2.5 : 1.25) : type == quant::GGML_TYPE_Q6_K ? (i8 ? 2.5 : 0.25)
-                      : type == quant::GGML_TYPE_Q5_0 ? (i8 ? 5.0 : 1.25) : type == quant::GGML_TYPE_IQ4_NL ? (i8 ? 0.3125 : 0.625) : 1.25;
+bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert, size_t nin) {
+    const bool i8 = dt == Dtype::int8, quarter = quarter_form(type, nin);
+    const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 1.25) : type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K ? (i8 ? 1.25 : 2.5)
+                      : type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 ? 1.25 : type == quant::GGML_TYPE_IQ4_NL ? 0.3125
+                      : quarter ? (i8 ? 2.5 : 1.25) : (i8 ? 1.25 : 5.0);
     return entries >= 1 && double(entries) >= from * double(n_expert);
 }
 
@@ -1879,19 +2192,21 @@ void experts(Backend& g, Backend& c) {
                         g.matmul_experts({Projection{{type, {wa.get(), 0}}, {ga.get(), 0}, ff}, Projection{{type, {wb.get(), 0}}, {gb.get(), 0}, ff}}, {xb.get(), 0}, nin, rows, routing, runs, dt);
                         // The kernels each class's routed call runs, and nothing else (docs/src/backends-rocm.md).
                         const bool tiled = twins && dt != Dtype::f32 && runs.n == 1 && rows >= tile_from_at(type, dt, false);
-                        const bool grouped = twins && dt != Dtype::f32 && groups_at(type, dt, rows * k, n_expert);
+                        const bool grouped = twins && dt != Dtype::f32 && groups_at(type, dt, rows * k, n_expert, nin);
                         std::string ran;
-                        bool routed_only = true, routed_ran = false;
+                        bool routed_only = true, routed_ran = false, lane_form = true;
                         for (const auto& [kn, v] : rocm_take_launches(g)) {
                             ran += (ran.empty() ? "" : "+") + kn;
                             const bool exact = kn.rfind("llmx_routed_", 0) == 0, twin = kn.find("_routed") != std::string::npos && !exact;
                             const bool group_build = twin && kn.find("_g", kn.find("_routed")) != std::string::npos;
                             const bool tile = kn.find("_routed_tile") != std::string::npos || kn.find("_routed_narrow") != std::string::npos;
+                            if (twin && !tile) lane_form = lane_form && (kn.find("_quarter_") != std::string::npos) == quarter_form(type, nin);
                             routed_ran = routed_ran || (tiled ? tile : twins && dt != Dtype::f32 ? twin && !tile && group_build == grouped : exact);
                             routed_only = routed_only && (tiled ? tile || kn.rfind("llmx_twin", 0) == 0 || kn == "llmx_moe_group"
                                                                 : exact || (twin && !tile && group_build == grouped) || kn.rfind("llmx_twin", 0) == 0 || (grouped && kn == "llmx_moe_group"));
                         }
                         require(routed_ran && routed_only, at + " runs its routed build alone, ran " + ran);
+                        require(lane_form, at + " takes its row's lane form, ran " + ran);
                         const std::vector<float> got[2] = {read(g, *ga, rows * k * ff), read(g, *gb, rows * k * ff)};
                         auto one = g.alloc(ff * 4);
                         bool alone = true, unwritten = true;
@@ -1939,7 +2254,8 @@ void experts_grouped(Backend& g) {
     const Case cases[] = {{300, 8, 80, false}, {16, 8, 33, true}, {16, 8, 5, false}, {64, 2, 64, true}, {300, 8, 4, false}};
     const size_t ff = 256;
     for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
-                                                                             {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}}) {
+                                                                             {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560},
+                                                                             {quant::GGML_TYPE_Q5_0, 640}, {quant::GGML_TYPE_Q5_1, 640}}) {
         const std::string name = quant::storage_type(type)->name;
         const size_t ebytes = quant::row_bytes(type, nin, ff);
         const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, 300 * ff, uint32_t(nin)) : typed_matrix(type, nin, 300 * ff, uint32_t(type * 7 + nin));
@@ -1969,7 +2285,7 @@ void experts_grouped(Backend& g) {
                     auto gb = g.adopt(fill.data(), fill.size() * 4);
                     rocm_take_launches(g);
                     g.matmul_experts({Projection{{type, {wb.get(), 0}}, {gb.get(), 0}, ff}}, {xb.get(), 0}, nin, cs.rows, routing, runs, dt);
-                    const bool grouped = groups_at(type, dt, entries, cs.n_expert);
+                    const bool grouped = groups_at(type, dt, entries, cs.n_expert, nin);
                     const size_t touched = std::min(cs.n_expert, entries), average = (entries + touched - 1) / touched;
                     const std::string build = !grouped ? "" : average <= 2 ? "_g2" : average <= 4 ? "_g4" : "_g8";
                     std::string ran;
@@ -2007,12 +2323,16 @@ void routed_rates(Backend& g) {
     std::cout << "backend-rocm: routed rates; type, dtype, shape x projections, generated rows: us a call one-column, taken, ratio, build taken\n";
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL}) {
         const std::string name = quant::storage_type(type)->name;
-        double one_sum[2][kCounts] = {}, taken_sum[2][kCounts] = {};
-        bool grouped_at[2][kCounts];
-        for (auto& row : grouped_at) std::fill(row, row + kCounts, true);
+        // Sums and the grouped builds' reach per lane form (quarter_form) and class, since each form has its own break-evens.
+        double one_sum[2][2][kCounts] = {}, taken_sum[2][2][kCounts] = {};
+        bool grouped_at[2][2][kCounts], measured[2] = {};
+        for (auto& f : grouped_at)
+            for (auto& row : f) std::fill(row, row + kCounts, true);
         for (const auto& sh : std::vector<std::array<size_t, 3>>{{2560, 640, 2}, {640, 2560, 1}}) {
             const size_t nin = sh[0], ff = sh[1], nproj = sh[2];
             if (nin % quant::storage_type(type)->block_size) continue;
+            const int lf = quarter_form(type, nin);
+            measured[lf] = true;
             const std::vector<uint8_t> w = typed_matrix(type, nin, n_expert * ff, 7);
             const size_t wide = quant::row_bytes(type, nin, past * ff);
             auto wsrc = g.adopt(w.data(), w.size()), wa = g.alloc(wide), wb = g.alloc(wide);
@@ -2059,21 +2379,24 @@ void routed_rates(Backend& g) {
                     std::sort(one.begin(), one.end());
                     std::sort(taken.begin(), taken.end());
                     const bool grouped = build.find("_g", build.find("_routed")) != std::string::npos;
-                    grouped_at[di][ci] = grouped_at[di][ci] && grouped;
-                    one_sum[di][ci] += one[2];
-                    taken_sum[di][ci] += taken[2];
+                    grouped_at[lf][di][ci] = grouped_at[lf][di][ci] && grouped;
+                    one_sum[lf][di][ci] += one[2];
+                    taken_sum[lf][di][ci] += taken[2];
                     std::printf("backend-rocm: routed rate %s, %s, %zux%zu x%zu, %zu: %.1f us, %.1f us, %.3f, %s\n", name.c_str(), dtype_name(dt), nin, ff, nproj, rows, one[2], taken[2], taken[2] / one[2], build.c_str());
                 }
             }
         }
-        for (int di = 0; di < 2; ++di) {
-            const char* dn = dtype_name(di ? Dtype::int8 : Dtype::f16);
-            size_t from = kCounts;
-            while (from > 0 && grouped_at[di][from - 1] && taken_sum[di][from - 1] <= 1.01 * one_sum[di][from - 1]) --from;
-            if (from == kCounts) std::printf("backend-rocm: routed break-even %s, %s: the grouped build wins at no count measured\n", name.c_str(), dn);
-            else std::printf("backend-rocm: routed break-even %s, %s: grouped wins or is level from %.4g entries an expert (%zu rows)%s\n", name.c_str(), dn, double(counts[from] * k) / double(n_expert), counts[from],
-                             from > 0 && !grouped_at[di][from - 1] ? "; below it the table takes the one-column build, unmeasured here" : "");
-        }
+        for (int lf = 0; lf < 2; ++lf)
+            for (int di = 0; di < 2; ++di) {
+                if (!measured[lf]) continue;
+                const char* dn = dtype_name(di ? Dtype::int8 : Dtype::f16);
+                const std::string at = name + (lf ? " quarter form" : "") + ", " + dn;
+                size_t from = kCounts;
+                while (from > 0 && grouped_at[lf][di][from - 1] && taken_sum[lf][di][from - 1] <= 1.01 * one_sum[lf][di][from - 1]) --from;
+                if (from == kCounts) std::printf("backend-rocm: routed break-even %s: the grouped build wins at no count measured\n", at.c_str());
+                else std::printf("backend-rocm: routed break-even %s: grouped wins or is level from %.4g entries an expert (%zu rows)%s\n", at.c_str(), double(counts[from] * k) / double(n_expert), counts[from],
+                                 from > 0 && !grouped_at[lf][di][from - 1] ? "; below it the table takes the one-column build, unmeasured here" : "");
+            }
     }
     std::fflush(stdout);
 }
@@ -2490,7 +2813,11 @@ void experts_add(Backend& g) {
 void qwen35(Backend& g) {
     q35::Pair p(g);
     size_t runs = 0;
+    rocm_take_launches(g);
     size_t values = q35::check_ops(p, runs);
+    // The invariance check's lengths cross the short build's rule, so a sequence's bits are held across both delta rule builds.
+    const std::map<std::string, size_t> ran = rocm_take_launches(g);
+    require(ran.count("llmx_gated_delta_rule") && ran.count("llmx_gated_delta_rule_short"), "the qwen35 checks run both delta rule builds");
     values += q35::check_drafter_ops(p, rocm_profile(g).argmax_slice, typed_matrix);
     std::cout << "backend-rocm: qwen35 ops: " << values << " values against the CPU, " << runs << " device runs bit for bit across views, orders and passes; decay flush, state storage\n";
 }
@@ -2606,7 +2933,8 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm: FAIL\n" : "backend-rocm: PASS\n");
             return failures ? 1 : 0;
         }
-        // `rates` prints the products', attention's and the routed products' times and break-evens and checks nothing; `rates attention`, `argmax`, `routed`, `tile` or `exact` prints one part.
+        // `rates` prints the twin types' product times at Flash-Next's shapes, the exact products' times, attention's times and the routed products' times and break-evens, and checks nothing.
+        // `rates attention`, `rates argmax`, `rates routed`, `rates tile`, `rates exact` or `rates decode` prints one part.
         if (argc > 1 && std::string(argv[1]) == "rates") {
             const std::string part = argc > 2 ? argv[2] : "";
             if (part.empty()) rates(*g);
@@ -2615,6 +2943,7 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "routed") routed_rates(*g);
             if (part.empty() || part == "tile") routed_tile_rates(*g);
             if (part.empty() || part == "exact") exact_rates(*g);
+            if (part.empty() || part == "decode") decode_rates(*g);
             return 0;
         }
         // `qwen35` runs only the qwen35 layers' ops against the CPU and the device's bit-for-bit rules for them (qwen35_checks.hpp).
@@ -2646,11 +2975,21 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm attention: FAIL\n" : "backend-rocm attention: PASS\n");
             return failures ? 1 : 0;
         }
+        // `twins` runs only the producers' twins and the kept twin's rules.
+        if (argc > 1 && std::string(argv[1]) == "twins") {
+            for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+                producer_twins(*g, dt);
+                stream_twins(*g, dt);
+            }
+            std::cout << (failures ? "backend-rocm twins: FAIL\n" : "backend-rocm twins: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `types` runs only the weight types' check, the focused test of their kernels.
         if (argc > 1 && std::string(argv[1]) == "types") {
             types(*g, *c);
             exact_rows(*g);
             twin_types(*g, *c);
+            q8_decode_bits(*g);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
         }
@@ -2661,12 +3000,15 @@ int main(int argc, char** argv) {
         types(*g, *c);
         exact_rows(*g);
         twin_types(*g, *c);
+        q8_decode_bits(*g);
         attention(*g, *c);
         classes(*g);
         twin_products(*g, Dtype::f16);
         producer_twins(*g, Dtype::f16);
+        stream_twins(*g, Dtype::f16);
         twin_products(*g, Dtype::int8);
         producer_twins(*g, Dtype::int8);
+        stream_twins(*g, Dtype::int8);
         fused_norm_rope_kv(*g);
         attention_twins(*g, Dtype::f16);
         attention_twins(*g, Dtype::int8);

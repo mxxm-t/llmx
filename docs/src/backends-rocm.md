@@ -1,6 +1,6 @@
 # `src/backends/rocm/` - the ROCm backend
 
-The ROCm backend over HIP ([ROCM](../ROCM.md)), built only with `LLMX_HAS_BACKEND_ROCM` on Linux, in progress as step 2 of that plan: dense F32 models on one device.
+The ROCm backend over HIP ([ROCM](../ROCM.md)), built only with `LLMX_HAS_BACKEND_ROCM` on Linux: the ops of the text architectures (`implements`) and the weight types of `kTypes`, on one device, over a layer split and in tensor groups; what remains of that plan is listed there (Scope on main, 2026-11-05).
 
 - `rocm_runtime.hpp`: the HIP runtime opened at run time with `dlopen`, its calls in one table (`hip()`) loaded by their exported names, so a build with the backend still runs where no ROCm is installed; a test substitutes a call in it to inject a failure. A missing library, call or device throws `RocmUnavailable`, which the caller reports as a missing device. `hip_check` turns a failed call into a runtime error naming the call and the runtime's reason.
 - `rocm_device.hpp`: a device as HIP reports it (`rocm_device(index)`): its wave width, compute units, name and runtime version in `DeviceCaps` ([device_profile](backends-device_profile.md)), and beside them its ISA, memory, PCI address and root complex (`pci_root_of`), and its `DeviceProfile`, which the backend takes once from `profile_for` after it knows the integer dot and reads wherever a kernel's shape follows the profile.

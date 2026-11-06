@@ -1,7 +1,7 @@
 # llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C or on a Vulkan device. MXFP4 inference requires the device's float preservation and double arithmetic. Both backends support read-only F16/BF16 weight matrices; their published qualification and remaining workload limits are recorded in STATUS. It
+writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C, on a Vulkan device or, on Linux, on a ROCm device. MXFP4 inference requires the device's float preservation and double arithmetic. The CPU and Vulkan backends support read-only F16/BF16 weight matrices, and the ROCm backend BF16 and the subset of quantized types its descriptor table lists (`src/backends/rocm/rocm_backend.cpp`, `kTypes`); their published qualification and remaining workload limits are recorded in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 
@@ -32,7 +32,7 @@ model/         runtime (Model: sequences, passes, stages, the arena),
    |
    v
 backends/      Backend interface (type-generic matmul / attention / RMSNorm /
-               RoPE / batched elementwise ops), cpu/ and vulkan/ impls
+               RoPE / batched elementwise ops), cpu/, vulkan/ and rocm/ impls
    |
    v
 tokenizer/     byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer (encode / decode)
@@ -140,7 +140,7 @@ A new architecture is added as [ADDING-AN-ARCHITECTURE](ADDING-AN-ARCHITECTURE.m
 | `tokenizer/`    | `tokenizer.hpp` (byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer)     |
 | `image/`        | from an image file's bytes to what a vision encoder reads ([VISION](VISION.md)): `image.hpp` (the entry: decoded, turned by its EXIF orientation, sized by HF's smart_resize and resized as torchvision resizes it), `png.hpp` and `jpeg.hpp` (the decoders, to Pillow's bytes), `inflate.hpp` (zlib inflate), `raster.hpp` (an 8-bit RGB image) |
 | `model/`        | `weights.hpp` (the format-neutral weights a model is built from, `ModelWeights`, and the resolved `Weight`), `architecture.hpp` (the contract an architecture implements: its plan and its parts), `runtime.hpp` (the runtime that runs a plan and its parts: sequences, passes, stages, the arena, crossings, `Placement` of each tensor role), `passes.hpp` (how a pass runs, members of the runtime's `Model`: its plan, its stages over the devices, the crossings between them and its context's storage), `history.hpp` (the operations on a sequence's history, members of the runtime's `Model`: fork, reset, retract, mark, keep and checkpoint), `place.hpp` (the memory footprint from the plan, and `place_model`, which places a model over its backends), `arch/registry.hpp` (the architectures by `general.architecture`, and `gguf_weights`), `arch/metadata.hpp` (typed metadata reads), `arch/blocks.hpp` (the graph pieces modules share), `arch/qwen3.hpp` (Qwen3 and qwen3moe), `arch/qwen35.hpp` (Qwen 3.5, 3.6 and 3.8), `arch/qwen4exp.hpp` (Qwen3.8-Flash-Next), `encoder.hpp` (the vision encoder's contract and runner, [VISION](VISION.md)), `arch/qwen3vl_vision.hpp` (the Qwen vision tower, chosen by the registry's `kVisionEncoders` from an mmproj's `clip.projector_type`), `kv_cache.hpp` (logical KV: block pool, sequence; the recurrent state's slots, `SlotPool` and `StateSlot`), `layer_split.hpp` (layers per device fitted to their free memory, architecture-neutral), `shard.hpp` (how a model splits over a tensor group: each member's spans of a role, the checks a width must pass and the bytes a member holds) |
-| `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`) |
+| `backends/`     | `backend.hpp` (interface), `kv_storage.hpp` (the paged KV storage the backends derive theirs from: buffers, accounting, growth and view checks), `devices.hpp` (the backend a device spec names: `device_specs`, `make_backends`), `device_profile.hpp` (what a GPU backend shapes its kernels by, shared across vendors), `cpu/cpu_backend.hpp` (AVX2 impl), `cpu/q8_dots.hpp` (the CPU's dots against quantized activations), `cpu/prefill_placement.hpp` (Windows policy), `vulkan/` (the Vulkan backend and its GLSL kernels, `VULKAN.md`), `rocm/` (the Linux ROCm backend and its HIP kernels, `ROCM.md`) |
 | `inference/`    | `load.hpp` (`load_model`, the one load sequence, in the mode `--load-mode` names: file read; mapped and read in when the host has room (`mapped`), mapped only for a host that reads in place (`auto`), or never mapped, a host's weights read into its own copy laid out as the file (`direct`); tokenizer, chat format, weights, placed model with each weight's reader and each streamed copy's storage recorded; copies streamed in file order on up to eight reader threads, around the file cache in `direct` and in `auto` when they would not fit in it; host copy released or unread pages dropped), `sampler.hpp`, `logprobs.hpp` (log-softmax of a logits row), `generate.hpp`, `perplexity.hpp`, `chat.hpp` |
 | `server/`       | `http.hpp` (HTTP/1.1 over sockets, no dependencies), `scheduler.hpp` (admission, batching, the rounds over the model's pass API, sampling), `cache.hpp` (the cache behind one owner the scheduler calls, `Cache`: its holders, room and ranking, parking, the jobs, device donors, message boundaries, host entries, the disk tier's side and the restores from it), `policy.hpp` (the scheduler's policy core: room, the round's stages, the logits rows), `api.hpp` (the native and OpenAI-compatible routes), per `SERVER.md` |
 | `cli/`          | `main.cpp` (thin dispatcher)                                          |
@@ -162,8 +162,8 @@ belongs to `format/`, so locally supplied and downloaded shards load identically
 - **Backends** are the *only* compile-time concern: GPU backends pull in heavy
   SDKs, so they are opt-in via `LLMX_HAS_BACKEND_*` in `config.hpp`. CPU is
   always on (no external deps). `LLMX_HAS_BACKEND_VULKAN` builds the Vulkan
-  backend, the only optional backend today; ROCm, CUDA and SYCL are planned and
-  each gets its option with its implementation.
+  backend and `LLMX_HAS_BACKEND_ROCM` the ROCm backend, on Linux only; CUDA and
+  SYCL are planned and each gets its option with its implementation.
 - **Model architectures** are compiled in and selected from metadata by `model/arch/registry.hpp`; today qwen3, qwen3moe, qwen35, qwen35moe and qwen4exp.
 - **Split mode** is a runtime parameter: `--device` with several devices
   runs the model as a layer split over them; `--tensor-width` groups the listed
@@ -333,7 +333,7 @@ buffer inside its own submission, then a wait on that ticket and a `write`
 into the destination. Per-row split is not
 planned. This, the tickets, the batched views and the `Model` /
 `Sequence` / `ExecContext` split are designed in `EXECUTION.md` and
-implemented, as are the Vulkan backend (#4b) and the multi-user server (#7).
+implemented, as are the Vulkan and ROCm backends (#4b) and the multi-user server (#7).
 A layer split over the devices `--device` lists is fitted by
 `model/layer_split.hpp` from the `footprint` of the architecture's plan
 (`model/place.hpp`) and each backend's `memory_available()`; the split knows

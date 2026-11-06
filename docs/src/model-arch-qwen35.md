@@ -9,7 +9,7 @@ and `open_routed`. It implements the architecture contract
 ([architecture](model-architecture.md)); nothing outside `model/arch/`
 names it. The math, the files' conventions and the recurrent state are in
 [QWEN35](../QWEN35.md); the plan and its steps are in `docs/STATUS-2026-09.md`.
-It runs on the CPU and on a Vulkan device, whose backends both implement
+It runs on the CPU, on a Vulkan device and on a ROCm device, whose backends all implement
 the ops each part names (`LayerPlan::ops`), and `llmx serve` reuses a
 conversation's prefix through state checkpoints ([server](server.md)).
 

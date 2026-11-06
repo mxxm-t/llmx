@@ -242,7 +242,7 @@ placement contracts in `docs/EXECUTION.md`.
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its
   `n_expert` matrices back to back, as a GGUF stacks them.
-  The routed calls require `implements(Op::routed_experts)`, true on the CPU and Vulkan and false on ROCm, which every routed layer's plan declares; differing projection types also require `implements(Op::mixed_experts)`, true on the CPU and false on Vulkan. Architecture plans declare this requirement for their grouped gate/up pair; a separately typed down projection does not need it.
+  The routed calls require `implements(Op::routed_experts)`, true on the CPU, Vulkan and ROCm, which every routed layer's plan declares; differing projection types also require `implements(Op::mixed_experts)`, true on the CPU and false on Vulkan. Architecture plans declare this requirement for their grouped gate/up pair; a separately typed down projection does not need it.
 - `matmul_experts_add(weight, X, Y, nin, nout, nrows, routing, runs, dtype)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.

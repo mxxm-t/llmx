@@ -3,6 +3,7 @@
 llmx builds from source with a C++17 compiler and CMake on Windows, Linux and macOS, or with `build.bat` alone on Windows.
 It links no third-party libraries.
 The CPU backend is always built; the optional Vulkan backend needs the Vulkan headers and the `glslc` shader compiler at build time, and the Vulkan loader and a driver at run time.
+The optional ROCm backend builds on Linux only and needs the ROCm SDK at build time and the HIP runtime at run time.
 This page lists what each platform needs, the commands, where the binary lands and how to test it.
 The [README](../README.md#build) keeps a short quick start.
 
@@ -154,6 +155,45 @@ Add your user to that group and log in again:
 sudo usermod -aG render "$USER"
 ```
 
+### The ROCm backend on Linux
+
+The build needs the HIP headers (`hip/hip_runtime_api.h`) and the ROCm `clang++`, which CMake looks for under `$ROCM_PATH`, then `/opt/rocm`.
+Running on a device needs a ROCm install that provides the HIP runtime, `libamdhip64.so`, and the kernel driver for the card.
+
+**Ubuntu 24.04.**
+The distribution packages an older HIP under the same names, so CI's ROCm job takes the headers and the compiler from AMD's repository at ROCm 7.2.1 and prefers it for every package it has:
+
+```sh
+sudo wget -qO /etc/apt/trusted.gpg.d/rocm.asc https://repo.radeon.com/rocm/rocm.gpg.key
+echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/7.2.1 noble main" | sudo tee /etc/apt/sources.list.d/rocm.list
+printf 'Package: *
+Pin: origin repo.radeon.com
+Pin-Priority: 600
+' | sudo tee /etc/apt/preferences.d/rocm-pin-600
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends hip-dev rocm-device-libs
+```
+
+CI builds there without running the device tests, since hosted runners have no GPU.
+**Elsewhere,** install the ROCm SDK under `/opt/rocm`, or set `ROCM_PATH` to its root.
+Then:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_ROCM=ON
+cmake --build build --config Release --parallel
+./build/llmx bench --device rocm:0
+```
+
+Without the headers or the compiler, configuring stops with `LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH`, and on another system with `LLMX_HAS_BACKEND_ROCM is Linux only`.
+The HIP kernels are compiled at build time to code objects for gfx906 and gfx1151 and embedded in the binary, with a second build of the 16-bit integer products for gfx906; only gfx906 (AMD MI50) has run them.
+Nothing links against the HIP runtime: llmx opens `libamdhip64.so` when a ROCm device is first asked for, so a ROCm build still runs on the CPU or a Vulkan device on a machine without ROCm, and `--device rocm:N` there fails with a message.
+The device checks recorded in [STATUS](STATUS.md) ran under ROCm 7.2.1.
+gfx906 is deprecated in ROCm, in maintenance mode since 5.7, so an MI50 or Radeon VII may need a community or self-built ROCm ([ROADMAP](ROADMAP.md)).
+The ROCm and Vulkan backends can be built into one binary, both options given.
+
+**Access to the card.**
+The HIP runtime opens `/dev/kfd` and the card's render node, which on Debian and Ubuntu belong to the `render` group (on some distributions `video`), so add your user to it as for Vulkan.
+
 ### Docker, with nothing installed on the host
 
 `docker/Dockerfile` builds a Debian trixie image with everything the Vulkan backend needs: the compiler, CMake, git, `glslc`, the headers, the loader, Mesa's drivers, Python and curl.
@@ -177,6 +217,7 @@ ctest --test-dir build --output-on-failure
 ```
 
 The container runs as root, so the build directory it writes into the mounted tree belongs to root on the host.
+The image carries no ROCm SDK or runtime, so it does not build the ROCm backend.
 
 ## macOS
 
@@ -214,9 +255,10 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 | CMake option | Default | Effect |
 |---|---|---|
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
-| `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan build, the backend library it links |
+| `LLMX_HAS_BACKEND_ROCM` | `OFF` | Builds the ROCm backend into `llmx`, Linux only, with every HIP kernel compiled by the ROCm `clang++` at build time and embedded in the binary |
+| `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan or ROCm build, the backend libraries it links |
 
-With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
+With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan and ROCm devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
 The split tool accepts an optional dtype (`auto`, `f16`, `bf16`, `f32` or `int8`) after its cache type and an optional tensor width after the dtype, applying the dtype to both placements and reporting their completed matrix paths.
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
@@ -225,7 +267,12 @@ These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 - `llmx-vulkan-quantization-test`, the CTest `vulkan-quantization`, which checks packed activations and Q8 reconstruction at floating-point range boundaries.
 - The tools `llmx-multi-device-bench`, `llmx-moe-kernel-bench` and `llmx-vk-handoff`, which are not tests.
 
-CTest runs the native tests in every configuration, and the Vulkan build adds the device tests above.
+These exist only with `LLMX_HAS_BACKEND_ROCM=ON`:
+
+- `llmx-rocm`, the backend library, and `llmx-rocm-kernels`, the step that compiles the HIP kernels.
+- `llmx-rocm-runtime-test`, the CTest `rocm-runtime`, and `llmx-backend-rocm-test`, the CTests `backend-rocm` and `backend-rocm-sixteen`, each reported as skipped without a HIP runtime or a device.
+
+CTest runs the native tests in every configuration, and the Vulkan and ROCm builds add the device tests above.
 
 ### The build identifier
 
@@ -267,7 +314,7 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 ```
 
 - `--no-perf-floor` reports the `perf` component's timings without enforcing its floors, which were set on the development workstation; CI passes it too.
-- `--device vulkan:0` selects that device for model commands; the `threads` component explicitly checks CPU workers and `split` explicitly names its CPU backends (AGENTS.md, Configuration).
+- `--device vulkan:0` or `--device rocm:0` selects that device for model commands; the `threads` component explicitly checks CPU workers and `split` explicitly names its CPU backends (AGENTS.md, Configuration).
 - `--only baseline` runs just the named components, comma separated for several.
 - Real-model checks skip when their models are absent; `tools/fetch_test_models.py` downloads the pinned models they use, and `--require-baseline` makes a missing one fail the suite.
 - `raw-blocks` checks the spec decoders' numpy form only where numpy is installed and otherwise skips those checks; `--require-tools`, which CI passes, makes that a failure.

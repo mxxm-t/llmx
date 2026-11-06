@@ -197,7 +197,7 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
-The registry decoder types, in family order, are F32, F16, BF16; Q1_0, Q2_0, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0; Q2_K, Q3_K, Q4_K, Q5_K, Q6_K; IQ1_S, IQ1_M, IQ2_XXS, IQ2_XS, IQ3_XXS, IQ2_S, IQ3_S, IQ4_NL, IQ4_XS; TQ1_0, TQ2_0; MXFP4; and NVFP4. `quantize` writes only Q4_0 and Q8_0; the other formats have no quantize writer. The CPU/Vulkan support matrix is in the [README](../README.md#quantization-types). Q1_0 read support is implemented; its qualification is recorded in [Q1](Q1.md) and [STATUS](STATUS.md). Q2_0 read support is qualified on CPU and Vulkan; STATUS records its checks and performance tradeoffs.
+The registry decoder types, in family order, are F32, F16, BF16; Q1_0, Q2_0, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0; Q2_K, Q3_K, Q4_K, Q5_K, Q6_K; IQ1_S, IQ1_M, IQ2_XXS, IQ2_XS, IQ3_XXS, IQ2_S, IQ3_S, IQ4_NL, IQ4_XS; TQ1_0, TQ2_0; MXFP4; and NVFP4. `quantize` writes only Q4_0 and Q8_0; the other formats have no quantize writer. The support matrix is in the [README](../README.md#quantization-types). Q1_0 read support is implemented; its qualification is recorded in [Q1](Q1.md) and [STATUS](STATUS.md). Q2_0 read support is qualified on CPU and Vulkan; STATUS records its checks and performance tradeoffs.
 F16 and BF16 are widened exactly; `quantize` does not write either format.
 IQ3_XXS has a read-only decoder and CPU/Vulkan inference support. Model and performance qualification are recorded in [STATUS](STATUS.md).
 IQ2_S has read-only CPU/Vulkan inference support. Its released-model qualification and measured prefill/decode tradeoff are recorded in [STATUS](STATUS.md); there is no IQ2_S quantize writer.
@@ -389,11 +389,13 @@ so rather than falling back. `--device rocm:N` runs it on HIP device `N`, as
 the ROCm runtime numbers them, in a Linux build configured with
 `-DLLMX_HAS_BACKEND_ROCM=ON` (`docs/ROCM.md`); a build without it, or a
 machine without the ROCm runtime or the device, says so the same way. The
-ROCm backend reads F32 and Q8_0 weights only for now, Q8_0 decoded exactly
-into F32 sums, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
+ROCm backend reads F32, BF16, Q8_0, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1 and IQ4_NL weights, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
 device's backend lacks is refused as it loads, naming the op; every op the
-`qwen3` and `qwen35` files need runs on a Vulkan device. On a device `--threads` and `--threads-batch` do
+`qwen3` and `qwen35` files need runs on a Vulkan device, and every op the
+text architectures need runs on a ROCm device but `mixed_experts`, which a
+routed layer whose gate and up differ in type needs and Vulkan lacks too; the
+image encoder's ops do not run on ROCm, so `--mmproj` is refused there. On a device `--threads` and `--threads-batch` do
 nothing and `--verbose` reports 0 threads, unless experts run on the CPU
 beside it (below); `--ubatch` keeps its meaning.
 
@@ -440,7 +442,7 @@ A group runs the mixture-of-experts models too (`qwen3moe`, `qwen35moe`): every 
 Where an expert's hidden width over the group's width is not whole quant blocks of its down stack (256 values in a K-quant), each device holds the whole blocks that cover its even share, so every such file runs at widths 2 and 4 at the price of memory and of expert work: Qwen3-30B-A3B in a K-quant (768 an expert) holds two of an expert's three blocks on each device at width 2, 4/3 of the experts' bytes over the group, and Qwen3.6-35B-A3B in a K-quant at width 4 one of its two blocks on each, twice the bytes; the fit counts it.
 Expert offload (`--n-cpu-moe`, `--cpu-moe`) is a placement of one device and is refused with a tensor width.
 Refused before a model file is read: a list that is not whole groups, a width above 16, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), K or V heads or vocabulary rows, and a dense block's column split off whole quant blocks. A group whose devices share no memory or semaphores on the platform, as on Windows, is refused there too, once the file's headers are read.
-A device is listed once, so the command line forms groups of Vulkan devices, whose sum crosses the cards through dma-buf and sync files on Linux; a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, is refused naming it.
+A device is listed once, so the command line forms groups of Vulkan devices, whose sum crosses the cards through dma-buf and sync files on Linux, or of ROCm devices, whose sum each member's kernel pushes into its peers' memory; a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, is refused naming it.
 A group may span PCI root complexes, which cost its sums the same on the machines measured; where a command prints its placement (`serve`, `bench --model`, and any command with `--verbose`) each group's devices are printed with their roots, and where the listed devices allow every group under one root a line says which order gives that; a group whose devices cannot share memory or semaphores is refused, naming each device and its root.
 Measured figures for groups of MI50s, against the layer split and by user count and precision, are in docs/STATUS.md (Tensor groups serving, and Llmx against the reference in the same topology, which names each shape and the precision), which also lists the cells still open against the speed gate.
 Groups of CPU backends, which hold the split's arithmetic to its rules on one host, are formed by the test tools rather than the command line (`llmx-split-check` with a tensor width, docs/TENSOR-SPLIT.md, step 2).

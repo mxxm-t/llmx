@@ -81,7 +81,7 @@ one branch in `infer::load_model`; the CLI, the tokenizer and the chat format st
 ## 4. Backends
 GPU backends are the only compile-time concern (heavy SDKs), each gated by an
 `LLMX_HAS_BACKEND_*` option in `config.hpp` that arrives with its implementation.
-Vulkan is implemented and is the only such option today. The vendor
+Vulkan and ROCm (Linux) are implemented and are the only such options today. The vendor
 targets are ROCm, CUDA, SYCL (Intel) and Vulkan. This splits into two phases - the device
 execution model has to land before any vendor backend is worth writing.
 
@@ -130,8 +130,11 @@ Branch on what a device reports, never on who made it.
   backend is therefore developed and validated on the Linux machine, never on the
   Windows workstation. `LLMX_HAS_BACKEND_ROCM`. The proposed implementation,
   hardware profiles, Strix Halo bring-up and same-machine reference gates are
-  in [ROCM](ROCM.md); its source research is pinned separately. This is a plan,
-  not implemented support, and follows the Vulkan tensor-split prerequisite.
+  in [ROCM](ROCM.md); its source research is pinned separately. Implemented on
+  Linux and run on the MI50: the text architectures, a subset of the weight
+  types, `--dtype` f16, f32 and int8, layer and tensor splits, the server and
+  the embedded drafter; the remaining types, the image encoder's ops and the
+  speed gates are open ([ROCM](ROCM.md), Scope on main, 2026-11-05).
 - **CUDA**: NVIDIA. `LLMX_HAS_BACKEND_CUDA`
 - **SYCL**: Intel, through oneAPI/DPC++ over Level Zero. This is what llama.cpp
   calls its SYCL backend. `LLMX_HAS_BACKEND_SYCL`

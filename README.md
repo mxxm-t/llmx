@@ -2,20 +2,24 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs and Vulkan devices. Run it from the command line or as an OpenAI-compatible server, and split one model across devices in one machine.
+llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs, Vulkan devices and, on Linux, AMD GPUs through ROCm.
+Run it from the command line or as an OpenAI-compatible server, and split one model across devices in one machine.
 
 The tables summarize current model, weight-format and backend support. **Supported** means the path is implemented and has applicable checks. **In development** means the implementation exists but qualification remains open. **Planned** means roadmap work not available in this tree; see the [ROADMAP](docs/ROADMAP.md).
 
 ## Supported models
 
-| Architecture | Models tested | CPU | Vulkan | `llmx serve` |
-|---|---|---|---|---|
-| `qwen3` (dense) | Qwen3-0.6B, 8B, 14B, 32B | Supported | Supported | Supported |
-| `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | Supported |
-| `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported, prefix reuse for follow-up turns |
-| Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned |
+| Architecture | Models tested | CPU | Vulkan | ROCm | `llmx serve` |
+|---|---|---|---|---|---|
+| `qwen3` (dense) | Qwen3-0.6B, 8B, 14B, 32B | Supported | Supported | Supported | Supported |
+| `qwen3moe` (mixture of experts) | Qwen3-30B-A3B, Qwen3-235B-A22B | Supported | Supported | In development | Supported |
+| `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported | Supported, prefix reuse for follow-up turns |
+| `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | In development | Supported, prefix reuse for follow-up turns |
+| `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported | Supported, prefix reuse for follow-up turns |
+| Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned | Planned |
+
+On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M and `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL; `qwen3moe` and `qwen35moe`: their tiny HF fixtures pass on rocm:0 (STATUS, ROCm step 3) and no real model of theirs has been checked there.
+A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below), and image input (`--mmproj`) is not available there.
 
 Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSETS.md) lists the models and checks covered.
 
@@ -23,25 +27,25 @@ Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSE
 
 This is the current model-weight support matrix. The [storage metadata page](docs/src/quant-types.md) lists recognized GGUF layouts, including layouts that have no inference decoder.
 
-| Weight format | CPU inference | Vulkan inference | Written by `llmx quantize` |
-|---|---|---|---|
-| `F32`, `F16`, `BF16` | Supported | Supported | No |
-| `MXFP4` | Supported | Supported | No |
-| `NVFP4` | Supported | Supported | No |
-| `Q1_0` | Supported | Supported | No |
-| `Q2_0`, `Q2_K` | Supported | Supported | No |
-| `Q3_K` | Supported | Supported | No |
-| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_0` |
-| `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | No |
-| `Q6_K` | Supported | Supported | No |
-| `Q8_0` | Supported | Supported | `Q8_0` |
-| `IQ1_S`, `IQ1_M` | Supported | Supported | No |
-| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | No |
-| `IQ3_XXS`, `IQ3_S` | Supported | Supported | No |
-| `IQ4_NL`, `IQ4_XS` | Supported | Supported | No |
-| `TQ1_0`, `TQ2_0` | Supported | Supported | No |
+| Weight format | CPU inference | Vulkan inference | ROCm inference | Written by `llmx quantize` |
+|---|---|---|---|---|
+| `F32`, `F16`, `BF16` | Supported | Supported | `F32` and `BF16` supported, `F16` planned | No |
+| `MXFP4` | Supported | Supported | Planned | No |
+| `NVFP4` | Supported | Supported | Planned | No |
+| `Q1_0` | Supported | Supported | Planned | No |
+| `Q2_0`, `Q2_K` | Supported | Supported | Planned | No |
+| `Q3_K` | Supported | Supported | Planned | No |
+| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_K` supported, `Q4_0` and `Q4_1` planned | `Q4_0` |
+| `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | Supported | No |
+| `Q6_K` | Supported | Supported | Supported | No |
+| `Q8_0` | Supported | Supported | Supported | `Q8_0` |
+| `IQ1_S`, `IQ1_M` | Supported | Supported | Planned | No |
+| `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | Planned | No |
+| `IQ3_XXS`, `IQ3_S` | Supported | Supported | Planned | No |
+| `IQ4_NL`, `IQ4_XS` | Supported | Supported | `IQ4_NL` supported, `IQ4_XS` planned | No |
+| `TQ1_0`, `TQ2_0` | Supported | Supported | Planned | No |
 
-The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format is rejected; llmx does not move it to the CPU automatically.
+The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format, such as a format the ROCm column does not list, is rejected; llmx does not move it to the CPU automatically.
 
 `NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise.
 
@@ -49,7 +53,11 @@ GGUF metadata can recognize layouts without an inference decoder; `info`, `token
 
 TQ read-only support is qualified with a user-approved baseline exception for one position in the two pinned released files' default Vulkan chat captures; original miss counts and the generic 0.1 rule remain unchanged. See [precision policy](docs/PRECISION.md#independent-hf-depth-acceptance-agreed-2026-10-01).
 
-Activation `--dtype` is independent of weight storage and KV-cache type. `auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device. See [precision and dtype reporting](docs/USAGE.md#precision). F16 is the KV-cache default; F32 is also available.
+Activation `--dtype` is independent of weight storage and KV-cache type.
+`auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device.
+See [precision and dtype reporting](docs/USAGE.md#precision).
+On a ROCm device `auto` selects F16, `f16`, `f32` and `int8` run natively, and `bf16` widens to F32 with a warning.
+F16 is the KV-cache default; F32 is also available.
 
 ## File formats
 
@@ -67,7 +75,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
-Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend.
+Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend, and on Linux `-DLLMX_HAS_BACKEND_ROCM=ON` for the ROCm backend, which needs the ROCm SDK to build and the HIP runtime to run on a device.
 The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on Windows, `build.bat` builds a CPU-only `llmx.exe` without CMake.
 [BUILD](docs/BUILD.md) lists the compilers and packages for each platform and a Docker image.
 
@@ -90,12 +98,13 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 |---|---|---|---|
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
 | Vulkan | Vulkan 1.2 GPUs; tested on AMD Radeon VII and AMD MI50 | Windows, Linux | Supported |
-| ROCm (HIP) | AMD GPUs | Linux | Planned |
+| ROCm (HIP) | AMD GPUs; tested on AMD MI50 (gfx906) | Linux | Supported |
 | CUDA | NVIDIA GPUs | | Planned |
 | SYCL | Intel GPUs | | Planned |
 
 ARM CPUs, Apple Silicon included, are not supported; the Vulkan kernels are tuned for 64-wide subgroups, and other GPUs are untested.
-Pick a device with `--device cpu` (the default) or `--device vulkan:N`; see [USAGE](docs/USAGE.md#device-selection---device).
+The ROCm kernels are built for gfx906 and gfx1151 (Strix Halo), and only gfx906 has run them.
+Pick a device with `--device cpu` (the default), `--device vulkan:N` or `--device rocm:N`; see [USAGE](docs/USAGE.md#device-selection---device).
 
 ## Multi-device modes
 
@@ -136,5 +145,5 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 - [OPERATING](docs/OPERATING.md): running a server.
 - [BUILD](docs/BUILD.md): building on each platform, and running the tests.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
-- [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan backend and the multi-device modes work.
+- [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md), [ROCM](docs/ROCM.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan and ROCm backends and the multi-device modes work.
 - [AGENTS](AGENTS.md): for contributors, and [TESTS](docs/TESTS.md): what each test checks.

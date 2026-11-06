@@ -6,13 +6,13 @@ making changes.
 ## What this is
 
 **llmx** - a ground-up, dependency-free LLM inference runtime. It reads/writes
-GGUF v3, runs quantized or F32 Qwen3, Qwen3-MoE, the Qwen 3.5 hybrid (qwen35, qwen35moe) and Qwen3.8-Flash-Next (qwen4exp) transformers on x86 CPU with AVX2/FMA/F16C
-or on a Vulkan device, and is structured so formats, quantizations, backends, and multi-device / cluster
+GGUF v3, runs quantized or F32 Qwen3, Qwen3-MoE, the Qwen 3.5 hybrid (qwen35, qwen35moe) and Qwen3.8-Flash-Next (qwen4exp) transformers on x86 CPU with AVX2/FMA/F16C,
+on a Vulkan device or, on Linux, on a ROCm device, and is structured so formats, quantizations, backends, and multi-device / cluster
 serving can be added later without touching the core.
 
 ## Build
 
-`docs/BUILD.md` is the one page on building: the prerequisites and commands on Windows, Linux and macOS, the Vulkan backend, the Docker image, where the binary lands, the build identifier and the test commands.
+`docs/BUILD.md` is the one page on building: the prerequisites and commands on Windows, Linux and macOS, the Vulkan and ROCm backends, the Docker image, where the binary lands, the build identifier and the test commands.
 In short, `build.bat` writes `llmx.exe` to the repo root, and `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` followed by `cmake --build build --config Release` builds the binary and the native tests.
 The notes below are for working on llmx itself.
 
@@ -406,10 +406,11 @@ hosts). Follow the roadmap before inventing new directions.
 
 GPU backends are **not** drop-in the way a quant type is. The device
 execution model (`docs/ROADMAP.md` #4a, `docs/DEVICE-EXECUTION.md`) and the
-Vulkan backend over it (`docs/VULKAN.md`) are complete; a further vendor
-backend implements the whole `Backend` interface over its own allocator,
-kernels and queue, and the Vulkan backend is the measure of what that
-takes. Don't pick up "add the ROCm backend" expecting the "one file + one
+Vulkan backend over it (`docs/VULKAN.md`) are complete, and the ROCm
+backend (`docs/ROCM.md`) is the second over the same interface; a further
+vendor backend implements the whole `Backend` interface over its own
+allocator, kernels and queue, and those two are the measure of what that
+takes. Don't pick up "add the CUDA backend" expecting the "one file + one
 registry entry" experience Q4_0 had.
 
 Q5_1 raw-block checks cover all five-bit codes at every position, independent high-bit lanes and scale/minimum edge pairs. CPU row-class and grouped-matrix checks include Q5_1; Vulkan uses the existing affine row and tile families, extending their packed-code unpacking. The feature's current qualification status is recorded in STATUS.

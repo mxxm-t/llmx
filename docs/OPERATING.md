@@ -101,7 +101,7 @@ A server that answers `/v1/live` and not `/v1/health` within a long timeout has 
 2. If it is not queued, the prompt is being read.
    A prompt is read in slices of `--ubatch` tokens, beside the other requests' decode rows, so a long prompt takes as many passes as it has slices.
 3. Is the prompt new each time?
-   A request starts from a kept history only for the whole KV blocks its prompt shares with it from the first token on (blocks of 128 tokens on the CPU, 64 on a Vulkan device).
+   A request starts from a kept history only for the whole KV blocks its prompt shares with it from the first token on (blocks of 128 tokens on the CPU, 64 on a Vulkan or ROCm device).
    A client that changes the first part of the prompt every turn (a timestamp or a request id near the top, a system message that varies) shares nothing after the change.
    Send one request twice and read `reused_tokens` in the reply (`timings.cache_n` on the compatible routes); it is 0 when nothing was shared, and `reuse.since_start.forks` rises by one when something was.
 4. After a restart, did the server adopt what the old one kept?

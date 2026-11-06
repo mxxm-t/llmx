@@ -160,7 +160,7 @@ a block costs in bytes, so a byte budget, when the server needs one,
 converts inside the backend. Storage reports retained bytes and, separately,
 the peak held across successful growth copies; a failed growth attempt is
 not counted. The completed [DEVICE-EXECUTION](DEVICE-EXECUTION.md) migration
-uses backend-owned buffers on CPU and Vulkan under this contract. Public
+uses backend-owned buffers on CPU, Vulkan and ROCm under this contract. Public
 attention calls use storage views; host pointers and physical offsets remain
 backend implementation details.
 

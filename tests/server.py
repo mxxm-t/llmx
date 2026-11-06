@@ -61,7 +61,8 @@ class Server:
                 assert item["phase"] in ("queued", "paused", "prefill", "generate"), item
                 assert all(isinstance(item[key], int) and item[key] >= 0 for key in
                            ("prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms", "queued_ms", "first_token_ms")), item
-                assert item["inter_token_ms"] >= 0 and (item["first_token_ms"] == 0) == (item["published_tokens"] == 0), item
+                # Whole milliseconds: a first token under 1 ms reads 0, so 0 is only required before the first token.
+                assert item["inter_token_ms"] >= 0 and (item["published_tokens"] > 0 or item["first_token_ms"] == 0), item
                 assert item["reused_tokens"] <= item["prompt_tokens"], item
         return result
 
@@ -482,7 +483,7 @@ def check_service(srv, requests, n):
     finally:
         worker.join()
     if seen:
-        assert seen["first_token_ms"] > 0 and seen["first_token_ms"] <= seen["elapsed_ms"] and seen["queued_ms"] <= seen["first_token_ms"], seen
+        assert seen["first_token_ms"] <= seen["elapsed_ms"] and seen["queued_ms"] <= seen["first_token_ms"], seen
         assert seen["inter_token_ms"] > 0, seen
     return seen is not None
 

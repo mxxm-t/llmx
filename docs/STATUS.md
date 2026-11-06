@@ -172,6 +172,15 @@ The hosted run at 488f17e92 failed the macOS and Windows builds of `tests/arch_d
 - The runtime commit changes the signatures every backend implements (`RopeForm`, `RouteRule`, the SwiGLU limit) and the KV storage of no heads, so the landing gate ran the identity and the timing on the CPU, Vulkan and ROCm; no shader changed, so no Radeon VII leg.
 - The Python writer's fork file and the C++ test's file must stay the same file; `deepseek4` compares them, so a name changed in one fails there.
 
+## Live health item's first-token time (2026-11-06, FIXDEV1, branch fix/health-first-token on main 2e8a1e6f, tests and docs only; lands by fast-forward on 2e8a1e6f)
+
+- **Goal:** the `server` component stops failing on a fast machine: hosted macOS run 42230254764 read a live item with `published_tokens` 4 and `first_token_ms` 0.
+- **Done:** the test was wrong and the server right: `first_token_ms` is in whole milliseconds (`src/server/scheduler.hpp`), so a first token under 1 ms reads 0 while tokens are published.
+  `tests/server.py` now requires 0 only before a token is published and no longer requires the first-token time of a replying item to be above 0; docs/USAGE.md says the field is in whole milliseconds.
+  No failing-test-first commit: a first token under 1 ms cannot be made deterministically through a live server, so the branch is one commit.
+  Gates: CTest 81 of 81 and the suite's `docs`, `dead-code` and `server` components on the CPU in a container of 2 CPUs on the rig, the real-model pass skipped for want of its fixture, and the hosted run at the head that lands.
+- **Left:** nothing; F2DEV approved at 20:49 with this entry as the one change.
+
 ## The quick newcomer's long-prompt bound follows the chunk search (2026-11-05, PDEV17 then PDEV18, branch fix/server-passes-newcomer on main 1df72137d, tests only; lands by fast-forward)
 
 - **Goal:** `server-passes-cpu`'s `short_newcomer` holds on any machine: on a slow hosted runner (run 41965354179, job 127040987113, a shader-only branch) and once under TSan a pass between two steps of a reply held 96 prompt rows beside the quick newcomer, against the bound of its whole 85-token prompt.

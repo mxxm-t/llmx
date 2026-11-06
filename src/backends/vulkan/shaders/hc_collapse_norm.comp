@@ -1,0 +1,28 @@
+#version 450
+// One workgroup a row: u = sum over k in order of pre[k] X_k as the CPU forms it, then the RMSNorm of u with w after a tree sum of its squares.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint hc; uint dim; float eps; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer X { float x[]; };
+layout(set = 0, binding = 2) readonly buffer A { float pre[]; };
+layout(set = 0, binding = 3) readonly buffer W { float w[]; };
+shared float red[256];
+void main() {
+    uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
+    uint width = p.hc * p.dim;
+    precise float s = 0.0;
+    for (uint d = lid; d < p.dim; d += 256u) {
+        precise float u = pre[r * p.hc] * x[r * width + d];
+        for (uint k = 1u; k < p.hc; ++k) u = fma(pre[r * p.hc + k], x[r * width + k * p.dim + d], u);
+        dst[r * p.dim + d] = u;
+        s = fma(u, u, s);
+    }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
+    for (uint d = lid; d < p.dim; d += 256u) dst[r * p.dim + d] = dst[r * p.dim + d] * scale * w[d];
+}

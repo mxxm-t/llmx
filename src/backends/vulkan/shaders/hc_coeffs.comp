@@ -1,0 +1,62 @@
+#version 450
+// One workgroup a row: the mHC coefficients pre, post and comb from the row's (2 + hc) * hc mixes, in the CPU's order after a tree sum of the stream's squares (docs/DEEPSEEK4.md, section 4.2).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint hc; uint dim; uint iters; float norm_eps; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer A { float pre[]; };
+layout(set = 0, binding = 1) writeonly buffer B { float post[]; };
+layout(set = 0, binding = 2) writeonly buffer C { float comb[]; };
+layout(set = 0, binding = 3) readonly buffer M { float mixes[]; };
+layout(set = 0, binding = 4) readonly buffer X { float x[]; };
+layout(set = 0, binding = 5) readonly buffer S { float scale[]; };
+layout(set = 0, binding = 6) readonly buffer Z { float base[]; };
+shared float red[256];
+shared float c[256];
+float sigmoid_of(float v) { return 1.0 / (1.0 + exp(-v)); }
+void main() {
+    uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x, hc = p.hc;
+    uint width = hc * p.dim, mix = (hc + 2u) * hc;
+    precise float s = 0.0;
+    for (uint i = lid; i < width; i += 256u) { float v = x[r * width + i]; s = fma(v, v, s); }
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    if (lid != 0u) return;
+    precise float rs = 1.0 / sqrt(red[0] / float(width) + p.norm_eps);
+    uint m = r * mix;
+    for (uint k = 0u; k < hc; ++k) {
+        precise float a = mixes[m + k] * rs, b = mixes[m + hc + k] * rs;
+        precise float ga = fma(a, scale[0], base[k]), gb = fma(b, scale[1], base[hc + k]);
+        pre[r * hc + k] = sigmoid_of(ga) + p.eps;
+        post[r * hc + k] = 2.0 * sigmoid_of(gb);
+    }
+    for (uint i = 0u; i < hc; ++i) {
+        float peak = -1.0 / 0.0;
+        for (uint j = 0u; j < hc; ++j) {
+            precise float a = mixes[m + 2u * hc + i * hc + j] * rs;
+            precise float v = fma(a, scale[2], base[2u * hc + i * hc + j]);
+            c[i * hc + j] = v;
+            peak = max(peak, c[i * hc + j]);
+        }
+        precise float sum = 0.0;
+        for (uint j = 0u; j < hc; ++j) { c[i * hc + j] = exp(c[i * hc + j] - peak); sum += c[i * hc + j]; }
+        for (uint j = 0u; j < hc; ++j) c[i * hc + j] = c[i * hc + j] / sum + p.eps;
+    }
+    for (uint round = 0u; round < p.iters; ++round) {
+        if (round != 0u) {
+            for (uint i = 0u; i < hc; ++i) {
+                precise float sum = 0.0;
+                for (uint j = 0u; j < hc; ++j) sum += c[i * hc + j];
+                for (uint j = 0u; j < hc; ++j) c[i * hc + j] /= sum + p.eps;
+            }
+        }
+        for (uint j = 0u; j < hc; ++j) {
+            precise float sum = 0.0;
+            for (uint i = 0u; i < hc; ++i) sum += c[i * hc + j];
+            for (uint i = 0u; i < hc; ++i) c[i * hc + j] /= sum + p.eps;
+        }
+    }
+    for (uint i = 0u; i < hc * hc; ++i) comb[r * hc * hc + i] = c[i];
+}

@@ -1,0 +1,58 @@
+#version 450
+// One lane a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
+// A row whose s + bias is not finite everywhere gives k picks of UINT32_MAX with weights 0.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint has_bias; uint normalize; float scale; } p;
+layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
+layout(set = 0, binding = 1) readonly buffer B { float bias[]; };
+layout(set = 0, binding = 2) writeonly buffer I { uint ids[]; };
+layout(set = 0, binding = 3) writeonly buffer W { float weights[]; };
+// log(1 + u) kept accurate where 1 + u rounds, as log1p is.
+float log1p_of(float u) {
+    precise float v = 1.0 + u;
+    if (v == 1.0) return u;
+    return log(v) * (u / (v - 1.0));
+}
+float score_of(uint r, uint e) {
+    float v = scores[r * p.n_expert + e];
+    return sqrt(v > 20.0 ? v : log1p_of(exp(v)));
+}
+float biased(uint r, uint e) {
+    precise float s = score_of(r, e);
+    return p.has_bias != 0u ? s + bias[e] : s;
+}
+void main() {
+    uint r = gl_GlobalInvocationID.x;
+    if (r >= p.rows) return;
+    bool finite = true;
+    for (uint e = 0u; e < p.n_expert; ++e) {
+        float b = biased(r, e);
+        finite = finite && !isnan(b) && !isinf(b);
+    }
+    if (!finite) {
+        for (uint j = 0u; j < p.k; ++j) { ids[r * p.k + j] = 0xffffffffu; weights[r * p.k + j] = 0.0; }
+        return;
+    }
+    uint chosen[256];
+    precise float total = 0.0;
+    for (uint j = 0u; j < p.k; ++j) {
+        uint best = p.n_expert;
+        float best_b = 0.0;
+        for (uint e = 0u; e < p.n_expert; ++e) {
+            bool taken = false;
+            for (uint i = 0u; i < j; ++i) taken = taken || chosen[i] == e;
+            if (taken) continue;
+            float b = biased(r, e);
+            if (best == p.n_expert || b > best_b) { best = e; best_b = b; }
+        }
+        chosen[j] = best;
+        total += score_of(r, best);
+        ids[r * p.k + j] = best;
+    }
+    bool divide = p.normalize != 0u && p.k > 1u;
+    for (uint j = 0u; j < p.k; ++j) {
+        float s = score_of(r, chosen[j]);
+        precise float wgt = divide ? s / (total + 1e-20) : s;
+        weights[r * p.k + j] = wgt * p.scale;
+    }
+}

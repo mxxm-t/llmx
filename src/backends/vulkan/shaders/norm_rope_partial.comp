@@ -4,7 +4,12 @@
 layout(local_size_x = 256) in;
 // LLMX_STREAMS takes `count` positions a row, pair i turning by stream of[i]'s, and the norm only with `norm` set (docs/VISION.md, section 4).
 #ifdef LLMX_STREAMS
+// LLMX_FORM, with LLMX_STREAMS, rotates the pairs from `offset` on, adjacent ones where `adjacent` is set, and turns them back where `inverse` is, with the CPU's multiply-adds.
+#ifdef LLMX_FORM
+layout(push_constant) uniform P { uint src_stride; uint src_head_stride; uint heads; uint head_dim; uint half_dim; float eps; uint count; uint norm; uint adjacent; uint offset; uint inverse; } p;
+#else
 layout(push_constant) uniform P { uint src_stride; uint src_head_stride; uint heads; uint head_dim; uint half_dim; float eps; uint count; uint norm; } p;
+#endif
 layout(set = 0, binding = 6) readonly buffer O { uint of[]; };
 #else
 layout(push_constant) uniform P { uint src_stride; uint src_head_stride; uint heads; uint head_dim; uint half_dim; float eps; } p;
@@ -37,6 +42,21 @@ void main() {
 #ifdef LLMX_STREAMS
     r = 1.0 / sqrt(red[0] / float(p.head_dim) + p.eps);
     }
+#ifdef LLMX_FORM
+    for (uint j = lid; j < p.half_dim; j += 256u) {
+        uint ia = p.offset + (p.adjacent != 0u ? 2u * j : j), ib = p.offset + (p.adjacent != 0u ? 2u * j + 1u : j + p.half_dim);
+        precise float a = p.norm != 0u ? src[base + ia] * r * w[ia] : src[base + ia];
+        precise float b = p.norm != 0u ? src[base + ib] * r * w[ib] : src[base + ib];
+        uint t = pos[row * p.count + of[j]] * p.half_dim;
+        float c = cs[t + j], sv = p.inverse != 0u ? -sn[t + j] : sn[t + j];
+        precise float ac = a * c, bc = b * c;
+        precise float ra = fma(-b, sv, ac), rb = fma(a, sv, bc);
+        dst[out_base + ia] = ra;
+        dst[out_base + ib] = rb;
+    }
+    for (uint i = lid; i < p.head_dim; i += 256u)
+        if (i < p.offset || i >= p.offset + 2u * p.half_dim) dst[out_base + i] = p.norm != 0u ? src[base + i] * r * w[i] : src[base + i];
+#else
     for (uint i = lid; i < p.half_dim; i += 256u) {
         float wa = p.norm != 0u ? w[i] : 1.0, wb = p.norm != 0u ? w[i + p.half_dim] : 1.0;
         float a = src[base + i] * r * wa;
@@ -47,6 +67,7 @@ void main() {
         dst[out_base + i + p.half_dim] = a * sv + b * c;
     }
     for (uint i = 2u * p.half_dim + lid; i < p.head_dim; i += 256u) dst[out_base + i] = p.norm != 0u ? src[base + i] * r * w[i] : src[base + i];
+#endif
 #else
     float r = 1.0 / sqrt(red[0] / float(p.head_dim) + p.eps);
     uint t = pos[row] * p.half_dim;

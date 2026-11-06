@@ -503,12 +503,25 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
                        : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
 }
 
+// route_experts' sqrt_softplus rule, a row a lane in the CPU's order (shaders/route_sqrt_softplus.comp).
+inline void VulkanBackend::route_sqrt_softplus(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
+    if (!std::isfinite(rule.scale)) throw std::runtime_error("vulkan: a routing scale that is not finite");
+    if (!rows) return;
+    if (floats_from(scores) < size_mul(rows, n_expert) || floats_from(ids) < size_mul(rows, k) || floats_from(weights) < size_mul(rows, k) ||
+        (rule.bias.buffer && floats_from(rule.bias) < n_expert))
+        throw std::runtime_error("vulkan: routing operand outside its allocation");
+    const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; }
+        pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale};
+    dispatch(K_ROUTE_SQRT_SOFTPLUS, {bind(scores), rule.bias.buffer ? bind(rule.bias) : bind(scores), bind(ids), bind(weights)}, &pc, sizeof(pc), groups(rows, 64));
+}
+
 // Routed entries take row kernels or per-expert tiles according to prompt extent and the type's crossover.
 // Routed tiles never split, keeping each entry's arithmetic independent of neighbouring entries.
 inline void VulkanBackend::route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
-    const bool normalize = rule.softmax_only("vulkan");
     if (!k || k > n_expert || k > 256 || n_expert > 1024)
         throw std::runtime_error("vulkan: routing takes 1 to 256 of at most 1024 experts");
+    if (rule.score == RouteRule::Score::sqrt_softplus) return route_sqrt_softplus(scores, rows, n_expert, k, rule, ids, weights);
+    const bool normalize = rule.softmax_only("vulkan");
     if (!rows) return;
     if (floats_from(scores) < rows * n_expert || floats_from(ids) < rows * k || floats_from(weights) < rows * k)
         throw std::runtime_error("vulkan: routing operand outside its allocation");

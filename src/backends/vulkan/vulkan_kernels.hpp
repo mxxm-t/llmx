@@ -1030,6 +1030,42 @@ const uint32_t kSpvLayerNormRows[] = {
 const uint32_t kSpvMixRows[] = {
 #include "vulkan/mix_rows.inc"
 };
+const uint32_t kSpvHcCoeffs[] = {
+#include "vulkan/hc_coeffs.inc"
+};
+const uint32_t kSpvHcCollapseNorm[] = {
+#include "vulkan/hc_collapse_norm.inc"
+};
+const uint32_t kSpvHcExpand[] = {
+#include "vulkan/hc_expand.inc"
+};
+const uint32_t kSpvSparseAttentionSink[] = {
+#include "vulkan/sparse_attention_sink.inc"
+};
+const uint32_t kSpvTopkRows[] = {
+#include "vulkan/topk_rows.inc"
+};
+const uint32_t kSpvCompressPool[] = {
+#include "vulkan/compress_pool.inc"
+};
+const uint32_t kSpvIndexerScores[] = {
+#include "vulkan/indexer_scores.inc"
+};
+const uint32_t kSpvPoolWrite[] = {
+#include "vulkan/pool_write.inc"
+};
+const uint32_t kSpvModelFormatQdq[] = {
+#include "vulkan/model_format_qdq.inc"
+};
+const uint32_t kSpvRouteSqrtSoftplus[] = {
+#include "vulkan/route_sqrt_softplus.inc"
+};
+const uint32_t kSpvNormRopePartialForm[] = {
+#include "vulkan/norm_rope_partial_form.inc"
+};
+const uint32_t kSpvSiluMulClamp[] = {
+#include "vulkan/silu_mul_clamp.inc"
+};
 const uint32_t kSpvNormRopePartialStreams[] = {
 #include "vulkan/norm_rope_partial_streams.inc"
 };
@@ -1351,6 +1387,18 @@ const uint32_t kSpvHold[] = {
     X(K_ATTENTION_FULL, "attention_full", kSpvAttentionFull, sizeof(kSpvAttentionFull), 7, nullptr) \
     X(K_ATTENTION_FULL_TILE_D64, "attention_full_tile_d64", kSpvAttentionFullTileD64, sizeof(kSpvAttentionFullTileD64), 6, nullptr) \
     X(K_ATTENTION_FULL_TILE_D72, "attention_full_tile_d72", kSpvAttentionFullTileD72, sizeof(kSpvAttentionFullTileD72), 6, nullptr) \
+    X(K_HC_COEFFS, "hc_coeffs", kSpvHcCoeffs, sizeof(kSpvHcCoeffs), 7, nullptr) \
+    X(K_HC_COLLAPSE_NORM, "hc_collapse_norm", kSpvHcCollapseNorm, sizeof(kSpvHcCollapseNorm), 4, nullptr) \
+    X(K_HC_EXPAND, "hc_expand", kSpvHcExpand, sizeof(kSpvHcExpand), 5, nullptr) \
+    X(K_SPARSE_ATTENTION_SINK, "sparse_attention_sink", kSpvSparseAttentionSink, sizeof(kSpvSparseAttentionSink), 8, nullptr) \
+    X(K_TOPK_ROWS, "topk_rows", kSpvTopkRows, sizeof(kSpvTopkRows), 3, nullptr) \
+    X(K_COMPRESS_POOL, "compress_pool", kSpvCompressPool, sizeof(kSpvCompressPool), 4, nullptr) \
+    X(K_INDEXER_SCORES, "indexer_scores", kSpvIndexerScores, sizeof(kSpvIndexerScores), 6, nullptr) \
+    X(K_POOL_WRITE, "pool_write", kSpvPoolWrite, sizeof(kSpvPoolWrite), 3, nullptr) \
+    X(K_ROUTE_SQRT_SOFTPLUS, "route_sqrt_softplus", kSpvRouteSqrtSoftplus, sizeof(kSpvRouteSqrtSoftplus), 4, nullptr) \
+    X(K_NORM_ROPE_PARTIAL_FORM, "norm_rope_partial_form", kSpvNormRopePartialForm, sizeof(kSpvNormRopePartialForm), 7, nullptr) \
+    X(K_SILU_MUL_CLAMP, "silu_mul_clamp", kSpvSiluMulClamp, sizeof(kSpvSiluMulClamp), 4, nullptr) \
+    X(K_MODEL_FORMAT_QDQ, "model_format_qdq", kSpvModelFormatQdq, sizeof(kSpvModelFormatQdq), 1, nullptr, nullptr, 0, kPreserve32, 0) \
     X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,

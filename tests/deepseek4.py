@@ -5,7 +5,7 @@ The gate (step 7, piece 7): `llmx logits` on the fork layout reads the golden's 
 It runs as the reference's 11 runs do, each prefix whole at 1, 2, 3, 64, 127, 128, 129 and 200 tokens and the decode path from the first token (--per-token), and the whole sequence again at ubatch 1, 3 and 16, and at one and three threads.
 No selection of the golden sits within 2e-5 of a tie (margin_floor), so no run needs forced mode while the logits hold.
 The upstream layout is refused by its key.
-On a configured device, which has none of the model's ops yet, the file is refused at load naming the head's op, and the component reports SKIP.
+On a configured device the same gate runs; a device whose backend lacks one of the model's ops refuses the file at load by that op's name, and the component reports SKIP.
 Its entries are kept in f32 only, so either cache side given as f16 is refused by its flag before the model is built.
 `serve` refuses the model by name until step 11, `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
 """
@@ -20,7 +20,7 @@ import fixture_deepseek4
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "deepseek41_reference.json")
 UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
-DEVICE = "inference: the head needs hc_collapse_norm, which the backend of its device does not implement"
+DEVICE = "which the backend of its device does not implement"
 SERVE = "server: deepseek41 is not served until its checkpoints, pause and prefix reuse are built"
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
 LOGIT_BOUND = 2e-5
@@ -104,11 +104,12 @@ def run(require=False):
         paths = {layout: fixture_deepseek4.write_deepseek41(os.path.join(directory, layout + ".gguf"), args, state, engram, layout)
                  for layout in fixture_deepseek4.LAYOUTS}
         fork = str(paths["fork"])
-        # No device backend has the model's ops yet, so a configured device refuses the file at load by the first op it lacks, the head's, and nothing is compared.
+        # A device whose backend lacks one of the model's ops refuses the file at load by the op's name, and nothing is compared.
         if any(d != "cpu" for d in os.environ.get("LLMX_DEVICE", "cpu").split(",")):
-            refused(fork, DEVICE, F32)
-            print("deepseek4: SKIP - the device refuses the model at load (%s), so nothing was compared" % DEVICE)
-            return common.SKIPPED
+            p = common.run_process(["logits", fork, "a"] + F32, text=True)
+            if p.returncode == 1 and DEVICE in p.stderr:
+                print("deepseek4: SKIP - the device refuses the model at load (%s), so nothing was compared" % p.stderr.strip().splitlines()[-1])
+                return common.SKIPPED
         gate(fork, directory, document)
         refused(str(paths["upstream"]), UPSTREAM)
         print("deepseek4: the upstream layout is refused by its key")

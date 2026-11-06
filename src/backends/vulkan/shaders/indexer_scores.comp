@@ -1,0 +1,38 @@
+#version 450
+// One lane a (row, position): out = sum over heads of w[h] w_scale ReLU(dot(q_h, key)), key the last dim floats of the view's pooled row of the position.
+// Each dot and the head sum are the CPU's multiply-add chains, and a position the row cannot see is -inf (docs/src/backends-vulkan.md).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; float w_scale; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint block_k; uint block_size; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer A { float aux[]; };
+layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 4) readonly buffer W { float w[]; };
+layout(set = 0, binding = 5) readonly buffer B { uint blocks[]; };
+#include "views.glsl"
+void main() {
+    uint t = gl_GlobalInvocationID.x, r = gl_WorkGroupID.y;
+    if (t >= p.n) return;
+    uint v, b;
+    view_of_row(r, v, b);
+    uint len = (view_hist(v) + b + 1u) / p.tokens;
+    bool reached = t < len;
+    if (reached && p.block_k != 0u) {
+        reached = false;
+        for (uint i = 0u; i < p.block_k && !reached; ++i) reached = blocks[r * p.block_k + i] == t / p.block_size;
+    }
+    if (!reached) {
+        outv[r * p.n + t] = -1.0 / 0.0;
+        return;
+    }
+    uint key = pooled_row(v, t, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.dim;
+    precise float sum = 0.0;
+    for (uint h = 0u; h < p.heads; ++h) {
+        uint qh = (r * p.heads + h) * p.dim;
+        precise float dot = 0.0;
+        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], aux[key + d], dot);
+        precise float scaled = w[r * p.heads + h] * p.w_scale;
+        sum = fma(max(dot, 0.0), scaled, sum);
+    }
+    outv[r * p.n + t] = sum;
+}

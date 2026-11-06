@@ -4,7 +4,12 @@
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
+// LLMX_CLAMP takes silu(min(g, L)) * clamp(u, -L, L) under a limit L > 0, NaN passing through both (docs/DEEPSEEK4.md, section 4.2).
+#ifdef LLMX_CLAMP
+layout(push_constant) uniform P { uint n; uint quant; uint major; float limit; } p;
+#else
 layout(push_constant) uniform P { uint n; uint quant; uint major; } p;
+#endif
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer G { float gate[]; };
 layout(set = 0, binding = 2) readonly buffer U { float up[]; };
@@ -15,6 +20,15 @@ layout(set = 0, binding = 1) readonly buffer G4 { vec4 gate4[]; };
 layout(set = 0, binding = 2) readonly buffer U4 { vec4 up4[]; };
 #include "xquant.glsl"
 #include "silu_mul.glsl"
+#ifdef LLMX_CLAMP
+float up_of(float u) { return u < -p.limit ? -p.limit : (u > p.limit ? p.limit : u); }
+float gate_of(float g) { return g > p.limit ? p.limit : g; }
+vec4 up_of(vec4 u) { return vec4(up_of(u.x), up_of(u.y), up_of(u.z), up_of(u.w)); }
+vec4 gate_of(vec4 g) { return vec4(gate_of(g.x), gate_of(g.y), gate_of(g.z), gate_of(g.w)); }
+#else
+#define up_of(u) (u)
+#define gate_of(g) (g)
+#endif
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (p.quant == 2u) {
@@ -22,14 +36,14 @@ void main() {
         bool live = i < p.n / 4u;
         vec4 v = vec4(0.0);
         if (live) {
-            v = silu_mul_value(gate4[i], up4[i]);
+            v = silu_mul_value(gate_of(gate4[i]), up_of(up4[i]));
             dst4[i] = v;
         }
         xquant_word(v, live, i & 7u, i / 8u, p.n, p.major);
         return;
     }
     if (i < p.n) {
-        float v = silu_mul_value(gate[i], up[i]);
+        float v = silu_mul_value(gate_of(gate[i]), up_of(up[i]));
         dst[i] = v;
         if (p.quant != 0u) xquant_block(i, v, p.n);
     }

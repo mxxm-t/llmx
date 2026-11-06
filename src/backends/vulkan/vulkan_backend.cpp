@@ -6,6 +6,7 @@
 #include "backends/vulkan/vulkan_buffer.hpp"
 #include "backends/vulkan/vulkan_device.hpp"
 #include "backends/vulkan/vulkan_kernels.hpp"
+#include "quant/model_formats.hpp"
 #include "quant/quant.hpp"
 
 #include <algorithm>
@@ -657,16 +658,8 @@ public:
         return out;
     }
 
-    // State, gating and the vision encoder's ops are supported; grouped expert projections must share one storage type.
-    // Every op but mixed routed products and DeepSeek-V4.1's ops and modes, which the kernels do not have.
-    bool implements(Op op) const override {
-        switch (op) {
-            case Op::mixed_experts: case Op::hc_coeffs: case Op::hc_collapse_norm: case Op::hc_expand: case Op::sparse_attention_sink:
-            case Op::topk_rows: case Op::candidate_blocks: case Op::compress_pool: case Op::indexer_scores: case Op::model_format_qdq:
-            case Op::pool_write: case Op::sqrt_softplus_routing: case Op::silu_mul_clamp: case Op::rope_forms: return false;
-            default: return true;
-        }
-    }
+    // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
+    bool implements(Op op) const override { return op != Op::mixed_experts && (op != Op::model_format_qdq || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1161,17 +1154,18 @@ public:
     void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) override {
-        no_clamp("vulkan", limit);
+        if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("vulkan: a SwiGLU limit that is negative or not finite");
         if (!n) return;
         const bool quant = n % 32 == 0;
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
         const uint32_t major = tile ? x8_major(n / rows, rows) : 0;
-        const uint32_t pc[3] = {u32(n), tile ? 2u : quant ? 1u : 0u, major};
+        // A limit takes the clamped build, whose push constants carry it (shaders/silu_mul.comp, LLMX_CLAMP).
+        struct { uint32_t n, quant, major; float limit; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, limit};
         const size_t slot = quant ? take_twin(n) : 0;
-        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, pc, sizeof(pc),
-                 groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+        dispatch(limit > 0.0f ? K_SILU_MUL_CLAMP : K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, &pc,
+                 limit > 0.0f ? sizeof(pc) : 3 * sizeof(uint32_t), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
         if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
@@ -1363,6 +1357,105 @@ public:
         if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
+    // DeepSeek-V4.1's row ops (docs/DEEPSEEK4.md, section 4.2), one kernel each; the pooled-row ops are in vulkan_attention.hpp.
+    void hc_coeffs(Slice pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, size_t rows, size_t hc, size_t dim,
+                   float norm_eps, float eps, size_t iters) override {
+        if (!hc || hc > 16 || !dim || !iters || !std::isfinite(norm_eps) || norm_eps < 0.0f || !std::isfinite(eps) || eps < 0.0f)
+            throw std::runtime_error("vulkan: invalid mHC coefficient dimensions or epsilon");
+        if (!rows) return;
+        const size_t mix = size_mul(hc + 2, hc), n = size_mul(rows, hc), nc = size_mul(n, hc), xn = size_mul(rows, size_mul(hc, dim));
+        if (floats_from(pre) < n || floats_from(post) < n || floats_from(comb) < nc || floats_from(mixes) < size_mul(rows, mix) || floats_from(stream) < xn ||
+            floats_from(scale) < 3 || floats_from(base) < mix)
+            throw std::runtime_error("vulkan: mHC coefficient operand outside its allocation");
+        for (const auto& [o, on] : {std::pair<CSlice, size_t>{pre, n}, {post, n}, {comb, nc}})
+            if (overlaps(o, on, mixes, size_mul(rows, mix)) || overlaps(o, on, stream, xn) || overlaps(o, on, scale, 3) || overlaps(o, on, base, mix))
+                throw std::runtime_error("vulkan: mHC coefficient outputs overlap their inputs");
+        if (overlaps(CSlice(pre), n, post, n) || overlaps(CSlice(pre), n, comb, nc) || overlaps(CSlice(post), n, comb, nc))
+            throw std::runtime_error("vulkan: mHC coefficient outputs must be disjoint");
+        const struct { uint32_t rows, hc, dim, iters; float norm_eps, eps; } pc{u32(rows), u32(hc), u32(dim), u32(iters), norm_eps, eps};
+        dispatch(K_HC_COEFFS, {bind(pre), bind(post), bind(comb), bind(mixes), bind(stream), bind(scale), bind(base)}, &pc, sizeof(pc), u32(rows));
+    }
+
+    void hc_collapse_norm(Slice dst, CSlice stream, CSlice pre, CSlice w, size_t rows, size_t hc, size_t dim, float eps) override {
+        if (!hc || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("vulkan: invalid mHC collapse dimensions or epsilon");
+        if (!rows) return;
+        const size_t dn = size_mul(rows, dim), xn = size_mul(rows, size_mul(hc, dim)), pn = size_mul(rows, hc);
+        if (floats_from(dst) < dn || floats_from(stream) < xn || floats_from(pre) < pn || floats_from(w) < dim)
+            throw std::runtime_error("vulkan: mHC collapse operand outside its allocation");
+        if (overlaps(CSlice(dst), dn, stream, xn) || overlaps(CSlice(dst), dn, pre, pn) || overlaps(CSlice(dst), dn, w, dim))
+            throw std::runtime_error("vulkan: mHC collapse output must be disjoint from its inputs");
+        const struct { uint32_t rows, hc, dim; float eps; } pc{u32(rows), u32(hc), u32(dim), eps};
+        dispatch(K_HC_COLLAPSE_NORM, {bind(dst), bind(stream), bind(pre), bind(w)}, &pc, sizeof(pc), u32(rows));
+    }
+
+    void hc_expand(Slice dst, CSlice f, CSlice stream, CSlice post, CSlice comb, size_t rows, size_t hc, size_t dim) override {
+        if (!hc || hc > 16 || !dim) throw std::runtime_error("vulkan: invalid mHC expansion dimensions");
+        if (!rows) return;
+        const size_t n = size_mul(rows, size_mul(hc, dim)), fn = size_mul(rows, dim), pn = size_mul(rows, hc), cn = size_mul(pn, hc);
+        if (floats_from(dst) < n || floats_from(f) < fn || floats_from(stream) < n || floats_from(post) < pn || floats_from(comb) < cn)
+            throw std::runtime_error("vulkan: mHC expansion operand outside its allocation");
+        const bool in_place = dst.buffer == stream.buffer && dst.offset == stream.offset;
+        if ((!in_place && overlaps(CSlice(dst), n, stream, n)) || overlaps(CSlice(dst), n, f, fn) || overlaps(CSlice(dst), n, post, pn) || overlaps(CSlice(dst), n, comb, cn))
+            throw std::runtime_error("vulkan: mHC expansion output must be disjoint or exactly the stream");
+        const size_t lanes = size_mul(rows, dim);
+        const struct { uint32_t rows, hc, dim, n; } pc{u32(rows), u32(hc), u32(dim), u32(lanes)};
+        dispatch(K_HC_EXPAND, {bind(dst), bind(f), bind(stream), bind(post), bind(comb)}, &pc, sizeof(pc), groups(lanes, 256));
+    }
+
+    void model_format_qdq(Slice x, size_t count, ModelFormat format) override {
+        const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
+        if (count % block) throw std::runtime_error("vulkan: a model format's values are not whole blocks");
+        if (!count) return;
+        if (floats_from(x) < count) throw std::runtime_error("vulkan: model format operand outside its allocation");
+        const size_t blocks = count / block;
+        const struct { uint32_t blocks, format; float inv_fp8, inv_fp4, fp8_floor; }
+            pc{u32(blocks), format == ModelFormat::fp8_power ? 0u : format == ModelFormat::fp4_power ? 1u : 2u, 1.0f / quant::model_formats::FP8_MAX,
+               1.0f / quant::model_formats::FP4_MAX, 1e-4f};
+        dispatch(K_MODEL_FORMAT_QDQ, {bind(x)}, &pc, sizeof(pc), groups(blocks, 64));
+    }
+
+    // topk_rows and candidate_blocks are one kernel, a row a workgroup (shaders/topk_rows.comp).
+    void topk_rows(Slice ids, CSlice scores, CSlice lens, size_t rows, size_t n, size_t k, uint32_t offset) override {
+        if (k > n || n >= UINT32_MAX || size_t(offset) + n >= UINT32_MAX) throw std::runtime_error("vulkan: invalid top-k rows dimensions");
+        if (!rows || !k) return;
+        select_rows_of(ids, scores, lens, rows, n, k, k, offset, 0, 1, n);
+    }
+
+    void candidate_blocks(Slice blocks, CSlice scores, CSlice lens, size_t rows, size_t n, size_t block_size, size_t k) override {
+        if (!block_size || !n || n >= UINT32_MAX) throw std::runtime_error("vulkan: invalid candidate block dimensions");
+        if (!rows || !k) return;
+        const size_t items = (n + block_size - 1) / block_size;
+        select_rows_of(blocks, scores, lens, rows, n, k, std::min(k, items), 0, 1, block_size, items);
+    }
+
+    void select_rows_of(Slice ids, CSlice scores, CSlice lens, size_t rows, size_t n, size_t stride, size_t picks, uint32_t offset, uint32_t mode,
+                        size_t block_size, size_t items) {
+        const size_t sn = size_mul(rows, n), idn = size_mul(rows, stride);
+        if (floats_from(ids) < idn || floats_from(scores) < sn || floats_from(lens) < rows) throw std::runtime_error("vulkan: selection operand outside its allocation");
+        if (overlaps(CSlice(ids), idn, scores, sn) || overlaps(CSlice(ids), idn, lens, rows)) throw std::runtime_error("vulkan: selection output must be disjoint from its inputs");
+        const struct { uint32_t rows, n, stride, picks, offset, mode, block_size, items; }
+            pc{u32(rows), u32(n), u32(stride), u32(picks), offset, mode, u32(block_size), u32(items)};
+        dispatch(K_TOPK_ROWS, {bind(ids), bind(scores), bind(lens)}, &pc, sizeof(pc), u32(rows));
+    }
+
+    void compress_pool(Slice out, CSlice kv, CSlice score, CSlice w, size_t groups_count, size_t ratio, size_t dim, float eps) override {
+        if (!ratio || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("vulkan: invalid compressor pooling dimensions or epsilon");
+        if (!groups_count) return;
+        const size_t on = size_mul(groups_count, dim), in = size_mul(size_mul(groups_count, ratio), dim);
+        if (floats_from(out) < on || floats_from(kv) < in || floats_from(score) < in || floats_from(w) < dim)
+            throw std::runtime_error("vulkan: compressor pooling operand outside its allocation");
+        if (overlaps(CSlice(out), on, kv, in) || overlaps(CSlice(out), on, score, in) || overlaps(CSlice(out), on, w, dim))
+            throw std::runtime_error("vulkan: compressor pooling output must be disjoint from its inputs");
+        const struct { uint32_t groups, ratio, dim; float eps; } pc{u32(groups_count), u32(ratio), u32(dim), eps};
+        dispatch(K_COMPRESS_POOL, {bind(out), bind(kv), bind(score), bind(w)}, &pc, sizeof(pc), u32(groups_count));
+    }
+
+    void sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows, size_t k,
+                               float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k) override;
+    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, size_t n,
+                        CSlice blocks, size_t block_k, size_t block_size) override;
+    void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override;
+
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.
     // check_state_views has checked the slots against the storage; the slots' floats must be addressable in 32 bits.
     struct StateTable {
@@ -1533,12 +1626,11 @@ public:
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
                            CSlice cos, CSlice sin, const uint32_t* pos, const RopeForm& form, RopeStreams streams = {}) override {
-        form.plain_only("vulkan");
-        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim || form.offset > head_dim - rope_dim)
             throw std::runtime_error("vulkan: invalid partial rope dimensions");
         const size_t half = rope_dim / 2;
-        // The plain path is one stream with a norm; several streams, or no norm, take the streams build (shaders/norm_rope_partial.comp).
-        const bool gathered = streams.count != 1 || !w.buffer;
+        // The plain path is one stream with a norm; several streams, no norm or another form take the streams build (shaders/norm_rope_partial.comp).
+        const bool gathered = streams.count != 1 || !w.buffer || !form.plain();
         if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("vulkan: invalid rope streams");
         if (rows && !pos) throw std::runtime_error("vulkan: rope without positions");
         std::vector<uint32_t> of;
@@ -1560,11 +1652,12 @@ public:
         for (size_t r = 0; r < npos; ++r)
             if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
         if (gathered) {
-            struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; uint32_t count, norm; }
-                pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps, u32(streams.count), w.buffer ? 1u : 0u};
-            dispatch(K_NORM_ROPE_PARTIAL_STREAMS,
+            struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; uint32_t count, norm, adjacent, offset, inverse; }
+                pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps, u32(streams.count), w.buffer ? 1u : 0u,
+                   form.adjacent ? 1u : 0u, u32(form.offset), form.inverse ? 1u : 0u};
+            dispatch(form.plain() ? K_NORM_ROPE_PARTIAL_STREAMS : K_NORM_ROPE_PARTIAL_FORM,
                      {bind(dst), bind(src), w.buffer ? bind(w) : bind(src), bind(cos), bind(sin), args(pos, npos * sizeof(uint32_t)), args(of.data(), half * sizeof(uint32_t))},
-                     &pc, sizeof(pc), u32(size_mul(rows, heads)));
+                     &pc, form.plain() ? 8 * sizeof(uint32_t) : sizeof(pc), u32(size_mul(rows, heads)));
             return;
         }
         struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; }
@@ -1682,6 +1775,7 @@ public:
                       uint32_t per = 0, size_t entries = 1, VkDescriptorBufferInfo ids = {},
                       uint32_t order0 = 0, VkDescriptorBufferInfo tab = {}, size_t routed = 0);
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) override;
+    void route_sqrt_softplus(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights);
     template <typename Fn>
     void expert_runs(uint32_t type, size_t nrows, RowRuns runs, const Fn& each);
     static CSlice at_float(CSlice s, size_t floats);
@@ -1775,6 +1869,14 @@ public:
         VulkanKVStorage* storage = nullptr;
     };
     ViewTable view_table(size_t layer, const std::vector<Placed>& placed, bool writing);
+    // The view table, auxiliary plane and pooled-row shape of a call over a layer's pooled rows (sparse_attention_sink, indexer_scores, pool_write).
+    struct PooledPlane {
+        ViewTable table;
+        VkDescriptorBufferInfo aux{};
+        uint32_t tokens = 0, width = 0;
+        PlaneShape plane{};
+    };
+    PooledPlane pooled_plane(size_t layer, const KVView* views, size_t n_views, size_t dim, bool writing, const char* op);
     // The tiled prompt attention over the wide views, split over history at depth (shaders/attention_tile.comp).
     void wide_attention(CSlice Q, size_t layer, const std::vector<Placed>& views, Slice out, int n_head, int n_head_kv, int head_dim,
                         VkDescriptorBufferInfo xq, bool quant, uint32_t major, size_t rows);

@@ -1,0 +1,89 @@
+#version 450
+// One lane a block: DeepSeek-V4.1's storage formats quantized and dequantized in place as quant/model_formats.hpp does, so the CPU and the device store the same values.
+// The block's quotients by its scale are correctly rounded by an integer division, codes come from exact comparisons, and a value is one multiply of code and scale, which needs subnormals kept.
+#define LLMX_PRESERVE_F32
+#include "float_controls.glsl"
+layout(local_size_x = 64) in;
+// Format 0 is fp8_power, 1 fp4_power and 2 fp4_e4m3; the inverse maxima and the FP8 floor come from the host as the CPU rounds them.
+layout(push_constant) uniform P { uint blocks; uint format; float inv_fp8; float inv_fp4; float fp8_floor; } p;
+layout(set = 0, binding = 0) buffer X { float x[]; };
+const float FP8_MAX = 448.0, FP4_MAX = 6.0;
+// The significand of a nonzero finite magnitude as an integer in [2^23, 2^24) and its exponent, so a = m * 2^e.
+void split(float a, out uint m, out int e) {
+    uint u = floatBitsToUint(a);
+    uint field = u >> 23;
+    m = u & 0x7FFFFFu;
+    if (field != 0u) { m |= 0x800000u; e = int(field) - 150; return; }
+    int lead = findMSB(m);
+    m <<= uint(23 - lead);
+    e = -149 - (23 - lead);
+}
+// a / b correctly rounded to nearest even for finite a and b > 0 whose quotient is normal; a quotient below the normal range keeps only its sign and smallness, which no code reads.
+float div_rn(float a, float b) {
+    float mag = abs(a);
+    if (mag == 0.0) return a;
+    uint ma, mb;
+    int ea, eb;
+    split(mag, ma, ea);
+    split(b, mb, eb);
+    int e = ea - eb;
+    if (ma < mb) { ma <<= 1u; e -= 1; }
+    // 25 quotient bits, the leading one first, then the remainder as the sticky bit.
+    uint q = 0u, rem = ma;
+    for (int i = 0; i < 25; ++i) {
+        q <<= 1u;
+        if (rem >= mb) { rem -= mb; q |= 1u; }
+        rem <<= 1u;
+    }
+    uint kept = q >> 1u;
+    if ((q & 1u) != 0u && (rem != 0u || (kept & 1u) != 0u)) kept += 1u;
+    float result = ldexp(float(kept), e - 23);
+    return a < 0.0 ? -result : result;
+}
+int ceil_log2(float v) {
+    uint u = floatBitsToUint(v);
+    return int((u >> 23) & 0xFFu) - 127 + int((u & 0x7FFFFFu) != 0u);
+}
+float pow2(int e) { return uintBitsToFloat(uint(e + 127) << 23); }
+float e4m3_value(uint c) {
+    uint e = (c >> 3) & 15u, m = c & 7u;
+    float v = e != 0u ? ldexp(float(8u + m), int(e) - 10) : ldexp(float(m), -9);
+    return (c & 0x80u) != 0u ? -v : v;
+}
+uint e4m3_code(float v) {
+    uint sign = (floatBitsToUint(v) >> 31) != 0u ? 0x80u : 0u;
+    float a = abs(v);
+    if (a >= 464.0) return sign | 0x7Eu;
+    if (a < 0.015625) return sign | uint(roundEven(a * 512.0));
+    int e;
+    frexp(a, e);
+    uint t = uint(roundEven(ldexp(a, 4 - e)));
+    return sign | ((uint(e + 6) << 3) + (t - 8u));
+}
+float e2m1_value(uint c) {
+    const float magnitudes[8] = float[8](0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0);
+    float v = magnitudes[c & 7u];
+    return (c & 8u) != 0u ? -v : v;
+}
+uint e2m1_code(float v) {
+    float a = abs(v);
+    uint m = uint(a > 0.25) + uint(a >= 0.75) + uint(a > 1.25) + uint(a >= 1.75) + uint(a > 2.5) + uint(a >= 3.5) + uint(a > 5.0);
+    return ((floatBitsToUint(v) >> 31) != 0u ? 8u : 0u) | m;
+}
+float clamp_to(float v, float limit) { return v < -limit ? -limit : (v > limit ? limit : v); }
+void main() {
+    uint blk = gl_GlobalInvocationID.x;
+    if (blk >= p.blocks) return;
+    uint n = p.format == 2u ? 16u : 32u, base = blk * n;
+    float amax = 0.0;
+    for (uint i = 0u; i < n; ++i) amax = max(amax, abs(x[base + i]));
+    precise float s;
+    if (p.format == 0u) s = pow2(ceil_log2(max(amax, p.fp8_floor) * p.inv_fp8));
+    else if (p.format == 1u) s = pow2(ceil_log2(max(amax, 6.0 * uintBitsToFloat(0x00800000u)) * p.inv_fp4));
+    else s = e4m3_value(e4m3_code(div_rn(max(amax, 6.0 * uintBitsToFloat(0x3B000000u)), FP4_MAX)));
+    for (uint i = 0u; i < n; ++i) {
+        float q = div_rn(x[base + i], s);
+        precise float v = p.format == 0u ? e4m3_value(e4m3_code(clamp_to(q, FP8_MAX))) * s : e2m1_value(e2m1_code(clamp_to(q, FP4_MAX))) * s;
+        x[base + i] = v;
+    }
+}

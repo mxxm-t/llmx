@@ -980,6 +980,7 @@ public:
     }
 
     // The k best of each row's n scores by score, then lower index, as U32 positions in ascending order plus offset; a pick at or past the row's U32 length is UINT32_MAX.
+    // Scores here and in candidate_blocks are numbers or -inf: the CPU refuses a NaN, and a device kernel, which cannot see one, leaves its picks over a NaN unspecified.
     virtual void topk_rows(Slice /*ids*/, CSlice /*scores*/, CSlice /*lens*/, size_t /*rows*/, size_t /*n*/, size_t /*k*/, uint32_t /*offset*/) {
         lacks(Op::topk_rows);
     }

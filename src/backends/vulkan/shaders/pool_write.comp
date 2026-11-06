@@ -1,0 +1,14 @@
+#version 450
+// One lane a float: view `view`'s groups first to first + count of `width` floats each, copied from rows at `src` into their pooled rows of the auxiliary blocks.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint view; uint first; uint count; uint width; uint src; uint tokens; uint bt; uint block_floats; uint rows_floats; } p;
+layout(set = 0, binding = 0) writeonly buffer A { float aux[]; };
+layout(set = 0, binding = 1) readonly buffer R { float rows[]; };
+layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= p.count * p.width) return;
+    uint g = i / p.width, c = i - g * p.width;
+    aux[pooled_row(p.view, p.first + g, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + c] = rows[p.src + i];
+}

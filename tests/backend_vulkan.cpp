@@ -30,6 +30,7 @@
 #include "row_classes.hpp"
 #include "moe_step.hpp"
 #include "qwen35_checks.hpp"
+#include "deepseek4_checks.hpp"
 
 namespace {
 using q35::require;
@@ -3618,9 +3619,9 @@ size_t check_half_weights(backend::Backend& vk) {
 
 size_t check_refusals(backend::Backend& vk) {
     require(!vk.implements(backend::Op::mixed_experts), "Vulkan advertises unsupported mixed routed projections");
-    // DeepSeek-V4.1's ops and modes, which a model needing them is refused for at load.
+    // DeepSeek-V4.1's ops and modes, which ds4::check_ops holds to the CPU.
     for (backend::Op op : {backend::Op::sqrt_softplus_routing, backend::Op::silu_mul_clamp, backend::Op::rope_forms, backend::Op::hc_coeffs, backend::Op::pool_write})
-        require(!vk.implements(op), (std::string("Vulkan advertises ") + backend::op_name(op)).c_str());
+        require(vk.implements(op), (std::string("Vulkan lacks ") + backend::op_name(op)).c_str());
     const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
     const bool integer_dot = prof.prefer_integer_dot;
     const uint32_t q8 = quant::GGML_TYPE_Q8_0, f32 = quant::GGML_TYPE_F32, i16 = 25;   // Valid storage without an execution kernel.
@@ -5273,12 +5274,13 @@ std::vector<uint32_t> named_types(const backend::Backend& vk, const std::string&
 }
 
 int main(int argc, char** argv) {
-    // --isa DIR runs every check and writes the kernels' representations; --decode-columns [TYPES] and --decode-rates [TYPES] run only those cells, --routed only the routed tile's report and narrow checks.
+    // --isa DIR runs every check and writes the kernels' representations; --decode-columns [TYPES] and --decode-rates [TYPES] run only those cells, --routed only the routed tile's report and narrow checks, --deepseek4 only DeepSeek-V4.1's ops.
     const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
     const std::string isa_dir = argc == 3 && mode == "--isa" ? arg : "";
     const bool columns_only = mode == "--decode-columns", rates_only = mode == "--decode-rates", routed_only = mode == "--routed" && argc == 2;
-    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only)) {
-        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed]\n";
+    const bool deepseek_only = mode == "--deepseek4" && argc == 2;
+    if (argc > 3 || (argc >= 2 && isa_dir.empty() && !columns_only && !rates_only && !routed_only && !deepseek_only)) {
+        std::cerr << "usage: llmx-backend-vulkan-test [--isa DIR | --decode-columns [TYPES] | --decode-rates [TYPES] | --routed | --deepseek4]\n";
         return 2;
     }
     backend::BackendPtr b;
@@ -5291,6 +5293,11 @@ int main(int argc, char** argv) {
     try {
         if (rates_only) {
             report_decode_rates(named_types(*b, arg));
+            return 0;
+        }
+        if (deepseek_only) {
+            Pair p(*b);
+            std::cout << "backend-vulkan: " << ds4::check_ops(p) << " deepseek4 op values against the CPU\n";
             return 0;
         }
         if (routed_only) {
@@ -5485,7 +5492,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_int8_twin_width() << " int8 outputs unchanged when the input row width changes\n";
         std::cout << "backend-vulkan: " << check_write_sets() << " kernel bindings written or read as their shaders declare them\n";
         std::cout << "backend-vulkan: " << check_twin_table() << " products from kept twins equal to products from fresh copies\n";
-        const size_t values = check_kernels(*b) + check_qwen35(*b) + vision::check_ops(*b);
+        const size_t values = check_kernels(*b) + check_qwen35(*b) + vision::check_ops(*b) + [&] { Pair p(*b); return ds4::check_ops(p); }();
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";

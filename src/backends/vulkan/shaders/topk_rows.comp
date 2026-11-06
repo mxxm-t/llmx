@@ -1,0 +1,90 @@
+#version 450
+// One workgroup a row: the `picks` best of `items` scores by score, then lower index, written by ascending index, mode 0 being topk_rows and mode 1 candidate_blocks (docs/src/backends-vulkan.md).
+// The k-th best key is found bit by bit from the top over counts of the row, so the workspace is the workgroup's at any row length.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint n; uint stride; uint picks; uint offset; uint mode; uint block_size; uint items; } p;
+layout(set = 0, binding = 0) writeonly buffer O { uint ids[]; };
+layout(set = 0, binding = 1) readonly buffer S { float scores[]; };
+layout(set = 0, binding = 2) readonly buffer L { uint lens[]; };
+const uint NONE = 0xffffffffu;
+shared uint red[256];
+shared uint scan[256];
+uint row, len, pinned;
+float score_of(uint i) {
+    if (p.mode == 0u) return scores[row * p.n + i];
+    if (i == pinned) return 1.0 / 0.0;
+    float best = -1.0 / 0.0;
+    uint end = min(p.n, (i + 1u) * p.block_size);
+    for (uint j = i * p.block_size; j < end; ++j) best = max(best, scores[row * p.n + j]);
+    return best;
+}
+// An order-preserving key, both zeros equal.
+uint key_of(float s) {
+    uint u = floatBitsToUint(s == 0.0 ? 0.0 : s);
+    return (u >> 31) != 0u ? ~u : u | 0x80000000u;
+}
+uint count_at_least(uint t, bool strict) {
+    uint lid = gl_LocalInvocationID.x, c = 0u;
+    for (uint i = lid; i < p.items; i += 256u) {
+        uint key = key_of(score_of(i));
+        c += uint(strict ? key > t : key >= t);
+    }
+    red[lid] = c;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    uint total = red[0];
+    barrier();
+    return total;
+}
+// The inclusive prefix of v over the workgroup's lanes, and its total.
+uint prefix(uint v, out uint total) {
+    uint lid = gl_LocalInvocationID.x;
+    scan[lid] = v;
+    barrier();
+    for (uint k = 1u; k < 256u; k <<= 1u) {
+        uint add = lid >= k ? scan[lid - k] : 0u;
+        barrier();
+        scan[lid] += add;
+        barrier();
+    }
+    uint s = scan[lid];
+    total = scan[255];
+    barrier();
+    return s;
+}
+void main() {
+    row = gl_WorkGroupID.x;
+    len = lens[row];
+    pinned = p.mode == 1u && len != 0u && (len - 1u) / p.block_size < p.items ? (len - 1u) / p.block_size : NONE;
+    uint lid = gl_LocalInvocationID.x;
+    uint threshold = 0u;
+    if (p.picks != 0u)
+        for (int bit = 31; bit >= 0; --bit) {
+            uint candidate = threshold | (1u << uint(bit));
+            if (count_at_least(candidate, false) >= p.picks) threshold = candidate;
+        }
+    uint above = p.picks != 0u ? count_at_least(threshold, true) : 0u;
+    uint need = p.picks - above, ties = 0u, kept = 0u;
+    for (uint first = 0u; first < p.items; first += 256u) {
+        uint i = first + lid;
+        uint key = 0u;
+        float s = -1.0 / 0.0;
+        if (i < p.items) {
+            s = score_of(i);
+            key = key_of(s);
+        }
+        bool live = i < p.items && p.picks != 0u;
+        uint tie = uint(live && key == threshold), tie_total, written_total;
+        uint tie_before = ties + prefix(tie, tie_total) - tie;
+        bool picked = live && (key > threshold || (tie != 0u && tie_before < need));
+        bool written = picked && (p.mode == 0u || s > -1.0 / 0.0);
+        uint at = prefix(uint(written), written_total);
+        if (written) ids[row * p.stride + kept + at - 1u] = p.mode == 0u ? (i < len ? i + p.offset : NONE) : i;
+        ties += tie_total;
+        kept += written_total;
+    }
+    for (uint i = kept + lid; i < p.stride; i += 256u) ids[row * p.stride + i] = NONE;
+}

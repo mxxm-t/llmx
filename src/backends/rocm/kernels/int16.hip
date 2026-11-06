@@ -883,6 +883,28 @@ template <> struct KRaw<rq::IQ4_NL> {
         dmin = 0.0f;
     }
 };
+// MXFP4: a 17-byte block at any byte, its E8M0 scale and the lane's eight nibble bytes as byte loads; each nibble's doubled E2M1 value as a signed byte under half the scale.
+template <> struct KRaw<rq::MXFP4> {
+    static constexpr int offset = 0, halves = 1;
+    using Lane = QuarterLane<rq::MXFP4>;
+    unsigned char e, lo[8];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        e = b[0];
+#pragma unroll
+        for (int i = 0; i < 8; ++i) lo[i] = b[1 + 8 * (part & 1) + i];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            v[i] = 0;
+#pragma unroll
+            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)quant::FP4_VALUES[(lo[4 * i + j] >> sh) & 0xF] & 0xffu) << (8 * j);
+        }
+        ds = rq::e8m0_half(e);
+        dmin = 0.0f;
+    }
+};
 // The quarter form: four lanes a 32-value block, lane t its values 8t to 8t + 7 through the type's KRaw, the tile's loads and arithmetic.
 // IQ4_NL's rows take it alone; a Q5_0 or Q5_1 row takes it or one lane a block by row_form (rocm_backend.cpp), whichever its lane units fill the cluster's steps fuller with.
 template <typename KT> struct QuarterLane {
@@ -896,6 +918,7 @@ template <typename KT> struct QuarterLane {
 // Whether a type's decoded bytes are signed, which its 16-bit words then extend.
 template <typename KT> struct KSigned { static constexpr bool value = false; };
 template <> struct KSigned<rq::IQ4_NL> { static constexpr bool value = true; };
+template <> struct KSigned<rq::MXFP4> { static constexpr bool value = true; };
 // The eight byte values as the twin's words: two words of four bytes, or four of two 16-bit values.
 template <typename QT> struct KWords { static constexpr int n = sizeof(QT) == 2 ? 4 : 2; };
 template <typename QT, bool S>
@@ -1366,6 +1389,7 @@ LLMX_KTYPE(q6_k, rq::Q6_K)
 LLMX_KTYPE(q5_0, rq::Q5_0)
 LLMX_KTYPE(q5_1, rq::Q5_1)
 LLMX_KTYPE(iq4_nl, rq::IQ4_NL)
+LLMX_KTYPE(mxfp4, rq::MXFP4)
 // The quarter form's row, routed and grouped builds of Q5_0 and Q5_1, in the order LLMX_KTYPE gives those builds (rocm_backend.cpp, quarter_twins).
 #define LLMX_KQUARTER(t, KT)                                                                                                       \
     LLMX_KROWS(llmx_##t##_quarter_rows16_1, KT, 1, short, 1, QuarterLane<KT>)                                                      \

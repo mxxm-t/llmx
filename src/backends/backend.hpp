@@ -273,10 +273,6 @@ struct RopeForm {
     size_t offset = 0;
     bool inverse = false;
     bool plain() const { return !adjacent && !offset && !inverse; }
-    // A backend with the plain rope alone refuses the other forms by name.
-    void plain_only(const char* backend) const {
-        if (!plain()) throw std::runtime_error(std::string(backend) + ": norm_rope_partial has no adjacent, offset or inverse form");
-    }
 };
 
 // Several positions a row for a rope: row r's stream k is pos[r * count + k], and frequency j turns by stream of[j]'s (docs/VISION.md, section 4).
@@ -752,10 +748,6 @@ public:
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2); a limit of 0 clamps nothing.
     // `runs`, when given, group dst's rows of n / rows floats, `rows` being the last run's end, by prompt as matmul's runs do, for the matmul that reads dst next, as for rms_norm_rows.
     virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) = 0;
-    // A backend without silu_mul's clamp refuses a limit by name.
-    static void no_clamp(const char* backend, float limit) {
-        if (limit != 0.0f) throw std::runtime_error(std::string(backend) + ": silu_mul has no clamp");
-    }
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;

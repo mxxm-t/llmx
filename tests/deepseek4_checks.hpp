@@ -6,6 +6,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -57,7 +58,14 @@ size_t same(const std::vector<float>& a, const std::vector<float>& b, const std:
     return a.size();
 }
 
-size_t check_mhc(Pair& p) {
+// The ops a device computes in the CPU's order, which it must then meet bit for bit; any other is held to its bound.
+using Exact = std::set<std::string>;
+size_t meet(const Exact& exact, const char* op, const std::vector<float>& a, const std::vector<float>& b, double rel, const std::string& what, bool infinities = false) {
+    if (exact.count(op)) return same(a, b, std::string(op) + " differs from the CPU's bits");
+    return infinities ? near(a, b, rel, what) : close(a, b, rel, what.c_str());
+}
+
+size_t check_mhc(Pair& p, const Exact& exact) {
     size_t values = 0;
     for (size_t dim : {40, 256}) {
         const size_t rows = 5, hc = 4, mix = (hc + 2) * hc;
@@ -77,12 +85,12 @@ size_t check_mhc(Pair& p) {
         p.cpu.hc_collapse_norm(u.cs(), xi.cs(), pi.cs(), wi.cs(), rows, hc, dim, 1e-6f);
         p.dev.hc_collapse_norm(u.vs(), xi.vs(), pi.vs(), wi.vs(), rows, hc, dim, 1e-6f);
         auto ur = p.results(u);
-        values += close(ur.first, ur.second, 1e-5, "hc_collapse_norm differs beyond 1e-5");
+        values += meet(exact, "hc_collapse_norm", ur.first, ur.second, 1e-5, "hc_collapse_norm differs beyond 1e-5");
         Pair::Out e = p.out(rows * hc * dim);
         p.cpu.hc_expand(e.cs(), fi.cs(), xi.cs(), qi.cs(), ci.cs(), rows, hc, dim);
         p.dev.hc_expand(e.vs(), fi.vs(), xi.vs(), qi.vs(), ci.vs(), rows, hc, dim);
         auto er = p.results(e);
-        values += close(er.first, er.second, 1e-6, "hc_expand differs beyond 1e-6");
+        values += meet(exact, "hc_expand", er.first, er.second, 1e-6, "hc_expand differs beyond 1e-6");
         // In place over the stream gives the same bits.
         Pair::Out x2 = p.out(rows * hc * dim);
         const std::vector<float> x = uniform(rows * hc * dim, 2, -1.5f, 1.5f);
@@ -131,7 +139,7 @@ size_t check_selections(Pair& p) {
     for (size_t n : {7, 300, 5000}) {
         const size_t rows = 4;
         std::vector<float> s = uniform(rows * n, 11 + uint32_t(n), -3.0f, 3.0f);
-        // Five levels in every other row, so ties fall at every cut; -inf and both zeros among them.
+        // Five levels in every other row, so ties fall at every cut; -inf and both zeros among them, and no NaN, which the selections refuse (backend.hpp).
         for (size_t i = 0; i < s.size(); ++i) {
             if ((i / n) % 2) s[i] = float(int(s[i] * 1.5f));
             if (i % 17 == 3) s[i] = -inf;
@@ -196,7 +204,7 @@ size_t check_pool_and_routing(Pair& p) {
     return values;
 }
 
-size_t check_rope_forms(Pair& p) {
+size_t check_rope_forms(Pair& p, const Exact& exact) {
     size_t values = 0;
     const size_t rows = 3, heads = 2, head_dim = 96, rope = 32, half = rope / 2, positions = 40;
     const std::vector<float> x = uniform(rows * heads * head_dim, 51), w = uniform(head_dim, 52, 0.5f, 1.5f);
@@ -217,14 +225,15 @@ size_t check_rope_forms(Pair& p) {
                     p.cpu.norm_rope_partial(d.cs(), xi.cs(), rows, heads * head_dim, head_dim, heads, head_dim, rope, norm ? wi.cs() : backend::CSlice{}, 1e-6f, ci.cs(), si.cs(), pos, form);
                     p.dev.norm_rope_partial(d.vs(), xi.vs(), rows, heads * head_dim, head_dim, heads, head_dim, rope, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), si.vs(), pos, form);
                     auto r = p.results(d);
-                    values += close(r.first, r.second, 1e-5, "norm_rope_partial's form differs beyond 1e-5");
+                    // The plain form is norm_rope_partial's own, which the exact list names apart from the other forms.
+                    values += meet(exact, form.plain() ? "norm_rope_partial" : "rope_forms", r.first, r.second, 1e-5, "norm_rope_partial's form differs beyond 1e-5");
                 }
     return values;
 }
 
 // Pooled rows as a source layer keeps them, groups of 4 positions of 24-float entries and 32-float index keys, on both backends from one pool_write.
 // Sequence A holds 300 positions on its blocks in reverse order, so its groups cross block edges; sequence B holds 16 positions on the block after them.
-size_t check_pooled(Pair& p) {
+size_t check_pooled(Pair& p, const Exact& exact) {
     const size_t ratio = 4, entry = 24, key = 32, width = entry + key;
     auto cs = p.cpu.kv_alloc(1, 0, 0, 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
     auto vs = p.dev.kv_alloc(1, 0, 0, 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
@@ -258,7 +267,7 @@ size_t check_pooled(Pair& p) {
             p.cpu.indexer_scores(o.cs(), qi.cs(), 0, cv.data(), cv.size(), wi.cs(), 0.375f, heads, key, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
             p.dev.indexer_scores(o.vs(), qi.vs(), 0, dv.data(), dv.size(), wi.vs(), 0.375f, heads, key, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
             auto r = p.results(o);
-            values += near(r.first, r.second, 1e-5, std::string("indexer_scores differs beyond 1e-5") + (blocks ? " over candidate blocks" : ""));
+            values += meet(exact, "indexer_scores", r.first, r.second, 1e-5, std::string("indexer_scores differs beyond 1e-5") + (blocks ? " over candidate blocks" : ""), true);
         }
     }
     {
@@ -292,19 +301,17 @@ size_t check_pooled(Pair& p) {
     return values;
 }
 
-// Every DeepSeek-V4.1 op against the CPU; a device that refuses the format kernel by name, for want of the float controls it declares, is reported and passed over.
-size_t check_ops(Pair& p) {
-    size_t values = check_mhc(p);
-    try {
+// Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
+size_t check_ops(Pair& p, const Exact& exact = {}) {
+    size_t values = check_mhc(p, exact);
+    if (p.dev.implements(backend::Op::model_format_qdq))
         values += check_formats(p);
-    } catch (const std::runtime_error& e) {
-        if (std::string(e.what()).find("model_format_qdq") == std::string::npos) throw;
-        std::printf("deepseek4: model formats skipped: %s\n", e.what());
-    }
+    else
+        std::printf("deepseek4: model formats skipped: the device does not implement model_format_qdq\n");
     values += check_selections(p);
     values += check_pool_and_routing(p);
-    values += check_rope_forms(p);
-    values += check_pooled(p);
+    values += check_rope_forms(p, exact);
+    values += check_pooled(p, exact);
     return values;
 }
 } // namespace ds4

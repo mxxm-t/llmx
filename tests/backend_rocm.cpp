@@ -6,6 +6,7 @@
 #include "backends/rocm/rocm_runtime.hpp"
 #include "core/fp16.hpp"
 #include "core/host_memory.hpp"
+#include "deepseek4_checks.hpp"
 #include "model/kv_cache.hpp"
 #include "quant/types.hpp"
 #include "group_sums.hpp"
@@ -220,8 +221,8 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
     // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one; the vision tower's layer norm is one it lacks.
     require(!g.implements(Op::layer_norm), "the backend does not report the layer norm it lacks");
-    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs})
-        require(!g.implements(op), std::string("the backend does not report the ") + backend::op_name(op) + " it lacks");
+    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs, Op::pool_write, Op::model_format_qdq})
+        require(g.implements(op), std::string("the backend reports the ") + backend::op_name(op) + " it implements");
     require(throws([&] { g.layer_norm_rows({y.get(), 0}, {x.get(), 0}, {x.get(), 0}, {x.get(), 0}, 1, 4, 4, 1e-6f); }), "an op the backend lacks throws");
 }
 
@@ -325,6 +326,9 @@ std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows, uint32
     if (type == quant::GGML_TYPE_Q6_K) halves = {208};
     for (size_t b = 0, i = 0; b < m.size() / st.type_size; ++b)
         for (size_t h : halves) put(b * st.type_size + h, f32_to_f16(scale[i++]));
+    // MXFP4's E8M0 scale byte at 2^-10 to 2^-6, as the raw-block fixtures' ordinary blocks take it.
+    if (type == quant::GGML_TYPE_MXFP4)
+        for (size_t b = 0; b < m.size() / st.type_size; ++b) m[b * st.type_size] = uint8_t(118 + m[b * st.type_size] % 5);
     if (type == quant::GGML_TYPE_BF16) {
         const std::vector<float> v = row_classes::values(nin * rows, seed + 9);
         for (size_t i = 0; i < v.size(); ++i) {
@@ -378,7 +382,7 @@ void exact_close(const std::vector<float>& got, const DoubleSums& d, const std::
 // The descriptor table's types at Flash-Next's shapes: embeddings the CPU's rows bit for bit, exact products of the CPU and the device within the F32 bound of a double sum, and a row of a call the row alone.
 void types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0,
-                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
+                              quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
         require(g.supports_type(type), name + " is supported");
@@ -435,7 +439,7 @@ void types(Backend& g, Backend& c) {
 // The widths give lanes chains of unequal length (2561, 2080), lanes without one (100), the hyper-connection maps' 10240 and F32 rows off the vector loads' alignment (2561).
 void exact_rows(Backend& g) {
     const uint32_t kinds[] = {quant::GGML_TYPE_F32,  quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
-                              quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
+                              quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     const size_t nouts[] = {1, 13, 512}, nrows[] = {2, 3, 4, 5, 7, 8, 9, 33};
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
@@ -485,9 +489,9 @@ void exact_rows(Backend& g) {
 
 void twin_rule(const float* x, float& d, int16_t* q, float L);
 
-// A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q5_1's min; Q6_K, Q5_0 and IQ4_NL have none.
+// A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q5_1's min; Q6_K, Q5_0, IQ4_NL and MXFP4 have none.
 float k_min(uint32_t type, const uint8_t* block, int sub) {
-    if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL) return 0.0f;
+    if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4) return 0.0f;
     if (type == quant::GGML_TYPE_Q5_1) return f16_to_f32(uint16_t(block[2] | (block[3] << 8)));
     const uint8_t* q = block + 4;
     const int m = sub < 4 ? q[sub + 4] & 63 : (q[sub + 4] >> 4) | ((q[sub] >> 6) << 4);
@@ -534,10 +538,10 @@ std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
     return out;
 }
 
-// The twin products of the K-quants, Q5_0, Q5_1 and IQ4_NL at Flash-Next's shapes in the F16 and int8 classes, extents on both sides of each crossover, each output against a double sum over the twin.
+// The twin products of the K-quants, Q5_0, Q5_1, IQ4_NL and MXFP4 at Flash-Next's shapes in the F16 and int8 classes, extents on both sides of each crossover, each output against a double sum over the twin.
 // The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class; the cluster widths (cluster_shapes) take the generated rows alone.
 void twin_types(Backend& g, Backend& c) {
-    const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL};
+    const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     const size_t cols[] = {1, 2, 3, 5, 8, 9, 16, 17, 33}, extents[] = {2, 33, 64, 65, 320};
     for (uint32_t type : kinds) {
         std::string tname = quant::storage_type(type)->name;
@@ -654,7 +658,7 @@ void exact_rates(Backend& g) {
 void rates(Backend& g) {
     struct Shape { const char* name; size_t nin, nout; };
     const Shape shapes[] = {{"flash attn_qkv", 2560, 10240}, {"flash ssm_out", 6144, 2560}, {"flash hc_down", 10240, 320}, {"flash shexp_gate", 2560, 640}};
-    const uint32_t kinds[] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL};
+    const uint32_t kinds[] = {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     const size_t widths[] = {1, 16, 64, 320};
     std::cout << "backend-rocm: rates; type, dtype, shape (in x out), rows (320 a prompt): us a call, TMAC/s, kernels\n";
     for (const Shape& s : shapes) {
@@ -1583,13 +1587,15 @@ void moe_step_bits(Backend& g) {
                         require(same(read(g, *o[0].sact, ff), read(g, *o[a].sact, ff)), "the step's shared act is the base's, " + of);
                         require(same(read(g, *o[0].y, nin), read(g, *o[a].y, nin)), "the step's output is the base's, " + of);
                     }
-                    // A step the fused kernels do not compute, a clamped SiLU or another score, reaches the base's ops, which refuse it by name.
+                    // A step the fused kernels do not compute, a clamped SiLU or another score, runs the base's ops, which ROCm implements, and launches no fused kernel.
                     MoeStep clamped = st[1], scored = st[1];
                     clamped.limit = 7.0f;
                     scored.rule = backend::RouteRule::sqrt_softplus({}, 1.0f, true);
-                    require(throws([&] { g.moe_step(clamped, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8); }), "a clamped moe_step is refused, " + at);
-                    require(throws([&] { g.moe_step(scored, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8); }), "a sqrt_softplus moe_step is refused, " + at);
                     rocm_take_launches(g);
+                    g.moe_step(clamped, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
+                    require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a clamped moe_step runs the base's ops, " + at);
+                    g.moe_step(scored, {hb.get(), 0}, {o[1].y.get(), 0}, nin, 1, {decode, 1}, Dtype::int8);
+                    require(!rocm_take_launches(g).count("llmx_moe_step_route"), "a sqrt_softplus moe_step runs the base's ops, " + at);
                 }
     }
 }
@@ -2514,20 +2520,20 @@ void routing(Backend& g, Backend& c) {
 bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert, size_t nin) {
     const bool i8 = dt == Dtype::int8, quarter = quarter_form(type, nin);
     const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 1.25) : type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K ? (i8 ? 1.25 : 2.5)
-                      : type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 ? 1.25 : type == quant::GGML_TYPE_IQ4_NL ? 0.3125
+                      : type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 ? 1.25 : type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4 ? 0.3125
                       : quarter ? (i8 ? 2.5 : 1.25) : (i8 ? 1.25 : 5.0);
     return entries >= 1 && double(entries) >= from * double(n_expert);
 }
 
-// The prompt extent from which a routed build takes the routed tile for gate and up or for the down, the backend's `TwinKernels::tile_from`: 32, but gate and up in block-int16 from 128 for the types other than Q8_0 and IQ4_NL.
+// The prompt extent from which a routed build takes the routed tile for gate and up or for the down, the backend's `TwinKernels::tile_from`: 32, but gate and up in block-int16 from 128 for the types other than Q8_0, IQ4_NL and MXFP4.
 size_t tile_from_at(uint32_t type, Dtype dt, bool down) {
-    return down || dt == Dtype::int8 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL ? 32 : 128;
+    return down || dt == Dtype::int8 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4 ? 32 : 128;
 }
 
 // Routed products at Flash-Next's expert shapes, every type and class, each entry its expert's one-column product bit for bit (docs/src/backends-rocm.md).
 void experts(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
-                              quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL};
+                              quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     const size_t n_expert = 8, k = 4;
     for (uint32_t type : kinds) {
         const std::string name = quant::storage_type(type)->name;
@@ -2629,7 +2635,7 @@ void experts_grouped(Backend& g) {
     const Case cases[] = {{300, 8, 80, false}, {16, 8, 33, true}, {16, 8, 5, false}, {64, 2, 64, true}, {300, 8, 4, false}};
     const size_t ff = 256;
     for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
-                                                                             {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560},
+                                                                             {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560},
                                                                              {quant::GGML_TYPE_Q5_0, 640}, {quant::GGML_TYPE_Q5_1, 640}}) {
         const std::string name = quant::storage_type(type)->name;
         const size_t ebytes = quant::row_bytes(type, nin, ff);
@@ -2696,7 +2702,7 @@ void routed_rates(Backend& g) {
     const size_t n_expert = 512, past = 1025, k = 10, kCounts = 8;
     const size_t counts[kCounts] = {1, 2, 4, 8, 16, 32, 64, 128};
     std::cout << "backend-rocm: routed rates; type, dtype, shape x projections, generated rows: us a call one-column, taken, ratio, build taken\n";
-    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL}) {
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4}) {
         const std::string name = quant::storage_type(type)->name;
         // Sums and the grouped builds' reach per lane form (quarter_form) and class, since each form has its own break-evens.
         double one_sum[2][2][kCounts] = {}, taken_sum[2][2][kCounts] = {};
@@ -2827,9 +2833,9 @@ bool tile_groups_cover(const std::vector<uint32_t>& ids, size_t H, size_t k, siz
 void experts_tile(Backend& g, Backend& c) {
     const size_t n_expert = 16, k = 4, ff[2] = {256, 200}, most = 2 * 128;   // twice the widest tile extent of tile_from_at
     const std::vector<std::pair<uint32_t, size_t>> kinds = {{quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
-                                                            {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}};
+                                                            {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560}};
     for (const auto& [type, nin] : kinds) {
-        const std::string name = quant::storage_type(type)->name, tname = std::string(name == "Q8_0" ? "q8_0" : name == "Q4_K" ? "q4_k" : name == "Q5_K" ? "q5_k" : name == "Q6_K" ? "q6_k" : name == "Q5_0" ? "q5_0" : name == "Q5_1" ? "q5_1" : "iq4_nl");
+        const std::string name = quant::storage_type(type)->name, tname = std::string(name == "Q8_0" ? "q8_0" : name == "Q4_K" ? "q4_k" : name == "Q5_K" ? "q5_k" : name == "Q6_K" ? "q6_k" : name == "Q5_0" ? "q5_0" : name == "Q5_1" ? "q5_1" : name == "MXFP4" ? "mxfp4" : "iq4_nl");
         const size_t nblk = nin / 32;
         std::vector<uint8_t> w[2];
         BufferPtr wb[2];
@@ -3033,7 +3039,7 @@ void sparse_grouped(Backend& g) {
 void experts_quads(Backend& g) {
     const size_t n_expert = 24, ff = 256, sizes[] = {1, 3, 4, 5, 8, 9, 12, 13, 16, 17, 33};
     const std::vector<std::pair<uint32_t, size_t>> kinds = {{quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560}, {quant::GGML_TYPE_Q6_K, 2560},
-                                                            {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}};
+                                                            {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560}};
     for (const auto& [type, nin] : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, n_expert * ff, uint32_t(nin + 3)) : typed_matrix(type, nin, n_expert * ff, uint32_t(type * 19 + nin));
@@ -3087,7 +3093,7 @@ void experts_quads(Backend& g) {
 void routed_tile_rates(Backend& g) {
     const size_t n_expert = 512, k = 10;
     std::cout << "backend-rocm: routed tile rates; type, dtype, shape x projections, prompt rows: us a call grouped rows, tile, ratio\n";
-    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL})
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4})
         for (const auto& sh : std::vector<std::array<size_t, 3>>{{2560, 640, 2}, {640, 2560, 1}, {768, 2560, 1}}) {
             const size_t nin = sh[0], ff = sh[1], nproj = sh[2], block = quant::storage_type(type)->block_size;
             if (nin % block || (nin == 768 && 640 % block == 0)) continue;
@@ -3195,6 +3201,13 @@ void qwen35(Backend& g) {
     require(ran.count("llmx_gated_delta_rule") && ran.count("llmx_gated_delta_rule_short"), "the qwen35 checks run both delta rule builds");
     values += q35::check_drafter_ops(p, rocm_profile(g).argmax_slice, typed_matrix);
     std::cout << "backend-rocm: qwen35 ops: " << values << " values against the CPU, " << runs << " device runs bit for bit across views, orders and passes; decay flush, state storage\n";
+}
+
+// DeepSeek-V4.1's ops against the CPU (deepseek4_checks.hpp), those whose kernels form each value in the CPU's order held to its bits.
+void deepseek4(Backend& g) {
+    q35::Pair p(g);
+    const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms"});
+    std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores and rope forms bit for bit\n";
 }
 
 // The fast path's kernel at the widest group on one device: a launch of llmx_group_sum a rank, each on its own stream and area with 16 blocks, two sums each the oracle's bits and no rank giving up (docs/TESTS.md).
@@ -3327,6 +3340,12 @@ int main(int argc, char** argv) {
             std::cout << (failures ? "backend-rocm qwen35: FAIL\n" : "backend-rocm qwen35: PASS\n");
             return failures ? 1 : 0;
         }
+        // `deepseek4` runs only DeepSeek-V4.1's ops against the CPU.
+        if (argc > 1 && std::string(argv[1]) == "deepseek4") {
+            deepseek4(*g);
+            std::cout << (failures ? "backend-rocm deepseek4: FAIL\n" : "backend-rocm deepseek4: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `moe` runs only the routed experts' checks, the focused test of their kernels.
         if (argc > 1 && std::string(argv[1]) == "moe") {
             routing(*g, *c);
@@ -3403,6 +3422,7 @@ int main(int argc, char** argv) {
         failure();
         collective();
         qwen35(*g);
+        deepseek4(*g);
         routing(*g, *c);
         experts(*g, *c);
         experts_add(*g);

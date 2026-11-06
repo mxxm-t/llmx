@@ -984,7 +984,6 @@ void swiglu_clamp() {
     BufferPtr ob = cpu.alloc(n * 4, backend::Memory::device);
     for (float limit : {-1.0f, nan, inf})
         refused([&] { cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit); }, "silu_mul at limit " + std::to_string(limit));
-    refused([&] { backend::Backend::no_clamp("device", 10.0f); }, "a device without silu_mul's clamp given a limit");
 }
 
 // norm_rope_partial's forms against model.py:392-406 in double: the head's RMSNorm, then pairs from the offset, adjacent as complex numbers or split in halves, turned by the angle or by minus it.
@@ -1062,8 +1061,6 @@ void rope_forms() {
     BufferPtr ob = cpu.alloc(rows * heads * head_dim * 4, backend::Memory::device);
     refused([&] { cpu.norm_rope_partial({ob.get(), 0}, {xb.get(), 0}, rows, stride, head_stride, heads, head_dim, rope_dim, {wb.get(), 0}, eps,
                                         {cb.get(), 0}, {sb.get(), 0}, pos.data(), backend::RopeForm{true, head_dim - rope_dim + 2, false}); }, "norm_rope_partial rotating past the head");
-    refused([&] { backend::RopeForm{true, 0, false}.plain_only("device"); }, "a device without the adjacent form given it");
-    refused([&] { backend::RopeForm{false, 0, true}.plain_only("device"); }, "a device without the inverse form given it");
 }
 
 // The grouped output projection against model.py:787-790 in double: out[r][g * rank + o] = sum over d of wo_a[g][o][d] x[r][g][d], one matrix read as its groups' stacks.

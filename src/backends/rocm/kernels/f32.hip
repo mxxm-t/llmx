@@ -359,13 +359,18 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
 }
 
 // dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32.
+// A limit above 0 takes silu(min(g, limit)) * clamp(u, -limit, limit) in the CPU's order, a NaN passing through both (docs/DEEPSEEK4.md, section 4.2).
 template <typename QT, int L>
-__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, QT* q, float* d, const TwinMap* m) {
+__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, QT* q, float* d, const TwinMap* m) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
     float o = 0.0f;
     if (i < n) {
-        const float g = gate[i];
-        o = g / (1.0f + expf(-g)) * up[i];
+        float g = gate[i], u = up[i];
+        if (limit > 0.0f) {
+            u = u < -limit ? -limit : u > limit ? limit : u;
+            g = g > limit ? limit : g;
+        }
+        o = g / (1.0f + expf(-g)) * u;
         dst[i] = o;
     }
     if (L) {
@@ -376,20 +381,20 @@ __device__ void silu_mul(float* dst, const float* gate, const float* up, unsigne
         }
     }
 }
-extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
-    silu_mul<short, 0>(dst, gate, up, n, q, d, nullptr);
+extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, float limit, short* q, float* d) {
+    silu_mul<short, 0>(dst, gate, up, n, limit, q, d, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
-    silu_mul<short, 32767>(dst, gate, up, n, q, d, nullptr);
+extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, float limit, short* q, float* d) {
+    silu_mul<short, 32767>(dst, gate, up, n, limit, q, d, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, signed char* q, float* d) {
-    silu_mul<signed char, 127>(dst, gate, up, n, q, d, nullptr);
+extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, float limit, signed char* q, float* d) {
+    silu_mul<signed char, 127>(dst, gate, up, n, limit, q, d, nullptr);
 }
-extern "C" __global__ void llmx_silu_mul_twin16_major(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d, TwinMap m) {
-    silu_mul<short, 32767>(dst, gate, up, n, q, d, &m);
+extern "C" __global__ void llmx_silu_mul_twin16_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, short* q, float* d, TwinMap m) {
+    silu_mul<short, 32767>(dst, gate, up, n, limit, q, d, &m);
 }
-extern "C" __global__ void llmx_silu_mul_twin8_major(float* dst, const float* gate, const float* up, unsigned long long n, signed char* q, float* d, TwinMap m) {
-    silu_mul<signed char, 127>(dst, gate, up, n, q, d, &m);
+extern "C" __global__ void llmx_silu_mul_twin8_major(float* dst, const float* gate, const float* up, unsigned long long n, float limit, signed char* q, float* d, TwinMap m) {
+    silu_mul<signed char, 127>(dst, gate, up, n, limit, q, d, &m);
 }
 
 // A block a row: dst row r = RMSNorm(src row r) against w, for any n.
@@ -847,6 +852,7 @@ LLMX_DECODED(q5_0, Q5_0)
 LLMX_DECODED(q5_1, Q5_1)
 LLMX_DECODED(bf16, BF16)
 LLMX_DECODED(iq4_nl, IQ4_NL)
+LLMX_DECODED(mxfp4, MXFP4)
 
 extern "C" __global__ void llmx_gather_q8_0(float* dst, const unsigned char* table, const unsigned* ids, unsigned long long width, unsigned nrows) {
     gather_decoded<rq::Q8_0>(dst, table, ids, width, nrows);
@@ -2303,4 +2309,424 @@ extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a)
     case 7: return mf_route<7>(a.scores, a.ids, a.weights, a.k, a.normalize);
     default: return mf_route<8>(a.scores, a.ids, a.weights, a.k, a.normalize);
     }
+}
+
+// DeepSeek-V4.1's layer ops (docs/DEEPSEEK4.md, section 4.2) as first forms, in the CPU backend's order where one value is formed, so a value without an exponential is the CPU's bits.
+
+// The sum of squares of n floats as the CPU's rms_norm_raw forms it: eight lanes of multiply-adds over whole groups of eight, their pairs added as two hadds leave them, then the tail's multiply-adds.
+// Every thread of the block receives the sum.
+__device__ float cpu_squares(const float* x, unsigned n, float* lds) {
+    const unsigned t = threadIdx.x, whole = n / 8u * 8u;
+    if (t < 8u) {
+        float a = 0.0f;
+        for (unsigned i = t; i < whole; i += 8u) a = fmaf(x[i], x[i], a);
+        lds[t] = a;
+    }
+    __syncthreads();
+    if (t == 0) {
+        float s = (lds[0] + lds[1]) + (lds[2] + lds[3]);
+        s += (lds[4] + lds[5]) + (lds[6] + lds[7]);
+        for (unsigned i = whole; i < n; ++i) s = fmaf(x[i], x[i], s);
+        lds[8] = s;
+    }
+    __syncthreads();
+    const float s = lds[8];
+    __syncthreads();
+    return s;
+}
+__device__ inline float sigmoid_of(float v) { return 1.0f / (1.0f + expf(-v)); }
+
+// A block a row: pre, post and comb from the row's (2 + hc) * hc mixes, the stream's squares summed by block_sum and the rest on one thread in the CPU's order; hc is at most 16.
+extern "C" __global__ void llmx_hc_coeffs(float* pre, float* post, float* comb, const float* mixes, const float* x, const float* scale, const float* base, unsigned hc,
+                                          unsigned dim, float norm_eps, float eps, unsigned iters) {
+    __shared__ float lds[kThreads], c[256];
+    const unsigned long long r = blockIdx.x;
+    const unsigned width = hc * dim, mix = (hc + 2u) * hc;
+    const float* xr = x + r * width;
+    float sq = 0.0f;
+    for (unsigned i = threadIdx.x; i < width; i += kThreads) sq = fmaf(xr[i], xr[i], sq);
+    const float rs = 1.0f / sqrtf(block_sum(sq, lds) / (float)width + norm_eps);
+    if (threadIdx.x) return;
+    const float* m = mixes + r * mix;
+    for (unsigned k = 0; k < hc; ++k) {
+        pre[r * hc + k] = sigmoid_of(fmaf(m[k] * rs, scale[0], base[k])) + eps;
+        post[r * hc + k] = 2.0f * sigmoid_of(fmaf(m[hc + k] * rs, scale[1], base[hc + k]));
+    }
+    for (unsigned i = 0; i < hc; ++i) {
+        float peak = -INFINITY;
+        for (unsigned j = 0; j < hc; ++j) {
+            c[i * hc + j] = fmaf(m[2u * hc + i * hc + j] * rs, scale[2], base[2u * hc + i * hc + j]);
+            peak = fmaxf(peak, c[i * hc + j]);
+        }
+        float sum = 0.0f;
+        for (unsigned j = 0; j < hc; ++j) sum += c[i * hc + j] = expf(c[i * hc + j] - peak);
+        for (unsigned j = 0; j < hc; ++j) c[i * hc + j] = c[i * hc + j] / sum + eps;
+    }
+    for (unsigned round = 0; round < iters; ++round) {
+        if (round)
+            for (unsigned i = 0; i < hc; ++i) {
+                float sum = 0.0f;
+                for (unsigned j = 0; j < hc; ++j) sum += c[i * hc + j];
+                for (unsigned j = 0; j < hc; ++j) c[i * hc + j] /= sum + eps;
+            }
+        for (unsigned j = 0; j < hc; ++j) {
+            float sum = 0.0f;
+            for (unsigned i = 0; i < hc; ++i) sum += c[i * hc + j];
+            for (unsigned i = 0; i < hc; ++i) c[i * hc + j] /= sum + eps;
+        }
+    }
+    for (unsigned i = 0; i < hc * hc; ++i) comb[r * hc * hc + i] = c[i];
+}
+
+// A block a row: u = sum over k in order of pre[k] X_k, a thread a channel, then its RMS norm with the CPU's sums and products, so the row is the CPU's bits.
+extern "C" __global__ void llmx_hc_collapse_norm(float* dst, const float* x, const float* pre, const float* w, unsigned hc, unsigned dim, float eps) {
+    __shared__ float lds[16];
+    const unsigned long long r = blockIdx.x;
+    const float* xr = x + r * hc * dim;
+    const float* p = pre + r * hc;
+    float* u = dst + r * dim;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        float sum = p[0] * xr[d];
+        for (unsigned k = 1; k < hc; ++k) sum = fmaf(p[k], xr[(unsigned long long)k * dim + d], sum);
+        u[d] = sum;
+    }
+    __syncthreads();
+    const float rs = 1.0f / sqrtf(cpu_squares(u, dim, lds) / (float)dim + eps);
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) u[d] = u[d] * (rs * w[d]);
+}
+
+// A thread a (row, channel): X'_k = post[k] f + sum over j in order of comb[j][k] X_j with the CPU's multiply-adds, every old stream read before a new one is written, so dst may be the stream.
+extern "C" __global__ void llmx_hc_expand(float* dst, const float* f, const float* x, const float* post, const float* comb, unsigned hc, unsigned dim, unsigned long long n) {
+    const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (i >= n) return;
+    const unsigned long long r = i / dim, d = i - r * dim, width = (unsigned long long)hc * dim;
+    const float* c = comb + r * hc * hc;
+    float old[16], out[16];
+    for (unsigned j = 0; j < hc; ++j) old[j] = x[r * width + j * dim + d];
+    const float fv = f[r * dim + d];
+    for (unsigned k = 0; k < hc; ++k) {
+        float sum = c[k] * old[0];
+        for (unsigned j = 1; j < hc; ++j) sum = fmaf(c[j * hc + k], old[j], sum);
+        out[k] = fmaf(post[r * hc + k], fv, sum);
+    }
+    for (unsigned k = 0; k < hc; ++k) dst[r * width + k * dim + d] = out[k];
+}
+
+// The storage formats of quant/model_formats.hpp, a thread a block, each step the CPU's: exact comparisons for the codes, correctly rounded quotients and one multiply of code and scale.
+__device__ inline int format_ceil_log2(float v) {
+    const unsigned u = __float_as_uint(v);
+    return (int)((u >> 23) & 0xFFu) - 127 + ((u & 0x7FFFFFu) != 0u);
+}
+__device__ inline float format_pow2(int e) { return __uint_as_float((unsigned)(e + 127) << 23); }
+__device__ inline float e4m3_value(unsigned c) {
+    const unsigned e = (c >> 3) & 15u, m = c & 7u;
+    const float v = e == 15u && m == 7u ? NAN : e ? ldexpf((float)(8u + m), (int)e - 10) : ldexpf((float)m, -9);
+    return c & 0x80u ? -v : v;
+}
+__device__ inline unsigned e4m3_code(float v) {
+    const unsigned sign = signbit(v) ? 0x80u : 0u;
+    if (isnan(v)) return 0x7Fu;
+    const float a = fabsf(v);
+    if (a >= 464.0f) return sign | 0x7Eu;
+    if (a < 0.015625f) return sign | (unsigned)rintf(a * 512.0f);
+    int e;
+    frexpf(a, &e);
+    const unsigned t = (unsigned)rintf(ldexpf(a, 4 - e));
+    return sign | (((unsigned)(e + 6) << 3) + (t - 8u));
+}
+__device__ inline float e2m1_value(unsigned c) {
+    const float magnitudes[8] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
+    const float v = magnitudes[c & 7u];
+    return c & 8u ? -v : v;
+}
+__device__ inline unsigned e2m1_code(float v) {
+    const float a = fabsf(v);
+    const unsigned m = (a > 0.25f) + (a >= 0.75f) + (a > 1.25f) + (a >= 1.75f) + (a > 2.5f) + (a >= 3.5f) + (a > 5.0f);
+    return (signbit(v) ? 8u : 0u) | m;
+}
+__device__ inline float format_clamp(float v, float limit) { return v < -limit ? -limit : (v > limit ? limit : v); }
+// Format 0 is fp8_power, 1 fp4_power and 2 fp4_e4m3; the inverse maxima come from the host as the CPU rounds them.
+extern "C" __global__ void llmx_model_format_qdq(float* x, unsigned long long blocks, unsigned format, float inv_fp8, float inv_fp4) {
+    const unsigned long long blk = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (blk >= blocks) return;
+    const unsigned n = format == 2u ? 16u : 32u;
+    float* b = x + blk * n;
+    float amax = 0.0f;
+    for (unsigned i = 0; i < n; ++i) amax = fmaxf(amax, fabsf(b[i]));
+    const float s = format == 0u ? format_pow2(format_ceil_log2(fmaxf(amax, 1e-4f) * inv_fp8))
+                  : format == 1u ? format_pow2(format_ceil_log2(fmaxf(amax, 6.0f * 0x1p-126f) * inv_fp4))
+                                 : e4m3_value(e4m3_code(fmaxf(amax, 6.0f * 0x1p-9f) / 6.0f));
+    for (unsigned i = 0; i < n; ++i)
+        b[i] = format == 0u ? e4m3_value(e4m3_code(format_clamp(b[i] / s, 448.0f))) * s : e2m1_value(e2m1_code(format_clamp(b[i] / s, 6.0f))) * s;
+}
+
+// A block a row: the `picks` best of `items` scores by score, then lower index, written by ascending index, mode 0 topk_rows and mode 1 candidate_blocks, as Vulkan's topk_rows.comp.
+// The picks' least key is found bit by bit from the top over counts of the row, so the workspace is the block's at any row length.
+__device__ inline unsigned select_key(float s) {
+    const unsigned u = __float_as_uint(s == 0.0f ? 0.0f : s);
+    return u >> 31 ? ~u : u | 0x80000000u;
+}
+__device__ inline float select_score(const float* row, unsigned i, unsigned mode, unsigned n, unsigned block_size, unsigned pinned) {
+    if (mode == 0u) return row[i];
+    if (i == pinned) return INFINITY;
+    float best = -INFINITY;
+    const unsigned end = min(n, (i + 1u) * block_size);
+    for (unsigned j = i * block_size; j < end; ++j) best = fmaxf(best, row[j]);
+    return best;
+}
+__device__ unsigned block_count(unsigned c, unsigned* red) {
+    red[threadIdx.x] = c;
+    __syncthreads();
+    for (unsigned k = kThreads / 2; k > 0; k >>= 1) {
+        if (threadIdx.x < k) red[threadIdx.x] += red[threadIdx.x + k];
+        __syncthreads();
+    }
+    const unsigned total = red[0];
+    __syncthreads();
+    return total;
+}
+// The inclusive prefix of v over the block's threads, and its total.
+__device__ unsigned block_prefix(unsigned v, unsigned& total, unsigned* scan) {
+    const unsigned t = threadIdx.x;
+    scan[t] = v;
+    __syncthreads();
+    for (unsigned k = 1; k < kThreads; k <<= 1) {
+        const unsigned add = t >= k ? scan[t - k] : 0u;
+        __syncthreads();
+        scan[t] += add;
+        __syncthreads();
+    }
+    const unsigned s = scan[t];
+    total = scan[kThreads - 1];
+    __syncthreads();
+    return s;
+}
+__device__ unsigned select_count(const float* row, unsigned items, unsigned mode, unsigned n, unsigned block_size, unsigned pinned, unsigned key, bool strict, unsigned* red) {
+    unsigned c = 0;
+    for (unsigned i = threadIdx.x; i < items; i += kThreads) {
+        const unsigned k = select_key(select_score(row, i, mode, n, block_size, pinned));
+        c += strict ? k > key : k >= key;
+    }
+    return block_count(c, red);
+}
+extern "C" __global__ void llmx_topk_rows(unsigned* ids, const float* scores, const unsigned* lens, unsigned n, unsigned stride, unsigned picks, unsigned offset,
+                                            unsigned mode, unsigned block_size, unsigned items) {
+    __shared__ unsigned red[kThreads], scan[kThreads];
+    const unsigned long long r = blockIdx.x;
+    const float* row = scores + r * n;
+    unsigned* out = ids + r * stride;
+    const unsigned len = lens[r], t = threadIdx.x;
+    const unsigned pinned = mode == 1u && len && (len - 1u) / block_size < items ? (len - 1u) / block_size : kNoExpert;
+    unsigned threshold = 0;
+    if (picks)
+        for (int bit = 31; bit >= 0; --bit) {
+            const unsigned candidate = threshold | (1u << bit);
+            if (select_count(row, items, mode, n, block_size, pinned, candidate, false, red) >= picks) threshold = candidate;
+        }
+    const unsigned need = picks - (picks ? select_count(row, items, mode, n, block_size, pinned, threshold, true, red) : 0u);
+    unsigned ties = 0, kept = 0;
+    for (unsigned first = 0; first < items; first += kThreads) {
+        const unsigned i = first + t;
+        const bool live = i < items && picks;
+        const float s = i < items ? select_score(row, i, mode, n, block_size, pinned) : -INFINITY;
+        const unsigned key = i < items ? select_key(s) : 0u;
+        unsigned tie_total, written_total;
+        const unsigned tie = live && key == threshold;
+        const unsigned tie_before = ties + block_prefix(tie, tie_total, scan) - tie;
+        const bool picked = live && (key > threshold || (tie && tie_before < need));
+        const bool written = picked && (mode == 0u || s > -INFINITY);
+        const unsigned at = block_prefix(written, written_total, scan);
+        if (written) out[kept + at - 1u] = mode == 0u ? (i < len ? i + offset : kNoExpert) : i;
+        ties += tie_total;
+        kept += written_total;
+    }
+    for (unsigned i = kept + t; i < stride; i += kThreads) out[i] = kNoExpert;
+}
+
+// A block a group, a thread a channel: the kv values weighted by the softmax of their scores over the group's rows in the CPU's order, then the pooled row's RMS norm with the CPU's sums and products.
+extern "C" __global__ void llmx_compress_pool(float* out, const float* kv, const float* score, const float* w, unsigned ratio, unsigned dim, float eps) {
+    __shared__ float lds[16];
+    const unsigned long long g = blockIdx.x, base = g * ratio * dim;
+    float* o = out + g * dim;
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        float peak = -INFINITY;
+        for (unsigned i = 0; i < ratio; ++i) peak = fmaxf(peak, score[base + (unsigned long long)i * dim + d]);
+        float sum = 0.0f;
+        for (unsigned i = 0; i < ratio; ++i) sum += expf(score[base + (unsigned long long)i * dim + d] - peak);
+        float acc = 0.0f;
+        for (unsigned i = 0; i < ratio; ++i) {
+            const unsigned long long at = base + (unsigned long long)i * dim + d;
+            acc = fmaf(kv[at], expf(score[at] - peak) / sum, acc);
+        }
+        o[d] = acc;
+    }
+    __syncthreads();
+    const float rs = 1.0f / sqrtf(cpu_squares(o, dim, lds) / (float)dim + eps);
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) o[d] = o[d] * (rs * w[d]);
+}
+
+// The pooled rows a row reads (the host's pooled table): rows[2r] is the offset of its view's block ids in `rows`, rows[2r + 1] its position plus one.
+// Group g's row starts after its block's token rows, at its slot among the block's groups.
+__device__ inline unsigned long long pooled_at(const unsigned* rows, unsigned r, unsigned g, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats,
+                                               unsigned width) {
+    const unsigned t = g * tokens;
+    return (unsigned long long)rows[rows[2u * r] + t / bt] * block_floats + rows_floats + (unsigned long long)((t % bt) / tokens) * width;
+}
+
+// A thread a (row, position): sum over heads of w[h] w_scale ReLU(q_h dot key) with the CPU's multiply-add chains, key the last dim floats of the pooled row, -inf where the row cannot see it.
+extern "C" __global__ void llmx_indexer_scores(float* out, const float* q, const float* aux, const unsigned* rows, const float* w, const unsigned* blocks, unsigned n,
+                                               unsigned heads, unsigned dim, float w_scale, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats,
+                                               unsigned width, unsigned block_k, unsigned block_size) {
+    const unsigned t = blockIdx.x * kThreads + threadIdx.x, r = blockIdx.y;
+    if (t >= n) return;
+    float* o = out + (unsigned long long)r * n + t;
+    bool reached = t < rows[2u * r + 1u] / tokens;
+    if (reached && block_k) {
+        reached = false;
+        for (unsigned b = 0; b < block_k && !reached; ++b) reached = blocks[(unsigned long long)r * block_k + b] == t / block_size;
+    }
+    if (!reached) {
+        *o = -INFINITY;
+        return;
+    }
+    const float* key = aux + pooled_at(rows, r, t, tokens, bt, block_floats, rows_floats, width) + width - dim;
+    float sum = 0.0f;
+    for (unsigned h = 0; h < heads; ++h) {
+        const float* qh = q + ((unsigned long long)r * heads + h) * dim;
+        float dot = 0.0f;
+        for (unsigned d = 0; d < dim; ++d) dot = fmaf(qh[d], key[d], dot);
+        sum = fmaf(fmaxf(dot, 0.0f), w[(unsigned long long)r * heads + h] * w_scale, sum);
+    }
+    *o = sum;
+}
+
+// A thread a float of the call's groups, each group's first float in the auxiliary plane given by the host, copied from the rows in order.
+extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const unsigned long long* at, unsigned width, unsigned long long n) {
+    const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (i >= n) return;
+    const unsigned long long g = i / width;
+    aux[at[g] + (i - g * width)] = src[i];
+}
+
+// A block a (row, head): attention over the kv rows its ids name, then the pooled rows its entry ids name, one row serving as K and V, under one softmax whose denominator takes exp(sink - max).
+// Each dot and the output's sums are the CPU's multiply-add chains in its order, and an id that names nothing is skipped; at most 1024 rows are named.
+extern "C" __global__ void llmx_sparse_attention_sink(float* out, const float* q, const float* kv, const unsigned* ids, const float* sink, const float* aux, const unsigned* rows,
+                                                      const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows,
+                                                      unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width) {
+    __shared__ float pr[1024], red[kThreads];
+    __shared__ const float* at[1024];
+    __shared__ float denominator;
+    const unsigned rh = blockIdx.x, r = rh / heads, h = rh - r * heads, named = k + entry_k;
+    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
+    const float* qr = q + (unsigned long long)rh * dim;
+    float peak = -1e30f;
+    for (unsigned t = threadIdx.x; t < named; t += kThreads) {
+        const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
+        const float* row = nullptr;
+        if (t < k && j < kv_rows) row = kv + (unsigned long long)j * dim;
+        else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
+        at[t] = row;
+        if (!row) continue;
+        float dot = 0.0f;
+        for (unsigned d = 0; d < dim; ++d) dot = fmaf(qr[d], row[d], dot);
+        pr[t] = dot * scale;
+        peak = fmaxf(peak, pr[t]);
+    }
+    red[threadIdx.x] = peak;
+    __syncthreads();
+    for (unsigned s = kThreads / 2; s > 0; s >>= 1) {
+        if (threadIdx.x < s) red[threadIdx.x] = fmaxf(red[threadIdx.x], red[threadIdx.x + s]);
+        __syncthreads();
+    }
+    peak = red[0];
+    for (unsigned t = threadIdx.x; t < named; t += kThreads)
+        if (at[t]) pr[t] = expf(pr[t] - peak);
+    __syncthreads();
+    if (threadIdx.x == 0) {
+        float sum = 0.0f;
+        for (unsigned t = 0; t < named; ++t)
+            if (at[t]) sum += pr[t];
+        denominator = sum + expf(sink[h] - peak);
+    }
+    __syncthreads();
+    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
+        float o = 0.0f;
+        for (unsigned t = 0; t < named; ++t)
+            if (at[t]) o = fmaf(pr[t], at[t][d], o);
+        out[(unsigned long long)rh * dim + d] = o / denominator;
+    }
+}
+
+// A thread a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
+// A row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.
+__device__ inline float softplus_root(float v) { return sqrtf(v > 20.0f ? v : log1pf(expf(v))); }
+extern "C" __global__ void llmx_route_sqrt_softplus(const float* scores, const float* bias, unsigned* ids, float* weights, unsigned long long rows, unsigned n_expert,
+                                                    unsigned k, int normalize, float scale) {
+    const unsigned long long r = (unsigned long long)blockIdx.x * 64 + threadIdx.x;
+    if (r >= rows) return;
+    const float* x = scores + r * n_expert;
+    unsigned* id = ids + r * k;
+    float* wt = weights + r * k;
+    bool finite = true;
+    for (unsigned e = 0; e < n_expert; ++e) {
+        const float s = softplus_root(x[e]), b = bias ? s + bias[e] : s;
+        finite = finite && isfinite(b);
+    }
+    if (!finite) {
+        for (unsigned j = 0; j < k; ++j) id[j] = kNoExpert, wt[j] = 0.0f;
+        return;
+    }
+    float total = 0.0f;
+    for (unsigned j = 0; j < k; ++j) {
+        unsigned best = n_expert;
+        float best_b = 0.0f;
+        for (unsigned e = 0; e < n_expert; ++e) {
+            bool taken = false;
+            for (unsigned i = 0; i < j && !taken; ++i) taken = id[i] == e;
+            if (taken) continue;
+            const float s = softplus_root(x[e]), b = bias ? s + bias[e] : s;
+            if (best == n_expert || b > best_b) best = e, best_b = b;
+        }
+        id[j] = best;
+        total += softplus_root(x[best]);
+    }
+    const bool divide = normalize && k > 1u;
+    for (unsigned j = 0; j < k; ++j) {
+        const float s = softplus_root(x[id[j]]);
+        wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
+    }
+}
+
+// A block a (row, head) of norm_rope_partial's other forms: the head's RMS norm in the CPU's order when w is given, then each pair from `offset` on rotated by the CPU's multiply-adds, turning back when inverse.
+// A thread reads its values before the barrier and writes them after it, so dst may be src over contiguous heads.
+extern "C" __global__ void llmx_norm_rope_form(float* dst, const float* src, unsigned long long dst_stride, unsigned long long src_stride, unsigned long long src_head_stride,
+                                               unsigned head_dim, unsigned half, const float* w, float eps, const float* cos, const float* sin, const unsigned* pos,
+                                               const unsigned char* of, unsigned count, unsigned adjacent, unsigned offset, unsigned inverse) {
+    __shared__ float lds[16];
+    const unsigned long long r = blockIdx.x, h = blockIdx.y;
+    float* head = dst + r * dst_stride + h * head_dim;
+    const float* from = src + r * src_stride + h * src_head_stride;
+    const float rs = w ? 1.0f / sqrtf(cpu_squares(from, head_dim, lds) / (float)head_dim + eps) : 1.0f;
+    const auto value = [&](unsigned i) { return w ? from[i] * (rs * w[i]) : from[i]; };
+    float va[8], vb[8];
+    unsigned n = 0;
+    for (unsigned j = threadIdx.x; j < half; j += kThreads, ++n) {
+        va[n] = value(offset + (adjacent ? 2u * j : j));
+        vb[n] = value(offset + (adjacent ? 2u * j + 1u : j + half));
+    }
+    float rest[8];
+    unsigned m = 0;
+    for (unsigned i = threadIdx.x; i < head_dim; i += kThreads)
+        if (i < offset || i >= offset + 2u * half) rest[m++] = value(i);
+    __syncthreads();
+    n = 0;
+    for (unsigned j = threadIdx.x; j < half; j += kThreads, ++n) {
+        const unsigned long long t = (unsigned long long)pos[r * count + (count > 1u ? of[j] : 0u)] * half + j;
+        const float c = cos[t], s = inverse ? -sin[t] : sin[t];
+        head[offset + (adjacent ? 2u * j : j)] = fmaf(-vb[n], s, va[n] * c);
+        head[offset + (adjacent ? 2u * j + 1u : j + half)] = fmaf(va[n], s, vb[n] * c);
+    }
+    m = 0;
+    for (unsigned i = threadIdx.x; i < head_dim; i += kThreads)
+        if (i < offset || i >= offset + 2u * half) head[i] = rest[m++];
 }

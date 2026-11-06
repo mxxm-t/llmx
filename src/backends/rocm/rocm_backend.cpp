@@ -4,6 +4,7 @@
 
 #include "backends/kv_storage.hpp"
 #include "backends/rocm/rocm_device.hpp"
+#include "quant/model_formats.hpp"
 #include "quant/types.hpp"
 
 #include <algorithm>
@@ -270,7 +271,10 @@ public:
     bool implements(Op op) const override {
         return op == Op::norm_rope_partial || op == Op::sigmoid_mul || op == Op::gated_rms_norm || op == Op::causal_conv_silu ||
                op == Op::gated_delta_rule || op == Op::routed_experts || op == Op::group_rms_norm || op == Op::silu_scaled || op == Op::mix_streams ||
-               op == Op::inject_streams || op == Op::signed_sqrt_gate || op == Op::dilated_conv_silu_add || op == Op::select_kv || op == Op::sparse_attention || op == Op::argmax_rows || op == Op::embed_ids;
+               op == Op::inject_streams || op == Op::signed_sqrt_gate || op == Op::dilated_conv_silu_add || op == Op::select_kv || op == Op::sparse_attention || op == Op::argmax_rows || op == Op::embed_ids ||
+               op == Op::hc_coeffs || op == Op::hc_collapse_norm || op == Op::hc_expand || op == Op::sparse_attention_sink || op == Op::topk_rows ||
+               op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::pool_write ||
+               op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms;
     }
     // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-rocm.md, batch invariance).
     size_t row_class(size_t extent) const override {
@@ -544,9 +548,9 @@ public:
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
                            size_t rope_dim, CSlice w, float eps, CSlice cos, CSlice sin, const uint32_t* pos, const RopeForm& form, RopeStreams streams) override {
-        form.plain_only("rocm");
-        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
+        if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim || form.offset > head_dim - rope_dim)
             throw std::runtime_error("rocm: invalid partial rope dimensions");
+        if (!form.plain() && head_dim > 8 * kThreads) throw std::runtime_error("rocm: a rope form over a head wider than " + std::to_string(8 * kThreads));
         if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("rocm: a rope of several streams without their pairs");
         if (rows && !pos) throw std::runtime_error("rocm: partial rope without positions");
         if (!rows) return;
@@ -569,14 +573,20 @@ public:
         const float* wp = w.buffer ? f32(w) : nullptr;
         const float* c = f32(cos);
         const float* sn = f32(sin);
-        if (streams.count == 1) {
+        if (streams.count == 1 && form.plain()) {
             const Args args(d, s, dst_stride, ss, shs, hd, hf, wp, eps, c, sn, p);
             return launch(kNormRope, (unsigned)rows, (unsigned)heads, args);
         }
-        for (size_t i = 0; i < half; ++i)
+        for (size_t i = 0; i < half && streams.count > 1; ++i)
             if (streams.of[i] >= streams.count) throw std::runtime_error("rocm: a rope pair of a stream past the row's");
-        const unsigned char* of = (const unsigned char*)pass_arg(streams.of, half);
+        const unsigned char* of = streams.count > 1 ? (const unsigned char*)pass_arg(streams.of, half) : nullptr;
         int count = (int)streams.count;
+        // The adjacent, offset and inverse forms take their own kernel, which forms the norm and the pairs as the CPU does (kernels/f32.hip, llmx_norm_rope_form).
+        if (!form.plain()) {
+            unsigned hdu = (unsigned)head_dim, hfu = (unsigned)half, cu = (unsigned)count, adj = form.adjacent, off = (unsigned)form.offset, inv = form.inverse;
+            const Args args(d, s, dst_stride, ss, shs, hdu, hfu, wp, eps, c, sn, p, of, cu, adj, off, inv);
+            return launch(kNormRopeForm, (unsigned)rows, (unsigned)heads, args);
+        }
         const Args args(d, s, dst_stride, ss, shs, hd, hf, wp, eps, c, sn, p, of, count);
         launch(kNormRopeStreams, (unsigned)rows, (unsigned)heads, args);
     }
@@ -891,8 +901,168 @@ public:
         const Args args(o, xp, rp, wp, st, tp, cc, tt, dl, hs, sl, pf, ch);
         launch(kDilatedConvSiluAdd, (unsigned)((channels + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
+    // DeepSeek-V4.1's layer ops (docs/DEEPSEEK4.md, section 4.2), a kernel each (kernels/f32.hip); the pooled-row ops read the auxiliary plane through pooled_table.
+    void hc_coeffs(Slice pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, size_t rows, size_t hc, size_t dim, float norm_eps, float eps,
+                   size_t iters) override {
+        if (!hc || hc > 16 || !dim || !iters || !std::isfinite(norm_eps) || norm_eps < 0.0f || !std::isfinite(eps) || eps < 0.0f)
+            throw std::runtime_error("rocm: invalid mHC coefficient dimensions or epsilon");
+        if (!rows) return;
+        const size_t mix = size_mul(hc + 2, hc), n = size_mul(rows, hc), nc = size_mul(n, hc), mn = size_mul(rows, mix), xn = size_mul(rows, size_mul(hc, dim));
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{pre, n}, {post, n}, {comb, nc}, {mixes, mn}, {stream, xn}, {scale, 3}, {base, mix}}) floats(s, count);
+        for (const auto& [o, on] : {std::pair<CSlice, size_t>{pre, n}, {post, n}, {comb, nc}})
+            if (overlaps(o, on, mixes, mn) || overlaps(o, on, stream, xn) || overlaps(o, on, scale, 3) || overlaps(o, on, base, mix))
+                throw std::runtime_error("rocm: mHC coefficient outputs overlap their inputs");
+        if (overlaps(pre, n, post, n) || overlaps(pre, n, comb, nc) || overlaps(post, n, comb, nc)) throw std::runtime_error("rocm: mHC coefficient outputs must be disjoint");
+        float *a = f32(pre), *b = f32(post), *c = f32(comb);
+        const float *m = f32(mixes), *x = f32(stream), *sc = f32(scale), *bs = f32(base);
+        unsigned h = (unsigned)hc, d = u32(dim), it = u32(iters);
+        u32(size_mul(hc, dim));
+        const Args args(a, b, c, m, x, sc, bs, h, d, norm_eps, eps, it);
+        launch(kHcCoeffs, u32(rows), 1, args);
+    }
+    void hc_collapse_norm(Slice dst, CSlice stream, CSlice pre, CSlice w, size_t rows, size_t hc, size_t dim, float eps) override {
+        if (!hc || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("rocm: invalid mHC collapse dimensions or epsilon");
+        if (!rows) return;
+        const size_t dn = size_mul(rows, dim), xn = size_mul(rows, size_mul(hc, dim)), pn = size_mul(rows, hc);
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{dst, dn}, {stream, xn}, {pre, pn}, {w, dim}}) floats(s, count);
+        if (overlaps(dst, dn, stream, xn) || overlaps(dst, dn, pre, pn) || overlaps(dst, dn, w, dim)) throw std::runtime_error("rocm: mHC collapse output must be disjoint from its inputs");
+        float* o = f32(dst);
+        const float *x = f32(stream), *p = f32(pre), *wp = f32(w);
+        unsigned h = u32(hc), d = u32(dim);
+        const Args args(o, x, p, wp, h, d, eps);
+        launch(kHcCollapseNorm, u32(rows), 1, args);
+    }
+    void hc_expand(Slice dst, CSlice f, CSlice stream, CSlice post, CSlice comb, size_t rows, size_t hc, size_t dim) override {
+        if (!hc || hc > 16 || !dim) throw std::runtime_error("rocm: invalid mHC expansion dimensions");
+        if (!rows) return;
+        const size_t n = size_mul(rows, size_mul(hc, dim)), fn = size_mul(rows, dim), pn = size_mul(rows, hc), cn = size_mul(pn, hc);
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{dst, n}, {f, fn}, {stream, n}, {post, pn}, {comb, cn}}) floats(s, count);
+        const bool in_place = dst.buffer == stream.buffer && dst.offset == stream.offset;
+        if ((!in_place && overlaps(dst, n, stream, n)) || overlaps(dst, n, f, fn) || overlaps(dst, n, post, pn) || overlaps(dst, n, comb, cn))
+            throw std::runtime_error("rocm: mHC expansion output must be disjoint or exactly the stream");
+        float* o = f32(dst);
+        const float *fp = f32(f), *x = f32(stream), *p = f32(post), *c = f32(comb);
+        unsigned h = (unsigned)hc, d = u32(dim);
+        unsigned long long lanes = fn;
+        const Args args(o, fp, x, p, c, h, d, lanes);
+        launch(kHcExpand, u32((fn + kThreads - 1) / kThreads), 1, args);
+    }
+    void model_format_qdq(Slice x, size_t count, ModelFormat format) override {
+        const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
+        if (count % block) throw std::runtime_error("rocm: a model format's values are not whole blocks");
+        if (!count) return;
+        floats(x, count);
+        float* p = f32(x);
+        unsigned long long blocks = count / block;
+        unsigned fm = format == ModelFormat::fp8_power ? 0u : format == ModelFormat::fp4_power ? 1u : 2u;
+        float inv8 = 1.0f / quant::model_formats::FP8_MAX, inv4 = 1.0f / quant::model_formats::FP4_MAX;
+        const Args args(p, blocks, fm, inv8, inv4);
+        launch(kModelFormatQdq, u32((blocks + kThreads - 1) / kThreads), 1, args);
+    }
+    // topk_rows and candidate_blocks are one kernel, a row a block (kernels/f32.hip, llmx_topk_rows).
+    void topk_rows(Slice ids, CSlice scores, CSlice lens, size_t rows, size_t n, size_t k, uint32_t offset) override {
+        if (k > n || n >= UINT32_MAX || size_t(offset) + n >= UINT32_MAX) throw std::runtime_error("rocm: invalid top-k rows dimensions");
+        if (!rows || !k) return;
+        topk_select(ids, scores, lens, rows, n, k, k, offset, 0, 1, n);
+    }
+    void candidate_blocks(Slice blocks, CSlice scores, CSlice lens, size_t rows, size_t n, size_t block_size, size_t k) override {
+        if (!block_size || !n || n >= UINT32_MAX) throw std::runtime_error("rocm: invalid candidate block dimensions");
+        if (!rows || !k) return;
+        const size_t items = (n + block_size - 1) / block_size;
+        topk_select(blocks, scores, lens, rows, n, k, std::min(k, items), 0, 1, block_size, items);
+    }
+    void compress_pool(Slice out, CSlice kv, CSlice score, CSlice w, size_t groups, size_t ratio, size_t dim, float eps) override {
+        if (!ratio || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("rocm: invalid compressor pooling dimensions or epsilon");
+        if (!groups) return;
+        const size_t on = size_mul(groups, dim), in = size_mul(size_mul(groups, ratio), dim);
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, on}, {kv, in}, {score, in}, {w, dim}}) floats(s, count);
+        if (overlaps(out, on, kv, in) || overlaps(out, on, score, in) || overlaps(out, on, w, dim))
+            throw std::runtime_error("rocm: compressor pooling output must be disjoint from its inputs");
+        float* o = f32(out);
+        const float *k = f32(kv), *s = f32(score), *wp = f32(w);
+        unsigned r = u32(ratio), d = u32(dim);
+        const Args args(o, k, s, wp, r, d, eps);
+        launch(kCompressPool, u32(groups), 1, args);
+    }
+    void sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows, size_t k, float scale,
+                               size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k) override {
+        if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("rocm: invalid sparse attention dimensions or scale");
+        if (!n_views && (entry_k || entry_ids.buffer)) throw std::runtime_error("rocm: sparse attention entries without views");
+        if (size_add(k, entry_k) > 1024) throw std::runtime_error("rocm: sparse attention names at most 1024 rows a row");
+        if (!rows) return;
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, dim), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, qn}, {q, qn}, {kv, kvn}, {ids, idn}, {sink, heads}}) floats(s, count);
+        if (en) floats(entry_ids, en);
+        if (overlaps(out, qn, q, qn) || overlaps(out, qn, kv, kvn) || overlaps(out, qn, ids, idn) || overlaps(out, qn, sink, heads) || (en && overlaps(out, qn, entry_ids, en)))
+            throw std::runtime_error("rocm: sparse attention output must be disjoint from its inputs");
+        const PooledTable t = n_views ? pooled_table(layer, views, n_views, rows, dim, "sparse attention") : PooledTable{};
+        float* o = f32(out);
+        const float *qp = f32(q), *kp = f32(kv), *sk = f32(sink);
+        const unsigned* ip = (const unsigned*)f32(ids);
+        const unsigned* ep = en ? (const unsigned*)f32(entry_ids) : nullptr;
+        const float* aux = t.aux;
+        const unsigned* tab = t.rows;
+        unsigned h = u32(heads), d = u32(dim), kk = u32(k), ek = u32(entry_k), kr = u32(kv_rows), tokens = t.tokens, bt = (unsigned)kBlockTokens, rf = t.rows_floats, width = t.width;
+        unsigned long long bf = t.block_floats;
+        const Args args(o, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width);
+        launch(kSparseAttentionSink, u32(size_mul(rows, heads)), 1, args);
+    }
+    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, size_t n, CSlice blocks,
+                        size_t block_k, size_t block_size) override {
+        if (!heads || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale)) throw std::runtime_error("rocm: invalid index score dimensions");
+        size_t rows = 0;
+        for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
+        if (!rows || !n) return;
+        const PooledTable t = pooled_table(layer, views, n_views, rows, dim, "index scores");
+        const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads), bn = blocks.buffer ? size_mul(rows, block_k) : 0;
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, on}, {q, qn}, {w, wn}}) floats(s, count);
+        if (bn) floats(blocks, bn);
+        if (overlaps(out, on, q, qn) || overlaps(out, on, w, wn) || (bn && overlaps(out, on, blocks, bn))) throw std::runtime_error("rocm: index scores output must be disjoint from its inputs");
+        for (size_t vi = 0; vi < n_views; ++vi)
+            if (views[vi].nq && size_add(views[vi].length, views[vi].nq) / t.tokens > n) throw std::runtime_error("rocm: index scores narrower than a row's groups");
+        if (rows > 65535) throw std::runtime_error("rocm: index scores of more rows than a launch holds");
+        float* o = f32(out);
+        const float *qp = f32(q), *wp = f32(w);
+        const float* aux = t.aux;
+        const unsigned* tab = t.rows;
+        const unsigned* bp = bn ? (const unsigned*)f32(blocks) : nullptr;
+        unsigned nn = u32(n), h = u32(heads), d = u32(dim), tokens = t.tokens, bt = (unsigned)kBlockTokens, rf = t.rows_floats, width = t.width, bk = bn ? u32(block_k) : 0u,
+                 bs = u32(block_size);
+        unsigned long long bf = t.block_floats;
+        const Args args(o, qp, aux, tab, wp, bp, nn, h, d, w_scale, tokens, bt, bf, rf, width, bk, bs);
+        launch(kIndexerScores, u32((n + kThreads - 1) / kThreads), (unsigned)rows, args);
+    }
+    void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("rocm: pooled rows written without views");
+        RocmKVStorage& s = storage(views[0]);
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            if (&storage(views[vi]) != &s) throw std::runtime_error("rocm: pooled rows written to views of different storages");
+            s.check_view(views[vi], layer, true);
+        }
+        const size_t tokens = s.auxiliary_pool(layer), width = s.auxiliary_pool_width(layer);
+        if (!tokens || !s.auxiliary_buffer(layer)) throw std::runtime_error("rocm: pooled rows written to a layer that keeps none of their width");
+        // Each group's first float in the plane, in view order and each view's groups in order.
+        const size_t block_floats = s.auxiliary_block_bytes(layer) / sizeof(float), rows_floats = s.auxiliary_rows_bytes(layer) / sizeof(float);
+        std::vector<unsigned long long> at;
+        for (size_t vi = 0; vi < n_views; ++vi)
+            for (size_t g = views[vi].length / tokens; g < size_add(views[vi].length, views[vi].nq) / tokens; ++g) {
+                const size_t t = g * tokens;
+                at.push_back((unsigned long long)views[vi].blocks[t / kBlockTokens] * block_floats + rows_floats + (t % kBlockTokens) / tokens * width);
+            }
+        if (at.empty()) return;
+        const size_t n = size_mul(at.size(), width);
+        floats(rows, n);
+        float* aux = f32(Slice{s.auxiliary_buffer(layer).get(), 0});
+        const float* src = f32(rows);
+        const unsigned long long* ap = (const unsigned long long*)pass_arg(at.data(), at.size() * sizeof(unsigned long long));
+        unsigned wd = u32(width);
+        unsigned long long nn = n;
+        const Args args(aux, src, ap, wd, nn);
+        launch(kPoolWrite, u32((n + kThreads - 1) / kThreads), 1, args);
+    }
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs) override {
-        no_clamp("rocm", limit);
+        if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("rocm: a SwiGLU limit that is negative or not finite");
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), gate, up}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
         float* d = f32(dst);
@@ -904,14 +1074,14 @@ public:
         void* q = t.q;
         float* td = t.d;
         TwinMap map = t.map;
-        const Args args(d, g, u, nn, q, td, map);
+        const Args args(d, g, u, nn, limit, q, td, map);
         launch_writing({{d, n}}, twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
     }
     // A row a block of 64, its reductions in one tree of 64 pairs (kernels/f32.hip, llmx_moe_route).
     void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) override {
-        const bool normalize = rule.softmax_only("rocm");
         if (!k || k > n_expert || k > 256 || n_expert > 1024) throw std::runtime_error("rocm: routing takes 1 to 256 of at most 1024 experts");
+        if (rule.score == RouteRule::Score::sqrt_softplus && !std::isfinite(rule.scale)) throw std::runtime_error("rocm: a routing scale that is not finite");
         if (!rows) return;
         span(*scores.buffer, scores.offset * sizeof(float), size_mul(size_mul(rows, n_expert), sizeof(float)));
         for (const Slice& s : {ids, weights}) span(*s.buffer, s.offset * sizeof(float), size_mul(size_mul(rows, k), sizeof(float)));
@@ -919,7 +1089,17 @@ public:
         float* id = f32(ids);
         float* w = f32(weights);
         unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
-        int norm = normalize;
+        int norm = rule.normalize;
+        // The sqrt_softplus rule takes a thread a row in the CPU's order (kernels/f32.hip, llmx_route_sqrt_softplus).
+        if (rule.score == RouteRule::Score::sqrt_softplus) {
+            if (rule.bias.buffer) floats(rule.bias, n_expert);
+            const float* bias = rule.bias.buffer ? f32(rule.bias) : nullptr;
+            unsigned long long nr = rows;
+            float scale = rule.scale;
+            const Args args(sc, bias, id, w, nr, ne, kk, norm, scale);
+            return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32((rows + 63) / 64), 1, args, 1, 64);
+        }
+        rule.softmax_only("rocm");
         const Args args(sc, id, w, ne, kk, norm);
         launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kMoeRoute, (unsigned)rows, 1, args, 1, 64);
     }
@@ -1387,17 +1567,19 @@ private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kCopy, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
-                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulIQ4NL, kGatherIQ4NL, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
+                  kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulIQ4NL, kGatherIQ4NL, kMatmulMXFP4, kGatherMXFP4, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
-                  kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
-                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
+                  kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
+                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kPoolWrite, kSparseAttentionSink, kRouteSqrtSoftplus,
+                  kNormRopeForm,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
-                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8,
+                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedNarrowMXFP48,
                   kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_copy", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
@@ -1405,12 +1587,12 @@ private:
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_matmul_q4_k", "llmx_gather_q4_k",
                                                            "llmx_matmul_q5_k", "llmx_gather_q5_k", "llmx_matmul_q6_k", "llmx_gather_q6_k", "llmx_matmul_q5_0",
                                                            "llmx_gather_q5_0", "llmx_matmul_q5_1", "llmx_gather_q5_1", "llmx_matmul_bf16", "llmx_gather_bf16",
-                                                           "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_kv_write",
+                                                           "llmx_matmul_iq4_nl", "llmx_gather_iq4_nl", "llmx_matmul_mxfp4", "llmx_gather_mxfp4", "llmx_kv_write",
                                                            "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_pool_write", "llmx_sparse_attention_sink", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -1419,7 +1601,7 @@ private:
                                                            "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8",
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
-                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8",
+                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_narrow8",
                                                            "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
@@ -1491,11 +1673,11 @@ private:
         return q;
     };
     static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ5KTwins = k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ6KTwins = k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false);
-    static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
+    static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Twins = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
     static constexpr TwinKernels kQ50Quarter = quarter_twins(kQ50Base, kQuarterQ5016x1, 1.25f, 1.25f), kQ51Quarter = quarter_twins(kQ51Base, kQuarterQ5116x1, 1.25f, 2.5f);
     static constexpr auto with_quarter = [](TwinKernels t, const TwinKernels* q) { t.quarter = q; return t; };
     static constexpr TwinKernels kQ50Twins = with_quarter(kQ50Base, &kQ50Quarter), kQ51Twins = with_quarter(kQ51Base, &kQ51Quarter);
-    static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8, "a K-type's kernels follow LLMX_KTYPE's order");
+    static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8 && kMXFP4Twins.routed_narrow[1] == kRoutedNarrowMXFP48, "a K-type's kernels follow LLMX_KTYPE's order");
     static_assert(kQ51Quarter.two[1][4] == kQuarterQ518x16 && kQ51Quarter.routed[1] == kQuarterRoutedQ518 && kQ51Quarter.grouped[1][2] == kQuarterGroupedQ518x8 && kQ51Quarter.tile[1] == kTileQ518, "a quarter form's kernels follow LLMX_KQUARTER's order");
     // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, the same over several rows, its embedding, its routed exact product and its twin kernels.
     // A type without twins takes its exact product in every class.
@@ -1512,6 +1694,7 @@ private:
         {quant::GGML_TYPE_Q6_K, "Q6_K", kMatmulQ6K, kRowsExactQ6K, kGatherQ6K, kRoutedExactQ6K, &kQ6KTwins, kKernels}, {quant::GGML_TYPE_Q5_0, "Q5_0", kMatmulQ50, kRowsExactQ50, kGatherQ50, kRoutedExactQ50, &kQ50Twins, kKernels},
         {quant::GGML_TYPE_Q5_1, "Q5_1", kMatmulQ51, kRowsExactQ51, kGatherQ51, kRoutedExactQ51, &kQ51Twins, kKernels},    {quant::GGML_TYPE_BF16, "BF16", kMatmulBF16, kRowsExactBF16, kGatherBF16, kRoutedExactBF16, nullptr, kKernels},
         {quant::GGML_TYPE_IQ4_NL, "IQ4_NL", kMatmulIQ4NL, kRowsExactIQ4NL, kGatherIQ4NL, kRoutedExactIQ4NL, &kIQ4NLTwins, kKernels},
+        {quant::GGML_TYPE_MXFP4, "MXFP4", kMatmulMXFP4, kRowsExactMXFP4, kGatherMXFP4, kRoutedExactMXFP4, &kMXFP4Twins, kKernels},
     };
     static const TypeKernels* type_kernels(uint32_t type) {
         for (const TypeKernels& t : kTypes)
@@ -1629,6 +1812,58 @@ private:
             if (c.streams > 1) c.of = (const unsigned char*)pass_arg(positions.streams.of, index.rope_dim / 2);
         }
         return c;
+    }
+    // An operand of `count` floats, inside its allocation.
+    static void floats(const CSlice& s, size_t count) {
+        if (!s.buffer) throw std::runtime_error("rocm: operand without storage");
+        span(*s.buffer, s.offset * sizeof(float), size_mul(count, sizeof(float)));
+    }
+    void topk_select(Slice ids, CSlice scores, CSlice lens, size_t rows, size_t n, size_t stride, size_t picks, uint32_t offset, unsigned mode, size_t block_size, size_t items) {
+        const size_t sn = size_mul(rows, n), idn = size_mul(rows, stride);
+        for (const auto& [s, count] : {std::pair<CSlice, size_t>{ids, idn}, {scores, sn}, {lens, rows}}) floats(s, count);
+        if (overlaps(ids, idn, scores, sn) || overlaps(ids, idn, lens, rows)) throw std::runtime_error("rocm: selection output must be disjoint from its inputs");
+        unsigned* o = (unsigned*)f32(ids);
+        const float* s = f32(scores);
+        const unsigned* l = (const unsigned*)f32(lens);
+        unsigned nn = u32(n), st = u32(stride), pk = u32(picks), of = offset, md = mode, bs = u32(block_size), it = u32(items);
+        const Args args(o, s, l, nn, st, pk, of, md, bs, it);
+        launch(kTopkRows, u32(rows), 1, args);
+    }
+    // The pooled rows a call's rows read (kernels/f32.hip, pooled_at): for each row the offset of its view's block ids in the table and its position plus one, then the ids.
+    struct PooledTable {
+        const float* aux = nullptr;
+        const unsigned* rows = nullptr;
+        unsigned tokens = 1, width = 0, rows_floats = 0;
+        unsigned long long block_floats = 0;
+    };
+    PooledTable pooled_table(size_t layer, const KVView* views, size_t n_views, size_t rows, size_t dim, const char* op) {
+        if (!views) throw std::runtime_error(std::string("rocm: ") + op + " without views");
+        RocmKVStorage& s = storage(views[0]);
+        std::vector<unsigned> tab(size_mul(rows, 2)), blocks;
+        size_t r = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            if (&storage(views[vi]) != &s) throw std::runtime_error(std::string("rocm: ") + op + " over views of different storages");
+            const size_t used = s.check_view(views[vi], layer, false);
+            const unsigned first = u32(size_add(tab.size(), blocks.size()));
+            blocks.insert(blocks.end(), views[vi].blocks, views[vi].blocks + used);
+            for (size_t i = 0; i < views[vi].nq; ++i, ++r) {
+                if (r == rows) throw std::runtime_error(std::string("rocm: ") + op + " views do not cover its rows");
+                tab[2 * r] = first;
+                tab[2 * r + 1] = u32(size_add(views[vi].length, i + 1));
+            }
+        }
+        if (r != rows) throw std::runtime_error(std::string("rocm: ") + op + " views do not cover its rows");
+        if (!s.auxiliary_pool(layer) || s.auxiliary_pool_width(layer) < dim || !s.auxiliary_buffer(layer))
+            throw std::runtime_error(std::string("rocm: ") + op + " reads pooled rows its layer does not keep");
+        tab.insert(tab.end(), blocks.begin(), blocks.end());
+        PooledTable t;
+        t.aux = f32(CSlice{s.auxiliary_buffer(layer).get(), 0});
+        t.rows = (const unsigned*)pass_arg(tab.data(), tab.size() * sizeof(unsigned));
+        t.tokens = u32(s.auxiliary_pool(layer));
+        t.width = u32(s.auxiliary_pool_width(layer));
+        t.rows_floats = u32(s.auxiliary_rows_bytes(layer) / sizeof(float));
+        t.block_floats = s.auxiliary_block_bytes(layer) / sizeof(float);
+        return t;
     }
     // The groups view vi's rows complete, pooled into their rows of the auxiliary blocks (kernels/f32.hip, llmx_kv_index_pool).
     void pool_view(const IndexCall& c, const KVView& v, size_t vi, const IndexArgs& index) {

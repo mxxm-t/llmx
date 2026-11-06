@@ -5,6 +5,7 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
 
+#include "quant/fp4.hpp"
 #include "quant/types.hpp"
 
 namespace rq {
@@ -89,6 +90,17 @@ struct IQ4_NL {
     __device__ static float value(const unsigned char* b, int j) {
         const int q = j < 16 ? b[2 + j] & 0xF : b[2 + j - 16] >> 4;
         return half_at(b) * (float)quant::IQ4_NL_VALUES[q];
+    }
+};
+
+// Half an E8M0 scale, 2^(e - 128), for the doubled E2M1 codes, as quant::mxfp4_scale gives it, subnormal below e = 2.
+__device__ inline float e8m0_half(unsigned e) { return __uint_as_float(e <= 1 ? 0x00200000u << e : (e - 1) << 23); }
+
+struct MXFP4 {
+    static constexpr unsigned values = quant::MXFP4_BLOCK, bytes = quant::MXFP4_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int q = j < 16 ? b[1 + j] & 0xF : b[1 + j - 16] >> 4;
+        return e8m0_half(b[0]) * (float)quant::FP4_VALUES[q];
     }
 };
 

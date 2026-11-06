@@ -550,7 +550,7 @@ struct PriceTable {
         for (size_t b = band + 1; b-- > 0;) {
             std::vector<infer::LinePoint> points;
             for (auto it = chunks.lower_bound({cls, b, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == b; ++it)
-                points.push_back({(double)std::get<2>(it->first), 0.0, it->second.ms, (double)it->second.samples});
+                points.push_back({(double)std::get<2>(it->first), it->second.ms, (double)it->second.samples});
             if (const auto line = infer::fit_line(points)) return line;
         }
         return std::nullopt;

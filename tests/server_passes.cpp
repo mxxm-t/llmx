@@ -1694,14 +1694,14 @@ void service_by_hand() {
         require(infer::prompt_slice(8192, 8192, 4, deep_only, 512) < 512, "a band's own line did not cut its slices");
     }
     // A slice cost line (infer::fit_line): none before two sizes or for a line without a positive fixed cost and cost a row, the line itself through measures on it, and the weighted least-squares line through measures off it.
-    require(!infer::fit_line({{64, 0, 50.0}}) && !infer::fit_line({{64, 0, 50.0}, {64, 0, 60.0}}) && !infer::fit_line({{64, 0, 10.0}, {128, 0, 30.0}}) && !infer::fit_line({{64, 0, 50.0}, {128, 0, 0.0}}) &&
-                std::fabs(infer::fit_line({{256, 0, 30 + 0.3 * 256}, {64, 0, 30 + 0.3 * 64}, {128, 0, 30 + 0.3 * 128}})->row_ms - 0.3) < 1e-12,
+    require(!infer::fit_line({{64, 50.0}}) && !infer::fit_line({{64, 50.0}, {64, 60.0}}) && !infer::fit_line({{64, 10.0}, {128, 30.0}}) && !infer::fit_line({{64, 50.0}, {128, 0.0}}) &&
+                std::fabs(infer::fit_line({{256, 30 + 0.3 * 256}, {64, 30 + 0.3 * 64}, {128, 30 + 0.3 * 128}})->row_ms - 0.3) < 1e-12,
             "a slice cost line was refused or missed measures on one line");
     {
         // Stage 0's cells as a queued load measured them on four stages: the 1024-row cell of 7 measures at 1124 ms is the load's first passes, whose stage 0 also paid each fresh request's start, against 300-380 ms at the other stages.
         // The line through the cells farthest apart read them as 13 ms and 1.09 ms a row; the weighted least-squares line is the closed-form one, near the 29 ms and 0.31 ms of the rest.
-        std::vector<infer::LinePoint> cells{{16, 0, 30.5, 1792}, {32, 0, 33.3, 7},  {64, 0, 46.4, 32},  {80, 0, 54.2, 1},   {128, 0, 70.5, 23},  {144, 0, 73.8, 97},  {160, 0, 76.5, 35}, {176, 0, 79.8, 43},
-                                            {192, 0, 86.2, 3},   {208, 0, 88.7, 2}, {224, 0, 92.8, 1}, {352, 0, 168.6, 1}, {624, 0, 272.9, 1}, {960, 0, 497.6, 28}, {1024, 0, 1123.9, 7}};
+        std::vector<infer::LinePoint> cells{{16, 30.5, 1792}, {32, 33.3, 7},  {64, 46.4, 32},  {80, 54.2, 1},   {128, 70.5, 23},  {144, 73.8, 97},  {160, 76.5, 35}, {176, 79.8, 43},
+                                            {192, 86.2, 3},   {208, 88.7, 2}, {224, 92.8, 1}, {352, 168.6, 1}, {624, 272.9, 1}, {960, 497.6, 28}, {1024, 1123.9, 7}};
         const auto closed = [](const std::vector<infer::LinePoint>& c) {
             double w = 0, x = 0, xx = 0, y = 0, xy = 0;
             for (const auto& q : c) w += q.weight, x += q.weight * q.rows, xx += q.weight * q.rows * q.rows, y += q.weight * q.ms, xy += q.weight * q.rows * q.ms;
@@ -1712,53 +1712,98 @@ void service_by_hand() {
         const auto l = infer::fit_line(cells);
         require(l && same_line(*l, closed(cells)) && l->row_ms < 0.7 && l->fixed_ms > 15, "an outlier cell at the far end set the slice cost line, or the line was not the weighted least-squares line");
         // Remeasured by ubatch slices, as in the load on the stage's other cells, the far cell leaves the line near the rest's.
-        cells.back() = {1024, 0, 349.5, 70};
+        cells.back() = {1024, 349.5, 70};
         const auto again = infer::fit_line(cells);
         require(again && same_line(*again, closed(cells)) && again->row_ms < 0.4 && again->fixed_ms > 20, "a remeasured far cell did not bring the slice cost line back");
         // The weights are the cells' measures: the outlier with as many measures as the rest together pulls the line toward it.
-        cells.back() = {1024, 0, 1123.9, 2200};
+        cells.back() = {1024, 1123.9, 2200};
         require(infer::fit_line(cells)->row_ms > l->row_ms, "a cell's measures did not weight the slice cost line");
     }
-    // Last-stage times late in pairs after a drain slice: the prefill's line cuts 2048 rows within a fifth of the best.
-    {
-        const std::vector<size_t> sizes{256, 224, 196, 172, 150, 132, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 22};
-        const infer::StageLine flat{45, 0.09};
-        const auto true_finish = [&](const std::optional<infer::StageLine>& line) {
-            std::vector<double> f(4, 0.0);
-            for (size_t at = 0; at < 2048;) {
-                const auto lines = [&](size_t) { return line ? std::vector<infer::StageLine>(4, *line) : std::vector<infer::StageLine>{}; };
-                const size_t n = infer::prompt_slice(at, 2048 - at, 4, lines, 512, f);
-                infer::pipeline_add(f, std::vector<infer::StageLine>(4, flat), n);
-                at += n;
+    // Last-stage times late in pairs after a drain slice: the prefill's line cuts 2048 rows within a fifth of the best, or there is none.
+    for (const infer::StageLine& truth : {infer::StageLine{30, 0.2}, infer::StageLine{45, 0.09}})
+        for (const double late : {0.5, 0.9})
+            for (const size_t phase : {size_t(1), size_t(0)}) {
+                const std::vector<size_t> sizes{256, 224, 196, 172, 150, 132, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 22};
+                const auto true_finish = [&](const std::optional<infer::StageLine>& line) {
+                    std::vector<double> f(4, 0.0);
+                    for (size_t at = 0; at < 2048;) {
+                        const auto lines = [&](size_t) { return line ? std::vector<infer::StageLine>(4, *line) : std::vector<infer::StageLine>{}; };
+                        const size_t n = infer::prompt_slice(at, 2048 - at, 4, lines, 512, f);
+                        infer::pipeline_add(f, std::vector<infer::StageLine>(4, truth), n);
+                        at += n;
+                    }
+                    return f.back();
+                };
+                std::vector<std::pair<size_t, size_t>> slices;
+                std::vector<double> done;
+                double t = 0;
+                for (size_t c = 0, at = 0; c < sizes.size(); at += sizes[c++]) {
+                    t += (c ? 1.0 : 4.0) * truth.at(sizes[c]);
+                    slices.push_back({at, sizes[c]});
+                    done.push_back(t + (c % 2 == phase ? late * truth.at(128) : 0.0));
+                }
+                done.back() = done[done.size() - 2] + 1;
+                infer::SlicePeriods p;
+                p.observe(slices, done);
+                const auto line = p.line(0);
+                require(true_finish(line) < 1.2 * true_finish(truth) || (!line && true_finish(line) == true_finish(std::nullopt)),
+                        "times late in pairs and a drain slice moved the prefill's slice line far enough to cut the prompt a fifth slower");
             }
-            return f.back();
-        };
-        std::vector<double> done;
-        double t = 0;
-        for (size_t c = 0; c < sizes.size(); ++c) {
-            t += (c ? 1.0 : 4.0) * flat.at(sizes[c]);
-            done.push_back(t + (c % 2 ? 0.9 * flat.at(128) : 0.0));
-        }
-        done.back() = done[done.size() - 2] + 1;
-        infer::SlicePeriods p;
-        for (size_t c = 1, at = sizes[0]; c < sizes.size(); at += sizes[c++]) p.observe(0, sizes[c], at + sizes[c] / 2, done[c] - done[c - 1]);
-        require(true_finish(p.line(0)) < 1.2 * true_finish(flat), "times late in pairs and a drain slice moved the prefill's slice line far enough to cut the prompt a fifth slower");
-    }
-    // A prefill's own prices (infer::SlicePeriods): a least-squares line through every slice's period, with a term for its depth.
+    // A prefill's own prices (infer::SlicePeriods): a least-squares line through the times its slices left the last stage, each a point of the slices since its band's origin.
     {
-        // Slices of two sizes at two depths each, measured on 30 ms + 0.2 ms a row + 1e-5 ms a row per token of depth, give that line back, where a line through two of them reads the depth as row cost.
+        // The warm-up cut of a 2048-row prompt on four stages, each slice 30 ms + 0.2 ms a row, the last 22 rows leaving 1 ms after the slice before, as a drain does; `late` delays every other time, as records that end in pairs do.
+        const auto truth = [](size_t r) { return 30.0 + 0.2 * double(r); };
+        const std::vector<size_t> sizes{256, 224, 196, 172, 150, 132, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 22};
+        const auto prefill = [&](double late) {
+            std::vector<std::pair<size_t, size_t>> slices;
+            std::vector<double> done;
+            double t = 0;
+            for (size_t c = 0, at = 0; c < sizes.size(); at += sizes[c++]) {
+                t += c ? truth(sizes[c]) : 4 * truth(sizes[c]);
+                slices.push_back({at, sizes[c]});
+                done.push_back(t + (c % 2 ? late * truth(128) : 0.0));
+            }
+            done.back() = done[done.size() - 2] + 1;
+            return std::make_pair(slices, done);
+        };
         infer::SlicePeriods p;
         require(!p.line(0), "a prefill priced its slices before any was measured");
-        const auto truth = [](size_t r, size_t d) { return 30.0 + double(r) * (0.2 + 1e-5 * double(d)); };
-        p.observe(0, 128, 1000, truth(128, 1000));
-        p.observe(0, 128, 3000, truth(128, 3000));
+        p.observe({{0, 512}, {512, 512}, {1024, 512}, {1536, 512}}, {500, 600, 700, 800});
         require(!p.line(0), "a prefill priced its slices from one slice size");
-        p.observe(0, 256, 1000, truth(256, 1000));
-        p.observe(0, 256, 3000, truth(256, 3000));
-        const auto l = p.line(0);
-        require(l && std::fabs(l->row_ms - 0.2) < 1e-9 && std::fabs(l->depth_ms - 1e-5) < 1e-12 && std::fabs(l->fixed_ms - 30) < 1e-6 && p.line(2) && std::fabs(p.line(2)->row_ms - 0.2) < 1e-9,
-                "the slice line did not tell row cost from depth cost, or a band above did not take it");
-        require(infer::fit_line({{128, 0, truth(128, 1000)}, {256, 0, truth(256, 3000)}})->row_ms > 0.24, "two slices at different depths did not mislead a line without their depths");
+        infer::SlicePeriods exact;
+        const auto [slices, done] = prefill(0);
+        exact.observe(slices, done);
+        const auto l = exact.line(0);
+        require(l && std::fabs(l->fixed_ms - 30) < 1e-9 && std::fabs(l->row_ms - 0.2) < 1e-12 && exact.line(2) && std::fabs(exact.line(2)->row_ms - 0.2) < 1e-12,
+                "the slice line was not the slices' own, the drain slice moved it, or a band above did not take it");
+        // A run in a band above starts its own series at the end of the slice before it, so each band's line is its own slices'.
+        infer::SlicePeriods two;
+        std::vector<std::pair<size_t, size_t>> deep;
+        std::vector<double> at_end;
+        double t = 0;
+        for (size_t c = 0, at = 3584; c < 12; at += deep.back().second, ++c) {
+            const size_t r = c % 2 ? 256 : 512;
+            deep.push_back({at, r});
+            t += at < infer::kBandTokens ? truth(r) : 2 * truth(r);
+            at_end.push_back(t);
+        }
+        two.observe(deep, at_end);
+        require(two.line(1) && std::fabs(two.line(1)->fixed_ms - 60) < 1e-9 && std::fabs(two.line(1)->row_ms - 0.4) < 1e-12 && !two.line(0), "a band's line took another band's slices");
+        // A band keeps its last kBandPoints points, so a cost that changed is the line once that many points were measured at it.
+        infer::SlicePeriods aged;
+        for (const infer::StageLine& now : {infer::StageLine{30, 0.2}, infer::StageLine{50, 0.1}})
+            for (size_t k = 0; k <= infer::SlicePeriods::kBandPoints / 10; ++k) {
+                std::vector<std::pair<size_t, size_t>> slices;
+                std::vector<double> done;
+                double t = 0;
+                for (size_t c = 0, at = 0; c < 12; at += slices.back().second, ++c) {
+                    slices.push_back({at, 96 + 32 * ((c + k) % 4)});
+                    t += now.at(slices.back().second);
+                    done.push_back(t);
+                }
+                aged.observe(slices, done);
+            }
+        require(aged.line(0) && std::fabs(aged.line(0)->fixed_ms - 50) < 1e-6 && std::fabs(aged.line(0)->row_ms - 0.1) < 1e-9, "a band's line kept points past its last kBandPoints");
         // Four even stages each pay 12 ms a slice that the measured period leaves out: the prefills' wall time beyond the prediction raises the fixed cost to the stages' true cost, which then cuts 16k rows into fewer slices.
         const double hidden = 12;
         const auto plan = [](size_t rows, const std::vector<infer::StageLine>& lines, std::vector<double>* finish) {
@@ -1766,7 +1811,7 @@ void service_by_hand() {
             std::vector<double> f(lines.size(), 0.0);
             for (size_t at = 0; at < rows;) {
                 const size_t n = infer::prompt_slice(at, rows - at, lines.size(), [&](size_t) { return lines; }, 1024, f);
-                infer::pipeline_add(f, lines, n, 0, at + n / 2);
+                infer::pipeline_add(f, lines, n);
                 slices.push_back(n);
                 at += n;
             }
@@ -1774,8 +1819,7 @@ void service_by_hand() {
             return slices;
         };
         infer::SlicePeriods q;
-        q.observe(0, 512, 256, 20 + 0.3 * 512);
-        q.observe(0, 1024, 512, 20 + 0.3 * 1024);
+        q.observe({{0, 512}, {512, 512}, {1024, 1024}, {2048, 1024}, {3072, 512}}, {100, 100 + 20 + 0.3 * 512, 100 + 40 + 0.3 * 1536, 100 + 60 + 0.3 * 2560, 4000});
         const std::vector<infer::StageLine> real(4, infer::StageLine{20 + hidden, 0.3});
         const size_t before = plan(16384, std::vector<infer::StageLine>(4, *q.line(0)), nullptr).size();
         for (int k = 0; k < 60; ++k) {

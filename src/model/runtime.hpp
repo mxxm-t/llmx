@@ -1145,7 +1145,7 @@ public:
                 if (cut > i && cut < i + n) n = cut - i;
                 if (S > 1) {
                     const auto l = lines(depth_band(start + i));
-                    if (!l.empty()) pipeline_add(finish, l, n, 0, start + i + n / 2);
+                    if (!l.empty()) pipeline_add(finish, l, n);
                     priced = priced && !l.empty();
                 }
                 parts.push_back({i, n});
@@ -1169,15 +1169,18 @@ public:
             }
             const auto began = std::chrono::steady_clock::now();
             const auto done = run_chunks(ctx_, chunks, chunk);
-            // Each slice after the first is measured by the last stage's interval since the one before it, and a priced prefill's wall time beyond its predicted finish calibrates the fixed costs.
+            // The slices' times at the last stage price the next prefills (SlicePeriods::observe), and a priced prefill's wall time beyond its predicted finish calibrates the fixed costs.
             const auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
             std::vector<size_t> bands(chunks);
+            std::vector<std::pair<size_t, size_t>> slices(chunks);
+            std::vector<double> left(chunks);
             for (size_t c = 0; c < chunks; ++c) {
-                const size_t at = start + parts[c].first, n = parts[c].second;
-                bands[c] = depth_band(at);
-                if (c) periods_.observe(bands[c], n, at + n / 2, ms(done[c - 1], done[c]));
+                slices[c] = {start + parts[c].first, parts[c].second};
+                bands[c] = depth_band(slices[c].first);
+                left[c] = ms(began, done[c]);
             }
-            if (priced) periods_.calibrate(bands, ms(began, done.back()) - finish.back());
+            periods_.observe(slices, left);
+            if (priced) periods_.calibrate(bands, left.back() - finish.back());
         };
         try {
             scoped(0, work);
@@ -1370,7 +1373,7 @@ private:
     std::vector<uint32_t> token_tails_, marked_tokens_; // host IDs indexed by the existing state slot and mark buffer IDs
     std::vector<Stage> stages_;
     bool pipelined_ = false;                     // a prompt's chunks flow through the stages together (prefill)
-    SlicePeriods periods_;                       // the pipelined prefill's measured stage periods, which its slicing reads
+    SlicePeriods periods_;                       // the pipelined prefill's measured slice times, which its slicing reads
     size_t prefill_slices_ = 0;                  // the slices the last prefill ran
     // The stages' times kept while tracing (trace_stages), each stage's thread appending its own.
     struct StageTrace {

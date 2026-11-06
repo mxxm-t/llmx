@@ -231,7 +231,7 @@ delegated to a `backend::Backend`.
     length, which a chunk commits first. That needs the embedding on the first stage's
     device, the head on the last's and every feed-forward block beside its
     mixer, as every fitted split has; any other placement runs its
-    chunks one pass at a time, each a ubatch. A pipelined prompt's chunks are slices that `prompt_slice` chooses one after another, each after the backlog of those before it, at the periods `run_chunks` measured for each slice of earlier prompts and their fixed costs calibrated by those prompts' wall times ([slicing](model-slicing.md)), and `prefill_slices()` says how many the last prompt took; every chunk carries the prompt's extent, so a split and any slicing compute what one device does.
+    chunks one pass at a time, each a ubatch. A pipelined prompt's chunks are slices that `prompt_slice` chooses one after another, each after the backlog of those before it, at the lines fitted through the times `run_chunks` saw earlier prompts' slices leave the last stage and their fixed costs calibrated by those prompts' wall times ([slicing](model-slicing.md)), and `prefill_slices()` says how many the last prompt took; every chunk carries the prompt's extent, so a split and any slicing compute what one device does.
   - `trace_stages(on)` / `stage_times()`: while on, each stage recorded keeps its host times (`StageTime`): when its recording started and ended, and inside it the wait for the residual's sending submission and the write of the rows into its device, which `receive` measures; `bench --profile` prints them by stage.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`

@@ -249,11 +249,14 @@ cache, which is still the host's memory.
 Wherever two consecutive graph nodes sit on different devices the residual
 stream crosses: the source `copy`s it into a host-visible handoff buffer
 inside its own submission, and the destination waits that submission's
-ticket and `write`s it. With a layer split that is one crossing per stage
+ticket and `write`s it. Where the sender's backend serves the destination
+(`Backend::handoff`, [MULTI-DEVICE](MULTI-DEVICE.md), Execution structure), the
+destination's queue waits on the sender's on the devices and copies the
+rows itself, and the host neither waits nor writes. With a layer split that is one crossing per stage
 boundary per pass, `n_embd * rows` floats: 16 KiB for a decode token on
 Qwen3-8B, 8 MiB for a 512-token microbatch, against matmuls that stream
-gigabytes. A direct device-to-device copy is a faster implementation of the
-same two halves and is not needed to make the split correct.
+gigabytes. Either way the two halves are the same, and the split is correct
+through the host alone.
 
 The pipeline overlap that makes a two-device split worth its transfer is a
 loop in the caller, not a feature of the interface: `prefill` submits the

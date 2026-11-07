@@ -461,6 +461,23 @@ public:
     virtual void wait(size_t back) noexcept { (void)back; }
 };
 
+// A crossing's order between the sender of a host-visible buffer and the readers copying from it on their queues, kept on the devices with no host wait (docs/MULTI-DEVICE.md, Execution structure); one a buffer, from Backend::handoff.
+// begin and sent come on the sender's recording thread, take and taken on a reader's, each recorded with its queue's next submission; the host orders them, a send's sent before its takes and each served reader's taken before the next begin.
+class Handoff {
+public:
+    virtual ~Handoff() = default;
+    // Whether reader `reader` (an index into the readers handoff was given) copies through this handoff; one it does not serve takes the host path, its host waiting for the sender's submission.
+    virtual bool serves(size_t reader) const = 0;
+    // On the sender, before it writes the buffer: its queue waits until every served reader's last taken() is done.
+    virtual void begin() = 0;
+    // On the sender, after its writes: the rows are there for the served readers.
+    virtual void sent() = 0;
+    // On a served reader: its queue waits for the last sent(), then copies `bytes` at `src_off` of the buffer `src` into dst.
+    virtual void take(size_t reader, Buffer& dst, size_t dst_off, const Buffer& src, size_t src_off, size_t bytes) = 0;
+    // On a served reader, after its takes of one sent(): as far as this reader goes, the buffer may be written again.
+    virtual void taken(size_t reader) = 0;
+};
+
 // A device's operations and memory; a backend takes one caller at a time, so its calls never come from two threads at once.
 class Backend {
 public:
@@ -469,6 +486,11 @@ public:
     // A collective over `members`, this backend first, every one of this backend's kind, for sums of up to `rows` rows of `width` floats; null where this backend has none on this platform.
     virtual std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) {
         (void)members, (void)rows, (void)width;
+        return nullptr;
+    }
+    // The device-side order for crossings from this backend's host-visible buffers to `readers`; null where it serves none of them, and every crossing goes through the host.
+    virtual std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) {
+        (void)readers;
         return nullptr;
     }
     // The PCI root complex above the backend's device, as the system names it, which a tensor group's startup report gives; empty where there is none or the system does not say.

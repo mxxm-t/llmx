@@ -20,9 +20,12 @@ is measured against the single-sequence path and the reference.
   prefill microbatch is one entry with many tokens, a decode step is many
   entries with one token each, and the two mix in one pass.
 - **One submitter per device.** A `Backend` is driven by one thread at a
-  time. The scheduler is that thread, but for a tensor group's stage
-  while several passes are in flight, which a thread of that stage
-  records (The round, below); connection threads only queue
+  time. The scheduler is that thread, but for a stage whose recording
+  waits on its devices while several passes are in flight (a tensor
+  group's, or past the first a device's on a pipelined split that receives
+  through the host rather than behind a device-side wait,
+  `Model::stage_waits`), which a thread of that stage records (The round,
+  below); connection threads only queue
   requests and drain token streams. This is a contract, not a lock.
 - **Streaming.** Tokens leave as they are sampled, over a plain HTTP/1.1
   response with chunked transfer or server-sent events, so a browser, curl

@@ -1372,20 +1372,20 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
             for (const auto& t : times)
                 if (t.stage == 0) begun.push_back(t.start);
             for (size_t s = 0; s < S; ++s) {
-                size_t n = 0, rows = 0;
+                size_t n = 0, rows = 0, direct = 0;
                 double first = 0, last = 0, recording = 0, waited = 0, wrote = 0, ready = 0;
                 for (const auto& t : times) {
                     if (t.stage != s) continue;
                     if (!n) first = t.start;
                     last = t.start;
                     ready += t.start + t.receive_ms - (n < begun.size() ? begun[n] : t.start);
-                    ++n, rows += t.rows, recording += t.end - t.start, waited += t.receive_ms, wrote += t.write_ms;
+                    ++n, rows += t.rows, direct += t.direct, recording += t.end - t.start, waited += t.receive_ms, wrote += t.write_ms;
                 }
                 if (!n) continue;
                 const double k = (double)n;
-                printf("profile %s, stage %zu: %zu recordings of %.0f rows, one every %.3f ms, each %.3f ms: %.3f waiting for the sender, %.3f writing, %.3f recording and submitting; "
+                printf("profile %s, stage %zu: %zu recordings of %.0f rows, %zu received device to device, one every %.3f ms, each %.3f ms: %.3f waiting for the sender, %.3f writing, %.3f recording and submitting; "
                        "the residual there %.3f ms after the pass's first stage began\n",
-                       what.c_str(), s, n, (double)rows / k, n > 1 ? (last - first) / (k - 1) : 0.0, recording / k, waited / k, wrote / k, (recording - waited - wrote) / k, ready / k);
+                       what.c_str(), s, n, (double)rows / k, direct, n > 1 ? (last - first) / (k - 1) : 0.0, recording / k, waited / k, wrote / k, (recording - waited - wrote) / k, ready / k);
             }
         };
         // One more prompt and one more decode run, each read on its own, so a pass is attributed to its kernels rather than inferred from kernels timed alone.

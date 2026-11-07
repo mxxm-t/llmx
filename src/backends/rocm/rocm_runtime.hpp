@@ -54,6 +54,8 @@ struct RocmUnavailable : std::runtime_error {
     X(hipEventQuery, hipError_t(hipEvent_t)) \
     X(hipEventSynchronize, hipError_t(hipEvent_t)) \
     X(hipStreamWaitEvent, hipError_t(hipStream_t, hipEvent_t, unsigned)) \
+    X(hipStreamWaitValue64, hipError_t(hipStream_t, void*, uint64_t, unsigned, uint64_t)) \
+    X(hipStreamWriteValue64, hipError_t(hipStream_t, void*, uint64_t, unsigned)) \
     X(hipGetErrorName, const char*(hipError_t)) \
     X(hipGetErrorString, const char*(hipError_t))
 

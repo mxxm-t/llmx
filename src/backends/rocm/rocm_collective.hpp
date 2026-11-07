@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <atomic>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -268,6 +269,84 @@ std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& membe
         else std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", names.c_str(), path->second.c_str());
     }
     return std::make_unique<RocmCollective>(group, rows, width, path->second.empty());
+}
+
+// A crossing's host-visible buffer that ROCm readers copy from on their own streams, and that the sender writes again behind each reader's last copy (docs/src/backends-rocm.md, handoffs).
+// The order is counters in coherent host memory that stream memory operations write and wait for, since a HIP event waited for on another device's stream holds the host until it completes.
+class RocmHandoff final : public Handoff {
+public:
+    RocmHandoff(RocmBackend& sender, std::vector<RocmBackend*> readers)
+        : sender_(sender), readers_(std::move(readers)), counts_(readers_.size(), 0), waited_(readers_.size(), 0) {
+        const size_t words = 1 + readers_.size();
+        hip_check(hip().hipHostMalloc((void**)&words_, words * sizeof(uint64_t), hipHostMallocCoherent), "hipHostMalloc");
+        std::memset(words_, 0, words * sizeof(uint64_t));
+    }
+    ~RocmHandoff() override { release(); }
+
+    bool serves(size_t reader) const override { return reader < readers_.size() && readers_[reader]; }
+    // The sender waits for each reader's count of takes to reach the takes it has recorded.
+    void begin() override {
+        for (size_t r = 0; r < readers_.size(); ++r)
+            if (counts_[r]) wait_for(sender_, &words_[1 + r], counts_[r]);
+    }
+    // Both marks are issued at once rather than held to the next submit, so no host wait on any device's ticket can stand behind a device waiting for them.
+    void sent() override {
+        const uint64_t n = sends_.load(std::memory_order_relaxed) + 1;
+        write(sender_, &words_[0], n);
+        sender_.flush();
+        sends_.store(n, std::memory_order_release);
+    }
+    void take(size_t reader, Buffer& dst, size_t dst_off, const Buffer& src, size_t src_off, size_t bytes) override {
+        if (!serves(reader)) throw std::logic_error("backend: a ROCm handoff taken by a reader it does not serve");
+        RocmBackend& b = *readers_[reader];
+        const uint64_t sends = sends_.load(std::memory_order_acquire);
+        if (waited_[reader] != sends) {
+            // Recorded as waited only once the flush that issues the wait returns, as the counts are.
+            wait_for(b, &words_[0], sends);
+            b.flush();
+            waited_[reader] = sends;
+        }
+        b.copy(dst, dst_off, src, src_off, bytes);
+    }
+    void taken(size_t reader) override {
+        if (!serves(reader)) throw std::logic_error("backend: a ROCm handoff taken by a reader it does not serve");
+        // The count advances only once its write is issued, so a flush that throws drops a write no sender's begin waits for.
+        const uint64_t c = counts_[reader] + 1;
+        write(*readers_[reader], &words_[1 + reader], c);
+        readers_[reader]->flush();
+        counts_[reader] = c;
+    }
+
+private:
+    // Held with the backend's other stream operations, so they keep its order.
+    static void wait_for(RocmBackend& on, uint64_t* word, uint64_t value) { on.hold_wait(word, value); }
+    static void write(RocmBackend& on, uint64_t* word, uint64_t value) { on.hold_write(word, value); }
+    // The counters outlive every operation queued on them, each side's stream drained first.
+    void release() noexcept {
+        for (RocmBackend* b : readers_)
+            if (b) b->sync();
+        sender_.sync();
+        if (words_) (void)hip().hipHostFree(words_);
+    }
+    RocmBackend& sender_;
+    std::vector<RocmBackend*> readers_;   // per reader, null for one this handoff does not serve
+    uint64_t* words_ = nullptr;   // coherent host memory: the sends so far, then each reader's takes so far
+    std::vector<uint64_t> counts_;   // per reader, its takes so far, written on its thread before the sender's next begin reads it
+    std::vector<uint64_t> waited_;   // per reader, the send its stream last waited for
+    std::atomic<uint64_t> sends_{0};   // sent calls so far, read on the readers' threads
+};
+
+// Every ROCm reader is served, since it copies from the sender's host memory and needs no peer access.
+std::unique_ptr<Handoff> RocmBackend::handoff(const std::vector<Backend*>& readers) {
+    std::vector<RocmBackend*> to;
+    bool any = false;
+    for (Backend* b : readers) {
+        auto* r = dynamic_cast<RocmBackend*>(b);
+        to.push_back(r);
+        any = any || r;
+    }
+    if (!any) return nullptr;
+    return std::make_unique<RocmHandoff>(*this, std::move(to));
 }
 
 } // namespace

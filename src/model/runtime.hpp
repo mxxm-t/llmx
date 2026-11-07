@@ -346,6 +346,7 @@ struct ExecContext {
     backend::BufferPtr logits_buf;
     size_t logit_rows = 0;
     std::vector<std::vector<backend::BufferPtr>> handoff;   // per device
+    std::vector<std::vector<std::unique_ptr<backend::Handoff>>> links;   // per device, a Handoff for each of its handoff buffers where its backend serves a reader (Device::served)
     size_t handoff_rows = 0;
     std::vector<Pass> passes;
     size_t slots = 0, pass_rows = 0;           // what reserve_passes froze it for: its pass slots and the rows a pass may take; zero slots while it grows
@@ -658,6 +659,17 @@ public:
             at = f;
         }
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
+        // Which of each sender's readers its backend orders on the devices, asked once; every pass's Handoffs answer the same.
+        for (size_t d = 0; d < devices_.size(); ++d) {
+            Device& dev = *devices_[d];
+            if (!dev.sends) continue;
+            dev.readers = readers(d);
+            std::vector<backend::Backend*> to;
+            for (size_t r : dev.readers) to.push_back(devices_[r]->b.get());
+            const auto h = dev.b->handoff(to);
+            dev.served.assign(dev.readers.size(), 0);
+            for (size_t r = 0; h && r < dev.readers.size(); ++r) dev.served[r] = h->serves(r);
+        }
         // A tensor group's other members hold the layers and caches its first member does and run what it runs, each on its shards; the residual leaves the group from its first member.
         if (width_ > 1) {
             bool beside = place_.embed_device == (int)stages_.front().device && place_.output_device == (int)stages_.back().device;
@@ -895,9 +907,11 @@ public:
     bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
     // Whether stage s is a tensor group's, whose recording waits at every sum, each a submission its members wait on each other for.
     bool stage_grouped(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
-    // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it.
+    // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it through the host, not served on the devices (Device::served).
     // A caller that keeps passes in flight may record such a stage on a thread of that stage's (prepare_pass_stage, record_pass_stage, commit_pass_stage).
-    bool stage_waits(size_t s) const { return stage_grouped(s) || (s > 0 && stages_.at(s).device < devices_.size() && pipelined_ && !stage_on_host(s)); }
+    bool stage_waits(size_t s) const {
+        return stage_grouped(s) || (s > 0 && stages_.at(s).device < devices_.size() && pipelined_ && !stage_on_host(s) && !served(stages_[s - 1].device, stages_[s].device));
+    }
     // External row preparation runs outside a caller's scheduler lock even with one pass on one device.
     bool stage_reads(size_t s) const {
         const Stage& stage = stages_.at(s);
@@ -937,6 +951,7 @@ public:
     struct StageTime {
         size_t stage = 0, rows = 0;
         double start = 0, receive_ms = 0, write_ms = 0, end = 0;
+        bool direct = false;   // the residual came behind a device-side wait (Device::served), with no host wait or write
     };
     // Starts or stops keeping each recorded stage's times; stage_times hands over those kept since the last call.
     void trace_stages(bool on) { trace_ = on ? std::make_unique<StageTrace>() : nullptr; }
@@ -1317,6 +1332,8 @@ private:
         bool used = false;
         bool holding = false;                    // this model asked the backend to hold between submissions
         bool sends = false;                      // the residual leaves it, so it keeps handoff buffers
+        std::vector<size_t> readers;             // the devices its crossings go to (Model::readers)
+        std::vector<char> served;                // per reader, whether its backend's Handoff orders the crossing on the devices
         size_t member = 0;                       // its place in its tensor group, 0 for the first member, which a placement names
         int mixer_layers = 0;
         int kv_layers = 0;                       // its mixer layers that keep rows in the KV blocks
@@ -1607,6 +1624,8 @@ private:
     void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows);
     std::pair<double, double> receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
     void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);
+    std::vector<size_t> readers(size_t from) const;
+    bool served(size_t from, size_t to) const;
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
     Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1) const;
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;

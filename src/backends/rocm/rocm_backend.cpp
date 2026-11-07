@@ -46,6 +46,7 @@ constexpr size_t kGroupSignalBytes = 4096;  // a group member's signal block bef
 
 class RocmBackend;
 class RocmCollective;
+class RocmHandoff;
 
 // A kernel's arguments by value, packed at their natural alignments as the kernel's argument segment lays them out, so a launch can be held and issued later.
 struct Args {
@@ -263,6 +264,7 @@ public:
     // A group's signal block is a fixed size beside the staging collective_bytes_per_row counts.
     size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + kGroupSignalBytes + free / 20; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+    std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
     // A member's partial rows and a staging slot for each member's (RocmCollective).
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
         return members ? size_mul(members + 1, size_mul(width, sizeof(float))) : 0;
@@ -2757,9 +2759,9 @@ private:
         issue(kernels_[kGroupSum], blocks, 1, 1, kThreads, args, "llmx_group_sum");
     }
 
-    // A stream operation held until the next flush, which issues them in order: a kernel with its packed arguments, a copy, or a zero fill (docs/src/backends-rocm.md, records).
+    // A stream operation held until the next flush, which issues them in order: a kernel with its packed arguments, a copy, a zero fill, or a wait for or write of a 64-bit word, `bytes` its value (docs/src/backends-rocm.md, records).
     struct Held {
-        enum Kind : uint8_t { kernel, copy, fill } kind;
+        enum Kind : uint8_t { kernel, copy, fill, wait_word, write_word } kind;
         hipFunction_t f;
         unsigned gx, gy, gz, threads;
         const char* name;
@@ -2787,6 +2789,9 @@ private:
     }
     void hold_copy(void* dst, const void* src, size_t bytes, hipMemcpyKind dir) { hold({Held::copy, nullptr, 0, 0, 0, 0, "hipMemcpyAsync", 0, 0, dst, src, bytes, dir}); }
     void hold_fill(void* dst, size_t bytes) { hold({Held::fill, nullptr, 0, 0, 0, 0, "hipMemsetAsync", 0, 0, dst, nullptr, bytes, hipMemcpyDefault}); }
+    // The stream waits until *word is at least `value`, or writes `value` there once the work before it is done.
+    void hold_wait(uint64_t* word, uint64_t value) { hold({Held::wait_word, nullptr, 0, 0, 0, 0, "hipStreamWaitValue64", 0, 0, word, nullptr, value, hipMemcpyDefault}); }
+    void hold_write(uint64_t* word, uint64_t value) { hold({Held::write_word, nullptr, 0, 0, 0, 0, "hipStreamWriteValue64", 0, 0, word, nullptr, value, hipMemcpyDefault}); }
     // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
     void flush() {
         if (ops_.empty()) return;
@@ -2804,6 +2809,10 @@ private:
                 launch_check(f.hipModuleLaunchKernel(op.f, op.gx, op.gy, op.gz, op.threads, 1, 1, 0, stream_, nullptr, extra), op.name);
             } else if (op.kind == Held::copy) {
                 launch_check(f.hipMemcpyAsync(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
+            } else if (op.kind == Held::wait_word) {
+                launch_check(f.hipStreamWaitValue64(stream_, op.dst, op.bytes, hipStreamWaitValueGte, ~0ull), op.name);
+            } else if (op.kind == Held::write_word) {
+                launch_check(f.hipStreamWriteValue64(stream_, op.dst, op.bytes, 0), op.name);
             } else {
                 launch_check(f.hipMemsetAsync(op.dst, 0, op.bytes, stream_), op.name);
             }
@@ -2815,6 +2824,7 @@ private:
         bytes.swap(op_bytes_);
     }
     friend class RocmCollective;
+    friend class RocmHandoff;
 
     RocmDevice dev_;
     std::shared_ptr<Graves> graves_ = std::make_shared<Graves>();   // before every buffer member, so it outlives them

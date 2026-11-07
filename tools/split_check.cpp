@@ -300,6 +300,7 @@ int main(int argc, char** argv) {
         std::printf("%s: %zu tokens, %s caches; single %s, split:\n%s", argv[1], ids.size(), backend::kv_type_name(options.kv_k), single.c_str(), second->plan.c_str());
 
         const size_t vocab = one.n_vocab();
+        two.trace_stages(true);
         std::vector<float> scored(ids.size() * vocab);
         one.score(ids, [&](size_t pos, const float* logits) { std::memcpy(&scored[pos * vocab], logits, vocab * sizeof(float)); });
         size_t differ = 0;
@@ -324,6 +325,12 @@ int main(int argc, char** argv) {
             steps_differ += std::memcmp(a.data(), b.data(), vocab * sizeof(float)) != 0;
         }
         std::printf("decode path: prefill and %d greedy steps, %zu differ\n", steps, steps_differ);
+        // Which stages after the first received the residual behind a device-side wait, with no host wait (Model::StageTime::direct).
+        size_t received = 0, direct = 0;
+        for (const auto& t : two.stage_times())
+            if (t.stage > 0) ++received, direct += t.direct;
+        two.trace_stages(false);
+        std::printf("crossings: %zu of %zu stage receives device to device\n", direct, received);
         size_t forked = 0;
         const size_t replay_differ = steps ? replay(one, history, ids.size(), a, forked) + replay(two, history, ids.size(), b, forked) : 0;
         std::printf("replay by class: the prompt and %d steps on one device and the split, whole and %zu from a fork at a block, %zu differ from the decode\n", steps, forked, replay_differ);

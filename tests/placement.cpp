@@ -1,6 +1,7 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -10,10 +11,12 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <thread>
 #include <vector>
 #include "model/runtime.hpp"
 #include "model/place.hpp"
@@ -1128,6 +1131,74 @@ void pipelined_slicings_match() {
             fresh = false;
         }
     }
+}
+
+// A host stage taking 3 ms a submission on the prompt's thread, whatever its rows.
+struct PacedCpu : backend::CpuBackend {
+    backend::Ticket submit() override {
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        return backend::CpuBackend::submit();
+    }
+};
+
+// A stage whose record returns at once while its device finishes each submission 30 ms and 30 ms a row after the one before, as a device behind a device-side wait does.
+// Both costs are large beside a timer tick (about 15.6 ms on Windows) and the first stage's pacing, and a wait yields until its time rather than sleeping past it, so the line it gives is the same on every system.
+struct LateCpu : backend::CpuBackend {
+    std::mutex mu;
+    size_t rows = 0;                                            // the widest matmul since the last submission
+    std::vector<std::chrono::steady_clock::time_point> ready;   // ticket t's completion at t - 1
+    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
+                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+        rows = std::max(rows, nbatch);
+        backend::CpuBackend::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
+    }
+    backend::Ticket submit() override {
+        const backend::Ticket t = backend::CpuBackend::submit();
+        std::lock_guard<std::mutex> lk(mu);
+        const auto now = std::chrono::steady_clock::now();
+        ready.resize(t, now);
+        ready[t - 1] = std::max(now, t > 1 ? ready[t - 2] : now) + std::chrono::milliseconds(30 + 30 * std::exchange(rows, 0));
+        return t;
+    }
+    void wait(backend::Ticket t) noexcept override {
+        std::chrono::steady_clock::time_point at;
+        {
+            std::lock_guard<std::mutex> lk(mu);
+            if (t == 0 || t > ready.size()) return;
+            at = ready[t - 1];
+        }
+        while (std::chrono::steady_clock::now() < at) std::this_thread::yield();
+    }
+    bool done(backend::Ticket t) noexcept override {
+        std::lock_guard<std::mutex> lk(mu);
+        return t == 0 || t > ready.size() || ready[t - 1] <= std::chrono::steady_clock::now();
+    }
+    void sync() noexcept override {
+        backend::Ticket t;
+        {
+            std::lock_guard<std::mutex> lk(mu);
+            t = ready.size();
+        }
+        wait(t);
+    }
+};
+
+// A last stage whose record returns before its device finishes still prices its slices at completion (Model::run_chunks).
+// Two prompts at ubatch 3 and 4 give the device's line, 30 ms and 30 ms a row, which cuts the next prompt finer than its ubatch; times at the host submit see the first stage's 3 ms a slice and keep it whole.
+void pipelined_times_at_completion() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    infer::PlacedModel placed = pipelined(weights, {std::make_shared<PacedCpu>(), std::make_shared<LateCpu>()}, {1, 2});
+    infer::Model& split = *placed.model;
+    for (int ub : {3, 4}) {
+        split.reset();
+        split.set_ubatch(ub);
+        split.prefill(kPrompt);
+    }
+    split.reset();
+    split.set_ubatch((int)kPrompt.size());
+    split.prefill(kPrompt);
+    require(split.prefill_slices() > 1, "a pipelined prompt priced its slices at the host submit, not at its last stage's completion");
+    ++checked;
 }
 
 // A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk.
@@ -2505,6 +2576,7 @@ int main() {
             pipelined_failure_rolls_back(devices);
         }
         pipelined_slicings_match();
+        pipelined_times_at_completion();
         replay_over_stages();
         passes_refused();
         passes_continue();

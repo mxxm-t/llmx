@@ -2435,6 +2435,147 @@ void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t wi
     }
 }
 
+// Device-side crossings (Backend::handoff): device 0 sends rows through a host-visible buffer to every other device, each reader's queue waiting on the sender's, with every device's backend alive.
+// A slow sender proves a reader's copy waits on the device and that take returns before the sender's work ends; a slow reader proves begin waits for its last take before the buffer is written again.
+void handoffs() {
+    std::vector<BackendPtr> d = rocm_devices(kMaxTensorWidth);
+    BackendPtr cpu = make_cpu_backend();
+    require(d[0]->handoff({cpu.get()}) == nullptr, "a ROCm handoff to the CPU alone is null");
+    if (d.size() < 2) {
+        std::cout << "backend-rocm: one device, so no handoff between devices\n";
+        return;
+    }
+    const size_t n = 4099, bytes = n * sizeof(float), big = (size_t)64 << 20;
+    std::vector<Backend*> readers;
+    for (size_t r = 1; r < d.size(); ++r) readers.push_back(d[r].get());
+    readers.push_back(cpu.get());
+    const std::unique_ptr<Handoff> h = d[0]->handoff(readers);
+    require(h != nullptr, "a ROCm handoff to ROCm readers is made");
+    if (!h) return;
+    for (size_t r = 0; r + 1 < readers.size(); ++r) require(h->serves(r), "a ROCm handoff serves a ROCm reader");
+    require(!h->serves(readers.size() - 1), "a ROCm handoff does not serve the CPU");
+    const BufferPtr box = d[0]->alloc(bytes, Memory::host_visible);
+    const BufferPtr rows = d[0]->alloc(bytes);
+    // Copies of a large buffer, about a millisecond each, queued ahead of a side's part.
+    const auto slow = [&](Backend& b, const BufferPtr& from, const BufferPtr& to) {
+        for (int i = 0; i < 32; ++i) b.copy(*to, 0, *from, 0, big);
+    };
+    std::vector<BufferPtr> s_from{d[0]->alloc(big)}, s_to{d[0]->alloc(big)};
+    std::vector<BufferPtr> dst, r_from, r_to;
+    for (size_t r = 1; r < d.size(); ++r) {
+        dst.push_back(d[r]->alloc(bytes));
+        r_from.push_back(d[r]->alloc(big));
+        r_to.push_back(d[r]->alloc(big));
+    }
+    const auto values = [&](int round) {
+        std::vector<float> v(n);
+        for (size_t i = 0; i < n; ++i) v[i] = float((int)((i * 7 + (size_t)round * 13) % 61) - 30) * 0.25f + (float)round;
+        return v;
+    };
+    for (int round = 1; round <= 3; ++round) {
+        const std::vector<float> want = values(round);
+        d[0]->write(*rows, 0, want.data(), bytes);
+        d[0]->wait(d[0]->submit());
+        // Round 1 maps the buffer for every reader, round 2 slows the sender, round 3 every reader.
+        const auto t0 = std::chrono::steady_clock::now();
+        if (round == 2) slow(*d[0], s_from[0], s_to[0]);
+        const auto ts = std::chrono::steady_clock::now();
+        h->begin();
+        d[0]->copy(*box, 0, *rows, 0, bytes);
+        h->sent();
+        const Ticket sent = d[0]->submit();
+        std::vector<Ticket> took(d.size());
+        const auto tt = std::chrono::steady_clock::now();
+        for (size_t r = 1; r < d.size(); ++r) {
+            if (round == 3) slow(*d[r], r_from[r - 1], r_to[r - 1]);
+            h->take(r - 1, *dst[r - 1], 0, *box, 0, bytes);
+            h->taken(r - 1);
+            took[r] = d[r]->submit();
+        }
+        if (round == 2) {
+            const bool early = !d[0]->done(sent);
+            const auto t1 = std::chrono::steady_clock::now();
+            d[0]->wait(sent);
+            const double rest = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count();
+            std::printf("backend-rocm: handoff round 2, slow %.3f send %.3f take %.3f; the host's calls %.3f ms, the sender's work ran %.3f ms past the readers' takes\n", std::chrono::duration<double, std::milli>(ts - t0).count(), std::chrono::duration<double, std::milli>(tt - ts).count(), std::chrono::duration<double, std::milli>(t1 - tt).count(), std::chrono::duration<double, std::milli>(t1 - t0).count(), rest);
+            require(early, "a reader's take returns before the sender's slow work ends");
+        }
+        if (round == 3) {
+            // The next round's rows go in behind the slow readers' takes, or they read them in this round.
+            const std::vector<float> next = values(4);
+            d[0]->write(*rows, 0, next.data(), bytes);
+            h->begin();
+            d[0]->copy(*box, 0, *rows, 0, bytes);
+            h->sent();
+            d[0]->submit();
+        }
+        for (size_t r = 1; r < d.size(); ++r) {
+            d[r]->wait(took[r]);
+            std::vector<float> got(n);
+            d[r]->read(*dst[r - 1], 0, got.data(), bytes);
+            require(same(got, want), "handoff round " + std::to_string(round) + " reader " + std::to_string(r) + " reads the rows sent to it");
+        }
+        d[0]->sync();
+        if (round == 3) {
+            // The rows sent behind the slow readers reach them too.
+            for (size_t r = 1; r < d.size(); ++r) {
+                h->take(r - 1, *dst[r - 1], 0, *box, 0, bytes);
+                h->taken(r - 1);
+                std::vector<float> got(n);
+                d[r]->read(*dst[r - 1], 0, got.data(), bytes);
+                require(same(got, values(4)), "handoff reader " + std::to_string(r) + " reads the rows sent behind its slow take");
+            }
+        }
+    }
+    {
+        // A count or mark whose write HIP refuses: taken and sent throw, and neither the sender's next begin nor any sync waits for the dropped write.
+        HipFn& f = hip();
+        const auto real_write = f.hipStreamWriteValue64;
+        const auto refuse = [](hipStream_t, void*, uint64_t, unsigned) { return hipErrorLaunchFailure; };
+        const auto from = std::chrono::steady_clock::now();
+        h->begin();
+        d[0]->copy(*box, 0, *rows, 0, bytes);
+        h->sent();
+        d[0]->submit();
+        for (size_t r = 1; r < d.size(); ++r) {
+            h->take(r - 1, *dst[r - 1], 0, *box, 0, bytes);
+            if (r == 1) f.hipStreamWriteValue64 = refuse;
+            require(throws([&] { h->taken(r - 1); }) == (r == 1), "a taken throws exactly where HIP refuses its count's write");
+            f.hipStreamWriteValue64 = real_write;
+            d[r]->submit();
+        }
+        h->begin();
+        d[0]->copy(*box, 0, *rows, 0, bytes);
+        f.hipStreamWriteValue64 = refuse;
+        require(throws([&] { h->sent(); }), "a sent throws where HIP refuses its mark's write");
+        f.hipStreamWriteValue64 = real_write;
+        d[0]->submit();
+        for (size_t r = 0; r < d.size(); ++r) d[r]->sync();
+        const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - from).count();
+        require(s < 2.0, "a handoff whose writes HIP refused waited " + std::to_string(s) + " s, past 2 s");
+    }
+    {
+        // A reader's first copy from a buffer: a second host-visible buffer of the same sender after the first is warm tells a cost per buffer from one per device pair.
+        const BufferPtr box2 = d[0]->alloc(bytes, Memory::host_visible);
+        const std::unique_ptr<Handoff> h2 = d[0]->handoff(readers);
+        double first = 0, again = 0;
+        for (int i = 0; i < 2; ++i) {
+            h2->begin();
+            d[0]->copy(*box2, 0, *rows, 0, bytes);
+            h2->sent();
+            d[0]->wait(d[0]->submit());
+            const auto t0 = std::chrono::steady_clock::now();
+            h2->take(0, *dst[0], 0, *box2, 0, bytes);
+            h2->taken(0);
+            d[1]->submit();
+            (i ? again : first) = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            d[1]->sync();
+        }
+        std::printf("backend-rocm: a reader's take from a new buffer of a warm pair holds its host %.3f ms the first time, %.3f ms the next\n", first, again);
+    }
+    std::cout << "backend-rocm: a handoff from device 0 reaches " << d.size() - 1 << " readers behind device-side waits, " << d.size() << " ROCm backends alive\n";
+}
+
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
 void collective() {
     HipFn& f = hip();
@@ -3452,6 +3593,12 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "decode") decode_rates(*g);
             return 0;
         }
+        // `handoffs` runs only the device-side crossings over every visible device.
+        if (argc > 1 && std::string(argv[1]) == "handoffs") {
+            handoffs();
+            std::cout << (failures ? "backend-rocm handoffs: FAIL\n" : "backend-rocm handoffs: PASS\n");
+            return failures ? 1 : 0;
+        }
         // `qwen35` runs only the qwen35 layers' ops against the CPU and the device's bit-for-bit rules for them (qwen35_checks.hpp).
         if (argc > 1 && std::string(argv[1]) == "qwen35") {
             qwen35(*g);
@@ -3546,6 +3693,7 @@ int main(int argc, char** argv) {
         records();
         failure();
         collective();
+        handoffs();
         qwen35(*g);
         deepseek4(*g);
         routing(*g, *c);

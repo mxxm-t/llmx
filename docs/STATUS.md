@@ -1,5 +1,31 @@
 # llmx - Development Status
 
+## ROCm crossings ordered on the devices (2026-11-07, XDEV1, XDEV6, XDEV7, branch perf/device-handoff on main 49f75382; F2DEV's approval of 21:44 on 574c9f31; lands by fast-forward)
+
+- **Goal:** a layer split's crossing from one ROCm device to another without the host: the receiving stage's queue waits for the sender on the devices and copies the rows itself, so the host neither waits for the sender's ticket nor writes the rows (AGENTS.md, Principles).
+- **Done:** `Backend::handoff` and `Handoff` (`begin`, `sent`, `take`, `taken`, `serves`) in `backends/backend.hpp`, null by default; `RocmHandoff` in `rocm_collective.hpp` keeps the order by 64-bit counters in coherent host memory that `hipStreamWriteValue64` and `hipStreamWaitValue64` write and wait for; `Model` asks each sender's readers once at load and `send`, `receive` and `stage_waits` choose per pair, a reader of another backend keeping the host path; a pipelined prefill takes its slice times at completion, so the slicing prices see four slices where the old code saw one.
+  A HIP event waited for on another device's stream held the caller until it completed, so events are not used (docs/src/backends-rocm.md).
+  F2DEV's changes are taken: a count advances only after the flush that issues it returns, the host-order invariant is in the `Handoff` contract, and the first copy's cost is once a device pair, so `ensure` primes nothing.
+- **Measured** (tok/s, Qwen3.8-Flash-Next UD-Q4_K_XL, `--dtype int8`, four MI50s at default clocks, ABBA twice against main 49f75382, castagna-veloce figures as the gate):
+
+  | cell | main | branch | change | castagna gate |
+  |---|---|---|---|---|
+  | 2x2 pp | 1429.6 | 1450.5 | +1.5% | 1939 |
+  | 2x2 tg | 57.47 | 60.86 | +5.9% | 79.5 |
+  | layer-4 pp | 1404.9 | 1408.3 | +0.2% | 2615 |
+  | layer-4 tg | 44.24 | 48.26 | +9.1% | 52.3 |
+
+  The pp changes are inside the run-to-run noise.
+  The branch priced 4 slices in 7 of 8 runs; main priced more than 4 in 6 of 8.
+  Both speed gates stay open: the branch narrows tg on both layouts and pp is unchanged.
+- **Gates:** CPU CTest 84/84; `backend-rocm` handoffs with six ROCm backends alive, including the HIP-refusal check, PASS; the four-card backend test PASS; `pipelined_times_at_completion` fails on the old code (1 slice) and passes (5).
+  `llmx-split-check` Qwen3-0.6B Q8_0, 0 rows differ, every crossing device to device: 4x1 162/162 and 2x2 54/54 at 701939fc; 3x1 108/108 and 2x1 54/54 at a57fdba1.
+  The delta from a57fdba1 to the landing head is comments, docs, TESTS.md and the CPU-only pipelined split's thread (701939fc, 62c94eea, 574c9f31), so the 3x1 and 2x1 runs are carried forward.
+  Flash-Next greedy ids identical to main on 2x2 and layer-4, at a57fdba1.
+  Docs and dead-code PASS at 574c9f31.
+- **Left:** Vulkan declines the handoff, since its sync file exists only after the queue call; a CPU-only pipelined split starts one extra thread per prompt; Radeon VII result: pending (`backends/backend.hpp` changed, so the owner's check applies); hosted run: pending (COORD fills both in).
+- **Gotchas:** a cross-device `hipStreamWaitEvent` holds the host until the event completes (10 ms measured), so every wait goes through the backend's record; a reader's first copy from another device's host memory costs the caller about 6 ms once a device pair, then is asynchronous.
+
 ## Pipelined prompt slicing priced by cumulative slice times (2026-11-06, RDEV32, branch fix/prompt-slicing, rebased onto main 2e8a1e6fe; RDEV26's finding of 2026-11-05 21:00, RDEV32's finding and proposal of 2026-11-06 06:44)
 
 - **Goal:** a pipelined prefill's own prices (`infer::SlicePeriods`, `src/model/slicing.hpp`) that hold their cut from run to run on any backend; on ROCm the cut swung between about 10 and 250 slices on the same pp2048 cell (one run at 225 slices fell to 217 tok/s against about 1100).

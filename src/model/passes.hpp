@@ -82,7 +82,7 @@ inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const
     ++p.ran;
 }
 
-// A stage that waits on its devices (stage_waits: a tensor group's, and past the first a device's on a pipelined split) in three calls, for a caller that records it on the stage's own thread.
+// A stage that waits on its devices (stage_waits: a tensor group's, and past the first a device's on a pipelined split that receives through the host) in three calls, for a caller that records it on the stage's own thread.
 // prepare_pass_stage and commit_pass_stage run on the thread that owns the histories and pools, record_pass_stage on the stage's thread; a failure of the first two undoes nothing, so the caller abandons the pass with abort_pass.
 inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     Pass& p = in_flight(ctx, slot);
@@ -115,12 +115,13 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s) {
     } paths{devices_, st.touches, width_};
     paths.swap();
     p.receive_ms = p.write_ms = 0;
+    const bool direct = s > 0 && served(p.at, stages_[s].device);
     const auto start = std::chrono::steady_clock::now();
     if (width_ > 1) group_record(ctx, p, s);
     else single_record(ctx, p, s);
     if (trace_) {
         const auto ms = [&](std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(t - trace_->t0).count(); };
-        const StageTime t{s, p.rows, ms(start), p.receive_ms, p.write_ms, ms(std::chrono::steady_clock::now())};
+        const StageTime t{s, p.rows, ms(start), p.receive_ms, p.write_ms, ms(std::chrono::steady_clock::now()), direct};
         std::lock_guard<std::mutex> lk(trace_->m);
         trace_->times.push_back(t);
     }
@@ -315,7 +316,7 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
 }
 
 // A prompt's chunks through a pipelined split (Model::prefill), each device taking its chunks in order and each stage that waits on its devices (stage_waits) recording on a thread of its own.
-// This thread begins, prepares and commits every stage and records the rest, returning when each chunk's last stage committed (docs/src/model-runtime.md, prefill).
+// This thread begins, prepares and commits every stage and records the rest; a lane of its own waits on each chunk's last-stage submissions, so its time is its devices' completion, not its host submit (docs/src/model-runtime.md).
 inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk) {
     const size_t S = stages_.size();
     std::vector<std::chrono::steady_clock::time_point> done(chunks);
@@ -329,6 +330,10 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
     std::mutex m;
     std::condition_variable cv;   // this thread's wake, as a lane ends a record
     std::vector<std::unique_ptr<Lane>> lanes(S);
+    // The completion lane's queue under `m`: each committed chunk's last-stage submissions, and how many chunks it has stamped.
+    using Sent = std::vector<std::pair<backend::Backend*, backend::Ticket>>;
+    std::deque<std::pair<size_t, Sent>> sent;
+    size_t stamped = 0;
     std::vector<size_t> next(S, 0), committed(S, 0);
     std::vector<char> busy(S, 0);
     std::exception_ptr failed;
@@ -355,6 +360,33 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
             };
             threads->start(s, std::move(policy));
         }
+        threads->add(S, m);
+        StageLanes::Policy completion;
+        completion.ready = [&sent] { return !sent.empty(); };
+        completion.step = [&sent, &stamped, &done, &cv](std::unique_lock<std::mutex>& lk) {
+            const auto [c, tickets] = std::move(sent.front());
+            sent.pop_front();
+            lk.unlock();
+            for (const auto& [b, t] : tickets) b->wait(t);
+            const auto at = std::chrono::steady_clock::now();
+            lk.lock();
+            done[c] = at;
+            ++stamped;
+            cv.notify_all();
+        };
+        threads->start(S, std::move(completion));
+        // Chunk c's last stage committed: the completion lane stamps its time once the stage's devices retire its submissions.
+        const auto completed = [&](size_t c) {
+            const Pass& p = ctx.passes[c % S];
+            Sent t;
+            for (size_t d : stages_[S - 1].touches)
+                for (size_t k = d; k < d + width_; ++k) t.push_back({devices_[k]->b.get(), p.tickets[k]});
+            {
+                std::lock_guard<std::mutex> lk(m);
+                sent.push_back({c, std::move(t)});
+            }
+            threads->notify(S);
+        };
         const auto ready = [&](size_t s) {
             const size_t c = next[s];
             if (c >= chunks || busy[s] || committed[s] != c) return false;
@@ -387,7 +419,7 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
                 } else {
                     record_stage(ctx, p, s);
                     stage_commit(p, s);
-                    if (s + 1 == S) done[c] = std::chrono::steady_clock::now();
+                    if (s + 1 == S) completed(c);
                     ++committed[s];
                 }
                 moved = true;
@@ -422,9 +454,14 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
             if (failed) break;
             for (const auto& [s, c] : finished) {
                 stage_commit(ctx.passes[c % S], s);
-                if (s + 1 == S) done[c] = std::chrono::steady_clock::now();
+                if (s + 1 == S) completed(c);
                 ++committed[s];
             }
+        }
+        // A failed prompt stamps no more chunks: the lanes stop below.
+        if (!failed) {
+            std::unique_lock<std::mutex> lk(m);
+            cv.wait(lk, [&] { return stamped == chunks; });
         }
     } catch (...) {
         if (!failed) failed = std::current_exception();
@@ -859,9 +896,19 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         for (size_t d = 0; d < devices_.size(); ++d)
             for (size_t i = 0; devices_[d]->sends && i < buffers; ++i)
                 handoff[d].push_back(devices_[d]->b->alloc(bytes, backend::Memory::host_visible));
+        // Each buffer of a sender that serves a reader on the devices gets its Handoff.
+        std::vector<std::vector<std::unique_ptr<backend::Handoff>>> links(devices_.size());
+        for (size_t d = 0; d < devices_.size(); ++d) {
+            const Device& dev = *devices_[d];
+            if (std::find(dev.served.begin(), dev.served.end(), 1) == dev.served.end()) continue;
+            std::vector<backend::Backend*> to;
+            for (size_t r : dev.readers) to.push_back(devices_[r]->b.get());
+            for (size_t i = 0; i < buffers; ++i) links[d].push_back(dev.b->handoff(to));
+        }
         for (size_t d = 0; d < ctx.handoff.size(); ++d)
             if (devices_[d]->used) devices_[d]->b->wait(ctx.tickets[d]);
         ctx.handoff = std::move(handoff);
+        ctx.links = std::move(links);
         ctx.handoff_rows = rows;
     }
     if (want && (!ctx.logits_buf || ctx.logit_rows < want)) {
@@ -916,8 +963,10 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
 }
 
 // The residual stream and each carried slot move between devices through host memory, `rows` rows from `base`, in a buffer of one region of handoff_rows rows a slot.
-// `send` copies them into the source's host-visible handoff buffer inside its own work, and the submission carrying the copy says when they are there.
+// `send` copies them into the source's host-visible handoff buffer in its own work, its submission saying when they are there; with a Handoff, the served readers' last copies out of it come first on the device.
 inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows) {
+    backend::Handoff* const link = ctx.links[from].empty() ? nullptr : ctx.links[from][handoff].get();
+    if (link) link->begin();
     size_t region = 0;
     for (size_t i = 0; i <= plan_.carried.size(); ++i) {
         const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
@@ -926,26 +975,64 @@ inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t ba
                                 (x.offset + base * W) * sizeof(float), rows * W * sizeof(float));
         region += ctx.handoff_rows * W;
     }
+    if (link) link->sent();
 }
 
-// `receive` waits for that submission and writes the rows into the destination's residual, enqueued there; it returns the host's milliseconds in the wait and in the write.
+// `receive` writes the rows into the destination's residual, enqueued there: a served reader's queue waits for the copy on the devices and copies them itself, and otherwise the host waits for that submission and writes them.
+// It returns the host's milliseconds in the wait and in the write or the enqueued copies.
 inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
-    devices_[from]->b->wait(sent);
+    const std::vector<size_t>& readers = devices_[from]->readers;
+    const size_t r = (size_t)(std::find(readers.begin(), readers.end(), to) - readers.begin());
+    backend::Handoff* const link = served(from, to) ? ctx.links[from][handoff].get() : nullptr;
+    if (!link) devices_[from]->b->wait(sent);
     const auto t1 = clock::now();
+    const backend::Buffer& in = *ctx.handoff[from][handoff];
     size_t region = 0;
     for (size_t i = 0; i <= plan_.carried.size(); ++i) {
         const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
         const backend::Slice x = slot(ctx, to, k);
-        const uint8_t* rows_out = (const uint8_t*)ctx.handoff[from][handoff]->host_ptr() + (region + base * W) * sizeof(float);
-        devices_[to]->b->write(*x.buffer, (x.offset + base * W) * sizeof(float), rows_out, rows * W * sizeof(float));
+        const size_t at = (region + base * W) * sizeof(float), dst = (x.offset + base * W) * sizeof(float), bytes = rows * W * sizeof(float);
+        if (link) link->take(r, *x.buffer, dst, in, at, bytes);
+        else devices_[to]->b->write(*x.buffer, dst, (const uint8_t*)in.host_ptr() + at, bytes);
         region += ctx.handoff_rows * W;
     }
+    if (link) link->taken(r);
     return {std::chrono::duration<double, std::milli>(t1 - t0).count(), std::chrono::duration<double, std::milli>(clock::now() - t1).count()};
 }
 
-// A crossing inside a stage, both halves at once.
+// Whether a crossing from `from` to `to` is ordered on the devices, its sender's backend serving that reader.
+inline bool Model::served(size_t from, size_t to) const {
+    const Device& d = *devices_[from];
+    const auto it = std::find(d.readers.begin(), d.readers.end(), to);
+    return it != d.readers.end() && d.served[(size_t)(it - d.readers.begin())];
+}
+
+// The devices crossings from `from` go to, in the order single_record and group_record walk a pass: the embedding, each stage's device and each layer's feed-forward device, the head, and a streamed layer's host (never served).
+// A tensor group's crossing goes to every member of the group it enters.
+inline std::vector<size_t> Model::readers(size_t from) const {
+    std::vector<size_t> out;
+    const auto go = [&](size_t a, size_t b) {
+        if (a != from || a == b) return;
+        for (size_t m = b; m < b + width_; ++m)
+            if (std::find(out.begin(), out.end(), m) == out.end()) out.push_back(m);
+    };
+    // Where the residual may be after each layer: a streamed layer leaves it on its mixer's device after a long run and on its feed-forward device otherwise.
+    std::vector<size_t> at{(size_t)place_.embed_device};
+    for (const Stage& st : stages_)
+        for (int l = st.first; l < st.end; ++l) {
+            for (size_t a : at) go(a, st.device);
+            const size_t f = (size_t)place_.ffn_device[(size_t)l];
+            go(st.device, f);
+            at = {f};
+            if (stream_device_[(size_t)l] == (int)st.device) go(f, st.device), at.push_back(st.device);
+        }
+    for (size_t a : at) go(a, (size_t)place_.output_device);
+    return out;
+}
+
+// A crossing inside a stage, both halves at once, through buffer 0 serially: such a crossing makes a split unpipelined, since pipelining needs every feed-forward block beside its mixer.
 inline void Model::cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows) {
     send(ctx, from, 0, base, rows);
     receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);

@@ -633,7 +633,7 @@ __device__ inline void vector_run(const unsigned char* row, const float* X, unsi
 // One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
 // The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
 template <class D>
-__device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add) {
+__device__ inline float exact_sum(const unsigned char* W, const float* X, unsigned long long nin, unsigned long long o) {
     constexpr int J = kThreads / kWave;
     const int t = threadIdx.x % kWave;
     const unsigned char* row = W + o * D::row_bytes(nin);
@@ -663,7 +663,13 @@ __device__ inline void exact_row(const unsigned char* W, const float* X, float* 
     for (int h = J / 2; h > 0; h >>= 1)
 #pragma unroll
         for (int j = 0; j < h; ++j) s[j] += s[j + h];
-    if (t == 0) Y[o] = add ? Y[o] + s[0] : s[0];
+    return s[0];
+}
+// exact_sum's output written by the wave's first lane.
+template <class D>
+__device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add) {
+    const float s = exact_sum<D>(W, X, nin, o);
+    if (threadIdx.x % kWave == 0) Y[o] = add ? Y[o] + s : s;
 }
 // vector_steps over C rows of X, nin apart: the weights loaded once for all of them, each row's chains stepped as exact_wave steps its one.
 template <class D, int J, int U, int C>
@@ -2729,4 +2735,202 @@ extern "C" __global__ void llmx_norm_rope_form(float* dst, const float* src, uns
     m = 0;
     for (unsigned i = threadIdx.x; i < head_dim; i += kThreads)
         if (i < offset || i >= offset + 2u * half) head[i] = rest[m++];
+}
+
+// The linear-attention decode step (rocm_backend.cpp delta_step), field for field with the host's DeltaStepArgs.
+struct DeltaStepArgs {
+    float* o;                 // the delta rule's rows, then their gated norm in place, rows x v_heads x vd
+    const float* x;           // the qkv product's rows, the conv's input, rows x C
+    const float* cw;          // the conv's weights, C x 4
+    const float* mixed;       // the products' input rows, rows x E
+    const unsigned char* wa;  // the F32 alpha and beta matrices, v_heads x E each
+    const unsigned char* wb;
+    float* ao;                // the alpha and beta products' rows, rows x v_heads each
+    float* bo;
+    const float* a;
+    const float* dt_bias;
+    float* st;                // the layer's state slots
+    const unsigned* tab;      // rocm_backend.cpp state_table
+    const float* z;           // the gate product's rows, rows x v_heads x vd
+    const float* nw;          // the norm's weight, vd
+    unsigned* counter;        // a counter a (view, K head), zero between launches
+    unsigned C, k_heads, v_heads, E;
+    unsigned long long slot, carried;
+    float scale, eps, neps;
+    void* tq;
+    float* td;
+    int tlevel, major;
+    TwinMap tm;
+    unsigned kd, vd;          // the K and V head widths, multiples of 4 up to 128
+};
+
+// A block a (view, V head j), each of its 32 lane groups four adjacent V columns and each of a group's eight lanes 16 K rows, so a block holds the whole head at kd, vd <= 128.
+// It runs exact_sum's alpha and beta products, llmx_causal_conv_silu's conv, the delta rule as llmx_gated_delta_rule_short takes it and llmx_gated_rms_norm's sigmoid gate, each output their bits, for at most 8 rows a view.
+extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaStepArgs A) {
+    constexpr unsigned kTb = 4, kRows = 16, kMaxQ = 8, P = 4, W = 128;
+    const unsigned kd = A.kd, vd = A.vd;
+    __shared__ float kn[kTb][128], qn[kTb][128], vs[kTb][W], betas[kTb], decays[kTb];
+    __shared__ float cqk[kMaxQ][256], cv[kMaxQ][W], ab[2 * kMaxQ], red[kThreads], osh[kMaxQ][W];
+    __shared__ unsigned last;
+    const unsigned C = A.C, k_heads = A.k_heads, v_heads = A.v_heads;
+    const unsigned v = blockIdx.x / v_heads, j = blockIdx.x - v * v_heads;
+    const unsigned lid = threadIdx.x, part = lid & 7u, c = (lid >> 3u) * P;
+    const bool col = c < vd;
+    const unsigned qk = k_heads * kd, kh = j % k_heads;
+    // The table through the constant address space, so its reads are scalar loads.
+    const __attribute__((address_space(4))) unsigned* tab = (const __attribute__((address_space(4))) unsigned*)A.tab;
+    const unsigned row0 = tab[1 + 5 * v], nq = tab[2 + 5 * v], len = tab[3 + 5 * v];
+    const bool fresh = len == 0u;
+    const unsigned long long matrix = (unsigned long long)j * kd * vd + c;
+    const unsigned long long src = tab[4 + 5 * v] * A.slot + matrix, dst = tab[5 + 5 * v] * A.slot + matrix;
+    float* st = A.st;
+    // The state's loads first, four adjacent columns a load, so their latency runs under the products'; a fresh slot's are dropped.
+    float s[P][kRows];
+#pragma unroll
+    for (unsigned ii = 0; ii < kRows; ++ii) {
+        const bool on = !fresh && col && part + 8u * ii < kd;
+        const float4 q = on ? *(const float4*)&st[src + (unsigned long long)(part + 8u * ii) * vd] : float4{0.0f, 0.0f, 0.0f, 0.0f};
+        s[0][ii] = fresh ? 0.0f : q.x, s[1][ii] = fresh ? 0.0f : q.y, s[2][ii] = fresh ? 0.0f : q.z, s[3][ii] = fresh ? 0.0f : q.w;
+    }
+    // Alpha and beta of head j for every row of the view, a wave a product.
+    for (unsigned p = lid / kWave; p < 2u * nq; p += kThreads / kWave) {
+        const unsigned long long r = row0 + p / 2u;
+        const float sum = exact_sum<ExactF32>((p & 1u) ? A.wb : A.wa, A.mixed + r * A.E, A.E, j);
+        if (lid % kWave == 0) {
+            ab[p] = sum;
+            ((p & 1u) ? A.bo : A.ao)[r * v_heads + j] = sum;
+        }
+    }
+    // The conv of head kh's q and k channels and of head j's V channels, as llmx_causal_conv_silu.
+    const float* csrc = A.st + tab[4 + 5 * v] * A.slot + A.carried;
+    float* cdst = A.st + tab[5 + 5 * v] * A.slot + A.carried;
+    {
+        const unsigned ch = lid < 128u ? kh * kd + lid : qk + kh * kd + (lid - 128u);
+        const auto raw = [&](unsigned t, unsigned cc) { return t < 3u ? (len + t >= 3u ? csrc[(unsigned long long)t * C + cc] : 0.0f) : A.x[(unsigned long long)(row0 + t - 3u) * C + cc]; };
+        const auto conv = [&](unsigned cc, float* out, unsigned stride) {
+            const float w0 = A.cw[4ull * cc], w1 = A.cw[4ull * cc + 1], w2 = A.cw[4ull * cc + 2], w3 = A.cw[4ull * cc + 3];
+            float win0 = raw(0, cc), win1 = raw(1, cc), win2 = raw(2, cc);
+            for (unsigned b = 0; b < nq; ++b) {
+                const float now = A.x[(unsigned long long)(row0 + b) * C + cc];
+                float acc = w0 * win0;
+                acc = fmaf(w1, win1, acc);
+                acc = fmaf(w2, win2, acc);
+                acc = fmaf(w3, now, acc);
+                out[b * stride] = acc / (1.0f + expf(-acc));
+                win0 = win1, win1 = win2, win2 = now;
+            }
+        };
+        const bool qkon = (lid & 127u) < kd;
+        if (qkon) conv(ch, &cqk[0][lid], 256);
+        else for (unsigned b = 0; b < nq; ++b) cqk[b][lid] = 0.0f;
+        if (lid < vd) {
+            const unsigned cc = 2u * qk + j * vd + lid;
+            const float keep0 = raw(nq, cc), keep1 = raw(nq + 1, cc), keep2 = raw(nq + 2, cc);
+            conv(cc, &cv[0][lid], W);
+            float* d = cdst + cc;
+            d[0] = keep0, d[C] = keep1, d[2ull * C] = keep2;
+        }
+        // The q and k channels' carried rows are written by the last of the V heads that read them, once every one has read them.
+        __threadfence();
+        __syncthreads();
+        if (lid == 0) last = atomicAdd(A.counter + v * k_heads + kh, 1u) == v_heads / k_heads - 1u;
+        __syncthreads();
+        if (last && qkon) {
+            __threadfence();
+            const float keep0 = raw(nq, ch), keep1 = raw(nq + 1, ch), keep2 = raw(nq + 2, ch);
+            float* d = cdst + ch;
+            d[0] = keep0, d[C] = keep1, d[2ull * C] = keep2;
+        }
+        if (last && lid == 0) A.counter[v * k_heads + kh] = 0;
+    }
+    // The delta rule, kTb rows a stage, reading the conv and the products from shared memory.
+    const unsigned g = lid >> 3u, tok = g >> 1u;
+    const bool is_k = (g & 1u) != 0u;
+    float m[P];
+    for (unsigned t0 = 0; t0 < nq; t0 += kTb) {
+        const unsigned n = nq - t0 < kTb ? nq - t0 : kTb;
+        if (tok < n) {
+            const float* in0 = &cqk[t0 + tok][is_k ? 128u : 0u];
+            float xx[kRows], ss = 0.0f;
+#pragma unroll
+            for (unsigned ii = 0; ii < kRows; ++ii) {
+                xx[ii] = in0[part + 8u * ii];
+                ss = fmaf(xx[ii], xx[ii], ss);
+            }
+            const float inv = 1.0f / sqrtf(lanes8(ss) + A.eps);
+#pragma unroll
+            for (unsigned ii = 0; ii < kRows; ++ii) {
+                const float nv = xx[ii] * inv;
+                if (is_k) kn[tok][part + 8u * ii] = nv;
+                else qn[tok][part + 8u * ii] = nv * A.scale;
+            }
+        }
+        if (lid < n) {
+            const float beta = 1.0f / (1.0f + expf(-ab[2u * (t0 + lid) + 1u]));
+            const float xg = ab[2u * (t0 + lid)] + A.dt_bias[j];
+            const float sp = xg > 20.0f ? xg : log1p_of(expf(xg));
+            const float decay = expf(A.a[j] * sp);
+            betas[lid] = beta;
+            decays[lid] = decay < 1.17549435e-38f ? 0.0f : decay;
+        }
+        for (unsigned idx = lid; idx < n * W; idx += kThreads) vs[idx / W][idx % W] = cv[t0 + idx / W][idx % W];
+        __syncthreads();
+        {
+            const float decay = decays[0];
+#pragma unroll
+            for (unsigned k = 0; k < P; ++k) {
+                float mp = 0.0f;
+#pragma unroll
+                for (unsigned ii = 0; ii < kRows; ++ii) {
+                    s[k][ii] = s[k][ii] * decay;
+                    mp = fmaf(s[k][ii], kn[0][part + 8u * ii], mp);
+                }
+                m[k] = lanes8(mp);
+            }
+        }
+        for (unsigned t = 0; t < n; ++t) {
+            const bool next = t + 1u < n;
+#pragma unroll
+            for (unsigned k = 0; k < P; ++k) {
+                const float d = betas[t] * (vs[t][c + k] + -m[k]);
+                float op = 0.0f;
+#pragma unroll
+                for (unsigned ii = 0; ii < kRows; ++ii) {
+                    s[k][ii] = fmaf(kn[t][part + 8u * ii], d, s[k][ii]);
+                    op = fmaf(s[k][ii], qn[t][part + 8u * ii], op);
+                }
+                float np = 0.0f;
+                if (next) {
+                    const float decay = decays[t + 1u];
+#pragma unroll
+                    for (unsigned ii = 0; ii < kRows; ++ii) {
+                        s[k][ii] = s[k][ii] * decay;
+                        np = fmaf(s[k][ii], kn[t + 1u][part + 8u * ii], np);
+                    }
+                }
+                const float res = lanes8(op);
+                if (next) m[k] = lanes8(np);
+                if (part == 0u && col) osh[t0 + t][c + k] = res;
+            }
+        }
+        __syncthreads();
+    }
+#pragma unroll
+    for (unsigned ii = 0; ii < kRows; ++ii)
+#pragma unroll
+        for (unsigned k = 0; k < P; ++k)
+            if (col && part + 8u * ii < kd) st[dst + k + (unsigned long long)(part + 8u * ii) * vd] = s[k][ii];
+    // The gated norm of head j's rows from shared memory, as llmx_gated_rms_norm with its sigmoid gate, and their twin.
+    for (unsigned b = 0; b < nq; ++b) {
+        const unsigned long long o = ((unsigned long long)(row0 + b) * v_heads + j) * vd;
+        const float xv = lid < vd ? osh[b][lid] : 0.0f;
+        const float sq = lid < vd ? fmaf(xv, xv, 0.0f) : 0.0f;
+        const float rr = 1.0f / sqrtf(block_sum(sq, red) / (float)vd + A.neps);
+        if (lid < vd) {
+            const float zz = A.z[o + lid], gg = 1.0f / (1.0f + expf(-zz));
+            const float val = xv * (rr * A.nw[lid]) * gg;
+            A.o[o + lid] = val;
+            twin_at(val, o + lid, A.tq, A.td, A.tlevel, A.tm, A.major);
+        }
+    }
 }

@@ -189,6 +189,14 @@ struct MoeStep {
     float limit = 0.0f;
 };
 
+// A linear-attention layer's step up to its output product (Backend::delta_step): the qkv, gate, alpha and beta products of the mixed rows, the conv into `conv`, the delta rule into `out`, then out's sigmoid-gated norm by `norm`.
+struct DeltaStep {
+    Projection qkv, gate, alpha, beta;
+    CSlice conv_w, a, dt_bias, norm;
+    Slice conv, out;
+    float eps;
+};
+
 // Calls `each(first, count, key)` over the stretches of adjacent runs whose `key(run)` is equal, once the runs are known to be in row order and to end at row `n`.
 // Every run is checked before the first call, so a malformed list reaches no rows; a caller handles a call without runs itself.
 template <typename Key, typename Each>
@@ -875,6 +883,20 @@ public:
     virtual void gated_rms_norm(Slice /*dst*/, CSlice /*x*/, CSlice /*z*/, CSlice /*w*/, size_t /*rows*/, size_t /*heads*/, size_t /*dim*/, float /*eps*/,
                                 RowRuns /*runs*/ = {}, NormGate /*gate*/ = NormGate::silu) {
         lacks(Op::gated_rms_norm);
+    }
+
+    // The step of DeltaStep over the `rows` rows of `mixed`, nin wide, the views' rows in view order: the base runs the products, causal_conv_silu, gated_delta_rule and gated_rms_norm in that order.
+    // A device may fuse them where it gives the same bits, leaving every slot the base writes but `conv` as the base leaves it, so a retract's rerun reads the products' rows it saved.
+    virtual void delta_step(const DeltaStep& d, CSlice mixed, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views, RowRuns runs = {},
+                            Dtype dtype = Dtype::f16) {
+        unordered(true);
+        matmul(d.qkv.weight, mixed, d.qkv.out, nin, d.qkv.rows, rows, runs, dtype);
+        matmul_group({d.gate, d.alpha, d.beta}, mixed, nin, rows, runs, dtype);
+        unordered(false);
+        causal_conv_silu(d.conv, d.qkv.out, d.conv_w, layer, views, n_views);
+        gated_delta_rule(d.out, d.conv, d.alpha.out, d.beta.out, d.a, d.dt_bias, layer, views, n_views);
+        const size_t heads = d.alpha.rows;
+        gated_rms_norm(d.out, d.out, d.gate.out, d.norm, rows, heads, heads ? d.gate.rows / heads : 0, d.eps, runs, NormGate::sigmoid);
     }
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.

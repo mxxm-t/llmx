@@ -927,19 +927,11 @@ private:
         const Weight* w = s.w;
         const size_t E = size_t(cfg_.n_embd), Hv = w[ssm_alpha].nout;
         const backend::Slice alpha = s.slot(alpha_beta), beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        // The input products read the mixed rows and write slots of their own (Backend::unordered).
-        s.b.unordered(true);
-        s.b.matmul(w[attn_qkv].operand(), s.slot(mixed), s.slot(raw), E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
-        s.b.matmul_group({blocks::projection(w[attn_gate], s.slot(value_gate)), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
-                         s.slot(mixed), E, s.rows, s.runs, s.dtype);
-        s.b.unordered(false);
-        // PLE has already updated its separate tail.
-        // Calling only the GDN phases here avoids advancing that convolution twice in a forward.
-        s.b.causal_conv_silu(s.slot(conv), s.slot(raw), w[ssm_conv1d].slice(), s.state_layer, s.states, s.n_views);
-        s.b.gated_delta_rule(s.slot(recurrent), s.slot(conv), alpha, beta, w[ssm_a].slice(), w[ssm_dt].slice(),
-                            s.state_layer, s.states, s.n_views);
-        s.b.gated_rms_norm(s.slot(recurrent), s.slot(recurrent), s.slot(value_gate), w[ssm_norm].slice(),
-                          s.rows, Hv, size_t(cfg_.v_dim), cfg_.rms_eps, s.runs, backend::NormGate::sigmoid);
+        // PLE has already updated its separate tail, so the step runs only the GDN's conv and not that one twice in a forward.
+        const backend::DeltaStep d{blocks::projection(w[attn_qkv], s.slot(raw)), blocks::projection(w[attn_gate], s.slot(value_gate)), blocks::projection(w[ssm_alpha], alpha),
+                                   blocks::projection(w[ssm_beta], beta), w[ssm_conv1d].slice(), w[ssm_a].slice(), w[ssm_dt].slice(), w[ssm_norm].slice(), s.slot(conv),
+                                   s.slot(recurrent), cfg_.rms_eps};
+        s.b.delta_step(d, s.slot(mixed), E, s.rows, s.state_layer, s.states, s.n_views, s.runs, s.dtype);
         s.b.matmul(w[ssm_out].operand(), s.slot(recurrent), s.x, w[ssm_out].nin, E, s.rows, s.runs, s.dtype);
     }
 

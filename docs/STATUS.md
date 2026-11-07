@@ -55,6 +55,35 @@
   The ROCm layer-4 pp2048 cut settles below main's best repetitions (4 to 5 slices at about 1370 tok/s against 10 to 12 at 1445 to 1502).
 - **Gotchas:** the record ends' pairing is the ROCm stage threads' cadence, not a measurement error of the slicing; a fit through single intervals stays fragile wherever a backend's stage ends bunch, so the series form is the rule for any backend.
 
+## ROCm fused linear-attention decode step (2026-11-07, RDEV64, branch perf/rocm-delta-step on main 49f75382; MEGA6 to MEGA8's study, research/rocm-megakernel-delta 09a109773, lifted into the decode loop; lands by fast-forward)
+- **Goal:** a Qwen3.8-Flash-Next linear-attention layer's decode step as one ROCm launch beside one product group, bit-identical, at any layout of the model over any devices.
+- **Done:** `Backend::delta_step` (`DeltaStep`) owns a linear-attention layer's step up to its output product, and qwen4exp's `linear_attention` is that call and its output product.
+  Its base runs the qkv product, the gate, alpha and beta group, `causal_conv_silu`, `gated_delta_rule` and `gated_rms_norm`, the calls the layer made before, so the CPU and Vulkan backends run what they ran.
+  `RocmBackend::delta_step` runs the qkv and gate products as one group only when every run has extent 1 (decode rows; rocm_backend.cpp:704-712 at d6acbfa8d), since a prompt's or a verify's rows take the tile, whose split follows the group's total outputs, so they keep the base's two products, and then `llmx_delta_step` (kernels/f32.hip) where `delta_holds` holds, the base otherwise: K and V heads multiples of 4 up to 128, V heads any multiple of the K heads, at most 8 rows a view, 64 views and 4096 (view, K head) counters, four conv taps, F32 alpha and beta (`kDeltaHead`, `kDeltaRows`, `kDeltaViews`, `kDeltaCounters`, docs/src/backends-rocm.md).
+  The kernel writes the alpha and beta slots as the base does, which the study's kernel did not, so a retract's rerun reads the products' rows it saved; `exact_row` is `exact_sum` and its store, and the kernel takes `exact_sum` for alpha and beta; the study's experiment switches, its multi-block form and its V-head counters are gone.
+  `llmx-backend-rocm-test delta` (`delta_step_bits`) holds every slot, both state slots and the output's twin to the base's bits at the tensor-width shards 48/16, 24/8, 12/4 and 6/2 and other head widths, 1 to 8 rows over histories 0, 1, 2 and 100, one view and three with a verify, f16 and int8, and checks which build ran.
+- **Measured** (tok/s, tg64 on four MI50s at default clocks, Qwen3.8-Flash-Next UD-Q4_K_XL int8, ABBA main, branch, branch, main, the mean of the two runs of each build; Vulkan and gate from the decode loop's step 0 on the same cards):
+
+| layout | main 49f75382 | branch | delta % | Vulkan | gate |
+|---|---|---|---|---|---|
+| 2x2 | 55.33 | 60.67 | +9.7 | 53.6 | 79.5 |
+| layer-4 | 43.39 | 46.19 | +6.5 | 50.5 | 52.3 |
+| tensor width 4 | 54.89 | 57.87 | +5.4 | none | none |
+
+The runs in order main, branch, branch, main were 2x2 56.43, 61.33, 60.01, 54.23, layer-4 43.04, 44.99, 47.39, 43.73 and tensor width 4 53.31, 61.03, 54.70, 56.47, each of three runs with a spread of 0.04 to 2.85.
+The host's load average over the timing window was 5.9 to 30.9 (mean 15.6), with other jobs on cards outside the four timed, so the figures are one noisy round and the tensor-width-4 cell, whose branch runs differ by 6.3, is the least certain.
+
+- **Gates** rebased 2026-11-07 onto main 49f75382 (ROCm MXFP4 weights and DeepSeek-V4.1's ops on Vulkan and ROCm), conflicts in the ROCm kernel enum and names, `f32.hip`, docs/TESTS.md and docs/src/backends-rocm.md, kept both sides.
+  The gates ran from clean clones built the same way in the ROCm 7.2.1 image, main as llmx 0.1.0+g49f75382415e (numerics hash 88f8a893d174772e) and the branch as llmx 0.1.0+gbde21e0a709d (hash 9ad8f43bc0cc36e0), CPU build of the branch the same version, rc 0 and 0 compile errors.
+  Byte identity against main, Qwen3.8-Flash-Next UD-Q4_K_XL int8: greedy ids, text and per-token logits on layer-4, 2x2 and tensor width 4, and greedy ids and text with the MTP head drafting at draft-max 3 on layer-4 and 2x2, all SAME; the CPU 16-token greedy ids of main and branch SAME.
+  Byte identity against main on `rocm:0`, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at `--dtype auto` and `--dtype int8`, the three `llmx-model-logits` captures each: 12 of 12 SAME.
+  `llmx-backend-rocm-test` delta, deepseek4, moe and full 0; CTest ROCm 84 of 84 and CPU 81 of 81; the suite on `rocm:0` PASS in every component that ran, and `reference-generator` and `raw-blocks`, which failed there only because the rig's Python has no numpy, PASS in the numpy image; `docs` and `dead-code` PASS.
+  The hosted run 42412345625 passed on the tree at 57c1f2277171.
+  The Radeon VII Vulkan suite on Windows at 57c1f2277171: all 48 components PASS, and CTest 100 of 101, with backend-vulkan Not Run because llmx-backend-vulkan-test does not compile on MSVC from main's tests/deepseek4_checks.hpp:35, where `near` is a macro clash, a break on main and not on this branch.
+  The change lands by fast-forward on 49f75382.
+- **Left:** the merge for verify and prompt rows would need the tile's split fixed per product; nothing else; the study ranks no further fusion above 3% of a token (attention's small ops about 1.2%, blocks a head at 24 V heads about 0.3%).
+- **Gotchas:** the fused step leaves the conv slot unwritten, since only a retract's rerun reads it and that rerun writes it first; a caller that reads the conv slot after the step needs the base.
+
 ## ROCm decode loop (2026-11-06, RDEV42, branch perf/rocm-decode-loop rebased onto main b8d18801c; the owner's fast loop for ROCm decode, reviewed and gated once at each batch's end; lands by fast-forward)
 - **Goal:** ROCm decode of Qwen3.8-Flash-Next UD-Q4_K_XL int8 over four MI50s toward Vulkan's, a profiled bottleneck at a time, each fix bit-identical: the replay (F2DEV's review re:rocm replay, 15:37), the twin keep, then the kernel levers.
 - **Done:** fix 1, the host-to-host copy. On 2x2 the head's member logits sit in host-visible memory and are copied into the rows every member wraps; HIP makes any copy between two host memories on the host once the stream has drained, behind a 50 ms kernel 50.1 ms in every form of the call (kinds Default, HostToHost, DeviceToDevice, host or device pointers), while a copy from device memory into the same pages took 0.01 to 0.04 ms and neither 8000 queued kernels nor 2000 queued copies ever held a call 1 ms. `RocmBackend::copy` now copies between two host memories with `llmx_copy` on the stream, so the bytes are the same and the host does not wait.

@@ -694,6 +694,67 @@ public:
         const Args args(o, xp, wp, st, tp, cc, slot, carried, chunk);
         launch(kCausalConvSilu, (unsigned)((C + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
+    // Where delta_holds, the qkv and gate products and then one launch of llmx_delta_step (docs/src/backends-rocm.md, delta_step), every slot but conv the base's bits.
+    void delta_step(const DeltaStep& d, CSlice mixed, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views, RowRuns runs = {},
+                    Dtype dtype = Dtype::f16) override {
+        if (!delta_holds(d, nin, rows, layer, views, n_views)) return Backend::delta_step(d, mixed, nin, rows, layer, views, n_views, runs, dtype);
+        check_runs(rows, runs);
+        const StateStorage& ss = *views[0].storage;
+        const StateShape& sh = ss.shape();
+        const size_t Hv = sh.v_heads, C = sh.channels(), V = size_mul(Hv, sh.v_dim), n = size_mul(rows, V);
+        span(*mixed.buffer, mixed.offset * sizeof(float), size_mul(size_mul(rows, nin), sizeof(float)));
+        for (const Projection* p : {&d.alpha, &d.beta}) {
+            check_weight(p->weight, nin, "delta step matrix");
+            span(*p->weight.data.buffer, p->weight.data.offset * sizeof(float), quant::row_bytes(p->weight.type, nin, Hv));
+            span(*p->out.buffer, p->out.offset * sizeof(float), size_mul(size_mul(rows, Hv), sizeof(float)));
+        }
+        span(*d.conv_w.buffer, d.conv_w.offset * sizeof(float), size_mul(size_mul(C, kConvTaps), sizeof(float)));
+        for (const CSlice& g : {d.a, d.dt_bias}) span(*g.buffer, g.offset * sizeof(float), size_mul(Hv, sizeof(float)));
+        span(*d.norm.buffer, d.norm.offset * sizeof(float), size_mul(sh.v_dim, sizeof(float)));
+        // Generated rows give the same bits in any group, so they take qkv and gate as one; a prompt's tile splits by the group's outputs, so its rows take the base's two products.
+        bool generated = runs.n ? true : rows == 1;
+        for (size_t r = 0; r < runs.n; ++r) generated = generated && runs.runs[r].extent == 1;
+        unordered(true);
+        if (generated) matmul_group({d.qkv, d.gate}, mixed, nin, rows, runs, dtype);
+        else {
+            matmul(d.qkv.weight, mixed, d.qkv.out, nin, d.qkv.rows, rows, runs, dtype);
+            matmul(d.gate.weight, mixed, d.gate.out, nin, d.gate.rows, rows, runs, dtype);
+        }
+        unordered(false);
+        span(*d.out.buffer, d.out.offset * sizeof(float), size_mul(n, sizeof(float)));
+        if (!delta_counter_) {
+            delta_counter_ = alloc(kDeltaCounters * sizeof(unsigned), Memory::device);
+            hold_fill(as_rocm(*delta_counter_).data(), kDeltaCounters * sizeof(unsigned));
+        }
+        const std::vector<unsigned> tab = state_table(views, n_views);
+        StreamTwin t = stream_twin(d.out, rows, V, runs, sh.v_dim % 32 == 0);
+        const DeltaStepArgs A{f32(d.out), f32(d.qkv.out), f32(d.conv_w), f32(mixed), bytes(d.alpha.weight.data), bytes(d.beta.weight.data), f32(d.alpha.out),
+                              f32(d.beta.out), f32(d.a), f32(d.dt_bias), f32(Slice{&ss.layer(layer), 0}), (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned)),
+                              f32(d.gate.out), f32(d.norm), (unsigned*)as_rocm(*delta_counter_).data(), (unsigned)C, (unsigned)sh.k_heads, (unsigned)Hv, (unsigned)nin,
+                              ss.slot_floats(layer), size_mul(Hv, sh.matrix_floats()), (float)(1.0 / std::sqrt((double)sh.k_dim)), kL2NormEps, d.eps, t.q, t.d, t.level,
+                              t.major, t.map, (unsigned)sh.k_dim, (unsigned)sh.v_dim};
+        launch_writing({{A.o, n}, {A.ao, size_mul(rows, Hv)}, {A.bo, size_mul(rows, Hv)}}, kDeltaStep, (unsigned)size_mul(n_views, Hv), 1, Args(A));
+        keep(t.t, A.o, n);
+    }
+    // llmx_delta_step's limits: K and V heads up to kDeltaHead wide in multiples of 4, rows a view, views a launch and its (view, K head) counters.
+    static constexpr size_t kDeltaHead = 128, kDeltaRows = 8, kDeltaViews = 64, kDeltaCounters = 4096;
+    static_assert(kConvTaps == 4, "llmx_delta_step's conv takes four taps");
+    // Whether a step has the shape llmx_delta_step holds (docs/src/backends-rocm.md, delta_step), with F32 alpha and beta matrices and state rows on four-float boundaries.
+    bool delta_holds(const DeltaStep& d, size_t nin, size_t rows, size_t layer, const StateView* views, size_t n_views) const {
+        if (!nin || nin > UINT32_MAX || !n_views || n_views > kDeltaViews || !views[0].storage) return false;
+        const StateStorage& ss = *views[0].storage;
+        const StateShape& sh = ss.shape();
+        const auto width = [](size_t w) { return w && w <= kDeltaHead && w % 4 == 0; };
+        if (!width(sh.k_dim) || !width(sh.v_dim) || !sh.k_heads || sh.v_heads % sh.k_heads || size_mul(n_views, sh.k_heads) > kDeltaCounters) return false;
+        size_t total = 0;
+        for (size_t i = 0; i < n_views; ++i) {
+            if (!views[i].nq || views[i].nq > kDeltaRows || views[i].storage != &ss) return false;
+            total += views[i].nq;
+        }
+        if (total != rows || layer >= ss.layers() || ss.slot_floats(layer) % 4 || size_mul(sh.v_heads, sh.matrix_floats()) % 4) return false;
+        if (d.alpha.weight.type != quant::GGML_TYPE_F32 || d.beta.weight.type != quant::GGML_TYPE_F32) return false;
+        return d.alpha.rows == sh.v_heads && d.beta.rows == sh.v_heads && d.gate.rows == size_mul(sh.v_heads, sh.v_dim) && d.qkv.rows == sh.channels();
+    }
     // The Flash-Next stream ops (kernels/f32.hip), plain F32 outputs whose products make their own twins; every refusal comes before any launch.
     void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps, RowRuns runs) override {
         if (!groups || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error("rocm: invalid grouped norm dimensions or epsilon");
@@ -1574,7 +1635,7 @@ private:
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
                   kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kPoolWrite, kSparseAttentionSink, kRouteSqrtSoftplus,
-                  kNormRopeForm,
+                  kNormRopeForm, kDeltaStep,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
@@ -1592,7 +1653,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_pool_write", "llmx_sparse_attention_sink", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_pool_write", "llmx_sparse_attention_sink", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -2150,6 +2211,35 @@ private:
     };
     static_assert(sizeof(RoutedCall) == 168 && offsetof(RoutedCall, ids) == 136 && offsetof(RoutedCall, n_expert) == 160, "RoutedCall is the kernel's layout");
     // The host's copies of the fused moe_step's calls (kernels/f32.hip, MfRoute, and kernels/int16.hip, MfGateUpS and MfDown), field for field.
+    // The host's copy of llmx_delta_step's argument (kernels/f32.hip, DeltaStepArgs), field for field.
+    struct DeltaStepArgs {
+        float* o;
+        const float* x;
+        const float* cw;
+        const float* mixed;
+        const uint8_t* wa;
+        const uint8_t* wb;
+        float* ao;
+        float* bo;
+        const float* a;
+        const float* dt_bias;
+        float* st;
+        const unsigned* tab;
+        const float* z;
+        const float* nw;
+        unsigned* counter;
+        unsigned C, k_heads, v_heads, E;
+        unsigned long long slot, carried;
+        float scale, eps, neps;
+        void* tq;
+        float* td;
+        int tlevel, major;
+        TwinMap tm;
+        unsigned kd, vd;
+    };
+    static_assert(offsetof(DeltaStepArgs, slot) == 136 && offsetof(DeltaStepArgs, tq) == 168 && offsetof(DeltaStepArgs, tm) == 192 && offsetof(DeltaStepArgs, kd) == 312 &&
+                      sizeof(DeltaStepArgs) == 320,
+                  "DeltaStepArgs is the kernel's layout");
     struct StepRoute {
         const uint8_t* w;
         const float* x;
@@ -2736,6 +2826,7 @@ private:
     std::array<Kept, 2> kept_{};   // the newer first
     size_t twin_slot_ = 0;   // the slot of the twin the last product read
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
+    BufferPtr delta_counter_;   // llmx_delta_step's (view, K head) counters, zero between launches
     BufferPtr step_counter_, step_twin_;   // the fused moe_step's finished route blocks, zero between launches, and its shared act's twin
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.hip, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any

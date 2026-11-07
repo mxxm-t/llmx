@@ -2428,6 +2428,7 @@ void failure() {
 // Counts of the group sum's launches and copies, and a launch to drop, read by the collective checks through the HIP call table.
 struct GroupCalls {
     int launches = 0, copies = 0, drop = 0;   // drop: the launch, counted from 1, that is not made
+    int late = 0;                             // late: the launch, counted from 1, that the host makes only after a stall
     std::vector<void*> areas;                 // every uncached allocation, in order
 };
 GroupCalls group_calls;
@@ -2436,6 +2437,7 @@ decltype(HipFn::hipMemcpyAsync) real_copy = nullptr;
 decltype(HipFn::hipExtMallocWithFlags) real_uncached = nullptr;
 hipError_t counted_launch(hipFunction_t k, unsigned gx, unsigned gy, unsigned gz, unsigned tx, unsigned ty, unsigned tz, unsigned shared, hipStream_t s, void** args, void** extra) {
     if (++group_calls.launches == group_calls.drop) return hipSuccess;
+    if (group_calls.launches == group_calls.late) std::this_thread::sleep_for(std::chrono::milliseconds(2500));
     return real_launch(k, gx, gy, gz, tx, ty, tz, shared, s, args, extra);
 }
 hipError_t counted_copy(void* d, const void* s, size_t n, hipMemcpyKind kind, hipStream_t st) {
@@ -2813,6 +2815,29 @@ void collective() {
         group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
         seed += 100;
         std::cout << "backend-rocm: a group sum whose peer never launched gave up in " << s << " s; later sums conservative and exact\n";
+    }
+    {
+        // A member whose launch comes after a host stall longer than any wait: its peer is alive but late, so the sum stays fast and exact and nothing throws.
+        std::vector<BackendPtr> e = rocm_devices(2);
+        std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
+        std::vector<float> rows(97), want(97);
+        for (size_t i = 0; i < 97; ++i) {
+            rows[i] = float((int)(i % 13) - 6) * 0.25f;
+            want[i] = rows[i] + rows[i];
+        }
+        for (size_t m = 0; m < 2; ++m) e[m]->write(*c->partial(m).buffer, 0, rows.data(), rows.size() * sizeof(float));
+        group_calls.launches = 0;
+        group_calls.late = 2;
+        f.hipModuleLaunchKernel = counted_launch;
+        c->sum_in_place(1, 97);
+        f.hipModuleLaunchKernel = real_launch;
+        group_calls.late = 0;
+        c->wait(0);
+        require(!throws([&] { e[0]->raise(0); }) && !throws([&] { e[1]->raise(0); }), "a group sum whose peer launched late threw");
+        for (size_t m = 0; m < 2; ++m)
+            require(read(*e[m], *c->partial(m).buffer, 97) == want, "a group sum whose peer launched late did not give the members' sum on member " + std::to_string(m));
+        sum_calls(*c, 2, true);
+        std::cout << "backend-rocm: a group sum whose peer launched 2.5 s late stays fast and exact\n";
     }
     {
         // Epochs seeded below the 32-bit wrap: twelve sums cross it, skipping 0, each exact.

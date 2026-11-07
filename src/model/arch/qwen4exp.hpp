@@ -76,18 +76,8 @@ struct MixScratch {
 // A part's inject gates, read from the same normed streams, are made beside the down product into their own slot (inject).
 inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Slice out, const MixScratch& tmp,
                 const Weight* inject = nullptr, backend::Slice inject_gates = {}) {
-    const size_t E = size_t(c.n_embd), H = size_t(c.hc_count), L = size_t(c.hc_low_rank);
-    s.b.group_rms_norm(tmp.normed, s.x, w.norm.slice(), s.rows, H, E, c.rms_eps, s.runs);
-    // The two products read the normed streams and write slots of their own (Backend::unordered).
-    if (inject) s.b.unordered(true);
-    s.b.matmul(w.down.operand(), tmp.normed, tmp.low, H * E, L, s.rows, s.runs, s.dtype);
-    if (inject) {
-        s.b.matmul(inject->operand(), tmp.normed, inject_gates, H * E, H, s.rows, s.runs, s.dtype);
-        s.b.unordered(false);
-    }
-    s.b.silu_scaled(tmp.low, tmp.low, s.rows, L, 1.0f / float(H), s.runs);
-    s.b.matmul(w.up.operand(), tmp.low, tmp.gates, L, H * E, s.rows, s.runs, s.dtype);
-    s.b.mix_streams(out, tmp.normed, tmp.gates, s.rows, H, E, s.runs);
+    const backend::Backend::HyperMix m{w.norm.slice(), w.down.operand(), w.up.operand(), inject ? inject->operand() : backend::WeightView{}, tmp.normed, tmp.low, tmp.gates, inject_gates};
+    s.b.hyper_mix(out, s.x, m, s.rows, size_t(c.hc_count), size_t(c.n_embd), size_t(c.hc_low_rank), c.rms_eps, s.runs, s.dtype);
 }
 
 // A part's block added into the residual streams, weighted by the gates its mix made from the normed streams.

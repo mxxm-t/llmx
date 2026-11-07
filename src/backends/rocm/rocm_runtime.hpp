@@ -36,6 +36,7 @@ struct RocmUnavailable : std::runtime_error {
     X(hipHostFree, hipError_t(void*)) \
     X(hipHostRegister, hipError_t(void*, size_t, unsigned)) \
     X(hipHostUnregister, hipError_t(void*)) \
+    X(hipHostGetDevicePointer, hipError_t(void**, void*, unsigned)) \
     X(hipMemcpyAsync, hipError_t(void*, const void*, size_t, hipMemcpyKind, hipStream_t)) \
     X(hipMemsetAsync, hipError_t(void*, int, size_t, hipStream_t)) \
     X(hipMemGetInfo, hipError_t(size_t*, size_t*)) \
@@ -43,6 +44,7 @@ struct RocmUnavailable : std::runtime_error {
     X(hipModuleLoadData, hipError_t(hipModule_t*, const void*)) \
     X(hipModuleUnload, hipError_t(hipModule_t)) \
     X(hipModuleGetFunction, hipError_t(hipFunction_t*, hipModule_t, const char*)) \
+    X(hipModuleOccupancyMaxActiveBlocksPerMultiprocessor, hipError_t(int*, hipFunction_t, int, size_t)) \
     X(hipModuleLaunchKernel, hipError_t(hipFunction_t, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, hipStream_t, void**, void**)) \
     X(hipStreamCreateWithFlags, hipError_t(hipStream_t*, unsigned)) \
     X(hipStreamDestroy, hipError_t(hipStream_t)) \

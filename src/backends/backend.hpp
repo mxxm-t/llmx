@@ -909,6 +909,31 @@ public:
         lacks(Op::mix_streams);
     }
 
+    // The weights and slots of a hyper-connection mix (hyper_mix): norm, down and up weights, optional inject gate weights, and the slots the steps write.
+    struct HyperMix {
+        CSlice norm;
+        WeightView down, up;
+        WeightView inject;     // no data where the mix makes no inject gates
+        Slice normed, low, gates, inject_gates;
+    };
+    // The learned mix of a row's streams: the grouped norm, its down product (and the inject gates' product beside it), silu scaled by 1 / streams, the up product, and mix_streams into out.
+    // A backend may run the steps as one launch, with each value's bits as the steps give them.
+    virtual void hyper_mix(Slice out, CSlice x, const HyperMix& m, size_t rows, size_t streams, size_t dim, size_t low_rank, float eps, RowRuns runs, Dtype dtype) {
+        const size_t width = streams * dim;
+        const bool inject = m.inject.data.buffer != nullptr;
+        group_rms_norm(m.normed, x, m.norm, rows, streams, dim, eps, runs);
+        // The two products read the normed streams and write slots of their own.
+        if (inject) unordered(true);
+        matmul(m.down, m.normed, m.low, width, low_rank, rows, runs, dtype);
+        if (inject) {
+            matmul(m.inject, m.normed, m.inject_gates, width, streams, rows, runs, dtype);
+            unordered(false);
+        }
+        silu_scaled(m.low, m.low, rows, low_rank, 1.0f / float(streams), runs);
+        matmul(m.up, m.low, m.gates, low_rank, width, rows, runs, dtype);
+        mix_streams(out, m.normed, m.gates, rows, streams, dim, runs);
+    }
+
     // Add each dim-wide block row to every residual stream, weighted by 2 * sigmoid(gate[row][stream] / streams); dst holds the residual in place.
     virtual void inject_streams(Slice /*dst*/, CSlice /*block*/, CSlice /*gate*/, size_t /*rows*/, size_t /*streams*/, size_t /*dim*/) {
         lacks(Op::inject_streams);

@@ -279,6 +279,7 @@ placement contracts in `docs/EXECUTION.md`.
   normalizes each group using its own weight slice; `silu_scaled` applies SiLU
   after multiplying its input by a scale. Both allow exact in-place output.
   `mix_streams` averages elementwise sigmoid-gated stream values into one row.
+  `hyper_mix` is the whole learned mix of a row's streams: its default runs `group_rms_norm`, the down product with the optional inject gates' product beside it under `unordered`, `silu_scaled` by 1 / streams, the up product and `mix_streams`; a backend may run it as one launch with those steps' bits.
   `inject_streams` adds a block's row into every residual stream, weighted by
   twice the sigmoid of that stream's raw gate divided by the stream count.
   `signed_sqrt_gate` takes a normalized key/query dot divided by the square root

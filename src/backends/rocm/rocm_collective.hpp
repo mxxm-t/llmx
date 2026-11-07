@@ -47,7 +47,7 @@ public:
                 // Peers' stores reach uncached memory without the fine-grain setting, which ordinary allocations do not (docs/ROCM.md, Collective design and proof).
                 if (fast) hip_check(f.hipExtMallocWithFlags(&area_[m], bytes, hipDeviceMallocUncached), "hipExtMallocWithFlags");
                 else hip_check(f.hipMalloc(&area_[m], bytes), "hipMalloc");
-                b.launch_check(f.hipMemsetAsync(area_[m], 0, kGroupSignalBytes, b.stream_), "hipMemsetAsync");
+                b.hold_fill(area_[m], kGroupSignalBytes);
                 hip_check(f.hipEventCreateWithFlags(&ready_[m], hipEventDisableTiming), "hipEventCreateWithFlags");
                 hip_check(f.hipEventCreateWithFlags(&pulled_[m], hipEventDisableTiming), "hipEventCreateWithFlags");
                 int khz = 0;
@@ -115,10 +115,13 @@ private:
         settle();
         // Every member's earlier failure throws before any member launches, so none waits for a peer that never comes.
         for (RocmBackend* b : members_) b->raise_failed();
+        // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
+        for (RocmBackend* b : members_) b->flush();
         if (n) {
             if (fast_) pushed(residual, n, replace);
             else pulled(residual, n, replace);
         }
+        for (RocmBackend* b : members_) b->flush();
         before_ = last_;
         for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
     }
@@ -129,7 +132,7 @@ private:
         float* o = RocmBackend::f32(out);
         unsigned long long nn = n, cap = cap_, timeout = timeout_[m];
         int members = (int)members_.size(), rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
-        void* args[] = {&peer_table_[m], &own, &o, &nn, &cap, &members, &rank, &flags, &timeout};
+        const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout);
         const size_t units = (n + 3) / 4;
         b.group_launch((unsigned)std::min<size_t>(kGroupBlocks, (units + kThreads - 1) / kThreads), args);
     }

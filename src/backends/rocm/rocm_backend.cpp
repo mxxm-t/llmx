@@ -12,9 +12,12 @@
 #include <cstddef>
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <map>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace backend {
@@ -42,6 +45,23 @@ constexpr size_t kGroupSignalBytes = 4096;  // a group member's signal block bef
 
 class RocmBackend;
 class RocmCollective;
+
+// A kernel's arguments by value, packed at their natural alignments as the kernel's argument segment lays them out, so a launch can be held and issued later.
+struct Args {
+    static constexpr size_t kBytes = 1024;
+    alignas(16) uint8_t bytes[kBytes];
+    size_t size = 0;
+    template <class... A>
+    explicit Args(const A&... a) { (put(a), ...); }
+    template <class T>
+    void put(const T& v) {
+        static_assert(std::is_trivially_copyable_v<T>, "a kernel argument is copied by its bytes");
+        size = (size + alignof(T) - 1) / alignof(T) * alignof(T);
+        if (size + sizeof(T) > kBytes) throw std::logic_error("rocm: kernel arguments past their buffer");
+        std::memcpy(bytes + size, &v, sizeof(T));
+        size += sizeof(T);
+    }
+};
 
 // A free that fails has nothing left to act on.
 void free_memory(void* p, bool host) {
@@ -90,6 +110,7 @@ struct Graves {
     std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
     const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
     hipStream_t stream = nullptr;                                   // the backend's stream, null once it is drained
+    std::function<void()> flush;                                    // issues the backend's held stream operations, before a drop waits for its stream
 };
 
 // Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible), or the caller's host memory registered with HIP (wrap_host).
@@ -103,15 +124,21 @@ public:
         const size_t words = (bytes + 3) & ~size_t(3);
         if (host) hip_check(f.hipHostMalloc(&p_, words, hipHostMallocDefault), "hipHostMalloc");
         else hip_check(f.hipMalloc(&p_, words), "hipMalloc");
+        device_ = p_;
+        if (host) hip_check(f.hipHostGetDevicePointer(&device_, p_, 0), "hipHostGetDevicePointer");
     }
     // A view of memory register_host holds a count of.
-    RocmBuffer(void* memory, size_t bytes, std::shared_ptr<Graves> graves) : p_(memory), size_(bytes), host_(true), registered_(true), graves_(std::move(graves)) {}
+    RocmBuffer(void* memory, size_t bytes, void* device, std::shared_ptr<Graves> graves)
+        : p_(memory), device_(device), size_(bytes), host_(true), registered_(true), graves_(std::move(graves)) {}
     ~RocmBuffer() override {
         if (!p_) return;
         if (registered_) {
             {
                 std::lock_guard<std::mutex> lock(graves_->m);
-                if (graves_->stream) (void)hip().hipStreamSynchronize(graves_->stream);
+                if (graves_->stream) {
+                    graves_->flush();
+                    (void)hip().hipStreamSynchronize(graves_->stream);
+                }
             }
             unregister_host(p_);
             return;
@@ -130,8 +157,11 @@ public:
     size_t size() const override { return size_; }
     const void* host_ptr() const override { return host_ ? p_ : nullptr; }
     void* data() const { return p_; }
+    // Where a kernel reaches the memory, which for host memory HIP may map at another address.
+    void* device_ptr() const { return device_; }
 private:
     void* p_ = nullptr;
+    void* device_ = nullptr;
     size_t size_;
     bool host_, registered_ = false;
     std::shared_ptr<Graves> graves_;
@@ -160,6 +190,9 @@ public:
         hip_check(f.hipSetDevice(index), "hipSetDevice");
         hip_check(f.hipStreamCreateWithFlags(&stream_, hipStreamNonBlocking), "hipStreamCreateWithFlags");
         graves_->stream = stream_;
+        graves_->flush = [this]() noexcept {
+            try { flush(); } catch (const std::exception&) {}
+        };
         hip_check(f.hipHostMalloc((void**)&fault_, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
         *fault_ = 0;
         for (auto& e : events_) hip_check(f.hipEventCreateWithFlags(&e, hipEventDisableTiming), "hipEventCreateWithFlags");
@@ -174,6 +207,8 @@ public:
             const bool plain = k == kRows16x1 || k == kRows16x2 || k == kRows16x2r4 || k == kRows8x1 || k == kRows8x2 || k == kRows8x2r4 || k == kTileReduce ||
                                k == kRouted16 || k == kRouted8;
             const hipModule_t m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
+            // The fused moe_step's products are in the dot module alone; without it every step runs the base's ops.
+            if (k >= kMoeStepUpQ4K && !dot_module_) continue;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -184,12 +219,14 @@ public:
     }
     ~RocmBackend() override {
         const HipFn& f = hip();
+        try { flush(); } catch (const std::exception&) {}
         (void)f.hipSetDevice(dev_.index);
         (void)f.hipStreamSynchronize(stream_);
         {
             std::lock_guard<std::mutex> lock(graves_->m);
             graves_->tickets = nullptr;
             graves_->stream = nullptr;
+            graves_->flush = nullptr;
             for (const auto& g : graves_->held) free_memory(g.second.first, g.second.second);
             graves_->held.clear();
         }
@@ -253,11 +290,11 @@ public:
     BufferPtr alloc(size_t bytes, Memory where) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         auto b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
-        kept_ = {};
+        forget_twins();
         if (!bytes) return b;
         // KV growth and the model read a fresh buffer as zeros.
         if (where == Memory::host_visible) std::memset(b->data(), 0, bytes);
-        else launch_check(hip().hipMemsetAsync(b->data(), 0, bytes, stream_), "hipMemsetAsync");
+        else hold_fill(b->data(), bytes);
         return b;
     }
     // One registration serves every device's view of the memory; null where HIP refuses it, so the caller writes through staging.
@@ -265,7 +302,12 @@ public:
         if (!memory || !bytes) return nullptr;
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         if (!register_host(memory, bytes)) return nullptr;
-        return std::make_shared<RocmBuffer>(memory, bytes, graves_);
+        void* device = nullptr;
+        if (hip().hipHostGetDevicePointer(&device, memory, 0) != hipSuccess) {
+            unregister_host(memory);
+            return nullptr;
+        }
+        return std::make_shared<RocmBuffer>(memory, bytes, device, graves_);
     }
     BufferPtr adopt(const void* src, size_t bytes) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
@@ -280,7 +322,9 @@ public:
         return record();
     }
     // submit without the failure check, for the paths that cannot throw it to anyone: sync and a collective's wait.
+    // Every operation held so far is issued first, so a ticket covers only work on the stream.
     Ticket record() {
+        flush();
         // The event is recorded before the ticket is handed out, so a waiter on another thread never reads a slot not yet recorded for it.
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
@@ -338,7 +382,7 @@ public:
         for (size_t done = 0; done < bytes;) {
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
-            launch_check(hip().hipMemcpyAsync(st, (const uint8_t*)src.data() + off + done, n, hipMemcpyDeviceToHost, stream_), "hipMemcpyAsync");
+            hold_copy(st, (const uint8_t*)src.data() + off + done, n, hipMemcpyDeviceToHost);
             wait(submit());
             raise_failed();
             std::memcpy((uint8_t*)dst + done, st, n);
@@ -348,12 +392,12 @@ public:
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
         const RocmBuffer& dst = as_rocm(dst_b);
         span(dst, off, bytes);
-        kept_ = {};
+        forget_twins();
         for (size_t done = 0; done < bytes;) {
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
             std::memcpy(st, (const uint8_t*)src + done, n);
-            launch_check(hip().hipMemcpyAsync((uint8_t*)dst.data() + off + done, st, n, hipMemcpyHostToDevice, stream_), "hipMemcpyAsync");
+            hold_copy((uint8_t*)dst.data() + off + done, st, n, hipMemcpyHostToDevice);
             done += n;
         }
     }
@@ -363,9 +407,19 @@ public:
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
         if (!bytes) return;
-        kept_ = {};
-        launch_check(hip().hipMemcpyAsync((uint8_t*)dst.data() + dst_off, (const uint8_t*)src.data() + src_off, bytes, hipMemcpyDefault, stream_),
-                     "hipMemcpyAsync");
+        // A copy forgets a kept twin only where it writes the twin's input, so a zero row written elsewhere keeps it.
+        const float* written = (const float*)((const uint8_t*)dst.data() + dst_off);
+        const size_t floats = (bytes + sizeof(float) - 1) / sizeof(float);
+        // HIP copies between two host memories on the host once the stream has drained, which blocks the caller, so the device copies them in the stream instead.
+        if (src.host_ptr() && dst.host_ptr()) {
+            uint8_t* d = (uint8_t*)dst.device_ptr() + dst_off;
+            const uint8_t* s = (const uint8_t*)src.device_ptr() + src_off;
+            unsigned long long n = bytes;
+            const Args args(d, s, n);
+            return launch_writing({{written, floats}}, kCopy, (unsigned)std::min<size_t>(1024, (bytes + 16 * kThreads - 1) / (16 * kThreads)), 1, args);
+        }
+        hold_copy((uint8_t*)dst.data() + dst_off, (const uint8_t*)src.data() + src_off, bytes, hipMemcpyDefault);
+        forget_written(written, floats);
     }
 
     void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
@@ -449,10 +503,10 @@ public:
         if (nslice > 1 && (!argmax_parts_ || argmax_parts_->size() < need)) argmax_parts_ = alloc(need, Memory::device);
         float* pp = nslice > 1 ? (float*)as_rocm(*argmax_parts_).data() : nullptr;
         unsigned nn = (unsigned)n, sl = (unsigned)slice, ns = (unsigned)nslice;
-        void* args[] = {&lp, &ip, &pp, &nn, &sl, &ns, &ap};
+        const Args args(lp, ip, pp, nn, sl, ns, ap);
         launch(kArgmaxSlices, (unsigned)(rows * nslice), 1, args);
         if (nslice > 1) {
-            void* margs[] = {&pp, &ip, &nn, &ns, &ap};
+            const Args margs(pp, ip, nn, ns, ap);
             launch(kArgmaxMerge, (unsigned)rows, 1, margs, 1, 64);
         }
     }
@@ -474,7 +528,7 @@ public:
         int in = (int)n;
         unsigned long long st = stride;
         if (n > 32 * kThreads) {
-            void* args[] = {&d, &s, &wp, &in, &st, &eps};
+            const Args args(d, s, wp, in, st, eps);
             return launch(kRmsNorm, (unsigned)rows, 1, args);
         }
         // Rows of up to 8192 values take a held build, which writes the twin beside them where a product reads one next.
@@ -484,8 +538,8 @@ public:
         void* q = t.q;
         float* td = t.d;
         TwinMap map = t.map;
-        void* args[] = {&d, &s, &wp, &in, &st, &eps, &q, &td, &map};
-        launch(twin_build(k, map), (unsigned)rows, 1, args, 1, kNormThreads);
+        const Args args(d, s, wp, in, st, eps, q, td, map);
+        launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, twin_build(k, map), (unsigned)rows, 1, args, 1, kNormThreads);
         keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
@@ -516,14 +570,14 @@ public:
         const float* c = f32(cos);
         const float* sn = f32(sin);
         if (streams.count == 1) {
-            void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p};
+            const Args args(d, s, dst_stride, ss, shs, hd, hf, wp, eps, c, sn, p);
             return launch(kNormRope, (unsigned)rows, (unsigned)heads, args);
         }
         for (size_t i = 0; i < half; ++i)
             if (streams.of[i] >= streams.count) throw std::runtime_error("rocm: a rope pair of a stream past the row's");
         const unsigned char* of = (const unsigned char*)pass_arg(streams.of, half);
         int count = (int)streams.count;
-        void* args[] = {&d, &s, &dst_stride, &ss, &shs, &hd, &hf, &wp, &eps, &c, &sn, &p, &of, &count};
+        const Args args(d, s, dst_stride, ss, shs, hd, hf, wp, eps, c, sn, p, of, count);
         launch(kNormRopeStreams, (unsigned)rows, (unsigned)heads, args);
     }
     void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim, size_t gate_stride, size_t gate_head_stride, RowRuns runs) override {
@@ -539,8 +593,8 @@ public:
         const float* g = f32(gate);
         unsigned long long nn = n, wd = width, dd = dim, gs = gate_stride, ghs = gate_head_stride;
         StreamTwin t = stream_twin(dst, rows, width, runs);
-        void* args[] = {&d, &xp, &g, &nn, &wd, &dd, &gs, &ghs, &t.q, &t.d, &t.level, &t.map, &t.major};
-        launch(kSigmoidMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        const Args args(d, xp, g, nn, wd, dd, gs, ghs, t.q, t.d, t.level, t.map, t.major);
+        launch_writing({{d, n}}, kSigmoidMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, n);
     }
     void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps, RowRuns runs, NormGate gate) override {
@@ -555,8 +609,8 @@ public:
         const float* wp = f32(w);
         int dm = (int)dim, sig = gate == NormGate::sigmoid;
         StreamTwin t = stream_twin(dst, rows, size_mul(heads, dim), runs, dim % 32 == 0);
-        void* args[] = {&d, &xp, &zp, &wp, &dm, &eps, &sig, &t.q, &t.d, &t.level, &t.map, &t.major};
-        launch(kGatedRmsNorm, (unsigned)size_mul(rows, heads), 1, args);
+        const Args args(d, xp, zp, wp, dm, eps, sig, t.q, t.d, t.level, t.map, t.major);
+        launch_writing({{d, n}}, kGatedRmsNorm, (unsigned)size_mul(rows, heads), 1, args);
         keep(t.t, d, n);
     }
     // The view count, then five words a view (first row, rows, history length, source slot, destination slot), as the state kernels read them.
@@ -599,7 +653,7 @@ public:
         unsigned cc = (unsigned)C, hk = (unsigned)Hk, hv = (unsigned)Hv, dk = (unsigned)Dk, dv = (unsigned)Dv, nb = (unsigned)blocks;
         unsigned long long slot = ss.slot_floats(layer);
         float scale = (float)(1.0 / std::sqrt((double)Dk)), eps = kL2NormEps;
-        void* args[] = {&o, &u, &al, &bp, &ap, &dt, &st, &tp, &cc, &hk, &hv, &dk, &dv, &slot, &nb, &scale, &eps};
+        const Args args(o, u, al, bp, ap, dt, st, tp, cc, hk, hv, dk, dv, slot, nb, scale, eps);
         // The short build where every view holds at most 8 rows, as the Vulkan backend chooses it; the staged count changes no bits (kernels/f32.hip).
         bool short_build = true;
         for (size_t i = 0; i < n_views; ++i) short_build = short_build && views[i].nq <= 8;
@@ -627,7 +681,7 @@ public:
         const unsigned* tp = (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned));
         unsigned cc = (unsigned)C, chunk = (unsigned)kConvChunk;
         unsigned long long slot = ss.slot_floats(layer), carried = size_mul(sh.v_heads, sh.matrix_floats());
-        void* args[] = {&o, &xp, &wp, &st, &tp, &cc, &slot, &carried, &chunk};
+        const Args args(o, xp, wp, st, tp, cc, slot, carried, chunk);
         launch(kCausalConvSilu, (unsigned)((C + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
     // The Flash-Next stream ops (kernels/f32.hip), plain F32 outputs whose products make their own twins; every refusal comes before any launch.
@@ -645,11 +699,13 @@ public:
         const float* wp = f32(w);
         unsigned g = (unsigned)groups, dm = (unsigned)dim;
         StreamTwin t = stream_twin(dst, rows, width, runs, dim % 32 == 0);
-        void* args[] = {&d, &s, &wp, &g, &dm, &eps, &t.q, &t.d, &t.level, &t.map, &t.major};
+        // Four values a thread only where every operand lies on 16 bytes, since a slice's offset may be any float.
+        int four = dim % 4 == 0 && ((uintptr_t)d | (uintptr_t)s | (uintptr_t)wp) % 16 == 0;
+        const Args args(d, s, wp, g, dm, eps, t.q, t.d, t.level, t.map, t.major, four);
         // Slices of a group, each repeating its reduction, up to what gives four blocks a compute unit (Vulkan's split, fc6f53415); one in place, where a slice's writes would meet another's reads.
         const size_t fill = (4 * size_t(std::max(1u, dev_.caps.compute_units)) + blocks - 1) / blocks;
         const size_t slices = dst.buffer == src.buffer && dst.offset == src.offset ? 1 : std::max<size_t>(1, std::min((dim + 1023) / 1024, fill));
-        launch(kGroupRmsNorm, (unsigned)blocks, (unsigned)slices, args);
+        launch_writing({{d, n}}, kGroupRmsNorm, (unsigned)blocks, (unsigned)slices, args);
         keep(t.t, d, n);
     }
     void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs) override {
@@ -662,8 +718,8 @@ public:
         const float* s = f32(src);
         unsigned long long nn = n;
         StreamTwin t = stream_twin(dst, rows, width, runs);
-        void* args[] = {&d, &s, &nn, &scale, &t.q, &t.d, &t.level, &t.map, &t.major};
-        launch(kSiluScaled, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        const Args args(d, s, nn, scale, t.q, t.d, t.level, t.map, t.major);
+        launch_writing({{d, n}}, kSiluScaled, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, n);
     }
     void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim, RowRuns runs) override {
@@ -680,10 +736,91 @@ public:
         unsigned long long nn = out_n;
         unsigned st = (unsigned)streams, dm = (unsigned)dim;
         StreamTwin t = stream_twin(dst, rows, dim, runs);
-        void* args[] = {&d, &s, &g, &nn, &st, &dm, &t.q, &t.d, &t.level, &t.map, &t.major};
-        launch(kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
+        const Args args(d, s, g, nn, st, dm, t.q, t.d, t.level, t.map, t.major);
+        launch_writing({{d, out_n}}, kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, out_n);
     }
+    // The hyper-connection mix as one persistent launch (kernels/int16.hip, llmx_hc_mix) for a decode row over 8-bit activations on a 64-lane wave; the chain of ops otherwise.
+    void hyper_mix(Slice out, CSlice x, const HyperMix& m, size_t rows, size_t streams, size_t dim, size_t low_rank, float eps, RowRuns runs, Dtype dtype) override {
+        const bool inj = m.inject.data.buffer != nullptr;
+        const size_t width = streams * dim;
+        bool fits = rows == 1 && dtype == Dtype::int8 && dev_.caps.subgroup_size == 64 && streams && dim % 32 == 0 && low_rank && low_rank % 32 == 0 &&
+                    low_rank <= 512 && width <= INT32_MAX && std::isfinite(eps) && eps > 0.0f && m.down.type == quant::GGML_TYPE_Q8_0 && m.up.type == quant::GGML_TYPE_Q8_0 &&
+                    (!inj || m.inject.type == quant::GGML_TYPE_F32) && m.down.data.buffer && m.up.data.buffer;
+        if (fits)
+            for (const CSlice& v : {CSlice(out), x, m.norm, CSlice(m.normed), CSlice(m.low), CSlice(m.gates), inj ? CSlice(m.inject_gates) : x})
+                if (!v.buffer || as_rocm(*v.buffer).host_ptr()) fits = false;
+        const unsigned grid = (unsigned)((low_rank + 3) / 4 + (inj ? streams : 0));
+        if (!fits || !hc_resident(grid)) {
+            Backend::hyper_mix(out, x, m, rows, streams, dim, low_rank, eps, runs, dtype);
+            return;
+        }
+        const size_t q8 = 34;
+        span(*out.buffer, out.offset * sizeof(float), dim * sizeof(float));
+        for (const CSlice& v : {x, m.norm, CSlice(m.normed), CSlice(m.gates)}) span(*v.buffer, v.offset * sizeof(float), width * sizeof(float));
+        span(*m.low.buffer, m.low.offset * sizeof(float), low_rank * sizeof(float));
+        span(*m.down.data.buffer, m.down.data.offset * sizeof(float), size_mul(low_rank, width / 32 * q8));
+        span(*m.up.data.buffer, m.up.data.offset * sizeof(float), size_mul(width, low_rank / 32 * q8));
+        if (inj) {
+            span(*m.inject.data.buffer, m.inject.data.offset * sizeof(float), size_mul(streams, width) * sizeof(float));
+            span(*m.inject_gates.buffer, m.inject_gates.offset * sizeof(float), streams * sizeof(float));
+        }
+        // The launch's scratch: the two barrier counters first, which the allocation zeroes and every launch leaves at zero, then each stream's root, the twin's scales and the twin.
+        // The counters keep their offset whatever the shape, so a launch on scratch a wider mix used reads zeros there, never that mix's twin bytes.
+        const size_t rr_at = 64, nd_at = rr_at + (streams * sizeof(float) + 15) / 16 * 16, nq_at = nd_at + (width / 32 * sizeof(float) + 15) / 16 * 16, need = nq_at + width;
+        if (!hc_scratch_ || hc_scratch_->size() < need) hc_scratch_ = alloc(need, Memory::device);
+        uint8_t* sc = (uint8_t*)as_rocm(*hc_scratch_).data();
+        forget_twins();
+        StreamTwin t = stream_twin(out, rows, dim, runs);
+        if (t.major || t.level == 1) t = {};
+        const HcMix a{f32(x), f32(m.norm), bytes(m.down.data), inj ? f32(m.inject.data) : nullptr, bytes(m.up.data), f32(m.normed), (signed char*)(sc + nq_at),
+                      (float*)(sc + nd_at), f32(m.low), inj ? f32(m.inject_gates) : nullptr, f32(m.gates), f32(out), (signed char*)t.q, t.d,
+                      (float*)(sc + rr_at), (unsigned*)sc, (unsigned)streams, (unsigned)dim, (unsigned)low_rank, eps, 1.0f / float(streams)};
+        launch(kHcMix, grid, 1, Args(a));
+        keep(t.t, f32(out), dim);
+    }
+    // The kernel's argument, laid out as kernels/int16.hip's HcMix.
+    struct HcMix {
+        const float* x;
+        const float* norm_w;
+        const uint8_t* down;
+        const float* inj;
+        const uint8_t* up;
+        float* normed;
+        signed char* nq;
+        float* nd;
+        float* low;
+        float* injg;
+        float* gates;
+        float* out;
+        signed char* oq;
+        float* od;
+        float* rr;
+        unsigned* bar;
+        unsigned streams, dim, lowr;
+        float eps, scale;
+    };
+    static_assert(offsetof(HcMix, streams) == 16 * sizeof(void*) && sizeof(HcMix) == 16 * sizeof(void*) + 5 * 4 + 4, "HcMix mirrors the kernel's argument");
+    // Whether a grid of llmx_hc_mix is resident at once, which its barriers need: the blocks a compute unit holds times the units, read once; a grid past it is said once and runs the chain.
+    bool hc_resident(unsigned grid) {
+        if (hc_per_cu_ < 0) {
+            int n = 0;
+            // HIP finds the module's function through the calling thread's device, which another backend's call may have changed.
+            hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
+            hip_check(hip().hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(&n, kernels_[kHcMix], kThreads, 0), "hipModuleOccupancyMaxActiveBlocksPerMultiprocessor");
+            hc_per_cu_ = n;
+        }
+        const bool ok = size_t(grid) <= size_t(hc_per_cu_) * dev_.caps.compute_units;
+        if (!ok && !hc_refused_) {
+            hc_refused_ = true;
+            std::fprintf(stderr, "rocm: the hyper-connection mix's %u workgroups exceed the %d a compute unit times %u units resident on %s; it runs as separate launches\n", grid,
+                         hc_per_cu_, dev_.caps.compute_units, identity().c_str());
+        }
+        return ok;
+    }
+    BufferPtr hc_scratch_;
+    int hc_per_cu_ = -1;
+    bool hc_refused_ = false;
     void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
         if (!streams || !dim) throw std::runtime_error("rocm: invalid stream injection dimensions");
         if (!rows) return;
@@ -698,7 +835,7 @@ public:
         const float* b = f32(block);
         const float* g = f32(gate);
         unsigned st = (unsigned)streams, dm = (unsigned)dim;
-        void* args[] = {&d, &b, &g, &st, &dm};
+        const Args args(d, b, g, st, dm);
         launch(kInjectStreams, (unsigned)(gn * chunks), 1, args);
     }
     void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim, RowRuns, ZeroSign zero) override {
@@ -716,7 +853,7 @@ public:
         unsigned g = (unsigned)groups, dm = (unsigned)dim;
         float scale = 1.0f / std::sqrt(float(dim));
         unsigned kept = zero == ZeroSign::kept ? 1u : 0u;
-        void* args[] = {&d, &k, &q, &v, &g, &dm, &scale, &kept};
+        const Args args(d, k, q, v, g, dm, scale, kept);
         launch(kSignedSqrtGate, (unsigned)blocks, 1, args);
     }
     // A thread a channel of a chunk of a view, chunks at least the history long so only a view's first chunk reads or leaves its carried rows (kernels/f32.hip).
@@ -751,7 +888,7 @@ public:
         const unsigned* tp = (const unsigned*)arg(tab.data(), tab.size() * sizeof(unsigned));
         unsigned cc = (unsigned)channels, tt = (unsigned)taps, dl = (unsigned)dilation, hs = (unsigned)history, ch = (unsigned)chunk;
         unsigned long long sl = slot, pf = prefix;
-        void* args[] = {&o, &xp, &rp, &wp, &st, &tp, &cc, &tt, &dl, &hs, &sl, &pf, &ch};
+        const Args args(o, xp, rp, wp, st, tp, cc, tt, dl, hs, sl, pf, ch);
         launch(kDilatedConvSiluAdd, (unsigned)((channels + kThreads - 1) / kThreads), (unsigned)chunks, args);
     }
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs) override {
@@ -767,8 +904,8 @@ public:
         void* q = t.q;
         float* td = t.d;
         TwinMap map = t.map;
-        void* args[] = {&d, &g, &u, &nn, &q, &td, &map};
-        launch(twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        const Args args(d, g, u, nn, q, td, map);
+        launch_writing({{d, n}}, twin_build(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, map), (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
     }
     // A row a block of 64, its reductions in one tree of 64 pairs (kernels/f32.hip, llmx_moe_route).
@@ -783,7 +920,7 @@ public:
         float* w = f32(weights);
         unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
         int norm = normalize;
-        void* args[] = {&sc, &id, &w, &ne, &kk, &norm};
+        const Args args(sc, id, w, ne, kk, norm);
         launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kMoeRoute, (unsigned)rows, 1, args, 1, 64);
     }
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows, const Routing& routing, RowRuns runs, Dtype dtype) override {
@@ -812,7 +949,7 @@ public:
         const float* id = f32(routing.ids);
         unsigned long long nr = nrows, no = nout;
         unsigned kk = (unsigned)k;
-        void* args[] = {&y, &part, &w, &id, &nr, &no, &kk};
+        const Args args(y, part, w, id, nr, no, kk);
         launch_writing({{y, size_mul(nrows, nout)}}, kMoeCombine, (unsigned)((nrows * nout + kThreads - 1) / kThreads), 1, args);
     }
     void add(Slice dst, CSlice src, size_t n) override {
@@ -821,7 +958,7 @@ public:
         float* d = f32(dst);
         const float* s = f32(src);
         unsigned long long nn = n;
-        void* args[] = {&d, &s, &nn};
+        const Args args(d, s, nn);
         launch(kAdd, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
     }
 
@@ -855,7 +992,7 @@ public:
         const int* sp = t.slots;
         int heads = (int)s.heads(), dim = (int)s.dim(), bt = (int)kBlockTokens;
         int kh = t.k_half, vh = t.v_half;
-        void* args[] = {&kc, &vc, &kp, &vp, &bp, &sp, &heads, &dim, &bt, &kh, &vh};
+        const Args args(kc, vc, kp, vp, bp, sp, heads, dim, bt, kh, vh);
         launch(kKvWrite, (unsigned)t.rows, (unsigned)heads, args);
     }
     // q and k normed and rotated and the KV write in one launch, where every head fits a block and k's and v's rows are dense; otherwise the ops one at a time.
@@ -891,7 +1028,7 @@ public:
         void* vc = t.vc;
         const int* bp = t.blocks;
         const int* sp = t.slots;
-        void* args[] = {&qp, &qs, &nh, &qw, &kp, &vp, &nkv, &kw, &hf, &eps, &c, &sn, &p, &kc, &vc, &bp, &sp, &bt, &kh, &vh};
+        const Args args(qp, qs, nh, qw, kp, vp, nkv, kw, hf, eps, c, sn, p, kc, vc, bp, sp, bt, kh, vh);
         launch(kNormRopeKv, (unsigned)rows, (unsigned)(n_head + n_head_kv), args);
     }
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim) override {
@@ -950,7 +1087,7 @@ public:
         if (!wide.empty()) {
             const int* wv = ep + rows;
             int nviews = (int)(wide.size() / 5);
-            void* args[] = {&q, &o, &kc, &vc, &tp, &wv, &nviews, &n_head, &n_head_kv, &bt, &kh, &vh, &scale};
+            const Args args(q, o, kc, vc, tp, wv, nviews, n_head, n_head_kv, bt, kh, vh, scale);
             launch(kAttentionTile, (unsigned)(tiles * n_head), 1, args);
         }
         // Each row's history in chunks of its own, merged in order (kernels/f32.hip), so its bits do not depend on the call.
@@ -976,23 +1113,22 @@ public:
             float* td = t.d;
             TwinMap map = t.map;
             int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
-            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp, &tq, &td,
-                            nsplit > 1 ? &none : &tl, &map};
+            const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, max_parts, vp, tq, td, nsplit > 1 ? none : tl, map);
             launch(twin_build(head_dim == 256 ? kAttentionVec256 : kAttentionVec, map), (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
-                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit, &tq, &td, &tl, &map};
+                const Args margs(vp, o, ep, n_head, nsplit, tq, td, tl, map);
                 launch(twin_build(head_dim == 256 ? kAttentionVecMerge256 : kAttentionVecMerge, map), (unsigned)(rows * n_head), 1, margs);
             }
             keep(t, o, floats);
             return;
         }
         if (narrow) {
-            void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale};
+            const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale);
             launch(kAttentionChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
         } else {
             return;
         }
-        void* merge[] = {&pp, &o, &ep, &n_head, &head_dim};
+        const Args merge(pp, o, ep, n_head, head_dim);
         launch(kAttentionMerge, (unsigned)rows, (unsigned)n_head, merge);
     }
 
@@ -1047,12 +1183,12 @@ public:
             const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul((size_t)head_dim + 2, sizeof(float)));
             if (nsplit > 1 && (!parts_ || parts_->size() < need)) parts_ = alloc(need, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
-            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &vp, &idp, &stride};
+            const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, vp, idp, stride);
             // Four heads of a KV head a block, each head its one-head bits (kernels/f32.hip, sparse_vec_grouped), where the groups fill the compute units, as the Vulkan backend chooses.
             if (ratio % 4 == 0 && rows * size_t(n_head) / 4 >= size_t(dev_.caps.compute_units)) launch(head_dim == 256 ? kSparseVec256G4 : kSparseVecG4, (unsigned)(rows * (n_head / 4) * nsplit), 1, args);
             else launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
-                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit};
+                const Args margs(vp, o, ep, n_head, nsplit);
                 launch(head_dim == 256 ? kSparseVecMerge256 : kSparseVecMerge, (unsigned)(rows * n_head), 1, margs);
             }
             return;
@@ -1060,9 +1196,9 @@ public:
         const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
         if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_rocm(*parts_).data();
-        void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale, &idp, &stride};
+        const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale, idp, stride);
         launch(kSparseChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
-        void* margs[] = {&pp, &o, &ep, &n_head, &head_dim, &stride};
+        const Args margs(pp, o, ep, n_head, head_dim, stride);
         launch(kSparseMerge, (unsigned)rows, (unsigned)n_head, margs);
     }
 
@@ -1121,16 +1257,16 @@ public:
                 unsigned* o = out + (c.row0[vi] + row) * stride;
                 unsigned hist = u32(v.length + row);
                 if (count) {
-                    void* sargs[] = {&qr, &aux, &sc, &blocks, &hist, &groups, &heads, &dim, &compression, &bt, &block_floats, &rows_floats, &scale};
+                    const Args sargs(qr, aux, sc, blocks, hist, groups, heads, dim, compression, bt, block_floats, rows_floats, scale);
                     launch(kKvIndexScores, u32((count + 7) / 8), (unsigned)rows, sargs);
                 }
                 if (!wide) {
-                    void* args[] = {&sc, &o, &hist, &groups, &compression, &budget, &ostride};
+                    const Args args(sc, o, hist, groups, compression, budget, ostride);
                     launch(kKvIndexSelect, (unsigned)rows, 1, args);
                     continue;
                 }
                 for (unsigned stage = 0; stage < 5; ++stage) {
-                    void* args[] = {&sc, &o, &state, &hist, &groups, &compression, &budget, &ostride, &stage, &slices};
+                    const Args args(sc, o, state, hist, groups, compression, budget, ostride, stage, slices);
                     launch(kKvIndexSelectWide, slices, (unsigned)rows, args);
                 }
             }
@@ -1138,6 +1274,105 @@ public:
     }
 
     DeviceProfile& profile() { return dev_.profile; }
+
+    // Where fused_step holds, a step is three launches (docs/src/backends-rocm.md): route with row gate and twin of h, every gate and up with their SiLU, the down with combine and shared down.
+    // Each output keeps the bits of the base's ops (Backend::moe_step), which run every other step.
+    void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        if (!fused_step(m, h, nin, rows, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
+        check_runs(rows, runs);
+        const MoeShared& s = *m.shared;
+        const size_t k = m.k, ff = m.gate.rows, ne = m.router.rows, entries = k;
+        const uint32_t gt = m.gate.weight.type;
+        span(*h.buffer, h.offset * sizeof(float), size_mul(nin, sizeof(float)));
+        span(*y.buffer, y.offset * sizeof(float), size_mul(nin, sizeof(float)));
+        for (const Projection* p : {&m.router, &m.gate, &m.up, &s.gate, &s.up, &s.row_gate}) {
+            const bool routed = p == &m.gate || p == &m.up;
+            span(*p->out.buffer, p->out.offset * sizeof(float), size_mul(routed ? size_mul(entries, ff) : p->rows, sizeof(float)));
+            check_weight(p->weight, nin, "moe step matrix");
+            span(*p->weight.data.buffer, p->weight.data.offset * sizeof(float), quant::row_bytes(p->weight.type, nin, routed ? size_mul(ne, ff) : p->rows));
+        }
+        check_weight(m.down, ff, "expert matrix");
+        check_weight(s.down, ff, "moe step matrix");
+        span(*m.down.data.buffer, m.down.data.offset * sizeof(float), quant::row_bytes(m.down.type, ff, size_mul(ne, nin)));
+        span(*s.down.data.buffer, s.down.data.offset * sizeof(float), quant::row_bytes(s.down.type, ff, nin));
+        span(*m.act.buffer, m.act.offset * sizeof(float), size_mul(size_mul(entries, ff), sizeof(float)));
+        span(*s.act.buffer, s.act.offset * sizeof(float), size_mul(ff, sizeof(float)));
+        for (const Slice& r : {m.ids, m.weights}) span(*r.buffer, r.offset * sizeof(float), size_mul(entries, sizeof(float)));
+        if (!step_counter_) {
+            step_counter_ = alloc(64, Memory::device);
+            step_twin_ = alloc(4096, Memory::device);
+            hold_fill(as_rocm(*step_counter_).data(), 64);
+        }
+        const size_t out_bytes = size_mul(size_mul(entries, nin), sizeof(float));
+        if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
+        const float* x = f32(h);
+        // The twin of h unless kept, and the routed act's twin in the other slot, both kept as the base's products keep them.
+        const TwinMap hm = twin_map({}, 1, nin), am = twin_map({}, entries, ff);
+        const bool h_kept = find_twin(x, nin / 32, true, hm, size_mul(hm.total, 36));
+        uint8_t* hq = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
+        float* hd = (float*)(hq + size_mul(hm.total, 32));
+        if (!h_kept) keep_twin({x, nin, true, hm, twin_slot_});
+        float* act = f32(m.act);
+        forget_written(act, entries * ff);
+        (void)find_twin(act, entries * ff / 32, true, am, size_mul(am.total, 36));
+        uint8_t* aq = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
+        float* ad = (float*)(aq + size_mul(am.total, 32));
+        const size_t act_slot = twin_slot_;
+        // The shared act's twin, which only the fused down reads, in a buffer of its own: no twin slot is written while the launch writing it reads them.
+        uint8_t* sq = (uint8_t*)as_rocm(*step_twin_).data();
+        float* sd = (float*)(sq + 2048);
+        unsigned* ids = (unsigned*)f32(m.ids);
+        const StepRoute r{bytes(m.router.weight.data), x, f32(m.router.out), nin, ne, bytes(s.row_gate.weight.data), f32(s.row_gate.out), hq, hd, h_kept ? 0 : nin / 32,
+                          ids, f32(m.weights), (unsigned)ne, (unsigned)k, m.rule.normalize ? 1 : 0, (unsigned*)as_rocm(*step_counter_).data()};
+        launch_step(kMoeStepRoute, (unsigned)(ne / 4 + 1), 1, Args(r));
+        const TypeKernels& gk = *type_kernels(gt);
+        const Projection gu[2] = {m.gate, m.up};
+        const RoutedCall gc = routed_call(gu, 2, nin, *gk.twin, ids, k, ne);
+        const Proj sp[2] = {{bytes(s.gate.weight.data), f32(s.gate.out), ff}, {bytes(s.up.weight.data), f32(s.up.out), ff}};
+        const RowCall sc = row_call(sp, 2, 0, row_form(kQ8Twins, nin), nin);
+        const StepUp u{gc, hq, hd, nin, act, aq, ad, sc, hq, hd, nin, f32(s.act), f32(s.row_gate.out), sq, sd};
+        launch_step(gt == quant::GGML_TYPE_Q5_K ? kMoeStepUpQ5K : kMoeStepUpQ4K, (unsigned)(ff / 32), (unsigned)(entries + 1), Args(u));
+        keep_twin({act, entries * ff, true, am, act_slot});
+        const TypeKernels& dk = *type_kernels(m.down.type);
+        const Projection dn{m.down, Slice{moe_out_.get(), 0}, nin};
+        const RoutedCall dc = routed_call(&dn, 1, ff, *dk.twin, ids, 1, ne);
+        const Proj sdn{bytes(s.down.data), f32(y), nin};
+        const RowCall dsc = row_call(&sdn, 1, 0, row_form(kQ8Twins, ff), ff);
+        const float* y0 = m.zero ? (const float*)as_rocm(*m.zero).data() : f32(y);
+        const StepDown d{dc, aq, ad, ff, f32(m.weights), f32(y), (unsigned)k, dsc, sq, sd, ff, y0};
+        launch_step(m.down.type == quant::GGML_TYPE_Q8_0 ? kMoeStepDownQ8 : kMoeStepDownQ51, (unsigned)(nin / 8), 1, Args(d));
+        record_matrix_path(MatrixPath::block_int8);
+        const std::pair<const float*, size_t> written[] = {{f32(m.router.out), ne}, {f32(s.row_gate.out), 1}, {(const float*)ids, entries}, {f32(m.weights), entries},
+                                                           {f32(m.gate.out), entries * ff}, {f32(m.up.out), entries * ff}, {f32(s.gate.out), ff}, {f32(s.up.out), ff},
+                                                           {f32(s.act), ff}, {f32(y), nin}};
+        for (const auto& [p, n] : written) forget_written(p, n);
+    }
+    // The fused step kernels' own limits (kernels/f32.hip mf_route, kernels/int16.hip gate_up and down): experts, picks, the width of h and the routed width ff.
+    static constexpr size_t kStepExperts = 512, kStepPicks = 10, kStepIn = 2560, kStepFf = 640;
+    // Whether a step has the shape the fused kernels hold (docs/src/backends-rocm.md, moe_step), h and every output in device memory.
+    bool fused_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, Dtype dtype) const {
+        if (rows != 1 || dtype != Dtype::int8 || !kernels_[kMoeStepUpQ4K] || dev_.caps.subgroup_size != 64 || !m.shared || !m.shared->row_gate.weight.data.buffer) return false;
+        const MoeShared& s = *m.shared;
+        const size_t ff = m.gate.rows;
+        const uint32_t gt = m.gate.weight.type, dt = m.down.type;
+        if (m.rule.score != RouteRule::Score::softmax || m.rule.bias.buffer || m.rule.scale != 1.0f || m.limit != 0.0f) return false;
+        const size_t ne = m.router.rows;
+        if (!ne || ne % 64 || ne > kStepExperts || !m.k || m.k > kStepPicks || !nin || nin % 256 || nin > kStepIn) return false;
+        // An even block count, since the shared Q8_0 down takes the half-block order at any width where the base's quarter layout holds an odd one.
+        if (!ff || ff % 64 || ff > kStepFf || m.up.rows != ff || s.gate.rows != ff || s.up.rows != ff) return false;
+        if (m.router.weight.type != quant::GGML_TYPE_F32 || s.row_gate.weight.type != quant::GGML_TYPE_F32 || s.row_gate.rows != 1) return false;
+        if ((gt != quant::GGML_TYPE_Q4_K && gt != quant::GGML_TYPE_Q5_K) || m.up.weight.type != gt) return false;
+        if (dt != quant::GGML_TYPE_Q5_1 && dt != quant::GGML_TYPE_Q8_0) return false;
+        if (s.gate.weight.type != quant::GGML_TYPE_Q8_0 || s.up.weight.type != quant::GGML_TYPE_Q8_0 || s.down.type != quant::GGML_TYPE_Q8_0) return false;
+        const TypeKernels* gk = type_kernels(gt);
+        const TypeKernels* dk = type_kernels(dt);
+        if (!gk || !gk->twin || !dk || !dk->twin || &row_form(*gk->twin, nin) != gk->twin || row_cluster(*gk->twin, nin) != 32 || &row_form(*dk->twin, ff) != dk->twin) return false;
+        if (as_rocm(*h.buffer).host_ptr()) return false;
+        for (const Buffer* b : {m.router.out.buffer, m.gate.out.buffer, m.up.out.buffer, m.act.buffer, m.ids.buffer, m.weights.buffer, s.gate.out.buffer, s.up.out.buffer, s.act.buffer,
+                                s.row_gate.out.buffer})
+            if (as_rocm(*b).host_ptr()) return false;
+        return true;
+    }
 
     // The kernels launched since the last reading, by name, and their counts.
     std::map<std::string, size_t> take_launches() {
@@ -1150,21 +1385,21 @@ public:
 
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
-    enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
+    enum Kernel { kAdd, kCopy, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
                   kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kMatmulQ4K, kGatherQ4K, kMatmulQ5K, kGatherQ5K, kMatmulQ6K,
                   kGatherQ6K, kMatmulQ50, kGatherQ50, kMatmulQ51, kGatherQ51, kMatmulBF16, kGatherBF16, kMatmulIQ4NL, kGatherIQ4NL, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8, kSiluMulTwin16Major, kSiluMulTwin8Major, kRmsNorm16Twin16Major, kRmsNorm16Twin8Major,
                   kRmsNorm32Twin16Major, kRmsNorm32Twin8Major, kAttentionVecMajor, kAttentionVecMergeMajor, kTwin16Major, kTwin8Major, kGroupSum, kSigmoidMul, kGatedRmsNorm, kNormRopeStreams, kCausalConvSilu, kGatedDeltaRule, kGatedDeltaRuleShort, kGroupRmsNorm, kSiluScaled, kMixStreams, kInjectStreams, kSignedSqrtGate, kDilatedConvSiluAdd, kKvIndexPool, kKvIndexScores, kKvIndexSelect, kKvIndexSelectWide, kSparseChunk, kSparseMerge, kSparseVec, kSparseVec256, kSparseVecMerge, kSparseVecMerge256,
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL,
-                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4,
+                  kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kKernels };
-    static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kKernels };
+    static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_copy", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_matmul_q4_k", "llmx_gather_q4_k",
@@ -1175,7 +1410,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -1185,7 +1420,7 @@ private:
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
                                                            "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -1301,9 +1536,10 @@ private:
             if (bytes > cap) throw std::logic_error("rocm: a ring take wider than a slot");
             bytes = (bytes + 255) & ~size_t(255);
             if (used + bytes > cap) {
-                // The slots read since the last submission are tagged by a ticket covering every launch that read them, and the next slot waits for its own.
-                if (std::find(dirty.begin(), dirty.end(), true) != dirty.end()) b.submit();
+                // The next slot waits for the ticket that last covered its readers, and a slot read since the last submission has none yet, so only then does a wrap submit.
+                // A stage never fills every slot, so a wrap is not a flush point (docs/src/backends-rocm.md, records).
                 slot = (slot + 1) % kRingSlots;
+                if (dirty[slot]) b.submit();
                 b.wait(tags[slot]);
                 ++laps[slot];
                 used = 0;
@@ -1407,7 +1643,7 @@ private:
         unsigned rows_floats = c.rows_floats, streams = c.streams;
         unsigned long long block_floats = c.block_floats;
         float eps = index.eps;
-        void* args[] = {&aux, &w, &cs, &sn, &blocks, &gpos, &of, &first, &base, &dim, &half, &compression, &bt, &block_floats, &rows_floats, &eps, &streams};
+        const Args args(aux, w, cs, sn, blocks, gpos, of, first, base, dim, half, compression, bt, block_floats, rows_floats, eps, streams);
         launch(kKvIndexPool, u32(count - done), 1, args);
     }
     static constexpr size_t kSelectRows = 16, kSelectSlice = 1024, kSelectRowWords = 5122;   // a selection's rows at most and the wide form's slice and state a row (kernels/f32.hip)
@@ -1464,7 +1700,7 @@ private:
                 return u.at;
             }
         void* d = pass_.take(*this, bytes);
-        launch_check(hip().hipMemcpyAsync(d, arg(src, bytes), bytes, hipMemcpyHostToDevice, stream_), "hipMemcpyAsync");
+        hold_copy(d, arg(src, bytes), bytes, hipMemcpyHostToDevice);
         Upload& u = uploads_[next_upload_++ % kUploads];
         u.bytes.assign((const uint8_t*)src, (const uint8_t*)src + bytes);
         u.at = d;
@@ -1522,17 +1758,17 @@ private:
         if (nbatch > 1 && nbatch <= 4 && kinds.cols != kKernels) {
             // Up to four rows take a wave an output over all of them, each output the bits of its one-row product (kernels/f32.hip, exact_cols); at eight the blocked build measured faster on the router (docs/STATUS.md).
             unsigned long long nr = nbatch;
-            void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
+            const Args args(w, x, y, ni, no, nr, add);
             const size_t waves = kThreads / dev_.caps.subgroup_size;
             launch_writing({{y, size_mul(nout, nbatch)}}, static_cast<Kernel>(kinds.cols + (nbatch <= 2 ? 0 : 1)), (unsigned)((nout + waves - 1) / waves), 1, args);
         } else if (nbatch > 1) {
             // Several rows take the blocked build, each output the bits of its one-row product (kernels/f32.hip, exact_rows).
             unsigned long long nr = nbatch;
-            void* args[] = {&w, &x, &y, &ni, &no, &nr, &add};
+            const Args args(w, x, y, ni, no, nr, add);
             launch_writing({{y, size_mul(nout, nbatch)}}, kinds.rows, (unsigned)((nout + kRowsOut - 1) / kRowsOut), (unsigned)((nbatch + kRowsIn - 1) / kRowsIn), args);
         } else {
             // One row takes a wave an output (kernels/f32.hip, exact_wave).
-            void* args[] = {&w, &x, &y, &ni, &no, &add};
+            const Args args(w, x, y, ni, no, add);
             const size_t waves = kThreads / dev_.caps.subgroup_size;
             launch_writing({{y, nout}}, kinds.exact, (unsigned)((nout + waves - 1) / waves), 1, args);
         }
@@ -1678,6 +1914,62 @@ private:
         unsigned long long first, per, n_expert;
     };
     static_assert(sizeof(RoutedCall) == 168 && offsetof(RoutedCall, ids) == 136 && offsetof(RoutedCall, n_expert) == 160, "RoutedCall is the kernel's layout");
+    // The host's copies of the fused moe_step's calls (kernels/f32.hip, MfRoute, and kernels/int16.hip, MfGateUpS and MfDown), field for field.
+    struct StepRoute {
+        const uint8_t* w;
+        const float* x;
+        float* scores;
+        unsigned long long nin, nout;
+        const uint8_t* gw;
+        float* rg;
+        uint8_t* hq;
+        float* hd;
+        unsigned long long hblocks;
+        unsigned* ids;
+        float* weights;
+        unsigned n_expert, k;
+        int normalize;
+        unsigned* counter;
+    };
+    static_assert(offsetof(StepRoute, gw) == 40 && offsetof(StepRoute, ids) == 80 && offsetof(StepRoute, n_expert) == 96 && offsetof(StepRoute, counter) == 112 && sizeof(StepRoute) == 120,
+                  "StepRoute is the kernel's layout");
+    struct StepUp {
+        RoutedCall rc;
+        const uint8_t* q;
+        const float* dx;
+        unsigned long long nin;
+        float* act;
+        uint8_t* aq;
+        float* ad;
+        RowCall sc;
+        const uint8_t* sq;
+        const float* sdx;
+        unsigned long long snin;
+        float* sact;
+        const float* rg;
+        uint8_t* stq;
+        float* std_;
+    };
+    static_assert(offsetof(StepUp, q) == 168 && offsetof(StepUp, act) == 192 && offsetof(StepUp, sc) == 216 && offsetof(StepUp, sq) == 328 && offsetof(StepUp, sact) == 352 &&
+                      offsetof(StepUp, std_) == 376 && sizeof(StepUp) == 384,
+                  "StepUp is the kernel's layout");
+    struct StepDown {
+        RoutedCall rc;
+        const uint8_t* aq;
+        const float* ad;
+        unsigned long long nin;
+        const float* weights;
+        float* y;
+        unsigned k;
+        RowCall sc;
+        const uint8_t* sq;
+        const float* sdx;
+        unsigned long long snin;
+        const float* y0;
+    };
+    static_assert(offsetof(StepDown, aq) == 168 && offsetof(StepDown, weights) == 192 && offsetof(StepDown, k) == 208 && offsetof(StepDown, sc) == 216 && offsetof(StepDown, sq) == 328 &&
+                      offsetof(StepDown, y0) == 352 && sizeof(StepDown) == 360,
+                  "StepDown is the kernel's layout");
     struct RoutedExact {
         const unsigned* ids;
         unsigned long long first, per, n_expert, expert_bytes;
@@ -1703,6 +1995,24 @@ private:
         const size_t from = kinds && kinds->twin && integer(proj[0].weight, dtype) ? kinds->twin->tile_from[down][dtype == Dtype::int8] : SIZE_MAX;
         for_each_run(nrows, runs, [from](const RowRun& r) { return r.extent >= from; }, stretch);
     }
+    // The routed row builds' call over the stacks of `proj`, `per` entries a twin row, from entry 0.
+    RoutedCall routed_call(const Projection* proj, size_t nproj, size_t nin, const TwinKernels& rk, const unsigned* ids, size_t per, size_t n_expert) const {
+        RoutedCall c{};
+        for (size_t p = 0; p < nproj; ++p) {
+            c.c.w[p] = bytes(proj[p].weight.data);
+            c.c.y[p] = f32(proj[p].out);
+            c.c.nout[p] = proj[p].rows;
+            c.c.start[p] = c.c.total;
+            c.c.total += proj[p].rows;
+            c.stride[p] = quant::row_bytes(proj[0].weight.type, nin, proj[p].rows);
+        }
+        c.c.nproj = (unsigned)nproj;
+        c.c.cluster = row_cluster(rk, nin);
+        c.ids = ids;
+        c.per = per;
+        c.n_expert = n_expert;
+        return c;
+    }
     void routed(const Projection* proj, size_t nproj, CSlice X, size_t nin, size_t xrows, size_t entries, const Routing& routing, size_t per, Dtype dtype, bool tile) {
         const uint32_t type = proj[0].weight.type;
         const TypeKernels& kinds = check_weight(proj[0].weight, nin, "expert matrix");
@@ -1722,21 +2032,8 @@ private:
             const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
             const TwinKernels& rk = row_form(*kinds.twin, nin);
             auto [q, d] = twin_of(X, xrows, nin, int8, twin_map({}, xrows, nin), true);
-            RoutedCall c{};
-            for (size_t p = 0; p < nproj; ++p) {
-                c.c.w[p] = bytes(proj[p].weight.data);
-                c.c.y[p] = f32(proj[p].out);
-                c.c.nout[p] = proj[p].rows;
-                c.c.start[p] = c.c.total;
-                c.c.total += proj[p].rows;
-                c.stride[p] = quant::row_bytes(type, nin, proj[p].rows);
-            }
-            c.c.nproj = (unsigned)nproj;
-            c.c.cluster = row_cluster(rk, nin);
+            RoutedCall c = routed_call(proj, nproj, nin, rk, ids, per, routing.n_expert);
             const size_t clusters = dev_.caps.subgroup_size / c.c.cluster;
-            c.ids = ids;
-            c.per = per;
-            c.n_expert = routing.n_expert;
             if (tile && routing.n_expert <= kGroupExperts) {
                 // A prompt's entries in groups of up to 64 of one expert, each group a block row of the routed tile over its expert's rows (kernels/int16.hip, TileGroups); the tile never splits, so each entry's sums are its own.
                 const unsigned chunk = kTileRows, groups = (unsigned)((entries + chunk - 1) / chunk + std::min(routing.n_expert, entries));
@@ -1744,7 +2041,7 @@ private:
                 if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert, ng = groups, ch = chunk;
-                void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &ng, &ch};
+                const Args gargs(ids, tab, ne, nx, ng, ch);
                 launch_writing({{tab, tab_bytes / sizeof(float)}}, kMoeGroup, nx, 1, gargs);
                 const size_t nblk = nin / 32;
                 if (nblk * kTileOut * 34 + 64 > 0xffffffffull || (xrows * nblk) * 32 * (int8 ? 1 : 2) > 0xffffffffull)
@@ -1770,7 +2067,7 @@ private:
                 for (const Kernel kernel : {kinds.twin->routed_tile[int8], kinds.twin->routed_narrow[int8]})
                     for (size_t first = 0; first < groups; first += kGridY) {
                         tg.first = first;
-                        void* args[] = {&t, &tg, &q, &d};
+                        const Args args(t, tg, q, d);
                         launch(kernel, (unsigned)gx, (unsigned)std::min<size_t>(kGridY, groups - first), args);
                     }
             } else if (entries && double(entries) >= double(rk.group_from[int8]) * double(routing.n_expert) && routing.n_expert <= kGroupExperts) {
@@ -1782,26 +2079,25 @@ private:
                 if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert;
-                void* gargs[] = {(void*)&ids, &tab, &ne, &nx, &groups, &chunk};
+                const Args gargs(ids, tab, ne, nx, groups, chunk);
                 launch_writing({{tab, tab_bytes / sizeof(float)}}, kMoeGroup, nx, 1, gargs);
                 unsigned long long order0 = 4ull * groups;
                 const size_t wave_rows = 2 * rows_per_block_ * clusters;
                 for (size_t first = 0; first < groups; first += kGridY) {
                     c.first = first;
-                    void* args[] = {&c, &tab, &order0, &q, &d, &ni};
+                    const Args args(c, tab, order0, q, d, ni);
                     launch(rk.grouped[form][width], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min<size_t>(kGridY, groups - first), args);
                 }
             } else {
                 const size_t wave_rows = rk.two_rows[form][0] * rows_per_block_ * clusters;
                 for (size_t first = 0; first < entries; first += kGridY) {
                     c.first = first;
-                    void* args[] = {&c, &q, &d, &ni};
+                    const Args args(c, q, d, ni);
                     launch(rk.routed[form], (unsigned)((c.c.total + wave_rows - 1) / wave_rows), (unsigned)std::min(kGridY, entries - first), args);
                 }
             }
             record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
-            for (size_t p = 0; p < nproj; ++p)
-                if (kept_.x && c.c.y[p] < kept_.x + kept_.values && kept_.x < c.c.y[p] + proj[p].rows * entries) kept_ = {};
+            for (size_t p = 0; p < nproj; ++p) forget_written(c.c.y[p], proj[p].rows * entries);
             return;
         }
         const float* x = f32(X);
@@ -1813,7 +2109,7 @@ private:
             // An entry's outputs a wave each, as the one-row product takes them (kernels/f32.hip, exact_wave).
             const size_t waves = kThreads / dev_.caps.subgroup_size;
             for (; r.first < entries; r.first += kGridY) {
-                void* args[] = {&w, &x, &y, &ni, &no, &r};
+                const Args args(w, x, y, ni, no, r);
                 launch_writing({{y, size_mul(proj[p].rows, entries)}}, kinds.routed, (unsigned)((proj[p].rows + waves - 1) / waves), (unsigned)std::min<size_t>(kGridY, entries - r.first), args);
             }
         }
@@ -1830,23 +2126,47 @@ private:
         const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
         return std::min(kper, nblk);
     }
+    // Points twin_slot_ at the twin of x's `blocks` blocks under `map`: true where a kept twin holds it, which becomes the newer, false where a fresh slot waits for its build.
+    bool find_twin(const float* x, size_t blocks, bool int8, const TwinMap& map, size_t need) {
+        want_twin_ = int8 ? 2 : 1;
+        for (int i = 0; i < 2; ++i)
+            if (kept_[i].x == x && kept_[i].values == blocks * 32 && kept_[i].int8 == int8 && kept_[i].map == map) {
+                if (i == 1) std::swap(kept_[0], kept_[1]);
+                twin_slot_ = kept_[0].slot;
+                return true;
+            }
+        twin_slot_ = take_twin_slot(need);
+        return false;
+    }
     // The twin of X's `rows` rows laid out by `map` (block-int8 for the int8 class), built unless the kept twin holds it or `build` is false.
     std::pair<const uint8_t*, const float*> twin_of(CSlice X, size_t rows, size_t nin, bool int8, TwinMap map, bool build) {
         const size_t blocks = size_mul(rows, nin / 32), qbytes = size_mul(map.total, 32 * (int8 ? 1 : 2)), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
         const float* x = f32(X);
-        if (build) want_twin_ = int8 ? 2 : 1;
-        if (build && !(kept_.x == x && kept_.values == blocks * 32 && kept_.int8 == int8 && kept_.map == map)) {
-            if (!twin_ || twin_->size() < need) twin_ = alloc(need, Memory::device);
-            uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
+        if (build && !find_twin(x, blocks, int8, map, need)) {
+            uint8_t* q = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
             float* d = (float*)(q + qbytes);
             unsigned long long nb = blocks;
-            void* args[] = {&x, &q, &d, &nb, &map};
-            launch(twin_build(int8 ? kTwin8 : kTwin16, map), (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
+            const Args args(x, q, d, nb, map);
+            launch_writing({}, twin_build(int8 ? kTwin8 : kTwin16, map), (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
             // Kept for the next product of the same activations, unless the host may write them in place.
-            if (!as_rocm(*X.buffer).host_ptr()) kept_ = {x, blocks * 32, int8, map};
+            if (!as_rocm(*X.buffer).host_ptr()) keep_twin({x, blocks * 32, int8, map, twin_slot_});
         }
-        const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_).data();
+        const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_[twin_slot_]).data();
         return {q0, (const float*)(q0 + qbytes)};
+    }
+    // The row kernel's call for the group's projections from column `at`, their output rows one after another.
+    RowCall row_call(const Proj* proj, size_t nproj, size_t at, const TwinKernels& rk, size_t nin) const {
+        RowCall c{};
+        for (size_t pi = 0; pi < nproj; ++pi) {
+            c.w[pi] = proj[pi].w;
+            c.y[pi] = proj[pi].y + at * proj[pi].nout;
+            c.nout[pi] = proj[pi].nout;
+            c.start[pi] = c.total;
+            c.total += proj[pi].nout;
+        }
+        c.nproj = (unsigned)nproj;
+        c.cluster = row_cluster(rk, nin);
+        return c;
     }
     // The twin of X, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
     // Without runs a call of one row is a generated row and any other a prompt's.
@@ -1878,19 +2198,10 @@ private:
                 const float* d = d0 + first;
                 if (all.runs[r].extent == 1) {
                     // One launch for the group's projections, their output rows one after another.
-                    RowCall c{};
-                    for (size_t pi = 0; pi < nproj; ++pi) {
-                        c.w[pi] = proj[pi].w;
-                        c.y[pi] = proj[pi].y + at * proj[pi].nout;
-                        c.nout[pi] = proj[pi].nout;
-                        c.start[pi] = c.total;
-                        c.total += proj[pi].nout;
-                    }
-                    c.nproj = (unsigned)nproj;
                     const TwinKernels& rk = row_form(tk, nin);
-                    c.cluster = row_cluster(rk, nin);
+                    RowCall c = row_call(proj, nproj, at, rk, nin);
                     int ncols = (int)rows;
-                    void* args[] = {&c, &q, &d, &ni, &ncols, &add};
+                    const Args args(c, q, d, ni, ncols, add);
                     const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
                     // A one-column half-block row of at most 16 blocks takes a 64-lane wave's halves as two rows, and from q8_decode_two_rows_from output rows the others take two rows a wave.
                     // Both keep the one-row build's bits and read the row width, the output count and the type, never the call's columns (kernels/int16.hip).
@@ -1909,8 +2220,7 @@ private:
         }
         if (begin != nbatch) throw std::runtime_error("rocm: row runs short of the call");
         record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
-        for (size_t pi = 0; pi < nproj; ++pi)
-            if (kept_.x && proj[pi].y < kept_.x + kept_.values && kept_.x < proj[pi].y + proj[pi].nout * nbatch) kept_ = {};
+        for (size_t pi = 0; pi < nproj; ++pi) forget_written(proj[pi].y, proj[pi].nout * nbatch);
     }
     // A row kernel build and the output rows a wave of it takes, R, so a twin load serves that many rows (kernels/int16.hip).
     struct RowBuild {
@@ -1962,7 +2272,7 @@ private:
             if (!partials_ || partials_->size() < need) partials_ = alloc(need, Memory::device);
             c.partials = (float*)as_rocm(*partials_).data();
         }
-        void* args[] = {&c, &q, &d};
+        const Args args(c, q, d);
         launch(tall ? tk.tall[int8] : tk.tile[int8], (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
         if (c.parts > 1) {
             size_t g = 0;
@@ -1970,7 +2280,7 @@ private:
                 c.start[pi] = (unsigned)g;
                 g += (proj[pi].nout * rows + kThreads - 1) / kThreads;
             }
-            void* rargs[] = {&c};
+            const Args rargs(c);
             launch(kTileReduce, (unsigned)g, 1, rargs);
         }
     }
@@ -1980,7 +2290,7 @@ private:
         float* d = f32(dst);
         unsigned long long w = width;
         unsigned nr = (unsigned)std::min<size_t>(nrows, UINT32_MAX);
-        void* args[] = {&d, &table, &ids, &w, &nr};
+        const Args args(d, table, ids, w, nr);
         launch(k, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
     }
     // Where a producer writes the twin of its output of `values` floats: once a product has read a twin, in that class, for an output of whole blocks in device memory.
@@ -1989,15 +2299,16 @@ private:
         float* d = nullptr;
         bool int8 = false;
         TwinMap map{};
+        size_t slot = 0;
     };
     // Its rows lie as `map` lays them out (TwinMap), the layout the product's own runs give.
     TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) {
         if (!want_twin_ || values % 32 || as_rocm(*dst.buffer).host_ptr()) return {};
         const bool int8 = want_twin_ == 2;
         const size_t qbytes = size_mul(map.total, int8 ? 32 : 64), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
-        if (!twin_ || twin_->size() < need) twin_ = alloc(need, Memory::device);
-        uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
-        return {q, (float*)(q + qbytes), int8, map};
+        const size_t slot = take_twin_slot(need);
+        uint8_t* q = (uint8_t*)as_rocm(*twin_[slot]).data();
+        return {q, (float*)(q + qbytes), int8, map, slot};
     }
     // A twin producer's build for `m`: the map-free one where every row lies row after row or no twin is written, the one reading the map otherwise (kernels/f32.hip, _major).
     static Kernel twin_build(Kernel k, const TwinMap& m) {
@@ -2019,7 +2330,7 @@ private:
         }
     }
     void keep(const TwinOut& t, const float* x, size_t values) {
-        if (t.q) kept_ = {x, values, t.int8, t.map};
+        if (t.q) keep_twin({x, values, t.int8, t.map, t.slot});
     }
     // A stream or gate op's twin of its `rows` rows `width` wide, written where a product reads one next and each row is whole blocks (kernels/f32.hip, twin_at): where it goes, its level, its map and whether the map is read.
     struct StreamTwin {
@@ -2033,24 +2344,55 @@ private:
         const TwinOut t = whole && width % 32 == 0 ? twin_out(dst, size_mul(rows, width), twin_map(runs, rows, width)) : TwinOut{};
         return {t, t.q, t.d, !t.q ? 0 : t.int8 ? 2 : 1, t.q && t.map.regions && !t.map.flat() ? 1 : 0, t.map};
     }
-    // Forgets the kept twin where `n` floats written at y meet its input.
+    // A twin kept in its slot, which a product of the same activations reads instead of making its own; a launch or copy writing its input, any other launch, a write or an allocation forgets it.
+    struct Kept {
+        const float* x = nullptr;
+        size_t values = 0;
+        bool int8 = false;
+        TwinMap map{};
+        size_t slot = 0;
+    };
+    // The one owner of forgetting kept twins: forget_written drops each whose input the `n` floats written at y meet, keeping the newer first, and forget_twins drops both.
     void forget_written(const float* y, size_t n) {
-        if (kept_.x && y < kept_.x + kept_.values && kept_.x < y + n) kept_ = {};
+        for (Kept& k : kept_)
+            if (k.x && y < k.x + k.values && k.x < y + n) k = {};
+        if (!kept_[0].x) std::swap(kept_[0], kept_[1]);
+    }
+    void forget_twins() { kept_ = {}; }
+    // The slot a new twin goes into, the one not holding the newer kept twin, grown to `need` bytes; a twin kept there is dropped, and the choice follows the op sequence alone.
+    size_t take_twin_slot(size_t need) {
+        const size_t slot = kept_[0].x ? 1 - kept_[0].slot : 0;
+        if (kept_[1].x && kept_[1].slot == slot) kept_[1] = {};
+        if (!twin_[slot] || twin_[slot]->size() < need) {
+            // A fresh twin buffer is no kept twin's input, so the twin kept in the other slot stays.
+            const auto kept = kept_;
+            twin_[slot] = alloc(need, Memory::device);
+            kept_ = kept;
+        }
+        return slot;
+    }
+    void keep_twin(const Kept& k) {
+        kept_[1] = kept_[0];
+        kept_[0] = k;
     }
     // A launch that writes only `writes`, an exact product's or a router's outputs: it keeps the twin a later product may read unless one of them meets its input.
-    void launch_writing(std::initializer_list<std::pair<const void*, size_t>> writes, Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
+    void launch_writing(std::initializer_list<std::pair<const void*, size_t>> writes, Kernel k, unsigned gx, unsigned gy, const Args& args, unsigned gz = 1, unsigned threads = kThreads) {
         const auto kept = kept_;
         launch(k, gx, gy, args, gz, threads);
         kept_ = kept;
         for (const auto& [y, n] : writes) forget_written((const float*)y, n);
     }
-    void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
+    void launch(Kernel k, unsigned gx, unsigned gy, const Args& args, unsigned gz = 1, unsigned threads = kThreads) {
         raise_failed();
-        // Any kernel but a product may write the kept twin's input.
-        if (k < kRows16x1) kept_ = {};
-        // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
-        hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-        launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, threads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
+        // Any kernel but a product may write a kept twin's input.
+        if (k < kRows16x1) forget_twins();
+        issue(kernels_[k], gx, gy, gz, threads, args, kKernelNames[k]);
+        ++launched_[k];
+    }
+    // A fused step's launch, which writes only the outputs moe_step forgets after it.
+    void launch_step(Kernel k, unsigned gx, unsigned gy, const Args& args) {
+        raise_failed();
+        issue(kernels_[k], gx, gy, 1, kThreads, args, kKernelNames[k]);
         ++launched_[k];
     }
     // A launch or copy refused as it is enqueued throws at once; the stream is still the caller's.
@@ -2085,10 +2427,67 @@ private:
             throw std::runtime_error("rocm: a tensor group's sum on " + identity() + " gave up waiting for its peers; the group's later sums take the conservative path");
     }
     // A group sum's kernel, launched without raise_failed: the collective checks every member before it launches any, so no member waits for a peer whose launch threw.
-    void group_launch(unsigned blocks, void** args) {
-        kept_ = {};
-        hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-        launch_check(hip().hipModuleLaunchKernel(kernels_[kGroupSum], blocks, 1, 1, kThreads, 1, 1, 0, stream_, args, nullptr), "llmx_group_sum");
+    void group_launch(unsigned blocks, const Args& args) {
+        forget_twins();
+        issue(kernels_[kGroupSum], blocks, 1, 1, kThreads, args, "llmx_group_sum");
+    }
+
+    // A stream operation held until the next flush, which issues them in order: a kernel with its packed arguments, a copy, or a zero fill (docs/src/backends-rocm.md, records).
+    struct Held {
+        enum Kind : uint8_t { kernel, copy, fill } kind;
+        hipFunction_t f;
+        unsigned gx, gy, gz, threads;
+        const char* name;
+        size_t at, size;   // a kernel's argument bytes in op_bytes_
+        void* dst;
+        const void* src;
+        size_t bytes;
+        hipMemcpyKind dir;
+    };
+    void hold(const Held& op) {
+        // A device with nothing left running starts on the first few, rather than waiting while the host records a whole chunk.
+        if (!opened_) chunk_ = done(tickets_.last()) ? kFirstChunk : dev_.profile.dispatch_chunk;
+        ops_.push_back(op);
+        opened_ = true;
+        if (ops_.size() >= chunk_) {
+            flush();
+            chunk_ = dev_.profile.dispatch_chunk;
+        }
+    }
+    void issue(hipFunction_t f, unsigned gx, unsigned gy, unsigned gz, unsigned threads, const Args& args, const char* name) {
+        const size_t at = (op_bytes_.size() + 15) & ~size_t(15);
+        op_bytes_.resize(at + args.size);
+        std::memcpy(op_bytes_.data() + at, args.bytes, args.size);
+        hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, 0, hipMemcpyDefault});
+    }
+    void hold_copy(void* dst, const void* src, size_t bytes, hipMemcpyKind dir) { hold({Held::copy, nullptr, 0, 0, 0, 0, "hipMemcpyAsync", 0, 0, dst, src, bytes, dir}); }
+    void hold_fill(void* dst, size_t bytes) { hold({Held::fill, nullptr, 0, 0, 0, 0, "hipMemsetAsync", 0, 0, dst, nullptr, bytes, hipMemcpyDefault}); }
+    // Issues the held operations in order; one HIP refuses throws naming it, and those after it are dropped with it.
+    void flush() {
+        if (ops_.empty()) return;
+        const HipFn& f = hip();
+        std::vector<Held> ops;
+        std::vector<uint8_t> bytes;
+        ops.swap(ops_);
+        bytes.swap(op_bytes_);
+        // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
+        hip_check(f.hipSetDevice(dev_.index), "hipSetDevice");
+        for (const Held& op : ops) {
+            if (op.kind == Held::kernel) {
+                size_t size = op.size;
+                void* extra[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, bytes.data() + op.at, HIP_LAUNCH_PARAM_BUFFER_SIZE, &size, HIP_LAUNCH_PARAM_END};
+                launch_check(f.hipModuleLaunchKernel(op.f, op.gx, op.gy, op.gz, op.threads, 1, 1, 0, stream_, nullptr, extra), op.name);
+            } else if (op.kind == Held::copy) {
+                launch_check(f.hipMemcpyAsync(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
+            } else {
+                launch_check(f.hipMemsetAsync(op.dst, 0, op.bytes, stream_), op.name);
+            }
+        }
+        // The vectors keep their capacity for the next records.
+        ops.clear();
+        bytes.clear();
+        ops_.swap(ops);
+        bytes.swap(op_bytes_);
     }
     friend class RocmCollective;
 
@@ -2097,15 +2496,12 @@ private:
     hipStream_t stream_ = nullptr;
     hipModule_t module_ = nullptr, int16_module_ = nullptr, dot_module_ = nullptr;
     BufferPtr parts_;  // attention's chunk partials, grown as calls need
-    BufferPtr twin_;   // the twin of the last product's activations, or of a producer's output, grown as calls need
-    // The twin a producer wrote into twin_ beside its output (the Vulkan producers' design), which a product of that output reads instead of making its own; any other launch, copy, write or allocation forgets it.
-    struct {
-        const float* x = nullptr;
-        size_t values = 0;
-        bool int8 = false;
-        TwinMap map{};
-    } kept_;
+    // Two twin slots, each the twin of a product's activations or of a producer's output, grown as calls need, so the routed act's twin leaves the mixed streams' for the shared expert (Vulkan's twins, at the count that pattern needs).
+    std::array<BufferPtr, 2> twin_{};
+    std::array<Kept, 2> kept_{};   // the newer first
+    size_t twin_slot_ = 0;   // the slot of the twin the last product read
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
+    BufferPtr step_counter_, step_twin_;   // the fused moe_step's finished route blocks, zero between launches, and its shared act's twin
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.hip, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     BufferPtr staged_;   // a product bound for host memory, formed here first
@@ -2121,6 +2517,10 @@ private:
     size_t next_upload_ = 0;
     TicketLedger tickets_;
     bool opened_ = false;
+    static constexpr size_t kFirstChunk = 8;
+    size_t chunk_ = kFirstChunk;   // the held operations the open submission issues at, kFirstChunk while its device had nothing running
+    std::vector<Held> ops_;   // the stream operations held since the last flush
+    std::vector<uint8_t> op_bytes_;   // their kernels' arguments
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
     std::mutex failed_mu_;
     std::string failed_;

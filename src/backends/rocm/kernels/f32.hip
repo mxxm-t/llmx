@@ -108,6 +108,21 @@ __device__ inline void twin_at(float v, unsigned long long i, void* q, float* d,
     if (level) twin_put(v, i, major ? twin_block(m, i / 32) : i / 32, q, d, level);
 }
 
+// Four consecutive values o of twin block b at element i, its 32 values over 8 aligned lanes of one wave, by twin_value's rule after the max of the lane's four and an 8-lane xor tree, the four codes in one store.
+// A max of the same 32 magnitudes is the same float in any grouping, so the codes and the scale are those of one value a lane.
+template <typename QT, int L>
+__device__ inline void twin_four(const float4 o, unsigned long long i, unsigned long long b, QT* q, float* d) {
+    float a = fmaxf(fmaxf(fabsf(o.x), fabsf(o.y)), fmaxf(fabsf(o.z), fabsf(o.w)));
+    for (int s = 4; s > 0; s >>= 1) a = fmaxf(a, __shfl_xor(a, s, 8));
+    const int lane = (int)(i % 32);
+    QT c[4];
+    twin_value<QT, L>(o.x, a, &c[0], d + b, lane);
+    twin_value<QT, L>(o.y, a, &c[1], d + b, 1);
+    twin_value<QT, L>(o.z, a, &c[2], d + b, 1);
+    twin_value<QT, L>(o.w, a, &c[3], d + b, 1);
+    __builtin_memcpy(q + b * 32 + lane, c, sizeof c);
+}
+
 // The twin of `blocks` blocks of 32 floats, 32 threads a block.
 template <typename QT, int L>
 __device__ void twin(const float* x, QT* q, float* d, unsigned long long blocks, const TwinMap* m) {
@@ -192,6 +207,17 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin16_major(const f
 }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin8_major(const float* x, signed char* q, float* d, unsigned long long blocks, TwinMap m) {
     twin<signed char, 127>(x, q, d, blocks, &m);
+}
+
+// n bytes from src to dst, in 16-byte words where both and n allow, a grid-stride loop.
+extern "C" __global__ void llmx_copy(unsigned char* dst, const unsigned char* src, unsigned long long n) {
+    const unsigned long long stride = (unsigned long long)gridDim.x * kThreads;
+    unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (!(((unsigned long long)dst | (unsigned long long)src | n) & 15)) {
+        for (; i < n / 16; i += stride) ((uint4*)dst)[i] = ((const uint4*)src)[i];
+        return;
+    }
+    for (; i < n; i += stride) dst[i] = src[i];
 }
 
 // dst[i] += src[i].
@@ -602,11 +628,9 @@ __device__ inline void vector_run(const unsigned char* row, const float* X, unsi
 // One row's outputs, a wave each, wave w of block b taking output b * (256 / the wave) + w: lane t holds chains J t to J t + J - 1 (J = 256 / the wave), each over its units in order.
 // The steps every lane fills go in batches with their loads ahead of their products (vector_run); block_sum's pairs then fold them, levels 128 to J by shuffles and those below J in registers.
 template <class D>
-__device__ void exact_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) {
+__device__ inline void exact_row(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long o, int add) {
     constexpr int J = kThreads / kWave;
     const int t = threadIdx.x % kWave;
-    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
-    if (o >= nout) return;
     const unsigned char* row = W + o * D::row_bytes(nin);
     const unsigned long long n = D::units(nin), full = n / kThreads, first = (unsigned long long)J * t;
     float s[J];
@@ -717,6 +741,11 @@ __device__ void exact_cols(const unsigned char* W, const float* X, float* Y, uns
             for (int j = 0; j < h; ++j) s[c][j] += s[c][j + h];
         if (t == 0 && c < (int)nrows) Y[c * nout + o] = add ? Y[c * nout + o] + s[c][0] : s[c][0];
     }
+}
+template <class D>
+__device__ void exact_wave(const unsigned char* W, const float* X, float* Y, unsigned long long nin, unsigned long long nout, int add) {
+    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / kWave) + threadIdx.x / kWave;
+    if (o < nout) exact_row<D>(W, X, Y, nin, o, add);
 }
 // kRowsOut outputs by kRowsIn rows a block, each output the bits of exact_wave: every lane keeps its strided chain for each, folded by block_sum's tree.
 // Sixteen threads an output take the tree's levels 128 to 16 from shared memory and 8 to 1 by shuffles; rows and outputs past the call repeat the last and are not written.
@@ -1537,14 +1566,31 @@ LLMX_DELTA_RULE(llmx_gated_delta_rule_short, 4)
 // The Flash-Next stream ops (backend.hpp), each at its Vulkan kernel's op boundary and in its order, every value a function of its own row.
 
 // A block a (row, group) and slice of rows: the group's RMS norm against its own weights, each thread's squares in order, then block_sum's tree.
-// Every slice repeats the whole reduction, so a group's bits do not depend on its slices.
-extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, const float* w, unsigned groups, unsigned dim, float eps, void* tq, float* td, int tlevel, TwinMap tm, int major) {
+// Every slice repeats the whole reduction, so a group's bits do not depend on its slices; with `four` (dst, src and w on 16 bytes, dim a multiple of 4) a thread scales four values a chunk, one load and store each, their twin by twin_four.
+extern "C" __global__ void llmx_group_rms_norm(float* dst, const float* src, const float* w, unsigned groups, unsigned dim, float eps, void* tq, float* td, int tlevel, TwinMap tm, int major,
+                                               int four) {
     __shared__ float lds[kThreads];
     const unsigned long long o = (unsigned long long)blockIdx.x * dim;
     const float* wg = w + (unsigned long long)(blockIdx.x % groups) * dim;
     float s = 0.0f;
     for (unsigned i = threadIdx.x; i < dim; i += kThreads) s = fmaf(src[o + i], src[o + i], s);
     const float r = 1.0f / sqrtf(block_sum(s, lds) / (float)dim + eps);
+    if (four) {
+        for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y) {
+            const unsigned i = c * 1024u + 4u * threadIdx.x;
+            // A block's 8 lanes are all in or all out of the row, since dim is a multiple of 32 wherever a twin is asked for.
+            if (i >= dim) continue;
+            const float4 x = *(const float4*)(src + o + i), g = *(const float4*)(wg + i);
+            const float4 v = make_float4(x.x * (r * g.x), x.y * (r * g.y), x.z * (r * g.z), x.w * (r * g.w));
+            *(float4*)(dst + o + i) = v;
+            if (tlevel) {
+                const unsigned long long b = major ? twin_block(tm, (o + i) / 32) : (o + i) / 32;
+                if (tlevel == 2) twin_four<signed char, 127>(v, o + i, b, (signed char*)tq, td);
+                else twin_four<short, 32767>(v, o + i, b, (short*)tq, td);
+            }
+        }
+        return;
+    }
     for (unsigned c = blockIdx.y; c * 1024u < dim; c += gridDim.y)
         for (unsigned i = c * 1024u + threadIdx.x; i < dim && i < (c + 1u) * 1024u; i += kThreads) {
             const float v = src[o + i] * (r * wg[i]);
@@ -2119,4 +2165,142 @@ extern "C" __global__ void llmx_argmax_merge(const float* parts, unsigned* ids, 
         argmax_pick(v, id, x, __float_as_uint(parts[2 * (r * nslice + s) + 1]));
     }
     ids[r] = argmax_id(v, id, bad, n, after, r);
+}
+
+// The fused decode moe_step's first launch (rocm_backend.cpp moe_step): the router's and row gate's F32 rows and the int8 twin of h, then the last block out routes as llmx_moe_route does on a 64-lane wave.
+#include <cstddef>
+
+namespace {
+
+// v of lane (this lane xor m) of a 64-lane wave: DPP for 1 and 2, swizzles up to 16; the partner route_tree takes, so its sums keep their bits.
+__device__ inline unsigned rm_xlane(unsigned v, int m) {
+    if (m == 1) return __builtin_amdgcn_mov_dpp(v, 0xB1, 0xF, 0xF, false);
+    if (m == 2) return __builtin_amdgcn_mov_dpp(v, 0x4E, 0xF, 0xF, false);
+    if (m == 4) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (4 << 10));
+    if (m == 8) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (8 << 10));
+    if (m == 16) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (16 << 10));
+    return __shfl_xor(v, m, 64);
+}
+template <typename Op>
+__device__ inline float rm_tree(float v, Op op) {
+#pragma unroll
+    for (int m = 32; m > 0; m >>= 1) v = op(v, __uint_as_float(rm_xlane(__float_as_uint(v), m)));
+    return v;
+}
+
+// The most experts mf_route takes, J = n_expert / 64 of them a lane (rocm_backend.cpp kStepExperts).
+constexpr unsigned kStepExperts = 512;
+
+// llmx_moe_route's picks and weights for one row of 64 J experts and k picks on one wave, a pick the largest key of probability bits over the id's complement; the scores are read past this compute unit's cache.
+template <unsigned J>
+__device__ inline void mf_route(const float* s, unsigned* ids, float* weights, unsigned k, int normalize) {
+    const unsigned t = threadIdx.x;
+    float p[J];
+    float top = -INFINITY;
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) p[j] = __hip_atomic_load(s + t + j * 64, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) top = fmaxf(top, p[j]);
+    top = rm_tree(top, [](float a, float b) { return fmaxf(a, b); });
+    float part = 0.0f;
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const float v = expf(p[j] - top);
+        p[j] = v;
+        part += v;
+    }
+    const float sum = rm_tree(part, [](float a, float b) { return a + b; });
+    if (isnan(sum)) {
+        if (t < k) ids[t] = kNoExpert, weights[t] = 0.0f;
+        return;
+    }
+    unsigned long long key[J];
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const float v = p[j] / sum;
+        const float c = v < __uint_as_float(0x00800000u) ? 0.0f : v;
+        key[j] = ((unsigned long long)__float_as_uint(c) << 32) | (0xffffffffu - (t + j * 64));
+    }
+#pragma unroll
+    for (unsigned a = 0; a < J; ++a)
+#pragma unroll
+        for (unsigned b = 0; b + 1 < J - a; ++b)
+            if (key[b] < key[b + 1]) { const unsigned long long x = key[b]; key[b] = key[b + 1]; key[b + 1] = x; }
+    float total = 0.0f, cw = 0.0f;
+    unsigned cid = kNoExpert;
+    for (unsigned q = 0; q < k; ++q) {
+        unsigned long long m = key[0];
+#pragma unroll
+        for (int x = 32; x > 0; x >>= 1) {
+            const unsigned lo = rm_xlane((unsigned)m, x), hi = rm_xlane((unsigned)(m >> 32), x);
+            const unsigned long long o = ((unsigned long long)hi << 32) | lo;
+            m = o > m ? o : m;
+        }
+        const float c = __uint_as_float((unsigned)(m >> 32));
+        total += c;
+        if (key[0] == m) {
+#pragma unroll
+            for (unsigned j = 0; j + 1 < J; ++j) key[j] = key[j + 1];
+            key[J - 1] = 0;
+        }
+        if (q == t) cw = c, cid = 0xffffffffu - (unsigned)m;
+    }
+    if (t < k) {
+        ids[t] = cid;
+        weights[t] = normalize ? cw / total : cw;
+    }
+}
+
+struct MfRoute {
+    const unsigned char* w;
+    const float* x;
+    float* scores;
+    unsigned long long nin, nout;
+    const unsigned char* gw;
+    float* rg;
+    signed char* hq;
+    float* hd;
+    unsigned long long hblocks;
+    unsigned* ids;
+    float* weights;
+    unsigned n_expert, k;
+    int normalize;
+    unsigned* counter;
+};
+static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && offsetof(MfRoute, n_expert) == 96 && offsetof(MfRoute, counter) == 112 && sizeof(MfRoute) == 120,
+              "host packs MfRoute by these offsets");
+
+} // namespace
+
+// Blocks 0 to nout / 4 - 1 four router rows each, the next the row gate; the first blocks also the twin of h, 8 twin blocks each; the last block out routes.
+extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a) {
+    __shared__ unsigned last;
+    const unsigned b = blockIdx.x, w = threadIdx.x / 64, rb = (unsigned)(a.nout / 4);
+    if (b < rb) exact_row<ExactF32>(a.w, a.x, a.scores, a.nin, 4ull * b + w, 0);
+    else if (w == 0) exact_row<ExactF32>(a.gw, a.x, a.rg, a.nin, 0, 0);
+    const unsigned long long tb = (unsigned long long)b * 8 + threadIdx.x / 32;
+    if (tb < a.hblocks) {
+        const int lane = threadIdx.x % 32;
+        const float v = a.x[tb * 32 + lane];
+        twin_value<signed char, 127>(v, block_amax(v), a.hq + tb * 32 + lane, a.hd + tb, lane);
+    }
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) last = atomicAdd(a.counter, 1u) == gridDim.x - 1;
+    __syncthreads();
+    if (!last) return;
+    __threadfence();
+    if (threadIdx.x == 0) *a.counter = 0;
+    if (threadIdx.x >= 64) return;
+    static_assert(kStepExperts == 8 * 64, "mf_route's builds below take 1 to 8 keys a lane");
+    switch (a.n_expert / 64) {
+    case 1: return mf_route<1>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 2: return mf_route<2>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 3: return mf_route<3>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 4: return mf_route<4>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 5: return mf_route<5>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 6: return mf_route<6>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    case 7: return mf_route<7>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    default: return mf_route<8>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    }
 }

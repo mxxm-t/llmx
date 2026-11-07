@@ -320,8 +320,11 @@ enum : size_t { rope_cos, rope_sin, compressed_cos, compressed_sin, ones, first_
 enum Slot : size_t {
     residual, pre_attn, pre_ffn, mixes, post, comb, collapsed, head_x, head_pre, q_lora, query, window_kv, attn, window_ids, group_ids, grouped, block_out,
     scores, picks, pick_weights, gates, ups, acts, engram_rows, engram_keys, engram_value_row, engram_streams, engram_gated,
-    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids
+    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids, packed_kv
 };
+
+// The words a window row takes in the ring under native, its FP8 blocks.
+inline size_t window_words(uint64_t D) { return backend::format_words(backend::ModelFormat::fp8_power, size_t(D)); }
 
 inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t E = size_t(c.n_embd), HC = size_t(c.hc_count), HD = size_t(c.n_head) * size_t(c.head_dim), G = size_t(c.out_groups);
@@ -335,7 +338,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t groups = least ? size_t(c.context_length / least) : 0;
     return {HC * E, HC, HC, (2 + HC) * HC, HC, HC * HC, E, HC * E, HC, size_t(c.q_lora_rank), HD, size_t(c.head_dim), HD, size_t(c.window), G,
             G * size_t(c.out_rank), E, size_t(c.n_expert), k, k, FF, FF, FF, lookups * size_t(c.engram_head_dim), ER, engram ? E : 0, ER, ER,
-            D, D, D, ID, D + ID, IH * ID, IH, groups, 1, size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0)};
+            D, D, D, ID, D + ID, IH * ID, IH, groups, 1, size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0), window_words(D)};
 }
 
 // One sublayer's coefficients from the streams x entering it: the mixes as an F32 product of hc_fn, then hc_coeffs' rsqrt over the flattened streams, sigmoids and Sinkhorn rounds (model.py:948-957 at e5decd76).
@@ -402,11 +405,17 @@ public:
             // A KV source's pooled row is its entry, then the index key derived from it, so both keep one length, one block table and one retract.
             layer.cache = Cache::entries;
             layer.headroom = W;
-            layer.state_tail = size_t((W + W) * D + (t.kv_source && t.ratio > 1 ? (uint64_t(t.ratio) + W) * 2 * D : 0));
+            // Under native a ring row is its FP8 blocks and a pooled row FP4 entries then MXFP4 keys (docs/DEEPSEEK4.md, section 4.3).
+            // The open group stays F32, padded to whole ring rows so every slot starts on one.
+            const size_t open = size_t(t.kv_source && t.ratio > 1 ? (uint64_t(t.ratio) + W) * 2 * D : 0), KW = window_words(D);
+            layer.state_tail = size_t((W + W) * D) + open;
+            layer.native = LayerPlan::Widths{0, backend::size_mul(size_t(W + W) + (open + KW - 1) / KW, KW)};
             // A compressed layer that is no source reads its entries and index keys from the one pooled row of its KV source (LayerPlan::entry_source).
             if (t.kv_source) {
                 layer.kv_pool = size_t(t.ratio);
                 layer.kv_pool_width = size_t(D + (t.owns_keys ? ID : 0));
+                layer.native->pool_width = backend::format_words(backend::ModelFormat::fp4_e4m3, size_t(D)) +
+                                           (t.owns_keys ? backend::format_words(backend::ModelFormat::fp4_power, size_t(ID)) : 0);
             } else if (t.ratio) {
                 layer.entry_source = t.source;
             }
@@ -488,7 +497,7 @@ public:
             const auto ops = [&](Part part, std::initializer_list<Op> list) {
                 for (Op op : list) layer.ops.push_back({part, op});
             };
-            ops(Part::mixer, {Op::hc_coeffs, Op::hc_collapse_norm, Op::hc_expand, Op::norm_rope_partial, Op::rope_forms, Op::model_format_qdq,
+            ops(Part::mixer, {Op::hc_coeffs, Op::hc_collapse_norm, Op::hc_expand, Op::norm_rope_partial, Op::rope_forms, Op::model_format_qdq, Op::model_format_pack,
                               Op::sparse_attention_sink, Op::routed_experts});
             if (t.ratio) ops(Part::mixer, {Op::pool_write});
             if (t.kv_source) ops(Part::mixer, {Op::compress_pool});
@@ -658,21 +667,25 @@ private:
         s.b.norm_rope_partial(s.slot(query), s.slot(query), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, turn);
         s.b.matmul(w[attn_kv].operand(), s.slot(collapsed), s.slot(window_kv), w[attn_kv].nin, w[attn_kv].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos, turn);
-        s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(rows, D), backend::ModelFormat::fp8_power);
+        // A ring row is the row's values rounded to the window's FP8 as F32, or under native its packed blocks (Step::native).
+        const size_t RW = s.native ? window_words(D) : D;
+        const size_t from_slot = s.native ? packed_kv : window_kv;
+        if (s.native) s.b.model_format_pack(s.slot(packed_kv), RW, s.slot(window_kv), rows, D, backend::ModelFormat::fp8_power);
+        else s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(rows, D), backend::ModelFormat::fp8_power);
 
         // The kv rows are the layer's whole state buffer, a slot's ring starting on a row; each row reads its window's positions oldest first, none before 0.
         if (!s.states || !s.n_views) throw std::logic_error("inference: a DeepSeek-V4.1 window without state views");
         backend::StateStorage& store = *s.states[0].storage;
         const size_t slot_floats = store.slot_floats(s.state_layer), prefix = store.shape().slot_floats();
-        if (slot_floats % D || prefix % D) throw std::logic_error("inference: a DeepSeek-V4.1 window ring that starts inside a row");
+        if (slot_floats % RW || prefix % RW) throw std::logic_error("inference: a DeepSeek-V4.1 window ring that starts inside a row");
         backend::Buffer& kv = store.layer(s.state_layer);
-        const size_t kv_rows = backend::size_mul(store.slots(), slot_floats / D);
+        const size_t kv_rows = backend::size_mul(store.slots(), slot_floats / RW);
         if (!s.indices || s.indices_size < backend::size_mul(rows, W)) throw std::runtime_error("inference: the DeepSeek-V4.1 window's index scratch is too small");
         size_t most = 0;
         for (size_t e = 0, row = 0; e < s.n_views; row += s.states[e].nq, ++e) {
             const backend::StateView& v = s.states[e];
             most = std::max(most, v.nq);
-            const size_t base = (v.dst * slot_floats + prefix) / D;
+            const size_t base = (v.dst * slot_floats + prefix) / RW;
             for (size_t i = 0; i < v.nq; ++i) {
                 const uint64_t q = s.pos[row + i];
                 for (size_t t = 0; t < W; ++t) {
@@ -692,7 +705,9 @@ private:
             const backend::Slice out = s.slot(attn), qs = s.slot(query), ids = s.slot(window_ids), entries = s.slot(index_picks);
             s.b.sparse_attention_sink({out.buffer, out.offset + first * HD}, {qs.buffer, qs.offset + first * HD}, {&kv, 0}, {ids.buffer, ids.offset + first * W},
                                       w[attn_sinks].slice(), end - first, H, D, kv_rows, W, scale, s.kv_layer, squeezed ? run.data() : nullptr,
-                                      squeezed ? run.size() : 0, picked ? backend::CSlice{entries.buffer, entries.offset + first * picked} : backend::CSlice{}, picked);
+                                      squeezed ? run.size() : 0, picked ? backend::CSlice{entries.buffer, entries.offset + first * picked} : backend::CSlice{}, picked,
+                                      s.native ? backend::ModelFormat::fp8_power : backend::ModelFormat::f32,
+                                      s.native ? backend::ModelFormat::fp4_e4m3 : backend::ModelFormat::f32);
             run.clear();
         };
         // Rows of one chunk that sit side by side attend in one call, so a pass whose entries are each at most a window attends once.
@@ -704,8 +719,8 @@ private:
                 const size_t n = std::min(W, v.nq - chunk), from = row + chunk;
                 for (size_t i = 0; i < n;) {
                     const size_t at = size_t(s.pos[from + i] % ring), run = std::min(n - i, ring - at);
-                    s.b.copy(kv, (v.dst * slot_floats + prefix + at * D) * sizeof(float), *s.arena, s.offsets[window_kv] + (from + i) * D * sizeof(float),
-                             run * D * sizeof(float));
+                    s.b.copy(kv, (v.dst * slot_floats + prefix + at * RW) * sizeof(float), *s.arena, s.offsets[from_slot] + (from + i) * RW * sizeof(float),
+                             run * RW * sizeof(float));
                     i += run;
                 }
                 if (from != end) {
@@ -754,7 +769,7 @@ private:
                 // The open group's kv and score rows follow the window ring in the slot, ratio + window of each at position mod ratio + window.
                 backend::StateStorage& store = *s.states[0].storage;
                 backend::Buffer& state = store.layer(s.state_layer);
-                const size_t slot_floats = store.slot_floats(s.state_layer), prefix = store.shape().slot_floats() + 2 * W * D, ring = ratio + W;
+                const size_t slot_floats = store.slot_floats(s.state_layer), prefix = store.shape().slot_floats() + 2 * W * (s.native ? window_words(D) : D), ring = ratio + W;
                 for (size_t e = 0, row = 0; e < s.n_views; row += s.states[e].nq, ++e) {
                     const size_t length = s.views[e].length, nq = s.states[e].nq, kv_at = s.states[e].dst * slot_floats + prefix, score_at = kv_at + ring * D;
                     for (size_t chunk = 0; chunk < nq; chunk += W) {
@@ -783,14 +798,24 @@ private:
                 s.b.matmul(wk.operand(), s.slot(latent), s.slot(index_keys), wk.nin, wk.nout, groups, {}, s.dtype);
                 s.b.norm_rope_partial(s.slot(index_keys), s.slot(index_keys), groups, ID, ID, 1, ID, rd, w[index_norm].slice(), c.rms_eps, cos, sin, firsts.data(),
                                       key_turn);
-                s.b.model_format_qdq(s.slot(index_keys), backend::size_mul(groups, ID), backend::ModelFormat::fp4_power);
                 s.b.norm_rope_partial(latents, latents, groups, D, D, 1, D, rd, {}, c.rms_eps, cos, sin, firsts.data(), turn);
-                s.b.model_format_qdq(latents, backend::size_mul(groups, D), backend::ModelFormat::fp4_e4m3);
-                // A pooled row is the entry, then the index key derived from it (LayerPlan::kv_pool_width).
-                const size_t width = D + ID;
-                for (size_t g = 0; g < groups; ++g) {
-                    s.b.copy(*s.arena, s.offsets[pooled] + g * width * sizeof(float), *s.arena, s.offsets[latent] + g * D * sizeof(float), D * sizeof(float));
-                    s.b.copy(*s.arena, s.offsets[pooled] + (g * width + D) * sizeof(float), *s.arena, s.offsets[index_keys] + g * ID * sizeof(float), ID * sizeof(float));
+                // A pooled row is the entry, then the index key derived from it (LayerPlan::kv_pool_width): F32 rounded to their formats, or under native their packed blocks.
+                const backend::Slice out = s.slot(pooled), keys = s.slot(index_keys);
+                if (s.native) {
+                    const bool owns = s.kind & owns_index_keys;
+                    const size_t EW = backend::format_words(backend::ModelFormat::fp4_e4m3, D);
+                    const size_t width = EW + (owns ? backend::format_words(backend::ModelFormat::fp4_power, ID) : 0);
+                    s.b.model_format_pack(out, width, latents, groups, D, backend::ModelFormat::fp4_e4m3);
+                    if (owns) s.b.model_format_pack({out.buffer, out.offset + EW}, width, keys, groups, ID, backend::ModelFormat::fp4_power);
+                } else {
+                    s.b.model_format_qdq(keys, backend::size_mul(groups, ID), backend::ModelFormat::fp4_power);
+                    s.b.model_format_qdq(latents, backend::size_mul(groups, D), backend::ModelFormat::fp4_e4m3);
+                    const size_t width = D + ID;
+                    for (size_t g = 0; g < groups; ++g) {
+                        s.b.copy(*s.arena, s.offsets[pooled] + g * width * sizeof(float), *s.arena, s.offsets[latent] + g * D * sizeof(float), D * sizeof(float));
+                        s.b.copy(*s.arena, s.offsets[pooled] + (g * width + D) * sizeof(float), *s.arena, s.offsets[index_keys] + g * ID * sizeof(float),
+                                 ID * sizeof(float));
+                    }
                 }
             }
             s.b.pool_write(s.kv_layer, s.views, s.n_views, s.slot(pooled));
@@ -810,7 +835,8 @@ private:
         // A reader of the candidate source's blocks scores only inside them; the source keeps the best blocks of its own scores (model.py:570-611).
         const bool masked = s.kind & reads_candidates;
         const size_t blocks = size_t(c.candidate_top_k), block = size_t(c.candidate_block);
-        s.b.indexer_scores(s.slot(index_scores), s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(index_weights), weight_scale, IH, ID, visible,
+        s.b.indexer_scores(s.slot(index_scores), s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(index_weights), weight_scale, IH, ID,
+                           s.native ? backend::ModelFormat::fp4_power : backend::ModelFormat::f32, visible,
                            masked ? backend::CSlice(s.slot(candidate_ids)) : backend::CSlice{}, masked ? blocks : 0, masked ? block : 0);
         for (size_t r = 0; r < rows; ++r) s.indices[r] = uint32_t((size_t(s.pos[r]) + 1) / ratio);
         s.b.write(*s.arena, s.offsets[index_lens], s.indices, rows * sizeof(uint32_t));

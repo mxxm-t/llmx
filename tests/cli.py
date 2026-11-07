@@ -78,6 +78,10 @@ def check_info(directory):
     listed = [(kind, name, [int(n) for n in shape.split(", ")], int(size)) for kind, name, shape, size in
               re.findall(r"^  (\S+) (\S+) shape=\[([\d, ]+)\] elements=\d+ bytes=(\d+)$", out, re.M)]
     assert listed == expected, listed
+    # native is the model's declared cache format, so a model declaring none refuses it by the flag of the side that names it, as it loads.
+    for flag, side in (("--cache-type-k", "--cache-type-v"), ("--cache-type-v", "--cache-type-k")):
+        p = common.run_process(["generate", model, "a", "-n", "1", flag, "native", side, "f32"], text=True)
+        assert p.returncode == 1 and flag + ": this model declares no native cache format" in p.stderr, "cli: %s native gave exit %d, stderr %r" % (flag, p.returncode, p.stderr[-300:])
 
 
 def check_known_storage(directory):

@@ -1601,7 +1601,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
     // A cache side's two types, the model's default first and marked.
     const auto cache_types = [](backend::KVType d) {
         const backend::KVType other = d == backend::KVType::f16 ? backend::KVType::f32 : backend::KVType::f16;
-        return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other);
+        return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other) +
+               "; native, the model's declared format, where one is declared, which is then the default";
     };
     const auto image_options = [&]() {
         page << "  --mmproj PATH           Vision encoder file of the model's images, with --chat and --image\n"

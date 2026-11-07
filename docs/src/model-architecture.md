@@ -34,6 +34,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   and `kv_pool`, the groups of positions whose pooled rows of `kv_pool_width` floats those blocks also keep
   (`kv_aux_floats()` counts both for the fit);
   `headroom`, the positions an entries layer's rings hold beyond those its rows read, the most rows a pass after a mark may take;
+  `native`, the layer's widths under the cache type `native`, its pooled row and its state tail in 32-bit words of its declared formats, which `settle_cache` swaps with `kv_pool_width` and `state_tail` while `ModelPlan::native` says they are in effect, and `Step::native` tells the parts;
   `entry_source`, an earlier entries layer whose pooled rows an entries layer without its own reads, or -1: its source's storage layer on the source's device, and on a later device a replica there, which the first such reader fills (`Step::appends`);
   `lookup`, an optional `Lookup` naming a mixer gather role and its requested
   table rows per token; and

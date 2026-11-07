@@ -125,8 +125,8 @@ placement contracts in `docs/EXECUTION.md`.
   `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
   `--cache-type-v`), and a backend without a type throws rather than
   substituting one. `kv_type_of(name)` and `kv_type_name(type)` hold the
-  two names, `f32` and `f16`, the same on every backend; an unknown name
-  throws. The backend chooses the block size and
+  three names, `f32`, `f16` and `native`, the same on every backend; an unknown name
+  throws. `KVType::native` is a model's declared cache format, which the model resolves before its storages (`settle_cache` in `model/runtime.hpp`), so a storage is handed f32 or f16. The backend chooses the block size and
   the layout inside a block; the model layer hands it `KVView`s (storage
   handle, block table, committed length, `nq` rows of this pass, and the
   rows' extent as in `RowRuns`) and never computes an offset. Rows are laid out in view order and view `v`'s rows go
@@ -296,11 +296,13 @@ placement contracts in `docs/EXECUTION.md`.
   `hc_collapse_norm` sums pre_k X_k in stream order and normalizes the sum with a weight, into an output disjoint from its inputs.
   `hc_expand` writes X'_k = post_k f + sum over j of comb[j][k] X_j, the sum in j order before post_k f is added, out of place or exactly over the stream.
   Its selection and attention ops read U32 ids and lengths held in float slices, UINT32_MAX naming none, and rank by score, then lower index, refusing a NaN score.
-  `indexer_scores` writes sum over heads of w_h w_scale ReLU(q_h . k_t) for the rows of its KV views in order, key t the last dim floats of the view's pooled row t of the layer, -inf at or past (p + 1) / tokens for a row at position p and outside its candidate blocks when given; a row's groups past the scores' width are refused.
+  `indexer_scores` writes sum over heads of w_h w_scale ReLU(q_h . k_t) for the rows of its KV views in order, key t the last dim values of the view's pooled row t of the layer in the key format, -inf at or past (p + 1) / tokens for a row at position p and outside its candidate blocks when given; a row's groups past the scores' width are refused.
   `pool_write` stores the pooled rows of the groups each view's rows complete, in view order, into their blocks, as `kv_write` stores token rows, each row the storage's pool width; it is the store alone, so a source's rows and a replica's carried rows go through the same call.
   `topk_rows` keeps each row's k best positions in ascending order plus an offset, a reachable pick of -inf kept and one at or past the length written as none; `candidate_blocks` keeps a row's k best blocks, each scored by its best position, the block of its newest position pinned and picks of -inf dropped.
-  `compress_pool` pools each group of ratio rows by a softmax per channel and normalizes the pooled row; `sparse_attention_sink` attends each head over the rows its ids name, one row as K and V, the max from -1e30 over the named scores and the sink in the denominator after it, so a row naming nothing gives zeros; with KV views each row's entry ids then name the first dim floats of its view's pooled rows of the layer, read in place after the kv rows under the one softmax, an id its row cannot see yet refused, and with none it reads the kv rows alone.
+  `compress_pool` pools each group of ratio rows by a softmax per channel and normalizes the pooled row; `sparse_attention_sink` attends each head over the rows its ids name, one row as K and V, the max from -1e30 over the named scores and the sink in the denominator after it, so a row naming nothing gives zeros; with KV views each row's entry ids then name the first dim values of its view's pooled rows of the layer, read in place after the kv rows under the one softmax, an id its row cannot see yet refused, and with none it reads the kv rows alone.
   `model_format_qdq` quantizes and dequantizes a run of whole blocks in place in one of DeepSeek-V4.1's storage formats (`ModelFormat`: the window's FP8 under a power-of-two scale per 32, the index keys' FP4 under one per 32, the entries' FP4 under an E4M3 scale per 16), each block on its own as `quant/model_formats.hpp` gives it.
+  `model_format_pack` writes the same blocks' bytes instead, each row of dim values into `format_words` words from word r times a stride, its blocks then zero bytes to the row's last word, the words past it to the stride untouched; the values read back from those bytes are model_format_qdq's.
+  The readers take each source's format: `sparse_attention_sink` the kv rows' and the entries', `indexer_scores` the keys', `ModelFormat::f32` for rows held as F32 values and a packed format for rows of its blocks, decoded value by value as code times scale, the one multiply qdq gives, so a packed row reads as the bits its F32 form holds (the cache type `native`, docs/DEEPSEEK4.md, section 4.3).
 - `BackendPtr`: the shared handle a backend is held by. The factories live
   with their backends, `make_cpu_backend` in `cpu/cpu_backend.hpp` and
   `make_vulkan_backend` in `vulkan/vulkan_backend.hpp`, and `devices.hpp`

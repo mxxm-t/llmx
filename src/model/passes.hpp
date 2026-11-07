@@ -1082,6 +1082,7 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
     step.indices = sc.indices.data();
     step.indices_size = sc.indices.size();
     step.layer = layer;
+    step.native = plan_.native;
     return step;
 }
 

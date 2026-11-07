@@ -659,7 +659,7 @@ public:
     }
 
     // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && (op != Op::model_format_qdq || dev_->preserve_float32); }
+    bool implements(Op op) const override { return op != Op::mixed_experts && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1402,16 +1402,29 @@ public:
         dispatch(K_HC_EXPAND, {bind(dst), bind(f), bind(stream), bind(post), bind(comb)}, &pc, sizeof(pc), groups(lanes, 256));
     }
 
+    // qdq and pack are one kernel (shaders/model_format_qdq.comp), a lane a block rounding values in place or a lane a row writing its packed blocks to `out`.
     void model_format_qdq(Slice x, size_t count, ModelFormat format) override {
-        const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
+        if (format == ModelFormat::f32) throw std::runtime_error("vulkan: f32 is no model format");
+        const size_t block = format_block_values(format);
         if (count % block) throw std::runtime_error("vulkan: a model format's values are not whole blocks");
         if (!count) return;
         if (floats_from(x) < count) throw std::runtime_error("vulkan: model format operand outside its allocation");
         const size_t blocks = count / block;
-        const struct { uint32_t blocks, format; float inv_fp8, inv_fp4, fp8_floor; }
-            pc{u32(blocks), format == ModelFormat::fp8_power ? 0u : format == ModelFormat::fp4_power ? 1u : 2u, 1.0f / quant::model_formats::FP8_MAX,
-               1.0f / quant::model_formats::FP4_MAX, 1e-4f};
-        dispatch(K_MODEL_FORMAT_QDQ, {bind(x)}, &pc, sizeof(pc), groups(blocks, 64));
+        const struct { uint32_t blocks, format; float inv_fp8, inv_fp4, fp8_floor; uint32_t packed, dim, stride, row_words; }
+            pc{u32(blocks), uint32_t(format), 1.0f / quant::model_formats::FP8_MAX, 1.0f / quant::model_formats::FP4_MAX, 1e-4f, 0, 0, 0, 0};
+        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(x)}, &pc, sizeof(pc), groups(blocks, 64));
+    }
+    void model_format_pack(Slice out, size_t stride, CSlice x, size_t rows, size_t dim, ModelFormat format) override {
+        if (format == ModelFormat::f32) throw std::runtime_error("vulkan: f32 is no packed model format");
+        const size_t words = format_words(format, dim);
+        if (stride < words) throw std::runtime_error("vulkan: packed rows closer than a row's words");
+        if (!rows) return;
+        const size_t on = size_add(size_mul(rows - 1, stride), words), xn = size_mul(rows, dim);
+        if (floats_from(out) < on || floats_from(x) < xn) throw std::runtime_error("vulkan: packed model format operand outside its allocation");
+        if (overlaps(CSlice(out), on, x, xn)) throw std::runtime_error("vulkan: packed model format output must be disjoint from its input");
+        const struct { uint32_t rows, format; float inv_fp8, inv_fp4, fp8_floor; uint32_t packed, dim, stride, row_words; }
+            pc{u32(rows), uint32_t(format), 1.0f / quant::model_formats::FP8_MAX, 1.0f / quant::model_formats::FP4_MAX, 1e-4f, 1, u32(dim), u32(stride), u32(words)};
+        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(out)}, &pc, sizeof(pc), groups(size_mul(rows, words), 64));
     }
 
     // topk_rows and candidate_blocks are one kernel, a row a workgroup (shaders/topk_rows.comp).
@@ -1451,9 +1464,10 @@ public:
     }
 
     void sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows, size_t k,
-                               float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k) override;
-    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, size_t n,
-                        CSlice blocks, size_t block_k, size_t block_size) override;
+                               float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k, ModelFormat kv_format,
+                               ModelFormat entry_format) override;
+    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim,
+                        ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size) override;
     void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override;
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.

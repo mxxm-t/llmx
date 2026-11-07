@@ -1398,7 +1398,7 @@ const uint32_t kSpvHold[] = {
     X(K_ROUTE_SQRT_SOFTPLUS, "route_sqrt_softplus", kSpvRouteSqrtSoftplus, sizeof(kSpvRouteSqrtSoftplus), 4, nullptr) \
     X(K_NORM_ROPE_PARTIAL_FORM, "norm_rope_partial_form", kSpvNormRopePartialForm, sizeof(kSpvNormRopePartialForm), 7, nullptr) \
     X(K_SILU_MUL_CLAMP, "silu_mul_clamp", kSpvSiluMulClamp, sizeof(kSpvSiluMulClamp), 4, nullptr) \
-    X(K_MODEL_FORMAT_QDQ, "model_format_qdq", kSpvModelFormatQdq, sizeof(kSpvModelFormatQdq), 1, nullptr, nullptr, 0, kPreserve32, 0) \
+    X(K_MODEL_FORMAT_QDQ, "model_format_qdq", kSpvModelFormatQdq, sizeof(kSpvModelFormatQdq), 2, nullptr, nullptr, 0, kPreserve32, 0) \
     X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,

@@ -2,7 +2,7 @@
 // One workgroup a (row, head): attention over the kv rows its ids name, then the pooled rows its entry ids name, one row serving as K and V, under one softmax whose denominator takes exp(sink - max).
 // Every sum runs in the CPU's order, and an id that names nothing is skipped (docs/src/backends-vulkan.md).
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint k; uint entry_k; float scale; uint views; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint kv_rows; } p;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint k; uint entry_k; float scale; uint views; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint kv_rows; uint kv_format; uint entry_format; uint kv_words; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
 layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 2) readonly buffer K { float kv[]; };
@@ -11,7 +11,27 @@ layout(set = 0, binding = 4) readonly buffer S { float sink[]; };
 layout(set = 0, binding = 5) readonly buffer A { float aux[]; };
 layout(set = 0, binding = 6) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 7) readonly buffer E { uint entry_ids[]; };
+// The kv rows and the pooled rows as words, for rows held in a packed format (model_formats.glsl).
+layout(set = 0, binding = 2) readonly buffer KU { uint kv_words[]; };
+layout(set = 0, binding = 5) readonly buffer AU { uint aux_words[]; };
 #include "views.glsl"
+#include "model_formats.glsl"
+// Value d of the row at word `where`, from the kv rows or the pooled rows, in that source's format.
+float row_value(uint where, uint d, bool pooled) {
+    uint format = pooled ? p.entry_format : p.kv_format;
+    if (format == 3u) return pooled ? aux[where + d] : kv[where + d];
+    precise float v;
+    if (pooled) {
+#define FORMAT_WORD(i) aux_words[i]
+        FORMAT_VALUE(where, d, format, v)
+#undef FORMAT_WORD
+    } else {
+#define FORMAT_WORD(i) kv_words[i]
+        FORMAT_VALUE(where, d, format, v)
+#undef FORMAT_WORD
+    }
+    return v;
+}
 #define NAMED_MAX 1024u
 const uint NONE = 0xffffffffu;
 shared float pr[NAMED_MAX];
@@ -32,13 +52,13 @@ void main() {
     for (uint t = lid; t < named; t += 256u) {
         uint j = t < p.k ? ids[r * p.k + t] : entry_ids[r * p.entry_k + t - p.k];
         uint where = NONE, aux_row = 0u;
-        if (t < p.k && j < p.kv_rows) where = j * p.dim;
+        if (t < p.k && j < p.kv_rows) where = j * p.kv_words;
         else if (t >= p.k && j != NONE && j < visible) { where = pooled_row(v, j, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width); aux_row = 1u; }
         at_kv[t] = where;
         from_aux[t] = aux_row;
         if (where == NONE) continue;
         precise float dot = 0.0;
-        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[rh * p.dim + d], aux_row != 0u ? aux[where + d] : kv[where + d], dot);
+        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[rh * p.dim + d], row_value(where, d, aux_row != 0u), dot);
         precise float s = dot * p.scale;
         pr[t] = s;
         peak = max(peak, s);
@@ -65,7 +85,7 @@ void main() {
         for (uint t = 0u; t < named; ++t) {
             uint where = at_kv[t];
             if (where == NONE) continue;
-            o = fma(pr[t], from_aux[t] != 0u ? aux[where + d] : kv[where + d], o);
+            o = fma(pr[t], row_value(where, d, from_aux[t] != 0u), o);
         }
         outv[rh * p.dim + d] = o / denominator;
     }

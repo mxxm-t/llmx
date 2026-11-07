@@ -16,6 +16,7 @@
 
 #include "backends/cpu/cpu_backend.hpp"
 #include "quant/model_formats.hpp"
+#include "quant/mxfp4.hpp"
 
 namespace {
 
@@ -200,21 +201,21 @@ void blocks() {
             }
             if (i == 0) std::fill(x.begin(), x.end(), 0.0f);
             const std::vector<float> want = qdq_text(x, format);
-            if (format == 0) mf::qdq_fp8_power(x.data(), x.size());
-            else if (format == 1) mf::qdq_fp4_power(x.data(), x.size());
-            else mf::qdq_fp4_e4m3(x.data(), x.size());
+            if (format == 0) mf::qdq_fp8_power(x.data());
+            else if (format == 1) mf::qdq_fp4_power(x.data());
+            else mf::qdq_fp4_e4m3(x.data());
             for (size_t j = 0; j < x.size(); ++j) require(same(x[j], want[j]), std::string(names[format]) + ": value " + std::to_string(j) + " is " + hex(x[j]) + " not " + hex(want[j]));
         }
     }
     // The clamps by name: a block below each floor takes the floor's scale.
     std::vector<float> tiny(32, 1e-30f);
-    mf::qdq_fp8_power(tiny.data(), tiny.size());
+    mf::qdq_fp8_power(tiny.data());
     require(tiny[0] == 0.0f, "the window's FP8 floor of 1e-4 rounds 1e-30 to zero");
     std::vector<float> entry(16, 2e-4f);
-    mf::qdq_fp4_e4m3(entry.data(), entry.size());
+    mf::qdq_fp4_e4m3(entry.data());
     require(entry[0] == 0.0f, "the entries' floor 6 * 2^-9 gives the scale 2^-9, under which 2e-4 rounds to zero");
     std::vector<float> big(16, 1e6f);
-    mf::qdq_fp4_e4m3(big.data(), big.size());
+    mf::qdq_fp4_e4m3(big.data());
     require(big[0] == 6.0f * 448.0f, "a scale past E4M3's range saturates at 448");
 }
 
@@ -261,9 +262,9 @@ void port(const std::string& path) {
                     ++skipped;
                     continue;
                 }
-                if (format == 0) mf::qdq_fp8_power(p, width);
-                else if (format == 1) mf::qdq_fp4_power(p, width);
-                else mf::qdq_fp4_e4m3(p, width);
+                if (format == 0) mf::qdq_fp8_power(p);
+                else if (format == 1) mf::qdq_fp4_power(p);
+                else mf::qdq_fp4_e4m3(p);
                 const auto* bytes = reinterpret_cast<const unsigned char*>(p);
                 for (size_t k = 0; k < width * sizeof(float); ++k) h = (h ^ bytes[k]) * 0x100000001B3ull;
                 compared += width;
@@ -323,9 +324,9 @@ void format_op() {
         }
         std::vector<float> want = x;
         for (size_t i = 0; i < count; i += width) {
-            if (f == 0) mf::qdq_fp8_power(&want[i], width);
-            else if (f == 1) mf::qdq_fp4_power(&want[i], width);
-            else mf::qdq_fp4_e4m3(&want[i], width);
+            if (f == 0) mf::qdq_fp8_power(&want[i]);
+            else if (f == 1) mf::qdq_fp4_power(&want[i]);
+            else mf::qdq_fp4_e4m3(&want[i]);
         }
         CpuBackend cpu;
         for (int t : kThreads) {
@@ -336,6 +337,65 @@ void format_op() {
         }
         BufferPtr xb = upload(cpu, x);
         refused([&] { cpu.model_format_qdq({xb.get(), 0}, count - 1, formats[f]); }, "model_format_qdq ending inside a block");
+    }
+}
+
+// The packed blocks of the cache type native: V4.1's row sizes, the key block read by the MXFP4 decoder the weights use, and model_format_pack's rows on the CPU at every thread count.
+// Each packed row is its blocks' bytes, the per-block packers', then zero bytes to its last word, the words up to the stride untouched, and a row of partial blocks refused.
+void pack_op() {
+    using backend::ModelFormat;
+    require(4 * backend::format_words(ModelFormat::fp4_e4m3, 512) == 288 && 4 * backend::format_words(ModelFormat::fp4_power, 128) == 68 &&
+                4 * backend::format_words(ModelFormat::fp8_power, 512) == 528,
+            "V4.1's entries take 288 bytes, its index keys 68 and its window rows 528");
+    for (int i = 0; i < 2000; ++i) {
+        float x[32];
+        for (float& v : x) {
+            const uint32_t r = draw();
+            v = (r % 13 == 0) ? 0.0f : std::ldexp(float(r >> 8) / float(1u << 24), int(i % 60) - 40) * (r & 1 ? -1.0f : 1.0f);
+        }
+        uint8_t b[mf::FP4_POWER_BYTES];
+        mf::pack_fp4_power(x, b);
+        float weights[32];
+        quant::dequantize_row_mxfp4(b, weights, 1);
+        for (size_t j = 0; j < 32; ++j) {
+            const float mine = mf::unpack_fp4_power(b, j);
+            require(weights[j] == mine && (mine != 0.0f || !std::signbit(weights[j])), "an index key block reads as an MXFP4 weight block, signed zeros as +0");
+        }
+    }
+    const ModelFormat formats[] = {ModelFormat::fp8_power, ModelFormat::fp4_power, ModelFormat::fp4_e4m3};
+    const size_t dims[] = {64, 96, 48};
+    for (int f = 0; f < 3; ++f) {
+        const size_t dim = dims[f], rows = 9, words = backend::format_words(formats[f], dim), stride = words + 2, n = (rows - 1) * stride + words;
+        const size_t block = backend::format_block_values(formats[f]), bytes = backend::format_block_bytes(formats[f]);
+        require(words * 4 > dim / block * bytes, "every test row of format " + std::to_string(f) + " ends in padding");
+        std::vector<float> x(rows * dim);
+        for (size_t i = 0; i < x.size(); ++i) {
+            const uint32_t r = draw();
+            x[i] = std::ldexp(float(r >> 8) / float(1u << 24), int((i / block) % 41) - 20) * (r & 1 ? -1.0f : 1.0f);
+        }
+        std::vector<uint8_t> want(n * 4, 0xA5);
+        for (size_t r = 0; r < rows; ++r) {
+            std::fill(want.begin() + std::ptrdiff_t(r * stride * 4), want.begin() + std::ptrdiff_t(r * stride * 4 + words * 4), uint8_t(0));
+            for (size_t b = 0; b < dim / block; ++b) {
+                uint8_t* o = want.data() + r * stride * 4 + b * bytes;
+                const float* v = x.data() + r * dim + b * block;
+                if (f == 0) mf::pack_fp8_power(v, o);
+                else if (f == 1) mf::pack_fp4_power(v, o);
+                else mf::pack_fp4_e4m3(v, o);
+            }
+        }
+        CpuBackend cpu;
+        for (int t : kThreads) {
+            cpu.set_threads(t);
+            BufferPtr xb = upload(cpu, x), ob = upload(cpu, std::vector<float>(n, 0.0f));
+            cpu.write(*ob, 0, std::vector<uint8_t>(n * 4, 0xA5).data(), n * 4);
+            cpu.model_format_pack({ob.get(), 0}, stride, {xb.get(), 0}, rows, dim, formats[f]);
+            require(!std::memcmp(download(cpu, *ob, n).data(), want.data(), n * 4), "model_format_pack format " + std::to_string(f) + " at " + std::to_string(t) + " threads");
+        }
+        BufferPtr xb = upload(cpu, x), ob = upload(cpu, std::vector<float>(n, 0.0f));
+        refused([&] { cpu.model_format_pack({ob.get(), 0}, stride, {xb.get(), 0}, rows, dim - 1, formats[f]); }, "model_format_pack of a row inside a block");
+        refused([&] { cpu.model_format_pack({ob.get(), 0}, words - 1, {xb.get(), 0}, rows, dim, formats[f]); }, "model_format_pack of rows closer than their words");
+        refused([&] { cpu.model_format_qdq({xb.get(), 0}, dim, ModelFormat::f32); }, "model_format_qdq to f32");
     }
 }
 
@@ -600,7 +660,7 @@ void sink_attention() {
     BufferPtr qb = upload(cpu, q), kb = upload(cpu, kv), ib = upload(cpu, as_floats(ids)), sb = upload(cpu, sink);
     auto run = [&](size_t first, size_t n) {
         BufferPtr ob = cpu.alloc(n * heads * dim * 4, backend::Memory::device);
-        cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), first * heads * dim}, {kb.get(), 0}, {ib.get(), first * k}, {sb.get(), 0}, n, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0);
+        cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), first * heads * dim}, {kb.get(), 0}, {ib.get(), first * k}, {sb.get(), 0}, n, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, backend::ModelFormat::f32, backend::ModelFormat::f32);
         return download(cpu, *ob, n * heads * dim);
     };
     cpu.set_threads(1);
@@ -640,8 +700,13 @@ void sink_attention() {
     std::vector<uint32_t> bad(k, kNone);
     bad[3] = uint32_t(kv_rows);
     BufferPtr badb = upload(cpu, as_floats(bad)), ob = cpu.alloc(heads * dim * 4, backend::Memory::device);
-    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {badb.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0); }, "sparse_attention_sink of an id past its rows");
-    refused([&] { cpu.sparse_attention_sink({qb.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0); }, "sparse_attention_sink into its queries");
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {badb.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, backend::ModelFormat::f32, backend::ModelFormat::f32); }, "sparse_attention_sink of an id past its rows");
+    refused([&] { cpu.sparse_attention_sink({qb.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, backend::ModelFormat::f32, backend::ModelFormat::f32); }, "sparse_attention_sink into its queries");
+    // No named rows under a packed format divides nothing: the output is +0.
+    const size_t pdim = 128;
+    BufferPtr pq = upload(cpu, uniform(heads * pdim, -1.0f, 1.0f)), po = cpu.alloc(heads * pdim * 4, backend::Memory::device);
+    cpu.sparse_attention_sink({po.get(), 0}, {pq.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, pdim, 0, 0, scale, 0, nullptr, 0, {}, 0, backend::ModelFormat::fp4_power, backend::ModelFormat::f32);
+    for (float v : download(cpu, *po, heads * pdim)) require(bits(v) == 0, "sparse_attention_sink naming nothing under a packed format is +0");
 }
 
 // compress_pool against model.py:473-482 in double: a softmax per channel over each group's rows, the weighted sum, then the compressor's RMSNorm.
@@ -751,7 +816,7 @@ void sink_entries(Pooled& p) {
     auto run = [&](const std::vector<backend::KVView>& v, size_t first, size_t n) {
         BufferPtr ob = cpu.alloc(n * heads * dim * 4, backend::Memory::device);
         cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), first * heads * dim}, {kb.get(), 0}, {ib.get(), first * k}, {sb.get(), 0}, n, heads, dim, kv_rows, k, scale, 0,
-                                  v.data(), v.size(), {eb.get(), first * ek}, ek);
+                                  v.data(), v.size(), {eb.get(), first * ek}, ek, backend::ModelFormat::f32, backend::ModelFormat::f32);
         return download(cpu, *ob, n * heads * dim);
     };
     cpu.set_threads(1);
@@ -797,13 +862,13 @@ void sink_entries(Pooled& p) {
     BufferPtr pb = upload(cpu, as_floats(past)), nb = upload(cpu, as_floats(std::vector<uint32_t>(rows * k, kNone)));
     BufferPtr ob = cpu.alloc(rows * Pooled::width * heads * 4, backend::Memory::device);
     const backend::KVView first = p.view(true, 290, 1);
-    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, &first, 1, {pb.get(), 0}, ek); },
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, &first, 1, {pb.get(), 0}, ek, backend::ModelFormat::f32, backend::ModelFormat::f32); },
             "sparse_attention_sink of an entry its row cannot see yet");
-    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {nb.get(), 0}, {sb.get(), 0}, 2, heads, dim, kv_rows, k, scale, 0, &first, 1, {eb.get(), 0}, ek); },
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {nb.get(), 0}, {sb.get(), 0}, 2, heads, dim, kv_rows, k, scale, 0, &first, 1, {eb.get(), 0}, ek, backend::ModelFormat::f32, backend::ModelFormat::f32); },
             "sparse_attention_sink of more rows than its views hold");
-    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {nb.get(), 0}, {sb.get(), 0}, 1, heads, Pooled::width + 1, 1, k, scale, 0, &first, 1, {nb.get(), 0}, ek); },
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {nb.get(), 0}, {sb.get(), 0}, 1, heads, Pooled::width + 1, 1, k, scale, 0, &first, 1, {nb.get(), 0}, ek, backend::ModelFormat::f32, backend::ModelFormat::f32); },
             "sparse_attention_sink of entries wider than the pooled rows");
-    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {eb.get(), 0}, ek); },
+    refused([&] { cpu.sparse_attention_sink({ob.get(), 0}, {qb.get(), 0}, {kb.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {eb.get(), 0}, ek, backend::ModelFormat::f32, backend::ModelFormat::f32); },
             "sparse_attention_sink of entries without views");
 }
 
@@ -825,7 +890,7 @@ void index_scores(Pooled& p) {
             for (const backend::KVView& x : v) m += x.nq;
             BufferPtr ob = cpu.alloc(m * n * 4, backend::Memory::device);
             const backend::CSlice blocks = with_blocks ? backend::CSlice{cb.get(), first * bk} : backend::CSlice{};
-            cpu.indexer_scores({ob.get(), 0}, {qb.get(), first * heads * dim}, 0, v.data(), v.size(), {wb.get(), first * heads}, w_scale, heads, dim, n, blocks, bk, bs);
+            cpu.indexer_scores({ob.get(), 0}, {qb.get(), first * heads * dim}, 0, v.data(), v.size(), {wb.get(), first * heads}, w_scale, heads, dim, backend::ModelFormat::f32, n, blocks, bk, bs);
             return download(cpu, *ob, m * n);
         };
         cpu.set_threads(1);
@@ -864,10 +929,10 @@ void index_scores(Pooled& p) {
         }
     }
     BufferPtr ob = cpu.alloc(rows * n * 4, backend::Memory::device);
-    refused([&] { cpu.indexer_scores({qb.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, n, {}, 0, 0); }, "indexer_scores into its queries");
-    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, n, {cb.get(), 0}, bk, 0); }, "indexer_scores of blocks of no positions");
-    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, 31, {}, 0, 0); }, "indexer_scores narrower than a row's groups");
-    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, Pooled::width + 1, n, {}, 0, 0); },
+    refused([&] { cpu.indexer_scores({qb.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, backend::ModelFormat::f32, n, {}, 0, 0); }, "indexer_scores into its queries");
+    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, backend::ModelFormat::f32, n, {cb.get(), 0}, bk, 0); }, "indexer_scores of blocks of no positions");
+    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, dim, backend::ModelFormat::f32, 31, {}, 0, 0); }, "indexer_scores narrower than a row's groups");
+    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views.data(), 1, {wb.get(), 0}, w_scale, heads, Pooled::width + 1, backend::ModelFormat::f32, n, {}, 0, 0); },
             "indexer_scores of keys wider than the pooled rows");
 }
 
@@ -1130,6 +1195,7 @@ int main(int argc, char** argv) {
         scales();
         blocks();
         format_op();
+        pack_op();
         port(argv[1]);
         mhc();
         selections();

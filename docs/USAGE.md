@@ -334,7 +334,7 @@ Flags:
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
-| `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
+| `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32`, or `native` where the model declares a format (its default there) |
 | `--device D`    | backend: `cpu`, or `vulkan:N` or `rocm:N` in a build with it |
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
 | `--tensor-width N` | devices each layer is split across, the listed devices forming groups of `N` (default 1, below) |
@@ -519,6 +519,10 @@ bound) and because a decode step reads the whole cache, so a 512-token
 generation on Qwen3-0.6B runs 6 percent faster. Pass `f32` on both
 sides to store the cache exactly.
 
+`native` stores the cache in the format the model declares for it, and only a model that declares one takes it.
+DeepSeek-V4.1 declares its window rows as FP8 with a power-of-two scale per 32 values (528 bytes a row) and its stored entries as FP4 with an E4M3 scale per 16 values beside MXFP4 index keys (356 bytes a pooled row), and there `native` is the default.
+Every value read back is the bits the model's own rounding gives, so `native` and `f32` give identical outputs, and `f16` is refused on such a model; both sides take the same type there, since its layers keep no separate keys and values ([DEEPSEEK4](DEEPSEEK4.md), section 4.3).
+
 ## Reading the weights (`--load-mode`)
 
 Every command that runs a model takes `--load-mode`, which says how the weights are read from the file; it means the same on every backend.
@@ -613,8 +617,8 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--dtype T`             | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above) | `auto` |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch                       | 512     |
-| `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16` or `f32`      | `f16`   |
-| `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16` or `f32`    | `f16`   |
+| `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16`, `f32` or `native` | `f16`, `native` where declared |
+| `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16`, `f32` or `native` | `f16`, `native` where declared |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
 | `--device D`            | backend: `cpu`, or `vulkan:N` or `rocm:N` in a build with it | `cpu`   |
 | `--layer-shares A,B`    | with several devices, their proportions of the layers | fitted to free memory |

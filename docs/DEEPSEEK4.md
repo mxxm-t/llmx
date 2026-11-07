@@ -44,7 +44,7 @@ The owner approved every recommendation of the earlier plan on 2026-09-26:
 - DSpark is a proposer of the unified speculative system, embedded or from a sidecar;
 - the default context is what the fit admits, printed at load;
 - a cache type `native` (`--cache-type-k native --cache-type-v native`), the default for these architectures, with `f32` giving identical outputs and `f16` refused; by F2DEV's review it means "the architecture's declared cache format", one meaning for every model, refused where a model declares none, as the owner's one-rule-per-flag of 2026-10-05 asks;
-  the owner approved on 2026-11-05 that the packed bytes of `native` are a step of their own between 9b and 10 (9c), `native` becoming the default once it exists, the outcome unchanged; until then a plan with an entries layer holds the model's values in F32 and refuses any cache type but `f32` by the flag's name;
+  the owner approved on 2026-11-05 that the packed bytes of `native` are a step of their own between 9b and 10 (9c), `native` becoming the default once it exists, the outcome unchanged; step 9c built it, so a plan with an entries layer takes `native` by default, `f32` when given, and refuses `f16` and two different sides by the flags' names;
 - work starts step by step as prerequisites land;
 - thresholds are proposed after a first measurement, for the owner's OK;
 - the gate revision: a layered full-model reference from GGUFs on the host, V4 through transformers' `deepseek_v4` one layer at a time on the exact UD-Q8_K_XL weights, V4.1 through the official code with the CPU kernel port on the published file's decoded weights (file-exact); the fork is a side check.
@@ -233,7 +233,7 @@ Every new op has a CPU form with a unit test against a reference written from th
 ### 4.3 Caches and state
 
 - **Paged entries.** A KV source's compressed entries and index keys are one paged storage layer of pooled rows in the KV blocks, one row a group holding the entry and then the index key derived from it, so both keep one length, one block table, one retract and one replica (LayerPlan::kv_pool and kv_pool_width, D + ID floats on a source that owns keys).
-  Until step 9c the row holds both in F32; the packed step lays the two model formats side by side in it, FP4 entries with E4M3 scales (288 B) and MXFP4 index keys (68 B) on V4.1, the keys decoded by the existing MXFP4 decoder; FP8 entries (711 B) on V4.
+  Under `f32` the row holds both as F32 values rounded to their formats; under `native` (step 9c) it holds the two model formats side by side, FP4 entries with E4M3 scales (288 B) and MXFP4 index keys (68 B) on V4.1, the keys in the GGUF MXFP4 block, and the window ring holds FP8 rows (528 B), each row its blocks then zero bytes to a whole word, every value read back the bits the F32 form holds; FP8 entries (711 B) on V4.
   Every such storage uses blocks spanning 128 tokens, so a multiple of 128 is a whole block in every storage and forks share whole blocks as today.
   V4.1 keeps them on layers 2, 8, 14 and 20 only; every other compressed layer reads its KV source's rows (LayerPlan::entry_source), on that source's device its storage layer and on a later device a replica there.
 - **Per-sequence state.** The 128-token window ring with k_max headroom for drafts and the compressor's open group are a fixed, private state per sequence, held in state slots allocated at load, in the model's format (`native`) or F32.

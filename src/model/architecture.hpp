@@ -129,6 +129,12 @@ struct LayerPlan {
     size_t headroom = 0;
     // An entries layer without pooled rows of its own may read an earlier layer's, or -1: on its source's device that storage layer, and on a later device a replica there, which the first such reader fills (Step::appends).
     int entry_source = -1;
+    // The widths of the cache type native, the architecture's declared cache format (docs/DEEPSEEK4.md, section 4.3), in 32-bit words: its pooled row and its state tail; none where the layer declares no format.
+    // A plan settled to native holds these in kv_pool_width and state_tail and the F32 widths here, so settling back restores them (settle_cache).
+    struct Widths {
+        size_t pool_width = 0, state_tail = 0;
+    };
+    std::optional<Widths> native;
     // One recurrent layer may keep this many preceding token IDs on the host under its existing state slots, padded before sequence start.
     size_t token_history = 0;
     uint32_t token_padding = 0;
@@ -167,6 +173,8 @@ struct ModelPlan {
     // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves, and a draft step's residual rows are in arena slot `draft_x`, which a tensor group sums its members' partial rows into.
     std::optional<LayerPlan> drafter;
     size_t draft_h = 0, draft_x = 0;
+    // Whether the layers' declared native widths are in effect (LayerPlan::native, settle_cache).
+    bool native = false;
     // Why the server refuses this model, naming it, while a step its serving needs is not built; empty where it serves it.
     std::string unserved;
 };
@@ -241,6 +249,8 @@ struct Step {
     backend::GroupPositions group_pos{};
     // Whether this layer is the first on its device to read a source on an earlier device (LayerPlan::entry_source), so it writes the pass's carried rows that complete a group into the replica at kv_layer.
     bool appends = false;
+    // Whether the layer's stored rows are kept in its declared native format (ModelPlan::native), else as F32 values.
+    bool native = false;
     // The model's layer this part belongs to, -1 for the embedding, the head, the drafter and a group's sum.
     int layer = -1;
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }

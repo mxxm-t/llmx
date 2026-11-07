@@ -513,7 +513,9 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         return p;
     };
     // The no-drafter fit reads the plan without the embedded drafter, whose roles, cache and arena slots only drafting takes.
-    const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
+    ModelPlan undrafted = plan.drafter ? plan_model(weights) : ModelPlan{};
+    if (plan.drafter) settle_cache(undrafted, options);
+    const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(undrafted) : held;
     const ModelPlan* fitting = &bare_plan;
     // A request over one device may leave it unnamed; a split names every device (budgets_for).
     std::vector<std::string> names = request.names;
@@ -718,7 +720,8 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     if (request.width > 1 && request.cpu_moe) throw std::runtime_error(std::string(request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe") + ": not with a tensor split");
     if (request.stream_from && !request.cpu_moe)
         throw std::runtime_error("--moe-stream-from: only experts on the CPU are streamed; give --n-cpu-moe or --cpu-moe");
-    const ModelPlan plan = plan_model(weights, request.drafter);
+    ModelPlan plan = plan_model(weights, request.drafter);
+    settle_cache(plan, options);
     std::optional<ModelWeights> bounded;
     if (!candidates.empty()) {
         bounded = weights;

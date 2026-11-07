@@ -6,7 +6,7 @@ It runs as the reference's 11 runs do, each prefix whole at 1, 2, 3, 64, 127, 12
 No selection of the golden sits within 2e-5 of a tie (margin_floor), so no run needs forced mode while the logits hold.
 The upstream layout is refused by its key.
 On a configured device the same gate runs; a device whose backend lacks one of the model's ops refuses the file at load by that op's name, and the component reports SKIP.
-Its entries are kept in f32 only, so either cache side given as f16 is refused by its flag before the model is built.
+Its cache is kept as native, the model's packed formats and its default, or f32: the whole, decode and ubatch 3 runs under native print the f32 runs' logits, and f16 or two different sides are refused by the flag before the model is built.
 `serve` refuses the model by name until step 11, `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
 """
 import json
@@ -23,6 +23,7 @@ UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
 DEVICE = "which the backend of its device does not implement"
 SERVE = "server: deepseek41 is not served until its checkpoints, pause and prefix reuse are built"
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
+NATIVE = ["--cache-type-k", "native", "--cache-type-v", "native"]
 LOGIT_BOUND = 2e-5
 NLL_BOUND = 1e-5
 
@@ -38,14 +39,14 @@ def refused(path, text, flags=()):
         "deepseek4: logits on %s gave exit %d, stdout %r, stderr %r" % (os.path.basename(path), p.returncode, p.stdout, p.stderr)
 
 
-def rows(path, directory, ids, flags=()):
+def rows(path, directory, ids, flags=(), cache=F32):
     """The logits rows `logits` prints for `ids`, read through --then-ids after an empty text, every position with all 128 ids, as a list of id-to-logit maps."""
     text = os.path.join(directory, "empty.txt")
     open(text, "w").close()
     tail = os.path.join(directory, "sequence.ids")
     with open(tail, "w") as f:
         f.write(" ".join(str(i) for i in ids))
-    args = ["logits", path, "--file", text, "--then-ids", tail, "--last", str(len(ids)), "--top", "128"] + F32 + list(flags)
+    args = ["logits", path, "--file", text, "--then-ids", tail, "--last", str(len(ids)), "--top", "128"] + cache + list(flags)
     p = common.run_process(args, text=True)
     assert p.returncode == 0, "deepseek4: logits %s gave exit %d, stderr %r" % (" ".join(flags), p.returncode, p.stderr[-400:])
     lines = p.stdout.splitlines()
@@ -90,6 +91,11 @@ def gate(path, directory, document):
             whole = got
         errors = held(name, got, document)
         worst = [max(a, b) for a, b in zip(worst, errors)]
+        # The packed cache reads back the bits f32 stores, so its logits print as the f32 run's; the default is native when no cache type is configured.
+        if name in ("whole %d" % len(sequence), "decode", "ubatch 3"):
+            assert rows(path, directory, ids, flags, NATIVE) == got, "deepseek4: %s under native differs from f32" % name
+            if not os.environ.get("LLMX_CACHE_TYPE"):
+                assert rows(path, directory, ids, flags, []) == got, "deepseek4: %s at the default cache type differs from f32" % name
     mean = sum(nll(whole[t], sequence[t + 1]) for t in range(len(sequence) - 1)) / (len(sequence) - 1)
     assert abs(mean - document["mean_nll"]) <= NLL_BOUND, "deepseek4: mean NLL %.9f against the reference's %.9f" % (mean, document["mean_nll"])
     print("deepseek4: %d runs, every position's 128 logits within %.3g of the reference (bound %g), each target's NLL within %.3g (bound %g), mean NLL %.9f against %.9f, no selection nearer a tie than %.3g"
@@ -113,9 +119,10 @@ def run(require=False):
         gate(fork, directory, document)
         refused(str(paths["upstream"]), UPSTREAM)
         print("deepseek4: the upstream layout is refused by its key")
-        refused(fork, "--cache-type-k: this model's entries are kept in f32 only, not f16", ["--cache-type-k", "f16", "--cache-type-v", "f32"])
-        refused(fork, "--cache-type-v: this model's entries are kept in f32 only, not f16", ["--cache-type-k", "f32", "--cache-type-v", "f16"])
-        print("deepseek4: an f16 cache side refused by its flag")
+        refused(fork, "--cache-type-k: this model keeps its cache in native or f32, not f16", ["--cache-type-k", "f16", "--cache-type-v", "f32"])
+        refused(fork, "--cache-type-v: this model keeps its cache in native or f32, not f16", ["--cache-type-k", "f32", "--cache-type-v", "f16"])
+        refused(fork, "--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not f32 and native", ["--cache-type-k", "f32", "--cache-type-v", "native"])
+        print("deepseek4: an f16 cache side and two different sides refused by the flags; native and the default print the f32 runs' logits")
         p = common.run_process(["serve", fork, "--host", "127.0.0.1", "--port", str(common.free_port())], text=True, timeout=120)
         assert p.returncode == 1 and SERVE in p.stderr, "deepseek4: serve gave exit %d, stderr %r" % (p.returncode, p.stderr[-400:])
         print("deepseek4: serve refuses the model by name until step 11")

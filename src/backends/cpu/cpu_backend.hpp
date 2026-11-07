@@ -1827,6 +1827,7 @@ public:
     }
 
     void model_format_qdq(Slice x_s, size_t count, ModelFormat format) override {
+        if (format == ModelFormat::f32) throw std::runtime_error("backend: f32 is no model format to round to");
         const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
         if (count % block) throw std::runtime_error("backend: a model format's values are not whole blocks");
         if (!count) return;
@@ -1835,10 +1836,48 @@ public:
         spread(count / block, [&](size_t i) {
             namespace mf = quant::model_formats;
             float* b = x + i * block;
-            if (format == ModelFormat::fp8_power) mf::qdq_fp8_power(b, block);
-            else if (format == ModelFormat::fp4_power) mf::qdq_fp4_power(b, block);
-            else mf::qdq_fp4_e4m3(b, block);
+            if (format == ModelFormat::fp8_power) mf::qdq_fp8_power(b);
+            else if (format == ModelFormat::fp4_power) mf::qdq_fp4_power(b);
+            else mf::qdq_fp4_e4m3(b);
         });
+    }
+
+    void model_format_pack(Slice out_s, size_t stride, CSlice x_s, size_t rows, size_t dim, ModelFormat format) override {
+        if (format == ModelFormat::f32) throw std::runtime_error("backend: f32 is no packed model format");
+        const size_t block = format_block_values(format), bytes = format_block_bytes(format), words = format_words(format, dim);
+        if (stride < words) throw std::runtime_error("backend: packed rows closer than a row's words");
+        if (!rows) return;
+        const size_t on = size_add(size_mul(rows - 1, stride), words), xn = size_mul(rows, dim);
+        validate_float_slice(x_s, xn);
+        validate_float_slice(out_s, on);
+        if (overlaps(CSlice(out_s), on, x_s, xn)) throw std::runtime_error("backend: packed model format output must be disjoint from its input");
+        const float* x = at(x_s);
+        auto* out = reinterpret_cast<uint8_t*>(at(out_s));
+        spread(rows, [&](size_t r) {
+            namespace mf = quant::model_formats;
+            uint8_t* o = out + r * stride * sizeof(float);
+            const float* xr = x + r * dim;
+            for (size_t b = 0; b < dim / block; ++b) {
+                if (format == ModelFormat::fp8_power) mf::pack_fp8_power(xr + b * block, o + b * bytes);
+                else if (format == ModelFormat::fp4_power) mf::pack_fp4_power(xr + b * block, o + b * bytes);
+                else mf::pack_fp4_e4m3(xr + b * block, o + b * bytes);
+            }
+            std::memset(o + dim / block * bytes, 0, words * sizeof(float) - dim / block * bytes);
+        });
+    }
+
+    // A stored row's dim values as F32: the row itself where it holds F32, else its packed blocks decoded into `to`, each value the one multiply model_format_qdq gives.
+    static const float* stored_row(const float* row, size_t dim, ModelFormat format, float* to) {
+        if (format == ModelFormat::f32) return row;
+        namespace mf = quant::model_formats;
+        const auto* b = reinterpret_cast<const uint8_t*>(row);
+        const size_t block = format_block_values(format), bytes = format_block_bytes(format);
+        for (size_t d = 0; d < dim; ++d) {
+            const uint8_t* blk = b + d / block * bytes;
+            to[d] = format == ModelFormat::fp8_power ? mf::unpack_fp8_power(blk, d % block)
+                  : format == ModelFormat::fp4_power ? mf::unpack_fp4_power(blk, d % block) : mf::unpack_fp4_e4m3(blk, d % block);
+        }
+        return to;
     }
 
     // Each row's view and position in a call over views' rows (sparse_attention_sink, indexer_scores), the views checked as readers of `layer`'s pooled rows of at least `dim` floats.
@@ -1867,11 +1906,12 @@ public:
 
     void sparse_attention_sink(Slice out_s, CSlice q_s, CSlice kv_s, CSlice ids_s, CSlice sink_s, size_t rows, size_t heads, size_t dim,
                                size_t kv_rows, size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids_s,
-                               size_t entry_k) override {
+                               size_t entry_k, ModelFormat kv_format, ModelFormat entry_format) override {
         if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("backend: invalid sparse attention dimensions or scale");
         if (!n_views && (entry_k || entry_ids_s.buffer)) throw std::runtime_error("backend: sparse attention entries without views");
         if (!rows) return;
-        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, dim), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        const size_t kv_words = format_words(kv_format, dim), entry_words = format_words(entry_format, dim);
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kv_words), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
         validate_float_slice(out_s, qn);
         validate_float_slice(q_s, qn);
         validate_float_slice(kv_s, kvn);
@@ -1890,7 +1930,7 @@ public:
         PooledRows pooled;
         const float* entries = en ? at(entry_ids_s) : nullptr;
         if (n_views) {
-            pooled = pooled_rows(layer, views, n_views, rows, dim, "sparse attention");
+            pooled = pooled_rows(layer, views, n_views, rows, entry_words, "sparse attention");
             for (size_t r = 0; r < rows && entries; ++r) {
                 const size_t visible = (pooled.position[r] + 1) / static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->auxiliary_pool(layer);
                 for (size_t t = 0; t < entry_k; ++t) {
@@ -1904,41 +1944,56 @@ public:
         const float* kv = at(kv_s);
         const float* sink = at(sink_s);
         const size_t named = k + entry_k;
-        spread(size_mul(rows, heads), [&](size_t rh) {
-            const size_t r = rh / heads, h = rh % heads;
-            thread_local std::vector<float> p;
-            p.assign(named, 0.0f);
-            const float* qr = q + rh * dim;
-            const float* id = ids + r * k;
+        // Every head of a row reads the same named rows, so packed rows are decoded once a row, a chunk of rows of about 16 MiB at a time, before the heads' spread.
+        const bool packed = kv_format != ModelFormat::f32 || entry_format != ModelFormat::f32;
+        const size_t chunk = packed ? std::max<size_t>(1, (size_t(16) << 20) / size_mul(std::max<size_t>(1, named), size_mul(dim, sizeof(float)))) : rows;
+        thread_local std::vector<float> decoded_rows;
+        thread_local std::vector<const float*> named_rows_of;
+        std::vector<float>& decoded = decoded_rows;
+        std::vector<const float*>& named_rows = named_rows_of;
+        for (size_t r0 = 0; r0 < rows; r0 += chunk) {
+            const size_t n = std::min(chunk, rows - r0);
+            named_rows.assign(size_mul(n, named), nullptr);
+            if (packed) decoded.resize(size_mul(size_mul(n, named), dim));
             // The kv rows first, then the entries, as model.py concatenates the window before the compressed rows.
-            const auto row = [&](size_t t) -> const float* {
-                const uint32_t j = t < k ? u32_at(id, t) : u32_at(entries, r * entry_k + t - k);
-                if (j == UINT32_MAX) return nullptr;
-                if (t < k) return kv + size_t(j) * dim;
-                return static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->pooled_row(layer, *pooled.view[r], j);
-            };
-            float peak = -1e30f;
-            for (size_t t = 0; t < named; ++t) {
-                const float* kr = row(t);
-                if (!kr) continue;
-                float dot = 0.0f;
-                for (size_t d = 0; d < dim; ++d) dot = std::fma(qr[d], kr[d], dot);
-                p[t] = dot * scale;
-                peak = std::fmax(peak, p[t]);
-            }
-            float sum = 0.0f;
-            for (size_t t = 0; t < named; ++t)
-                if (row(t)) sum += p[t] = std::exp(p[t] - peak);
-            const float denominator = sum + std::exp(sink[h] - peak);
-            float* o = out + rh * dim;
-            std::fill(o, o + dim, 0.0f);
-            for (size_t t = 0; t < named; ++t) {
-                const float* kr = row(t);
-                if (!kr) continue;
-                for (size_t d = 0; d < dim; ++d) o[d] = std::fma(p[t], kr[d], o[d]);
-            }
-            for (size_t d = 0; d < dim; ++d) o[d] /= denominator;
-        });
+            spread(size_mul(n, named), [&](size_t i) {
+                const size_t r = r0 + i / named, t = i % named;
+                const uint32_t j = t < k ? u32_at(ids + r * k, t) : u32_at(entries, r * entry_k + t - k);
+                if (j == UINT32_MAX) return;
+                float* to = packed ? decoded.data() + i * dim : nullptr;
+                if (t < k) named_rows[i] = stored_row(kv + size_t(j) * kv_words, dim, kv_format, to);
+                else named_rows[i] = stored_row(static_cast<const CpuKVStorage*>(pooled.view[r]->storage)->pooled_row(layer, *pooled.view[r], j), dim, entry_format, to);
+            });
+            spread(size_mul(n, heads), [&](size_t lh) {
+                const size_t rh = r0 * heads + lh, h = lh % heads;
+                thread_local std::vector<float> p;
+                p.assign(named, 0.0f);
+                const float* qr = q + rh * dim;
+                const float* const* mine = named_rows.data() + lh / heads * named;
+                const auto row = [&](size_t t) { return mine[t]; };
+                float peak = -1e30f;
+                for (size_t t = 0; t < named; ++t) {
+                    const float* kr = row(t);
+                    if (!kr) continue;
+                    float dot = 0.0f;
+                    for (size_t d = 0; d < dim; ++d) dot = std::fma(qr[d], kr[d], dot);
+                    p[t] = dot * scale;
+                    peak = std::fmax(peak, p[t]);
+                }
+                float sum = 0.0f;
+                for (size_t t = 0; t < named; ++t)
+                    if (row(t)) sum += p[t] = std::exp(p[t] - peak);
+                const float denominator = sum + std::exp(sink[h] - peak);
+                float* o = out + rh * dim;
+                std::fill(o, o + dim, 0.0f);
+                for (size_t t = 0; t < named; ++t) {
+                    const float* kr = row(t);
+                    if (!kr) continue;
+                    for (size_t d = 0; d < dim; ++d) o[d] = std::fma(p[t], kr[d], o[d]);
+                }
+                for (size_t d = 0; d < dim; ++d) o[d] /= denominator;
+            });
+        }
     }
 
     void topk_rows(Slice ids_s, CSlice scores_s, CSlice lens_s, size_t rows, size_t n, size_t k, uint32_t offset) override {
@@ -2024,13 +2079,14 @@ public:
     }
 
     void indexer_scores(Slice out_s, CSlice q_s, size_t layer, const KVView* views, size_t n_views, CSlice w_s, float w_scale, size_t heads, size_t dim,
-                        size_t n, CSlice blocks_s, size_t block_k, size_t block_size) override {
+                        ModelFormat key_format, size_t n, CSlice blocks_s, size_t block_k, size_t block_size) override {
         if (!heads || !dim || n >= UINT32_MAX || (blocks_s.buffer && !block_size) || !std::isfinite(w_scale))
             throw std::runtime_error("backend: invalid index score dimensions");
         size_t rows = 0;
         for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
         if (!rows) return;
-        const PooledRows pooled = pooled_rows(layer, views, n_views, rows, dim, "index scores");
+        const size_t key_words = format_words(key_format, dim);
+        const PooledRows pooled = pooled_rows(layer, views, n_views, rows, key_words, "index scores");
         const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads);
         const size_t bn = blocks_s.buffer ? size_mul(rows, block_k) : 0;
         validate_float_slice(out_s, on);
@@ -2049,10 +2105,11 @@ public:
         const float* blocks = bn ? at(blocks_s) : nullptr;
         spread(rows, [&](size_t r) {
             const CpuKVStorage& storage = *static_cast<const CpuKVStorage*>(pooled.view[r]->storage);
-            const size_t len = (pooled.position[r] + 1) / storage.auxiliary_pool(layer), key_at = storage.auxiliary_pool_width(layer) - dim;
+            const size_t len = (pooled.position[r] + 1) / storage.auxiliary_pool(layer), key_at = storage.auxiliary_pool_width(layer) - key_words;
             float* o = out + r * n;
-            thread_local std::vector<float> scaled;
+            thread_local std::vector<float> scaled, decoded;
             scaled.resize(heads);
+            decoded.resize(dim);
             for (size_t h = 0; h < heads; ++h) scaled[h] = w[r * heads + h] * w_scale;
             for (size_t t = 0; t < n; ++t) {
                 bool reached = t < len;
@@ -2064,7 +2121,7 @@ public:
                     o[t] = -std::numeric_limits<float>::infinity();
                     continue;
                 }
-                const float* kt = storage.pooled_row(layer, *pooled.view[r], t) + key_at;
+                const float* kt = stored_row(storage.pooled_row(layer, *pooled.view[r], t) + key_at, dim, key_format, decoded.data());
                 float sum = 0.0f;
                 for (size_t h = 0; h < heads; ++h) {
                     const float* qh = q + (r * heads + h) * dim;

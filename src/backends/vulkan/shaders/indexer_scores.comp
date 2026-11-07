@@ -2,14 +2,24 @@
 // One lane a (row, position): out = sum over heads of w[h] w_scale ReLU(dot(q_h, key)), key the last dim floats of the view's pooled row of the position.
 // Each dot and the head sum are the CPU's multiply-add chains, and a position the row cannot see is -inf (docs/src/backends-vulkan.md).
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; float w_scale; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint block_k; uint block_size; } p;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; float w_scale; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint block_k; uint block_size; uint key_format; uint key_words; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
 layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 2) readonly buffer A { float aux[]; };
 layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 4) readonly buffer W { float w[]; };
 layout(set = 0, binding = 5) readonly buffer B { uint blocks[]; };
+// The pooled rows as words, for keys held in a packed format (model_formats.glsl).
+layout(set = 0, binding = 2) readonly buffer AU { uint aux_words[]; };
 #include "views.glsl"
+#include "model_formats.glsl"
+#define FORMAT_WORD(i) aux_words[i]
+float key_value(uint key, uint d) {
+    if (p.key_format == 3u) return aux[key + d];
+    precise float v;
+    FORMAT_VALUE(key, d, p.key_format, v)
+    return v;
+}
 void main() {
     uint t = gl_GlobalInvocationID.x, r = gl_WorkGroupID.y;
     if (t >= p.n) return;
@@ -25,12 +35,12 @@ void main() {
         outv[r * p.n + t] = -1.0 / 0.0;
         return;
     }
-    uint key = pooled_row(v, t, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.dim;
+    uint key = pooled_row(v, t, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.key_words;
     precise float sum = 0.0;
     for (uint h = 0u; h < p.heads; ++h) {
         uint qh = (r * p.heads + h) * p.dim;
         precise float dot = 0.0;
-        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], aux[key + d], dot);
+        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], key_value(key, d), dot);
         precise float scaled = w[r * p.heads + h] * p.w_scale;
         sum = fma(max(dot, 0.0), scaled, sum);
     }

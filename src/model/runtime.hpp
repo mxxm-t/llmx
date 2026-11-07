@@ -77,7 +77,7 @@ struct Placement {
 struct ModelOptions {
     backend::KVType kv_k = backend::KVType::f16;
     backend::KVType kv_v = backend::KVType::f16;
-    // Whether the CLI's flag gave each side, which a model whose entries are kept in f32 alone refuses for another type.
+    // Whether the CLI's flag gave each side; a side not given takes a model's declared native format (settle_cache).
     bool kv_k_given = false, kv_v_given = false;
     // Tokens the KV pool holds in total, shared by every sequence; zero means one model context, which is what one conversation needs and what a server divides among its requests unless told otherwise.
     size_t kv_tokens = 0;
@@ -377,6 +377,37 @@ inline size_t kv_bytes_per_position(const ModelPlan& plan, const ModelOptions& o
                              backend::size_mul(auxiliary, sizeof(float)));
 }
 
+// A plan's cache type settled once for the fit and the model: one declaring a native format (LayerPlan::native) takes it unless a flag gives f32, refusing f16 and two types; one declaring none refuses native.
+// Settling swaps each declaring layer's widths with its declared ones where the type changes, so settling a settled plan again leaves it as it is.
+inline void settle_cache(ModelPlan& plan, ModelOptions& options) {
+    using backend::KVType;
+    const bool declares = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.native.has_value(); });
+    if (!declares) {
+        if (options.kv_k == KVType::native) throw std::runtime_error("--cache-type-k: this model declares no native cache format");
+        if (options.kv_v == KVType::native) throw std::runtime_error("--cache-type-v: this model declares no native cache format");
+        return;
+    }
+    const auto side = [](KVType& t, bool given, const char* flag) {
+        if (!given) t = KVType::native;
+        else if (t == KVType::f16) throw std::runtime_error(std::string(flag) + ": this model keeps its cache in native or f32, not f16");
+    };
+    side(options.kv_k, options.kv_k_given, "--cache-type-k");
+    side(options.kv_v, options.kv_v_given, "--cache-type-v");
+    if (options.kv_k != options.kv_v)
+        throw std::runtime_error(std::string("--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not ") +
+                                 backend::kv_type_name(options.kv_k) + " and " + backend::kv_type_name(options.kv_v));
+    if ((options.kv_k == KVType::native) == plan.native) return;
+    for (LayerPlan& layer : plan.layers)
+        if (layer.native) {
+            std::swap(layer.kv_pool_width, layer.native->pool_width);
+            std::swap(layer.state_tail, layer.native->state_tail);
+        }
+    plan.native = !plan.native;
+}
+
+// The type a storage keeps K and V rows in: native ones as F32, since a plan that declares a format keeps them for no layer but an embedded drafter.
+inline backend::KVType stored_kv(backend::KVType t) { return t == backend::KVType::native ? backend::KVType::f32 : t; }
+
 class Model {
 public:
     // The realized device topology, captured once after placement validation. Indices refer to this model's backend vector; tensor groups are consecutive members.
@@ -419,6 +450,7 @@ public:
           Placement placement, ModelOptions options = ModelOptions{}, const AdoptWeight& adopt = {})
         : place_(std::move(placement)), options_(options), arch_(weights.arch), plan_(std::move(plan)) {
         if (backends.empty()) throw std::runtime_error("inference: missing backend");
+        settle_cache(plan_, options_);
         // The reserve the host pool leaves the host is fixed here, from what the host has before this model takes its buffers, as the fit's is, and does not shrink as memory falls.
         host_reserve_ = backend::CpuBackend::host_reserve(host_available().value_or(0));
         for (const auto& b : backends)
@@ -466,13 +498,8 @@ public:
             if (layer.cache == Cache::entries && options_.mark_slots && options_.mark_rows > layer.headroom)
                 throw std::runtime_error("inference: a mark of " + std::to_string(options_.mark_rows) + " rows passes the " + std::to_string(layer.headroom) +
                                          " an entries layer's rings hold beyond what its rows read");
-        // An entries storage holds f32 until its packed form exists (docs/DEEPSEEK4.md, section 1.3), so a cache type given as another is refused by the flag's name.
-        if (entries_) {
-            if (options_.kv_k_given && options_.kv_k != backend::KVType::f32)
-                throw std::runtime_error(std::string("--cache-type-k: this model's entries are kept in f32 only, not ") + backend::kv_type_name(options_.kv_k));
-            if (options_.kv_v_given && options_.kv_v != backend::KVType::f32)
-                throw std::runtime_error(std::string("--cache-type-v: this model's entries are kept in f32 only, not ") + backend::kv_type_name(options_.kv_v));
-        }
+        if (entries_ && std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::entries && !l.native; }))
+            throw std::logic_error("inference: an entries layer declares no native cache format");
 
         if (place_.mixer_device.empty() && place_.ffn_device.empty()) {
             place_.mixer_device.assign(n_layer, 0);
@@ -718,7 +745,7 @@ public:
                     pools[drafter_kv_] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
                 }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
-                                          budget, options_.kv_k, options_.kv_v, auxiliary, pools);
+                                          budget, stored_kv(options_.kv_k), stored_kv(options_.kv_v), auxiliary, pools);
                 if (options_.kv_backed) d.storage->back_all();
                 if (d.member) {
                     d.storage_index = devices_[(size_t)(&dp - devices_.data()) - d.member]->storage_index;

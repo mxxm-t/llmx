@@ -596,7 +596,8 @@ void plan() {
                                     (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]),
                                     heads * size_t(golden["engram_head_dim"]), hc * d, d, hc * d, hc * d, golden["head_dim"], golden["head_dim"],
                                     golden["head_dim"], golden["index_head_dim"], size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]),
-                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, 1, golden["index_topk"], golden["candidate_topk_blocks"]};
+                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, 1, golden["index_topk"], golden["candidate_topk_blocks"],
+                                    (size_t(golden["head_dim"]) / 32 * 33 + 3) / 4};
     require(p.residual == hc * d && p.embed_copies == hc && p.context_length == ctx && p.slots == slots &&
                 p.vocab == golden["vocab_size"] && p.index_width == std::max(size_t(heads), window) && !p.kv_heads && !p.head_dim,
             "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots and the index scratch of the lookup and the window");
@@ -653,6 +654,22 @@ void footprint() {
     require(at3.stages.at(0).cache == sum(0, 3) && at3.stages.at(1).cache == sum(3, 8) + pool2, "a cut at layer 3 charges the second stage source 2's replica once");
     require(at6.stages.at(0).cache == sum(0, 6) && at6.stages.at(1).cache == sum(6, 8) + pool5, "a cut at layer 6 charges the second stage source 5's replica once");
     require(fp.host_state == 2 * (5 * 3) * sizeof(uint32_t), "each Engram layer's three preceding ids in every slot");
+    // Settled to native, the default (docs/DEEPSEEK4.md, section 4.3): a ring row of 32 values is one 33-byte FP8 block in 9 words, the open group's 8320 floats padded to 925 rows of 9.
+    // A pooled row is two 9-byte FP4 entry blocks in 5 words, then a 17-byte MXFP4 key block in 5; settling back to f32 restores the F32 widths.
+    infer::ModelPlan settled = p;
+    infer::ModelOptions given = options;
+    infer::settle_cache(settled, given);
+    require(settled.native && given.kv_k == backend::KVType::native && given.kv_v == backend::KVType::native, "a plan that declares its format settles to native by default");
+    const infer::Footprint nf = infer::footprint(w, settled, given);
+    const size_t nring = 256 * 9, ngroup = 925 * 9, npool = 10;
+    const size_t packed[8] = {5 * nring, 5 * nring, 5 * (nring + ngroup) + 128 * npool, 5 * nring, 5 * (nring + ngroup) + 128 * npool, 5 * nring + 256 * npool, 5 * nring,
+                              5 * nring};
+    for (size_t l = 0; l < 8; ++l) require(nf.cache[l] == packed[l] * sizeof(float), "layer " + std::to_string(l) + "'s entries counted at the packed sizes");
+    infer::ModelOptions f32 = options;
+    f32.kv_k = f32.kv_v = backend::KVType::f32;
+    f32.kv_k_given = f32.kv_v_given = true;
+    infer::settle_cache(settled, f32);
+    require(!settled.native && infer::footprint(w, settled, f32).cache == fp.cache, "a plan settled back to f32 counts the F32 widths");
     const size_t ctx = golden["max_seq_len"], rd = golden["rope_head_dim"], R = golden["hc_mult"] * golden["dim"];
     const size_t norms = golden.engram_layers.size() * R;
     require(fp.embedding.bytes == embedding && fp.output.bytes == output && fp.output_norm.bytes == norm && !fp.tied && fp.head_aux.empty(), "the pass's weights");
@@ -663,7 +680,7 @@ void footprint() {
                        3 * (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]) +
                        size_t(golden["engram_n_heads"]) * (size_t(golden["engram_max_ngram_size"]) - 1) * size_t(golden["engram_head_dim"]) + 3 * R + size_t(golden["dim"]) +
                        4 * size_t(golden["head_dim"]) + 2 * size_t(golden["index_head_dim"]) + size_t(golden["index_n_heads"]) * (size_t(golden["index_head_dim"]) + 1) +
-                       ctx + 1 + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]);
+                       ctx + 1 + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]) + (size_t(golden["head_dim"]) / 32 * 33 + 3) / 4;
     require(fp.tables == (2 * ctx * rd + R + norms + hc + groups + size_t(golden["dim"])) * sizeof(float) && fp.activations_per_row == slots * sizeof(float) &&
                 fp.handoff_per_row == (R + 2 * hc + size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]) + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"])) * sizeof(float) && fp.host_scratch_per_row == window * sizeof(uint32_t),
             "the tables, the slots, the handoff row with the carried slots and the index scratch");
@@ -858,9 +875,16 @@ void device_ops() {
 }
 
 void named() {
-    refuses("an f16 key cache", "--cache-type-k: this model's entries are kept in f32 only, not f16", [] {
+    refuses("an f16 key cache", "--cache-type-k: this model keeps its cache in native or f32, not f16", [] {
         infer::ModelOptions options;
         options.kv_k = backend::KVType::f16;
+        options.kv_k_given = true;
+        const gguf::GGUFModel m = fork();
+        infer::Model model(infer::gguf_weights(m), backend::make_cpu_backend(), options);
+    });
+    refuses("two cache types", "--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not f32 and native", [] {
+        infer::ModelOptions options;
+        options.kv_k = backend::KVType::f32;
         options.kv_k_given = true;
         const gguf::GGUFModel m = fork();
         infer::Model model(infer::gguf_weights(m), backend::make_cpu_backend(), options);
@@ -1131,6 +1155,39 @@ void prefill_then_decode(const std::string& path) {
     }
 }
 
+// The packed cache against f32 on the writer's file: a 129-token prefill in passes of 7, then decode steps, every logit the same bits, and the storages' bytes those of the packed rows.
+void native_cache(const std::string& path) {
+    gguf::GGUFModel file = gguf::read_gguf(path);
+    gguf::map_payload(file);
+    const infer::ModelWeights w = infer::gguf_weights(file);
+    const size_t V = golden["vocab_size"];
+    const std::vector<uint64_t> wide = wholes(field(golden.root, "sequence"));
+    const std::vector<uint32_t> sequence(wide.begin(), wide.end());
+    size_t bytes[2] = {0, 0};
+    std::vector<float> got[2];
+    for (int f32 = 0; f32 < 2; ++f32) {
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        if (f32) {
+            options.kv_k = options.kv_v = backend::KVType::f32;
+            options.kv_k_given = options.kv_v_given = true;
+        }
+        infer::Model model(w, backend::make_cpu_backend(), options);
+        model.set_ubatch(7);
+        model.score(std::vector<uint32_t>(sequence.begin(), sequence.begin() + 129), [&](size_t, const float* row) { got[f32].insert(got[f32].end(), row, row + V); });
+        for (size_t q = 129; q < sequence.size(); ++q) {
+            const float* row = model.step(&sequence[q], 1);
+            got[f32].insert(got[f32].end(), row, row + V);
+        }
+        bytes[f32] = model.kv_allocated_bytes();
+    }
+    require(got[0].size() == sequence.size() * V && !std::memcmp(got[0].data(), got[1].data(), got[0].size() * sizeof(float)),
+            "a prefill and decode steps under native give the f32 cache's logits bit for bit");
+    std::cout << "arch-deepseek4: native and f32 give the same logits over " << sequence.size() << " positions; the pooled rows take " << bytes[0] << " and " << bytes[1]
+              << " bytes\n";
+    require(bytes[0] < bytes[1], "the packed pooled rows take fewer bytes than f32's");
+}
+
 // Throws in the Nth hc_expand from now, which on a later stage of a split falls after the stages before it have committed.
 struct FailingExpand : backend::CpuBackend {
     FailingExpand() { set_threads(1); }
@@ -1352,6 +1409,7 @@ int main(int argc, char** argv) {
             slices(argv[3]);
             split_cuts(argv[3]);
             prefill_then_decode(argv[3]);
+            native_cache(argv[3]);
             rollback(argv[3]);
         } else {
             removed_keys();

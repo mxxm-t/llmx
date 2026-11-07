@@ -231,15 +231,17 @@ inline size_t blocks_for(size_t tokens, size_t block_tokens) {
 }
 
 // How a cache side is stored; the CLI's --cache-type-k and --cache-type-v.
-enum class KVType { f32, f16 };
+// native is a model's declared cache format (docs/DEEPSEEK4.md, section 4.3), which a model resolves before its storages; K and V rows under it are F32.
+enum class KVType { f32, f16, native };
 inline size_t kv_elem_bytes(KVType t) { return t == KVType::f16 ? 2 : 4; }
-// The same two names on every backend.
+// The same three names on every backend.
 inline KVType kv_type_of(const std::string& name) {
     if (name == "f32") return KVType::f32;
     if (name == "f16") return KVType::f16;
-    throw std::runtime_error("unknown cache type '" + name + "' (f32 or f16)");
+    if (name == "native") return KVType::native;
+    throw std::runtime_error("unknown cache type '" + name + "' (f32, f16 or native)");
 }
-inline const char* kv_type_name(KVType t) { return t == KVType::f16 ? "f16" : "f32"; }
+inline const char* kv_type_name(KVType t) { return t == KVType::f16 ? "f16" : t == KVType::native ? "native" : "f32"; }
 
 // A layer's pooled rows in its KV blocks: one row of `width` F32 values for each complete group of `tokens` positions, or none where `tokens` is 0 (BlockKVStorage::auxiliary_pool).
 struct AuxiliaryPool {
@@ -273,7 +275,17 @@ struct KVView {
 
 
 // DeepSeek-V4.1's storage formats as model math (quant/model_formats.hpp): the window's FP8 under a power-of-two scale per 32, the index keys' FP4 under one per 32, the entries' FP4 under an E4M3 scale per 16.
-enum class ModelFormat : uint8_t { fp8_power, fp4_power, fp4_e4m3 };
+// A reader of stored rows takes f32 for rows held as F32 values and a format for rows held as its packed blocks (the cache type native).
+enum class ModelFormat : uint8_t { fp8_power, fp4_power, fp4_e4m3, f32 };
+// Values a block of the format holds and the bytes it packs into, one value of four bytes for f32.
+inline size_t format_block_values(ModelFormat f) { return f == ModelFormat::fp4_e4m3 ? 16 : f == ModelFormat::f32 ? 1 : 32; }
+inline size_t format_block_bytes(ModelFormat f) { return f == ModelFormat::fp8_power ? 33 : f == ModelFormat::fp4_power ? 17 : f == ModelFormat::fp4_e4m3 ? 9 : 4; }
+// The 32-bit words a row of `n` values takes in the format: its whole blocks' bytes, then zero bytes to the next word.
+inline size_t format_words(ModelFormat f, size_t n) {
+    const size_t blocks = n / format_block_values(f);
+    if (blocks * format_block_values(f) != n) throw std::runtime_error("backend: a row that is not whole blocks of its model format");
+    return (size_mul(blocks, format_block_bytes(f)) + 3) / 4;
+}
 
 // Which dims of a head norm_rope_partial rotates and which way (docs/src/backends-backend.md); the default is the plain rope.
 struct RopeForm {
@@ -400,7 +412,7 @@ enum class ZeroSign : uint8_t { none, kept };
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
-                          sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, pool_write,
+                          sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
                           sqrt_softplus_routing, silu_mul_clamp, rope_forms };
 inline const char* op_name(Op op) {
     switch (op) {
@@ -437,6 +449,7 @@ inline const char* op_name(Op op) {
         case Op::indexer_scores: return "indexer_scores";
         case Op::pool_write: return "pool_write";
         case Op::model_format_qdq: return "model_format_qdq";
+        case Op::model_format_pack: return "model_format_pack";
         case Op::sqrt_softplus_routing: return "sqrt_softplus_routing";
         case Op::silu_mul_clamp: return "silu_mul_clamp";
         case Op::rope_forms: return "rope_forms";
@@ -1006,12 +1019,16 @@ public:
 
     // Quantize and dequantize `count` floats in place in `format`'s blocks, each block on its own, so a row's values do not depend on its neighbours; count is whole blocks.
     virtual void model_format_qdq(Slice /*x*/, size_t /*count*/, ModelFormat /*format*/) { lacks(Op::model_format_qdq); }
+    // Each of `rows` rows of dim values packed into format_words(format, dim) words of out from word r * stride, its blocks' codes and scales those model_format_qdq decodes to.
+    virtual void model_format_pack(Slice /*out*/, size_t /*stride*/, CSlice /*x*/, size_t /*rows*/, size_t /*dim*/, ModelFormat /*format*/) {
+        lacks(Op::model_format_pack);
+    }
 
-    // Attention of each query head over the kv rows its row's k U32 ids name, UINT32_MAX naming none, one row serving as K and V (docs/DEEPSEEK4.md, section 4.2).
-    // With views, each row's entry_k entry ids also name the first dim floats of its view's pooled rows of `layer`, below (p + 1) / tokens, under one softmax with a sink.
+    // Attention of each query head over the kv rows its row's k U32 ids name, UINT32_MAX naming none, one row of dim values in kv_format serving as K and V (docs/DEEPSEEK4.md, section 4.2).
+    // With views, each row's entry_k entry ids also name the first dim values, in entry_format, of its view's pooled rows of `layer`, below (p + 1) / tokens, under one softmax with a sink.
     virtual void sparse_attention_sink(Slice /*out*/, CSlice /*q*/, CSlice /*kv*/, CSlice /*ids*/, CSlice /*sink*/, size_t /*rows*/, size_t /*heads*/,
                                        size_t /*dim*/, size_t /*kv_rows*/, size_t /*k*/, float /*scale*/, size_t /*layer*/, const KVView* /*views*/,
-                                       size_t /*n_views*/, CSlice /*entry_ids*/, size_t /*entry_k*/) {
+                                       size_t /*n_views*/, CSlice /*entry_ids*/, size_t /*entry_k*/, ModelFormat /*kv_format*/, ModelFormat /*entry_format*/) {
         lacks(Op::sparse_attention_sink);
     }
 
@@ -1032,10 +1049,11 @@ public:
         lacks(Op::compress_pool);
     }
 
-    // Index scores out[r][t] = sum over heads of w[r][h] w_scale ReLU(q[r][h] dot key[t]), key t the last dim floats of the view's pooled row t of `layer`.
+    // Index scores out[r][t] = sum over heads of w[r][h] w_scale ReLU(q[r][h] dot key[t]), key t the last dim values, in key_format, of the view's pooled row t of `layer`.
     // A position at or past (p + 1) / tokens, or outside the row's candidate blocks where they are given, is -inf.
     virtual void indexer_scores(Slice /*out*/, CSlice /*q*/, size_t /*layer*/, const KVView* /*views*/, size_t /*n_views*/, CSlice /*w*/, float /*w_scale*/,
-                                size_t /*heads*/, size_t /*dim*/, size_t /*n*/, CSlice /*blocks*/ = {}, size_t /*block_k*/ = 0, size_t /*block_size*/ = 0) {
+                                size_t /*heads*/, size_t /*dim*/, ModelFormat /*key_format*/, size_t /*n*/, CSlice /*blocks*/ = {}, size_t /*block_k*/ = 0,
+                                size_t /*block_size*/ = 0) {
         lacks(Op::indexer_scores);
     }
 

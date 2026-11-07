@@ -448,12 +448,14 @@ inline VulkanBackend::PooledPlane VulkanBackend::pooled_plane(size_t layer, cons
 }
 
 inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows,
-                                                 size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k) {
+                                                 size_t k, float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k,
+                                                 ModelFormat kv_format, ModelFormat entry_format) {
     if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("vulkan: invalid sparse attention dimensions or scale");
     if (!n_views && (entry_k || entry_ids.buffer)) throw std::runtime_error("vulkan: sparse attention entries without views");
     if (size_add(k, entry_k) > 1024) throw std::runtime_error("vulkan: sparse attention names at most 1024 rows a row");
     if (!rows) return;
-    const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, dim), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+    const size_t kw = format_words(kv_format, dim), ew = format_words(entry_format, dim);
+    const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
     if (floats_from(out) < qn || floats_from(q) < qn || floats_from(kv) < kvn || floats_from(ids) < idn || floats_from(sink) < heads || (en && floats_from(entry_ids) < en))
         throw std::runtime_error("vulkan: sparse attention operand outside its allocation");
     if (overlaps(CSlice(out), qn, q, qn) || overlaps(CSlice(out), qn, kv, kvn) || overlaps(CSlice(out), qn, ids, idn) || overlaps(CSlice(out), qn, sink, heads) ||
@@ -463,26 +465,27 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
     const uint32_t none = 0;
     VkDescriptorBufferInfo aux = bind(kv), tab = args(&none, sizeof(none));
     if (n_views) {
-        pooled = pooled_plane(layer, views, n_views, dim, false, "sparse attention");
+        pooled = pooled_plane(layer, views, n_views, ew, false, "sparse attention");
         if (pooled.table.rows != rows) throw std::runtime_error("vulkan: sparse attention views do not cover its rows");
         aux = pooled.aux;
         tab = args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t));
     }
-    const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows; }
+    const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows, kv_format, entry_format, kv_words; }
         pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? 1u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
-           pooled.plane.rows_floats, pooled.width, u32(kv_rows)};
+           pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw)};
     dispatch(K_SPARSE_ATTENTION_SINK, {bind(out), bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids)}, &pc, sizeof(pc),
              u32(size_mul(rows, heads)));
 }
 
 inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads,
-                                          size_t dim, size_t n, CSlice blocks, size_t block_k, size_t block_size) {
+                                          size_t dim, ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size) {
     if (!heads || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
         throw std::runtime_error("vulkan: invalid index score dimensions");
     size_t rows = 0;
     for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
     if (!rows || !n) return;
-    const PooledPlane pooled = pooled_plane(layer, views, n_views, dim, false, "index scores");
+    const size_t key_words = format_words(key_format, dim);
+    const PooledPlane pooled = pooled_plane(layer, views, n_views, key_words, false, "index scores");
     const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads), bn = blocks.buffer ? size_mul(rows, block_k) : 0;
     if (floats_from(out) < on || floats_from(q) < qn || floats_from(w) < wn || (bn && floats_from(blocks) < bn))
         throw std::runtime_error("vulkan: index scores operand outside its allocation");
@@ -491,9 +494,9 @@ inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, con
     for (size_t vi = 0; vi < n_views; ++vi)
         if (views[vi].nq && size_add(views[vi].length, views[vi].nq) / pooled.tokens > n) throw std::runtime_error("vulkan: index scores narrower than a row's groups");
     if (rows > dev_->props.limits.maxComputeWorkGroupCount[1]) throw std::runtime_error("vulkan: index scores of more rows than a dispatch holds");
-    const struct { uint32_t rows, heads, dim, n; float w_scale; uint32_t tokens, bt, block_floats, rows_floats, width, block_k, block_size; }
+    const struct { uint32_t rows, heads, dim, n; float w_scale; uint32_t tokens, bt, block_floats, rows_floats, width, block_k, block_size, key_format, key_words; }
         pc{u32(rows), u32(heads), u32(dim), u32(n), w_scale, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats, pooled.plane.rows_floats, pooled.width,
-           bn ? u32(block_k) : 0u, u32(block_size)};
+           bn ? u32(block_k) : 0u, u32(block_size), uint32_t(key_format), u32(key_words)};
     dispatch(K_INDEXER_SCORES, {bind(out), bind(q), pooled.aux, args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t)), bind(w),
                                 bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc), groups(n, 256), u32(rows));
 }

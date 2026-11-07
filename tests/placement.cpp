@@ -348,6 +348,7 @@ void entries_kept() {
         layer.state_tail = tails[l];
         layer.kv_pool = pools[l];
         layer.kv_pool_width = widths[l];
+        layer.native = infer::LayerPlan::Widths{widths[l], tails[l]};
         layer.headroom = 128;
     }
     require(infer::keeps_kv(plan.layers[0]) && infer::keeps_kv(plan.layers[1]) && !infer::keeps_kv(plan.layers[2]) && infer::keeps_slot(plan.layers[2]),
@@ -379,18 +380,19 @@ void entries_kept() {
                 "inference: a mark of 129 rows passes the 128 an entries layer's rings hold beyond what its rows read",
             "a mark past an entries layer's headroom accepted");
     options.mark_slots = options.mark_rows = 0;
-    // The f16 default reaches no storage, an f32 cache given is taken, and any other given type is refused by its flag.
+    // An entries plan takes native unless an f32 cache is given, and an f16 cache given is refused by its flag.
     options.kv_k = options.kv_v = backend::KVType::f32;
     options.kv_k_given = options.kv_v_given = true;
     { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }
     options.kv_k = backend::KVType::f16;
-    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-k: this model's entries are kept in f32 only, not f16",
+    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-k: this model keeps its cache in native or f32, not f16",
             "an f16 key cache given for entries accepted");
     options.kv_k = backend::KVType::f32;
     options.kv_v = backend::KVType::f16;
-    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-v: this model's entries are kept in f32 only, not f16",
+    require(refusal([&] { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }) == "--cache-type-v: this model keeps its cache in native or f32, not f16",
             "an f16 value cache given for entries accepted");
-    options.kv_v_given = false;
+    options.kv_k_given = options.kv_v_given = false;
+    options.kv_k = options.kv_v = backend::KVType::f16;
     { infer::Model model(weights, plan, {cpu}, infer::Placement{}, options); }
     // The plans the kind refuses.
     infer::ModelPlan bad = plan;
@@ -410,6 +412,7 @@ void entries_kept() {
             "pooled rows on a state layer accepted");
     bad = plan;
     bad.layers[0].kv_pool_width = 0;
+    bad.layers[0].native->pool_width = 0;
     require(refusal([&] { infer::Model model(weights, bad, {cpu}, infer::Placement{}, options); }) == "backend: an auxiliary pool needs rows of some width and a block of whole groups",
             "a pool of no width accepted");
     checked += 11;
@@ -502,6 +505,7 @@ struct Reading final : infer::Architecture {
             infer::LayerPlan& layer = p.layers[l];
             layer.cache = infer::Cache::entries;
             layer.state_tail = 8;
+            layer.native = infer::LayerPlan::Widths{l ? size_t(0) : size_t(16), 8};
             layer.headroom = 128;
             layer.kind = uint8_t(layer.kind | (l << 4));
             if (l) layer.entry_source = 0;

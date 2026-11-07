@@ -275,7 +275,7 @@ public:
                op == Op::gated_delta_rule || op == Op::routed_experts || op == Op::group_rms_norm || op == Op::silu_scaled || op == Op::mix_streams ||
                op == Op::inject_streams || op == Op::signed_sqrt_gate || op == Op::dilated_conv_silu_add || op == Op::select_kv || op == Op::sparse_attention || op == Op::argmax_rows || op == Op::embed_ids ||
                op == Op::hc_coeffs || op == Op::hc_collapse_norm || op == Op::hc_expand || op == Op::sparse_attention_sink || op == Op::topk_rows ||
-               op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::pool_write ||
+               op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::model_format_pack || op == Op::pool_write ||
                op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms;
     }
     // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-rocm.md, batch invariance).
@@ -1010,17 +1010,29 @@ public:
         const Args args(o, fp, x, p, c, h, d, lanes);
         launch(kHcExpand, u32((fn + kThreads - 1) / kThreads), 1, args);
     }
-    void model_format_qdq(Slice x, size_t count, ModelFormat format) override {
-        const size_t block = format == ModelFormat::fp4_e4m3 ? 16 : 32;
-        if (count % block) throw std::runtime_error("rocm: a model format's values are not whole blocks");
+    // qdq and pack are one kernel, a thread a block (kernels/f32.hip, llmx_model_format_qdq), writing values in place or each row's packed blocks to `out`.
+    void model_format(float* out, size_t stride, CSlice x, size_t count, size_t dim, ModelFormat format) {
+        if (format == ModelFormat::f32) throw std::runtime_error("rocm: f32 is no model format");
+        const size_t block = format_block_values(format);
+        if (count % block || dim % block) throw std::runtime_error("rocm: a model format's values are not whole blocks");
         if (!count) return;
         floats(x, count);
-        float* p = f32(x);
+        float* p = const_cast<float*>(f32(x));
         unsigned long long blocks = count / block;
-        unsigned fm = format == ModelFormat::fp8_power ? 0u : format == ModelFormat::fp4_power ? 1u : 2u;
+        unsigned fm = unsigned(format), row_blocks = u32(dim / block), st = u32(stride), words = u32(format_words(format, dim));
         float inv8 = 1.0f / quant::model_formats::FP8_MAX, inv4 = 1.0f / quant::model_formats::FP4_MAX;
-        const Args args(p, blocks, fm, inv8, inv4);
+        const Args args(p, out, blocks, fm, inv8, inv4, row_blocks, st, words);
         launch(kModelFormatQdq, u32((blocks + kThreads - 1) / kThreads), 1, args);
+    }
+    void model_format_qdq(Slice x, size_t count, ModelFormat format) override { model_format(nullptr, 0, x, count, format_block_values(format), format); }
+    void model_format_pack(Slice out, size_t stride, CSlice x, size_t rows, size_t dim, ModelFormat format) override {
+        const size_t words = format_words(format, dim);
+        if (stride < words) throw std::runtime_error("rocm: packed rows closer than a row's words");
+        if (!rows) return;
+        const size_t on = size_add(size_mul(rows - 1, stride), words), xn = size_mul(rows, dim);
+        floats(out, on);
+        if (overlaps(out, on, x, xn)) throw std::runtime_error("rocm: packed model format output must be disjoint from its input");
+        model_format(f32(out), stride, x, xn, dim, format);
     }
     // topk_rows and candidate_blocks are one kernel, a row a block (kernels/f32.hip, llmx_topk_rows).
     void topk_rows(Slice ids, CSlice scores, CSlice lens, size_t rows, size_t n, size_t k, uint32_t offset) override {
@@ -1048,17 +1060,19 @@ public:
         launch(kCompressPool, u32(groups), 1, args);
     }
     void sparse_attention_sink(Slice out, CSlice q, CSlice kv, CSlice ids, CSlice sink, size_t rows, size_t heads, size_t dim, size_t kv_rows, size_t k, float scale,
-                               size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k) override {
+                               size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k, ModelFormat kv_format,
+                               ModelFormat entry_format) override {
         if (!heads || !dim || !std::isfinite(scale)) throw std::runtime_error("rocm: invalid sparse attention dimensions or scale");
         if (!n_views && (entry_k || entry_ids.buffer)) throw std::runtime_error("rocm: sparse attention entries without views");
         if (size_add(k, entry_k) > 1024) throw std::runtime_error("rocm: sparse attention names at most 1024 rows a row");
         if (!rows) return;
-        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, dim), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
+        const size_t kw = format_words(kv_format, dim), ew = format_words(entry_format, dim);
+        const size_t qn = size_mul(rows, size_mul(heads, dim)), kvn = size_mul(kv_rows, kw), idn = size_mul(rows, k), en = size_mul(rows, entry_k);
         for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, qn}, {q, qn}, {kv, kvn}, {ids, idn}, {sink, heads}}) floats(s, count);
         if (en) floats(entry_ids, en);
         if (overlaps(out, qn, q, qn) || overlaps(out, qn, kv, kvn) || overlaps(out, qn, ids, idn) || overlaps(out, qn, sink, heads) || (en && overlaps(out, qn, entry_ids, en)))
             throw std::runtime_error("rocm: sparse attention output must be disjoint from its inputs");
-        const PooledTable t = n_views ? pooled_table(layer, views, n_views, rows, dim, "sparse attention") : PooledTable{};
+        const PooledTable t = n_views ? pooled_table(layer, views, n_views, rows, ew, "sparse attention") : PooledTable{};
         float* o = f32(out);
         const float *qp = f32(q), *kp = f32(kv), *sk = f32(sink);
         const unsigned* ip = (const unsigned*)f32(ids);
@@ -1067,16 +1081,18 @@ public:
         const unsigned* tab = t.rows;
         unsigned h = u32(heads), d = u32(dim), kk = u32(k), ek = u32(entry_k), kr = u32(kv_rows), tokens = t.tokens, bt = (unsigned)kBlockTokens, rf = t.rows_floats, width = t.width;
         unsigned long long bf = t.block_floats;
-        const Args args(o, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width);
+        unsigned kf = unsigned(kv_format), ef = unsigned(entry_format), kws = u32(kw);
+        const Args args(o, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws);
         launch(kSparseAttentionSink, u32(size_mul(rows, heads)), 1, args);
     }
-    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, size_t n, CSlice blocks,
-                        size_t block_k, size_t block_size) override {
+    void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, ModelFormat key_format,
+                        size_t n, CSlice blocks, size_t block_k, size_t block_size) override {
         if (!heads || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale)) throw std::runtime_error("rocm: invalid index score dimensions");
         size_t rows = 0;
         for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
         if (!rows || !n) return;
-        const PooledTable t = pooled_table(layer, views, n_views, rows, dim, "index scores");
+        const size_t key_words = format_words(key_format, dim);
+        const PooledTable t = pooled_table(layer, views, n_views, rows, key_words, "index scores");
         const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads), bn = blocks.buffer ? size_mul(rows, block_k) : 0;
         for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, on}, {q, qn}, {w, wn}}) floats(s, count);
         if (bn) floats(blocks, bn);
@@ -1092,7 +1108,8 @@ public:
         unsigned nn = u32(n), h = u32(heads), d = u32(dim), tokens = t.tokens, bt = (unsigned)kBlockTokens, rf = t.rows_floats, width = t.width, bk = bn ? u32(block_k) : 0u,
                  bs = u32(block_size);
         unsigned long long bf = t.block_floats;
-        const Args args(o, qp, aux, tab, wp, bp, nn, h, d, w_scale, tokens, bt, bf, rf, width, bk, bs);
+        unsigned kf = unsigned(key_format), kws = u32(key_words);
+        const Args args(o, qp, aux, tab, wp, bp, nn, h, d, w_scale, tokens, bt, bf, rf, width, bk, bs, kf, kws);
         launch(kIndexerScores, u32((n + kThreads - 1) / kThreads), (unsigned)rows, args);
     }
     void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override {

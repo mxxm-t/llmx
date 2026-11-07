@@ -110,6 +110,7 @@ What the kernels' comments leave out, file by file and in file order: their layo
   Every step keeps the larger value, the lower id of equal values, and ORs the flag, so the id is the CPU's in any reduction order; the merge takes the slices in order on one lane.
 - DeepSeek-V4.1's ops are first forms in the CPU backend's order wherever one value is formed: a thread a value or a row, its sums the CPU's multiply-add chains, and an RMS norm's squares summed as the CPU's eight-lane `rms_norm_raw` sums them (`cpu_squares`), so the formats, the selections, the routing picks, the collapse, the expansion, the index scores and the rope forms are the CPU's bits and only a value through `expf`, `log1pf` or the block tree of `hc_coeffs` differs.
   The selection finds its picks' least key bit by bit from the top over counts of the row, as Vulkan's does, so its workspace is the block's at any row length; `sparse_attention_sink` names at most 1024 rows a row and the rope forms a head of at most 2048 values.
+  `model_format_qdq` and `model_format_pack` are one kernel, a thread a block, a pack's thread writing its block's bytes in its row and the row's last block zeroing the bytes to the row's last word; `sparse_attention_sink` and `indexer_scores` read a packed row value by value as code times scale (`stored_value`).
 
 `kernels/int16.hip`:
 

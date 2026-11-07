@@ -2,6 +2,7 @@
 // DeepSeek-V4.1's layer ops (docs/DEEPSEEK4.md, section 4.2) on a device against the CPU backend, shared by the device backends' tests.
 // Exact where the arithmetic is the CPU's without a multiply-add (the format codes and the selections); within a stated bound where an exponential, a root, a reduction order or a multiply-add differs, since a device need not fuse one.
 #include "qwen35_checks.hpp"
+#include "quant/model_formats.hpp"
 
 #include <cstring>
 #include <deque>
@@ -32,7 +33,7 @@ std::vector<float> as_floats(const std::vector<uint32_t>& v) {
 }
 
 // Within rel of the CPU relative to 1 + |cpu|, an infinity only where the CPU has the same one.
-size_t near(const std::vector<float>& a, const std::vector<float>& b, double rel, const std::string& what) {
+size_t within_rel(const std::vector<float>& a, const std::vector<float>& b, double rel, const std::string& what) {
     require(a.size() == b.size(), what.c_str());
     for (size_t i = 0; i < a.size(); ++i) {
         const bool inf = std::isinf(a[i]) || std::isinf(b[i]);
@@ -62,7 +63,7 @@ size_t same(const std::vector<float>& a, const std::vector<float>& b, const std:
 using Exact = std::set<std::string>;
 size_t meet(const Exact& exact, const char* op, const std::vector<float>& a, const std::vector<float>& b, double rel, const std::string& what, bool infinities = false) {
     if (exact.count(op)) return same(a, b, std::string(op) + " differs from the CPU's bits");
-    return infinities ? near(a, b, rel, what) : close(a, b, rel, what.c_str());
+    return infinities ? within_rel(a, b, rel, what) : close(a, b, rel, what.c_str());
 }
 
 size_t check_mhc(Pair& p, const Exact& exact) {
@@ -264,8 +265,8 @@ size_t check_pooled(Pair& p, const Exact& exact) {
         Pair::In qi = held(p, uniform(m * heads * key, 62)), wi = held(p, uniform(m * heads, 63, -0.5f, 0.5f)), bi = held(p, as_floats(cand));
         for (bool blocks : {false, true}) {
             Pair::Out o = p.out(m * n);
-            p.cpu.indexer_scores(o.cs(), qi.cs(), 0, cv.data(), cv.size(), wi.cs(), 0.375f, heads, key, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
-            p.dev.indexer_scores(o.vs(), qi.vs(), 0, dv.data(), dv.size(), wi.vs(), 0.375f, heads, key, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
+            p.cpu.indexer_scores(o.cs(), qi.cs(), 0, cv.data(), cv.size(), wi.cs(), 0.375f, heads, key, backend::ModelFormat::f32, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
+            p.dev.indexer_scores(o.vs(), qi.vs(), 0, dv.data(), dv.size(), wi.vs(), 0.375f, heads, key, backend::ModelFormat::f32, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
             auto r = p.results(o);
             values += meet(exact, "indexer_scores", r.first, r.second, 1e-5, std::string("indexer_scores differs beyond 1e-5") + (blocks ? " over candidate blocks" : ""), true);
         }
@@ -291,9 +292,9 @@ size_t check_pooled(Pair& p, const Exact& exact) {
         for (bool with_views : {false, true}) {
             Pair::Out o = p.out(m * heads * dim);
             p.cpu.sparse_attention_sink(o.cs(), qi.cs(), ki.cs(), ii.cs(), si.cs(), m, heads, dim, kv_rows, k, scale, 0, with_views ? cv.data() : nullptr,
-                                        with_views ? cv.size() : 0, with_views ? ei.cs() : backend::CSlice{}, with_views ? ek : 0);
+                                        with_views ? cv.size() : 0, with_views ? ei.cs() : backend::CSlice{}, with_views ? ek : 0, backend::ModelFormat::f32, backend::ModelFormat::f32);
             p.dev.sparse_attention_sink(o.vs(), qi.vs(), ki.vs(), ii.vs(), si.vs(), m, heads, dim, kv_rows, k, scale, 0, with_views ? dv.data() : nullptr,
-                                        with_views ? dv.size() : 0, with_views ? ei.vs() : backend::CSlice{}, with_views ? ek : 0);
+                                        with_views ? dv.size() : 0, with_views ? ei.vs() : backend::CSlice{}, with_views ? ek : 0, backend::ModelFormat::f32, backend::ModelFormat::f32);
             auto r = p.results(o);
             values += close(r.first, r.second, 1e-5, "sparse_attention_sink differs beyond 1e-5");
         }
@@ -301,11 +302,128 @@ size_t check_pooled(Pair& p, const Exact& exact) {
     return values;
 }
 
+// The cache type native (docs/DEEPSEEK4.md, section 4.3): model_format_pack's bytes against the CPU's in rows of a stride whose gaps stay untouched, every row ending in padding.
+// On each backend, window and pooled rows packed and read by sparse_attention_sink and indexer_scores give the bits of the same rows held as F32 rounded by model_format_qdq.
+size_t check_packed(Pair& p) {
+    namespace mf = quant::model_formats;
+    using backend::ModelFormat;
+    size_t values = 0;
+    // Values over many binades with zeros of both signs, so scales of every size and codes at the clamps are reached.
+    const auto raw = [](size_t n, uint32_t seed) {
+        std::vector<float> x(n);
+        uint32_t s = seed;
+        for (size_t i = 0; i < n; ++i) {
+            s = s * 1664525u + 1013904223u;
+            const int e = int((i / 16) % 23) - 12;
+            x[i] = std::ldexp(float(s >> 8) / float(1u << 24), e) * ((s & 1) ? -1.0f : 1.0f);
+            if (i % 97 == 3) x[i] = 0.0f;
+            if (i % 97 == 4) x[i] = -0.0f;
+        }
+        return x;
+    };
+    for (ModelFormat f : {ModelFormat::fp8_power, ModelFormat::fp4_power, ModelFormat::fp4_e4m3}) {
+        const size_t rows = 7, dim = 96, words = backend::format_words(f, dim), stride = words + 3, n = (rows - 1) * stride + words;
+        const std::vector<float> x = raw(rows * dim, 91 + uint32_t(f));
+        Pair::In xi = held(p, x);
+        Pair::Out o = p.out(n);
+        const std::vector<float> fill(n, ds4::as_floats({0xA5A5A5A5u})[0]);
+        p.cpu.write(*o.c, 0, fill.data(), n * 4);
+        p.dev.write(*o.v, 0, fill.data(), n * 4);
+        p.cpu.model_format_pack(o.cs(), stride, xi.cs(), rows, dim, f);
+        p.dev.model_format_pack(o.vs(), stride, xi.vs(), rows, dim, f);
+        auto r = p.results(o);
+        values += same(r.first, r.second, "model_format_pack differs from the CPU in format " + std::to_string(int(f)));
+        for (size_t row = 0; row < rows; ++row)
+            for (size_t w = words; w < stride && row + 1 < rows; ++w)
+                require(!std::memcmp(&r.first[row * stride + w], &fill[0], 4), "model_format_pack wrote between its rows");
+    }
+    const size_t ratio = 4, entry = 64, key = 32, heads = 2, positions = 96, groups = positions / ratio;
+    const size_t ew = backend::format_words(ModelFormat::fp4_e4m3, entry), kw = backend::format_words(ModelFormat::fp4_power, key);
+    const size_t f32_width = entry + key, packed_width = ew + kw;
+    std::vector<float> latents = raw(groups * entry, 71), keys = raw(groups * key, 72), rounded(groups * f32_width);
+    for (size_t g = 0; g < groups; ++g) {
+        std::copy(latents.begin() + g * entry, latents.begin() + (g + 1) * entry, rounded.begin() + g * f32_width);
+        std::copy(keys.begin() + g * key, keys.begin() + (g + 1) * key, rounded.begin() + g * f32_width + entry);
+        for (size_t b = 0; b < entry; b += 16) mf::qdq_fp4_e4m3(&rounded[g * f32_width + b]);
+        for (size_t b = 0; b < key; b += 32) mf::qdq_fp4_power(&rounded[g * f32_width + entry + b]);
+    }
+    const size_t kv_rows = 40, kvw = backend::format_words(ModelFormat::fp8_power, entry);
+    std::vector<float> ring = raw(kv_rows * entry, 73), ring_rounded = ring;
+    for (size_t i = 0; i < ring_rounded.size(); i += 32) mf::qdq_fp8_power(&ring_rounded[i]);
+    Pair::In li = held(p, latents), ki = held(p, keys), ri = held(p, rounded), wi = held(p, ring), wr = held(p, ring_rounded);
+    Pair::Out pr = p.out(groups * packed_width), pw = p.out(kv_rows * kvw);
+    p.cpu.model_format_pack(pr.cs(), packed_width, li.cs(), groups, entry, ModelFormat::fp4_e4m3);
+    p.dev.model_format_pack(pr.vs(), packed_width, li.vs(), groups, entry, ModelFormat::fp4_e4m3);
+    p.cpu.model_format_pack({pr.c.get(), ew}, packed_width, ki.cs(), groups, key, ModelFormat::fp4_power);
+    p.dev.model_format_pack({pr.v.get(), ew}, packed_width, ki.vs(), groups, key, ModelFormat::fp4_power);
+    p.cpu.model_format_pack(pw.cs(), kvw, wi.cs(), kv_rows, entry, ModelFormat::fp8_power);
+    p.dev.model_format_pack(pw.vs(), kvw, wi.vs(), kv_rows, entry, ModelFormat::fp8_power);
+    auto c32 = p.cpu.kv_alloc(1, 0, 0, 256, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, f32_width}});
+    auto v32 = p.dev.kv_alloc(1, 0, 0, 256, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, f32_width}});
+    auto cpk = p.cpu.kv_alloc(1, 0, 0, 256, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, packed_width}});
+    auto vpk = p.dev.kv_alloc(1, 0, 0, 256, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, packed_width}});
+    std::vector<int32_t> tables[2];
+    for (int dev = 0; dev < 2; ++dev) {
+        const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens;
+        for (size_t i = 0, nb = (positions + bt - 1) / bt; i < nb; ++i) tables[dev].push_back(int32_t(nb - 1 - i));
+    }
+    const auto view = [&](backend::KVStorage* st, bool dev, size_t length, size_t nq) {
+        return backend::KVView{st, tables[dev].data(), tables[dev].size(), length, nq};
+    };
+    const backend::KVView w_c32 = view(c32.get(), false, 0, positions), w_v32 = view(v32.get(), true, 0, positions);
+    const backend::KVView w_cpk = view(cpk.get(), false, 0, positions), w_vpk = view(vpk.get(), true, 0, positions);
+    p.cpu.pool_write(0, &w_c32, 1, ri.cs());
+    p.dev.pool_write(0, &w_v32, 1, ri.vs());
+    p.cpu.pool_write(0, &w_cpk, 1, pr.cs());
+    p.dev.pool_write(0, &w_vpk, 1, pr.vs());
+    const size_t m = 6, n = groups;
+    const backend::KVView r_c32 = view(c32.get(), false, 90, m), r_v32 = view(v32.get(), true, 90, m);
+    const backend::KVView r_cpk = view(cpk.get(), false, 90, m), r_vpk = view(vpk.get(), true, 90, m);
+    Pair::In qi = held(p, uniform(m * heads * key, 74)), wq = held(p, uniform(m * heads, 75, -0.5f, 0.5f));
+    {
+        Pair::Out a = p.out(m * n), b = p.out(m * n);
+        p.cpu.indexer_scores(a.cs(), qi.cs(), 0, &r_c32, 1, wq.cs(), 0.375f, heads, key, ModelFormat::f32, n, {}, 0, 0);
+        p.dev.indexer_scores(a.vs(), qi.vs(), 0, &r_v32, 1, wq.vs(), 0.375f, heads, key, ModelFormat::f32, n, {}, 0, 0);
+        p.cpu.indexer_scores(b.cs(), qi.cs(), 0, &r_cpk, 1, wq.cs(), 0.375f, heads, key, ModelFormat::fp4_power, n, {}, 0, 0);
+        p.dev.indexer_scores(b.vs(), qi.vs(), 0, &r_vpk, 1, wq.vs(), 0.375f, heads, key, ModelFormat::fp4_power, n, {}, 0, 0);
+        auto ra = p.results(a), rb = p.results(b);
+        values += same(ra.first, rb.first, "indexer_scores over packed keys differs from F32 keys on the CPU");
+        values += same(ra.second, rb.second, "indexer_scores over packed keys differs from F32 keys on the device");
+    }
+    {
+        const size_t k = 7, ek = 5;
+        std::vector<uint32_t> ids(m * k, kNone), picks(m * ek, kNone);
+        uint32_t s = 9;
+        auto draw = [&] { return s = s * 1664525u + 1013904223u, s >> 8; };
+        for (size_t r = 0; r < m; ++r) {
+            for (size_t t = 0; t < k; ++t)
+                if (draw() % 4) ids[r * k + t] = draw() % kv_rows;
+            for (size_t t = 0; t < ek; ++t)
+                if (draw() % 4) picks[r * ek + t] = uint32_t(draw() % ((90 + r + 1) / ratio));
+        }
+        Pair::In qa = held(p, uniform(m * heads * entry, 76)), ii = held(p, as_floats(ids)), ei = held(p, as_floats(picks)), si = held(p, {0.25f, -1.0f});
+        const float scale = 1.0f / std::sqrt(float(entry));
+        Pair::Out a = p.out(m * heads * entry), b = p.out(m * heads * entry);
+        p.cpu.sparse_attention_sink(a.cs(), qa.cs(), wr.cs(), ii.cs(), si.cs(), m, heads, entry, kv_rows, k, scale, 0, &r_c32, 1, ei.cs(), ek, ModelFormat::f32,
+                                    ModelFormat::f32);
+        p.dev.sparse_attention_sink(a.vs(), qa.vs(), wr.vs(), ii.vs(), si.vs(), m, heads, entry, kv_rows, k, scale, 0, &r_v32, 1, ei.vs(), ek, ModelFormat::f32,
+                                    ModelFormat::f32);
+        p.cpu.sparse_attention_sink(b.cs(), qa.cs(), pw.cs(), ii.cs(), si.cs(), m, heads, entry, kv_rows, k, scale, 0, &r_cpk, 1, ei.cs(), ek, ModelFormat::fp8_power,
+                                    ModelFormat::fp4_e4m3);
+        p.dev.sparse_attention_sink(b.vs(), qa.vs(), pw.vs(), ii.vs(), si.vs(), m, heads, entry, kv_rows, k, scale, 0, &r_vpk, 1, ei.vs(), ek, ModelFormat::fp8_power,
+                                    ModelFormat::fp4_e4m3);
+        auto ra = p.results(a), rb = p.results(b);
+        values += same(ra.first, rb.first, "sparse_attention_sink over packed rows differs from F32 rows on the CPU");
+        values += same(ra.second, rb.second, "sparse_attention_sink over packed rows differs from F32 rows on the device");
+    }
+    return values;
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
-    if (p.dev.implements(backend::Op::model_format_qdq))
-        values += check_formats(p);
+    if (p.dev.implements(backend::Op::model_format_qdq) && p.dev.implements(backend::Op::model_format_pack))
+        values += check_formats(p) + check_packed(p);
     else
         std::printf("deepseek4: model formats skipped: the device does not implement model_format_qdq\n");
     values += check_selections(p);

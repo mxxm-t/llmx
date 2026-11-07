@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## ROCm fused MoE step over generated rows (2026-11-07, RDEV69, branch perf/rocm-moe-rows on main 49f753824; MEGA10's finding of 2026-11-07 19:36 from research/rocm-moe-rows d5be5e828; lands by fast-forward)
+
+- **Goal:** the fused MoE step (`RocmBackend::moe_step`, `fused_step`) takes every count of generated rows its kernels can, not one row alone, so an MTP verify step and a decode of several sequences take three launches a routed layer, each output the bits of the base's ops.
+- **Done:** `fused_step` takes rows whose runs are all of extent 1 while rows * k is below the gate type's int8 grouped break-even times the experts (`TwinKernels::groups`, the rule `routed` groups by, now one function for both); from there the base reads each expert's gate and up rows once for all its entries, which outweighs the fused step's fewer launches; at Qwen3.8-Flash-Next's 10 of 512 experts and Q4_K's or Q5_K's 1.25 that is up to 63 rows.
+  `llmx_moe_step_route` takes each row of h on its own in the one-row order and routes the rows on its last block's four waves; `llmx_moe_step_up_<type>` takes the shared expert of each row as the first block rows; `llmx_moe_step_down_<type>` a block row a row.
+  The gate+up has a lean build (shared rows a row a wave, two steps a load) and a wide one (`_w`, two rows a wave, four steps a load); `step_up_kernel` takes the wide one where the grid fits the compute units at that build's occupancy, which the device reports at the first step, and the lean one elsewhere.
+  The research switches (rows, build and overlap counter) and the study's bench are not carried.
+  `llmx-backend-rocm-test` `moe_rows_bits` (in `twins` and the full run): 1 to 4 rows and the last two counts below the break-even are the three fused launches with no twin launch, and at 1 row and the last with h's twin not kept the route launch makes it, and the first count past it the base's, by the launches, every output the base's bits, at 10 of 512 experts with both routed widths and at 6 of 128, both gate+up builds taken.
+- **Gates** (main 49f753824 and the branch built alike from detached trees on the rig, four MI50s, renderD132-135, default clocks):
+  The gates ran at 503fb370, whose src/ tree is the head's: the head differs from it only in this STATUS block, docs/TESTS.md, docs/src/backends-rocm.md and tests/backend_rocm.cpp (`moe_rows_bits`' unkept-twin arm and launch counts), so the timing, identity, CTest and suite evidence carries forward, and the test reran at the head with `twins`, `moe` and the full run passing, as did `docs` and `dead-code`.
+  Builds: ROCm build of llmx, llmx-rocm and llmx-backend-rocm-test rc 0; `llmx-backend-rocm-test` full, `moe` and `twins` PASS on one MI50; CTest 84 of 84 on the ROCm build and 81 of 81 on the CPU build; the suite on rocm:0 rc 0.
+  Identity against main on rocm:0, `generate` 64 greedy tokens and `logits --last 4`, Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at auto and int8: 8 of 8 files the same; Qwen3.8-Flash-Next UD-Q4_K_XL int8 tg64 ids equal between main and branch on both layouts, and the MTP ids equal the plain ids.
+  Qwen3.8-Flash-Next UD-Q4_K_XL, int8, tg64 ABBA (n10 each, tok/s median, four MI50s, default clocks), against the owner's castagna-veloce gate (2026-10-25):
+
+  | layout | mode | main 49f753824 | branch | delta | castagna gate |
+  |---|---|---|---|---|---|
+  | 2x2 | plain | 54.31 | 53.66 | -1.2% | 79.5 |
+  | 2x2 | MTP | 73.40 | 83.39 | +13.6% | 119 |
+  | layer-4 | plain | 42.91 | 45.44 | +5.9% | 52.3 |
+  | layer-4 | MTP | 60.98 | 67.77 | +11.1% | 79.1 |
+
+  The -1.2% of 2x2 plain decode is a tradeoff taken: plain 2x2 decode of one row did not gain, its branch range (51.9 to 55.1) lies below the main arm's median but the main arm's own range spans 17.5 to 55.3, against +13.6%, +5.9% and +11.1% on the other three cells.
+  Every cell stays below the castagna gate, so the speed gate is open and recorded, not met.
+  Radeon VII on the stack at c64031305a1d: its `server` component fails with VK_ERROR_OUT_OF_DEVICE_MEMORY for 8192 bytes in two runs on the shared desktop card, with Firefox holding about 4.8 GB of it, and fails identically on main 27697a85e (the auto pool fit overshoots on a shared desktop card, fixed separately on fix/vulkan-pool-headroom); COORD records the Radeon VII suite at 47 of 48, and this run covered only the `server` component, so it is not marked PASS on the Radeon VII.
+  MI50 Vulkan `server` (`--device vulkan:0 --only server`, one card under cardlock, Vulkan build of the stack at c64031305a1d in the Vulkan image) PASS.
+  The hosted run 42427919355 passed on the stack at c64031305a1d, the stack's tree before this STATUS-only edit.
+  The stack (perf/device-handoff then perf/rocm-moe-rows) was rebased onto main 27697a85e; the only conflicts were in docs/STATUS.md, docs/TESTS.md and tests/backend_rocm.cpp, where both sides were kept.
+  At the stacked top: ROCm and CPU builds and a Vulkan build rc 0, CTest ROCm 84 of 84 and CPU-only 84 of 84, and `llmx-backend-rocm-test` handoffs (on two cards, a handoff from device 0 reaches 1 reader behind device-side waits), delta, moe and twins PASS.
+- **Left:** the Vulkan counterpart: `VulkanBackend::moe_build` (`vulkan_moe.hpp`) fuses up to `kMoeStepRows` (64) rows while rows * k < 2 * n_expert, a fixed 2 rather than its routed products' own grouped crossover; check its crossover follows the same rule as here.
+  Widening `fused_step`'s ff and weight-type coverage is separate work (B2).
+  `fused_step`'s `rows > 1 &&` guard lets a test-only call of several rows with no runs fuse; every product caller passes runs, and dropping it waits for a change the gates rerun on anyway.
+
 ## ROCm crossings ordered on the devices (2026-11-07, XDEV1, XDEV6, XDEV7, branch perf/device-handoff on main 49f75382; F2DEV's approval of 21:44 on 574c9f31; lands by fast-forward)
 
 - **Goal:** a layer split's crossing from one ROCm device to another without the host: the receiving stage's queue waits for the sender on the devices and copies the rows itself, so the host neither waits for the sender's ticket nor writes the rows (AGENTS.md, Principles).
@@ -23,7 +55,7 @@
   The delta from a57fdba1 to the landing head is comments, docs, TESTS.md and the CPU-only pipelined split's thread (701939fc, 62c94eea, 574c9f31), so the 3x1 and 2x1 runs are carried forward.
   Flash-Next greedy ids identical to main on 2x2 and layer-4, at a57fdba1.
   Docs and dead-code PASS at 574c9f31.
-- **Left:** Vulkan declines the handoff, since its sync file exists only after the queue call; a CPU-only pipelined split starts one extra thread per prompt; Radeon VII result: pending (`backends/backend.hpp` changed, so the owner's check applies); hosted run: pending (COORD fills both in).
+- **Left:** Vulkan declines the handoff, since its sync file exists only after the queue call; a CPU-only pipelined split starts one extra thread per prompt; Radeon VII and hosted run: on the stack with perf/rocm-moe-rows at c64031305a1d, the Radeon VII `server` component fails with VK_ERROR_OUT_OF_DEVICE_MEMORY on the shared desktop card, identically on main 27697a85e (the auto pool fit overshoots there, fixed separately on fix/vulkan-pool-headroom), COORD records the suite at 47 of 48, and it is not marked PASS on the Radeon VII; the MI50 Vulkan `server` component PASS; the hosted run 42427919355 passed on the stack; `llmx-backend-rocm-test` handoffs PASS on two cards at the stacked top.
 - **Gotchas:** a cross-device `hipStreamWaitEvent` holds the host until the event completes (10 ms measured), so every wait goes through the backend's record; a reader's first copy from another device's host memory costs the caller about 6 ms once a device pair, then is asynchronous.
 
 ## Pipelined prompt slicing priced by cumulative slice times (2026-11-06, RDEV32, branch fix/prompt-slicing, rebased onto main 2e8a1e6fe; RDEV26's finding of 2026-11-05 21:00, RDEV32's finding and proposal of 2026-11-06 06:44)

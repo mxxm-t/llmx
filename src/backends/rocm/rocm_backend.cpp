@@ -1518,19 +1518,29 @@ public:
 
     DeviceProfile& profile() { return dev_.profile; }
 
+    // The gate+up build for a grid: the wide shared build, two rows a wave and four steps a load, where the grid is resident at that build's occupancy, else the lean one.
+    auto step_up_kernel(bool q5, size_t grid) {
+        const auto lean = q5 ? kMoeStepUpQ5K : kMoeStepUpQ4K, wide = q5 ? kMoeStepUpQ5KW : kMoeStepUpQ4KW;
+        int& per_cu = step_up_per_cu_[q5];
+        if (per_cu < 0) {
+            hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
+            hip_check(hip().hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(&per_cu, kernels_[wide], kThreads, 0), "hipModuleOccupancyMaxActiveBlocksPerMultiprocessor");
+        }
+        return grid <= size_t(per_cu) * dev_.caps.compute_units ? wide : lean;
+    }
     // Where fused_step holds, a step is three launches (docs/src/backends-rocm.md): route with row gate and twin of h, every gate and up with their SiLU, the down with combine and shared down.
     // Each output keeps the bits of the base's ops (Backend::moe_step), which run every other step.
     void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
-        if (!fused_step(m, h, nin, rows, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
+        if (!fused_step(m, h, nin, rows, runs, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
         check_runs(rows, runs);
         const MoeShared& s = *m.shared;
-        const size_t k = m.k, ff = m.gate.rows, ne = m.router.rows, entries = k;
+        const size_t k = m.k, ff = m.gate.rows, ne = m.router.rows, entries = size_mul(rows, k);
         const uint32_t gt = m.gate.weight.type;
-        span(*h.buffer, h.offset * sizeof(float), size_mul(nin, sizeof(float)));
-        span(*y.buffer, y.offset * sizeof(float), size_mul(nin, sizeof(float)));
+        span(*h.buffer, h.offset * sizeof(float), size_mul(size_mul(rows, nin), sizeof(float)));
+        span(*y.buffer, y.offset * sizeof(float), size_mul(size_mul(rows, nin), sizeof(float)));
         for (const Projection* p : {&m.router, &m.gate, &m.up, &s.gate, &s.up, &s.row_gate}) {
             const bool routed = p == &m.gate || p == &m.up;
-            span(*p->out.buffer, p->out.offset * sizeof(float), size_mul(routed ? size_mul(entries, ff) : p->rows, sizeof(float)));
+            span(*p->out.buffer, p->out.offset * sizeof(float), size_mul(routed ? size_mul(entries, ff) : size_mul(rows, p->rows), sizeof(float)));
             check_weight(p->weight, nin, "moe step matrix");
             span(*p->weight.data.buffer, p->weight.data.offset * sizeof(float), quant::row_bytes(p->weight.type, nin, routed ? size_mul(ne, ff) : p->rows));
         }
@@ -1539,22 +1549,24 @@ public:
         span(*m.down.data.buffer, m.down.data.offset * sizeof(float), quant::row_bytes(m.down.type, ff, size_mul(ne, nin)));
         span(*s.down.data.buffer, s.down.data.offset * sizeof(float), quant::row_bytes(s.down.type, ff, nin));
         span(*m.act.buffer, m.act.offset * sizeof(float), size_mul(size_mul(entries, ff), sizeof(float)));
-        span(*s.act.buffer, s.act.offset * sizeof(float), size_mul(ff, sizeof(float)));
+        span(*s.act.buffer, s.act.offset * sizeof(float), size_mul(size_mul(rows, ff), sizeof(float)));
         for (const Slice& r : {m.ids, m.weights}) span(*r.buffer, r.offset * sizeof(float), size_mul(entries, sizeof(float)));
         if (!step_counter_) {
             step_counter_ = alloc(64, Memory::device);
-            step_twin_ = alloc(4096, Memory::device);
             hold_fill(as_rocm(*step_counter_).data(), 64);
         }
+        // The shared act's twin: rows ff-value rows of int8, then their block scales from the half.
+        const size_t sact_half = std::max<size_t>(2048, size_mul(rows, ff));
+        if (!step_twin_ || step_twin_->size() < 2 * sact_half) step_twin_ = alloc(2 * sact_half, Memory::device);
         const size_t out_bytes = size_mul(size_mul(entries, nin), sizeof(float));
         if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
         const float* x = f32(h);
         // The twin of h unless kept, and the routed act's twin in the other slot, both kept as the base's products keep them.
-        const TwinMap hm = twin_map({}, 1, nin), am = twin_map({}, entries, ff);
-        const bool h_kept = find_twin(x, nin / 32, true, hm, size_mul(hm.total, 36));
+        const TwinMap hm = twin_map({}, rows, nin), am = twin_map({}, entries, ff);
+        const bool h_kept = find_twin(x, rows * nin / 32, true, hm, size_mul(hm.total, 36));
         uint8_t* hq = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
         float* hd = (float*)(hq + size_mul(hm.total, 32));
-        if (!h_kept) keep_twin({x, nin, true, hm, twin_slot_});
+        if (!h_kept) keep_twin({x, rows * nin, true, hm, twin_slot_});
         float* act = f32(m.act);
         forget_written(act, entries * ff);
         (void)find_twin(act, entries * ff / 32, true, am, size_mul(am.total, 36));
@@ -1563,18 +1575,20 @@ public:
         const size_t act_slot = twin_slot_;
         // The shared act's twin, which only the fused down reads, in a buffer of its own: no twin slot is written while the launch writing it reads them.
         uint8_t* sq = (uint8_t*)as_rocm(*step_twin_).data();
-        float* sd = (float*)(sq + 2048);
+        float* sd = (float*)(sq + sact_half);
         unsigned* ids = (unsigned*)f32(m.ids);
-        const StepRoute r{bytes(m.router.weight.data), x, f32(m.router.out), nin, ne, bytes(s.row_gate.weight.data), f32(s.row_gate.out), hq, hd, h_kept ? 0 : nin / 32,
-                          ids, f32(m.weights), (unsigned)ne, (unsigned)k, m.rule.normalize ? 1 : 0, (unsigned*)as_rocm(*step_counter_).data()};
+        const StepRoute r{bytes(m.router.weight.data), x, f32(m.router.out), nin, ne, bytes(s.row_gate.weight.data), f32(s.row_gate.out), hq, hd, h_kept ? 0 : rows * nin / 32,
+                          ids, f32(m.weights), (unsigned)ne, (unsigned)k, m.rule.normalize ? 1 : 0, (unsigned*)as_rocm(*step_counter_).data(), (unsigned)rows, 0};
         launch_step(kMoeStepRoute, (unsigned)(ne / 4 + 1), 1, Args(r));
         const TypeKernels& gk = *type_kernels(gt);
         const Projection gu[2] = {m.gate, m.up};
-        const RoutedCall gc = routed_call(gu, 2, nin, *gk.twin, ids, k, ne);
+        // The shared expert's rows of h take the first block rows, so the routed entries start rows block rows on.
+        RoutedCall gc = routed_call(gu, 2, nin, *gk.twin, ids, k, ne);
+        gc.first = 0ull - rows;
         const Proj sp[2] = {{bytes(s.gate.weight.data), f32(s.gate.out), ff}, {bytes(s.up.weight.data), f32(s.up.out), ff}};
         const RowCall sc = row_call(sp, 2, 0, row_form(kQ8Twins, nin), nin);
-        const StepUp u{gc, hq, hd, nin, act, aq, ad, sc, hq, hd, nin, f32(s.act), f32(s.row_gate.out), sq, sd};
-        launch_step(gt == quant::GGML_TYPE_Q5_K ? kMoeStepUpQ5K : kMoeStepUpQ4K, (unsigned)(ff / 32), (unsigned)(entries + 1), Args(u));
+        const StepUp u{gc, hq, hd, nin, act, aq, ad, sc, hq, hd, nin, f32(s.act), f32(s.row_gate.out), sq, sd, rows};
+        launch_step(step_up_kernel(gt == quant::GGML_TYPE_Q5_K, ff / 32 * (entries + rows)), (unsigned)(ff / 32), (unsigned)(entries + rows), Args(u));
         keep_twin({act, entries * ff, true, am, act_slot});
         const TypeKernels& dk = *type_kernels(m.down.type);
         const Projection dn{m.down, Slice{moe_out_.get(), 0}, nin};
@@ -1582,19 +1596,22 @@ public:
         const Proj sdn{bytes(s.down.data), f32(y), nin};
         const RowCall dsc = row_call(&sdn, 1, 0, row_form(kQ8Twins, ff), ff);
         const float* y0 = m.zero ? (const float*)as_rocm(*m.zero).data() : f32(y);
-        const StepDown d{dc, aq, ad, ff, f32(m.weights), f32(y), (unsigned)k, dsc, sq, sd, ff, y0};
-        launch_step(m.down.type == quant::GGML_TYPE_Q8_0 ? kMoeStepDownQ8 : kMoeStepDownQ51, (unsigned)(nin / 8), 1, Args(d));
+        const StepDown d{dc, aq, ad, ff, f32(m.weights), f32(y), (unsigned)k, dsc, sq, sd, ff, y0, m.zero ? 0 : nin};
+        launch_step(m.down.type == quant::GGML_TYPE_Q8_0 ? kMoeStepDownQ8 : kMoeStepDownQ51, (unsigned)(nin / 8), (unsigned)rows, Args(d));
         record_matrix_path(MatrixPath::block_int8);
-        const std::pair<const float*, size_t> written[] = {{f32(m.router.out), ne}, {f32(s.row_gate.out), 1}, {(const float*)ids, entries}, {f32(m.weights), entries},
-                                                           {f32(m.gate.out), entries * ff}, {f32(m.up.out), entries * ff}, {f32(s.gate.out), ff}, {f32(s.up.out), ff},
-                                                           {f32(s.act), ff}, {f32(y), nin}};
+        const std::pair<const float*, size_t> written[] = {{f32(m.router.out), rows * ne}, {f32(s.row_gate.out), rows}, {(const float*)ids, entries}, {f32(m.weights), entries},
+                                                           {f32(m.gate.out), entries * ff}, {f32(m.up.out), entries * ff}, {f32(s.gate.out), rows * ff}, {f32(s.up.out), rows * ff},
+                                                           {f32(s.act), rows * ff}, {f32(y), rows * nin}};
         for (const auto& [p, n] : written) forget_written(p, n);
     }
     // The fused step kernels' own limits (kernels/f32.hip mf_route, kernels/int16.hip gate_up and down): experts, picks, the width of h and the routed width ff.
     static constexpr size_t kStepExperts = 512, kStepPicks = 10, kStepIn = 2560, kStepFf = 640;
     // Whether a step has the shape the fused kernels hold (docs/src/backends-rocm.md, moe_step), h and every output in device memory.
-    bool fused_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, Dtype dtype) const {
-        if (rows != 1 || dtype != Dtype::int8 || !kernels_[kMoeStepUpQ4K] || dev_.caps.subgroup_size != 64 || !m.shared || !m.shared->row_gate.weight.data.buffer) return false;
+    bool fused_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const {
+        if (!rows) return false;
+        for (size_t i = 0; rows > 1 && i < runs.n; ++i)
+            if (runs.runs[i].extent != 1) return false;
+        if (dtype != Dtype::int8 || !kernels_[kMoeStepUpQ4K] || dev_.caps.subgroup_size != 64 || !m.shared || !m.shared->row_gate.weight.data.buffer) return false;
         const MoeShared& s = *m.shared;
         const size_t ff = m.gate.rows;
         const uint32_t gt = m.gate.weight.type, dt = m.down.type;
@@ -1610,6 +1627,8 @@ public:
         const TypeKernels* gk = type_kernels(gt);
         const TypeKernels* dk = type_kernels(dt);
         if (!gk || !gk->twin || !dk || !dk->twin || &row_form(*gk->twin, nin) != gk->twin || row_cluster(*gk->twin, nin) != 32 || &row_form(*dk->twin, ff) != dk->twin) return false;
+        // Where the base's routed products group the entries, each expert's gate and up rows are read once for all of them, which outweighs the fused step's fewer launches.
+        if (gk->twin->groups(size_mul(rows, m.k), ne, true)) return false;
         if (as_rocm(*h.buffer).host_ptr()) return false;
         for (const Buffer* b : {m.router.out.buffer, m.gate.out.buffer, m.up.out.buffer, m.act.buffer, m.ids.buffer, m.weights.buffer, s.gate.out.buffer, s.up.out.buffer, s.act.buffer,
                                 s.row_gate.out.buffer})
@@ -1643,7 +1662,7 @@ private:
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedNarrowMXFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_copy", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -1665,7 +1684,7 @@ private:
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
                                                            "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_narrow8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {
@@ -1682,6 +1701,8 @@ private:
         unsigned row_lanes;    // the row kernel's lanes a weight block (kernels/int16.hip, KRaw's Lane), 0 where a wave takes a row
         bool k45;              // Q4_K or Q5_K, whose rows take at most the profile's k45_row_lanes
         const TwinKernels* quarter;   // the quarter form's row, routed and grouped builds (kernels/int16.hip, QuarterLane), which row_form may take instead
+        // Whether routed products of entries over n_expert take the grouped builds, whose break-even is group_from.
+        constexpr bool groups(size_t entries, size_t n_expert, bool int8) const { return entries && double(entries) >= double(group_from[int8]) * double(n_expert); }
     };
     static constexpr TwinKernels kQ8Twins = {{{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
                                           {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
@@ -2257,8 +2278,9 @@ private:
         unsigned n_expert, k;
         int normalize;
         unsigned* counter;
+        unsigned rows, pad;
     };
-    static_assert(offsetof(StepRoute, gw) == 40 && offsetof(StepRoute, ids) == 80 && offsetof(StepRoute, n_expert) == 96 && offsetof(StepRoute, counter) == 112 && sizeof(StepRoute) == 120,
+    static_assert(offsetof(StepRoute, gw) == 40 && offsetof(StepRoute, ids) == 80 && offsetof(StepRoute, n_expert) == 96 && offsetof(StepRoute, counter) == 112 && sizeof(StepRoute) == 128,
                   "StepRoute is the kernel's layout");
     struct StepUp {
         RoutedCall rc;
@@ -2276,9 +2298,10 @@ private:
         const float* rg;
         uint8_t* stq;
         float* std_;
+        unsigned long long rows;
     };
     static_assert(offsetof(StepUp, q) == 168 && offsetof(StepUp, act) == 192 && offsetof(StepUp, sc) == 216 && offsetof(StepUp, sq) == 328 && offsetof(StepUp, sact) == 352 &&
-                      offsetof(StepUp, std_) == 376 && sizeof(StepUp) == 384,
+                      offsetof(StepUp, std_) == 376 && sizeof(StepUp) == 392,
                   "StepUp is the kernel's layout");
     struct StepDown {
         RoutedCall rc;
@@ -2293,9 +2316,10 @@ private:
         const float* sdx;
         unsigned long long snin;
         const float* y0;
+        unsigned long long y0s;
     };
     static_assert(offsetof(StepDown, aq) == 168 && offsetof(StepDown, weights) == 192 && offsetof(StepDown, k) == 208 && offsetof(StepDown, sc) == 216 && offsetof(StepDown, sq) == 328 &&
-                      offsetof(StepDown, y0) == 352 && sizeof(StepDown) == 360,
+                      offsetof(StepDown, y0) == 352 && sizeof(StepDown) == 368,
                   "StepDown is the kernel's layout");
     struct RoutedExact {
         const unsigned* ids;
@@ -2397,7 +2421,7 @@ private:
                         const Args args(t, tg, q, d);
                         launch(kernel, (unsigned)gx, (unsigned)std::min<size_t>(kGridY, groups - first), args);
                     }
-            } else if (entries && double(entries) >= double(rk.group_from[int8]) * double(routing.n_expert) && routing.n_expert <= kGroupExperts) {
+            } else if (rk.groups(entries, routing.n_expert, int8) && routing.n_expert <= kGroupExperts) {
                 // One expert's entries a group of the narrowest grouped build that holds their average, up to 8, each column the bits of its one-column product.
                 const size_t touched = std::min(routing.n_expert, entries), average = (entries + touched - 1) / touched;
                 const int width = average <= 2 ? 0 : average <= 4 ? 1 : 2;
@@ -2838,6 +2862,7 @@ private:
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
     BufferPtr delta_counter_;   // llmx_delta_step's (view, K head) counters, zero between launches
     BufferPtr step_counter_, step_twin_;   // the fused moe_step's finished route blocks, zero between launches, and its shared act's twin
+    int step_up_per_cu_[2] = {-1, -1};      // the wide gate+up builds' resident workgroups a compute unit, Q4_K then Q5_K, found at their first step
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.hip, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     BufferPtr staged_;   // a product bound for host memory, formed here first

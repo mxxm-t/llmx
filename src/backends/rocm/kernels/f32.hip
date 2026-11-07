@@ -2206,7 +2206,7 @@ constexpr unsigned kStepExperts = 512;
 // llmx_moe_route's picks and weights for one row of 64 J experts and k picks on one wave, a pick the largest key of probability bits over the id's complement; the scores are read past this compute unit's cache.
 template <unsigned J>
 __device__ inline void mf_route(const float* s, unsigned* ids, float* weights, unsigned k, int normalize) {
-    const unsigned t = threadIdx.x;
+    const unsigned t = threadIdx.x % 64;
     float p[J];
     float top = -INFINITY;
 #pragma unroll
@@ -2278,8 +2278,9 @@ struct MfRoute {
     unsigned n_expert, k;
     int normalize;
     unsigned* counter;
+    unsigned rows, pad;
 };
-static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && offsetof(MfRoute, n_expert) == 96 && offsetof(MfRoute, counter) == 112 && sizeof(MfRoute) == 120,
+static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && offsetof(MfRoute, n_expert) == 96 && offsetof(MfRoute, counter) == 112 && offsetof(MfRoute, rows) == 120 && sizeof(MfRoute) == 128,
               "host packs MfRoute by these offsets");
 
 } // namespace
@@ -2288,10 +2289,12 @@ static_assert(offsetof(MfRoute, gw) == 40 && offsetof(MfRoute, ids) == 80 && off
 extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a) {
     __shared__ unsigned last;
     const unsigned b = blockIdx.x, w = threadIdx.x / 64, rb = (unsigned)(a.nout / 4);
-    if (b < rb) exact_row<ExactF32>(a.w, a.x, a.scores, a.nin, 4ull * b + w, 0);
-    else if (w == 0) exact_row<ExactF32>(a.gw, a.x, a.rg, a.nin, 0, 0);
-    const unsigned long long tb = (unsigned long long)b * 8 + threadIdx.x / 32;
-    if (tb < a.hblocks) {
+    // Each row of h on its own, in the one-row step's order, so a row keeps its bits at any row count.
+    for (unsigned r = 0; r < a.rows; ++r)
+        if (b < rb) exact_row<ExactF32>(a.w, a.x + r * a.nin, a.scores + r * a.nout, a.nin, 4ull * b + w, 0);
+    if (b >= rb)
+        for (unsigned r = w; r < a.rows; r += 4) exact_row<ExactF32>(a.gw, a.x + r * a.nin, a.rg + r, a.nin, 0, 0);
+    for (unsigned long long tb = (unsigned long long)b * 8 + threadIdx.x / 32; tb < a.hblocks; tb += (unsigned long long)gridDim.x * 8) {
         const int lane = threadIdx.x % 32;
         const float v = a.x[tb * 32 + lane];
         twin_value<signed char, 127>(v, block_amax(v), a.hq + tb * 32 + lane, a.hd + tb, lane);
@@ -2303,17 +2306,21 @@ extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_route(MfRoute a)
     if (!last) return;
     __threadfence();
     if (threadIdx.x == 0) *a.counter = 0;
-    if (threadIdx.x >= 64) return;
     static_assert(kStepExperts == 8 * 64, "mf_route's builds below take 1 to 8 keys a lane");
-    switch (a.n_expert / 64) {
-    case 1: return mf_route<1>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 2: return mf_route<2>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 3: return mf_route<3>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 4: return mf_route<4>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 5: return mf_route<5>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 6: return mf_route<6>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    case 7: return mf_route<7>(a.scores, a.ids, a.weights, a.k, a.normalize);
-    default: return mf_route<8>(a.scores, a.ids, a.weights, a.k, a.normalize);
+    for (unsigned r = w; r < a.rows; r += 4) {
+        const float* s = a.scores + r * a.nout;
+        unsigned* ids = a.ids + r * a.k;
+        float* wt = a.weights + r * a.k;
+        switch (a.n_expert / 64) {
+        case 1: mf_route<1>(s, ids, wt, a.k, a.normalize); break;
+        case 2: mf_route<2>(s, ids, wt, a.k, a.normalize); break;
+        case 3: mf_route<3>(s, ids, wt, a.k, a.normalize); break;
+        case 4: mf_route<4>(s, ids, wt, a.k, a.normalize); break;
+        case 5: mf_route<5>(s, ids, wt, a.k, a.normalize); break;
+        case 6: mf_route<6>(s, ids, wt, a.k, a.normalize); break;
+        case 7: mf_route<7>(s, ids, wt, a.k, a.normalize); break;
+        default: mf_route<8>(s, ids, wt, a.k, a.normalize); break;
+        }
     }
 }
 

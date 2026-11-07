@@ -1793,7 +1793,7 @@ struct MfGateUp {
 };
 static_assert(offsetof(MfGateUp, q) == 168 && offsetof(MfGateUp, act) == 192 && sizeof(MfGateUp) == 216, "host packs MfGateUp by these offsets");
 
-// The shared expert's gate and up (q8_0_half_one's steps, two rows a wave, which give the one-row build's bits), then silu_mul and sigmoid_mul by the row gate with the final act's twin.
+// The shared expert's gate and up (q8_0_half_one's steps, a row a wave and two steps a load, which give the one-row build's bits: the steps keep a lane's block order), then silu_mul and sigmoid_mul by the row gate with the final act's twin.
 struct MfShared {
     RowCall sc;
     const signed char* sq;
@@ -1803,51 +1803,59 @@ struct MfShared {
     const float* rg;
     signed char* stq;
     float* std_;
+    unsigned long long rows;
 };
 struct MfGateUpS {
     MfGateUp g;
     MfShared s;
 };
-static_assert(offsetof(MfGateUpS, s) == 216 && offsetof(MfGateUpS, s.sq) == 328 && offsetof(MfGateUpS, s.sact) == 352 && offsetof(MfGateUpS, s.std_) == 376 && sizeof(MfGateUpS) == 384,
+static_assert(offsetof(MfGateUpS, s) == 216 && offsetof(MfGateUpS, s.sq) == 328 && offsetof(MfGateUpS, s.sact) == 352 && offsetof(MfGateUpS, s.std_) == 376 && offsetof(MfGateUpS, s.rows) == 384 && sizeof(MfGateUpS) == 392,
               "host packs MfGateUpS by these offsets");
 
+template <int NS, int R>
 __device__ inline void shared_gate_up(const MfShared& a) {
     constexpr unsigned W = 4;
     __shared__ float sv[64];
     const unsigned lane = threadIdx.x % 64, wave = threadIdx.x / 64, hl = lane & 1, span = 32;
     const unsigned sb = (unsigned)(a.snin / 32), sff = (unsigned)a.sc.nout[0], c0 = blockIdx.x * 32;
     if (c0 >= sff) return;
-    for (unsigned rr = wave * 2; rr < 64; rr += 2 * W) {
-        Row r[2];
-        const unsigned* w[2];
+    // Block row xr takes row xr of h; the rows' blocks run first and read the same weight rows, which the cache serves.
+    {
+        const unsigned xr = blockIdx.y;
+        const signed char* sq = a.sq + (unsigned long long)xr * a.snin;
+        const float* sdx = a.sdx + (unsigned long long)xr * sb;
+        for (unsigned rr = wave * R; rr < 64; rr += R * W) {
+            Row r[R];
+            const unsigned* w[R];
 #pragma unroll
-        for (int j = 0; j < 2; ++j) {
-            const unsigned lr = rr + j, o = lr < 32 ? c0 + lr : sff + c0 + lr - 32;
-            r[j] = row_of(a.sc, __builtin_amdgcn_readfirstlane(o), sb * kQ8);
-            w[j] = (const unsigned*)r[j].w;
-        }
-        float acc[2] = {0.0f, 0.0f};
-        unsigned b = lane >> 1;
-        while (b + (kSteps - 1) * span < sb) half_steps<kSteps, 2>(w, a.sq, a.sdx, b, sb, hl, acc);
-        if (b < sb) half_steps<kSteps, 2, true>(w, a.sq, a.sdx, b, sb, hl, acc);
+            for (int j = 0; j < R; ++j) {
+                const unsigned lr = rr + j, o = lr < 32 ? c0 + lr : sff + c0 + lr - 32;
+                r[j] = row_of(a.sc, __builtin_amdgcn_readfirstlane(o), sb * kQ8);
+                w[j] = (const unsigned*)r[j].w;
+            }
+            float acc[R] = {};
+            unsigned b = lane >> 1;
+            while (b + (NS - 1) * span < sb) half_steps<NS, R>(w, sq, sdx, b, sb, hl, acc);
+            if (b < sb) half_steps<NS, R, true>(w, sq, sdx, b, sb, hl, acc);
 #pragma unroll
-        for (int j = 0; j < 2; ++j) {
-            const float v = wave_sum(acc[j]);
-            if (lane == 0) {
-                *r[j].y = v;
-                sv[rr + j] = v;
+            for (int j = 0; j < R; ++j) {
+                const float v = wave_sum(acc[j]);
+                if (lane == 0) {
+                    r[j].y[(unsigned long long)xr * r[j].nout] = v;
+                    sv[rr + j] = v;
+                }
             }
         }
-    }
-    __syncthreads();
-    if (threadIdx.x < 32) {
-        const unsigned t = threadIdx.x;
-        const float g = sv[t], u = sv[32 + t];
-        const float o = g / (1.0f + expf(-g)) * u;
-        const float v = o * (1.0f / (1.0f + expf(-a.rg[0])));
-        const unsigned i = c0 + t;
-        a.sact[i] = v;
-        hc_twin8(v, a.stq + i, a.std_ + i / 32, (int)t);
+        __syncthreads();
+        if (threadIdx.x < 32) {
+            const unsigned t = threadIdx.x;
+            const float g = sv[t], u = sv[32 + t];
+            const float o = g / (1.0f + expf(-g)) * u;
+            const float v = o * (1.0f / (1.0f + expf(-a.rg[xr])));
+            const unsigned long long i = (unsigned long long)xr * sff + c0 + t;
+            a.sact[i] = v;
+            hc_twin8(v, a.stq + i, a.std_ + i / 32, (int)t);
+        }
     }
 }
 
@@ -1909,10 +1917,11 @@ struct MfDown {
     const float* sdx;
     unsigned long long snin;
     const float* y0;   // the row y starts from: y itself, or the zero row a dropped copy would have put there
+    unsigned long long y0s;   // y0's step a row: y's width, or 0 for the zero row
 };
-static_assert(offsetof(MfDown, y0) == 352, "host packs MfDown.y0 at 352");
+static_assert(offsetof(MfDown, y0) == 352 && offsetof(MfDown, y0s) == 360, "host packs MfDown.y0 at 352");
 static_assert(offsetof(MfDown, aq) == 168 && offsetof(MfDown, weights) == 192 && offsetof(MfDown, k) == 208 && offsetof(MfDown, sc) == 216 && offsetof(MfDown, sq) == 328 &&
-                  sizeof(MfDown) == 360,
+                  sizeof(MfDown) == 368,
               "host packs MfDown by these offsets");
 
 template <bool Q8>
@@ -1925,12 +1934,16 @@ __device__ inline void down(const MfDown& a) {
     __shared__ float shv[RB];
     const unsigned nin = (unsigned)a.nin, k = a.k, nb = nin / 32, row_bytes = nb * (Q8 ? kQ8 : 24);
     const unsigned lane = threadIdx.x % 64, p = lane & 15, cl = threadIdx.x / 16;
-    const unsigned o0 = blockIdx.x * RB;
+    const unsigned o0 = blockIdx.x * RB, xr = blockIdx.y;
+    // Row xr's k entries, its shared act and its y: a block row a row of h.
+    const unsigned long long first = a.rc.first + (unsigned long long)xr * k;
+    const signed char* sq = a.sq + (unsigned long long)xr * a.snin;
+    const float* sdx = a.sdx + (unsigned long long)xr * (a.snin / 32);
     const bool two = p + 16 < nb;
     // The k entries' twin columns lie one after another.
     {
-        const int4* gq = (const int4*)(a.aq + a.rc.first * nin);
-        const float* gd = a.ad + a.rc.first * nb;
+        const int4* gq = (const int4*)(a.aq + first * nin);
+        const float* gd = a.ad + first * nb;
         for (unsigned i = threadIdx.x; i < k * nin / 16; i += 256) lq[i] = gq[i];
         for (unsigned i = threadIdx.x; i < k * nb; i += 256) ld[i] = gd[i];
     }
@@ -1940,7 +1953,7 @@ __device__ inline void down(const MfDown& a) {
         const unsigned sl = lane % 32, hl = sl & 1, bd = sl >> 1;
         for (unsigned task = threadIdx.x / 32; task < RB * k; task += 8) {
             const unsigned j = task / RB, rr = task % RB;
-            const unsigned id = a.rc.ids[a.rc.first + j];
+            const unsigned id = a.rc.ids[first + j];
             if (id >= a.rc.n_expert) continue;
             const unsigned* w = (const unsigned*)(a.rc.c.w[0] + id * a.rc.stride[0] + (unsigned long long)(o0 + rr) * row_bytes);
             const int4* xq = lq + j * (nin / 16);
@@ -1953,7 +1966,7 @@ __device__ inline void down(const MfDown& a) {
         // A 16-lane cluster a task, each lane its block and the block 16 on.
         for (unsigned task = cl; task < RB * k; task += 16) {
             const unsigned j = task / RB, rr = task % RB;
-            const unsigned id = a.rc.ids[a.rc.first + j];
+            const unsigned id = a.rc.ids[first + j];
             if (id >= a.rc.n_expert) continue;
             const unsigned char* w = a.rc.c.w[0] + id * a.rc.stride[0] + (unsigned long long)(o0 + rr) * row_bytes;
             Q51Lane y0, y1;
@@ -1971,19 +1984,19 @@ __device__ inline void down(const MfDown& a) {
         if (sb <= 16) {
             for (unsigned rr = hw; rr < RB; rr += 8) {
                 const Row r = row_of(a.sc, o0 + rr, sb * kQ8);
-                const float s = q8_half_row((const unsigned*)r.w, a.sq, a.sdx, sb, sl);
+                const float s = q8_half_row((const unsigned*)r.w, sq, sdx, sb, sl);
                 if (sl == 0) shv[rr] = s;
             }
         } else {
-            // A wider row a wave, q8_0_half_one's steps (the 1r2 build gives its bits).
+            // A wider row a wave, q8_0_half_one's steps two a load (the 1r2 build gives its bits).
             const unsigned hl = lane & 1, span = 32;
             for (unsigned rr = threadIdx.x / 64; rr < RB; rr += 4) {
                 const Row r = row_of(a.sc, o0 + rr, sb * kQ8);
                 const unsigned* w[1] = {(const unsigned*)r.w};
                 float acc[1] = {0.0f};
                 unsigned b = lane >> 1;
-                while (b + (kSteps - 1) * span < sb) half_steps<kSteps, 1>(w, a.sq, a.sdx, b, sb, hl, acc);
-                if (b < sb) half_steps<kSteps, 1, true>(w, a.sq, a.sdx, b, sb, hl, acc);
+                while (b + span < sb) half_steps<2, 1>(w, sq, sdx, b, sb, hl, acc);
+                if (b < sb) half_steps<2, 1, true>(w, sq, sdx, b, sb, hl, acc);
                 const float v = wave_sum(acc[0]);
                 if (lane == 0) shv[rr] = v;
             }
@@ -1994,12 +2007,12 @@ __device__ inline void down(const MfDown& a) {
         const unsigned t = threadIdx.x;
         float s = 0.0f;
         for (unsigned j = 0; j < k; ++j)
-            if (a.rc.ids[a.rc.first + j] != 0xffffffffu) {
-                const float product = a.weights[a.rc.first + j] * part[t * KM + j];
+            if (a.rc.ids[first + j] != 0xffffffffu) {
+                const float product = a.weights[first + j] * part[t * KM + j];
                 s = j == 0 ? product : s + product;
             }
-        float* y = a.y + o0 + t;
-        const float c = a.y0[o0 + t] + s;
+        float* y = a.y + xr * a.sc.nout[0] + o0 + t;
+        const float c = a.y0[xr * a.y0s + o0 + t] + s;
         *y = c + shv[t];
     }
 }
@@ -2007,12 +2020,21 @@ __device__ inline void down(const MfDown& a) {
 } // namespace
 
 // The fused decode moe_step (rocm_backend.cpp moe_step): gate+up of every routed entry with the shared expert as the last block row, then the down with the combine and the shared down.
+// The _w builds take the shared rows two a wave and four steps a load: fewer serial loads a wave and more registers, for a grid resident at their occupancy (rocm_backend.cpp step_up_kernel).
 extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q4_k(MfGateUpS a) {
-    if (blockIdx.y == gridDim.y - 1) shared_gate_up(a.s);
+    if (blockIdx.y < a.s.rows) shared_gate_up<2, 1>(a.s);
     else gate_up<false>(a.g);
 }
 extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q5_k(MfGateUpS a) {
-    if (blockIdx.y == gridDim.y - 1) shared_gate_up(a.s);
+    if (blockIdx.y < a.s.rows) shared_gate_up<2, 1>(a.s);
+    else gate_up<true>(a.g);
+}
+extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q4_k_w(MfGateUpS a) {
+    if (blockIdx.y < a.s.rows) shared_gate_up<kSteps, 2>(a.s);
+    else gate_up<false>(a.g);
+}
+extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q5_k_w(MfGateUpS a) {
+    if (blockIdx.y < a.s.rows) shared_gate_up<kSteps, 2>(a.s);
     else gate_up<true>(a.g);
 }
 extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_down_q5_1(MfDown a) { down<false>(a); }

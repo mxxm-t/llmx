@@ -422,9 +422,10 @@ struct PriceTable {
             c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
         }
         if (!c) return false;
+        // A decode measure past spec::kOutlier times its cell's mean, a stall such as a 273 ms pass among 17 ms ones, moves the mean as kOutlier times it would; its last measure keeps it.
         // A decode cell's first measure pays its width's one-time costs, such as kernel builds made on first use (vulkan_dispatch.hpp), so its price starts at the second; an aged cell's starts again at this measure.
         if (aged) c->ms = ms;
-        else if (c->samples || !rows_alone) c->ms = forget(c->ms, ms);
+        else if (c->samples || !rows_alone) c->ms = forget(c->ms, rows_alone && c->ms > 0 ? std::min(ms, infer::spec::kOutlier * c->ms) : ms);
         c->last_ms = ms;
         ++c->samples;
         return true;

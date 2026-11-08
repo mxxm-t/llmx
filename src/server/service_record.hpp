@@ -59,7 +59,7 @@ struct StageRun {
     std::chrono::steady_clock::time_point begun, recorded;
     double lookup_ms = 0, sum_ms = 0;
     backend::Backend* backend = nullptr;
-    backend::Ticket ticket = 0;
+    backend::Ticket first = 0, ticket = 0;   // the device's last ticket before the stage, and the stage's last submission there
 };
 
 // What a stage's passes measured since start: passes, those predicted and the predictions' total and absolute error, those over their prediction, those fed in pieces, the longest stage time, the last kRecentPasses passes and the prices.
@@ -225,13 +225,15 @@ public:
 
 private:
     // Each stage's oldest submission seen retired, by polling every millisecond while any waits, oldest stage first, so a pass's stage before is measured before it.
-    // A stage's time runs from the latest of its recording's start, the stage's previous pass's end and the pass's previous stage's end, to its own end: the time a pass behind it waits for it.
+    // A stage's time runs from the latest of its recording's start, its previous pass's end and its pass's previous stage's end to that start plus its own submissions' device time, or its recording's end if later.
     void loop() {
         std::unique_lock<std::mutex> lk(m_);
         while (!stop_) {
             bool waiting = false;
             for (size_t s = 0; s < pending_.size(); ++s) {
                 while (!pending_[s].empty()) {
+                    // A pass's stage waits for its stage before, whose end it starts from.
+                    if (s && !pending_[s - 1].empty() && pending_[s - 1].front().pass <= pending_[s].front().pass) break;
                     backend::Backend* b = pending_[s].front().backend;
                     const backend::Ticket t = pending_[s].front().ticket;
                     lk.unlock();
@@ -255,6 +257,8 @@ private:
         Clock::time_point from = std::max(r.begun, last_done_[r.stage]);
         const auto up = upstream_.find(r.pass);
         if (r.stage && up != upstream_.end() && up->second.first + 1 == r.stage) from = std::max(from, up->second.second);
+        const double busy = r.backend && r.first < r.ticket ? r.backend->busy_ms(r.first, r.ticket) : -1.0;
+        if (busy >= 0) end = std::min(end, std::max(r.recorded, from + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>(busy))));
         last_done_[r.stage] = end;
         if (r.stage + 1 < stages_.size()) upstream_[r.pass] = {r.stage, end};
         else if (up != upstream_.end()) upstream_.erase(up);

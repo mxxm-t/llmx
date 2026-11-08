@@ -1,6 +1,8 @@
 // infer::sample against expectations taken from the definitions rather than from the code: greedy is the argmax, the penalty divides a seen nonnegative score and multiplies a negative one, top-k keeps the k best.
 // Frequencies are held to three binomial standard deviations from fixed seeds, and every draw, with the generator's state after it, to a slow reference that sorts all scores but a masked one and sums the softmax in id order.
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <functional>
 #include <cmath>
 #include <cstdint>
@@ -12,7 +14,9 @@
 #include <vector>
 
 #include <random>
+#include <thread>
 
+#include "backends/cpu/cpu_backend.hpp"
 #include "inference/sampler.hpp"
 #include "inference/spec.hpp"
 #include "server/policy.hpp"
@@ -529,6 +533,10 @@ void pass_price() {
     infer::spec::PassTimes t;
     for (int i = 0; i < 20; ++i) t.pass(1, 44);
     require(!t.cost().known, "passes of one width priced a row");
+    // A width's first pass is not taken, so each new width runs twice.
+    t.pass(4, 74);
+    t.pass(8, 114);
+    require(!t.cost().known, "the first passes of two new widths were taken");
     t.pass(4, 74);
     t.pass(8, 114);
     for (int i = 0; i < 20; ++i) t.chain(3, 1 + i % 3, 3 * (4.0 + (1 + i % 3)));
@@ -564,6 +572,25 @@ void pass_price() {
     require(takes == std::vector<size_t>({3}), "passes all without drafts did not measure one with them");
     for (int i = 0; i < 20; ++i) t.pass(8, 114);
     require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
+}
+
+// Production's passes on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2 (docs/STATUS.md, Draft price outliers): 1 to 4 rows took 16.07, 22.03, 26.86 and 30.19 ms, a server's first pass 487 ms and one stall 273 ms.
+// The first pass is not taken and the stall is bounded, so the line keeps a row's cost, and a line clamped at a slope of 0 does not give every request its cap where the table prices the widths.
+void outlier_passes() {
+    const double ms[] = {0, 16.07, 22.03, 26.86, 30.19};
+    infer::spec::PassTimes t;
+    t.pass(1, 487.0);
+    for (int round = 0; round < 12; ++round)
+        for (size_t rows = 1; rows <= 4; ++rows) t.pass(rows, round == 6 && rows == 2 ? 273.0 : ms[rows]);
+    const infer::spec::PassCost c = t.cost();
+    require(c.known && c.row_ms > 3 && c.base_ms < 16, "a first pass of 487 ms and a stall of 273 ms left the line at " + std::to_string(c.base_ms) + " ms and " + std::to_string(c.row_ms) + " ms a row");
+    infer::spec::PassCost clamped;
+    clamped.known = true;
+    clamped.base_ms = 30;
+    clamped.rows_ms = {0, ms[1], ms[2], ms[3], ms[4]};
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(clamped, 1, {{0.3, 0.1, 0.05}}, takes);
+    require(takes[0] == 0, "a line clamped at a slope of 0 took " + std::to_string(takes[0]) + " drafts that the table's widths do not pay for");
 }
 
 // Whether band 0's cell of `rows` decode rows is priced, as a pass is reconciled only then (ServiceRecord::decode_price).
@@ -741,7 +768,8 @@ void aged_cells() {
     for (double& k : keeps) chance *= 0.75, k = chance;
     std::vector<size_t> takes;
     infer::spec::draft_depths(st.cost(23, 1), 1, {keeps}, takes);
-    require(takes[0] == 22, "stale cells took " + std::to_string(takes[0]) + " drafts, where production's took 22");
+    // Each stall moves its cell's mean as twice the mean would (spec::kOutlier), so the stale cells take 4 drafts, not production's 22.
+    require(takes[0] == 4, "stale cells took " + std::to_string(takes[0]) + " drafts, not the 4 their bounded stalls give (production's took 22)");
     for (uint64_t i = 0; i < server::kPriceHorizon; ++i) st.run(23, ms, 1, host);
     require(st.tables[0].decode_aged(0, 1) && st.tables[0].decode_aged(0, 10) && !st.tables[0].decode_aged(0, 23), "cells not measured for the horizon's passes did not age");
     require(st.curve(23, 1)[10] == 0, "an aged cell was priced");
@@ -1109,6 +1137,44 @@ void seeded_bucket() {
     require(own.lookup[1].drafted().size() == 3 && own.lookup[1].kept()[0] == 0, "a bucket with a verify of its own was seeded over");
 }
 
+// A device whose submissions read as retired only when the test opens it, each held 3 ms by its timestamps.
+struct HeldDevice : backend::CpuBackend {
+    std::atomic<bool> open{true};
+    bool done(backend::Ticket) noexcept override { return open.load(); }
+    double busy_ms(backend::Ticket, backend::Ticket) override { return 3.0; }
+};
+
+// A stage seen retired late is measured from its device's time, and a pass's later stage waits for its earlier one, whose end it starts from (ServiceRecord::measure).
+void device_stage_end() {
+    using Clock = std::chrono::steady_clock;
+    HeldDevice d0, d1;
+    server::ServiceRecord record(2);
+    server::PassWork w;
+    w.decode(1, 0);
+    const auto post = [&](uint64_t pass, size_t s, backend::Backend* b, backend::Ticket t) {
+        const Clock::time_point now = Clock::now();
+        record.post({pass, s, w, 0.0, now, now, 0.0, 0.0, b, t - 1, t});
+    };
+    const auto measured = [&](size_t s, uint64_t n) {
+        for (int i = 0; i < 2000 && record.snapshot().stages[s].passes < n; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return record.snapshot().stages[s].passes;
+    };
+    post(1, 0, &d0, 1);
+    post(1, 1, &d1, 1);
+    require(measured(1, 1) == 1, "the first pass's stages were not measured");
+    d0.open = false;
+    post(2, 0, &d0, 2);
+    post(2, 1, &d1, 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(60));
+    require(record.snapshot().stages[1].passes == 1, "a pass's last stage was measured before its first");
+    d0.open = true;
+    require(measured(1, 2) == 2, "the second pass's last stage was not measured");
+    const auto snap = record.snapshot();
+    const double s0 = snap.stages[0].recent.back().measured_ms, s1 = snap.stages[1].recent.back().measured_ms;
+    require(s0 >= 3.0 && s0 < 30.0, "a stage seen retired 60 ms late measured " + std::to_string(s0) + " ms, not its device's 3");
+    require(s1 >= 3.0 && s1 < 30.0, "the stage after it measured " + std::to_string(s1) + " ms from its upstream's poll");
+}
+
 int main() {
     try {
         temperature_zero();
@@ -1126,6 +1192,7 @@ int main() {
         acceptance_rest();
         pass_price();
         censored_depth();
+        outlier_passes();
         stepped_price();
         first_measure();
         lone_pass_two_stages();
@@ -1138,6 +1205,7 @@ int main() {
         rising_loop();
         bucket_depths();
         seeded_bucket();
+        device_stage_end();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

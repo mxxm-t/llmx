@@ -115,6 +115,9 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s) {
     } paths{devices_, st.touches, width_};
     paths.swap();
     p.receive_ms = p.write_ms = 0;
+    p.before.resize(devices_.size(), 0);
+    for (size_t d : st.touches)
+        for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
     const bool direct = s > 0 && served(p.at, stages_[s].device);
     const auto start = std::chrono::steady_clock::now();
     if (width_ > 1) group_record(ctx, p, s);

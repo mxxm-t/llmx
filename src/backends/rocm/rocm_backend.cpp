@@ -355,6 +355,7 @@ public:
         }
         return sum;
     }
+    Ticket last_ticket() const noexcept override { return tickets_.last(); }
     void wait(Ticket t) noexcept override {
         if (tickets_.settled(t)) return;
         if (t + kEvents <= tickets_.last()) return tickets_.retired(t);

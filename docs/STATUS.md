@@ -1,5 +1,50 @@
 # llmx - Development Status
 
+## Draft price outliers (2026-11-08, MTP3, MTP4 then MTP5, branch perf/mtp-draft-price on main ed9780218; MTP2's finding of 19:24 and 19:35, F2DEV's reviews of MTP2 items 1a to 1c and of this branch at 22:26; lands by fast-forward)
+
+**Goal:** every fresh MTP server drafts at the depth its measured passes give, as one drafting at the cap does (75-83 tok/s on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2, one user), stable across fresh servers, within the one price owner.
+
+**Done:**
+- 1a: why a stage cell reads about a whole pass, from a print-only build (Qwen3.8-Flash-Next 2x2, one user, medians from the pass's formation): at 1 row stage 0's recording begins at 0.02 ms and stage 1's at 2.35 ms, stage 1 is seen retired at 15.70 ms and stage 0 at 16.77 ms, the pass taking 15.78 ms, alike at 2 to 4 rows.
+  Stage 0's ticket reads as retired only after the last stage ends, so stage 1 never sees its upstream end (`ServiceRecord::measure`) and runs from its recording start, and both cells hold about the whole pass: their sum priced 1 to 4 rows at 29.1, 40.3, 49.0 and 54.3 ms for passes of 15.8, 21.6, 26.1 and 29.1.
+  `ServiceRecord::measure` now ends a stage at the time its device was held by the stage's own submissions (`Backend::busy_ms` from the device's last ticket before the stage, `Backend::last_ticket`, so the draft chain and uploads between stages are not counted) after the stage's start, or at its recording's end if later, and measures a pass's stage only after its stage before: on the same cell the cells read 8.5 to 9.3 ms (stage 0) and 7.4 to 7.8 ms (stage 1) at 1 row and 15.0 to 18.8 and 14.1 ms at 4 rows, summing to the passes of about 16 and 29 ms (`device_stage_end`).
+- 1c: with the cells summing to the pass, `PassTimes::server_ms` is the table's price plus the reconciled passes' mean difference, the host's time; the line through the reconciled passes that scaled overlapping cells was dropped in review (F2DEV N3), since nothing overlaps once the stage ends at its device time.
+- 1b: `PassTimes::pass` skips a width's first pass and bounds a pass at `spec::kOutlier` (2) times the known line's prediction, `reconcile` and `PriceTable::observe`'s decode cells bound a measure the same way, and `draft_depths` gives every request its cap only for an unknown line, not for a known line clamped at a slope of 0.
+  A server's first pass of 487 ms had set the slope to 0 and the cap for about 280 passes.
+- Chain host time (F2DEV item 2, measured only): `Model::draft_record` medians 0.64 ms recording, 1.32 ms waiting for the devices and 0.00 ms reading the ids back over 194 chains, so the wait is about two thirds.
+- `sampler` passes with `outlier_passes` (first pass, stall, clamped slope) and `device_stage_end`.
+
+- Timing (Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm on four MI50s at default clocks, `--cpus 8`, nr_throttled 0 to 3, a fresh server per arm in turn, greedy 256-token replies, tok/s of the runs after a warm one):
+  | cell | main c319438bc | price fix 76a21e5cd | both commits |
+  |---|---|---|---|
+  | 2x2, 1 user, 3 servers each ABAB | 69.4/58.1/74.6, 77.2/76.4/70.1, 67.3/71.1/72.6 (mean 70.8), drafts a row 0.77 to 1.54 | 78.8/80.2/80.4, 76.3/78.4/78.4, 80.2/81.2/80.1 (mean 79.3, +12%), drafts a row 2.45 to 2.78 | 76.8/77.4/76.9, 73.8/75.1/76.6 (2 servers, not interleaved), 2.23 to 2.82 |
+  | 2x2, 4 users | 150.1/149.6 | | 164.4/167.1 |
+  | 2x2, 8 users | 248.0/213.1 | | 251.8/250.2 |
+  | layer-4, 1 user | 52.1/52.5 | | 56.1/57.7 |
+  | layer-4, 8 users | 168.9/176.3 | | 177.6/180.8 |
+  Every fresh server of the branch drafts near the cap of 3 and stays at 76 to 81 tok/s, the band of a server drafting at the cap (75 to 83), where main's servers swing; the reference build measured 92 to 96 on this cell.
+  Replies are byte-identical to main in every multi-user and layer-4 cell; with several users neither arm drafts.
+  After review (device time from the stage's own submissions, the line scaling dropped), rebased on main ed9780218, 2x2 one user, three fresh servers an arm ABAB at host load 16 to 23, runs after the warm one: main 62.8/72.0/62.6, 75.0/63.1/66.0, 62.4/66.5/65.9 (mean 66.2), branch 78.1/80.4/81.3, 77.4/75.9/80.3, 68.4/77.3/81.5 (mean 77.8, +18%); every reply of both arms, warm ones included, is the same 256-token text (sha256 10eb8235), so drafting changes no token (F2DEV B3).
+  Prompts, which the chunk budget and slices price from the same cells: about 2000-token prompts alone, six a plan an arm over two fresh servers, 2x2 main 984.6 and both commits 1022.1 tok/s, layer-4 951.1 and 996.3, so no loss.
+- Verify kernels by columns (F2DEV item 3, measured only; rocprofv3 on the stage-0 device, 1 to 4 columns, a layer): dense Q8_0 rows 48.9, 54.3, 62.0 and 64.0 us, since the row kernels already read each weight once; the MoE step 87.5, 122.9, 167.4 and 193.0 us; the hyper-connection mix 78 us as `llmx_hc_mix` at one column and 230, 280 and 308 us at 2 to 4, since `RocmBackend::hyper_mix` fuses only one row and verify rows run its chain of ops.
+  At 4 columns that is 0.18 ms a stage pass for the dense rows, 1.27 ms for the MoE step and 2.76 ms for the mix, so a multi-row `llmx_hc_mix` comes before a wide row kernel.
+
+- Landing gates on 724b32941 (LAND11, both arms built the same way from exported trees, `llmx 0.1.0+unknown`; the branch lands on main ed9780218 by fast-forward): hosted run 42525480633 green on all 8 jobs; CPU suite rc 0; ROCm CTest rc 0; Vulkan CTest 99 of 100, the one failure `vulkan-lifetime`'s hold-release latency check, which main fails alike (twice an arm on one MI50: main 8 then 0, the branch 0 and 0); Qwen3-0.6B Q8_0 greedy 128 tokens byte-identical to main on CPU, vulkan:0 and rocm:0; the `server` component on vulkan:0 passes; Radeon VII on Windows (`llmx 0.1.0+g724b32941890`): suite `--device vulkan:0 --require-tools` 48 of 48 and CTest 101 of 101.
+- Final timing (Qwen3.8-Flash-Next UD-Q4_K_XL int8 on four MI50s at default clocks, `--cpus 8`, nr_throttled 0 to 9, host load 14 to 36, fresh servers alternated, tok/s of the runs after the warm one):
+  | cell | main ed9780218 | branch 724b32941 |
+  |---|---|---|
+  | ROCm 2x2, 1 user, 3 servers each | 73.96/63.39/73.2, 81.54/81.66/80.65, 66.12/63.66/63.71 (mean 72.0) | 68.13/74.7/74.22, 78.27/82.23/80.43, 77.86/80.83/79.93 (mean 77.4, +7.5%) |
+  | ROCm layer-4, 1 user | 64.85/54.25/61.94 (60.3) | 66.21/63.94/64.4 (64.9, +7.5%) |
+  | ROCm 2x2, 4 users, 2 servers each | 183.55/176.22, 147.05/150.52 (164.3) | 182.79/182.03, 148.59/149.66 (165.8) |
+  | Vulkan 2x2, 1 user, 2 servers each | 87.93/72.99/59.2, 88.37/79.64/58.02 (74.4) | 85.45/87.46/87.61, 87.16/60.2/57.24 (77.5, +4.2%) |
+  Every reply of an arm pair is the same text (ROCm one user sha256 10eb8235, four users 5a7fcbb1a487, Vulkan 1fe3e3d2), and the branch without a drafter gives the same ROCm text (MTP5).
+  The 4-user cell swings about 30 tok/s between fresh servers in both arms alike and neither arm drafts there, so F2DEV's N5 (+10% earlier) is server-to-server noise.
+  On Vulkan the branch's stage cells at 4 rows read 10.69 and 11.67 ms for a 32.4 ms request pass, the rest being the host's time between passes, where main's read 17.9 and 18.4 for 47.1.
+  The reference build measured 92 to 96 tok/s on the ROCm 2x2 one-user cell, and its README gives 119.
+
+**Left:** a multi-row hyper-connection mix is perf/rocm-hc-mix-rows, stacked on this branch; device-side acceptance as a design (item 2).
+
+**Gotchas:** the chunk budget and prompt slices read the same cells, so the device-time ends change their inputs too (checked with 2048-token prompts on 2x2 and layer-4).
 ## DeepSeek-V4.1 decode speed: tables sized by the budget and the router rewritten (2026-11-08, DSDEV50 and DSDEV51, branch perf/deepseek4-router-and-tables on main c319438bc; DSDEV49's proposal of 16:55 with F2DEV's CHANGES of 16:53, items 1 to 11; lands by fast-forward as two commits)
 
 **Goal:** the position tables and position-sized arena slots of every architecture cover the positions the KV budget reaches, sized inside the fit's search, so a prompt pass of 512 rows fits beside DeepSeek-V4.1-Flash on ten MI50s; and the `sqrt_softplus` router on Vulkan and ROCm runs a workgroup a row instead of one lane, bit-identical to the one-lane kernels, which cost about 98 of the 239 ms a token on the ten-card decode.

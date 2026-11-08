@@ -230,6 +230,8 @@ private:
 
 // What each verify a request's acceptance counts, and each pass or chain step the pass cost measures, weighs of the next, so about the last hundred count and a figure set by a few early ones gives way to later ones.
 inline constexpr double kForget = 0.99;
+// The most of one measured pass a price takes, as a multiple of what it predicts (PassTimes::pass, server::PriceTable::observe).
+inline constexpr double kOutlier = 2.0;
 
 // A request's acceptance figure (docs/SPECULATIVE.md, section 3): a running average of the drafts its verifies kept, each moving it an eighth of the way to what that one kept.
 // Below kBreakEven the request drafts nothing for its next 16 tokens, and it counts by draft position the drafts its verifies fed and kept.
@@ -387,10 +389,24 @@ inline double pass_ms(const PassCost& c, size_t rows) {
 // A line is known while its inputs spread by half a unit or more, an unknown chain line being its mean step.
 class PassTimes {
 public:
-    void pass(size_t rows, double ms) { passes_.add((double)rows, ms); }
-    // A pass whose slowest stage the price table priced at `stage_ms` took `ms` of the server's time.
-    void reconcile(double stage_ms, double ms) { stages_.add(stage_ms, ms); }
-    // The server time of a pass priced at `stage_ms`: that price and the reconciled passes' mean difference, so the table's shape, its steps included, is kept; 0 for an unpriced pass.
+    // A width's first pass pays its one-time costs, such as kernel builds made on first use, and is not taken, as a price table cell's first measure is not; a pass past kOutlier times the line's prediction, a stall, is taken as that.
+    void pass(size_t rows, double ms) {
+        if (seen_.size() <= rows) seen_.resize(rows + 1, 0);
+        if (!seen_[rows]) {
+            seen_[rows] = 1;
+            return;
+        }
+        double at0 = 0, slope = 0;
+        if (passes_.fit(at0, slope)) ms = std::min(ms, kOutlier * (at0 + slope * (double)rows));
+        passes_.add((double)rows, ms);
+    }
+    // A pass the price table priced at `stage_ms` took `ms` of the server's time, taken as at most kOutlier times what the reconciled passes predict.
+    void reconcile(double stage_ms, double ms) {
+        const double predicted = stages_.w >= 2 ? server_ms(stage_ms) : 0.0;
+        if (predicted > 0) ms = std::min(ms, kOutlier * predicted);
+        stages_.add(stage_ms, ms);
+    }
+    // The server time of a pass priced at `stage_ms`, 0 for an unpriced pass: that price and the reconciled passes' mean difference, the host's time past the stages.
     double server_ms(double stage_ms) const { return stage_ms > 0 ? stage_ms + stages_.mean() - stages_.mean_x() : 0.0; }
     void chain(size_t steps, size_t chains, double ms) {
         if (steps) chains_.add((double)chains, ms / (double)steps);
@@ -426,17 +442,18 @@ private:
         }
     };
     Line passes_, chains_, stages_;
+    std::vector<uint8_t> seen_;   // by rows, whether a pass of them has run
 };
 
 // The drafts each of a pass's drafting requests verifies (docs/SPECULATIVE.md, section 3), from the pass cost `c`, the pass's `decoders` and each request's chance of keeping each draft its cap allows (`keeps[i]`), into `takes`.
-// The depth taken gives the most tokens a millisecond, request i getting min(K, its cap) drafts, or none where no depth beats the pass without drafts; free rows or an unknown cost give each its cap, and `chained` marks a chain's requests.
+// The depth taken gives the most tokens a millisecond within each cap, or each cap for an unknown cost (docs/src/inference-spec.md), and `chained` marks a chain's requests.
 inline void draft_depths(const PassCost& c, size_t decoders, const std::vector<std::vector<double>>& keeps, std::vector<size_t>& takes,
                          const std::vector<uint8_t>* chained = nullptr) {
     takes.assign(keeps.size(), 0);
     size_t depth = 0, capped = decoders;
     for (const auto& k : keeps) depth = std::max(depth, k.size()), capped += k.size();
     if (!c.known && c.seen_rows > 0 && std::fabs(c.seen_rows - (double)capped) < 0.5) return;
-    if (!c.known || c.row_ms <= 0) {
+    if (!c.known) {
         for (size_t i = 0; i < keeps.size(); ++i) takes[i] = keeps[i].size();
         return;
     }

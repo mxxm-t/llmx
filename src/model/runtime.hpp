@@ -266,6 +266,7 @@ struct Pass {
     size_t at = 0;                                     // the device its residual left the last stage from
     backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
     size_t sent_at = 0;                                // the device `sent` is on
+    std::vector<backend::Ticket> before;               // per device, its last ticket before the last stage recorded, so busy_ms times that stage alone
     mutable double lookup_ms = 0, sum_ms = 0;          // the last stage recorded: the host's waits for its lookup rows and in its tensor-group sums
     double receive_ms = 0, write_ms = 0;               // the last stage recorded: the host's wait for the residual's sending submission and its write of the rows into this stage's device
     std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
@@ -969,10 +970,14 @@ public:
     void run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const std::function<void()>& before_undo = {});
     void prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s);
     void record_pass_stage(ExecContext& ctx, size_t slot, size_t s);
-    // That submission and its device's backend, which a caller timing the stage asks whether it has retired (docs/SERVER.md, The price table).
-    std::pair<backend::Backend*, backend::Ticket> stage_sent(ExecContext& ctx, size_t slot) {
+    // That submission, its device's backend and the device's last ticket before the stage, which a caller timing the stage reads (docs/SERVER.md, The price table).
+    struct StageSent {
+        backend::Backend* backend;
+        backend::Ticket first, sent;
+    };
+    StageSent stage_sent(ExecContext& ctx, size_t slot) {
         const Pass& p = in_flight(ctx, slot);
-        return {devices_[p.sent_at]->b.get(), p.sent};
+        return {devices_[p.sent_at]->b.get(), p.before[p.sent_at], p.sent};
     }
     // The last stage recorded of that pass: the milliseconds its recording waited for lookup rows and spent in tensor-group sums.
     std::pair<double, double> stage_host_waits(ExecContext& ctx, size_t slot) {

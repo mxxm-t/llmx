@@ -322,6 +322,7 @@ public:
         const double ms = busy_[b % kBusy] - busy_[a % kBusy];
         return kept() ? ms : -1.0;
     }
+    Ticket last_ticket() const noexcept override { return ticket_.load(std::memory_order_acquire); }
     void sync() noexcept override {}
 
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {

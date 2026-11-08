@@ -1366,7 +1366,7 @@ private:
         }
         const auto sent = model_.stage_sent(ctx_, k);
         const auto waits = model_.stage_host_waits(ctx_, k);
-        record_.post({slots_[k].formed, s, slots_[k].work, slots_[k].predicted[s], begun, Clock::now(), waits.first, waits.second, sent.first, sent.second});
+        record_.post({slots_[k].formed, s, slots_[k].work, slots_[k].predicted[s], begun, Clock::now(), waits.first, waits.second, sent.backend, sent.first, sent.sent});
         ++slots_[k].ran;
         if (!timed_) return;
         // The stage's time on the thread, apart from where it was held and its uploads; on the host that is the stage's own time.
@@ -1967,7 +1967,7 @@ private:
             model_.record_pass_stage(ctx_, taken.slot, s);
             const auto sent = model_.stage_sent(ctx_, taken.slot);
             const auto waits = model_.stage_host_waits(ctx_, taken.slot);
-            record_.post({taken.pass, s, taken.work, taken.predicted_ms, begun, Clock::now(), waits.first, waits.second, sent.first, sent.second});
+            record_.post({taken.pass, s, taken.work, taken.predicted_ms, begun, Clock::now(), waits.first, waits.second, sent.backend, sent.first, sent.sent});
         } catch (const std::exception& e) {
             end.failed = true;
             end.error = e.what();

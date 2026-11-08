@@ -718,6 +718,7 @@ public:
         }
         return ticks * dev_->timestamp_ns / 1e6;
     }
+    Ticket last_ticket() const noexcept override { return tickets_.last(); }
     size_t scratch_reserve(size_t free) const override;
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override;
     void drop_tags();

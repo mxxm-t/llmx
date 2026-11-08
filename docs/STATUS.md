@@ -1,5 +1,38 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 decode speed: tables sized by the budget and the router rewritten (2026-11-08, DSDEV50 and DSDEV51, branch perf/deepseek4-router-and-tables on main c319438bc; DSDEV49's proposal of 16:55 with F2DEV's CHANGES of 16:53, items 1 to 11; lands by fast-forward as two commits)
+
+**Goal:** the position tables and position-sized arena slots of every architecture cover the positions the KV budget reaches, sized inside the fit's search, so a prompt pass of 512 rows fits beside DeepSeek-V4.1-Flash on ten MI50s; and the `sqrt_softplus` router on Vulkan and ROCm runs a workgroup a row instead of one lane, bit-identical to the one-lane kernels, which cost about 98 of the 239 ms a token on the ten-card decode.
+
+**Done:**
+- (a) `ModelPlan::table_steps` and `ModelPlan::position_slots` declare what grows with the positions; `footprint` sizes them at `covered_positions` of the candidate budget, so `fitted_kv`'s search sees them; the model sizes them at the context capped at its pool's tokens once the pool is made (`Model::positions`), and passes, drafts and images past that are refused.
+  Every architecture's rope tables are declared per position (qwen3, qwen35, qwen4exp, deepseek4), and deepseek4's index scores slot at its least ratio.
+  `Scheduler::request_limit` and the row classes of `Model::host_identity` read `Model::positions`, the one figure of what a request may hold.
+  `arch-deepseek4` `positions` holds the fit on the tiny fork fixture: a device too small for the whole context's tables holds a budget between half and the whole with tables to match, a prompt past it is refused, and a smaller device is refused by the placement.
+  `arch-qwen35-fit`'s checkpoint case now finds its room at the three quarters of the budget where the fit tries checkpoints, since the tables there are smaller than at the whole budget.
+- (b) `shaders/route_sqrt_softplus.comp` and ROCm's `llmx_route_sqrt_softplus` take a workgroup a row: scores into shared memory, each pick an exact argmax over (score + bias, id), the sum in pick order on one lane.
+  `ds4::check_routing` runs on `backend-vulkan` and `backend-rocm` over 1 to 600 rows, 1 to 1024 experts and k 1, 6 and 256 with ties and non-finite rows; picks may differ from the CPU's only at near ties within 1e-6 relative, since the device's exp and log round apart from libm's.
+- Evidence, binaries built the same way from detached rig worktrees of main c319438bc and the branch (Vulkan image `mxxm/llmx-dev:vulkan`, ROCm `rocm-gfx906:7.2.1`), default clocks, `--cpus 8`:
+  - Byte identity against main, greedy text and ids and `logits` rows: Qwen3-0.6B Q8_0 and the tiny deepseek4 fork fixture on CPU, Vulkan and ROCm; DeepSeek-V4.1-Flash-1017 MXFP4 on ten MI50s on Vulkan and ROCm (256 logits rows of the excerpt, 64 chat tokens); Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s on Vulkan and ROCm (64 tokens).
+  - DeepSeek-V4.1-Flash-1017 MXFP4, ten MI50s, `--ubatch 64 --lookup-storage file`, `bench --p 64 --n 32 --r 3`, two rounds an arm, main then branch each round (tok/s):
+
+    | backend | main pp64 | branch pp64 | main tg32 | branch tg32 |
+    |---|---|---|---|---|
+    | Vulkan | 16.34, 16.26 | 16.67, 16.67 | 4.26, 4.26 | 6.39, 6.39 |
+    | ROCm | 42.48, 40.67 | 46.78, 46.78 | 4.52, 4.60 | 9.81, 9.79 |
+
+  - At `--ubatch 512` the branch holds the prompt pass beside the model: pp512 55.56 tok/s on Vulkan and 68.51 on ROCm, tg32 6.36 and 9.79.
+  - The router's device time: Vulkan `--profile` of tg32 summed over the ten cards 2919 ms on main, 48.7 ms on the branch; ROCm rocprofv3 kernel trace of one pp64 and tg32 run 2570.7 us a call on main, 23.9 us on the branch (2640 calls).
+  - Suites: CTest of the Vulkan build passes; `backend-rocm` passes with the router checks; the CPU suite passes but its real-model baseline, skipped for want of the model in the container; `deepseek4` passes on `vulkan:0`.
+
+**Left:**
+- Correctness of step 10 stays open (review item 8): section 5.3's layered reference and the 16k rule are not built here, and this branch lands on byte identity only.
+
+**Gotchas:**
+- `--kv-tokens` above the context is not capped: the pool is shared by every sequence of a server, so only the tables stop at the context (review item 3 read as the tables' bound).
+- The fit's upper search bound (`kv_search_bound`) still uses the cache's bytes a token alone, which can only overstate the bound, so the bisection over `footprint` decides the budget (review item 2).
+- `--profile` times Vulkan kernels only; the ROCm attribution above is rocprofv3's kernel trace, whose durations are kernel time and not ordinary-serving costs.
+
 ## MoE routed step clears its own partial rows (2026-11-08, MEGA24 and LAND8, branch perf/moe-step-clears-partial on main 24fcabf04; MEGA24's research/moe-step-clears-partial 4058a62c1, F2DEV's approval of 2026-11-08 12:25; lands by fast-forward)
 
 **Goal:** remove the zero copy before every routed part of a tensor group.

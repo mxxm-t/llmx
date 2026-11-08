@@ -503,7 +503,7 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
                        : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
 }
 
-// route_experts' sqrt_softplus rule, a row a lane in the CPU's order (shaders/route_sqrt_softplus.comp).
+// route_experts' sqrt_softplus rule, a workgroup a row in the CPU's order (shaders/route_sqrt_softplus.comp).
 inline void VulkanBackend::route_sqrt_softplus(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
     if (!std::isfinite(rule.scale)) throw std::runtime_error("vulkan: a routing scale that is not finite");
     if (!rows) return;
@@ -512,7 +512,7 @@ inline void VulkanBackend::route_sqrt_softplus(CSlice scores, size_t rows, size_
         throw std::runtime_error("vulkan: routing operand outside its allocation");
     const struct { uint32_t rows, n_expert, k, has_bias, normalize; float scale; }
         pc{u32(rows), u32(n_expert), u32(k), rule.bias.buffer ? 1u : 0u, rule.normalize ? 1u : 0u, rule.scale};
-    dispatch(K_ROUTE_SQRT_SOFTPLUS, {bind(scores), rule.bias.buffer ? bind(rule.bias) : bind(scores), bind(ids), bind(weights)}, &pc, sizeof(pc), groups(rows, 64));
+    dispatch(K_ROUTE_SQRT_SOFTPLUS, {bind(scores), rule.bias.buffer ? bind(rule.bias) : bind(scores), bind(ids), bind(weights)}, &pc, sizeof(pc), u32(rows));
 }
 
 // Routed entries take row kernels or per-expert tiles according to prompt extent and the type's crossover.

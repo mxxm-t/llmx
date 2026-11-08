@@ -4,6 +4,7 @@
 #include "qwen35_checks.hpp"
 #include "quant/model_formats.hpp"
 
+#include <cmath>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -167,7 +168,98 @@ size_t check_selections(Pair& p) {
     return values;
 }
 
-size_t check_pool_and_routing(Pair& p) {
+// Device picks that are not the CPU's: each must differ only where the CPU's s + bias of the two experts lie within 1e-6 relative, which the device's exp and log may order apart, with no expert picked twice and each weight its pick's.
+template <class Ids>
+size_t near_ties(const std::vector<float>& scores, const float* bias, size_t rows, size_t n, size_t k, bool normalize, float scale, const Ids& ri,
+                 const std::vector<float>& w, const std::string& at) {
+    for (size_t r = 0; r < rows; ++r) {
+        std::vector<float> s(n), v(n);
+        for (size_t e = 0; e < n; ++e) {
+            const float x = scores[r * n + e];
+            s[e] = std::sqrt(x > 20.0f ? x : std::log1p(std::exp(x)));
+            v[e] = bias ? s[e] + bias[e] : s[e];
+        }
+        std::vector<char> seen(n, 0);
+        float total = 0.0f;
+        for (size_t j = 0; j < k; ++j) {
+            uint32_t c, d;
+            std::memcpy(&c, &ri.first[r * k + j], 4);
+            std::memcpy(&d, &ri.second[r * k + j], 4);
+            if (c == d) {
+                if (c < n) {
+                    require(!seen[c], ("sqrt_softplus routing picked an expert twice" + at).c_str());
+                    seen[c] = 1;
+                    total += s[c];
+                }
+                continue;
+            }
+            require(c < n && d < n && !seen[d] && std::fabs(v[c] - v[d]) <= 1e-6f * std::max(1.0f, std::fabs(v[c])),
+                    ("sqrt_softplus routing picks differ from the CPU beyond a near tie" + at).c_str());
+            seen[d] = 1;
+            total += s[d];
+        }
+        for (size_t j = 0; j < k; ++j) {
+            uint32_t d;
+            std::memcpy(&d, &ri.second[r * k + j], 4);
+            if (d >= n) continue;
+            const float want = (normalize && k > 1 ? s[d] / (total + 1e-20f) : s[d]) * scale;
+            require(std::fabs(w[r * k + j] - want) <= 1e-5f * std::max(1.0f, std::fabs(want)), ("sqrt_softplus routing weights differ beyond 1e-5" + at).c_str());
+        }
+    }
+    return 2 * rows * k;
+}
+
+// The sqrt_softplus router over rows 1 to 600, 1 to 1024 experts and 1 to 256 picks, with and without a bias, normalized or not, at scales 1 and 1.5.
+// Picks are the CPU's bit for bit but at near ties (near_ties), ties going to the lower id, rows with a NaN or an infinity pick none at weight 0, and weights are the CPU's within 1e-5, or its bits where the device declares them exact.
+size_t check_routing(Pair& p, const Exact& exact) {
+    size_t values = 0;
+    uint32_t seed = 300;
+    for (size_t rows : {1, 7, 64, 65, 600})
+        for (size_t n_expert : {1, 64, 384, 1024})
+            for (size_t k : {1, 6, 256}) {
+                if (k > n_expert) continue;
+                // Every other row quarter steps, so many experts tie on equal scores, and the first rows a NaN, an infinity and a minus infinity, which scores 0.
+                std::vector<float> scores = uniform(rows * n_expert, ++seed, -8.0f, 24.0f);
+                for (size_t r = 1; r < rows; r += 2)
+                    for (size_t e = 0; e < n_expert; ++e) scores[r * n_expert + e] = std::round(scores[r * n_expert + e] * 4.0f) / 32.0f;
+                if (rows > 2) {
+                    scores[n_expert / 2] = std::nanf("");
+                    scores[n_expert + n_expert / 3] = INFINITY;
+                    scores[2 * n_expert] = -INFINITY;
+                }
+                std::vector<float> bias = uniform(n_expert, ++seed, -0.05f, 0.05f);
+                for (size_t e = 0; e < n_expert; e += 2) bias[e] = 0.0f;
+                Pair::In sc = held(p, scores), bi = held(p, bias);
+                for (bool biased : {false, true})
+                    for (bool normalize : {false, true}) {
+                        const float scale = normalize == biased ? 1.5f : 1.0f;
+                        Pair::Out ids = p.out(rows * k), w = p.out(rows * k);
+                        const backend::RouteRule rc = backend::RouteRule::sqrt_softplus(biased ? bi.cs() : backend::CSlice{}, scale, normalize);
+                        const backend::RouteRule rv = backend::RouteRule::sqrt_softplus(biased ? bi.vs() : backend::CSlice{}, scale, normalize);
+                        p.cpu.route_experts(sc.cs(), rows, n_expert, k, rc, ids.cs(), w.cs());
+                        p.dev.route_experts(sc.vs(), rows, n_expert, k, rv, ids.vs(), w.vs());
+                        const std::string at = " at rows " + std::to_string(rows) + " experts " + std::to_string(n_expert) + " k " + std::to_string(k) + (biased ? " biased" : "") +
+                                               (normalize ? " normalized" : "");
+                        auto ri = p.results(ids), rw = p.results(w);
+                        if (!std::memcmp(ri.first.data(), ri.second.data(), ri.first.size() * sizeof(float))) {
+                            values += same(ri.first, ri.second, "sqrt_softplus routing picks differ from the CPU" + at);
+                            values += meet(exact, "route_sqrt_softplus", rw.first, rw.second, 1e-5, "sqrt_softplus routing weights differ beyond 1e-5" + at);
+                        } else {
+                            values += near_ties(scores, biased ? bias.data() : nullptr, rows, n_expert, k, normalize, scale, ri, rw.second, at);
+                        }
+                        if (rows > 2)
+                            for (size_t r = 0; r < 2; ++r)
+                                for (size_t j = 0; j < k; ++j) {
+                                    uint32_t id;
+                                    std::memcpy(&id, &ri.second[r * k + j], sizeof(id));
+                                    require(id == kNone && rw.second[r * k + j] == 0.0f && !std::signbit(rw.second[r * k + j]), ("a row that is not finite picked an expert" + at).c_str());
+                                }
+                    }
+            }
+    return values;
+}
+
+size_t check_pool_and_routing(Pair& p, const Exact& exact) {
     size_t values = 0;
     for (size_t ratio : {1, 4, 128}) {
         const size_t groups = 3, dim = 96;
@@ -178,21 +270,7 @@ size_t check_pool_and_routing(Pair& p) {
         auto r = p.results(o);
         values += close(r.first, r.second, 1e-5, "compress_pool differs beyond 1e-5");
     }
-    for (bool biased : {false, true})
-        for (bool normalize : {false, true}) {
-            const size_t rows = 9, n_expert = 64, k = 6;
-            std::vector<float> scores = uniform(rows * n_expert, 31, -8.0f, 24.0f);
-            scores[3] = -100.0f;
-            Pair::In sc = held(p, scores), bi = held(p, uniform(n_expert, 32, -0.05f, 0.05f));
-            Pair::Out ids = p.out(rows * k), w = p.out(rows * k);
-            const backend::RouteRule rc = backend::RouteRule::sqrt_softplus(biased ? bi.cs() : backend::CSlice{}, 1.5f, normalize);
-            const backend::RouteRule rv = backend::RouteRule::sqrt_softplus(biased ? bi.vs() : backend::CSlice{}, 1.5f, normalize);
-            p.cpu.route_experts(sc.cs(), rows, n_expert, k, rc, ids.cs(), w.cs());
-            p.dev.route_experts(sc.vs(), rows, n_expert, k, rv, ids.vs(), w.vs());
-            auto ri = p.results(ids), rw = p.results(w);
-            values += same(ri.first, ri.second, "sqrt_softplus routing picks differ from the CPU");
-            values += close(rw.first, rw.second, 1e-5, "sqrt_softplus routing weights differ beyond 1e-5");
-        }
+    values += check_routing(p, exact);
     for (size_t n : {96, 100}) {
         std::vector<float> g = uniform(n, 41, -12.0f, 12.0f), u = uniform(n, 42, -12.0f, 12.0f);
         Pair::In gi = held(p, g), ui = held(p, u);
@@ -427,7 +505,7 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     else
         std::printf("deepseek4: model formats skipped: the device does not implement model_format_qdq\n");
     values += check_selections(p);
-    values += check_pool_and_routing(p);
+    values += check_pool_and_routing(p, exact);
     values += check_rope_forms(p, exact);
     values += check_pooled(p, exact);
     return values;

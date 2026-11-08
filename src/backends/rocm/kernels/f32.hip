@@ -2713,43 +2713,70 @@ extern "C" __global__ void llmx_sparse_attention_sink(float* out, const float* q
     }
 }
 
-// A thread a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
-// A row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.
+// A block a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
+// Each pick is an exact argmax over (s + bias, id), the same in any order, and the sum runs in pick order on one thread; a row whose s + bias is not finite everywhere gives k picks of kNoExpert with weights 0.
 __device__ inline float softplus_root(float v) { return sqrtf(v > 20.0f ? v : log1pf(expf(v))); }
 extern "C" __global__ void llmx_route_sqrt_softplus(const float* scores, const float* bias, unsigned* ids, float* weights, unsigned long long rows, unsigned n_expert,
                                                     unsigned k, int normalize, float scale) {
-    const unsigned long long r = (unsigned long long)blockIdx.x * 64 + threadIdx.x;
-    if (r >= rows) return;
+    __shared__ float s_of[1024], b_of[1024], best_b[kThreads];
+    __shared__ unsigned best_e[kThreads], chosen[256];
+    __shared__ int all_finite;
+    __shared__ float total_of;
+    const unsigned long long r = blockIdx.x;
+    const unsigned t = threadIdx.x;
     const float* x = scores + r * n_expert;
     unsigned* id = ids + r * k;
     float* wt = weights + r * k;
-    bool finite = true;
-    for (unsigned e = 0; e < n_expert; ++e) {
+    if (t == 0) all_finite = 1;
+    __syncthreads();
+    for (unsigned e = t; e < n_expert; e += kThreads) {
         const float s = softplus_root(x[e]), b = bias ? s + bias[e] : s;
-        finite = finite && isfinite(b);
+        s_of[e] = s;
+        b_of[e] = b;
+        if (!isfinite(b)) all_finite = 0;
     }
-    if (!finite) {
-        for (unsigned j = 0; j < k; ++j) id[j] = kNoExpert, wt[j] = 0.0f;
+    __syncthreads();
+    if (!all_finite) {
+        for (unsigned j = t; j < k; j += kThreads) id[j] = kNoExpert, wt[j] = 0.0f;
         return;
     }
-    float total = 0.0f;
     for (unsigned j = 0; j < k; ++j) {
-        unsigned best = n_expert;
-        float best_b = 0.0f;
-        for (unsigned e = 0; e < n_expert; ++e) {
-            bool taken = false;
-            for (unsigned i = 0; i < j && !taken; ++i) taken = id[i] == e;
-            if (taken) continue;
-            const float s = softplus_root(x[e]), b = bias ? s + bias[e] : s;
-            if (best == n_expert || b > best_b) best = e, best_b = b;
+        // A taken expert holds -inf, below every finite score, so the argmax skips it.
+        unsigned be = n_expert;
+        float bb = 0.0f;
+        for (unsigned e = t; e < n_expert; e += kThreads) {
+            const float b = b_of[e];
+            if (!isinf(b) && (be == n_expert || b > bb)) be = e, bb = b;
         }
-        id[j] = best;
-        total += softplus_root(x[best]);
+        best_e[t] = be;
+        best_b[t] = bb;
+        __syncthreads();
+        for (unsigned w = kThreads / 2; w > 0; w >>= 1) {
+            if (t < w) {
+                const unsigned oe = best_e[t + w], me = best_e[t];
+                const float ob = best_b[t + w];
+                if (oe != n_expert && (me == n_expert || ob > best_b[t] || (ob == best_b[t] && oe < me))) best_e[t] = oe, best_b[t] = ob;
+            }
+            __syncthreads();
+        }
+        if (t == 0) {
+            const unsigned e = best_e[0];
+            chosen[j] = e;
+            b_of[e] = -INFINITY;
+            id[j] = e;
+        }
+        __syncthreads();
     }
+    if (t == 0) {
+        float total = 0.0f;
+        for (unsigned j = 0; j < k; ++j) total += s_of[chosen[j]];
+        total_of = total;
+    }
+    __syncthreads();
     const bool divide = normalize && k > 1u;
-    for (unsigned j = 0; j < k; ++j) {
-        const float s = softplus_root(x[id[j]]);
-        wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
+    for (unsigned j = t; j < k; j += kThreads) {
+        const float s = s_of[chosen[j]];
+        wt[j] = (divide ? s / (total_of + 1e-20f) : s) * scale;
     }
 }
 

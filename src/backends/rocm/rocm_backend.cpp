@@ -1183,14 +1183,14 @@ public:
         float* w = f32(weights);
         unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
         int norm = rule.normalize;
-        // The sqrt_softplus rule takes a thread a row in the CPU's order (kernels/f32.hip, llmx_route_sqrt_softplus).
+        // The sqrt_softplus rule takes a block a row in the CPU's order (kernels/f32.hip, llmx_route_sqrt_softplus).
         if (rule.score == RouteRule::Score::sqrt_softplus) {
             if (rule.bias.buffer) floats(rule.bias, n_expert);
             const float* bias = rule.bias.buffer ? f32(rule.bias) : nullptr;
             unsigned long long nr = rows;
             float scale = rule.scale;
             const Args args(sc, bias, id, w, nr, ne, kk, norm, scale);
-            return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32((rows + 63) / 64), 1, args, 1, 64);
+            return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32(rows), 1, args, 1, 256);
         }
         rule.softmax_only("rocm");
         const Args args(sc, id, w, ne, kk, norm);

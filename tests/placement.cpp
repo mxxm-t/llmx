@@ -1684,6 +1684,66 @@ void kv_fitted() {
     require(filled == cut && filled > 256, ("the automatic budget on 8 MiB took " + std::to_string(filled) + " tokens, against the " + std::to_string(cut) + " an explicit budget past the device is cut to").c_str());
     require(automatic(8 << 20, true) == 256, "the automatic budget on a device of unknown free memory was not the model's context");
     {
+        // A device whose reading overstates its room by `drop` until the bytes it holds reach its real ceiling, then states that ceiling, as a driver whose budget hides other processes' memory does (docs/src/backends-vulkan.md, memory_available).
+        // With `fails` an allocation past the ceiling throws; without, it succeeds and the device is left below its kernels' reserve.
+        struct Overstating : SizedDevice {
+            size_t drop = 0;
+            bool fails = true;
+            mutable bool dropped = false;
+            std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
+            size_t held() const {
+                size_t n = 0;
+                for (const auto& [buffer, bytes] : live) n += buffer.expired() ? 0 : bytes;
+                return n;
+            }
+            std::optional<size_t> memory_available() const override {
+                const size_t ceiling = dropped ? room - drop : room, h = held();
+                return ceiling > h ? ceiling - h : 0;
+            }
+            size_t scratch_reserve(size_t free) const override { return (size_t(64) << 10) + free / 20; }
+            backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+                if (held() + bytes > room - drop) {
+                    dropped = true;
+                    if (fails) throw std::bad_alloc();
+                }
+                backend::BufferPtr b = SizedDevice::alloc(bytes, where);
+                live.emplace_back(b, bytes);
+                return b;
+            }
+        };
+        // Weights of 3 MiB, as many bytes as the reading overstates, so a reading taken while they are still held cuts the budget by twice the overstatement.
+        const auto heavy = tiny_qwen_shaped(2, 2 * 128, true, 2, 1, 16384, 16);
+        for (const bool fails : {true, false}) {
+            auto device = std::make_shared<Overstating>();
+            device->room = 16 << 20;
+            device->drop = 3 << 20;
+            device->fails = fails;
+            device->copying = true;
+            device->set_threads(1);
+            infer::PlacementRequest request;
+            request.names = {"device"};
+            request.kv_auto = true;
+            request.ubatch = 8;
+            // The adopt hook gives each weight its own storage and keeps it until `fitted` drops it, as the streamed load modes' records do (inference/load.hpp, planning_adopt).
+            std::vector<backend::BufferPtr> uploads;
+            const infer::ModelWeights model = infer::gguf_weights(heavy);
+            const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
+                return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
+            };
+            infer::PlacedModel placed;
+            try {
+                placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); });
+            } catch (const std::bad_alloc&) {
+                require(false, "an automatic budget over a device whose reading overstated its room failed to build rather than fitting again");
+            }
+            const size_t tokens = placed.model ? placed.model->kv_tokens_total() : 0, left = device->memory_available().value_or(0);
+            require(tokens > 256 && left >= device->scratch_reserve(0) && left < device->drop,
+                    ("an automatic budget over a device whose reading overstated its room by 3 MiB took " + std::to_string(tokens) + " tokens and left " +
+                     std::to_string(left) + " bytes, not cut to the stated room beside its kernels' reserve and by no more than the overstatement").c_str());
+        }
+        checked += 2;
+    }
+    {
         // The CPU's free memory is the host's (Backend::memory_is_host), shared with the host tier and the rest of the host, so on the CPU, and on a split with a CPU stage, the automatic budget keeps the context and says why.
         auto cpu = std::make_shared<backend::CpuBackend>();
         cpu->set_threads(1);

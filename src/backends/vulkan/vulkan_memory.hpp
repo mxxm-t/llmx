@@ -13,7 +13,7 @@
 namespace backend {
 namespace {
 
-// What the device-local heap can still take: the driver's budget less what is in use, or without the budget extension the heap's size, which overstates.
+// What the device-local heap can still take: the driver's budget, at most the ceiling the heap stated when it was last full (Device::ceiling), less what is in use; without the budget extension the heap's size, which overstates.
 inline std::optional<size_t> VulkanBackend::memory_available() const {
     const Fn& fn = dev_->fn;
     VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
@@ -27,8 +27,11 @@ inline std::optional<size_t> VulkanBackend::memory_available() const {
         const VkMemoryHeap& heap = mp.memoryProperties.memoryHeaps[h];
         // The small device-local window the host can map (256 MiB on these cards) is not where weights go.
         if (!(heap.flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) || heap.size < (VkDeviceSize(1) << 30)) continue;
-        const VkDeviceSize total = dev_->memory_budget ? budget.heapBudget[h] : heap.size;
         const VkDeviceSize used = dev_->memory_budget ? budget.heapUsage[h] : 0;
+        // A heap within the kernels' fixed reserve of its budget is full, so that budget is its ceiling from now on.
+        if (dev_->memory_budget && used + scratch_reserve(0) >= budget.heapBudget[h]) dev_->lower_ceiling(h, budget.heapBudget[h]);
+        const VkDeviceSize ceiling = dev_->ceiling[h].load();
+        const VkDeviceSize total = dev_->memory_budget ? (ceiling ? std::min(ceiling, budget.heapBudget[h]) : budget.heapBudget[h]) : heap.size;
         free = std::max(free, (size_t)(total > used ? total - used : 0));
     }
     return free;

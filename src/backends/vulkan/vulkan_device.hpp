@@ -1,6 +1,8 @@
 #pragma once
 // The Vulkan loader and device: the entry points fetched at run time, the device a backend opens, and what the kernels need of a device.
 #include <algorithm>
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -227,6 +229,23 @@ struct Device {
     std::string identity;          // the device and the driver that compiles its kernels (Backend::identity)
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)
+    // Per heap, the budget it stated once this process filled it, or 0: under Windows the AMD driver states 95% of the heap until a process nears the room others leave it, and again once it frees (docs/src/backends-vulkan.md, memory_available).
+    std::array<std::atomic<VkDeviceSize>, VK_MAX_MEMORY_HEAPS> ceiling{};
+    // Heap `heap`'s budget taken as its ceiling, read where the heap is full; nothing without the budget extension.
+    void note_full(uint32_t heap) {
+        if (!memory_budget || heap >= VK_MAX_MEMORY_HEAPS) return;
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
+        budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        VkPhysicalDeviceMemoryProperties2 mp{};
+        mp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        mp.pNext = &budget;
+        fn.vkGetPhysicalDeviceMemoryProperties2(physical, &mp);
+        lower_ceiling(heap, budget.heapBudget[heap]);
+    }
+    void lower_ceiling(uint32_t heap, VkDeviceSize bytes) {
+        VkDeviceSize was = ceiling[heap].load();
+        while ((!was || bytes < was) && !ceiling[heap].compare_exchange_weak(was, bytes)) {}
+    }
     // Host memory imported as device memory, which a copy reads in place (VK_EXT_external_memory_host), and the alignment of its address and size.
     PFN_vkGetMemoryHostPointerPropertiesEXT host_pointer_props = nullptr;
     size_t host_import_align = 0;

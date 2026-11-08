@@ -1151,6 +1151,8 @@ public:
             }
         }
         wait(tickets_.last());
+        // Every slot has retired, so the buffers kept for their work go now rather than when each slot is reopened, as a model given up after a failed build needs (build_fitted).
+        if (!open_) for (auto& p : pending_) p.clear();
     }
 
     void read(const Buffer& src_b, size_t off, void* dst, size_t bytes) override;

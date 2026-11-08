@@ -121,8 +121,10 @@ public:
             VkDeviceMemory memory = VK_NULL_HANDLE;
             const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory);
             if (r != VK_SUCCESS) {
-                if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
+                if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY) {
+                    dev_->note_full(dev_->memory.memoryTypes[ai.memoryTypeIndex].heapIndex);
                     throw AllocationError(*dev_, r, ai);
+                }
                 check(r, "vkAllocateMemory");
             }
             memory_ = memory;

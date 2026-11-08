@@ -475,11 +475,14 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     // The mapped mode copies each weight as the model resolves its role; the streamed ones give every copied weight storage first and stream the copies after.
     const AdoptWeight adopt = planning_adopt(weights, devices, plan, mode != LoadMode::mapped);
     // The fit, then the model built: a model with lookup tables was fitted above, beside its tables, and any other is fitted here.
+    // Each build starts on an empty upload plan: a build given up for fewer KV tokens drops its records before the devices' memory is read again (build_fitted).
     const auto allocating = [&] {
+        plan.uploads.clear();
+        plan.host_reads.assign(weights.tensors.size(), 0);
         if (report) report({"allocate"});
     };
     if (!placement && report) report({"fit"});
-    PlacedModel placed = placement ? (allocating(), construct_model(weights, std::move(*placement), request.ubatch, adopt))
+    PlacedModel placed = placement ? build_fitted(weights, std::move(*placement), request, adopt, allocating)
                                    : place_model(weights, std::move(backends), request, options, adopt, allocating);
     loaded->times.construct = detail::seconds_since(built);
     loaded->plan = std::move(placed.plan);

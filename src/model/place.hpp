@@ -947,11 +947,80 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
     return placed;
 }
 
+// How many times build_fitted builds again with fewer KV tokens after a build ran a device short of what its reading stated.
+inline constexpr int kShortRebuilds = 2;
+
+// The KV bytes one block of `block` tokens takes on each of `planned`'s backends: each layer's on its mixer's device, every member of a tensor group, and the drafter's where the head runs.
+inline std::vector<size_t> kv_block_bytes(const ModelWeights& weights, const PlannedModel& planned, size_t block) {
+    const size_t width = std::max<size_t>(1, planned.placement.width);
+    ModelOptions one = planned.options, two = planned.options;
+    one.kv_tokens = block;
+    two.kv_tokens = 2 * block;
+    const Footprint a = footprint(weights, planned.architecture, one, width), b = footprint(weights, planned.architecture, two, width);
+    std::vector<size_t> bytes(planned.backends.size(), 0);
+    const auto add = [&](int first, size_t n) {
+        for (size_t m = 0; m < width && size_t(first) + m < bytes.size(); ++m) bytes[size_t(first) + m] = backend::size_add(bytes[size_t(first) + m], n);
+    };
+    const std::vector<int>& mixers = planned.placement.mixer_device;
+    for (size_t l = 0; l < a.cache.size() && l < b.cache.size(); ++l) add(l < mixers.size() ? mixers[l] : 0, b.cache[l] - a.cache[l]);
+    add(planned.placement.output_device, b.drafter_cache - a.drafter_cache);
+    return bytes;
+}
+
+// The model `planned` built, `allocating` running before the first build and as each build is given up, so the readings after it see none of what it recorded.
+// With an automatic budget, a build that runs a device short is given up and the same placement built again with fewer KV tokens (docs/src/model-place.md).
+inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planned, const PlacementRequest& request, const AdoptWeight& adopt = {},
+                                const std::function<void()>& allocating = {}) {
+    const std::vector<backend::BackendPtr> backends = planned.backends;
+    const auto device = [](const backend::BackendPtr& b) { return b && !b->is_cpu() && !b->memory_is_host(); };
+    size_t block = 1;
+    for (const backend::BackendPtr& b : backends)
+        if (b) block = std::max(block, b->kv_layout().block_tokens);
+    const std::vector<size_t> per_block = request.kv_auto ? kv_block_bytes(weights, planned, block) : std::vector<size_t>{};
+    if (allocating) allocating();
+    for (int rebuild = 0;; ++rebuild) {
+        const bool again = request.kv_auto && rebuild < kShortRebuilds;
+        std::vector<std::optional<size_t>> before(backends.size());
+        for (size_t d = 0; again && d < backends.size(); ++d)
+            if (device(backends[d])) before[d] = backends[d]->memory_available();
+        // What each device holding KV was short by: the reserve a built model left it below, then how far its reading fell once the build was given up.
+        std::vector<size_t> short_by(backends.size(), 0);
+        std::exception_ptr failed;
+        try {
+            PlacedModel placed = construct_model(weights, planned, request.ubatch, adopt);
+            if (!again) return placed;
+            for (size_t d = 0; d < backends.size(); ++d) {
+                if (!device(backends[d]) || !per_block[d]) continue;
+                const std::optional<size_t> free = backends[d]->memory_available();
+                const size_t reserve = backends[d]->scratch_reserve(0);
+                if (free && *free < reserve) short_by[d] = reserve - *free;
+            }
+            if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) return placed;
+        } catch (const std::bad_alloc&) {
+            if (!again) throw;
+            failed = std::current_exception();
+        }
+        if (allocating) allocating();
+        for (const backend::BackendPtr& b : backends) b->sync();
+        size_t cut = 0;
+        for (size_t d = 0; d < backends.size(); ++d) {
+            if (!device(backends[d]) || !before[d]) continue;
+            const std::optional<size_t> after = backends[d]->memory_available();
+            const size_t fell = after && *after < *before[d] ? *before[d] - *after : 0, need = std::max(fell, short_by[d]);
+            if (need && per_block[d]) cut = std::max(cut, backend::blocks_for(need, per_block[d]));
+        }
+        const size_t tokens = kv_tokens(planned.architecture, planned.options) / block;
+        if (!cut && failed) std::rethrow_exception(failed);
+        if (!cut || cut >= tokens)
+            throw std::runtime_error("inference: the KV budget of " + std::to_string(tokens * block) + " tokens ran a device short once built, and no smaller budget fits");
+        planned.options.kv_tokens = (tokens - cut) * block;
+    }
+}
+
+// The model fitted (plan_placement) and built (build_fitted); `fitted` runs before the first build and as each build is given up, dropping what it recorded.
 inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
                                ModelOptions options, const AdoptWeight& adopt = {}, const std::function<void()>& fitted = {}) {
-    PlannedModel planned = plan_placement(weights, std::move(backends), request, options);
-    if (fitted) fitted();
-    return construct_model(weights, std::move(planned), request.ubatch, adopt);
+    return build_fitted(weights, plan_placement(weights, std::move(backends), request, options), request, adopt, fitted);
 }
 
 } // namespace infer

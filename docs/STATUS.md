@@ -1,5 +1,31 @@
 # llmx - Development Status
 
+## Automatic KV pool built again with fewer tokens when a device's reading overstated its room (2026-11-08, WIN2 and WIN3, branch fix/vulkan-pool-headroom)
+
+**Goal:** `llmx serve` without `--kv-tokens` starts on a card that other processes share, rather than failing with VK_ERROR_OUT_OF_DEVICE_MEMORY on the Radeon VII under Windows.
+
+**Done:**
+- Cause, measured with a standalone allocation probe on the Radeon VII (AMD driver, Windows, a browser holding part of the card): the heap is 16.90 GB and its budget read 16.04 GB (95%) until this process's usage passed 12.9 GB, then 13.30 GB, where allocation stopped, and 16.04 GB again after freeing; the fit read the 16.04 GB once and backed a pool past the 13.3 GB the card held.
+- `build_fitted` (model/place.hpp) is the one owner of building a planned model, called by `place_model` and by the loader's lookup-table path, which before built once with no retry (the `deepseek4` suite component's `serve` on vulkan:0 failed on main with an out-of-memory error for 1 MiB).
+  With an automatic budget, a build that runs a device out of memory or leaves a device holding KV below `scratch_reserve(0)` is given up and the same placement built again, at most twice, with fewer KV tokens: the bytes the device's reading fell, or the reserve it was left below, in whole blocks at the KV bytes a block takes on that device (`kv_block_bytes`).
+- Vulkan caps the budget by the one it stated when the heap was last full (`Device::ceiling`, noted at an out-of-memory result and at a reading within the fixed reserve), so the reading's fall survives the given-up build's free, and `sync` drops retired slots' buffers so that build frees its memory before the next reading; the loader clears its upload plan before the first build and as a build is given up, before the reading, so the weights a streamed load mode recorded are not counted in the fall.
+- ROCm: `hipMemGetInfo` states other processes' memory in every reading, so it needs no ceiling and a correct reading never builds twice.
+- Test first: the placement test's overstating device (3 MiB of 16 MiB hidden, failing and oversubscribing allocations, 3 MiB of weights held by its adopt hook until the placement drops them, as the streamed load modes hold theirs) fails on main and passes here.
+- F2DEV's review (2026-11-08) found the given-up build's weights still held at the reading, so the fall counted them and a real 8B model was cut past zero; the hook now drops them before the reading, and an explicit `--kv-tokens` reads no device.
+
+**Gates** (head ed0719c6a, `llmx 0.1.0+ged0719c6ab93`; the tree that lands differs by this STATUS block):
+- The placement test fails on main 87a3760a3 with the test commit (the build runs out of memory) and passes here; with the reading taken before the weights were dropped it left 5.6 MB of a 3 MiB overstatement unused.
+- Radeon VII, Windows, AMD driver, `serve` without `--kv-tokens` in the default load mode: Qwen3-8B Q8_0 failed on the review's head 6d7931789 (binary `g39ba70765f8f`, the same code) with "the KV budget of 41536 tokens ran a device short once built, and no smaller budget fits", and started 2 of 2 times here at 23104 KV tokens; the synthetic F32 model started 3 of 3 times (main failed with VK_ERROR_OUT_OF_DEVICE_MEMORY).
+- CTest on Windows (fresh Release build with Vulkan ON, rebased on 49fde43de) 101 of 101; on Linux with an MI50 100 of 100.
+- The suite on the CPU under Windows passes, 48 components.
+- Suite `--only server,deepseek4` on an MI50 under Vulkan passes; placement is held by its CTest above.
+- Qwen3-0.6B Q8_0 greedy, 128 tokens: the text is byte-identical between main and here on the CPU and on vulkan:0 of an MI50.
+- Idle MI50 (Qwen3-0.6B Q8_0, `serve` without `--kv-tokens`, two runs, built from the head): Vulkan 273664 KV tokens and ROCm 274368, as on main.
+- Hosted run 42442980128 on ed0719c6a green; the head that lands, differing by this block, takes its own run on gate/vulkan-pool-headroom.
+The change lands by fast-forward.
+
+**Gotchas:** a heap's ceiling is kept for the device's life, so a Linux card that really filled and then had memory freed by another process reads the lower figure until llmx restarts.
+
 ## ROCm fused MoE step over generated rows (2026-11-07, RDEV69, branch perf/rocm-moe-rows on main 49f753824; MEGA10's finding of 2026-11-07 19:36 from research/rocm-moe-rows d5be5e828; lands by fast-forward)
 
 - **Goal:** the fused MoE step (`RocmBackend::moe_step`, `fused_step`) takes every count of generated rows its kernels can, not one row alone, so an MTP verify step and a decode of several sequences take three launches a routed layer, each output the bits of the base's ops.

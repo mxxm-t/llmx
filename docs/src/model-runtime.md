@@ -222,7 +222,7 @@ delegated to a `backend::Backend`.
     waits at every sum, and past the first a device's, which waits for its
     rows) records on a thread of its own, its lane of `StageLanes` as the server's stages are, so its waits hold no other
     stage's recording, while the calling thread begins, prepares and
-    commits every stage and records the rest. A slice leaves the last stage when that stage's devices retire its submissions, not when its recording returns, so one more lane waits on them and stamps the time while the calling thread goes on. A CPU-only pipelined split therefore starts one extra thread per prompt. A stage takes chunk c once
+    commits every stage and records the rest. A slice leaves the last stage when that stage's devices retire its submissions, not when its recording returns, so one more lane, the completion lane, waits on them, reads every stage's busy time and stamps the time while the calling thread goes on. A CPU-only pipelined split therefore starts one extra thread per prompt. A stage takes chunk c once
     its chunk c-1 is committed, once the stage after it has committed chunk
     c-2, whose handoff buffer chunk c reuses, and the first stage once the
     last has committed chunk c-S, whose pass slot it reuses; a failure on
@@ -231,7 +231,7 @@ delegated to a `backend::Backend`.
     length, which a chunk commits first. That needs the embedding on the first stage's
     device, the head on the last's and every feed-forward block beside its
     mixer, as every fitted split has; any other placement runs its
-    chunks one pass at a time, each a ubatch. A pipelined prompt's chunks are slices that `prompt_slice` chooses one after another, each after the backlog of those before it, at the lines fitted through the times earlier prompts' slices left the last stage and their fixed costs calibrated by those prompts' wall times ([slicing](model-slicing.md)), and `prefill_slices()` says how many the last prompt took; every chunk carries the prompt's extent, so a split and any slicing compute what one device does.
+    chunks one pass at a time, each a ubatch. A pipelined prompt's chunks are slices of one cut that `SlicePeriods::cut` plans once at the start (`prompt_cut`, [slicing](model-slicing.md)): it scores the equal cuts and cuts growing or shrinking by a ratio at each stage's own busy line, each stage a line through the device time earlier prompts' slices held its slowest device (`Backend::busy_ms`), with the fixed costs calibrated by those prompts' wall times, and it plans again only after a slice it did not price or one that ended at a stop. `prefill_slices()` says how many the last prompt took; every chunk carries the prompt's extent, so a split and any slicing compute what one device does.
   - `trace_stages(on)` / `stage_times()`: while on, each stage recorded keeps its host times (`StageTime`): when its recording started and ended, and inside it the wait for the residual's sending submission and the write of the rows into its device, which `receive` measures; `bench --profile` prints them by stage.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`

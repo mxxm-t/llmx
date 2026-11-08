@@ -5273,6 +5273,45 @@ std::vector<uint32_t> named_types(const backend::Backend& vk, const std::string&
     return out;
 }
 
+// Backend::busy_ms: a known run of copies holds the device a positive time below its wall time; a submission queued behind it, and one submitted 50 ms after the host held it back, are held for their own copy alone.
+size_t check_busy(backend::Backend& b) {
+    const size_t big = (size_t)64 << 20, small = 4096;
+    const auto from = b.alloc(big), to = b.alloc(big);
+    const auto copies = [&] { for (int i = 0; i < 32; ++i) b.copy(*to, 0, *from, 0, big); };
+    const backend::Ticket before = b.submit();
+    b.wait(before);
+    const auto t0 = std::chrono::steady_clock::now();
+    copies();
+    const backend::Ticket ran = b.submit();
+    b.wait(ran);
+    const double wall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), held = b.busy_ms(before, ran);
+    if (held < 0) {
+        std::cout << "backend-vulkan: the queue keeps no timestamps, so no busy times\n";
+        return 0;
+    }
+    std::cout << "backend-vulkan: busy " << held << " ms of " << wall << " ms wall for 32 copies\n";
+    require(held > 0 && held < wall, "a run of copies was not held a positive time below its wall time");
+    require(b.busy_ms(ran, before) < 0 && b.busy_ms(ran, ran + 1) < 0, "busy_ms answered for tickets out of order or not yet submitted");
+    copies();
+    const backend::Ticket slow = b.submit();
+    b.copy(*to, 0, *from, 0, small);
+    const backend::Ticket behind = b.submit();
+    b.wait(behind);
+    const double slow_ms = b.busy_ms(ran, slow), behind_ms = b.busy_ms(slow, behind);
+    std::cout << "backend-vulkan: a copy queued behind " << slow_ms << " ms of copies held " << behind_ms << " ms\n";
+    require(behind_ms >= 0 && behind_ms * 4 < slow_ms, "a submission's busy time counted the work queued ahead of it");
+    b.copy(*to, 0, *from, 0, small);
+    const backend::Ticket early = b.submit();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    b.copy(*to, 0, *from, 0, small);
+    const backend::Ticket late = b.submit();
+    b.wait(late);
+    const double gap_ms = b.busy_ms(behind, late);
+    std::cout << "backend-vulkan: two copies 50 ms apart held " << gap_ms << " ms\n";
+    require(early == behind + 1 && gap_ms >= 0 && gap_ms < 10, "busy time counted the host's 50 ms between two submissions");
+    return 4;
+}
+
 int main(int argc, char** argv) {
     // --isa DIR runs every check and writes the kernels' representations; --decode-columns [TYPES] and --decode-rates [TYPES] run only those cells, --routed only the routed tile's report and narrow checks, --deepseek4 only DeepSeek-V4.1's ops.
     const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
@@ -5327,6 +5366,7 @@ int main(int argc, char** argv) {
                     backend::make_vulkan_backend(0, false)->identity() == b->identity(),
                 "the backend's identity does not name its device or differs between two backends of it");
         std::cout << "backend-vulkan: identity " << b->identity() << "\n";
+        checks += check_busy(*b);
 
         // Allocations are zeroed, on the device and in host-visible memory.
         const size_t mib = 1u << 20;

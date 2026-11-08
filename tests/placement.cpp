@@ -1,7 +1,6 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
 #include <algorithm>
-#include <cstdio>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -11,6 +10,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -1099,7 +1099,7 @@ void pipelined_matches_single(bool devices) {
 }
 
 // A prompt cut into other slices gives the same bits: on each split, with backends playing devices, the prompt at ubatch 3 to 13 and again at 3, each from an empty history, and the step after it, against one backend reading it whole.
-// Later prefills take the slices their measured periods price (infer::prompt_slice), and a fresh split's first the cut without prices, five slices at ubatch 3 and three at 5, so two slicings are checked on any machine.
+// Later prefills take the slices their measured periods price (infer::SlicePeriods), and a fresh split's first the cut without prices, its second slice halved, so two slicings are checked on any machine.
 void pipelined_slicings_match() {
     const auto weights = tiny_qwen(3, 2 * 128, true);
     auto one = std::make_shared<backend::CpuBackend>();
@@ -1125,7 +1125,8 @@ void pipelined_slicings_match() {
             exact(after, step_row(split, 7), "a step after a pipelined prompt cut into other slices differs from one backend");
             const size_t n = split.prefill_slices(), least = (kPrompt.size() + (size_t)ub - 1) / (size_t)ub;
             require(n >= least && n <= kPrompt.size(), "a pipelined prompt's slices passed the ubatch");
-            require(!fresh || n == least, "a fresh split's first prompt did not take the cut without prices");
+            std::vector<double> unpriced;
+            require(!fresh || n == infer::SlicePeriods{}.cut(0, kPrompt.size(), ps.shares.size(), (size_t)ub, 0, unpriced).size(), "a fresh split's first prompt did not take the cut without prices");
             checked += 2;
         };
         infer::PlacedModel placed = place(), other = place();
@@ -1136,74 +1137,6 @@ void pipelined_slicings_match() {
             fresh = false;
         }
     }
-}
-
-// A host stage taking 3 ms a submission on the prompt's thread, whatever its rows.
-struct PacedCpu : backend::CpuBackend {
-    backend::Ticket submit() override {
-        std::this_thread::sleep_for(std::chrono::milliseconds(3));
-        return backend::CpuBackend::submit();
-    }
-};
-
-// A stage whose record returns at once while its device finishes each submission 30 ms and 30 ms a row after the one before, as a device behind a device-side wait does.
-// Both costs are large beside a timer tick (about 15.6 ms on Windows) and the first stage's pacing, and a wait yields until its time rather than sleeping past it, so the line it gives is the same on every system.
-struct LateCpu : backend::CpuBackend {
-    std::mutex mu;
-    size_t rows = 0;                                            // the widest matmul since the last submission
-    std::vector<std::chrono::steady_clock::time_point> ready;   // ticket t's completion at t - 1
-    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
-                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
-        rows = std::max(rows, nbatch);
-        backend::CpuBackend::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
-    }
-    backend::Ticket submit() override {
-        const backend::Ticket t = backend::CpuBackend::submit();
-        std::lock_guard<std::mutex> lk(mu);
-        const auto now = std::chrono::steady_clock::now();
-        ready.resize(t, now);
-        ready[t - 1] = std::max(now, t > 1 ? ready[t - 2] : now) + std::chrono::milliseconds(30 + 30 * std::exchange(rows, 0));
-        return t;
-    }
-    void wait(backend::Ticket t) noexcept override {
-        std::chrono::steady_clock::time_point at;
-        {
-            std::lock_guard<std::mutex> lk(mu);
-            if (t == 0 || t > ready.size()) return;
-            at = ready[t - 1];
-        }
-        while (std::chrono::steady_clock::now() < at) std::this_thread::yield();
-    }
-    bool done(backend::Ticket t) noexcept override {
-        std::lock_guard<std::mutex> lk(mu);
-        return t == 0 || t > ready.size() || ready[t - 1] <= std::chrono::steady_clock::now();
-    }
-    void sync() noexcept override {
-        backend::Ticket t;
-        {
-            std::lock_guard<std::mutex> lk(mu);
-            t = ready.size();
-        }
-        wait(t);
-    }
-};
-
-// A last stage whose record returns before its device finishes still prices its slices at completion (Model::run_chunks).
-// Two prompts at ubatch 3 and 4 give the device's line, 30 ms and 30 ms a row, which cuts the next prompt finer than its ubatch; times at the host submit see the first stage's 3 ms a slice and keep it whole.
-void pipelined_times_at_completion() {
-    const auto weights = tiny_qwen(3, 2 * 128, true);
-    infer::PlacedModel placed = pipelined(weights, {std::make_shared<PacedCpu>(), std::make_shared<LateCpu>()}, {1, 2});
-    infer::Model& split = *placed.model;
-    for (int ub : {3, 4}) {
-        split.reset();
-        split.set_ubatch(ub);
-        split.prefill(kPrompt);
-    }
-    split.reset();
-    split.set_ubatch((int)kPrompt.size());
-    split.prefill(kPrompt);
-    require(split.prefill_slices() > 1, "a pipelined prompt priced its slices at the host submit, not at its last stage's completion");
-    ++checked;
 }
 
 // A stage playing a device that holds each submission fixed_ms and row_ms a row of its widest matmul, spun on its thread so the CPU's own busy time (Backend::busy_ms) measures it; `cut` collects those rows.
@@ -1264,7 +1197,7 @@ void pipelined_cut_follows_stage_lines() {
     ++checked;
 }
 
-// A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk.
+// A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk, the unpriced cut being 3, 1, 3, 3 and 3 rows.
 // Every storage must be back at the history and the same prompt again exact; with backends playing devices the last stage fails on its own thread, the first stage then at the failing chunk at least.
 void pipelined_failure_rolls_back(bool devices) {
     const auto weights = tiny_qwen(3, 2 * 128, true);
@@ -1296,8 +1229,8 @@ void pipelined_failure_rolls_back(bool devices) {
             bool failed = false;
             try { split.prefill(kPrompt); } catch (const std::runtime_error&) { failed = true; }
             require(failed && !last.fail_output && !last.fail_attention, "the injected failure did not fire");
-            // Chunk 2 starts 6 tokens past the history and the last chunk 12; the first stage had begun chunk 3 at least.
-            require(last.histories.back() == before + (at_head ? 12 : 6) && first.histories.back() >= before + (devices ? (at_head ? 12 : 6) : 9),
+            // Chunk 2 starts 4 tokens past the history and the last chunk 10; the first stage had begun chunk 3 at least.
+            require(last.histories.back() == before + (at_head ? 10 : 4) && first.histories.back() >= before + (devices ? (at_head ? 10 : 4) : 7),
                     "the failure was not on the last stage with the first chunks ahead");
             require((size_t)split.n_tokens() == before && split.kv_used_bytes() == used, "a failed pipelined prompt changed the history");
 
@@ -2639,7 +2572,6 @@ int main() {
             pipelined_failure_rolls_back(devices);
         }
         pipelined_slicings_match();
-        pipelined_times_at_completion();
         pipelined_cut_follows_stage_lines();
         replay_over_stages();
         passes_refused();

@@ -30,6 +30,7 @@ A compile without them stops at one `#error` at the top of the header.
   A count change allocates its scratch before stopping anything, so a failed change keeps the previous count and pool.
   Concurrent or recursive submissions remain unsupported.
 - `set_threads(0)` leaves the current pool unchanged, including inside a prefill scope.
+- `submit` counts tickets, the ops having run at issue, and keeps the time each submission held the CPU, from its first dispatch, `write` or `copy` to the submit, in a ring of 256 for `busy_ms`; the host's waits on other devices come before that first op and stay outside it. The ticket is atomic, since the prefill's completion lane asks `busy_ms` from its own thread.
   The constructor takes the initial automatic count from `core::automatic_threads()` ([cpus](core-cpus.md)).
   The CLI resolves its automatic thread flags before requesting a change.
 - `alloc` owns its bytes as `core::HostPages` ([host_memory](core-host_memory.md)), the operating system's zero pages, so a buffer costs memory only where it is written: the KV cache every placement backs whole at load takes address space, not time or resident memory, until passes fill it.

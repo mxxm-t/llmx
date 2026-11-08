@@ -247,6 +247,7 @@ struct Device {
     // Device time per dispatch, for a backend opened for diagnostics: a timestamp either side of every dispatch, read back after the pass.
     bool timestamps = false;
     double timestamp_ns = 0.0;   // nanoseconds per tick, as the device reports
+    uint64_t stamp_mask = 0;     // the queue's valid timestamp bits; zero where its queue does not timestamp, so no submission is timed (busy_ms)
     bool uncached_memory = false;   // host memory the device reads past its caches (VK_AMD_device_coherent_memory), which a held queue's release counter takes
     bool device_clock = false;   // shaders read the device's clock (VK_KHR_shader_clock's shaderDeviceClock), which a held queue's wait is bounded by
 

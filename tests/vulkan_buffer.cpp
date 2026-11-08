@@ -500,7 +500,8 @@ struct QueryCalls {
     }
     static VKAPI_ATTR void VKAPI_CALL destroy(VkDevice d, VkQueryPool pool, const VkAllocationCallbacks* alloc) {
         auto& q = *query_calls;
-        if (pool != q.pool) { q.bad_destroy = true; return; }
+        if (pool == (VkQueryPool)0xdead) { q.bad_destroy = true; return; }
+        if (pool != q.pool) { q.original.vkDestroyQueryPool(d, pool, alloc); return; }
         ++q.destroys; q.ordered = q.idle;
         q.original.vkDestroyQueryPool(d, pool, alloc);
     }

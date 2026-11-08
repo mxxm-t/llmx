@@ -1,11 +1,12 @@
 #pragma once
-// How a prompt is cut into slices on a pipelined split: each slice the next of the equal cut of what remains that the stages' measured cost lines finish first (docs/src/model-slicing.md).
+// How a prompt is cut into slices on a pipelined split: each slice the first of the cut of what remains that the stages' measured cost lines finish first (docs/src/model-slicing.md).
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
 #include <map>
+#include <iterator>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -69,14 +70,27 @@ inline void pipeline_run(std::vector<double>& finish, const std::vector<double>&
     for (size_t s = first; s < finish.size(); ++s) prev = finish[s] = std::max(prev, finish[s]) + ms[s];
 }
 
-// The rows of a prompt's next slice from history position `start`, at most `cap`: the next of the equal cut of the `rows` left that the stages' lines, `lines(band)`, finish first after each stage's `backlog`, else the 2S cut.
-// A finite `increment_ms` bounds how much later than the backlog the next slice leaves the last stage, else a slice of kSliceFloor rows (docs/src/model-slicing.md).
+// The ratios between a cut's successive slices: 1 is the equal cut, below 1 slices shrink toward the drain and above 1 they grow out of the fill.
+inline constexpr double kSliceRatios[] = {0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2};
+// The first slices tried around the best equal cut's, a doubling apart in this many steps (docs/src/model-slicing.md).
+inline constexpr size_t kSliceSteps = 16;
+
+// A cut of a prompt: its first slice's rows and the ratio of each slice to the one before, at most the cap and the last the remainder; ratio 0 where the cut was not priced and each slice is chosen again.
+struct SliceCut {
+    size_t first = 0;
+    double ratio = 0;
+    // The slice after one of `rows` rows planned at `size` rows, given the `left` rows and the cap; `size` moves on by the ratio.
+    size_t next(double& size, size_t left, size_t cap) const { return std::min({left, cap, std::max<size_t>(1, (size_t)(size *= ratio))}); }
+};
+
+// The cut of a prompt's `rows` rows from `start` that the stages' `lines(band)` finish first after their `backlog`, of the equal cuts and the kSliceRatios cuts near the best one, else the 2S cut's first slice.
+// A finite `increment_ms` bounds how much later than the backlog a cut's first slice leaves the last stage, else a slice of kSliceFloor rows (docs/src/model-slicing.md).
 template <class Lines>
-size_t prompt_slice(size_t start, size_t rows, size_t stages, const Lines& lines, size_t cap, std::vector<double> backlog = {},
+SliceCut prompt_cut(size_t start, size_t rows, size_t stages, const Lines& lines, size_t cap, std::vector<double> backlog = {},
                     double increment_ms = std::numeric_limits<double>::infinity()) {
     cap = std::max<size_t>(1, cap);
-    if (!rows) return 0;
-    if (stages < 2) return std::min(rows, cap);
+    if (!rows) return {};
+    if (stages < 2) return {std::min(rows, cap), 0};
     const auto equal = [&](size_t n) { return (rows + n - 1) / n; };
     const size_t lo = depth_band(start);
     std::vector<std::vector<StageLine>> bands(depth_band(start + rows - 1) - lo + 1);
@@ -84,7 +98,7 @@ size_t prompt_slice(size_t start, size_t rows, size_t stages, const Lines& lines
         if ((bands[b] = lines(lo + b)).size() != stages) bands[b].clear();
     const size_t mid = depth_band(start + rows / 2) - lo;
     // A slice starting in a band without a line of its own takes the cut without prices, not a deeper band's price; a band later in the cut without one takes the line below it.
-    if (bands[0].empty() || bands[mid].empty()) return std::min({rows, cap, std::max(std::min(kSliceFloor, cap), equal(2 * stages))});
+    if (bands[0].empty() || bands[mid].empty()) return {std::min({rows, cap, std::max(std::min(kSliceFloor, cap), equal(2 * stages))}), 0};
     for (size_t b = 1; b < bands.size(); ++b)
         if (bands[b].empty()) bands[b] = bands[b - 1];
     backlog.resize(stages, 0.0);
@@ -101,81 +115,151 @@ size_t prompt_slice(size_t start, size_t rows, size_t stages, const Lines& lines
     };
     const bool capped = increment_ms < std::numeric_limits<double>::infinity();
     const size_t floor = std::min({rows, cap, kSliceFloor});
-    size_t best_r = 0, last = 0;
-    double best = -1;
+    // A cut's finish: first slice `r`, each after it `q` times the one before, at most the cap, the last the remainder; given up once it ends no sooner than `best`.
+    // None when a finite increment_ms is passed by the first slice.
+    size_t best_r = 0;
+    double best = -1, best_q = 1;
+    const auto price = [&](size_t r, double q) {
+        std::vector<double> finish = backlog;
+        double next = (double)r;
+        for (size_t at = 0; at < rows; next *= q) {
+            const size_t k = std::min({rows - at, cap, std::max<size_t>(1, (size_t)next)});
+            pipeline_add(finish, bands[depth_band(start + at) - lo], k);
+            if (!at && capped && finish.back() - backlog.back() > increment_ms) return;
+            if (best >= 0 && finish.back() >= best) return;
+            at += k;
+        }
+        best = finish.back(), best_r = r, best_q = q;
+    };
+    // The equal cuts first, from the fewest slices up until no cut of more can end sooner; then first slices from half to twice the best one's in kSliceSteps steps a doubling, at each ratio.
+    size_t last = 0;
     for (size_t n = (rows + cap - 1) / cap; n <= rows; ++n) {
         const size_t r = equal(n);
         if (best >= 0 && least(equal(r)) >= best) break;
         if (capped && r < floor) break;
         if (r == last) continue;
-        last = r;
-        std::vector<double> finish = backlog;
-        if (capped) {
-            pipeline_add(finish, bands[0], r);
-            if (finish.back() - backlog.back() > increment_ms) continue;
-            finish = backlog;
-        }
-        for (size_t at = 0; at < rows; at += r) {
-            const size_t k = std::min(r, rows - at);
-            pipeline_add(finish, bands[depth_band(start + at) - lo], k);
-        }
-        if (best < 0 || finish.back() < best) best = finish.back(), best_r = r;
+        price(last = r, 1.0);
     }
-    return best < 0 ? floor : std::min(rows, best_r);
+    if (best < 0) return {floor, 0};
+    const size_t centre = best_r, lowest = capped ? floor : 1;
+    last = 0;
+    for (int j = -int(kSliceSteps); j <= int(kSliceSteps); ++j) {
+        const size_t r = std::clamp<size_t>((size_t)std::lround(double(centre) * std::exp2(double(j) / double(kSliceSteps))), lowest, std::min(rows, cap));
+        if (r == last) continue;
+        last = r;
+        for (const double q : kSliceRatios) price(r, q);
+    }
+    return {std::min(rows, best_r), best_q};
 }
 
-// A pipelined prefill's own prices by the band its slices start in: a least-squares line through the times its slices left the last stage, its fixed cost calibrated by whole prefills.
+// The first slice of prompt_cut's cut: the rows to read next.
+template <class Lines>
+size_t prompt_slice(size_t start, size_t rows, size_t stages, const Lines& lines, size_t cap, std::vector<double> backlog = {},
+                    double increment_ms = std::numeric_limits<double>::infinity()) {
+    return prompt_cut(start, rows, stages, lines, cap, std::move(backlog), increment_ms).first;
+}
+
+// A pipelined prefill's own prices by the band its slices start in: each stage's least-squares line through the device time each slice held it (Backend::busy_ms), the fixed costs calibrated by whole prefills.
 class SlicePeriods {
 public:
-    // The points a band keeps, its latest: about sixteen prefills of sixteen slices, so the line follows the present costs and planning stays bounded however many prompts run.
+    // The points a stage keeps in a band, its latest: about sixteen prefills of sixteen slices, so the line follows the present costs and planning stays bounded however many prompts run.
     static constexpr size_t kBandPoints = 256;
-    // A prefill's slices, each its history position and rows, and the time each left the last stage: every run of slices in one band is a series of points, each the slices since the run's origin, their rows and the time since then.
-    // The origin is the end of the slice before the run, so the first slice, which fills the stages, is no point, nor is the last, which carries the head and the drain; a late time moves one point, not two periods.
-    void observe(const std::vector<std::pair<size_t, size_t>>& slices, const std::vector<double>& done_ms) {
-        const size_t n = std::min(slices.size(), done_ms.size());
-        size_t band = 0, count = 0;
-        double rows = 0, origin = 0;
-        for (size_t c = 1; c + 1 < n; ++c) {
-            const size_t b = depth_band(slices[c].first);
-            if (!count || b != band) band = b, count = 0, rows = 0, origin = done_ms[c - 1];
-            rows += (double)slices[c].second;
-            ++count;
-            if (done_ms[c] <= origin) continue;
-            auto& points = points_[band];
-            if (points.size() == kBandPoints) points.erase(points.begin());
-            points.push_back({rows, done_ms[c] - origin, 1.0, (double)count});
+    // The prefills a band's calibration averages over, and the share of the least fixed cost it may move a stage's, chosen by the simulation in docs/src/model-slicing.md.
+    static constexpr size_t kCalibrationWindow = 4;
+    static constexpr double kCalibrationShare = 0.5;
+
+    // A prompt's slices of at most `cap` over `stages` stages, a slice crossing `stop` ending there: prompt_cut's cut at these lines, chosen again after a slice it did not price or that `stop` ended.
+    // `finish` is left at each stage's predicted finish, or empty where a slice had no price; without prices the second slice is halved, so one prefill's points tell fixed cost from rows.
+    std::vector<std::pair<size_t, size_t>> cut(size_t start, size_t rows, size_t stages, size_t cap, size_t stop, std::vector<double>& finish) const {
+        std::vector<std::pair<size_t, size_t>> parts;
+        const auto at = [&](size_t band) { return lines(band, stages); };
+        finish.assign(stages, 0.0);
+        bool priced = stages > 1;
+        SliceCut plan;
+        double size = 0;
+        for (size_t i = 0; i < rows;) {
+            size_t n = plan.ratio > 0 ? plan.next(size, rows - i, std::max<size_t>(1, cap)) : 0;
+            if (!n) size = double(n = (plan = prompt_cut(start + i, rows - i, stages, at, cap, finish)).first);
+            const auto l = stages > 1 ? at(depth_band(start + i)) : std::vector<StageLine>{};
+            if (stages > 1 && l.empty() && parts.size() == 1) n = std::max<size_t>(1, n / 2);
+            if (stop > i && stop < i + n) n = stop - i, plan.ratio = 0;
+            if (!l.empty()) pipeline_add(finish, l, n);
+            priced = priced && !l.empty();
+            parts.push_back({i, n});
+            i += n;
         }
+        if (!priced) finish.clear();
+        return parts;
     }
-    // A prefill of `bands.size()` slices, each starting in its band, took `residual_ms` beyond the predicted finish: each band's fixed cost becomes the running mean of what it was plus the residual a slice.
-    void calibrate(const std::vector<size_t>& bands, double residual_ms) {
-        if (bands.empty()) return;
-        std::vector<size_t> seen(bands);
+
+    // A prefill's slices, each stage's busy time on each (negative where unmeasured), and its wall time against `finish`, its cut's prediction, which calibrates the fixed costs the busy times leave out.
+    // Each band adds the mean of its last kCalibrationWindow samples, each the residual over the finish's change for one more ms of every fixed cost, bounded by kCalibrationShare of the least (docs/src/model-slicing.md).
+    void observe(const std::vector<std::pair<size_t, size_t>>& slices, const std::vector<std::vector<double>>& busy, double wall_ms, const std::vector<double>& finish) {
+        const size_t n = std::min(slices.size(), busy.size());
+        std::vector<size_t> seen;
+        for (size_t c = 0; c < n; ++c) {
+            const size_t band = depth_band(slices[c].first);
+            seen.push_back(band);
+            auto& stages = points_[band];
+            if (stages.size() != busy[c].size()) stages.assign(busy[c].size(), {});
+            for (size_t s = 0; s < stages.size(); ++s) {
+                if (!(busy[c][s] > 0)) continue;
+                if (stages[s].size() == kBandPoints) stages[s].erase(stages[s].begin());
+                stages[s].push_back({(double)slices[c].second, busy[c][s], 1.0, 1.0});
+            }
+        }
+        if (finish.empty() || !n) return;
+        std::vector<double> at(finish.size(), 0.0), more = at;
+        for (size_t c = 0; c < n; ++c) {
+            auto l = lines(depth_band(slices[c].first), finish.size());
+            if (l.empty()) return;
+            pipeline_add(at, l, slices[c].second);
+            for (StageLine& x : l) x.fixed_ms += 1;
+            pipeline_add(more, l, slices[c].second);
+        }
+        const double cells = more.back() - at.back();
+        if (!(cells > 0)) return;
         std::sort(seen.begin(), seen.end());
         seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
         for (size_t b : seen) {
-            auto& [mean, n] = extra_[b];
-            const double sample = mean + residual_ms / (double)bands.size();
-            mean += (sample - mean) / double(++n);
+            auto& [mean, samples] = extra_[b];
+            samples.push_back(mean + (wall_ms - finish.back()) / cells);
+            if (samples.size() > kCalibrationWindow) samples.erase(samples.begin());
+            mean = 0;
+            for (const double x : samples) mean += x / double(samples.size());
+            const auto raw = fit(b, finish.size());
+            double least = std::numeric_limits<double>::infinity();
+            for (const StageLine& l : raw) least = std::min(least, l.fixed_ms);
+            if (!raw.empty()) mean = std::clamp(mean, -kCalibrationShare * least, kCalibrationShare * least);
         }
     }
-    // The period's line in `band`, else in the nearest band below that has one, with `band`'s calibration.
-    std::optional<StageLine> line(size_t band) const {
-        for (size_t b = band + 1; b-- > 0;)
-            if (auto l = fit(b)) {
-                const auto e = extra_.find(band);
-                if (e != extra_.end() && l->fixed_ms + e->second.first > 0) l->fixed_ms += e->second.first;
-                return l;
-            }
-        return std::nullopt;
+
+    // Each stage's line in `band`, else in the nearest band below where every stage has one, with `band`'s calibration; none until then.
+    std::vector<StageLine> lines(size_t band, size_t stages) const {
+        auto l = fit(band, stages);
+        const auto e = extra_.find(band);
+        if (e != extra_.end())
+            for (StageLine& x : l) x.fixed_ms = std::max(0.0, x.fixed_ms + e->second.first);
+        return l;
     }
 
 private:
-    std::map<size_t, std::vector<LinePoint>> points_;     // each band's points
-    std::map<size_t, std::pair<double, size_t>> extra_;   // a band's fixed-cost calibration: its running mean and samples
+    std::map<size_t, std::vector<std::vector<LinePoint>>> points_;   // each band's points, a list a stage
+    std::map<size_t, std::pair<double, std::vector<double>>> extra_;   // a band's fixed-cost calibration: its bounded mean and its last samples
 
-    std::optional<StageLine> fit(size_t b) const {
-        const auto it = points_.find(b);
-        return it == points_.end() ? std::nullopt : fit_line(it->second);
+    std::vector<StageLine> fit(size_t band, size_t stages) const {
+        for (size_t b = band + 1; b-- > 0;) {
+            const auto it = points_.find(b);
+            if (it == points_.end() || it->second.size() != stages) continue;
+            std::vector<StageLine> l;
+            for (const auto& points : it->second) {
+                const auto line = fit_line(points);
+                if (!line) break;
+                l.push_back(*line);
+            }
+            if (l.size() == stages) return l;
+        }
+        return {};
     }
 };
 

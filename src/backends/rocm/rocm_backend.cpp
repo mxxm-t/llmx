@@ -197,7 +197,8 @@ public:
         };
         hip_check(f.hipHostMalloc((void**)&fault_, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
         *fault_ = 0;
-        for (auto& e : events_) hip_check(f.hipEventCreateWithFlags(&e, hipEventDisableTiming), "hipEventCreateWithFlags");
+        for (auto* set : {&events_, &starts_})
+            for (auto& e : *set) hip_check(f.hipEventCreateWithFlags(&e, hipEventDefault), "hipEventCreateWithFlags");
         hip_check(f.hipModuleLoadData(&module_, kF32Module), "hipModuleLoadData");
         hip_check(f.hipModuleLoadData(&int16_module_, kInt16Module), "hipModuleLoadData");
         // The dot module loads only where the build compiled it for this device: that is the capability flag, read from the code object rather than from the device's name.
@@ -247,6 +248,7 @@ public:
         if (int16_module_) (void)f.hipModuleUnload(int16_module_);
         if (dot_module_) (void)f.hipModuleUnload(dot_module_);
         for (auto e : events_) if (e) (void)f.hipEventDestroy(e);
+        for (auto e : starts_) if (e) (void)f.hipEventDestroy(e);
         if (stream_) (void)f.hipStreamDestroy(stream_);
         if (fault_) (void)f.hipHostFree(fault_);
     }
@@ -336,11 +338,22 @@ public:
         const size_t i = t % kEvents;
         if (t > kEvents) wait(t - kEvents);
         bury();
+        if (!started_) hip_check(hip().hipEventRecord(starts_[i], stream_), "hipEventRecord");
         hip_check(hip().hipEventRecord(events_[i], stream_), "hipEventRecord");
         tickets_.take();
-        opened_ = false;
+        opened_ = started_ = false;
         for (Ring* r : {&args_, &stage_, &pass_}) r->tag(t);
         return t;
+    }
+    double busy_ms(Ticket a, Ticket b) override {
+        if (a > b || b > tickets_.last() || a + kEvents <= tickets_.last()) return -1.0;
+        double sum = 0;
+        for (Ticket t = a + 1; t <= b; ++t) {
+            float ms = 0;
+            if (hip().hipEventElapsedTime(&ms, starts_[t % kEvents], events_[t % kEvents]) != hipSuccess) return -1.0;
+            sum += ms;
+        }
+        return sum;
     }
     void wait(Ticket t) noexcept override {
         if (tickets_.settled(t)) return;
@@ -2844,6 +2857,11 @@ private:
         // HIP finds a module's function through the calling thread's device, which another backend's call may have changed.
         hip_check(f.hipSetDevice(dev_.index), "hipSetDevice");
         for (const Held& op : ops) {
+            // A submission's busy time starts at its first operation after its waits on other devices (busy_ms).
+            if (!started_ && op.kind != Held::wait_word) {
+                hip_check(f.hipEventRecord(starts_[(tickets_.last() + 1) % kEvents], stream_), "hipEventRecord");
+                started_ = true;
+            }
             if (op.kind == Held::kernel) {
                 size_t size = op.size;
                 void* extra[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, bytes.data() + op.at, HIP_LAUNCH_PARAM_BUFFER_SIZE, &size, HIP_LAUNCH_PARAM_END};
@@ -2890,11 +2908,13 @@ private:
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};
+    std::array<hipEvent_t, kEvents> starts_{};   // each ticket's first operation after its cross-device waits, timed against events_ (busy_ms)
     Ring args_, stage_, pass_;   // the argument ring, the staging ring, and pass_arg's ring in device memory
     std::array<Upload, kUploads> uploads_{};
     size_t next_upload_ = 0;
     TicketLedger tickets_;
     bool opened_ = false;
+    bool started_ = false;   // the open ticket's start event is recorded
     static constexpr size_t kFirstChunk = 8;
     size_t chunk_ = kFirstChunk;   // the held operations the open submission issues at, kFirstChunk while its device had nothing running
     std::vector<Held> ops_;   // the stream operations held since the last flush

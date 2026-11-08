@@ -4,6 +4,8 @@
 #error "the CPU backend needs AVX2, FMA and F16C: build with /arch:AVX2 on MSVC or -mavx2 -mfma -mf16c elsewhere (docs/BUILD.md)"
 #endif
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
 #include <thread>
 #include <mutex>
@@ -192,6 +194,7 @@ public:
     // The first dispatch at a count starts the pool (a failed start fails this dispatch before any participant runs, and the next tries again), and it blocks until every participant has returned, so the job is referenced, not copied.
     template <class F>
     void run_parallel(F&& fn) {
+        held();
         if (threads_ <= 1) { fn(0); return; }
         if (pool_.empty()) start_pool();
         std::function<void(int)> job(std::ref(fn));   // ref -> no heap alloc
@@ -303,8 +306,22 @@ public:
     size_t collective_bytes_per_row(size_t, size_t width) const override { return size_mul(width, sizeof(float)); }
 
     // Eager: an op has completed by the time it returns, so there is never anything outstanding to wait for, and a ticket only counts.
-    Ticket submit() override { return ++ticket_; }
+    Ticket submit() override {
+        const Ticket t = ticket_.load(std::memory_order_relaxed) + 1;
+        const double ms = held_ ? std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - first_).count() : 0.0;
+        busy_[t % kBusy] = busy_[(t - 1) % kBusy] + ms;
+        held_ = false;
+        ticket_.store(t, std::memory_order_release);
+        return t;
+    }
     void wait(Ticket) noexcept override {}
+    // A submission's ops run at issue, so it holds the CPU from its first dispatch, write or copy (held) until submit; the host's waits on other devices come before that and stay outside it.
+    double busy_ms(Ticket a, Ticket b) override {
+        const auto kept = [&] { const Ticket last = ticket_.load(std::memory_order_acquire); return a <= b && b <= last && last - a < kBusy; };
+        if (!kept()) return -1.0;
+        const double ms = busy_[b % kBusy] - busy_[a % kBusy];
+        return kept() ? ms : -1.0;
+    }
     void sync() noexcept override {}
 
     void read(const Buffer& src, size_t off, void* dst, size_t bytes) override {
@@ -317,6 +334,7 @@ public:
         if (!src && bytes) throw std::runtime_error("backend: writing from null storage");
         span(dst, off, bytes);
         if (!bytes) return;
+        held();
         std::memcpy((uint8_t*)host(dst) + off, src, bytes);
     }
 
@@ -325,6 +343,7 @@ public:
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
         if (!bytes) return;
+        held();
         std::memcpy((uint8_t*)host(dst) + dst_off,
                     (const uint8_t*)src.host_ptr() + src_off, bytes);
     }
@@ -407,6 +426,7 @@ public:
                     q8::dot_block(type, data + o0 * rb, rb, o1 - o0, xq8_, prompt_rows_.data(), ncols, prompt_outs_.data(), o0);
             }
         };
+        held();
         if (threads_ <= 1 || tasks < 2) work(0);
         else run_parallel(work);
     }
@@ -496,6 +516,7 @@ public:
             }
         };
         const int nt = threads_;
+        held();
         if (nt <= 1 || nout < (size_t)nt * 4) { do_rows(0, 0, nout); return; }
         const size_t per = (nout + (size_t)nt - 1) / (size_t)nt;
         const size_t chunk = (per + RB - 1) / RB * RB;
@@ -742,6 +763,7 @@ public:
     void parallel_for(int n, const std::function<void(int)>& fn) {
         if (n <= 0) return;
         const int nt = std::min(threads_, n);
+        held();
         if (nt <= 1) { for (int i = 0; i < n; i++) fn(i); return; }
         const int chunk = (n + nt - 1) / nt;
         run_parallel([&](int w) {
@@ -2283,6 +2305,7 @@ public:
         };
         const size_t tasks = n_views * C;
         const size_t nt = (size_t)std::max(threads_, 1);
+        held();
         if (nt <= 1 || rows * C < ((size_t)1 << 15)) {
             for (size_t t = 0; t < tasks; ++t) task(t);
             return;
@@ -2762,6 +2785,7 @@ private:
     void prepare_x() {
         xq8_.prepare([this](size_t rows, const auto& fn) {
             const size_t nt = (size_t)std::max(threads_, 1);
+            held();
             if (nt <= 1 || rows * xq8_.nin < nt * 16384) { fn(size_t(0), rows); return; }
             const size_t chunk = (rows + nt - 1) / nt;
             run_parallel([&](int w) {
@@ -2842,6 +2866,7 @@ private:
                                   first[e + 1] - first[e], expert_outs_.data() + first[e], o0);
                 }
             };
+            held();
             if (threads_ <= 1 || (first[n_expert] * nout) < (size_t)threads_ * 64) work(0);
             else run_parallel(work);
             return;
@@ -2943,6 +2968,7 @@ private:
     // Below two rows per worker the dispatch costs more than it saves.
     template <typename Fn>
     void spread(size_t rows, const Fn& fn) {
+        held();
         if (threads_ <= 1 || rows < (size_t)threads_ * 2) {
             for (size_t r = 0; r < rows; r++) fn(r);
             return;
@@ -3027,7 +3053,15 @@ private:
     };
 
     int threads_ = 1;
-    Ticket ticket_ = 0;
+    std::atomic<Ticket> ticket_{0};   // read by busy_ms on another thread
+    // The CPU's held time summed through each of the latest kBusy tickets, and whether the open submission has dispatched since first_.
+    static constexpr size_t kBusy = 256;
+    std::array<double, kBusy> busy_{};
+    bool held_ = false;
+    std::chrono::steady_clock::time_point first_;
+    void held() {
+        if (!held_) first_ = std::chrono::steady_clock::now(), held_ = true;
+    }
     bool prefill_active_ = false;
 
     // Persistent worker pool, empty until a dispatch needs it and again after a count change or a failed start.

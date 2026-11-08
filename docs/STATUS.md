@@ -31,6 +31,59 @@
 - **Left:** the Vulkan counterpart: `VulkanBackend::moe_build` (`vulkan_moe.hpp`) fuses up to `kMoeStepRows` (64) rows while rows * k < 2 * n_expert, a fixed 2 rather than its routed products' own grouped crossover; check its crossover follows the same rule as here.
   Widening `fused_step`'s ff and weight-type coverage is separate work (B2).
   `fused_step`'s `rows > 1 &&` guard lets a test-only call of several rows with no runs fuse; every product caller passes runs, and dropping it waits for a change the gates rerun on anyway.
+## Prefill pipeline priced a stage at a time (2026-11-08, PDEV1 to PDEV8, branch perf/prefill-pipeline rebased onto main 8e344fcbb, measured on perf/device-handoff bf5806fcb; F2DEV's review of 2026-11-07 23:39, items 1 to 9)
+
+- **Goal:** a pipelined prompt cut by each stage's own cost, so a heavy stage sets the slices around it and the light ones are not planned as its copies.
+- **Depends on:** the ROCm crossings ordered on the devices (perf/device-handoff, landed as d05eb6c2a): `busy_ms` starts a ROCm submission after those waits.
+- **Done:** `Backend::busy_ms(a, b)`, the device time submissions a+1 to b held the device from their first operation after their waits on other devices, on the CPU (span from the first dispatch, write or copy to the submit), ROCm (timing ticket events and a ring of start events) and Vulkan (a timestamp pair a submission wherever the queue keeps timestamps, read without waiting).
+  `run_chunks` gives each chunk's busy time a stage, its slowest device's; `SlicePeriods` fits a line a stage and band through them and calibrates the fixed costs by the prefills' wall times, each residual scaled by the cells on the plan's critical path and averaged over a true window, so the fit through departure times is gone and one planner remains.
+  `prompt_cut` scores the equal cuts and then cuts growing or shrinking by a ratio (`kSliceRatios`, 0.8 to 1.2) from first slices around the best equal cut's (`kSliceSteps`, 16 a doubling), keeping the server's increment bound on each cut's first slice; `SlicePeriods::cut` plans one cut and follows it.
+  Choosing only among equal cuts again for every slice, as before, ended a 96-row prompt over stages of 1.0 and 0.25 ms a row 4.4% after the best found, and a 2048-row prompt whose last stage costs twice the fixed cost 4.6% after it; the one cut reaches the best found in the first and 1459 against 1527 ms in the second.
+- **Constants from the simulation** (2048 rows, 2, 3, 4 and 8 stages, a heavy first or middle stage or a light first one, 2% noise a slice, 5% of slices stalled 30 ms, handoffs of 1 and 5 ms, eight seeds of eight prefills, scored by the plan's finish at the true costs against the best cut found by search and hill-climbing):
+  `kCalibrationWindow` 4 and `kCalibrationShare` 0.5: windows 2, 4, 8 and unbounded and shares 0.25, 0.5 and 1.0 give means within 0.25% of each other and the same minima on every shape; learned lines reach 97.8 to 99.4% of the best found on average and 89.8 to 97.7% at worst. A stall's sample leaves the mean after the window; the share holds what one stall can move.
+  `kSliceRatios` 0.8 to 1.2: ratios 0.6 to 1.5 give the same plans, learned and from the true lines (98.5 to 99.9%).
+  Not covered: stalls perturb only the measures, so a plan's robustness to them is unscored; a 2048-row prompt stays in band 0; the cost has no depth term.
+- **Left:** `SlicePeriods::observe` drops the wall residual of an unpriced prefill (`if (finish.empty() || !n) return;`), so a prompt whose first bands have no line never calibrates their fixed costs.
+- **Item 1 of the review dropped:** the stage-ordered free of a mid-prefill slot (b55427fde) had no measured use: at matched slice counts layer-4 pp2048 on Qwen3.8-Flash-Next was within 2 tok/s of main (15 slices: 1438.0 and 1438.2 against 1436.9 to 1439.9 tok/s; 14 slices: 1403.9 to 1412.6 against 1413.8), so it lands only with a workload that shows the stall it removes.
+- **Tests:** `server-passes` holds `prompt_cut` against the path enumeration and the equal cuts, and `SlicePeriods`' per-stage lines and calibration; `placement`'s `pipelined_cut_follows_stage_lines` cuts a prompt over two timed CPU stages within 2% of the best cut found; `backend-group`, `backend-rocm` and `backend-vulkan` check `busy_ms` positive below wall time and a wait or the host's 50 ms left out.
+  Focused results at 2c8dfa416 on the Linux MI50 machine: `server-passes` and `placement` pass; `placement` on bf5806fcb with only the test and its timed stages ends its cut at 288 ms against the best 280 and fails, the branch reaches 280.
+  `busy_ms`: `backend-group` passes on the CPU; `backend-rocm` counts 5.9 ms of copies busy in 6.8 ms wall and the reader 0.032 ms behind 51.96 ms of the sender's copies; `backend-vulkan` counts 10.19 of 10.47 ms, 0.006 ms queued behind, 0.014 ms across a 50 ms host gap.
+- **Measured** (tok/s, Qwen3.8-Flash-Next UD-Q4_K_XL, `--dtype int8`, pp2048 and tg128, four MI50s at default clocks, ABBA against bf5806fcb with 3 repetitions a run, host load 20 to 63; slices are the cut's count in each repetition; castagna-veloce figures as the gate):
+
+  | cell | base runs | branch runs | base mean | branch mean | change | castagna gate |
+  |---|---|---|---|---|---|---|
+  | ROCm 2x2 pp | 1368.5 (slices 7, 9, 9), 1457.4 (4, 4, 4) | 1466.3 (5, 5, 4), 1468.9 (5, 5, 5) | 1412.9 | 1467.6 | +3.9% | 1939 |
+  | ROCm layer-4 pp | 1483.5 (14, 14, 14), 1397.4 (4, 4, 4) | 1428.4 (6, 6, 6; one repetition 1177.2), 1497.8 (5, 6, 6) | 1440.4 | 1463.1 | +1.6% | 2615 |
+  | Vulkan 2x2 pp | 1537.3 (4, 4, 4), 1567.4 (5, 4, 5) | 1570.5 (5, 5, 5), 1559.0 (5, 5, 5) | 1552.3 | 1564.7 | +0.8% | |
+  | Vulkan layer-4 pp | 1723.7 (8, 8, 10), 1708.8 (8, 9, 9) | 1701.9 (7, 7, 7), 1715.2 (7, 7, 8) | 1716.3 | 1708.5 | -0.5% | |
+  | ROCm 2x2 tg | 60.75, 56.47 | 60.54, 55.39 | 58.6 | 58.0 | noise | |
+  | ROCm layer-4 tg | 47.96, 47.67 | 47.69, 47.23 | 47.8 | 47.5 | -0.7% | |
+  | Vulkan 2x2 tg | 29.42, 44.94 | 33.51, 39.05 | 37.2 | 36.3 | noise | |
+  | Vulkan layer-4 tg | 49.25, 45.42 | 45.43, 47.00 | 47.3 | 46.2 | noise | |
+
+  The gain is modest: +3.9% on ROCm 2x2, +1.6% on ROCm layer-4, and Vulkan within noise.
+  Its value is a stable cut: the branch's ROCm 2x2 runs differ by under 0.5% at 4 or 5 slices, where the base swings between 4 and 9 slices and 1368 and 1457 tok/s, and its ROCm layer-4 runs hold 5 or 6 slices where the base chose 14 in one run and 4 in the other.
+  Decode is level within its noise on both backends (the larger tg spreads come from single slow repetitions in both arms), so the per-ticket timing events cost nothing measurable.
+  Both arms stay below the gate, 2x2 at 76% and layer-4 at 56%.
+- **Landing checks** (rebased onto main 8e344fcbb, a STATUS-only conflict; Linux builds from `git archive`, both arms built the same way, `llmx --version` unknown for both):
+  CTest Release: Linux Vulkan 100/100 and `vulkan-lifetime` alone passes; Linux ROCm 84/84; Windows with Vulkan ON in a fresh build directory 101/101.
+  `tests/vulkan_buffer.cpp`'s `QueryCalls::destroy` now forwards the pools it did not create, since the backend's own busy-time pool made `vulkan-lifetime --queue` fail its query cases; `--queue` also flaked on main in 1 of 3 runs, so a single failure there is not this branch's.
+  Timing, Qwen3.8-Flash-Next UD-Q4_K_XL `--dtype int8`, pp2048 and tg128, four MI50s, ROCm, ABBA main 8e344fcbb and head, 3 repetitions a run, host load 15 to 41 (records in `mon.txt`; a host reboot after an out-of-memory preceded this round):
+
+  | cell | main runs | head runs | main mean | head mean | change |
+  |---|---|---|---|---|---|
+  | ROCm 2x2 pp | 1214.7 (slices 7, 9, 25), 1283.9 (9, 9, 16) | 1466.0 (5, 5, 4), 1460.8 (4, 5, 4) | 1249.3 | 1463.4 | +17.1% |
+  | ROCm layer-4 pp | 1409.1 (14, 14, 14), 1480.9 (14, 14, 14) | 1487.6 (14, 5, 6), 1509.4 (5, 6, 6) | 1445.0 | 1498.5 | +3.7% |
+  | ROCm 2x2 tg | 62.71, 39.14 | 62.42, 61.32 | 50.9 | 61.9 | noise, main's second run slow |
+  | ROCm layer-4 tg | 28.52, 51.87 | 41.87, 50.73 | 40.2 | 46.3 | noise, each arm has one slow run |
+
+  Main's 2x2 cut swung between 9 and 25 slices here, the head's held 4 or 5.
+  The head's layer-4 first slice repetition still cuts 14 once, then settles at 5 to 6.
+  CPU prefill, Qwen3-0.6B Q8_0 pp1536 ubatch 256, 2 threads, host load 12 to 44: the first A/B in fixed main-then-head order read the head 6% slower in user time, but that order put the head always second under rising load.
+  Rotated three-arm rounds (main, head, main with an unused function added before `CpuBackend`), user seconds over 5 rounds: main 215.7, head 207.7, perturbed main 217.6 over 6, so the head is 3.7% below main and the layout band covers the spread.
+  Byte identity of greedy ids against main 87a3760a3 was held on Qwen3-0.6B Q8_0 over the CPU, rocm:0 and rocm:0,rocm:1 (36 files, 0 differ); the rebase adds no change to the paths the branch touches.
+- **Left:** the hosted run; the branch lands by fast-forward.
+- **Gotchas:** ROCm `sent` and `taken` flush at once, so a reader's wait is released by the sender's device work, not by the sender's submit; Vulkan has no cross-device wait on this base, so its busy times leave out only the work queued before and the host's gaps.
 
 ## ROCm crossings ordered on the devices (2026-11-07, XDEV1, XDEV6, XDEV7, branch perf/device-handoff on main 49f75382; F2DEV's approval of 21:44 on 574c9f31; lands by fast-forward)
 
@@ -94,61 +147,6 @@
   The hosted run of the rebased head is named in the landing entry of the devlog and on GitHub gate/deepseek4-native.
 - **Left:** F2DEV's re-review; then the batch's gates by COORD.
 - **Gotchas:** the tiny model's 32-wide rows are one block, not whole words, so every packed row is padded to a word; packing reads the raw values, since FP4 under an E4M3 scale is not idempotent under requantization.
-
-## Pipelined prompt slicing priced by cumulative slice times (2026-11-06, RDEV32, branch fix/prompt-slicing, rebased onto main 2e8a1e6fe; RDEV26's finding of 2026-11-05 21:00, RDEV32's finding and proposal of 2026-11-06 06:44)
-
-- **Goal:** a pipelined prefill's own prices (`infer::SlicePeriods`, `src/model/slicing.hpp`) that hold their cut from run to run on any backend; on ROCm the cut swung between about 10 and 250 slices on the same pp2048 cell (one run at 225 slices fell to 217 tok/s against about 1100).
-- **Cause** (Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s, main 99df4418e with a log of each prefill's line, cut and slice times): the line was fitted through each slice's interval at the last stage, and on ROCm those intervals come in pairs, one near 0 ms and the next near two periods (layer-4 int8 ub512 warm-up: 196 rows 17 ms, 172 rows 267 ms, 150 rows 17 ms), as the last stage's records end in pairs; stamping them on that stage's own thread gave the same pairs, and Vulkan's intervals on the same cells are smooth (64 to 84 ms).
-  The prompt's last slice was also a measure, though it carries the head and the drain (22 rows leaving 2.46 ms after the slice before), and the line's depth term, which the slices of one band of a 2048-row prompt cannot tell from the fixed cost under that noise, took the rest: the warm-up's points gave 0.47 ms + 0.927 ms a row + 2.96e-4 ms a row-token (47.6 ms fixed without the depth term), and the next prefill took 189 slices at 304 tok/s.
-- **Done:** `SlicePeriods::observe` takes a prefill's slices and the times they left the last stage; each run of slices in one band is a series of points, the slices since the run's origin (the end of the slice before it), their rows and the time since then, so a late time moves one point and not two intervals; the first and the last slice are no points; the line is fixed plus a cost a row, the bands carrying depth, so `StageLine`, `LinePoint` and `fit_line` lose the depth term, which nothing else produced (the server's lines had none).
-  A slice that starts in a band without a line of its own takes the cut without prices (`prompt_slice`), never a deeper band's line: at 16384 rows the warm-up cut gives only band 2 a line, its slices in bands 0 and 1 being all of 512 rows, and the earlier rule priced those bands by band 2's line, whose intercept fell from main's 27-32 ms to 23 ms here, so it cut band 1 into slices of 424 to 490 rows (36 slices against main's 32 to 35; RDEV37's log of each band's line, F2DEV's review of 08:56).
-  server-passes pins that too: a 16k prompt whose only line is band 2's takes the cut without prices at every slice starting in bands 0 and 1, and band 2 its own line's finer cut; on bc3a0ac46 the first slices were 294 to 298 rows.
-  server-passes pins it: the line from a warm-up cut with a drain slice is exact, times late in pairs by half and nine tenths of a period cut 2048 rows within 5% and 20% of the true line's finish, and a band's run gives that band its own line.
-  An offline simulator of the loop (three cost lines, ten seeds, a cold first prefill, paired times) took 4 to 171 slices with a worst run at 340 tok/s under the old rule and 4 to 14, each truth within 5% of its best, under this one.
-- **Gates** (main 99df4418e against the branch's code, built alike from detached trees, `llmx 0.1.0+unknown` on both since the trees' git was not mounted, so each result file records the binary's sha256; four MI50s at default clocks; load average 14 to 65 over the round from other users' work, recorded before and after each cell):
-  CPU build, CTest 79/79, CPU suite 44 pass and the real-model cells skipped (no fixture on disk), dead-code and docs pass; Qwen3-0.6B Q8_0 byte identity against main, 64 greedy tokens and `logits --last 4`, on cpu and cpu,cpu at ub64 and ub512, 8/8 equal; the hosted run green.
-  Timing round, Qwen3.8-Flash-Next UD-Q4_K_XL `bench --p 2048 --n 4 --r 5`, ROCm main, branch, branch, main and Vulkan main, branch; tok/s as the median of every run's rate from the slices line (10 runs a side on ROCm, 5 on Vulkan), its range, main's a/a spread as the gap between its two sets' medians, and the slices a run took (range):
-
-  | cell | main | branch | change | main a/a | main slices | branch slices |
-  |---|---|---|---|---|---|---|
-  | ROCm layer-4 int8 ub512 | 1382 (1066-1485) | 1342 (1069-1362) | -2.9% | 12.5% | 4-12 | 4-5 |
-  | ROCm layer-4 auto ub512 | 1053 (568-1114) | 1072 (838-1140) | +1.8% | 4.2% | 8-36 | 4-14 |
-  | ROCm 2x2 int8 ub512 | 1212 (1074-1413) | 1412 (1394-1414) | +16.5% | 18.5% | 4-19 | 4-6 |
-  | ROCm 2x2 auto ub512 | 1027 (1003-1180) | 1179 (1145-1181) | +14.7% | 0.2% | 4-14 | 4-7 |
-  | ROCm layer-4 int8 ub320 | 1249 (293-1467) | 1365 (1229-1411) | +9.3% | 14.2% | 7-233 | 7-14 |
-  | ROCm layer-4 auto ub320 | 1067 (223-1105) | 1078 (989-1129) | +1.0% | 10.8% | 11-256 | 7-14 |
-  | ROCm 2x2 int8 ub320 | 1364 (1079-1376) | 1375 (1373-1377) | +0.8% | 1.1% | 7-19 | 7 |
-  | ROCm 2x2 auto ub320 | 1146 (1145-1147) | 1146 (1145-1147) | 0.0% | 0.1% | 7 | 7 |
-  | Vulkan layer-4 int8 ub512 | 1653 (1594-1723) | 1653 (1568-1664) | +0.1% | - | 7-14 | 5-12 |
-  | Vulkan layer-4 auto ub512 | 1160 (1092-1187) | 1163 (1142-1192) | +0.3% | - | 11-16 | 6-12 |
-  | Vulkan 2x2 int8 ub512 | 1531 (1493-1552) | 1537 (1519-1561) | +0.4% | - | 4 | 4-6 |
-  | Vulkan 2x2 auto ub512 | 1158 (1149-1159) | 1170 (1161-1174) | +1.1% | - | 4 | 4-6 |
-  | Vulkan layer-4 int8 ub320 | 1690 (1498-1734) | 1666 (1641-1717) | -1.4% | - | 10-18 | 7-12 |
-  | Vulkan layer-4 auto ub320 | 1180 (1030-1191) | 1169 (1128-1196) | -0.9% | - | 8-19 | 7-13 |
-  | Vulkan 2x2 int8 ub320 | 1504 (1493-1525) | 1535 (1533-1542) | +2.1% | - | 7 | 7 |
-  | Vulkan 2x2 auto ub320 | 1089 (1076-1092) | 1114 (1114-1119) | +2.3% | - | 7 | 7 |
-
-  No ROCm run of the branch took more than 14 slices (main's took up to 256, its slowest run 223 tok/s against the branch's slowest 838), and no cell is slower than main past main's own a/a spread; the branch's ROCm sets agree within 1.4%, where main's differ by up to 18.5%.
-  ROCm layer-4 int8 ub512 settles at 4 slices and about 1360 tok/s, where main's first set held 10 to 12 slices at 1379 to 1436, so the cut there is a few percent short of its best: the -2.9% is that, inside the spread.
-  The depth cell, `bench --p 16384 --n 4 --r 3` layer-4 int8 ub512, main, branch, branch, main on each backend, every run's rate (slices): ROCm main 1483 (96), 1774 (43), 1787 (32), 1776 (42), 1485 (55), 1681 (46), median 1727, branch 1494 (53), 1760 (43), 1766 (32), 1846 (43), 1593 (63), 1854 (43), median 1763, +2.1%; Vulkan main 2336 (32), 2329 (33), 2328 (33), 2336 (32), 2328 (32), 2315 (32), median 2328, branch 2285 (43), 2217 (46), 2291 (38), 2285 (43), 2280 (43), 2276 (43), median 2283, -2.0%, past main's a/a spread of 0.2%.
-  On Vulkan at 16384 rows the branch cuts finer than one slice an ubatch (38 to 46 slices against main's 32 and 33), which costs the 2.0%; why the deeper bands' lines price smaller slices is not yet measured (the bands' fitted lines were not logged in these runs).
-  With the fallback for a band without a line of its own (main e30a8cba9 against the fix's code, Flash-Next UD-Q4_K_XL int8 ub512 on four MI50s at default clocks, main in runs 1 and 4 and the fix in runs 2 and 3, each binary's sha256 in its result file; load average 12 to 54 over the round), tok/s per run as the mean of its repetitions (the first table gave medians), each repetition's slices after it, the Vulkan column the same cell on Vulkan (pp2048 from the round above) and the gate column the final gate's pp2048 reference:
-
-  | cell | main | fix | Vulkan | gate |
-  |---|---|---|---|---|
-  | Vulkan pp16384 layer-4 | 1535 (143/454/52), 2331 (32/32/33) | 2324 (32/33/33), 2310 (33/34/34) | - | - |
-  | ROCm pp16384 layer-4 | 1681 (42/53/42), 1820 (38/36/34) | 1808 (33/32/32), 1822 (32/32/32) | 2324, 2310 | - |
-  | ROCm pp2048 2x2 | 1282 (4/11/13/15/13), 1283 (4/10/15/13/14) | 1419 (5/5/4/4/4), 1433 (6/4/4/4/4) | 1537 | 1939 |
-  | ROCm pp2048 layer-4 | 1390 (7/11/12/12/10), 971 (142/8/47/19/14) | 1316 (4/4/4/4/5), 1317 (4/4/4/4/5) | 1653 | 2615 |
-
-  Main's first Vulkan pp16384 run is main's own swing, cutting 143 and 454 slices, where its fourth ended under the same load at 32 slices.
-  The Vulkan pp16384 cell's -2.0% is gone, the fix cutting 32 to 34 slices as main does at its best.
-  On ROCm pp2048 layer-4 the fix settles at 4 to 5 slices, 1364 to 1390 tok/s past each set's first repetition, where main's repetitions at 10 to 12 slices reached 1445 to 1502.
-  At pp2048 the prompt sits in band 0, where the fallback changes nothing, so those cells differ by the fit's change and the run-to-run spread alone.
-- **Left:** two follow-ups, then the branch lands by fast-forward.
-  `calibrate()` never runs for a prompt whose first bands have no line, since `priced` is false, so a 16k prompt's wall residual is dropped and band 2's fixed cost never takes it.
-  The ROCm layer-4 pp2048 cut settles below main's best repetitions (4 to 5 slices at about 1370 tok/s against 10 to 12 at 1445 to 1502).
-- **Gotchas:** the record ends' pairing is the ROCm stage threads' cadence, not a measurement error of the slicing; a fit through single intervals stays fragile wherever a backend's stage ends bunch, so the series form is the rule for any backend.
 
 ## ROCm fused linear-attention decode step (2026-11-07, RDEV64, branch perf/rocm-delta-step on main 49f75382; MEGA6 to MEGA8's study, research/rocm-megakernel-delta 09a109773, lifted into the decode loop; lands by fast-forward)
 - **Goal:** a Qwen3.8-Flash-Next linear-attention layer's decode step as one ROCm launch beside one product group, bit-identical, at any layout of the model over any devices.
@@ -319,10 +317,10 @@ The host's load average over the timing window was 5.9 to 30.9 (mean 15.6), with
   tg64 tok/s, main against the branch: 2x2 int8 33.68 / 33.06 (ub320) and 33.35 / 32.88 (ub512), 2x2 auto 33.30 / 32.94 and 33.34 / 33.07, layer-4 int8 28.12 / 28.18 and 28.38 / 28.12, layer-4 auto 27.65 / 27.71 and 27.61 / 27.57, -1.8% to +0.2%, the lowest the branch's third run on the 2x2 int8 cells.
   Decode reaches no changed kernel: a generated token keeps the one-row exact product, and a one-row sparse call stays below the compute-unit gate, so it runs main's one-head build (traced, median 13.4 to 13.9 us a call on the branch against 14.2 to 15.0 on main ecfe37e07).
   The group sum, remeasured on the traces after step 1 (2x2 int8 ub320, 1201 sums a card, one clock): the later starter's time is 161 us a sum on rocm:0+1 and 263 on rocm:2+3 (181 and 165 before), and the start skew grew from 574 and 918 ms to 913 and 848 ms, rocm:0 and rocm:2 now the earlier in 1131 and 1154 of 1201, so with the exact products gone the first card of each pair waits for its partner's heavier rest; that lateness is the collective's and the split's to remove, not this branch's.
-- **Left:** on ROCm a pass's end is seen up to a period late (the last stage's record ends come in pairs, fix/prompt-slicing above), which the scheduler's retirement and time to first token pay too; whether the device or the HIP runtime holds it is not told apart.
+- **Left:** on ROCm a pass's end is seen up to a period late (the last stage's record ends come in pairs, found by the landed fix/prompt-slicing), which the scheduler's retirement and time to first token pay too; whether the device or the HIP runtime holds it is not told apart.
   No hosted runner has a ROCm device, so the ROCm checks are the rig's hand checks above.
 - **Gotchas:** the exact rows build needs `__launch_bounds__`: without it the compiler capped it at 64 VGPRs and spilled, and it ran no faster than the one-row kernel.
-  On ROCm the pipelined slicing varies run to run (one branch run of 2x2 auto ub512 took 225 slices at 217 tok/s, where its other nine took 4 to 42 at 632 to 1182); the chooser is the runtime's (`model/slicing.hpp`), its fix the pipelined prompt slicing block above (fix/prompt-slicing), not this branch's, and the rates above are read beside their slices for that reason.
+  On ROCm the pipelined slicing varies run to run (one branch run of 2x2 auto ub512 took 225 slices at 217 tok/s, where its other nine took 4 to 42 at 632 to 1182); the chooser is the runtime's (`model/slicing.hpp`), its fix the landed pipelined prompt slicing (fix/prompt-slicing), not this branch's, and the rates above are read beside their slices for that reason.
   The delta rule's 96 workgroups a call (65 against Vulkan's 45 ms a card) is recorded as a finding for perf/rocm-decode.
 
 ## DeepSeek-V4.1 steps 4-7: the module opened and run on the CPU (2026-11-05 to 2026-11-06, DSDEV10 to DSDEV39, branch feat/deepseek4-cpu on main 5a8c5676c; steps 4 to 7 of docs/DEEPSEEK4.md, DSDEV10's proposal of 15:49 and DSDEV12's of 20:14 approved by F2DEV with the changes recorded below, all taken; lands by fast-forward as two commits, the runtime and then the module)

@@ -315,11 +315,13 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
     stage_commit(p, s);
 }
 
-// A prompt's chunks through a pipelined split (Model::prefill), each device taking its chunks in order and each stage that waits on its devices (stage_waits) recording on a thread of its own.
-// This thread begins, prepares and commits every stage and records the rest; a lane of its own waits on each chunk's last-stage submissions, so its time is its devices' completion, not its host submit (docs/src/model-runtime.md).
-inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk) {
+// A prompt's chunks through a pipelined split (Model::prefill): a stage that waits on its devices records on a thread of its own, and a lane waits on each chunk's last-stage submissions (docs/src/model-runtime.md).
+// That lane also fills `stage_ms`, each chunk's time on each stage's slowest device (Backend::busy_ms), negative for the first chunk, which has no submission before it to start from.
+inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk,
+                                                                          std::vector<std::vector<double>>& stage_ms) {
     const size_t S = stages_.size();
     std::vector<std::chrono::steady_clock::time_point> done(chunks);
+    stage_ms.assign(chunks, std::vector<double>(S, -1.0));
     if (ctx.passes.size() < S) ctx.passes.resize(S);
     // Each stage's hand-off under `m`: the chunk given to its lane, those it has recorded and its failure.
     struct Lane {
@@ -330,8 +332,14 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
     std::mutex m;
     std::condition_variable cv;   // this thread's wake, as a lane ends a record
     std::vector<std::unique_ptr<Lane>> lanes(S);
-    // The completion lane's queue under `m`: each committed chunk's last-stage submissions, and how many chunks it has stamped.
-    using Sent = std::vector<std::pair<backend::Backend*, backend::Ticket>>;
+    // The completion lane's queue under `m`: each committed chunk's submissions, each with its stage and device, and how many chunks it has stamped.
+    struct Submitted {
+        size_t stage, device;
+        backend::Backend* b;
+        backend::Ticket t;
+    };
+    using Sent = std::vector<Submitted>;
+    std::vector<backend::Ticket> before(devices_.size(), 0);   // the completion lane's: each device's submission for the chunk before
     std::deque<std::pair<size_t, Sent>> sent;
     size_t stamped = 0;
     std::vector<size_t> next(S, 0), committed(S, 0);
@@ -363,24 +371,38 @@ inline std::vector<std::chrono::steady_clock::time_point> Model::run_chunks(Exec
         threads->add(S, m);
         StageLanes::Policy completion;
         completion.ready = [&sent] { return !sent.empty(); };
-        completion.step = [&sent, &stamped, &done, &cv](std::unique_lock<std::mutex>& lk) {
+        completion.step = [&sent, &stamped, &done, &stage_ms, &before, &cv, S](std::unique_lock<std::mutex>& lk) {
             const auto [c, tickets] = std::move(sent.front());
             sent.pop_front();
             lk.unlock();
-            for (const auto& [b, t] : tickets) b->wait(t);
+            for (const Submitted& u : tickets)
+                if (u.stage + 1 == S) u.b->wait(u.t);
             const auto at = std::chrono::steady_clock::now();
+            // A stage whose device keeps no time for the chunk stays unmeasured rather than priced by its other devices.
+            std::vector<double> held(S, 0.0);
+            std::vector<char> kept(S, 1);
+            for (const Submitted& u : tickets) {
+                u.b->wait(u.t);
+                const double ms = before[u.device] ? u.b->busy_ms(before[u.device], u.t) : -1.0;
+                if (ms < 0) kept[u.stage] = 0;
+                held[u.stage] = std::max(held[u.stage], ms);
+                before[u.device] = u.t;
+            }
             lk.lock();
+            for (size_t s = 0; s < S; ++s)
+                if (kept[s]) stage_ms[c][s] = held[s];
             done[c] = at;
             ++stamped;
             cv.notify_all();
         };
         threads->start(S, std::move(completion));
-        // Chunk c's last stage committed: the completion lane stamps its time once the stage's devices retire its submissions.
+        // Chunk c's last stage committed: the completion lane stamps its time once the stage's devices retire its submissions, and reads every stage's time.
         const auto completed = [&](size_t c) {
             const Pass& p = ctx.passes[c % S];
             Sent t;
-            for (size_t d : stages_[S - 1].touches)
-                for (size_t k = d; k < d + width_; ++k) t.push_back({devices_[k]->b.get(), p.tickets[k]});
+            for (size_t s = 0; s < S; ++s)
+                for (size_t d : stages_[s].touches)
+                    for (size_t k = d; k < d + width_; ++k) t.push_back({s, k, devices_[k]->b.get(), p.tickets[k]});
             {
                 std::lock_guard<std::mutex> lk(m);
                 sent.push_back({c, std::move(t)});

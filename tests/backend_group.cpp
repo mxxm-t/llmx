@@ -1,6 +1,7 @@
 #include <string>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <functional>
@@ -8,6 +9,7 @@
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <thread>
 #include "group_sums.hpp"
 #include "backends/cpu/cpu_backend.hpp"
 #include "quantizers.hpp"
@@ -581,6 +583,26 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
     return checks;
 }
 
+// Backend::busy_ms on the CPU: copies hold it a positive time below the host's wall time around them, and a submission whose host slept 50 ms before its first op is held for its op alone.
+static size_t check_busy(backend::CpuBackend& cpu) {
+    const size_t big = (size_t)64 << 20;
+    const backend::BufferPtr from = cpu.alloc(big, backend::Memory::device), to = cpu.alloc(big, backend::Memory::device);
+    const backend::Ticket before = cpu.submit();
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 4; ++i) cpu.copy(*to, 0, *from, 0, big);
+    const backend::Ticket ran = cpu.submit();
+    const double wall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), held = cpu.busy_ms(before, ran);
+    require(held > 0 && held <= wall, "CPU copies were not held a positive time within their wall time");
+    require(cpu.busy_ms(ran, before) < 0 && cpu.busy_ms(ran, ran + 1) < 0, "CPU busy_ms answered for tickets out of order or not yet submitted");
+    const auto t1 = std::chrono::steady_clock::now();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    cpu.copy(*to, 0, *from, 0, 4096);
+    const backend::Ticket late = cpu.submit();
+    const double waited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count(), late_ms = cpu.busy_ms(ran, late);
+    require(waited >= 50 && late_ms >= 0 && late_ms < 10, "a CPU submission's busy time counted the host's 50 ms before its first op");
+    return 3;
+}
+
 int main() {
     try {
         backend::CpuBackend cpu;
@@ -595,6 +617,7 @@ int main() {
         const size_t magnitudes = check_magnitudes(cpu);
         const size_t summed = check_collective();
         const size_t routed = check_route_edges(cpu);
+        const size_t busy = check_busy(cpu);
         const moe::Matrix matrix = [](uint32_t type, size_t nin, size_t rows, uint32_t seed) {
             (void)seed;
             const Matrix m(type, rows, nin, 1);
@@ -646,7 +669,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; "
+                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << busy << " busy times; "
                   << steps << " routed step outputs equal to the calls it replaced; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "

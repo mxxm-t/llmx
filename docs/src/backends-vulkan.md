@@ -125,6 +125,7 @@ The first three come before the class; the others define members the class decla
   `serve --timing` reads each stage's device time from. All of these are
   read-only reporting: nothing in the runtime path depends on them, and a
   backend not opened for diagnostics times nothing.
+  `busy_ms` is the exception and runs on every backend whose queue keeps timestamps (`stamp_mask`, the queue's valid timestamp bits): `open` resets its ticket's pair in a 512-query pool (`kBusy`, 256 tickets) and writes the start after the work queued before and the submission's semaphore waits, `prepare` writes the end, and `busy_ms` reads the pairs without waiting, -1 for one not yet written; hold submissions take no ticket and are never counted.
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
   32-bit words. Its ordinary allocation constructor throws `AllocationError` on OOM, a `std::bad_alloc`
   with the device, Vulkan result, allocation bytes and memory type in a fixed

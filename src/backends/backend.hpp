@@ -586,6 +586,8 @@ public:
     virtual HostTimes host_times() const { return {}; }
     // The device time of the work recorded since the last call, in milliseconds, by timestamps on a backend made to time its work, which waits for its queue to read them; negative where the backend keeps none.
     virtual double device_ms() { return -1.0; }
+    // The time the device was held by submissions a+1 through b, in milliseconds: each from its first operation after its waits on other devices to its last, asked after b retired without waiting; negative once the backend no longer keeps them.
+    virtual double busy_ms(Ticket a, Ticket b) = 0;
 
     // Memory the backend's kernels take for themselves beside weights, caches and activations, such as split partials and merge state, out of `free` bytes; a fit keeps it back.
     virtual size_t scratch_reserve(size_t free) const { (void)free; return 0; }

@@ -2549,6 +2549,61 @@ void sums_in_flight(const std::vector<Backend*>& group, Collective& c, size_t wi
     }
 }
 
+// Backend::busy_ms: a known run of copies holds the device a positive time below the host's wall time around it, and a reader whose take waits behind the sender's 50 ms of copies is held for its copy alone.
+void busy_times() {
+    std::vector<BackendPtr> d = rocm_devices(2);
+    const size_t big = (size_t)64 << 20, n = 4099, bytes = n * sizeof(float);
+    const BufferPtr from = d[0]->alloc(big), to = d[0]->alloc(big);
+    const Ticket before = d[0]->submit();
+    d[0]->wait(before);
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < 32; ++i) d[0]->copy(*to, 0, *from, 0, big);
+    const Ticket ran = d[0]->submit();
+    d[0]->wait(ran);
+    const double wall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(), held = d[0]->busy_ms(before, ran);
+    std::printf("backend-rocm: busy %.3f ms of %.3f ms wall for 32 copies\n", held, wall);
+    require(held > 0 && held < wall, "a run of copies was not held a positive time below its wall time");
+    require(d[0]->busy_ms(ran, before) < 0 && d[0]->busy_ms(ran, ran + 1) < 0, "busy_ms answered for tickets out of order or not yet submitted");
+    if (d.size() < 2) {
+        std::cout << "backend-rocm: one device, so no busy time across a wait on another\n";
+        return;
+    }
+    const std::unique_ptr<Handoff> h = d[0]->handoff({d[1].get()});
+    require(h != nullptr, "a ROCm handoff to a ROCm reader is made");
+    if (!h) return;
+    const BufferPtr box = d[0]->alloc(bytes, Memory::host_visible), rows = d[0]->alloc(bytes), dst = d[1]->alloc(bytes);
+    const Ticket last = d[1]->submit(), idle = d[0]->submit();
+    d[1]->wait(last);
+    d[0]->wait(idle);
+    // Copies queued on the sender until they hold it 50 ms by its own busy time, ahead of the rows the reader waits for.
+    int count = 32;
+    for (double one = 0; count < 4096; count *= 2) {
+        for (int i = 0; i < count; ++i) d[0]->copy(*to, 0, *from, 0, big);
+        const Ticket t = d[0]->submit();
+        d[0]->wait(t);
+        one = d[0]->busy_ms(t - 1, t) / count;
+        if (one > 0 && one * count * 2 >= 50) {
+            count = std::max(1, (int)std::ceil(50 / one));
+            break;
+        }
+    }
+    const Ticket ahead = d[0]->submit();
+    d[0]->wait(ahead);
+    for (int i = 0; i < count; ++i) d[0]->copy(*to, 0, *from, 0, big);
+    h->begin();
+    d[0]->copy(*box, 0, *rows, 0, bytes);
+    h->sent();
+    const auto t1 = std::chrono::steady_clock::now();
+    h->take(0, *dst, 0, *box, 0, bytes);
+    h->taken(0);
+    const Ticket took = d[1]->submit(), sent = d[0]->submit();
+    d[1]->wait(took);
+    d[0]->wait(sent);
+    const double waited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t1).count(), sender = d[0]->busy_ms(ahead, sent), took_ms = d[1]->busy_ms(last, took);
+    std::printf("backend-rocm: a reader held %.3f ms of %.3f ms behind %.3f ms of the sender's copies\n", took_ms, waited, sender);
+    require(sender >= 45 && waited >= 0.9 * sender && took_ms >= 0 && took_ms < 10, "a reader's busy time counted its wait for the sender's copies");
+}
+
 // Device-side crossings (Backend::handoff): device 0 sends rows through a host-visible buffer to every other device, each reader's queue waiting on the sender's, with every device's backend alive.
 // A slow sender proves a reader's copy waits on the device and that take returns before the sender's work ends; a slow reader proves begin waits for its last take before the buffer is written again.
 void handoffs() {
@@ -3707,9 +3762,10 @@ int main(int argc, char** argv) {
             if (part.empty() || part == "decode") decode_rates(*g);
             return 0;
         }
-        // `handoffs` runs only the device-side crossings over every visible device.
+        // `handoffs` runs only the device-side crossings over every visible device, and the busy times across them.
         if (argc > 1 && std::string(argv[1]) == "handoffs") {
             handoffs();
+            busy_times();
             std::cout << (failures ? "backend-rocm handoffs: FAIL\n" : "backend-rocm handoffs: PASS\n");
             return failures ? 1 : 0;
         }
@@ -3810,6 +3866,7 @@ int main(int argc, char** argv) {
         failure();
         collective();
         handoffs();
+        busy_times();
         qwen35(*g);
         deepseek4(*g);
         routing(*g, *c);

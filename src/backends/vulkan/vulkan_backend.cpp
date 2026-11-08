@@ -264,6 +264,8 @@ public:
         }
         if (chosen < 0) throw VulkanUnavailable("vulkan: " + d.caps.device + " has no compute queue");
         d.queue_family = (uint32_t)chosen;
+        const uint32_t bits = qf[(size_t)chosen].timestampValidBits;
+        d.stamp_mask = bits >= 64 ? ~uint64_t(0) : (uint64_t(1) << bits) - 1;
 
         VkPhysicalDeviceVulkan12Features f12{};
         f12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -401,6 +403,7 @@ public:
         // A queue that timestamps lets a diagnostics backend attribute a pass's time to kernels.
         d.timestamps = diagnostics && d.props.limits.timestampComputeAndGraphics;
         d.timestamp_ns = d.props.limits.timestampPeriod;
+        if (!d.props.limits.timestampComputeAndGraphics) d.stamp_mask = 0;
 
         const float priority = 1.0f;
         VkDeviceQueueCreateInfo qi{};
@@ -468,6 +471,13 @@ public:
         si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         si.pNext = &ti;
         check(fn.vkCreateSemaphore(d.device, &si, nullptr, &timeline_), "vkCreateSemaphore");
+        if (d.stamp_mask) {
+            VkQueryPoolCreateInfo qp{};
+            qp.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+            qp.queryType = VK_QUERY_TYPE_TIMESTAMP;
+            qp.queryCount = 2 * kBusy;
+            check(fn.vkCreateQueryPool(d.device, &qp, nullptr, &busy_pool_), "vkCreateQueryPool");
+        }
     }
 
     ~VulkanBackend() override {
@@ -482,6 +492,7 @@ public:
         for (auto& variants : kernels_)
             for (Kernel& k : variants) destroy_kernel(k);
         for (VkQueryPool q : queries_) d.fn.vkDestroyQueryPool(d.device, q, nullptr);
+        if (busy_pool_) d.fn.vkDestroyQueryPool(d.device, busy_pool_, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         hold_.word.reset();
@@ -693,6 +704,20 @@ public:
         for (const auto& k : kernel_times()) ms += k.second;
         return ms;
     }
+    // Each submission's pair of timestamps, read without waiting: a pair not yet written reads as none.
+    double busy_ms(Ticket a, Ticket b) override {
+        const Ticket last = tickets_.last();
+        if (!busy_pool_ || a > b || b > last || a + kBusy <= last) return -1.0;
+        double ticks = 0;
+        for (Ticket t = a + 1; t <= b; ++t) {
+            uint64_t stamps[2];
+            if (dev_->fn.vkGetQueryPoolResults(dev_->device, busy_pool_, busy_query(t), 2, sizeof(stamps), stamps, sizeof(uint64_t),
+                                               VK_QUERY_RESULT_64_BIT) != VK_SUCCESS)
+                return -1.0;
+            ticks += double((stamps[1] - stamps[0]) & dev_->stamp_mask);
+        }
+        return ticks * dev_->timestamp_ns / 1e6;
+    }
     size_t scratch_reserve(size_t free) const override;
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override;
     void drop_tags();
@@ -763,6 +788,7 @@ public:
         s.cmd = open();
         s.dispatches = chunk_ > 0;
         chunk_ = 0;
+        if (busy_pool_) dev_->fn.vkCmdWriteTimestamp(s.cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, busy_pool_, busy_query(tickets_.last() + 1) + 1);
         check(dev_->fn.vkEndCommandBuffer(s.cmd), "vkEndCommandBuffer");
         s.signal.reserve(1 + signals.size());
         s.signal.push_back(timeline_);
@@ -1993,6 +2019,12 @@ private:
         bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
+        // The start is written once the queue's earlier work and this submission's semaphore waits are done, so it marks the first operation after its waits on other devices.
+        if (busy_pool_) {
+            const uint32_t q = busy_query(tickets_.last() + 1);
+            dev_->fn.vkCmdResetQueryPool(cmd, busy_pool_, q, 2);
+            dev_->fn.vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, busy_pool_, q);
+        }
         open_ = true;
         // A device with no dispatch left running starts on the first few, rather than waiting while the host records a whole chunk.
         chunk_limit_ = done(dispatched_) ? kFirstChunk : dev_->profile.dispatch_chunk;
@@ -2067,6 +2099,10 @@ private:
     BufferPtr unit_scale_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     std::shared_ptr<VulkanBuffer> select_state_;   // a wide selection's per-row histograms, prefixes and slice counts (select_rows)
+    // A timestamp pair per submission for busy_ms, by ticket; the ring of kRing command buffers keeps far fewer than kBusy in flight.
+    static constexpr uint32_t kBusy = 256;
+    VkQueryPool busy_pool_ = VK_NULL_HANDLE;
+    static uint32_t busy_query(Ticket t) { return 2 * uint32_t(t % kBusy); }
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed
     static constexpr uint32_t kQueries = 8192;    // a pool's queries, two per dispatch
     size_t query_next_ = 0;        // the next query of the reading interval, across its pools

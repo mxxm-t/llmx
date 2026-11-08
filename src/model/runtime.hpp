@@ -1172,27 +1172,10 @@ public:
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch.
             // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
-            // Slices of at most the ubatch, on a pipelined split each chosen by prompt_slice at the prefill's own measured period (SlicePeriods) after the slices before it, one cut short to end at `keep_at`.
-            const size_t B = (size_t)ubatch(), cut = keep_at > start ? keep_at - start : 0, S = pipelined_ ? stages_.size() : 1;
-            std::vector<std::pair<size_t, size_t>> parts;
-            const auto lines = [&](size_t band) {
-                std::vector<StageLine> l;
-                if (const auto line = periods_.line(band)) l.assign(S, *line);
-                return l;
-            };
-            std::vector<double> finish(S, 0.0);
-            bool priced = S > 1;
-            for (size_t i = 0; i < ids.size();) {
-                size_t n = prompt_slice(start + i, ids.size() - i, S, lines, B, finish);
-                if (cut > i && cut < i + n) n = cut - i;
-                if (S > 1) {
-                    const auto l = lines(depth_band(start + i));
-                    if (!l.empty()) pipeline_add(finish, l, n);
-                    priced = priced && !l.empty();
-                }
-                parts.push_back({i, n});
-                i += n;
-            }
+            // Slices of at most the ubatch, on a pipelined split cut at each stage's own measured prices (SlicePeriods), one cut short to end at `keep_at`.
+            const size_t cut = keep_at > start ? keep_at - start : 0, S = pipelined_ ? stages_.size() : 1;
+            std::vector<double> finish;
+            const auto parts = periods_.cut(start, ids.size(), S, (size_t)ubatch(), cut, finish);
             const size_t chunks = parts.size();
             prefill_slices_ = chunks;
             auto chunk = [&](size_t c) {
@@ -1209,20 +1192,13 @@ public:
                 }
                 return;
             }
+            // Each stage's device time a slice prices the next prefills, and the wall time beyond the predicted finish calibrates them (SlicePeriods::observe).
             const auto began = std::chrono::steady_clock::now();
-            const auto done = run_chunks(ctx_, chunks, chunk);
-            // The slices' times at the last stage price the next prefills (SlicePeriods::observe), and a priced prefill's wall time beyond its predicted finish calibrates the fixed costs.
-            const auto ms = [](auto a, auto b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
-            std::vector<size_t> bands(chunks);
+            std::vector<std::vector<double>> busy;
+            const auto done = run_chunks(ctx_, chunks, chunk, busy);
             std::vector<std::pair<size_t, size_t>> slices(chunks);
-            std::vector<double> left(chunks);
-            for (size_t c = 0; c < chunks; ++c) {
-                slices[c] = {start + parts[c].first, parts[c].second};
-                bands[c] = depth_band(slices[c].first);
-                left[c] = ms(began, done[c]);
-            }
-            periods_.observe(slices, left);
-            if (priced) periods_.calibrate(bands, left.back() - finish.back());
+            for (size_t c = 0; c < chunks; ++c) slices[c] = {start + parts[c].first, parts[c].second};
+            periods_.observe(slices, busy, std::chrono::duration<double, std::milli>(done.back() - began).count(), finish);
         };
         try {
             scoped(0, work);
@@ -1628,7 +1604,8 @@ private:
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void prepare_stage(Pass& p, size_t s);
     void record_stage(ExecContext& ctx, Pass& p, size_t s);
-    std::vector<std::chrono::steady_clock::time_point> run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk);
+    std::vector<std::chrono::steady_clock::time_point> run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk,
+                                                                  std::vector<std::vector<double>>& stage_ms);
     void single_prepare(Pass& p, size_t s);
     void start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l);
     void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);

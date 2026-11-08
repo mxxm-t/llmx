@@ -78,6 +78,12 @@ The effort re-estimate after step 1 counts that cost per family.
 A mixed file needs the full type set of its tensors, so a model is refused whole when one type is missing.
 A model whose per-layer ops a ROCm device lacks is refused at load, as `Backend::implements` does today.
 
+## Known open items
+
+- A tensor-group member's stream reaches its sum over a second after its peer's in about one drafts-on 2x2 serve cell in thirty, on Qwen3.8-Flash-Next UD-Q4_K_XL `--dtype int8`; the sums wait for it without a deadline, so no request fails, but its device-side cause is not named.
+  Owner: MEGA22's megakernel and group-sum stream.
+  Witness: branch `wit/group-sum` and its per-member issue and device-event dumps in `res-*` of the rig directory `/opt/claude-work/grp1-20261108`.
+
 ## What the research changes
 
 | Source | Take into this design | Keep outside this delivery |
@@ -346,7 +352,7 @@ switch algorithms after some members have entered a barrier.
 
 The backend's collective (`src/backends/rocm/rocm_collective.hpp`, [backends-rocm](src/backends-rocm.md)) is the one-shot candidate: each member's kernel pushes its partial rows into every peer's uncached staging, meets its peers on device signals with a second meeting after the sum, and adds the rows in member order as the Vulkan collective does, so the two give the same bytes on the same inputs.
 Its conservative path pulls the peers' rows behind cross-stream events and adds them with the same kernel in the same order.
-`join` probes each group once, every directed pair's peer access and one fast sum of known rows, without the fine-grain setting, and reports fast or conservative and why on stderr; a fast sum that gives up after a second of the device clock leaves NaN, throws once on its backend and turns that collective conservative for good.
+`join` probes each group once, every directed pair's peer access and one fast sum of known rows, without the fine-grain setting, and reports fast or conservative and why on stderr; a member waits for a late peer as long as it takes, and a fast sum gives up only where a member's launch failed and the host cancelled it (or, in the probe, after a second of the device clock), leaving NaN, throwing once on its backend and turning that collective conservative for good.
 The single-call timing against the reference is an open gate recorded in [STATUS](STATUS.md), with step 6 (one sum per replayed graph, barrier tuning, concurrent member launches) as its recovery.
 
 Keep actual wire precision in the evidence. mx can use BF16 RCCL reductions on

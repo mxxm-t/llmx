@@ -240,8 +240,9 @@ struct GroupPeers {
     unsigned* signal[kGroupMembers];  // each member's GroupSignal
     unsigned* status;                 // host memory, a word a member, set where its sum failed
     unsigned* fault;                  // host memory, this member's backend's fault word
+    unsigned* cancel;                 // host memory, set by the host where a peer's sum will never launch
 };
-static_assert(sizeof(GroupPeers) == 272, "the host's GroupPeers");  // in device memory, written once at join, so the launch does not grow with kGroupMembers
+static_assert(sizeof(GroupPeers) == 280, "the host's GroupPeers");  // in device memory, written once at join, so the launch does not grow with kGroupMembers
 
 // The members' values at i added in member order, as sum_rows.comp adds them: member `rank`'s from its own rows, the others' from its staging.
 __device__ inline float4 group_values(const float* own, const float* stage, unsigned long long cap, int members, int rank, unsigned long long i) {
@@ -261,18 +262,28 @@ __device__ inline float group_value(const float* own, const float* stage, unsign
     return t;
 }
 
-// Thread j of the block tells member j its block reached `epoch` and waits until member j's block has told it the same, giving up at the deadline or once a member set abort.
-__device__ bool group_meet(const GroupPeers* p, GroupSignal* self, int members, int rank, unsigned epoch, bool end, unsigned long long deadline, int* failed) {
+// Thread j of the block tells member j its block reached `epoch` and waits until member j's block has told it the same, giving up once a member set abort, the host set cancel or a probe's deadline passed.
+__device__ bool group_meet(const GroupPeers* p, GroupSignal* self, int members, int rank, unsigned epoch, bool end, unsigned long long deadline, unsigned long long tick, int* failed) {
     const int b = blockIdx.x, j = threadIdx.x;
     if (j < members && j != rank) {
         GroupSignal* peer = (GroupSignal*)p->signal[j];
         __hip_atomic_store(end ? &peer->done[b][rank] : &peer->start[b][rank], epoch, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
         unsigned* slot = end ? &self->done[b][j] : &self->start[b][j];
-        while (__hip_atomic_load(slot, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_SYSTEM) != epoch)
-            if (__hip_atomic_load(&self->abort, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) || (unsigned long long)wall_clock64() > deadline) {
+        unsigned long long next = (unsigned long long)wall_clock64() + tick;
+        while (__hip_atomic_load(slot, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_SYSTEM) != epoch) {
+            if (__hip_atomic_load(&self->abort, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM)) {
                 __hip_atomic_store(failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
                 break;
             }
+            // The host's cancel word is read once a tick, so a long wait does not stream reads of host memory.
+            const unsigned long long now = (unsigned long long)wall_clock64();
+            if (now < next) continue;
+            next = now + tick;
+            if (now > deadline || __hip_atomic_load(p->cancel, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM)) {
+                __hip_atomic_store(failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
+                break;
+            }
+        }
     }
     __syncthreads();
     // Every thread reads peers' staging after the barrier, so each takes the acquire itself.
@@ -291,7 +302,7 @@ __device__ void group_failed(const GroupPeers* p, int members, int rank) {
 // Member `rank`'s part of a group sum of n floats: out = the members' rows added in member order (flag 1), or out += them.
 // Fast (flag 2) pushes its rows into every peer's staging and meets before and after the sum; a failed meeting leaves NaN in out.
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
-                                                                      int members, int rank, int flags, unsigned long long timeout) {
+                                                                      int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
     __shared__ int failed;
     const bool replace = flags & 1, fast = flags & 2;
     GroupSignal* self = (GroupSignal*)p->signal[rank];
@@ -301,7 +312,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
     unsigned epoch = 0;
     unsigned long long deadline = 0;
     if (fast) {
-        deadline = (unsigned long long)wall_clock64() + timeout;
+        deadline = timeout ? (unsigned long long)wall_clock64() + timeout : ~0ull;
         // Epoch 0 is what fresh signals hold, so a wrap skips it.
         epoch = self->epoch[blockIdx.x] + 1;
         if (!epoch) epoch = 1;
@@ -320,7 +331,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
         }
         __threadfence_system();
         __syncthreads();
-        if (!group_meet(p, self, members, rank, epoch, false, deadline, &failed)) {
+        if (!group_meet(p, self, members, rank, epoch, false, deadline, tick, &failed)) {
             group_failed(p, members, rank);
             for (unsigned long long u = first; u < units; u += step)
                 for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
@@ -353,7 +364,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
     }
     if (fast) {
         __syncthreads();
-        if (!group_meet(p, self, members, rank, epoch, true, deadline, &failed)) return group_failed(p, members, rank);
+        if (!group_meet(p, self, members, rank, epoch, true, deadline, tick, &failed)) return group_failed(p, members, rank);
         if (!threadIdx.x) self->epoch[blockIdx.x] = epoch;
     }
 }

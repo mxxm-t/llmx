@@ -22,24 +22,26 @@ struct GroupPeers {
     unsigned* signal[kGroupMembers];
     unsigned* status;
     unsigned* fault;
+    unsigned* cancel;
 };
-static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 272 && offsetof(GroupPeers, status) == 256, "kernels/f32.hip, GroupPeers");
+static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 280 && offsetof(GroupPeers, status) == 256 && offsetof(GroupPeers, cancel) == 272, "kernels/f32.hip, GroupPeers");
 constexpr size_t kGroupBlocks = 16;       // the kernel's signal slots a member, so the most blocks a sum takes
-constexpr unsigned kGroupTimeoutMs = 1000;   // how long a member's kernel waits for its peers before the group gives up
+constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
 
 // A tensor group's ordered sum (docs/src/backends-rocm.md, the collective): each member's kernel, on its own stream, pushes its partial rows into every peer's staging, meets them on device signals and adds the rows in member order.
-// A sum that gives up (a peer never came within kGroupTimeoutMs) turns the collective to the conservative path for good: each member pulls the peers' rows behind events on their streams and adds them in the same order.
+// A member waits for a late peer as long as it takes, and a sum the host cancelled or a probe that ran out turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
 class RocmCollective final : public Collective {
 public:
-    RocmCollective(const std::vector<RocmBackend*>& members, size_t rows, size_t width, bool fast)
+    // A probe bounds its members' waits by kProbeTimeoutMs, where peer writes that never become visible are what it looks for.
+    RocmCollective(const std::vector<RocmBackend*>& members, size_t rows, size_t width, bool fast, bool probe = false)
         : members_(members), rows_(rows), width_(width), cap_((size_mul(rows, width) + 3) / 4 * 4), fast_(fast),
-          area_(members.size(), nullptr), ready_(members.size(), nullptr), pulled_(members.size(), nullptr), timeout_(members.size(), 0),
+          area_(members.size(), nullptr), ready_(members.size(), nullptr), pulled_(members.size(), nullptr), timeout_(members.size(), 0), tick_(members.size(), 0),
           last_(members.size(), 0), before_(members.size(), 0) {
         const HipFn& f = hip();
         const size_t W = members.size();
         try {
-            hip_check(f.hipHostMalloc((void**)&status_, W * sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
-            for (size_t m = 0; m < W; ++m) status_[m] = 0;
+            hip_check(f.hipHostMalloc((void**)&status_, (W + 1) * sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+            for (size_t m = 0; m <= W; ++m) status_[m] = 0;
             for (size_t m = 0; m < W; ++m) {
                 RocmBackend& b = *members[m];
                 partial_.push_back(b.alloc(size_mul(size_mul(rows, width), sizeof(float)), Memory::device));
@@ -53,7 +55,8 @@ public:
                 hip_check(f.hipEventCreateWithFlags(&pulled_[m], hipEventDisableTiming), "hipEventCreateWithFlags");
                 int khz = 0;
                 hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, b.dev_.index), "hipDeviceGetAttribute");
-                timeout_[m] = (unsigned long long)khz * kGroupTimeoutMs;
+                timeout_[m] = probe ? (unsigned long long)khz * kProbeTimeoutMs : 0;
+                tick_[m] = (unsigned long long)khz;
             }
             for (size_t m = 0; m < W; ++m) {
                 GroupPeers p{};
@@ -63,6 +66,7 @@ public:
                 }
                 p.status = status_;
                 p.fault = members[m]->fault_;
+                p.cancel = status_ + W;
                 peers_.push_back(members[m]->alloc(sizeof(GroupPeers), Memory::device));
                 members[m]->write(*peers_.back(), 0, &p, sizeof(GroupPeers));
                 peer_table_.push_back(as_rocm(*peers_.back()).data());
@@ -118,22 +122,32 @@ private:
         for (RocmBackend* b : members_) b->raise_failed();
         // Every member's held work goes to its stream before the sum and the sum's launches go together, so no member's sum waits on a peer whose launch the host still holds, and the pulls' events follow what they cover.
         for (RocmBackend* b : members_) b->flush();
-        if (n) {
-            if (fast_) pushed(residual, n, replace);
-            else pulled(residual, n, replace);
+        // A sum whose launch throws is still the last sum, so a wait for it covers the members' kernels that did launch.
+        const auto issued = [&] {
+            before_ = last_;
+            for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
+        };
+        try {
+            if (n) {
+                if (fast_) pushed(residual, n, replace);
+                else pulled(residual, n, replace);
+            }
+            for (RocmBackend* b : members_) b->flush();
+        } catch (...) {
+            cancel();
+            issued();
+            throw;
         }
-        for (RocmBackend* b : members_) b->flush();
-        before_ = last_;
-        for (size_t m = 0; m < W; ++m) last_[m] = members_[m]->tickets_.last() + 1;
+        issued();
     }
 
     void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast) {
         RocmBackend& b = *members_[m];
         const float* own = RocmBackend::f32(CSlice(partial(m)));
         float* o = RocmBackend::f32(out);
-        unsigned long long nn = n, cap = cap_, timeout = timeout_[m];
+        unsigned long long nn = n, cap = cap_, timeout = timeout_[m], tick = tick_[m];
         int members = (int)members_.size(), rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
-        const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout);
+        const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         const size_t units = (n + 3) / 4;
         b.group_launch((unsigned)std::min<size_t>(kGroupBlocks, (units + kThreads - 1) / kThreads), args);
     }
@@ -174,6 +188,14 @@ private:
             }
     }
 
+    // A sum some member's launch of which failed: the members whose kernels did launch stop waiting for it, and the collective turns conservative now.
+    void cancel() noexcept {
+        if (!fast_) return;
+        __atomic_store_n(&status_[members_.size()], 1u, __ATOMIC_RELEASE);
+        fast_ = false;
+        std::fprintf(stderr, "rocm: a tensor group's sum was cancelled since a member's launch failed; the group's later sums take the conservative path\n");
+    }
+
     // A member's staging slots, past its signal block.
     float* stage(size_t m) const { return (float*)((uint8_t*)area_[m] + kGroupSignalBytes); }
 
@@ -198,10 +220,10 @@ private:
     std::vector<BufferPtr> partial_;
     std::vector<void*> area_;   // per member: its signal block, then a staging slot per member
     std::vector<hipEvent_t> ready_, pulled_;   // the conservative path's events, per member
-    std::vector<unsigned long long> timeout_;   // per member, kGroupTimeoutMs in its wall-clock ticks
+    std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else 0 for none, and a millisecond
     std::vector<BufferPtr> peers_;   // per member, its GroupPeers in its device memory
     std::vector<void*> peer_table_;   // per member, peers_'s device address, the kernel's first argument
-    unsigned* status_ = nullptr;   // host memory, a word a member, set by a kernel that gave up
+    unsigned* status_ = nullptr;   // host memory, a word a member, set by a kernel that gave up, then the host's cancel word
     std::vector<Ticket> last_, before_;   // per member, the ticket holding the last sum and the sum before it
 };
 
@@ -221,7 +243,7 @@ std::string group_probe(const std::vector<RocmBackend*>& group, const std::vecto
         }
     try {
         const size_t n = 1027;   // a tail past whole units, over one block
-        RocmCollective c(group, 1, n, true);
+        RocmCollective c(group, 1, n, true, true);
         std::vector<float> want(n, 0.0f);
         for (size_t m = 0; m < group.size(); ++m) {
             std::vector<float> rows(n);

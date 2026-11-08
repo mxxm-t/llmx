@@ -2427,7 +2427,7 @@ void failure() {
 
 // Counts of the group sum's launches and copies, and a launch to drop, read by the collective checks through the HIP call table.
 struct GroupCalls {
-    int launches = 0, copies = 0, drop = 0;   // drop: the launch, counted from 1, that is not made
+    int launches = 0, copies = 0, fail = 0;   // fail: the launch, counted from 1, that HIP refuses
     int late = 0;                             // late: the launch, counted from 1, that the host makes only after a stall
     std::vector<void*> areas;                 // every uncached allocation, in order
 };
@@ -2436,7 +2436,7 @@ decltype(HipFn::hipModuleLaunchKernel) real_launch = nullptr;
 decltype(HipFn::hipMemcpyAsync) real_copy = nullptr;
 decltype(HipFn::hipExtMallocWithFlags) real_uncached = nullptr;
 hipError_t counted_launch(hipFunction_t k, unsigned gx, unsigned gy, unsigned gz, unsigned tx, unsigned ty, unsigned tz, unsigned shared, hipStream_t s, void** args, void** extra) {
-    if (++group_calls.launches == group_calls.drop) return hipSuccess;
+    if (++group_calls.launches == group_calls.fail) return hipErrorLaunchFailure;
     if (group_calls.launches == group_calls.late) std::this_thread::sleep_for(std::chrono::milliseconds(2500));
     return real_launch(k, gx, gy, gz, tx, ty, tz, shared, s, args, extra);
 }
@@ -2791,21 +2791,21 @@ void collective() {
         std::cout << "backend-rocm: a collective of " << e.size() << " devices without peer access sums by pulls, the same bytes\n";
     }
     {
-        // A member whose kernel never launches: its peer gives up within the timeout and leaves NaN, the failure throws once on that backend, and every later sum is conservative and exact.
+        // A member whose launch HIP refuses: the sum throws, the host cancels it so its launched peer stops waiting and leaves NaN, which throws once on that backend, and every later sum is conservative and exact.
         std::vector<BackendPtr> e = rocm_devices(2);
         std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
         const std::vector<float> rows(97, 1.0f);
         for (size_t m = 0; m < 2; ++m) e[m]->write(*c->partial(m).buffer, 0, rows.data(), rows.size() * sizeof(float));
         group_calls.launches = 0;
-        group_calls.drop = 2;
+        group_calls.fail = 2;
         f.hipModuleLaunchKernel = counted_launch;
         const auto from = std::chrono::steady_clock::now();
-        c->sum_in_place(1, 97);
+        require(throws([&] { c->sum_in_place(1, 97); }), "a group sum whose peer's launch failed did not throw");
         f.hipModuleLaunchKernel = real_launch;
-        group_calls.drop = 0;
+        group_calls.fail = 0;
         c->wait(0);
         const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - from).count();
-        require(s < 2.0, "a group sum whose peer never launched waited " + std::to_string(s) + " s, past 2 s");
+        require(s < 0.5, "a group sum whose peer's launch failed waited " + std::to_string(s) + " s, past 0.5 s");
         require(throws([&] { e[0]->raise(0); }), "a group sum that gave up did not throw on its backend");
         require(!throws([&] { e[0]->raise(0); }), "a group sum that gave up threw on its backend twice");
         bool poisoned = true;
@@ -2814,7 +2814,7 @@ void collective() {
         sum_calls(*c, 2, false);
         group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
         seed += 100;
-        std::cout << "backend-rocm: a group sum whose peer never launched gave up in " << s << " s; later sums conservative and exact\n";
+        std::cout << "backend-rocm: a group sum whose peer's launch failed was cancelled in " << s << " s; later sums conservative and exact\n";
     }
     {
         // A member whose launch comes after a host stall longer than any wait: its peer is alive but late, so the sum stays fast and exact and nothing throws.
@@ -3673,8 +3673,9 @@ struct SixteenPeers {
     unsigned* signal[kMaxTensorWidth];
     unsigned* status;
     unsigned* fault;
+    unsigned* cancel;
 };
-static_assert(sizeof(SixteenPeers) == 272 && offsetof(SixteenPeers, status) == 256, "kernels/f32.hip, GroupPeers");
+static_assert(sizeof(SixteenPeers) == 280 && offsetof(SixteenPeers, status) == 256 && offsetof(SixteenPeers, cancel) == 272, "kernels/f32.hip, GroupPeers");
 
 void sixteen_ranks() {
     HipFn& f = hip();
@@ -3686,14 +3687,16 @@ void sixteen_ranks() {
     hip_check(f.hipModuleGetFunction(&sum, module, "llmx_group_sum"), "hipModuleGetFunction");
     int khz = 0;
     hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
-    unsigned long long timeout = (unsigned long long)khz * 1000;
+    unsigned long long timeout = (unsigned long long)khz * 1000, tick = (unsigned long long)khz;
     std::vector<void*> area(W), own(W), out(W);
     std::vector<hipStream_t> streams(W);
-    unsigned *status = nullptr, *fault = nullptr;
+    unsigned *status = nullptr, *fault = nullptr, *cancel = nullptr;
     hip_check(f.hipHostMalloc((void**)&status, W * sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
     hip_check(f.hipHostMalloc((void**)&fault, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
+    hip_check(f.hipHostMalloc((void**)&cancel, sizeof(unsigned), hipHostMallocCoherent), "hipHostMalloc");
     std::memset(status, 0, W * sizeof(unsigned));
     *fault = 0;
+    *cancel = 0;
     for (size_t k = 0; k < W; ++k) {
         hip_check(f.hipExtMallocWithFlags(&area[k], signal + W * cap * sizeof(float), hipDeviceMallocUncached), "hipExtMallocWithFlags");
         hip_check(f.hipMalloc(&own[k], n * sizeof(float)), "hipMalloc");
@@ -3709,6 +3712,7 @@ void sixteen_ranks() {
     }
     peers.status = status;
     peers.fault = fault;
+    peers.cancel = cancel;
     // The kernel reads the table from device memory, as the collective writes it at join.
     void* table = nullptr;
     hip_check(f.hipMalloc(&table, sizeof(SixteenPeers)), "hipMalloc");
@@ -3727,7 +3731,7 @@ void sixteen_ranks() {
             float* x = (float*)(replace ? own[k] : out[k]);
             unsigned long long nn = n, cc = cap;
             int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0);
-            void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout};
+            void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout, &tick};
             hip_check(f.hipModuleLaunchKernel(sum, 16, 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
         }
         for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
@@ -3751,6 +3755,7 @@ void sixteen_ranks() {
     (void)f.hipFree(table);
     (void)f.hipHostFree(status);
     (void)f.hipHostFree(fault);
+    (void)f.hipHostFree(cancel);
     (void)f.hipModuleUnload(module);
     std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device, into and in place, each the oracle's bits\n";
 }

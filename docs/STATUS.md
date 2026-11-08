@@ -174,6 +174,32 @@ The change lands by fast-forward.
 - **Left:** F2DEV's re-review; then the batch's gates by COORD.
 - **Gotchas:** the tiny model's 32-wide rows are one block, not whole words, so every packed row is padded to a word; packing reads the raw values, since FP4 under an E4M3 scale is not idempotent under requantization.
 
+
+## A ROCm group sum waits for a late peer (2026-11-08, GRP1, branch fix/group-sum-timeout on main 18792d249; SRV1's finding of 01:42; lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** a request never fails because one member of a tensor group reached its sum late: SRV1 saw 2 of 6 drafts-on 2x2 cells on Qwen3.8-Flash-Next UD-Q4_K_XL `--dtype int8` end with "gave up waiting for its peers" after the 1 s device-clock bound.
+- **Done:** a witness build timed every sum's host issue per member and recorded device events around each member's sum.
+  Over 32 drafts-on 2x2 cells, 24 of them beside a container keeping 2 CPUs busy, the host issued every member's sum within 20 ms of its peers', and one cell still gave up, on rocm:2 of stage 1: the late member was alive and its stream reached the sum over a second after its peer's.
+  Since the host issues every member's sum together and each depends only on work issued before it, an alive peer always comes, so the serving sums no longer carry a deadline: a member waits until its peers come, a peer sets the abort word, or the host sets the collective's cancel word, read once a device-clock millisecond, which the collective sets where a member's launch of the sum throws, then turns conservative.
+  The one-second bound stays in `join`'s probe alone (`kProbeTimeoutMs`), where peer writes that never become visible are what it looks for.
+  Vulkan's collective waits on semaphores without a deadline, so it has no such class.
+  `backend-rocm` gains a check whose peer launches 2.5 s late, which fails on main with NaN and the fault and passes here, and its dropped-launch check becomes a launch HIP refuses, cancelled within 0.5 s.
+  Gates on the rig, default clocks, `--cpus 2` for builds and tests and `--cpus 8` for the timing and serve containers (`nr_throttled` 0 in every one): the fix was built and tested at 512f30544 on main 49fde43de, and the head that lands, 4317f0bad on 18792d249, differs from it by the rebase and the update of the `sixteen` check below.
+  `llmx-backend-rocm-test` and the `--only server` component on `rocm:0` pass at 512f30544.
+  CTest at 512f30544 failed `backend-rocm-sixteen` with a segfault in 3 of 3 runs after `backend-rocm` (main passes in 2 of 2): its hand-built kernel call lacked the kernel's new `tick` argument and its peer table the `cancel` word, so 4317f0bad passes both.
+  CTest at 4317f0bad, built the same way (`--version` numerics a657d0dfb98a25d6, sha256 3f3496777e64b726), passes 84 of 84 with `backend-rocm-sixteen` after `backend-rocm` at 0.41 s; the documentation commit that lands changes no source.
+  Six drafts-on 2x2 serve cells on 512f30544 beside a container keeping 2 CPUs busy, each the first after warm-up, ended with no give-up at 67.0 to 72.4 tok/s.
+  Timing, Qwen3.8-Flash-Next UD-Q4_K_XL `--dtype int8` 2x2 tg128 and Qwen3-0.6B Q8_0 at `--tensor-width 2` tg128, renderD132-135, host load 14 to 27, A B C C B A twice, in tok/s:
+
+| arm | binary `--version` numerics, sha256 | Flash-Next 2x2 | Qwen3-0.6B width 2 |
+|---|---|---|---|
+| main 49fde43de | faad78e485f17802, ede132c948ee0d86 | 63.46 | 310.3 |
+| head 512f30544 | d3c5c1a035a378bc, fcda84d53cff2130 | 62.71 (-1.2%) | 310.4 (+0.0%) |
+| layout control (main with an unused kernel in f32.hip) | 1042691fa95608b9, d527a47e9aceb36c | 62.00 (-2.3%) | 287.5 |
+
+  All three were built from archives of their trees the same way (`--version` 0.1.0+unknown); the 0.6B runs vary by about 8% within an arm, and the head is inside the band the control gives on both models.
+- **Left:** the device-side cause of the second-long lag of one member's stream, which the witness dump did not catch in 24 cells; the hosted run at the head that lands.
+
 ## ROCm fused linear-attention decode step (2026-11-07, RDEV64, branch perf/rocm-delta-step on main 49f75382; MEGA6 to MEGA8's study, research/rocm-megakernel-delta 09a109773, lifted into the decode loop; lands by fast-forward)
 - **Goal:** a Qwen3.8-Flash-Next linear-attention layer's decode step as one ROCm launch beside one product group, bit-identical, at any layout of the model over any devices.
 - **Done:** `Backend::delta_step` (`DeltaStep`) owns a linear-attention layer's step up to its output product, and qwen4exp's `linear_attention` is that call and its output product.

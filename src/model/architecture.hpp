@@ -233,9 +233,10 @@ struct Step {
     // Which of the layer's update phases a call of recur runs (LayerPlan::recur_phases), every one when -1, as the mixer runs it.
     int phase = -1;
     // The tensor group the part runs on (docs/TENSOR-SPLIT.md, section 4.3): its width, each member's weights its shard (Role::shard) and its heads that share of the plan's.
-    // Where a part's last projection writes its partial rows, which the group sums into every member's residual in place of adding them to the residual itself (blocks::join); a part with routed experts is handed them cleared and adds to them.
+    // Where a part's last projection writes its partial rows, which the group sums into every member's residual in place of adding them to the residual itself (blocks::join); a routed part clears them from `zero`.
     size_t width = 1;
     backend::Slice partial{};
+    const backend::Buffer* zero = nullptr;  // a row of zeros on the member
     // For the layer that keeps token history: the pass's token IDs and its entries' oldest-first preceding IDs, previous_count per entry.
     const uint32_t* tokens = nullptr;
     const uint32_t* previous_tokens = nullptr;

@@ -1486,7 +1486,7 @@ inline void Model::draft_record(Chain& c) {
                     if (W > 1) {
                         step.width = W;
                         step.partial = ctx_.collectives[o]->partial(g);
-                        if (phase == 1 && has_experts(*plan_.drafter)) clear_partial(ctx_, o + g, step.partial, rows);
+                        step.zero = ctx_.zeros[o + g].get();
                     }
                     arch_->draft(step);
                 }

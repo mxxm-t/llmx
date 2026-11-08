@@ -1,5 +1,39 @@
 # llmx - Development Status
 
+## MoE routed step clears its own partial rows (2026-11-08, MEGA24 and LAND8, branch perf/moe-step-clears-partial on main 24fcabf04; MEGA24's research/moe-step-clears-partial 4058a62c1, F2DEV's approval of 2026-11-08 12:25; lands by fast-forward)
+
+**Goal:** remove the zero copy before every routed part of a tensor group.
+
+**Done:**
+- `Model::clear_partial` copied zero rows into a member's partial before each routed part, 24 copies a member a token on Qwen3.8-Flash-Next 2x2, while qwen4exp's `moe_step` already started its sum from its own zero table.
+  `Step::zero` now hands the member's zero row (kept by the runtime) to `blocks::moe_step`, which passes it as `MoeStep::zero` on a group; the CPU, Vulkan and ROCm steps already start from that row, so qwen3moe and qwen35moe keep their bits.
+- Net code removal: 14 lines added, 18 removed.
+
+**Timing** (MEGA24, base 49fde43de, Qwen3.8-Flash-Next UD-Q4_K_XL int8 tg128, four MI50s, default clocks, `--cpus 8` every arm, nr_throttled 0; ROCm ABCCBA x2, Vulkan ABBA x2):
+
+| plan | main tok/s | this change tok/s | delta |
+|---|---|---|---|
+| ROCm 2x2 | 64.28 | 65.30 | +1.6% |
+| ROCm layer-4 | 54.06 | 54.05 | 0.0% |
+| Vulkan 2x2 | 51.89 | 52.31 | +0.8% |
+| Vulkan layer-4 | 54.19 | 54.19 | 0.0% |
+
+The +3% bar set for the lever was missed, so it was a research branch; it lands as a net code removal that gains on 2x2 and loses nowhere.
+No new timing round was run for the landing.
+
+**Gates** (code head b0f3daaa5 on 24fcabf04; the tree that lands differs by this block):
+- Vulkan, four MI50s, builds of this change against main 18792d249: the tensor-split component at `--tensor-width 2` and `4` (`--device vulkan:0,vulkan:1[,vulkan:2,vulkan:3]`) passes, max logit error 0.00009412 at width 2 and 0.00011492 at width 4 against HF.
+  The component cannot run on ROCm (its decode probe names only Vulkan devices), so ROCm is held by the backend-rocm tests of the CTest below.
+- Greedy 128 tokens on Vulkan 2x2 (`--tensor-width 2 --layer-shares 1,1`), Qwen3.8-Flash-Next UD-Q4_K_XL int8: the text is identical between main and here.
+  Qwen3-0.6B Q8_0 greedy 128 tokens: identical on the CPU and on vulkan:0.
+- The CPU suite (`--no-perf-floor`, Vulkan-enabled binary): 47 components pass, baseline components skip for the missing fixture.
+- CTest on Linux with ROCm and the CPU (fresh build on 18792d249, incremental rebuild at the rebased head): 84 of 84 pass, backend-rocm and backend-rocm-sixteen included.
+- CTest with Vulkan (build on 18792d249, four MI50s, load about 24 on the rig): 99 of 100.
+  vulkan-lifetime fails its collective-ownership submission-index checks (10 FAIL lines) on main 18792d249 and here alike; the failing indices differ run to run, and the same test failed under load on earlier landings and passed alone.
+- The rebase from 18792d249 onto 24fcabf04 touches only the ROCm collective, its test and docs, so the Vulkan and CPU results above carry forward; the ROCm build and CTest were rerun on the rebased head.
+- The head that lands takes its own hosted run on gate/moe-step-clears-partial.
+The change lands by fast-forward.
+
 ## Automatic KV pool built again with fewer tokens when a device's reading overstated its room (2026-11-08, WIN2 and WIN3, branch fix/vulkan-pool-headroom)
 
 **Goal:** `llmx serve` without `--kv-tokens` starts on a card that other processes share, rather than failing with VK_ERROR_OUT_OF_DEVICE_MEMORY on the Radeon VII under Windows.

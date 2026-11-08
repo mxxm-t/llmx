@@ -103,7 +103,7 @@ struct SharedExpert {
 };
 
 // Routed experts over the normed rows `h` as one backend op (Backend::moe_step), picked by `rule` and clamped at `limit`, then `shared` gated into `row_gate`, joining the residual or a member's partial rows.
-// `g`, `u` and `act` hold k routed rows a token and the shared expert's after rows * k of them; `zero`, a row of zeros, clears the residual first.
+// `g`, `u` and `act` hold k routed rows a token and the shared expert's after rows * k of them; `zero`, a row of zeros, clears the residual first, and a member's partial rows are cleared from the step's own.
 inline void moe_step(const Step& s, const Weight& router, const Weight& gate, const Weight& up, const Weight& down, size_t k, const backend::RouteRule& rule,
                      backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act, backend::Slice scores, backend::Slice ids, backend::Slice weights,
                      const SharedExpert* shared = nullptr, backend::Slice row_gate = {}, const backend::Buffer* zero = nullptr, float limit = 0.0f) {
@@ -114,7 +114,7 @@ inline void moe_step(const Step& s, const Weight& router, const Weight& gate, co
         sh = {projection(shared->gate, past(g)), projection(shared->up, past(u)), shared->down.operand(), past(act),
               shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{}, shared->limit};
     const backend::MoeStep m{projection(router, scores), k, rule, ids, weights, projection(gate, g), projection(up, u), down.operand(), act,
-                             shared ? &sh : nullptr, zero, s.scratch, limit};
+                             shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, limit};
     s.b.moe_step(m, h, s.width > 1 ? s.partial : s.x, router.nin, s.rows, s.runs, s.dtype);
 }
 

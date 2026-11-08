@@ -356,7 +356,7 @@ struct ExecContext {
     // On a tensor split (Placement::width): per device, a group's collective on its first member, for the rows the arenas hold, and each member of the head's group its slice of the logits rows, which the first member gathers into logits_buf.
     std::vector<std::unique_ptr<backend::Collective>> collectives;
     size_t collective_rows = 0;
-    // Per device of a group that runs routed experts, zero rows as many as its collective sums, which a member's partial rows are cleared from before a part that adds to them (clear_partial).
+    // Per device of a group that runs routed experts, a row of zeros its routed step clears a member's partial rows from (Step::zero).
     std::vector<backend::BufferPtr> zeros;
     std::vector<backend::BufferPtr> member_logits;
     std::vector<backend::BufferPtr> member_rows;   // each member's view of logits_host
@@ -1612,7 +1612,6 @@ private:
     void single_record(ExecContext& ctx, Pass& p, size_t s);
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s);
-    void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
     template <class Weights>
     void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);

@@ -194,11 +194,11 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         if (en.seq->flights_ && !continues) throw std::logic_error("inference: a sequence already in flight");
         if (!en.ids || !en.n)
             throw std::runtime_error("inference: batch entry without tokens");
-        // The position tables cover [0, context_length); a row past them would read off the end.
-        if (en.n > plan_.context_length ||
-            history(*en.seq) > plan_.context_length - en.n)
+        // The position tables cover [0, positions_); a row past them would read off the end.
+        if (en.n > positions_ ||
+            history(*en.seq) > positions_ - en.n)
             throw std::runtime_error("inference: context length exceeded (" +
-                                     std::to_string(plan_.context_length) + " tokens)");
+                                     std::to_string(positions_) + " tokens)");
         rows += en.n;
         want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
     }

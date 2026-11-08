@@ -807,11 +807,14 @@ public:
                 o.zero = o.b->alloc(row);
                 if (options_.mark_slots) o.saved_h = o.b->alloc(backend::size_mul(backend::size_mul(options_.mark_slots, options_.mark_rows), row));
             }
+            // The tables and position slots cover every position a sequence can reach: the context's, at most the pool's tokens.
+            positions_ = storages_.empty() ? plan_.context_length : covered_positions(plan_, kv_tokens_total());
+            cover_positions(plan_, positions_);
             seq_ = make_sequence();
 
             // The architecture's tables can be read by any part, so every used device adopts them; CPU buffers borrow the shared host vectors for the model's lifetime.
             tables_.resize(plan_.tables.size());
-            for (size_t t = 0; t < tables_.size(); ++t) tables_[t].assign(plan_.tables[t], 0.0f);
+            for (size_t t = 0; t < tables_.size(); ++t) tables_[t].assign(table_floats(plan_, t, positions_), 0.0f);
             // The source roles' host views, in plan order, read only while the tables are filled.
             std::vector<TensorView> sources;
             for (const LayerPlan& layer : plan_.layers)
@@ -891,6 +894,8 @@ public:
 
     int n_tokens() const { return (int)seq_.length(); }
     int context_length() const { return (int)plan_.context_length; }
+    // The positions the tables cover, past which a pass is refused.
+    size_t positions() const { return positions_; }
     // The host bytes the lookup tables hold of their hot rows (WeightRows::store_bytes), each table once.
     size_t lookup_store_bytes() const {
         std::vector<const WeightRows*> seen;
@@ -1426,6 +1431,7 @@ private:
     size_t draft_width_ = 0;                        // the last draft's sequences with a chain, the rows of its first step
     void draft_buffers(size_t seqs, size_t steps);
     std::vector<std::vector<float>> tables_;
+    size_t positions_ = 0;
     Sequence seq_;
     ExecContext ctx_;
 

@@ -511,6 +511,11 @@ public:
         p.context_length = size_t(c.context_length);
         p.residual = size_t(R);
         p.slots = slot_widths(c);
+        // The index scores hold a pooled group's score for each position the tables cover at the least ratio.
+        int least = 0;
+        for (int r : c.compress_ratios)
+            if (r && (!least || r < least)) least = r;
+        if (least) p.position_slots = {{index_scores, size_t(least)}};
         // What a later layer reads crosses with the residual (docs/DEEPSEEK4.md, section 4.3): both pres, a source's new pooled rows for its readers' replicas, the latest index source's picks a reader reuses and the candidate blocks.
         bool readers = false, reuses = false;
         for (const Layer& t : layers_) {
@@ -522,7 +527,8 @@ public:
         if (reuses) p.carried.push_back(index_picks);
         if (c.candidate_source >= 0) p.carried.push_back(candidate_ids);
         p.index_width = std::max({size_t(HC), size_t(lookups), size_t(W)});
-        p.tables.assign(engram_norms + c.engram_layers.size(), size_t(c.context_length) * size_t(c.rope_dim / 2));
+        p.tables.assign(engram_norms + c.engram_layers.size(), 0);
+        p.table_steps.assign(compressed_sin + 1, size_t(c.rope_dim / 2));
         for (size_t i = ones; i < p.tables.size(); ++i) p.tables[i] = i == groups ? size_t(G) : i == first_pre ? size_t(HC) : i == zeros ? size_t(E) : size_t(R);
         p.embed_copies = size_t(HC);
         return p;
@@ -534,7 +540,7 @@ public:
         const size_t half = size_t(c.rope_dim / 2);
         const std::vector<double> window = rope_frequencies(c.rope_dim, c.rope_theta, 0, 1, 0, 0);
         const std::vector<double> compressed = rope_frequencies(c.rope_dim, c.compress_rope_theta, c.original_context, c.rope_factor, c.beta_fast, c.beta_slow);
-        for (size_t pos = 0; pos < size_t(c.context_length); ++pos)
+        for (size_t pos = 0; pos < tables[rope_cos].size() / half; ++pos)
             for (size_t i = 0; i < half; ++i) {
                 tables[rope_cos][pos * half + i] = float(std::cos(double(pos) * window[i]));
                 tables[rope_sin][pos * half + i] = float(std::sin(double(pos) * window[i]));

@@ -215,7 +215,7 @@ void plan() {
     }
     require(p.state.k_heads == HK && p.state.v_heads == HV && p.state.k_dim == DK && p.state.v_dim == DV, "the state's shape");
     require(p.kv_heads == HKV && p.head_dim == D, "the KV geometry");
-    require(p.tables.size() == 2 && p.tables[0] == CTX * 2, "rope tables of rope_dim / 2 a position");
+    require(p.tables.size() == 2 && infer::table_floats(p, 0, CTX) == CTX * 2, "rope tables of rope_dim / 2 a position");
     require(p.slots.size() == 10 && p.slots[0] == E && p.slots[2] == 2 * HQ * D && p.slots[3] == C && p.slots[5] == HQ * D, "the arena's slots");
     // Without the interval the layers' kinds come from the recurrent layers' array, which names each block, the MTP block's false, and leaves that block unplanned.
     const gguf::GGUFModel mtp = tiny([](gguf::GGUFModel& f) {
@@ -1237,9 +1237,11 @@ void checkpoint_fit() {
     infer::ModelOptions options;
     options.state_slots = 2;
     options.checkpoint_slots = 4;
+    // At three of the four blocks, where the fit tries the checkpoints: the tables shrink with the budget, so the least room for the whole budget may hold a checkpoint there.
     const auto holds = [&](size_t room, size_t kept) {
         infer::ModelOptions o = options;
         o.checkpoint_slots = kept;
+        o.kv_tokens = 384;
         try {
             infer::split_layers(infer::footprint(w, plan, o), infer::budgets_for(devices(room), request.names), infer::kDefaultUbatch, request.shares,
                                 core::host_memory_available());
@@ -1256,7 +1258,7 @@ void checkpoint_fit() {
     require(!holds(hi, 1), "the first device holds a checkpoint more at the least room it needs without one");
     // The KV tokens the checkpoints took (PlacedModel::checkpoint_kv_tokens) are none where they took none or the budget stays whole.
     const infer::PlacedModel none = infer::place_model(w, devices(hi), request, options);
-    require(none.model->checkpoint_slots() == 0 && none.checkpoint_kv_tokens == 0, "a checkpoint count the first device cannot hold was taken");
+    require(none.model->checkpoint_slots() == 0 && none.checkpoint_kv_tokens == 0 && none.model->kv_tokens_total() == 384, "a checkpoint count the first device cannot hold was taken");
     const infer::PlacedModel roomy = infer::place_model(w, devices(size_t(1) << 30), request, options);
     require(roomy.model->checkpoint_slots() == 4 && roomy.checkpoint_kv_tokens == 0, "roomy devices did not take the checkpoint slots asked for");
     // On one device with room for the whole budget and no more, the checkpoints take at most a quarter of it in whole blocks of 128: four slots leave 384 of 512 tokens, none are taken of 384, and an oversized count ends with one that fits.

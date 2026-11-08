@@ -207,10 +207,12 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             fp.host_state = backend::size_add(fp.host_state, backend::size_mul(ids, sizeof(uint32_t)));
         }
     }
-    for (size_t n : plan.tables) fp.tables += n * sizeof(float);
+    // The tables and the position slots cover the positions the budget reaches, so a smaller budget leaves room for more rows.
+    const size_t positions = covered_positions(plan, kv_tokens(plan, options));
+    for (size_t t = 0; t < plan.tables.size(); ++t) fp.tables = backend::size_add(fp.tables, backend::size_mul(table_floats(plan, t, positions), sizeof(float)));
     fp.handoff_per_row = backend::size_mul(handoff_width(plan), sizeof(float));
     fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
-    for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
+    for (size_t s = 0; s < plan.slots.size(); ++s) fp.activations_per_row += slot_floats(plan, s, positions) * sizeof(float);
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
     if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += sum_width(plan) * sizeof(float);
     return fp;

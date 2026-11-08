@@ -1,9 +1,11 @@
 #pragma once
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "backends/backend.hpp"
@@ -154,17 +156,20 @@ struct ModelPlan {
     std::vector<Role> pass;
     std::vector<OpUse> pass_ops;        // optional embedding and head ops, admitted before weight adoption
     std::vector<LayerPlan> layers;
-    size_t context_length = 0;          // the tables cover these positions, a pass past them is refused, and the cache budget defaults to them
+    size_t context_length = 0;          // the most positions a sequence may reach and the cache budget's default; the tables cover at most these (covered_positions)
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
     // Floats in a row of a tensor group member's partial rows (Step::partial), which the group sums: 0 for the residual's, which the sum adds to; narrower where each member joins the summed rows into its residual itself (Architecture::join).
     size_t partial = 0;
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
+    // Arena slots whose row holds a float for every `per` positions the tables cover, as {slot, per}; `slots` gives their width at the whole context until the model narrows them (cover_positions).
+    std::vector<std::pair<size_t, size_t>> position_slots;
     // Arena slots past 0, ascending, whose rows go wherever the residual goes, through every handoff and crossing, as a layer's rows that a later device's layers read (docs/DEEPSEEK4.md, section 4.3).
     std::vector<size_t> carried;
     size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
-    std::vector<size_t> tables;         // floats in each position table
+    std::vector<size_t> tables;         // floats in each table besides those of its positions
+    std::vector<size_t> table_steps;    // floats each covered position adds to each table, none past its end; a table without any is fixed
     // Per rotated pair, which of an image row's three positions turns it (backend::RopeStreams, docs/VISION.md, section 4); empty where the model takes no image rows.
     std::vector<uint8_t> image_streams;
     // How many copies of an embedding row a residual row holds, side by side, as a model of several residual streams embeds a token into each.
@@ -178,6 +183,27 @@ struct ModelPlan {
     // Why the server refuses this model, naming it, while a step its serving needs is not built; empty where it serves it.
     std::string unserved;
 };
+
+// The positions a model's tables and position slots cover under a KV budget of `budget` tokens: no more than a sequence may reach, which is the context and the pool's tokens.
+inline size_t covered_positions(const ModelPlan& plan, size_t budget) { return std::min(plan.context_length, budget); }
+
+// Floats in table `t` covering `positions`.
+inline size_t table_floats(const ModelPlan& plan, size_t t, size_t positions) {
+    const size_t step = t < plan.table_steps.size() ? plan.table_steps[t] : 0;
+    return backend::size_add(plan.tables.at(t), backend::size_mul(step, positions));
+}
+
+// Floats a row takes in arena slot `s` when the tables cover `positions`.
+inline size_t slot_floats(const ModelPlan& plan, size_t s, size_t positions) {
+    for (const auto& [slot, per] : plan.position_slots)
+        if (slot == s) return positions / per;
+    return plan.slots.at(s);
+}
+
+// Narrows the plan's position slots to `positions`, which a model does once its pool is made.
+inline void cover_positions(ModelPlan& plan, size_t positions) {
+    for (const auto& [slot, per] : plan.position_slots) plan.slots.at(slot) = positions / per;
+}
 
 // Floats in a row a tensor group sums (ModelPlan::partial).
 inline size_t sum_width(const ModelPlan& plan) { return plan.partial ? plan.partial : plan.residual; }

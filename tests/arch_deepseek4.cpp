@@ -601,13 +601,15 @@ void plan() {
     require(p.residual == hc * d && p.embed_copies == hc && p.context_length == ctx && p.slots == slots &&
                 p.vocab == golden["vocab_size"] && p.index_width == std::max(size_t(heads), window) && !p.kv_heads && !p.head_dim,
             "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots and the index scratch of the lookup and the window");
-    std::vector<size_t> tables(4, ctx * rd / 2);
+    std::vector<size_t> tables(4, 0);
     tables.push_back(hc * d);
     tables.push_back(hc);
     tables.push_back(groups);
     tables.push_back(d);
     tables.insert(tables.end(), golden.engram_layers.size(), d * hc);
-    require(p.tables == tables, "the cosines and sines of two ropes, the ones table, the first pre, the group ids, the FFN's zero row and an Engram layer's norm table each");
+    require(p.tables == tables && p.table_steps == std::vector<size_t>(4, rd / 2),
+            "the cosines and sines of two ropes a position, the ones table, the first pre, the group ids, the FFN's zero row and an Engram layer's norm table each");
+    require(p.position_slots == std::vector<std::pair<size_t, size_t>>{{infer::deepseek4::index_scores, 1}}, "the index scores a float a position at the least ratio, 1");
 }
 
 // The runtime's footprint over the plan: each layer's tensors once, the Engram tables resident since no row source is given, the tables, slot 0, the index scratch, and each layer's entries against a sum written here.
@@ -686,6 +688,74 @@ void footprint() {
             "the tables, the slots, the handoff row with the carried slots and the index scratch");
 }
 
+// A device reporting `room` bytes free.
+struct Room : backend::CpuBackend {
+    size_t room = 0;
+    std::optional<size_t> memory_available() const override { return room; }
+    bool reads_in_place() const override { return false; }
+    bool is_cpu() const override { return false; }
+    bool memory_is_host() const override { return false; }
+};
+
+// The tables and the index scores cover the positions the KV budget reaches, inside the fit's search: a device too small for them at the whole context holds a budget between half and the whole, and a pass past it is refused.
+void positions() {
+    const gguf::GGUFModel m = fork();
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const infer::ModelPlan p = infer::plan_model(w);
+    const size_t ctx = golden["max_seq_len"], rd = golden["rope_head_dim"], half = ctx / 2, rows = 512;
+    infer::ModelOptions whole, halved;
+    halved.kv_tokens = half;
+    const infer::Footprint a = infer::footprint(w, p, whole), b = infer::footprint(w, p, halved);
+    require(a.tables - b.tables == 2 * half * rd * sizeof(float) && a.activations_per_row - b.activations_per_row == half * sizeof(float),
+            "the four rope tables and the index scores row not sized by the budget");
+    const auto device = [](size_t room) {
+        auto d = std::make_shared<Room>();
+        d->room = room;
+        d->set_threads(1);
+        return std::vector<backend::BackendPtr>{d};
+    };
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = int(rows);
+    // The least rooms the footprint gives half and the whole budget; the placement charges a little more (the lookup rows, the host's share), so rooms past the half's by half the gap and then whole gaps are tried.
+    const auto least = [&](const infer::Footprint& fp) {
+        const auto holds = [&](size_t room) {
+            infer::DeviceBudget d;
+            d.name = "device";
+            d.bytes = room;
+            try {
+                infer::split_layers(fp, {d}, rows);
+                return true;
+            } catch (const std::runtime_error&) {
+                return false;
+            }
+        };
+        size_t lo = 1, hi = size_t(1) << 34;
+        while (hi - lo > 1) {
+            const size_t mid = lo + (hi - lo) / 2;
+            (holds(mid) ? hi : lo) = mid;
+        }
+        return hi;
+    };
+    const size_t half_room = least(b), gap = least(a) - half_room;
+    require(gap > 0, "the whole budget's footprint is not larger than half's");
+    std::optional<infer::PlacedModel> placed;
+    for (size_t i = 0; i < 8 && !placed; ++i) {
+        try {
+            placed = infer::place_model(w, device(half_room + gap / 2 + i * gap), request, whole);
+        } catch (const std::runtime_error&) {
+        }
+    }
+    require(placed.has_value(), "no room past half the budget's footprint placed the model");
+    const size_t total = placed->model->kv_tokens_total();
+    require(total >= half && total < ctx && placed->model->positions() == total, "the fit did not settle between half and the whole budget with tables to match");
+    std::vector<uint32_t> ids(total + 1, 1);
+    refuses("a prompt past the covered positions", "inference: context length exceeded (" + std::to_string(total) + " tokens)", [&] { placed->model->prefill(ids); });
+    bool refused = false;
+    try { infer::place_model(w, device(half_room / 4), request, whole); } catch (const std::runtime_error& e) { refused = std::string(e.what()).rfind("placement: ", 0) == 0; }
+    require(refused, "a device too small for one block not refused by the placement");
+}
+
 // engram_q times engram_k against doubles: the fixture's 1 + j/64 values, every pair, and random BF16 pairs whose products are normal F32.
 void norm_product() {
     std::vector<uint16_t> q, k;
@@ -733,7 +803,7 @@ void position_tables() {
     const infer::ModelWeights w = infer::gguf_weights(m);
     const infer::ModelPlan p = built(w);
     std::vector<std::vector<float>> tables(p.tables.size());
-    for (size_t i = 0; i < tables.size(); ++i) tables[i].assign(p.tables[i], -1.0f);
+    for (size_t i = 0; i < tables.size(); ++i) tables[i].assign(infer::table_floats(p, i, p.context_length), -1.0f);
     // Sources of values 1 + j/64, a pair a layer.
     const size_t n = golden["dim"] * golden["hc_mult"];
     std::vector<std::vector<float>> values;
@@ -1419,6 +1489,7 @@ int main(int argc, char** argv) {
             layouts();
             plan();
             footprint();
+            positions();
             norm_product();
             position_tables();
             named();

@@ -56,7 +56,7 @@ names it.
     `token_embd.weight` as its alias, which is the tie. The context is the
     configuration's, the residual the embedding width, the slots
     `slot_widths` with the dense width counted when some layer is
-    dense, and the two RoPE tables hold the context's positions at half a
+    dense, and the two RoPE tables hold the covered positions at half a
     head each.
     Each role declares its split over a tensor group ([shard](model-shard.md)): the head by its vocabulary rows, q by heads and k and v by KV heads, replicated where the width is a multiple of them, `attn_output` by the heads' columns, the dense block by `blocks::shard_swiglu` and a routed layer's expert stacks by `blocks::shard_experts`, each expert's hidden rows; norms, the embedding and the router stay whole.
   - `fill_tables`: the RoPE cos and sin tables, `[pos*(head_dim/2) + i]`.
@@ -95,4 +95,4 @@ and F32 embeddings/matrices/norms. F32 embedding rows are copied directly;
 F32 matmul reads weight rows without staging. Missing
 `output.weight` selects tied token embeddings for the output projection.
 
-The activation arena's feed-forward slots are as wide as a dense layer's when some layer is dense, and the two rope tables cover the context at half a head each.
+The activation arena's feed-forward slots are as wide as a dense layer's when some layer is dense, and the two rope tables cover the covered positions at half a head each.

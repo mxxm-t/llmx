@@ -183,16 +183,17 @@ public:
         p.residual = (size_t)cfg.n_embd;
         p.kv_heads = (size_t)cfg.n_head_kv;
         p.head_dim = (size_t)cfg.head_dim;
-        p.tables.assign(2, (size_t)cfg.context_length * (size_t)(cfg.head_dim / 2));
+        p.tables.assign(2, 0);
+        p.table_steps.assign(2, (size_t)(cfg.head_dim / 2));
         return p;
     }
 
-    // The RoPE cos and sin tables for every position up to the context length, indexed as [pos*(head_dim/2) + i].
+    // The RoPE cos and sin tables for every position they cover, indexed as [pos*(head_dim/2) + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         std::vector<float>& rope_cos = tables[0];
         std::vector<float>& rope_sin = tables[1];
         int half = cfg_.head_dim / 2;
-        for (int pos = 0; pos < cfg_.context_length; pos++) {
+        for (size_t pos = 0; pos < rope_cos.size() / (size_t)half; pos++) {
             for (int i = 0; i < half; i++) {
                 float fre = std::pow(cfg_.rope_theta, -2.0f * (float)i / (float)cfg_.head_dim);
                 rope_cos[(size_t)pos * half + i] = std::cos((float)pos * fre);

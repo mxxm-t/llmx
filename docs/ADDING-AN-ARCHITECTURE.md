@@ -93,9 +93,9 @@ The module's `plan` is built once, from the configuration and the runtime's inde
   - an alias taken when the name is absent, as a tied head takes the embedding;
 - the arena slots, as the floats one row takes in each, with slot 0 the residual and each slot sized for the widest use any layer kind makes of it;
 - the width of the residual row, which is also what a crossing between devices carries;
-- the context length: the positions a sequence may reach, which the tables cover and the cache budget defaults to;
+- the context length: the positions a sequence may reach and the cache budget's default;
 - the geometry of K and V and the optional auxiliary width of each KV layer;
-- the sizes of the position tables.
+- the sizes of the tables, each its fixed floats (`tables`) and the floats each covered position adds (`table_steps`), and the arena slots a row of which holds a float for every few covered positions (`position_slots`); the tables and those slots cover the context capped at the KV budget (`covered_positions`), which the fit sizes inside its search.
 
 The plan looks tensors up through `TensorIndex`, which refuses a missing or repeated tensor with the one text the runtime uses.
 A layer whose tensors disagree with its kind is refused here, naming the layer, and so is a tensor form the module does not read.

@@ -990,7 +990,7 @@ inline std::string Model::host_identity() const {
     }
     s += "placement mixer " + join(place_.mixer_device) + " ffn " + join(place_.ffn_device) + " embed " + std::to_string(place_.embed_device) + " output " +
          std::to_string(place_.output_device) + " stream " + std::to_string(place_.stream_from) + " width " + std::to_string(place_.width) + "\n";
-    const size_t limit = std::min((size_t)context_length(), kv_tokens_total());
+    const size_t limit = positions_;
     std::vector<size_t> last;
     s += "classes";
     for (size_t e = 1; e <= limit; ++e) {
@@ -1399,8 +1399,8 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         if (a.seq->flights_) throw std::logic_error("inference: a draft of a sequence in flight");
         const size_t L = history(*a.seq);
         if (!L || !a.seq->state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
-        if (a.k > plan_.context_length - std::min(plan_.context_length, L))
-            throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
+        if (a.k > positions_ - std::min(positions_, L))
+            throw std::runtime_error("inference: context length exceeded (" + std::to_string(positions_) + " tokens)");
         c->order.push_back(i);
         c->steps = std::max(c->steps, a.k);
     }
@@ -1549,8 +1549,8 @@ inline void Model::add_media(Sequence& s, MediaRun run) {
                                  std::to_string(run.from));
     if (!run.encoded && end > s.length()) throw std::runtime_error("inference: an image the history has not read given without its rows");
     if (run.encoded && run.from && run.first + run.from > s.length()) throw std::runtime_error("inference: an image given without rows the history has not read");
-    if (run.first > plan_.context_length || run.rows > plan_.context_length - run.first)
-        throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
+    if (run.first > positions_ || run.rows > positions_ - run.first)
+        throw std::runtime_error("inference: context length exceeded (" + std::to_string(positions_) + " tokens)");
     for (Sequence::Media& m : s.media_)
         if (m.run.first == run.first) {
             if (m.run.rows != run.rows || m.run.grid_h != run.grid_h || m.run.grid_w != run.grid_w || m.run.digest != run.digest)

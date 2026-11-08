@@ -425,9 +425,9 @@ public:
         cache_.open_disk(disk, [this] { cv_.notify_all(); });
     }
 
-    // Tokens one request may hold, prompt and reply together, the one figure admission, the cut, jobs and the host tier read: the smallest of what the caller asks (`asked`, 0 for none), the model's context and the KV pool.
+    // Tokens one request may hold, prompt and reply together, the one figure admission, the cut, jobs and the host tier read: the smallest of what the caller asks (`asked`, 0 for none) and the positions the model covers.
     static size_t request_limit(const infer::Model& model, size_t asked) {
-        const size_t limit = std::min((size_t)model.context_length(), model.kv_tokens_total());
+        const size_t limit = model.positions();
         return asked ? std::min(asked, limit) : limit;
     }
     size_t token_limit() const { return limit_; }

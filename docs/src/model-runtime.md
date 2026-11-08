@@ -141,7 +141,7 @@ delegated to a `backend::Backend`.
   among them, with its own pool and block size; the block sizes of a
   model's storages must nest, one dividing the other, since a shared prefix
   ends on a whole block of the largest, or the model is refused. Every
-  used device adopts the position tables, which the architecture filled once
+  used device adopts the position tables, sized to cover the context capped at the pool's tokens (`positions()`, past which a pass, a draft or an image is refused), which the architecture filled once
   (`fill_tables`); some architecture parts read a table even on a device with
   no mixer layers. Qwen4Exp's feed-forward path clears its accumulation row
   from the zero-row table before expert accumulation. CPU adoption borrows the
@@ -202,7 +202,7 @@ delegated to a `backend::Backend`.
   - `row_class(extent)` is the one owner of which rows compute the same bits: each used device's `Backend::row_class` and whether the rows take a streamed layer on the device.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
     The thread getter reports the resolved backend count, allowing the CLI to restore automatic decode settings after prefill.
-  - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's; `lookup_store_bytes()` is the host bytes the lookup tables hold of their hot rows, each table once (`WeightRows::store_bytes`); `decode_columns()` is the fewest decode columns of its devices' backends (`Backend::decode_columns`).
+  - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's; `positions()` is what the tables cover, the most a request may hold (`Scheduler::request_limit`) and the row classes `host_identity` lists; `lookup_store_bytes()` is the host bytes the lookup tables hold of their hot rows, each table once (`WeightRows::store_bytes`); `decode_columns()` is the fewest decode columns of its devices' backends (`Backend::decode_columns`).
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.
     The row is read in place and stays valid until the next pass, so a caller that keeps it past one copies it.

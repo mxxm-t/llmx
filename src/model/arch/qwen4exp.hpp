@@ -553,8 +553,8 @@ public:
         p.kv_heads = size_t(c.n_head_kv);
         p.head_dim = size_t(c.head_dim);
         p.state = {size_t(c.k_heads), size_t(c.v_heads), size_t(c.k_dim), size_t(c.v_dim)};
-        p.tables = {size_t(c.context_length) * size_t(c.rope_dim / 2),
-                    size_t(c.context_length) * size_t(c.rope_dim / 2), size_t(R)};
+        p.tables = {0, 0, size_t(R)};
+        p.table_steps = {size_t(c.rope_dim / 2), size_t(c.rope_dim / 2)};
         // Images take Qwen 3.5's interleaved positions, a pooled group turning at its first row's (Step::group_pos), and an embedding row fills every residual stream.
         p.image_streams = blocks::interleaved_streams(c.rope_sections, size_t(c.rope_dim / 2));
         p.embed_copies = size_t(c.hc_count);
@@ -565,7 +565,7 @@ public:
         const size_t half = size_t(cfg_.rope_dim / 2);
         for (size_t i = 0; i < half; ++i) {
             const float freq = 1.0f / std::pow(cfg_.rope_theta, 2.0f * float(i) / float(cfg_.rope_dim));
-            for (size_t pos = 0; pos < size_t(cfg_.context_length); ++pos) {
+            for (size_t pos = 0; pos < tables[0].size() / half; ++pos) {
                 tables[0][pos * half + i] = std::cos(float(pos) * freq);
                 tables[1][pos * half + i] = std::sin(float(pos) * freq);
             }

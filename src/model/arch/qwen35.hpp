@@ -207,17 +207,18 @@ public:
         p.kv_heads = (size_t)c.n_head_kv;
         p.head_dim = (size_t)c.head_dim;
         p.state = backend::StateShape{(size_t)c.k_heads, (size_t)c.v_heads, (size_t)c.k_dim, (size_t)c.v_dim};
-        p.tables.assign(2, (size_t)c.context_length * (size_t)(c.rope_dim / 2));
+        p.tables.assign(2, 0);
+        p.table_steps.assign(2, (size_t)(c.rope_dim / 2));
         p.image_streams = c.image_streams;
         return p;
     }
 
-    // The rope's cos and sin for every position of the context over the rotated pairs only, indexed as [pos * (rope_dim / 2) + i].
+    // The rope's cos and sin for every position the tables cover over the rotated pairs only, indexed as [pos * (rope_dim / 2) + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         const size_t half = (size_t)cfg_.rope_dim / 2;
         std::vector<float> freq(half);
         for (size_t i = 0; i < half; ++i) freq[i] = std::pow(cfg_.rope_theta, -2.0f * (float)i / (float)cfg_.rope_dim);
-        for (size_t pos = 0; pos < (size_t)cfg_.context_length; ++pos)
+        for (size_t pos = 0; pos < tables[0].size() / half; ++pos)
             for (size_t i = 0; i < half; ++i) {
                 tables[0][pos * half + i] = std::cos((float)pos * freq[i]);
                 tables[1][pos * half + i] = std::sin((float)pos * freq[i]);

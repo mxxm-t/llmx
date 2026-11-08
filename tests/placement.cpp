@@ -1,6 +1,7 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
 #include <algorithm>
+#include <cstdio>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -1202,6 +1203,64 @@ void pipelined_times_at_completion() {
     split.set_ubatch((int)kPrompt.size());
     split.prefill(kPrompt);
     require(split.prefill_slices() > 1, "a pipelined prompt priced its slices at the host submit, not at its last stage's completion");
+    ++checked;
+}
+
+// A stage playing a device that holds each submission fixed_ms and row_ms a row of its widest matmul, spun on its thread so the CPU's own busy time (Backend::busy_ms) measures it; `cut` collects those rows.
+struct TimedCpu : FailingCpu {
+    infer::StageLine line;
+    size_t rows = 0;
+    std::vector<size_t> cut;
+    explicit TimedCpu(infer::StageLine l) : line(l) { plays_device = true; }
+    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
+                size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+        rows = std::max(rows, nbatch);
+        FailingCpu::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
+    }
+    backend::Ticket submit() override {
+        if (rows) {
+            cut.push_back(rows);
+            const auto until = std::chrono::steady_clock::now() + std::chrono::duration<double, std::milli>(line.at(std::exchange(rows, 0)));
+            while (std::chrono::steady_clock::now() < until) std::this_thread::yield();
+        }
+        return FailingCpu::submit();
+    }
+};
+
+// A heavy first stage and a lighter last one, each its own line: after a few prefills a 240-row prompt's cut at a 48-row ubatch finishes within 2% of the best cut found of a first slice and a ratio between slices, priced by those lines.
+// One line copied to both stages prices them as one flow shop of equal stages, whose equal cut leaves the light stage a long drain.
+void pipelined_cut_follows_stage_lines() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    const std::vector<infer::StageLine> truth{{4, 1.0}, {4, 0.5}};
+    auto first = std::make_shared<TimedCpu>(truth[0]);
+    infer::PlacedModel placed = pipelined(weights, {first, std::make_shared<TimedCpu>(truth[1])}, {1, 2});
+    infer::Model& split = *placed.model;
+    const size_t cap = 48;
+    std::vector<uint32_t> prompt(240);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = uint32_t(1 + i % 13);
+    split.set_ubatch((int)cap);
+    for (int k = 0; k < 6; ++k) {
+        split.reset();
+        first->cut.clear();
+        split.prefill(prompt);
+    }
+    const auto finish = [&](const std::vector<size_t>& cut) {
+        std::vector<double> f(truth.size(), 0.0);
+        for (size_t r : cut) infer::pipeline_add(f, truth, r);
+        return f.back();
+    };
+    double best = std::numeric_limits<double>::infinity();
+    for (size_t r0 = 1; r0 <= cap; ++r0)
+        for (double q = 0.5; q < 1.51; q += 0.05) {
+            std::vector<size_t> cut;
+            double next = (double)r0;
+            for (size_t at = 0; at < prompt.size(); next *= q) {
+                cut.push_back(std::min({prompt.size() - at, cap, std::max<size_t>(1, (size_t)next)}));
+                at += cut.back();
+            }
+            best = std::min(best, finish(cut));
+        }
+    require(first->cut.size() == split.prefill_slices() && finish(first->cut) <= 1.02 * best, "a pipelined prompt's cut did not follow its stages' own lines");
     ++checked;
 }
 
@@ -2581,6 +2640,7 @@ int main() {
         }
         pipelined_slicings_match();
         pipelined_times_at_completion();
+        pipelined_cut_follows_stage_lines();
         replay_over_stages();
         passes_refused();
         passes_continue();

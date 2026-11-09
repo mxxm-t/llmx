@@ -65,6 +65,7 @@ placement contracts in `docs/EXECUTION.md`.
   it, but for `wait(t)` of a ticket `submit()` has returned, which another
   thread may make while that one records.
   `done(t)` says whether submission t has retired, without waiting where the backend can tell and by waiting, then true, by default; any thread may ask, as it may wait.
+  It may read not done for a ticket whose work has ended while another thread is still in `wait(t)` (the ROCm backend answers so rather than block behind HIP), so a caller asks again rather than treating false as final.
   A collective's `wait(back)` returns once every member is done with what the last sum submitted on it (`back` 0) or the sum before it (1), and does nothing by default, where the members compute as they are called.
   A group's queue calls may be made on a thread of their own ([Vulkan](backends-vulkan.md)): a ticket is waited for there first, and one whose call failed retires without its work, so `raise(t)`, which does nothing by default, throws for it after `wait(t)` and before a caller reads in place what it wrote, as the logits are read, and `read` throws such a failure before it copies.
 - `hold_between_submissions(on)`: a model made over several devices asks it

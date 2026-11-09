@@ -361,7 +361,10 @@ public:
     void wait(Ticket t) noexcept override {
         if (tickets_.settled(t)) return;
         if (t + kEvents <= tickets_.last()) return tickets_.retired(t);
+        std::atomic<uint32_t>& held = syncing_[t % kEvents];
+        held.fetch_add(1, std::memory_order_acq_rel);
         const hipError_t e = hip().hipEventSynchronize(events_[t % kEvents]);
+        held.fetch_sub(1, std::memory_order_acq_rel);
         if (e != hipSuccess) remember(e, "a submission");
         tickets_.retired(t);
         bury();
@@ -373,6 +376,8 @@ public:
             tickets_.retired(t);
             return true;
         }
+        // HIP holds an event while a thread synchronises on it and a query of it waits that long, so an event some thread waits on reads as not done.
+        if (syncing_[t % kEvents].load(std::memory_order_acquire)) return false;
         const hipError_t e = hip().hipEventQuery(events_[t % kEvents]);
         if (e == hipErrorNotReady) return false;
         if (e != hipSuccess) remember(e, "a submission");
@@ -2954,6 +2959,7 @@ private:
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};
+    std::array<std::atomic<uint32_t>, kEvents> syncing_{};   // per event slot, the threads in its synchronise (done)
     std::array<hipEvent_t, kEvents> starts_{};   // each ticket's first operation after its cross-device waits, timed against events_ (busy_ms)
     Ring args_, stage_, pass_;   // the argument ring, the staging ring, and pass_arg's ring in device memory
     std::array<Upload, kUploads> uploads_{};

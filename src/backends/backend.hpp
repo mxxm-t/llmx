@@ -628,6 +628,7 @@ public:
     // After wait(t), before reading in place what submission t wrote: throws where its call failed, so no result of a failed submission is read.
     virtual void raise(Ticket t) { (void)t; }
     // Whether submission t has retired, asked without waiting where the backend can tell; any thread may ask, as it may wait.
+    // It may read not done for a retired ticket while another thread is still in wait(t), so a caller asks again rather than treating false as final.
     virtual bool done(Ticket t) noexcept {
         wait(t);
         return true;

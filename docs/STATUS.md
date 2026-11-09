@@ -1,5 +1,50 @@
 # llmx - Development Status
 
+## A ROCm ticket some thread synchronises on reads as not done (2026-11-09, PRE3 then PRE3b, branch perf/prefill-pipeline-flow on main ed9780218; PRE3's proposal of 2026-11-08 22:46 with F2DEV's review of 23:28, items 1 to 7; lands by fast-forward as two commits, the failing test and then the fix)
+
+**Goal:** remove the layer-split prompt's slow mode on ROCm, where about one prefill in five ran at 1186 instead of 1552 tok/s on Qwen3.8-Flash-Next layer-4.
+
+**Done:**
+- `RocmBackend::done` reads a ticket whose event some thread is in `hipEventSynchronize` on as not done without asking HIP, which holds such a query until the work ends; `wait` counts itself in and out of the slot around the synchronise, before it retires the ticket, so a reused slot never sees a stale count.
+  `Backend::done`'s comment and `docs/src/backends-backend.md` say that done may read not done for a retired ticket while another thread is still in `wait`; every caller (the completion lanes, hold's first-chunk choice, the history and service polls) asks again or waits.
+- Cause, from stamps of every query over 3 ms, HIP frees over 2 ms and each stage's record per chunk (diagnostic builds, not landed): on main the recording thread's query of the last stage's ticket blocks about 545 ms at the start of every prefill and 125-160 ms three more times, about 980 ms a pass, fast runs included, so the block alone costs nothing visible.
+  It makes the recording thread late, so on the first prefill after the warmup's slice plan the graves of that plan's buffers retire while it is still recording, and its next record frees them: 7 hipFree calls, 625 ms, each draining a device mid-pass, chunk 1 done at 1202 instead of 707 ms.
+  With the fix the thread records a whole pass in about 50 ms with no query over 3 ms, and the same frees (one call, 684-969 ms) fall on the completion lane after all work is issued.
+- The frees themselves remain; the hipFree deferral (PDEV1's item 1, F2DEV's review of 2026-11-07 22:26) would remove them on any thread.
+
+**Timing** (Qwen3.8-Flash-Next UD-Q4_K_XL `--dtype int8`, `-ctk f16 -ctv f16`, four MI50s renderD128-131, ROCm, default clocks, `--cpus 8`, bench `--r 5` a process, ABBA ABBA, 20 runs an arm a cell; clean builds of detached worktrees, main `llmx 0.1.0+ged9780218f62`, this change at 6e78d226; slow = below 0.9 x the cell's pooled median, fixed before measuring; nr_throttled 5-12 in the L4 pp2048 processes of both arms, 0-12 at pp16384 L4, 0 on 2x2):
+
+| cell | main mean tok/s | this change mean tok/s | main slow runs | this change slow runs | fast-run median main / this change |
+|---|---|---|---|---|---|
+| layer-4 pp2048 | 1479.1 | 1563.5 (+5.7%) | 4 of 20 (1186-1188, each process's first run) | 0 of 20 | 1552.0 / 1563.9 |
+| layer-4 pp16384 | 1953.1 | 1951.9 | 0 | 0 | 1953.1 / 1953.0 |
+| 2x2 pp2048 | 1456.1 | 1498.9 (+2.9%) | 0 | 0 | 1473.8 / 1507.6 |
+| 2x2 pp16384 | 1538.8 | 1533.8 | 0 | 1 (1370) | 1553.5 / 1553.8 |
+
+Part of the layer-4 pp2048 gain is the first prefill's frees moving off the pass: the slow runs go from 4 of 20 to 0 of 20, while the fast-run medians differ less (1552.0 against 1563.9).
+The 2x2 pp2048 difference follows the slice counts each process chose (main 4-10, this change 4-5), and the one 2x2 pp16384 slow run is unexplained (no diagnostic run at that size).
+The speed gate stays open: the reference gives 2615 tok/s on layer-4 and 1939 on 2x2 at pp2048.
+
+**Landing gates** (stacked head 5e4eef071: this branch's two commits rebased on main dd9a122e0, then perf/rocm-defer-free's two; F2DEV's approvals of 06:48 and 11:12; ROCm Release builds of detached worktrees, main `llmx 0.1.0+gdd9a122e0891`, head `llmx 0.1.0+g5e4eef071c22`, run by LAND14 on renderD128-131 at default clocks):
+- `backend-rocm`: this branch's check, now asked 10 ms after the waiter flags it is entering its wait and bounded at 50 ms, fails on main with only the test commit (done took 169.9 ms); CTest of the ROCm build passes 84 of 84, and `backend-rocm` passes twice more.
+- The suite with `--device rocm:0` passes (exit 0, docs and dead-code included; its skips are absent fixtures).
+- Qwen3-0.6B Q8_0, greedy 128 tokens: the same text as main on the CPU and on rocm:0.
+- Qwen3.8-Flash-Next UD-Q4_K_XL int8, greedy 64 ids after the 10k-character prompt: main's on layer-4 and on 2x2.
+- Timing, the same model, `-ctk f16 -ctv f16`, bench pp2048 `--r 5` a process, eight processes an arm ABBA ABBA, `--cpus 8`, slow below 0.9 x the cell's pooled median:
+
+| cell | main mean tok/s | head mean tok/s | slow runs main / head | fast-run median main / head |
+|---|---|---|---|---|
+| layer-4 pp2048 | 1641.8 | 1749.6 (+6.6%) | 4 of 20 (1257-1259; three a process's first run, one a second) / 0 of 20 | 1732.2 / 1749.9 |
+| 2x2 pp2048 | 1558.5 | 1563.2 (+0.3%) | 0 / 0 | 1557.8 / 1563.3 |
+
+  The layer-4 server (PRE4's client: prompts of 517, 2314, 9206, 749, 14773, 2314, 14773 and 254 tokens on a fresh server, main, head, head, main) took its first prompt at 492 and 1135 tok/s on main and 830 and 1130 on the head, the first 2314-token prompt at 1058 and 1252 against 1264 and 1307, and the first 14773-token prompt at 1716 and 1555 against 1840 and 1818; the repeated 14773-token prompt ran 1849 and 1855 against 1857 and 1856.
+  Host wait (`hostwait.sh`, each process's whole life, its 60 s model read included): 90 to 580 s of run-queue wait a process, every one over the 100 ms flag, the top kernel threads ZFS's `z_rd_int` at 16 to 37%, alike in both arms; nr_throttled 0 to 5 a process. No run was dropped.
+  The reference stays ahead: 2615 tok/s on layer-4 and 1939 on 2x2 at pp2048.
+- Hosted run 42632810395 passes, 8 of 8 jobs, on 5e4eef071; the landing commits differ from it only in this record, and the docs and dead-code components pass on them.
+
+Lands by fast-forward together with perf/rocm-defer-free, as four commits: this branch's failing test and fix, then that branch's.
+Left: whether the slow mode exists on Vulkan layer-4 (item 7). Fix B (a lane per device stage) is not built: the fix leaves no slow run at layer-4 pp2048.
+
 ## ROCm routed prompt stream (2026-11-09, PRE2, PRE2b, PRE2c then PRE2d, branch perf/rocm-moe-prompt-stream stacked on perf/rocm-hc-mix-rows over main 4b5f9236d; F2DEV's reviews of 2026-11-08 22:20, B1 to B3, and of 2026-11-09 02:50, B1 and B2; lands by fast-forward)
 
 **Goal:** a routed MoE prompt group of few entries reads its expert's weights once at full bandwidth on ROCm, with the routed tile's bits.

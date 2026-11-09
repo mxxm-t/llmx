@@ -841,6 +841,9 @@ const uint32_t kSpvEmbedMxfp4[] = {
 const uint32_t kSpvMatmulTileMxfp4[] = {
 #include "vulkan/matmul_tile_mxfp4.inc"
 };
+const uint32_t kSpvMatmulTileMxfp4Narrow[] = {
+#include "vulkan/matmul_tile_mxfp4_narrow.inc"
+};
 const uint32_t kSpvMatmulTileMxfp4Bf16[] = {
 #include "vulkan/matmul_tile_mxfp4_bf16.inc"
 };
@@ -1304,6 +1307,8 @@ const uint32_t kSpvHold[] = {
     X(K_EMBED_MXFP4, "embed_mxfp4", kSpvEmbedMxfp4, sizeof(kSpvEmbedMxfp4), 4, nullptr) \
     X(K_MATMUL_TILE_MXFP4, "matmul_tile_mxfp4", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_TILE_MXFP4_TALL, "matmul_tile_mxfp4_tall", kSpvMatmulTileMxfp4, sizeof(kSpvMatmulTileMxfp4), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
+    X(K_MATMUL_TILE_MXFP4_NARROW, "matmul_tile_mxfp4_narrow", kSpvMatmulTileMxfp4Narrow, sizeof(kSpvMatmulTileMxfp4Narrow), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
+    X(K_MATMUL_TILE_MXFP4_NARROW_TALL, "matmul_tile_mxfp4_narrow_tall", kSpvMatmulTileMxfp4Narrow, sizeof(kSpvMatmulTileMxfp4Narrow), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_TILE_MXFP4_BF16, "matmul_tile_mxfp4_bf16", kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_TILE_MXFP4_BF16_TALL, "matmul_tile_mxfp4_bf16_tall", kSpvMatmulTileMxfp4Bf16, sizeof(kSpvMatmulTileMxfp4Bf16), 6, nullptr, nullptr, 0, kPreserve32 | kSpecial64, 0) \
     X(K_MATMUL_REDUCE_MXFP4, "matmul_reduce_mxfp4", kSpvMatmulReduceMxfp4, sizeof(kSpvMatmulReduceMxfp4), 2, kMatmulReduceCounts, nullptr, 0, kPreserve32 | kSpecial64, 0) \
@@ -1532,8 +1537,10 @@ inline bool wide_tile_fits(const DeviceCaps& caps, size_t rows, size_t columns) 
     const size_t tiles = (rows + kWideTile - 1) / kWideTile * ((columns + kWideTile - 1) / kWideTile);
     return rows >= kWideTile && columns >= kWideTile && tiles >= caps.compute_units;
 }
-inline KernelId float_tile_kernel(bool tall, Dtype dtype, uint32_t type, bool f16_inputs) {
+// `narrow` asks for the 16-column build where the type has one (MXFP4 outside BF16), for routed calls whose experts hold few entries.
+inline KernelId float_tile_kernel(bool tall, Dtype dtype, uint32_t type, bool f16_inputs, bool narrow = false) {
     const WeightKernels& format = *weight_kernels(type);
+    if (narrow && type == quant::GGML_TYPE_MXFP4 && dtype != Dtype::bf16) return tall ? K_MATMUL_TILE_MXFP4_NARROW_TALL : K_MATMUL_TILE_MXFP4_NARROW;
     if (type == quant::GGML_TYPE_NVFP4 && dtype == Dtype::f16 && f16_inputs)
         return tall ? K_MATMUL_TILE_NVFP4_F16_TALL : K_MATMUL_TILE_NVFP4_F16;
     if (dtype == Dtype::bf16) return tall ? format.bf16_tall_tile : format.bf16_tile;
@@ -1597,7 +1604,7 @@ inline bool is_tile_kernel(KernelId id) {
     if (low_bits_tile_type(id) != UINT32_MAX) return true;
     if (is_nvfp4_tile(id)) return true;
     if (id == K_MATMUL_TILE_Q8MX || id == K_MATMUL_TILE_Q8MX_TALL) return true;
-    if (id == K_MATMUL_TILE_MXFP4 || id == K_MATMUL_TILE_MXFP4_TALL ||
+    if (id == K_MATMUL_TILE_MXFP4 || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_NARROW || id == K_MATMUL_TILE_MXFP4_NARROW_TALL ||
         id == K_MATMUL_TILE_MXFP4_BF16 || id == K_MATMUL_TILE_MXFP4_BF16_TALL) return true;
     switch (id) {
     case K_MATMUL_TILE_WF16: case K_MATMUL_TILE_WF16_TALL: case K_MATMUL_TILE_WF16_BF16: case K_MATMUL_TILE_WF16_BF16_TALL:
@@ -1760,6 +1767,8 @@ inline uint32_t float_tile_rows_for(const DeviceCaps& caps, const DeviceProfile&
 }
 // The columns of an integer tile's narrow build, variant 2 (shaders/matmul_tile_q.comp, NARROW).
 const size_t kNarrowCols = 16;
+// The rows of a workgroup of MXFP4's narrow float build (shaders/matmul_tile_narrow.glsl, NARROW_ROWS).
+const uint32_t kNarrowFloatRows = 256;
 
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")

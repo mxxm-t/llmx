@@ -3339,6 +3339,8 @@ size_t check_weight_dispatch() {
                             else
                                 expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
                                            e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
+                            // The routed call's one entry on one expert is a run of 16 or fewer, so MXFP4's float tile takes its narrow build (kNarrowCols in VulkanBackend::routed_call).
+                            if (routed && !integer && e.type == 39 && dtype != backend::Dtype::bf16) expected = "matmul_tile_mxfp4_narrow";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";
                             if (i8) expected += "i8";
                         } else if (dtype == backend::Dtype::f32 && !floating) {
@@ -4771,6 +4773,129 @@ size_t check_routed_quads() {
     return checks;
 }
 
+// MXFP4's routed float tile takes its 16-column build where a call's entries average 16 or fewer an expert, and the 64-column build past that; calls at the cut and one past it pin the choice.
+// Every output must be the model's in both builds: a sum in doubles where its row has a scale byte outside 65 to 188 or its input a nonzero exponent field outside 64 to 190, an ascending fma otherwise.
+size_t check_routed_mxfp4_narrow_at(backend::Backend& vk, size_t nout, bool tall) {
+    const size_t nin = 256, counts[] = {1, 2, 8, 9, 16, 17, 33}, busy = sizeof(counts) / sizeof(counts[0]), filler = 400;
+    const size_t experts = busy + 1, blocks = nin / quant::MXFP4_BLOCK, row_bytes = blocks * quant::MXFP4_TYPESIZE, cut = 16 * experts;
+    std::vector<uint32_t> sorted;
+    for (size_t e = 0; e < busy; ++e)
+        for (size_t c = 0; c < counts[e]; ++c) sorted.push_back(uint32_t(e));
+    const size_t few = sorted.size(), many = few + filler;
+    require(few < cut && many > cut + 1, "the routed MXFP4 check's calls do not straddle the narrow cut");
+    // The tall experts' calls stop one past the cut, which keeps their model's sums few.
+    const std::vector<size_t> calls = tall ? std::vector<size_t>{few, cut, cut + 1} : std::vector<size_t>{few, cut, cut + 1, many};
+    const size_t modeled = calls.back();
+    std::vector<uint32_t> ids(many, uint32_t(busy));
+    for (size_t r = 0; r < few; ++r) ids[r] = sorted[(r * 37) % few];   // 37 is prime to the 86 rows
+    std::vector<uint8_t> w(experts * nout * row_bytes);
+    uint32_t seed = 59;
+    for (size_t b = 0; b < w.size() / quant::MXFP4_TYPESIZE; ++b) {
+        w[b * quant::MXFP4_TYPESIZE] = uint8_t(65 + (b * 37) % 124);
+        for (size_t i = 1; i < quant::MXFP4_TYPESIZE; ++i) {
+            seed = seed * 1664525u + 1013904223u;
+            w[b * quant::MXFP4_TYPESIZE + i] = uint8_t(seed >> 24);
+        }
+    }
+    // Rows summed wide for a scale byte outside 65 to 188, in blocks whose scale was neither bound: one an expert, and in tall experts also one in each workgroup's second 128 rows and one in the last row group.
+    const uint8_t wide_scales[] = {0, 1, 64, 189, 200, 0, 1, 64};
+    for (size_t e = 0; e < experts; ++e) {
+        std::vector<size_t> wide_rows = {(e * 13 + 5) % nout};
+        if (tall) {
+            for (size_t base = 0; base + 256 <= nout; base += 256) wide_rows.push_back(base + 128 + (e * 13 + 5 + base / 256) % 128);
+            wide_rows.push_back(nout - 1 - 7 * e);
+        }
+        for (const size_t row : wide_rows) {
+            size_t b = (e * nout + row) * blocks + e % blocks;
+            while (w[b * quant::MXFP4_TYPESIZE] == 65 || w[b * quant::MXFP4_TYPESIZE] == 188) ++b;
+            w[b * quant::MXFP4_TYPESIZE] = wide_scales[e];
+        }
+    }
+    // Every aligned 32-row group of an expert keeps 65 and 188 among its other scales, so inputs are judged against 64 to 190 at any tile height.
+    for (size_t e = 0; e < experts; ++e)
+        for (size_t g = 0; g < nout; g += 32) {
+            uint32_t lo = 256, hi = 0;
+            for (size_t b = (e * nout + g) * blocks; b < (e * nout + std::min(g + 32, nout)) * blocks; ++b) {
+                const uint32_t s = w[b * quant::MXFP4_TYPESIZE];
+                if (s >= 65 && s <= 188) { lo = std::min(lo, s); hi = std::max(hi, s); }
+            }
+            require(lo == 65 && hi == 188, "a 32-row group of the routed MXFP4 check lacks a bound scale");
+        }
+    auto x = uniform(many * nin, 61, -2.0f, 2.0f);
+    // Columns summed wide for an input past either bound: 1.5 * 2^64, a subnormal and 2^-70; one also in a filler entry.
+    x[3 * nin + 7] = std::ldexp(1.5f, 64);
+    x[20 * nin + 100] = 1e-40f;
+    x[50 * nin + 3] = std::ldexp(1.0f, -70);
+    x[(few + 25) * nin + 9] = std::ldexp(1.5f, 64);
+    std::vector<float> rows(experts * nout * nin), expect(modeled * nout);
+    std::vector<uint8_t> row_wide(experts * nout, 0);
+    quant::dequantize_row_mxfp4(w.data(), rows.data(), experts * nout * blocks);
+    for (size_t b = 0; b < experts * nout * blocks; ++b) {
+        const uint8_t s = w[b * quant::MXFP4_TYPESIZE];
+        row_wide[b / blocks] |= uint8_t(s < 65 || s > 188);
+    }
+    size_t telling = 0;   // wide outputs whose sum in doubles is not the fma's
+    for (size_t r = 0; r < modeled; ++r) {
+        bool wide_col = false;
+        for (size_t i = 0; i < nin; ++i) {
+            uint32_t bits;
+            std::memcpy(&bits, &x[r * nin + i], sizeof(bits));
+            bits &= 0x7fffffffu;
+            wide_col |= bits != 0 && ((bits >> 23) < 64 || (bits >> 23) > 190);
+        }
+        for (size_t o = 0; o < nout; ++o) {
+            const size_t er = ids[r] * nout + o;
+            const bool wide = wide_col || row_wide[er];
+            const float* wr = rows.data() + er * nin;
+            float acc = 0.0f;
+            double sum = 0.0;
+            for (size_t i = 0; i < nin; ++i) {
+                acc = std::fma(wr[i], x[r * nin + i], acc);
+                sum += double(wr[i]) * double(x[r * nin + i]);
+            }
+            expect[r * nout + o] = wide || !std::isfinite(acc) ? float(sum) : acc;
+            telling += wide && float(sum) != acc;
+        }
+    }
+    require(telling > 0, "no wide output of the routed MXFP4 check tells the wide sum from the fma");
+    const auto wb = vk.adopt(w.data(), w.size()), xb = vk.adopt(x.data(), x.size() * sizeof(float)), ib = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t));
+    std::vector<backend::Dtype> dtypes = {backend::Dtype::f32, backend::Dtype::f16};
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) dtypes.push_back(backend::Dtype::int8);
+    size_t checks = 0;
+    for (const auto dtype : dtypes)
+        for (const size_t n : calls) {
+            const auto y = vk.alloc(n * nout * sizeof(float));
+            const backend::RowRun run{n, n};
+            (void)backend::vulkan_kernel_times(vk);
+            vk.matmul_experts({{{quant::GGML_TYPE_MXFP4, {wb.get(), 0}}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, n, {{ib.get(), 0}, {}, 1, experts}, {&run, 1}, dtype);
+            std::string build;
+            for (const auto& t : backend::vulkan_kernel_times(vk))
+                if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
+            // The build is checked by name where the device has timestamps, and the tall experts' narrow calls must take the 128-row height.
+            const bool narrow = build.find("_narrow") != std::string::npos;
+            require(build.empty() || (build.rfind("matmul_tile_mxfp4", 0) == 0 && narrow == (n <= cut) && (!tall || !narrow || build.find("_narrow_tall") != std::string::npos)),
+                    ("a routed MXFP4 call of " + std::to_string(n) + " entries over " + std::to_string(nout) + "-row experts took " + build).c_str());
+            std::vector<float> out(n * nout);
+            vk.read(*y, 0, out.data(), out.size() * sizeof(float));
+            require(std::memcmp(out.data(), expect.data(), out.size() * sizeof(float)) == 0,
+                    ("routed MXFP4 outputs of a call of " + std::to_string(n) + " entries over " + std::to_string(nout) + "-row experts differ from the wide-sum rule").c_str());
+            checks += n * nout;
+        }
+    return checks;
+}
+
+// Experts of 160 rows, below one narrow workgroup, and of 8192 rows, whose calls up to the cut fill 640 workgroups of the 128-row height and so take matmul_tile_mxfp4_narrow_tall.
+size_t check_routed_mxfp4_narrow() {
+    const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *timed;
+    if (!vk.supports_type(quant::GGML_TYPE_MXFP4)) {
+        std::cout << "backend-vulkan: this device has no MXFP4 kernels\n";
+        return 0;
+    }
+    return check_routed_mxfp4_narrow_at(vk, 160, false) + check_routed_mxfp4_narrow_at(vk, 8192, true);
+}
+
 // The integer tile takes its tallest height only from the profile's row width for its activations, and a row keeps its bits at either height (DeviceProfile::qtile_tall_from).
 // Per type and dtype, on each side of each cut, 1024 columns over 4096 rows and their first 64 columns alone must give those columns the same bits.
 size_t check_tile_heights() {
@@ -5345,6 +5470,7 @@ int main(int argc, char** argv) {
             std::cout << "backend-vulkan: " << tiles << " routed narrow tiles equal to the 64-column build\n";
             const size_t entries = check_routed_quads();
             std::cout << "backend-vulkan: " << entries << " routed narrow entries equal to the same entry alone\n";
+            std::cout << "backend-vulkan: " << check_routed_mxfp4_narrow() << " routed MXFP4 outputs in the 16- and 64-column builds equal to an ascending fma or the wide sum\n";
             return 0;
         }
         if (columns_only) {
@@ -5545,6 +5671,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << narrow_tiles << " routed narrow tiles equal to the 64-column build\n";
         const size_t narrow_entries = check_routed_quads();
         std::cout << "backend-vulkan: " << narrow_entries << " routed narrow entries equal to the same entry alone\n";
+        std::cout << "backend-vulkan: " << check_routed_mxfp4_narrow() << " routed MXFP4 outputs in the 16- and 64-column builds equal to an ascending fma or the wide sum\n";
         const size_t heights = check_tile_heights();
         std::cout << "backend-vulkan: " << heights << " tile calls on each side of the tallest tile's row width equal at both heights\n";
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";

@@ -92,6 +92,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_iq4_xs=matmul_tile_q=LLMX_Q8+LLMX_IQ4+LLMX_IQ4_XS+LLMX_PRESERVE_F32
         matmul_tile_q8mx=matmul_tile_q=LLMX_Q8+LLMX_Q8MX+LLMX_PRESERVE_F32
         embed_mxfp4=embed=LLMX_MXFP4 matmul_tile_mxfp4=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32
+        matmul_tile_mxfp4_narrow=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_TILE_NARROW
         matmul_tile_mxfp4_bf16=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_BF16 matmul_reduce_mxfp4=matmul_reduce=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_f32_only=matmul_row=LLMX_ROW_F32 matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_tile_iq1_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ1+LLMX_IQ1_S+LLMX_PRESERVE_F32

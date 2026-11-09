@@ -1,5 +1,70 @@
 # llmx - Development Status
 
+## Vulkan routed MXFP4: a 16-column float tile build (2026-11-09, DSDEV58 to DSDEV61, branch perf/vulkan-mxfp4-routed on main 298a94a65; VKMX1's finding of 04:54, DSDEV58's proposal of 05:13, F2DEV's reviews of 05:40, items 1 to 9, and of 07:28, R1 and R2; lands by fast-forward)
+
+**Goal:** routed MXFP4 prompt products on Vulkan read the experts' weights at more than a quarter of the card's bandwidth when experts hold few entries each.
+
+**Done:**
+- MXFP4 always takes the float tile, whose 64 columns left an expert of a few entries reading its whole weight for mostly empty columns: DeepSeek-V4.1-Flash's gate and up read at 26 GB/s on one MI50.
+- `routed_call` sends a call whose entries average 16 or fewer an expert (`kNarrowCols`) to `matmul_tile_mxfp4_narrow`, a thread a row over every column of a run of 16 entries (`shaders/matmul_tile_narrow.glsl`, 256-row workgroups, `kNarrowFloatRows`).
+  The narrow build takes the height the 64-column grouping gives, since the tile's rows decide which sums are wide, so its outputs are the 64-column build's bits (F2DEV's item 1).
+- The MXFP4 tile decodes through the doubled E2M1 table, fetches the next stage during the current one and gathers each stage's scale range in its loop; the BF16 build shares it.
+- `check_routed_mxfp4_narrow` holds both builds to an ascending fma or the wide sum over wide rows (scale bytes 0, 1, 64, 189, 200), wide inputs, and calls at the cut (128 entries over eight experts) and one past it (F2DEV's item 2).
+  It runs on experts of 160 rows and of 8192 rows, whose narrow calls must take `matmul_tile_mxfp4_narrow_tall` by name, with wide rows in each workgroup's second 128 rows (F2DEV's R1).
+- Both narrow builds have 84 VGPRs, 48 SGPRs, no spills, no scratch and 3 waves a SIMD on an MI50 under RADV, as the 64-column tall build has.
+- Known, not this branch (F2DEV's item 6): the wide decision depends on the tile's height, which follows the call's entries, so an MXFP4 output that takes the wide sum is not batch-invariant on main either.
+- Not taken: a refusal of files with wide scale bytes (F2DEV's item 7), and IQ4_NL, which routes on the integer narrow tile (item 8, a separate branch after a profile).
+
+**Microbenchmark** (`llmx-moe-kernel-bench`, a scratch tool, DeepSeek-V4.1-Flash expert shapes 5120 into 2304, 384 experts, 6 a row, one MI50, default clocks, ABBA main e899036de vs this branch before the rebase; every output hash equal to main's), gate and up in us:
+
+| entries an expert | main | this branch |
+|---|---|---|
+| 1 | 185.6k (26 GB/s) | 33.1k (145 GB/s) |
+| 8 | 189.1k | 45.3k |
+| 16 | 193.6k | 67.8k |
+| 17 (64-column build) | 195.5k | 141.6k |
+| 32 (64-column build) | 208.8k | 146.4k |
+| average 8, four experts at 96 | 194.0k | 48.9k |
+| average 16, four experts at 128 | 198.8k | 72.2k |
+| dense 4096x5120 over 512, bf16 / f32 | 4782 / 4899 | 3493 / 3363 |
+
+The 64-column tile's thread layout cut to 16 columns (DSDEV59's variant d) read at 92 GB/s at 1 to 8 entries and was 4% faster at 16; the thread-a-row build kept here is 1.2x to 1.6x faster at 1 to 8.
+
+**Ten cards** (DeepSeek-V4.1-Flash-1017 MXFP4, ten MI50 layer split on Vulkan, default clocks, `--cpus 8`, nr_throttled 0 in every run; main 1227b7871 and the rebased branch built the same way; `bench --p 2048 --n 32 --r 2 --ubatch 512`, ABBA):
+
+| | main | this branch |
+|---|---|---|
+| pp2048 tok/s | 172.86 / 172.85 | 490.31 / 489.73 |
+| tg32 tok/s | 16.46 / 16.02 | 16.28 / 16.13 |
+
+`logits` over a 1400-token prompt at `--ubatch 512` (top 8 every position) gives main's bytes (md5 67056081 in both arms).
+A pp2048 profile of the branch on vulkan:0 gives `matmul_tile_mxfp4_narrow_tall` 1856 of 2698 ms (69%), so the routed tile is still the prompt's largest cost.
+Decode does not take the tile, so tg32 moves within its noise.
+
+**Focused checks** (head rebased on 1227b7871, builds of main 1227b7871 and the branch made the same way, one MI50 on Vulkan):
+- `llmx-backend-vulkan-test --routed` (397920 routed MXFP4 outputs through both builds) and `llmx-mxfp4-vulkan-test` (577 cases, 703574 outputs) pass.
+- Byte identity against main on vulkan:0, 32 files: the MXFP4 and IQ4_NL raw-block fixtures, dense and qwen3moe, prompts at `--ubatch` 64 and 512 and greedy ids, and the Qwen3-0.6B MXFP4 file.
+  The qwen3moe MXFP4 fixture's prompt at `--ubatch` 8 and 32 is also main's bytes, and its profile at 32 names `matmul_tile_mxfp4_narrow_small`, so the narrow build ran.
+- On that fixture (96 wide, 160-row experts) the narrow build is slower, by a cause not measured: the routed tile 2.68 to 2.86 ms over a pp32 profile, pp32 7706/7113 to 5325/5392 tok/s ABBA.
+  No real MXFP4 file llmx reads has experts that narrow; DeepSeek-V4.1-Flash's are 2304 and 5120 rows.
+
+**Qwen3-30B-A3B expert shapes** (F2DEV's R2; the scratch bench at 2048 into 768 gate and up, 768 into 2048 down, 128 experts, 8 a row, every expert holding n entries; one MI50 under RADV, default clocks; base 1227b7871 and the branch built the same way; means of an ABBA round, a BAAB round within 0.3%; every output hash of every cell equal in both arms), device us in f16:
+
+| entries an expert | base gate+up | branch gate+up | base down | branch down |
+|---|---|---|---|---|
+| 1 (row kernel in both) | 830 | 829 | 766 | 768 |
+| 2 | 8775 | 1748 | 4004 | 778 |
+| 4 | 8922 | 1756 | 4095 | 793 |
+| 8 | 8978 | 2284 | 4127 | 1065 |
+| 16 | 9080 | 3361 | 4189 | 1624 |
+| 17 (64-column build) | 9084 | 6508 | 4197 | 3345 |
+| 32 (64-column build) | 9178 | 6703 | 4448 | 3538 |
+
+F32 and int8 give the same times within 1%, and every call up to 16 entries an expert takes `matmul_tile_mxfp4_narrow_tall`, so the narrow build needs no rule beyond the cut there.
+At one entry an expert int8 read 3 to 10% slower in the branch's process after the other cells and equal (831.2 us in both) when run alone; the row kernel it takes is not changed by this branch.
+
+**Left:** nothing. Landing gates: the stack's, in (Drafter head split over a tensor group, below); DeepSeek-V4.1-Flash MXFP4 over ten MI50s on Vulkan reads its prompt at 492.6 tok/s against main's 173.1 (2.85x) at pp2048, tg32 16.09 against 16.16, prompt rows main's.
+
 ## ROCm frees beside the devices (2026-11-09, PRE4, branch perf/rocm-defer-free on main e899036d; PDEV1's item 1 of 2026-11-07, F2DEV's review of PRE3b at 06:48, item 6; lands by fast-forward as two commits, the failing test and then the fix)
 
 **Goal:** no free that drains a device on the pass path of any thread, in the one owner of dropped ROCm memory (`Graves` in `rocm_backend.cpp`).

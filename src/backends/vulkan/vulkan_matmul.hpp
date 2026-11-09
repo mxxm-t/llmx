@@ -616,9 +616,13 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
     const size_t per_expert = i8 ? dev_->profile.qtile_narrow_per_expert_8bit : dev_->profile.qtile_narrow_per_expert;
     const size_t touched = std::min(n_expert, entries);
     const bool narrow = integer && (per_expert == SIZE_MAX || entries <= per_expert * touched);
+    // MXFP4's float tile has a 16-column build whose outputs are the 64-column build's bits, for calls whose entries average one of its runs an expert or less.
+    // It takes the height the 64-column grouping would give, since the tile's rows decide which sums are wide.
+    const bool float_narrow = tile && !integer && entries <= kNarrowCols * touched &&
+                              float_tile_kernel(false, dtype, type, dev_->f16_inputs, true) == K_MATMUL_TILE_MXFP4_NARROW;
     const RowPlan plan = row_plan(type, nin, dtype);
     const int grouped = tile ? 0 : grouped_variant(plan, (entries + touched - 1) / touched);
-    const size_t chunk = narrow ? kNarrowCols : tile ? 64 : build_cols(plan.kernel, grouped);
+    const size_t chunk = narrow || float_narrow ? kNarrowCols : tile ? 64 : build_cols(plan.kernel, grouped);
     const size_t max_tiles = (entries + chunk - 1) / chunk + touched;
     const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
     if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
@@ -655,12 +659,13 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
     } else {
         for (const Projection* pr : live) {
-            const uint32_t height = float_tile_rows_for(dev_->caps, dev_->profile, type, pr->rows, max_tiles, nin);
+            const size_t height_tiles = float_narrow ? (entries + 63) / 64 + touched : max_tiles;
+            const uint32_t height = float_tile_rows_for(dev_->caps, dev_->profile, type, pr->rows, height_tiles, nin);
             const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin)};
-            const KernelId kernel = float_tile_kernel(height == kTileRowsTall, dtype, type, dev_->f16_inputs);
+            const KernelId kernel = float_tile_kernel(height == kTileRowsTall, dtype, type, dev_->f16_inputs, float_narrow);
             dispatch(kernel,
                      {bind(pr->out), bind(pr->weight.data), weight_floats(pr->weight, lookup_grid(type, bind(pr->weight.data))), bind(X), bind(pr->weight.data), tab},
-                     pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0, {entries * pr->rows});
+                     pc, sizeof(pc), groups(pr->rows, float_narrow ? kNarrowFloatRows : height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0, {entries * pr->rows});
             record_matrix_path(is_nvfp4_f16_tile(kernel) ? MatrixPath::f16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
         }
     }

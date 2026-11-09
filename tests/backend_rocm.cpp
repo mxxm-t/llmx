@@ -129,6 +129,27 @@ void buffers(Backend& g) {
         g.sync();
         require(ok && g.done(handed), "tickets waited on from another thread while this one submits read as done");
     }
+    // A ticket another thread is waiting on reads as not done at once: HIP would hold the query until the work ends, stalling a recording thread that only asks.
+    {
+        const size_t n = size_t(256) << 20;
+        auto src = g.alloc(n), dst = g.alloc(n);
+        for (int i = 0; i < 256; ++i) g.copy(*dst, 0, *src, 0, n);
+        const Ticket t = g.submit();
+        std::atomic<bool> entering{false};
+        std::thread waiter([&] {
+            entering.store(true);
+            g.wait(t);
+        });
+        while (!entering.load()) std::this_thread::yield();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        const auto from = std::chrono::steady_clock::now();
+        const bool early = g.done(t);
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+        waiter.join();
+        if (ms >= 50.0) std::fprintf(stderr, "  done took %.1f ms\n", ms);
+        require(!early && ms < 50.0, "a ticket another thread waits on reads as not done without waiting");
+        require(g.done(t), "the waited ticket reads as done once its waiter returns");
+    }
 }
 
 // Host memory a device copies from in place (Backend::wrap_host): the caller frees it once its views are gone, so a dropped view must leave it unregistered and the next memory at its address must read as itself.

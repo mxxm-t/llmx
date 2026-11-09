@@ -150,6 +150,88 @@ void buffers(Backend& g) {
         require(!early && ms < 50.0, "a ticket another thread waits on reads as not done without waiting");
         require(g.done(t), "the waited ticket reads as done once its waiter returns");
     }
+    // A dropped buffer's memory goes back without draining the work queued after the drop: hipFree waits for every stream of the device, so a submitting or waiting thread that freed would sit behind all of that work.
+    {
+        const size_t n = size_t(256) << 20, dropped = size_t(512) << 20;
+        auto src = g.alloc(n), dst = g.alloc(n);
+        g.sync();
+        const size_t before = g.memory_available().value_or(0);
+        auto heavy = [&] {
+            for (int i = 0; i < 256; ++i) g.copy(*dst, 0, *src, 0, n);
+        };
+        auto since = [](std::chrono::steady_clock::time_point from) {
+            return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+        };
+        // Through a submission: the drop's ticket is seen done, then the next submission follows a long queue.
+        {
+            auto victim = g.alloc(dropped);
+            g.copy(*victim, 0, *src, 0, n);
+        }
+        const Ticket t1 = g.submit();
+        while (!g.done(t1)) {}
+        heavy();
+        auto from = std::chrono::steady_clock::now();
+        const Ticket t2 = g.submit();
+        double ms = since(from);
+        const bool queued = !g.done(t2);
+        if (ms >= 50.0 || !queued) std::fprintf(stderr, "  submit after a drop took %.1f ms\n", ms);
+        require(queued && ms < 50.0, "a submission leaves a dropped buffer's free to run beside the work queued before it");
+        g.sync();
+        // Through a wait: the drop's ticket is waited on while a long queue follows it.
+        {
+            auto victim = g.alloc(dropped);
+            g.copy(*victim, 0, *src, 0, n);
+        }
+        const Ticket t3 = g.submit();
+        heavy();
+        const Ticket t4 = g.submit();
+        from = std::chrono::steady_clock::now();
+        g.wait(t3);
+        ms = since(from);
+        const bool waiting = !g.done(t4);
+        if (ms >= 50.0 || !waiting) std::fprintf(stderr, "  wait after a drop took %.1f ms\n", ms);
+        require(waiting && ms < 50.0, "a wait leaves a dropped buffer's free to run beside the work queued after it");
+        g.sync();
+        // The fit reads free memory right after sync, so the drops' memory must be back then, with no polling.
+        require(g.memory_available().value_or(0) + (size_t(64) << 20) >= before, "dropped buffers' memory is free again at once after sync");
+        // A drop after the last ticket, with work queued before it, goes back at sync too.
+        {
+            auto victim = g.alloc(dropped);
+            g.copy(*victim, 0, *src, 0, n);
+            heavy();
+            (void)g.submit();
+        }
+        g.sync();
+        require(g.memory_available().value_or(0) + (size_t(64) << 20) >= before, "a buffer dropped after the last submission is free again at once after sync");
+        // An allocation the device refuses waits for dropped memory whose work is still queued, and is still refused with nothing dropped.
+        const size_t want = size_t(1) << 30, chunk = size_t(256) << 20;
+        auto victim = g.alloc(want);
+        std::vector<BufferPtr> fill;
+        auto fill_up = [&] {
+            while (g.memory_available().value_or(0) >= chunk + want / 2) {
+                BufferPtr f;
+                if (throws([&] { f = g.alloc(chunk); })) break;
+                fill.push_back(f);
+            }
+        };
+        // Filled again after a sync, so memory a sync gives back late still leaves less than one allocation.
+        fill_up();
+        g.sync();
+        fill_up();
+        require(throws([&] { g.alloc(want); }), "an allocation past the free memory is refused with nothing dropped");
+        g.copy(*victim, 0, *src, 0, n);
+        heavy();
+        victim.reset();
+        const Ticket t5 = g.submit();
+        const bool pending = !g.done(t5);
+        BufferPtr again;
+        const bool refused = throws([&] { again = g.alloc(want); });
+        if (refused || !pending) std::fprintf(stderr, "  retry: work queued %d, refused %d, free %zu\n", int(pending), int(refused), g.memory_available().value_or(0));
+        require(pending && !refused && again && again->size() == want, "an allocation the device refuses takes the memory of a buffer dropped under a ticket with work queued");
+        again.reset();
+        fill.clear();
+        g.sync();
+    }
 }
 
 // Host memory a device copies from in place (Backend::wrap_host): the caller frees it once its views are gone, so a dropped view must leave it unregistered and the next memory at its address must read as itself.

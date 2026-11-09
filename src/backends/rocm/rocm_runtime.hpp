@@ -44,6 +44,7 @@ struct RocmUnavailable : std::runtime_error {
     X(hipModuleLoadData, hipError_t(hipModule_t*, const void*)) \
     X(hipModuleUnload, hipError_t(hipModule_t)) \
     X(hipModuleGetFunction, hipError_t(hipFunction_t*, hipModule_t, const char*)) \
+    X(hipFuncGetAttribute, hipError_t(int*, hipFunction_attribute, hipFunction_t)) \
     X(hipModuleOccupancyMaxActiveBlocksPerMultiprocessor, hipError_t(int*, hipFunction_t, int, size_t)) \
     X(hipModuleLaunchKernel, hipError_t(hipFunction_t, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, hipStream_t, void**, void**)) \
     X(hipStreamCreateWithFlags, hipError_t(hipStream_t*, unsigned)) \

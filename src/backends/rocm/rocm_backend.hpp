@@ -16,6 +16,9 @@ BackendPtr make_rocm_backend(int device);
 // The kernels a ROCm backend launched since the last reading, by name, and how often: the witness of which build, tile or exact kernel ran.
 std::map<std::string, size_t> rocm_take_launches(Backend& backend);
 
+// A ROCm backend's routed tile calls launch only the builds whose kernel name holds `build`, every build again once it is empty: the witness of which build computes a group.
+void rocm_route_only(Backend& backend, std::string build);
+
 // The profile a ROCm backend shapes its kernels by, which kv-selection reads for the crossovers it checks and changes to run each selection form at one size.
 DeviceProfile& rocm_profile(Backend& backend);
 

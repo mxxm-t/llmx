@@ -33,6 +33,7 @@ inline std::string pci_root_of(uint32_t domain, uint32_t bus, uint32_t device, u
 struct DeviceCaps {
     uint32_t subgroup_size = 0;      // lanes that execute in lockstep
     uint32_t compute_units = 0;      // independent units, for deciding when work is too small to split further
+    uint32_t shared_bytes = 0;       // shared memory a workgroup may hold, for sizing a kernel's staged operands
 
     // What the device and the software compiling its shaders call themselves.
     // Not a preference and not a brand: two drivers over the same silicon generate different code and want different numbers below, so a profile that has been measured is keyed by both.

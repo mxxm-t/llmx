@@ -500,7 +500,8 @@ size_t check_packed(Pair& p) {
     return values;
 }
 
-// sparse_attention_sink at the shapes a device's kernels branch on: packed rows of four-block runs and a tail in every format, over 64 heads, over 256 named rows, and rows past one scratch chunk.
+// sparse_attention_sink at the shapes a device's kernels branch on: four-block runs and a tail in every format, 64 heads, 256 named rows, rows past one scratch chunk.
+// Calls of 7 and 8 rows sit each side of the wide prompt kernels, the 8-row ones over 65 heads and over heads 640 wide.
 size_t check_sparse_shapes(Pair& p, const Exact& exact) {
     using backend::ModelFormat;
     struct Case {
@@ -510,7 +511,10 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
     const Case cases[] = {{65, 160, 20, 24, 3, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
                           {3, 160, 20, 24, 3, ModelFormat::fp4_power, ModelFormat::f32},
                           {2, 160, 300, 300, 3, ModelFormat::fp4_e4m3, ModelFormat::fp4_power},
-                          {64, 64, 512, 512, 140, ModelFormat::fp8_power, ModelFormat::fp4_e4m3}};
+                          {64, 64, 512, 512, 140, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {65, 160, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {9, 160, 20, 24, 7, ModelFormat::fp4_power, ModelFormat::f32},
+                          {2, 640, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_power}};
     const size_t ratio = 4, length = 2048, kv_rows = 600;
     size_t values = 0;
     uint32_t seed = 101;

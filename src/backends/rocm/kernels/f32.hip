@@ -2827,6 +2827,45 @@ __device__ inline float lut_dot_any(const float* q, const float* row, unsigned d
         default: return lut_dot<3u>(q, row, dim, lut);
     }
 }
+constexpr unsigned kSparseHeads = 4u;   // heads a llmx_sparse_softmax_g block, whose queries it stages in dynamic shared memory the host sizes
+// lut_dot's chain for G queries `qstride` floats apart against one row, each value decoded once for all of them.
+template <unsigned F, unsigned G> __device__ inline void lut_dots(const float* q, unsigned qstride, const float* row, unsigned dim, const float* lut, float (&dot)[G]) {
+#pragma unroll
+    for (unsigned g = 0; g < G; ++g) dot[g] = 0.0f;
+    unsigned d = 0;
+    if (F != 3u) {
+        constexpr unsigned VB = format_values(F), BB = format_bytes(F);
+        const unsigned* rw = (const unsigned*)row;
+        for (; d + 4u * VB <= dim; d += 4u * VB, rw += BB) {
+            unsigned w[BB];
+#pragma unroll
+            for (unsigned j = 0; j < BB; ++j) w[j] = rw[j];
+#pragma unroll
+            for (unsigned b = 0; b < 4u; ++b) {
+                const float s = lut_scale<F>(word_byte(w, b * BB), lut);
+#pragma unroll
+                for (unsigned i = 0; i < VB; ++i) {
+                    const float v = lut_value<F>(w, b * BB, i, s, lut);
+#pragma unroll
+                    for (unsigned g = 0; g < G; ++g) dot[g] = fmaf(q[g * qstride + d + b * VB + i], v, dot[g]);
+                }
+            }
+        }
+    }
+    for (; d < dim; ++d) {
+        const float v = stored_value(row, d, F);
+#pragma unroll
+        for (unsigned g = 0; g < G; ++g) dot[g] = fmaf(q[g * qstride + d], v, dot[g]);
+    }
+}
+template <unsigned G> __device__ inline void lut_dots_any(const float* q, unsigned qstride, const float* row, unsigned dim, unsigned format, const float* lut, float (&dot)[G]) {
+    switch (format) {
+        case 0u: return lut_dots<0u, G>(q, qstride, row, dim, lut, dot);
+        case 1u: return lut_dots<1u, G>(q, qstride, row, dim, lut, dot);
+        case 2u: return lut_dots<2u, G>(q, qstride, row, dim, lut, dot);
+        default: return lut_dots<3u, G>(q, qstride, row, dim, lut, dot);
+    }
+}
 // Sparse attention with a sink runs as two kernels over a scratch row a call row from first_row: p by kept row then head, the denominators, the kept rows and their counts.
 // A block a (row, head): the kept rows, each kept row's dot on its own thread, the softmax over them and exp(sink - max) in the denominator; head 0 writes the kept rows.
 extern "C" __global__ void llmx_sparse_softmax(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
@@ -2934,6 +2973,138 @@ extern "C" __global__ void llmx_sparse_columns(float* out, const float* pt, cons
         float* o = out + ((unsigned long long)(first_row + r) * heads + h) * dim + d0 + col;
         if (d0 + col < dim) o[0] = o0 / dn;
         if (d0 + col + 1u < dim) o[1] = o1 / dn;
+    }
+}
+// The wide prompt pair: the scratch holds each head's sink term exp(sink - max) in place of the denominator, which llmx_sparse_columns64 completes.
+// A block kSparseHeads heads of a row: the kept rows, each kept row's dots on its own thread, the softmax numerators over them; the heads' first group writes the kept rows.
+extern "C" __global__ void llmx_sparse_softmax_g(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
+                                                 const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k,
+                                                 float scale, unsigned kv_rows, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width,
+                                                 unsigned kv_format, unsigned entry_format, unsigned kv_words, unsigned first_row) {
+    constexpr unsigned kPer = 1024u / kThreads, G = kSparseHeads;
+    __shared__ float lut[272], red[G][kThreads / 64u];
+    extern __shared__ float qs[];   // G heads of the query
+    __shared__ const float* at[1024];
+    __shared__ unsigned cnt[kThreads], kept_kv;
+    const unsigned ng = (heads + G - 1u) / G, s_r = blockIdx.x / ng, h0 = (blockIdx.x - s_r * ng) * G, r = first_row + s_r, named = k + entry_k, tid = threadIdx.x;
+    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
+    const float* qr = q + ((unsigned long long)r * heads + h0) * dim;
+    for (unsigned c = tid; c < 272u; c += kThreads) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
+    for (unsigned i = tid; i < G * dim; i += kThreads) qs[i] = h0 + i / dim < heads ? qr[i] : 0.0f;
+    if (tid == 0) kept_kv = 0;
+    // A thread a run of consecutive named rows, so a scan of the counts keeps their order.
+    const unsigned per = (named + kThreads - 1) / kThreads, t0 = tid * per;
+    const float* mine[kPer];
+    unsigned n = 0, nk = 0;
+    for (unsigned i = 0; i < per; ++i) {
+        const unsigned t = t0 + i;
+        const float* row = nullptr;
+        if (t < named) {
+            const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
+            if (t < k && j < kv_rows) row = kv + (unsigned long long)j * kv_words;
+            else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
+        }
+        if (row) mine[n++] = row, nk += t < k;
+    }
+    cnt[tid] = n;
+    __syncthreads();
+    if (nk) atomicAdd(&kept_kv, nk);
+    for (unsigned s = 1; s < kThreads; s <<= 1) {
+        const unsigned v = tid >= s ? cnt[tid - s] : 0u;
+        __syncthreads();
+        cnt[tid] += v;
+        __syncthreads();
+    }
+    const unsigned first = cnt[tid] - n, total = cnt[kThreads - 1];
+    for (unsigned i = 0; i < n; ++i) at[first + i] = mine[i];
+    __syncthreads();
+    const unsigned kk = kept_kv;
+    if (h0 == 0) {
+        for (unsigned i = 0; i < n; ++i) kept[(unsigned long long)s_r * named + first + i] = mine[i];
+        if (tid == 0) counts[2u * s_r] = total, counts[2u * s_r + 1u] = kk;
+    }
+    float pv[kPer][G], peak[G];
+#pragma unroll
+    for (unsigned g = 0; g < G; ++g) peak[g] = -1e30f;
+#pragma unroll
+    for (unsigned i = 0; i < kPer; ++i) {
+        const unsigned c = tid + i * kThreads;
+        if (c < total) {
+            float dot[G];
+            lut_dots_any<G>(qs, dim, at[c], dim, c < kk ? kv_format : entry_format, lut, dot);
+#pragma unroll
+            for (unsigned g = 0; g < G; ++g) pv[i][g] = dot[g] * scale, peak[g] = fmaxf(peak[g], pv[i][g]);
+        }
+    }
+#pragma unroll
+    for (unsigned g = 0; g < G; ++g) {
+        for (unsigned o = 32u; o > 0; o >>= 1) peak[g] = fmaxf(peak[g], __shfl_xor(peak[g], o, 64));
+        if (tid % 64u == 0) red[g][tid / 64u] = peak[g];
+    }
+    __syncthreads();
+#pragma unroll
+    for (unsigned g = 0; g < G; ++g) peak[g] = fmaxf(fmaxf(red[g][0], red[g][1]), fmaxf(red[g][2], red[g][3]));
+#pragma unroll
+    for (unsigned i = 0; i < kPer; ++i) {
+        const unsigned c = tid + i * kThreads;
+        if (c < total)
+#pragma unroll
+            for (unsigned g = 0; g < G; ++g)
+                if (h0 + g < heads) pt[((unsigned long long)s_r * named + c) * heads + h0 + g] = expf(pv[i][g] - peak[g]);
+    }
+    if (tid < G && h0 + tid < heads) den[(unsigned long long)s_r * heads + h0 + tid] = expf(sink[h0 + tid] - peak[tid]);
+}
+// A block 64 columns of one row for every head: the kept rows' values of those columns decoded once into shared memory a chunk at a time, then a lane a head and 16 columns.
+// Each output is p times value over the kept rows in their order, divided by its head's denominator, the sum of p in order plus the sink term, as the CPU sums it.
+extern "C" __global__ void llmx_sparse_columns64(float* out, const float* pt, const float* den, const float* const* kept, const unsigned* counts, unsigned heads, unsigned dim,
+                                                 unsigned named, unsigned kv_format, unsigned entry_format, unsigned first_row) {
+    constexpr unsigned COLS = 64u, CW = COLS / 4u, CH = 4096u / COLS;   // a lane's columns, and the kept rows a chunk stages (16 KiB)
+    __shared__ __attribute__((aligned(16))) float vals[CH * COLS];
+    const unsigned r = blockIdx.y, d0 = blockIdx.x * COLS, tid = threadIdx.x, total = counts[2u * r], kk = counts[2u * r + 1u];
+    const float* const* kr = kept + (unsigned long long)r * named;
+    const unsigned lane = tid % 64u, col = tid / 64u * CW;
+    const float* pr = pt + (unsigned long long)r * named * heads;
+    for (unsigned h0 = 0; h0 < heads; h0 += 64u) {
+        const unsigned h = h0 + lane;
+        float o[CW], sum = 0.0f;
+#pragma unroll
+        for (unsigned j = 0; j < CW; ++j) o[j] = 0.0f;
+        for (unsigned c0 = 0; c0 < total; c0 += CH) {
+            const unsigned n = total - c0 < CH ? total - c0 : CH;
+            __syncthreads();
+            for (unsigned i = tid; i < n * COLS; i += kThreads) {
+                const unsigned c = i / COLS, j = i - c * COLS, d = d0 + j;
+                vals[i] = d < dim ? stored_value(kr[c0 + c], d, c0 + c < kk ? kv_format : entry_format) : 0.0f;
+            }
+            __syncthreads();
+            if (h < heads) {
+                unsigned c = 0;
+                for (; c + 4u <= n; c += 4u) {
+                    float pv[4];
+#pragma unroll
+                    for (unsigned u = 0; u < 4u; ++u) pv[u] = pr[(unsigned long long)(c0 + c + u) * heads + h];
+#pragma unroll
+                    for (unsigned u = 0; u < 4u; ++u) sum += pv[u];
+#pragma unroll
+                    for (unsigned u = 0; u < 4u; ++u)
+#pragma unroll
+                        for (unsigned j = 0; j < CW; ++j) o[j] = fmaf(pv[u], vals[(c + u) * COLS + col + j], o[j]);
+                }
+                for (; c < n; ++c) {
+                    const float pv = pr[(unsigned long long)(c0 + c) * heads + h];
+                    sum += pv;
+#pragma unroll
+                    for (unsigned j = 0; j < CW; ++j) o[j] = fmaf(pv, vals[c * COLS + col + j], o[j]);
+                }
+            }
+        }
+        if (h < heads) {
+            const float dn = sum + den[(unsigned long long)r * heads + h];
+            float* op = out + ((unsigned long long)(first_row + r) * heads + h) * dim + d0 + col;
+#pragma unroll
+            for (unsigned j = 0; j < CW; ++j)
+                if (d0 + col + j < dim) op[j] = o[j] / dn;
+        }
     }
 }
 

@@ -13,7 +13,7 @@ struct RocmDevice {
     int index = 0;
     DeviceCaps caps;   // the wave width and units the kernels are shaped by, and the device and runtime a measured profile is keyed by
     std::string arch, pci_bus, pci_root;
-    size_t shared_per_block = 0, total_memory = 0;
+    size_t total_memory = 0;
     DeviceProfile profile;   // profile_for(caps), taken once the backend knows the integer dot
 };
 
@@ -31,7 +31,7 @@ inline RocmDevice rocm_device(int index) {
     d.caps.subgroup_size = (uint32_t)p.warpSize;
     d.caps.compute_units = (uint32_t)p.multiProcessorCount;
     d.caps.device = std::string(p.name) + " " + d.arch;
-    d.shared_per_block = p.sharedMemPerBlock;
+    d.caps.shared_bytes = (uint32_t)p.sharedMemPerBlock;
     d.total_memory = p.totalGlobalMem;
     char bus[32] = {};
     hip_check(f.hipDeviceGetPCIBusId(bus, sizeof(bus), index), "hipDeviceGetPCIBusId");

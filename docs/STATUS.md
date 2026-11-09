@@ -1,5 +1,65 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 ROCm kernels: routed prompt groups by size, sparse prefill (2026-11-09, DSDEV62, DSDEV67 and DSDEV68, then DSDEV78, DSDEV80 and DSDEV82, branch perf/deepseek4-rocm-kernels on main 298a94a65 and rebased on a5684cab3 to land, carrying perf/deepseek4-rocm-mxfp4 43174a802 and perf/deepseek4-rocm-mxfp4-2 de5de5da3; F2DEV's review of 19:39, B1 to B4, COORD's rulings of 19:42 and 20:49; lands by fast-forward)
+
+**Goal:** DeepSeek-V4.1-Flash-1017 MXFP4 prefill and decode on ten MI50s in a layer split on ROCm toward the reference's 642 tok/s at pp16965 and 25.6 tok/s decode, every output the bits it had, one build for each range of a routed group's entries and each class.
+
+**Done:**
+- A routed prompt group runs in one build by its entries, each entry the tile's sums in block order in every build: up to 8 MXFP4's thin build (`k_thin`) in the F16 class and the stream (`routed_stream`, main's) in the int8 class, Q8_0's narrow tile in F16; up to 16 the narrow tile; a K-type's mid tile (`k_tile` at 32 rows) up to 32; the 64-row tile past.
+  The thin build is the F16 class's alone: the int8 class has no thin build, since the stream now beats the int8 thin build at every entry count on DeepSeek-V4.1-Flash MXFP4 (owner's ruling of 20:49: one path, no speed given away).
+  The stream reads the entries' twin blocks by uniform scalar loads for MXFP4, Q5_0 and Q5_1 (`StreamScalar`), a lane decoding a whole load's blocks once and each entry then running over them, which took MXFP4's stream from 167 to 123 VGPRs; the other types keep the shared-memory staging, where the scalar loads lost (Q8_0 at every entry count, the K-quants from 3 entries, IQ4_NL from 5).
+- B1 table (one MI50, gate+up each build launched alone, us a call, hashes equal): 
+
+| entries | DeepSeek MXFP4 5120x2304: main stream | int8 thin (removed) | this stream | Q5_0 2560x640: main | this | Q5_1: main | this |
+|---|---|---|---|---|---|---|---|
+| 1 | 9790 | 12714 | 9117 | 2139 | 2078 | 2228 | 2041 |
+| 2 | 10744 | 13400 | 9427 | 2348 | 2164 | 2350 | 2114 |
+| 3 | 12099 | 12630 | 9847 | 2462 | 2210 | 2358 | 2117 |
+| 4 | 13322 | 13470 | 10325 | 2677 | 2285 | 2534 | 2168 |
+| 5 | 15294 | 13778 | 11350 | 3024 | 2374 | 2859 | 2275 |
+| 6 | 16652 | 14656 | 12247 | 3260 | 2507 | 3061 | 2389 |
+| 7 | 18077 | 16048 | 13244 | 3496 | 2668 | 3298 | 2522 |
+| 8 | 19475 | 17500 | 14201 | 3750 | 2837 | 3542 | 2706 |
+
+  Min of three interleaved rounds against main's stream, every output hash equal, int8 gate+up, us a call (/opt/claude-work/dsdev85/out/sc; the removed thin build's column from /opt/claude-work/dsdev82/out/e7); the staged types (Q4_K, Q5_K, Q6_K, Q8_0) keep main's loop written out and compile to main's instructions and registers (`llvm-objdump` of int16dot and of the build against main's, exact diff 0), and IQ4_NL differs only in its table's PC-relative offset; a first version that called a lambda for an entry's terms rescheduled them (Q6_K 871 lines reordered), so Q6_K is main's kernel.
+  Tests passed on one MI50: backend-rocm moe and deepseek4, and backend-vulkan --deepseek4.
+  Measured and not kept: scalar loads with the blocks decoded one at a time (MXFP4 at 82 VGPRs, 13775 and 14425 us at 7 and 8 entries, but the K-quants up to 1.9 times slower), the scale and twin sum read from memory instead of staged (MXFP4 at 1 entry 14512 us), half-superblock batches for the K-quants (170 VGPRs, still slower from 3 entries), `waves_per_eu(2)` (spills from 6 entries), two-block loads and entries split over waves.
+- Thin cutoff: `kThinRows` 8 is kept for MXFP4 in F16: thin builds of 12 and 16 rows lost to the narrow tile from 9 entries (10 entries 72158 and 57104 against 47535 us) and the 16-row one cost 1 to 8 entries (8 at 37126 against 23876 us); on Q4_K the thin build (about 9.7 ms from 3 entries) lost to the narrow tile (6318 to 7122 us), so it is MXFP4's alone.
+- Forced-path check (B2): `routed_builds_witness` in backend-rocm `moe` launches each build alone (`rocm_route_only`) over a sentinel output and requires it to write exactly the groups of its range among groups of 4, 5, 8, 9, 16, 17, 32 and 33 entries, each the bits of the call of every build, for MXFP4, Q4_K and Q8_0 in f16 and int8; `experts_quads` adds 32 entries and MXFP4 at 65 blocks a row.
+- Prompt sparse attention: from `kSparseWideRows` rows `llmx_sparse_softmax_g` (`kSparseSoftmaxHeads` heads a block, the queries staged once for them) and `llmx_sparse_columns64`; fewer rows, decode's, keep the one-head kernels; every output keeps its chain.
+  `kSparseWideRows` is 8: one MI50, 64 heads of 512, 4096 entries, three rounds against main, 1 row 57.3 against 57.5 us at k128 and 159.5 against 158.0 at k640, 8 rows 25 percent faster, 16 rows 33 to 40, 120 rows 49 to 54, every hash main's; at 7 rows both arms run main's kernels and differ by 4.5 percent, a layout effect.
+  `kSparseSoftmaxHeads` is 4: 8 heads a block was 8 to 14 percent slower at 16 rows and 0.3 to 5 percent faster at 120 and 512, and the planner's slices are small.
+  The grouped softmax's head width is no longer a literal 512: it runs while its heads' queries fit the shared memory its own arrays leave (`DeviceCaps::shared_bytes`, which ROCm and Vulkan now report and only ROCm reads until Vulkan thin-mid rebases, less the kernel's static size read with `hipFuncGetAttribute`), staged in dynamic shared memory; on an MI50 four heads take up to 3424 values beside the kernel's 10376 bytes; `sparse_head_budget` in backend-rocm `deepseek4` holds the widest head that fits and one block wider to their builds and to the rows called alone.
+- Decode keeps main's one-head pair, `llmx_sparse_softmax` and `llmx_sparse_columns`, unchanged below `kSparseWideRows` rows, which a first version had replaced and lost 10 to 15 percent at 1 row.
+- Earlier measurements carried (DSDEV62 and DSDEV67): thin up to 4 entries at DeepSeek-V4.1-Flash expert shapes, f16 gate+up, 1 entry 38645 to 13132 us and 4 entries 38979 to 14089 us; mid tile 17 entries 106549 to 61431 us and 32 entries 115157 to 66586 us; ten MI50s, `--ubatch 512`, pp2048 512.0 to 710.0 and pp16384 571.3 to 641.9 tok/s, tg32 level; thin taking 1 to 16 entries was not kept (16 at 116436 against the narrow tile's 51317 us).
+- Sparse bench of DSDEV67 (64 heads of 512, 4096 entries, us): 120 rows base 2235/7872 to 1195/3681 at k128/k640, 512 rows 9385/33406 to 4620/15551, 1 row unchanged (the base kernels).
+
+**Landing gates** (LAND24, stacked with perf/rocm-q8-wide-decode on main a5684cab3; the rebase conflicted only in the kernel tables of `rocm_backend.cpp` and here, resolved as unions):
+- ROCm, Vulkan and CPU builds and CTest on each pass; the CPU suite (`docs` and `dead-code` included) and the device suite on rocm:0 and vulkan:0 pass, rocm:0 skipping the weight types it refuses.
+- Byte identity against main: Qwen3-0.6B Q8_0 (generate, ids, a server's greedy replies) and the deepseek4 fixture (ids, logits at 80 positions under f16 and f32 caches) on the CPU and rocm:0; DeepSeek-V4.1-Flash-1017 MXFP4 int8 on ten MI50s and Qwen3.8-Flash-Next UD-Q4_K_XL int8 on four in layer-4 and 2x2 (64 greedy ids, logits at 1400 positions each), all main's bytes.
+- Timing on ROCm against main, default clocks, `--cpus 8`, one process a cell, arms alternated, means in tok/s:
+
+| cell | main | this head | change |
+|---|---|---|---|
+| DeepSeek pp2048 (4 cells an arm) | 890.0 | 1111.5 | +24.9% |
+| DeepSeek tg32 | 21.47 | 21.37 | -0.5% |
+| DeepSeek pp16384 (3 cells) | 733.9 | 856.9 | +16.8% |
+| DeepSeek tg8 after pp16384 | 21.52 | 21.52 | 0.0% |
+| DeepSeek 16 sequences, pp128 a sequence (2 cells) | 181.9 | 215.1 | +18.2% |
+| DeepSeek 16 sequences, tg32 | 49.07 | 50.97 | +3.9% |
+| Flash-Next layer-4 pp2048 (3 cells) | 1745.3 | 1766.2 | +1.2% |
+| Flash-Next layer-4 tg32 | 53.61 | 53.87 | +0.5% |
+| Flash-Next 2x2 pp2048 (3 cells) | 1561.8 | 1567.6 | +0.4% |
+| Flash-Next 2x2 tg32 | 64.82 | 65.69 | +1.3% |
+
+  Every head prompt cell beats every main prompt cell; hostwait flags the DeepSeek prompt cells contended in both arms (host load 19 to 22), and the DeepSeek tg32 cells overlap (main 21.34 to 21.55, head 21.22 to 21.46).
+  Before the fast-forward: the Radeon VII check on Windows; the hosted run is gate/land24's run of this stack.
+
+**Left:** Vulkan thin-mid (DSDEV74) rebases after this lands, with the same forced-path check, and is the first Vulkan reader of `DeviceCaps::shared_bytes`, which Vulkan reports from this branch on.
+  Later: an f16 routed stream, `routed_stream` over the 16-bit twin (16 scalar registers of twin a block), to replace MXFP4's thin build and the narrow tile at 1 to 8 entries in f16, benched against both (/opt/claude-work/dsdev82/fable-advice.md, section 3).
+  Later: decode's `llmx_mxfp4_routed8` costs 17.3 ms a step at 1 row and 222.7 at 16 rows on DeepSeek-V4.1 over ten MI50s (DSDEV79's k1.txt and k16.txt), not yet looked at.
+**Gotchas:** the slice size is the planner's (SlicePeriods::cut), not `--ubatch`, and its cut varies between runs of one binary; every routed call launches each build's grid and all but one return at once for a group, which the 9 to 16 entry rows of the table price.
+
 ## Vulkan routed MXFP4: a 16-column float tile build (2026-11-09, DSDEV58 to DSDEV61, branch perf/vulkan-mxfp4-routed on main 298a94a65; VKMX1's finding of 04:54, DSDEV58's proposal of 05:13, F2DEV's reviews of 05:40, items 1 to 9, and of 07:28, R1 and R2; lands by fast-forward)
 
 **Goal:** routed MXFP4 prompt products on Vulkan read the experts' weights at more than a quarter of the card's bandwidth when experts hold few entries each.

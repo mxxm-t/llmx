@@ -226,6 +226,7 @@ public:
         d.float_controls = float_control_support(floats);
         d.preserve_float32 = (d.float_controls & kPreserve32) == kPreserve32;
         d.caps.subgroup_size = sg.subgroupSize;
+        d.caps.shared_bytes = d.props.limits.maxComputeSharedMemorySize;
         const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
                                core.computeUnitsPerShaderArray;
         d.caps.compute_units = has_units ? core.shaderEngineCount * core.shaderArraysPerEngineCount *

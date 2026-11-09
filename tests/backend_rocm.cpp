@@ -3158,7 +3158,8 @@ void experts(Backend& g, Backend& c) {
                             ran += (ran.empty() ? "" : "+") + kn;
                             const bool exact = kn.rfind("llmx_routed_", 0) == 0, twin = kn.find("_routed") != std::string::npos && !exact;
                             const bool group_build = twin && kn.find("_g", kn.find("_routed")) != std::string::npos;
-                            const bool tile = kn.find("_routed_tile") != std::string::npos || kn.find("_routed_narrow") != std::string::npos || kn.find("_routed_stream") != std::string::npos;
+                            const bool tile = kn.find("_routed_tile") != std::string::npos || kn.find("_routed_narrow") != std::string::npos || kn.find("_routed_stream") != std::string::npos ||
+                                              kn.find("_routed_thin") != std::string::npos || kn.find("_routed_mid") != std::string::npos;
                             if (twin && !tile) lane_form = lane_form && (kn.find("_quarter_") != std::string::npos) == quarter_form(type, nin);
                             routed_ran = routed_ran || (tiled ? tile : twins && dt != Dtype::f32 ? twin && !tile && group_build == grouped : exact);
                             routed_only = routed_only && (tiled ? tile || kn.rfind("llmx_twin", 0) == 0 || kn == "llmx_moe_group"
@@ -3612,22 +3613,23 @@ void sparse_grouped(Backend& g) {
             }
 }
 
-// The routed builds by group: experts of 1 to 16 entries each side of every narrow quad, 17 and 33 on the 64-row build, an empty expert between, every type in f16 and int8, 1 to 8 entries on the stream.
-// Every entry must be the bits of the entry routed alone (narrow quad 0 in f16, the stream in int8), at inner sizes ending the stream's last chunk full, at half a K-quant chunk, short and with a one-block tail.
+// The routed builds by group: experts of 1 to 33 entries each side of every build's range and every narrow quad, an empty expert between, every type in f16 and int8.
+// Every entry is the entry routed alone, bit for bit, at inner sizes ending the stream's last chunk full, half full, short and with a one-block tail, and MXFP4 at 65 blocks a row (docs/TESTS.md).
 void experts_quads(Backend& g) {
-    const size_t n_expert = 24, ff = 256, sizes[] = {1, 3, 4, 5, 8, 9, 12, 13, 16, 17, 33};
+    const size_t n_expert = 24, ff = 256, sizes[] = {1, 3, 4, 5, 8, 9, 12, 13, 16, 17, 32, 33};
     std::vector<std::pair<uint32_t, size_t>> kinds;
     for (uint32_t type : {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
         for (size_t nin : {size_t(2560), size_t(768)}) kinds.push_back({type, nin});
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4})
         for (size_t nin : {size_t(2560), size_t(640), size_t(800)}) kinds.push_back({type, nin});
+    kinds.push_back({quant::GGML_TYPE_MXFP4, 2080});
     for (const auto& [type, nin] : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, n_expert * ff, uint32_t(nin + 3)) : typed_matrix(type, nin, n_expert * ff, uint32_t(type * 19 + nin));
         auto wb = g.adopt(w.data(), w.size());
         for (Dtype dt : {Dtype::f16, Dtype::int8}) {
             const std::string at = name + " " + std::to_string(nin) + ", " + dtype_name(dt);
-            const size_t rows = std::max<size_t>(tile_from_at(type, dt, false), 128);
+            const size_t rows = std::max<size_t>(tile_from_at(type, dt, false), 160);
             const std::vector<float> x = row_classes::values(rows * nin, uint32_t(nin + 47)), wts(rows, 1.0f);
             auto xb = g.adopt(x.data(), x.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
             // Expert 2i + 1 takes sizes[i] entries, interleaved with the others' over the rows; the rest have no expert.
@@ -3657,6 +3659,8 @@ void experts_quads(Backend& g) {
             const std::vector<float> all = call(ids, ran);
             require(ran.find("_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos && (ran.find("_routed_stream") != std::string::npos) == (dt == Dtype::int8),
                     at + ": a " + std::to_string(rows) + "-row prompt takes both routed tile builds, and the stream in int8 only, ran " + ran);
+            require(type == quant::GGML_TYPE_Q8_0 || (ran.find("_routed_mid") != std::string::npos && (ran.find("_routed_thin") != std::string::npos) == (dt == Dtype::f16 && type == quant::GGML_TYPE_MXFP4)),
+                    at + ": a K-type's groups of 17 to 32 entries take its mid tile, and MXFP4's of up to 8 its thin build in f16, ran " + ran);
             bool same = true;
             for (size_t i = 0; i < std::size(sizes); ++i)
                 for (size_t r : of[i]) {
@@ -3666,6 +3670,62 @@ void experts_quads(Backend& g) {
                     same = same && !std::memcmp(all.data() + r * ff, alone.data() + r * ff, ff * 4);
                 }
             require(same, at + ": every entry of experts of 1 to 33 entries is the entry routed alone, bit for bit");
+        }
+    }
+}
+
+// Which routed build computes a group: each build launched alone over a sentinel output writes the groups its range holds and no other, each the bits of the call with every build.
+// A group of up to 8 entries takes the stream in int8 and MXFP4's thin build in f16, then the narrow tile up to 16, a K-type's mid tile up to 32 and the 64-row tile past.
+void routed_builds_witness(Backend& g) {
+    const size_t n_expert = 20, ff = 128, sizes[] = {4, 5, 8, 9, 16, 17, 32, 33}, rows = 256;
+    const char* builds[] = {"thin", "stream", "narrow", "mid", "tile"};
+    const uint32_t sentinel = 0x7fc0deadu;
+    for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_MXFP4, 2048}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q8_0, 1024}}) {
+        const bool ktype = type != quant::GGML_TYPE_Q8_0;
+        const std::string name = quant::storage_type(type)->name;
+        const std::vector<uint8_t> w = ktype ? typed_matrix(type, nin, n_expert * ff, uint32_t(type * 7 + 3)) : q8_matrix(nin, n_expert * ff, 5);
+        auto wb = g.adopt(w.data(), w.size());
+        const std::vector<float> x = row_classes::values(rows * nin, 61), wts(rows, 1.0f);
+        auto xb = g.adopt(x.data(), x.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
+        // Expert 2i + 1 takes sizes[i] consecutive rows.
+        std::vector<uint32_t> ids(rows, Backend::kNoExpert);
+        std::vector<std::pair<size_t, size_t>> span(std::size(sizes));
+        for (size_t i = 0, r = 0; i < std::size(sizes); r += sizes[i], ++i) {
+            span[i] = {r, sizes[i]};
+            for (size_t j = 0; j < sizes[i]; ++j) ids[r + j] = uint32_t(2 * i + 1);
+        }
+        auto ib = g.adopt(ids.data(), ids.size() * 4);
+        for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+            require(tile_from_at(type, dt, false) <= rows, name + " " + dtype_name(dt) + ": a prompt of " + std::to_string(rows) + " rows takes the routed tile");
+            const auto expect = [&](size_t n) -> std::string {
+                return n <= 8 ? (dt == Dtype::int8 ? "stream" : type == quant::GGML_TYPE_MXFP4 ? "thin" : "narrow") : n <= 16 ? "narrow" : n <= 32 && ktype ? "mid" : "tile";
+            };
+            const auto call = [&](const std::string& only) {
+                const std::vector<uint32_t> fill(rows * ff, sentinel);
+                auto yb = g.adopt(fill.data(), fill.size() * 4);
+                const RowRun run{rows, rows};
+                rocm_route_only(g, only.empty() ? only : "_routed_" + only);
+                g.matmul_experts({Projection{{type, {wb.get(), 0}}, {yb.get(), 0}, ff}}, {xb.get(), 0}, nin, rows, {{ib.get(), 0}, {tb.get(), 0}, 1, n_expert}, RowRuns{&run, 1}, dt);
+                rocm_route_only(g, "");
+                return read(g, *yb, rows * ff);
+            };
+            const std::vector<float> all = call("");
+            for (const std::string build : builds) {
+                const std::vector<float> one = call(build);
+                for (size_t i = 0; i < std::size(sizes); ++i) {
+                    const auto [r0, n] = span[i];
+                    bool written = true, kept = true;
+                    for (size_t v = r0 * ff; v < (r0 + n) * ff; ++v) {
+                        uint32_t bits;
+                        std::memcpy(&bits, &one[v], 4);
+                        written = written && bits != sentinel && !std::memcmp(&one[v], &all[v], 4);
+                        kept = kept && bits == sentinel;
+                    }
+                    const bool mine = expect(n) == build;
+                    require(mine ? written : kept, name + " " + dtype_name(dt) + ": a group of " + std::to_string(n) + " entries is " + (mine ? "" : "not ") + "computed by the " + build +
+                                                       " build launched alone" + (mine ? ", with the bits of the call of every build" : ""));
+                }
+            }
         }
     }
 }
@@ -3889,6 +3949,42 @@ void sixteen_ranks() {
     std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device, into and in place, each the oracle's bits\n";
 }
 
+// The grouped sparse softmax's head width: it runs while its four heads' queries fit the shared memory its own arrays leave, read here from the kernel itself, and the one-head build past that.
+// At the widest head that fits and one block wider, a 16-row call takes its build and gives every row the bits of the same row called alone, which the one-head build runs.
+void sparse_head_budget(Backend& g) {
+    HipFn& f = hip();
+    hipModule_t module = nullptr;
+    hipFunction_t softmax = nullptr;
+    hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
+    hip_check(f.hipModuleGetFunction(&softmax, module, "llmx_sparse_softmax_g"), "hipModuleGetFunction");
+    int fixed = 0;
+    hip_check(f.hipFuncGetAttribute(&fixed, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, softmax), "hipFuncGetAttribute");
+    hip_check(f.hipModuleUnload(module), "hipModuleUnload");
+    const size_t widest = (rocm_device(0).caps.shared_bytes - size_t(fixed)) / 4 / 4 / 32 * 32, heads = 2, rows = 16, k = 24, kv_rows = 64;
+    std::cout << "backend-rocm: the four-head sparse softmax holds heads up to " << widest << " values wide beside its " << fixed << " bytes of shared memory\n";
+    const auto fmt = ModelFormat::fp8_power;
+    for (const size_t dim : {widest, widest + 32}) {
+        const size_t words = format_words(fmt, dim);
+        const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);
+        std::vector<uint32_t> ids(rows * k);
+        for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 37 + i / k) % kv_rows);
+        auto xb = g.adopt(x.data(), x.size() * 4), qb = g.adopt(q.data(), q.size() * 4), sb = g.adopt(sink.data(), sink.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
+        auto kv = g.alloc(kv_rows * words * 4), all = g.alloc(rows * heads * dim * 4), one = g.alloc(rows * heads * dim * 4);
+        g.model_format_pack({kv.get(), 0}, words, {xb.get(), 0}, kv_rows, dim, fmt);
+        const float scale = 1.0f / std::sqrt(float(dim));
+        rocm_take_launches(g);
+        g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kv.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
+        const bool fits = dim == widest, grouped = rocm_take_launches(g).count("llmx_sparse_softmax_g") == 1;
+        require(grouped == fits, std::to_string(rows) + " rows of heads " + std::to_string(dim) + " wide take the " + (fits ? "grouped" : "one-head") + " sparse softmax, the widest that fits " +
+                                     std::to_string(widest));
+        for (size_t r = 0; r < rows; ++r)
+            g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kv.get(), 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {},
+                                    0, fmt, fmt);
+        require(same(read(g, *all, rows * heads * dim), read(g, *one, rows * heads * dim)), "every row of a 16-row sparse attention call of heads " + std::to_string(dim) +
+                                                                                             " wide is the row called alone, bit for bit");
+    }
+}
+
 int main(int argc, char** argv) {
     // `sixteen` runs the widest group's 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
@@ -3937,6 +4033,7 @@ int main(int argc, char** argv) {
         // `deepseek4` runs only DeepSeek-V4.1's ops against the CPU.
         if (argc > 1 && std::string(argv[1]) == "deepseek4") {
             deepseek4(*g);
+            sparse_head_budget(*g);
             std::cout << (failures ? "backend-rocm deepseek4: FAIL\n" : "backend-rocm deepseek4: PASS\n");
             return failures ? 1 : 0;
         }
@@ -3947,6 +4044,7 @@ int main(int argc, char** argv) {
             experts_grouped(*g);
             experts_tile(*g, *c);
             experts_quads(*g);
+            routed_builds_witness(*g);
             experts_add(*g);
             std::cout << (failures ? "backend-rocm moe: FAIL\n" : "backend-rocm moe: PASS\n");
             return failures ? 1 : 0;
@@ -4028,10 +4126,12 @@ int main(int argc, char** argv) {
         busy_times();
         qwen35(*g);
         deepseek4(*g);
+        sparse_head_budget(*g);
         routing(*g, *c);
         experts(*g, *c);
         experts_add(*g);
         experts_quads(*g);
+        routed_builds_witness(*g);
     } catch (const std::exception& e) {
         std::cout << "FAIL threw: " << e.what() << "\n";
         ++failures;

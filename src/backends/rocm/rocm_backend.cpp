@@ -41,7 +41,7 @@ const unsigned char kInt16DotModule[] = {
 
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.hip)
 constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
-constexpr size_t kSparseColumnsWide = 8;  // columns a llmx_sparse_columns block, its kSparseColumns
+constexpr size_t kSparseColumnsNarrow = 8, kSparseColumnsWide = 64, kSparseWideRows = 8, kSparseSoftmaxHeads = 4;  // columns of the narrow and wide column blocks (kernels/f32.hip, kSparseColumns and COLS of llmx_sparse_columns64), the rows from which the wide one runs, heads a grouped softmax block (kSparseHeads)
 constexpr size_t kEvents = 1024;           // tickets in flight before a submission waits for the oldest
 constexpr size_t kRingSlots = 4;           // a host ring's slots, each reused once the submission that last read it retires
 constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
@@ -273,6 +273,9 @@ public:
             if (k >= kMoeStepUpQ4K && !dot_module_) continue;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
+        int fixed = 0;
+        hip_check(f.hipFuncGetAttribute(&fixed, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, kernels_[kSparseSoftmaxG]), "hipFuncGetAttribute");
+        sparse_q_floats_ = dev_.caps.shared_bytes > (uint32_t)fixed ? (dev_.caps.shared_bytes - (uint32_t)fixed) / 4 : 0;
         for (size_t s = 0; s < kRingSlots; ++s) {
             args_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, true, graves_);
             stage_.slots[s] = std::make_shared<RocmBuffer>(kStageBytes, true, graves_);
@@ -1233,8 +1236,11 @@ public:
         for (size_t first = 0; first < rows; first += chunk) {
             const size_t n = std::min(chunk, rows - first);
             const unsigned fr = u32(first);
-            launch(kSparseSoftmax, u32(size_mul(n, heads)), 1, Args(pt, den, kept, counts, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr));
-            launch(kSparseColumns, u32((dim + kSparseColumnsWide - 1) / kSparseColumnsWide), u32(n), Args(o, (const float*)pt, (const float*)den, (const float* const*)kept,
+            // From kSparseWideRows rows whose kSparseSoftmaxHeads queries fit in shared memory the wide pair runs, below them main's one-head pair.
+            const bool wide = n >= kSparseWideRows && kSparseSoftmaxHeads * dim <= sparse_q_floats_;
+            launch(wide ? kSparseSoftmaxG : kSparseSoftmax, u32(size_mul(n, wide ? (heads + kSparseSoftmaxHeads - 1) / kSparseSoftmaxHeads : heads)), 1, Args(pt, den, kept, counts, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr), 1, kThreads, wide ? u32(kSparseSoftmaxHeads * dim * 4) : 0u);
+            const size_t cols = wide ? kSparseColumnsWide : kSparseColumnsNarrow;
+            launch(wide ? kSparseColumns64 : kSparseColumns, u32((dim + cols - 1) / cols), u32(n), Args(o, (const float*)pt, (const float*)den, (const float* const*)kept,
                                                                                                           (const unsigned*)counts, h, d, nm, kf, ef, fr));
         }
     }
@@ -1816,6 +1822,7 @@ public:
         std::fill(std::begin(launched_), std::end(launched_), size_t(0));
         return m;
     }
+    void route_only(std::string build) { route_only_ = std::move(build); }
 
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
@@ -1827,13 +1834,13 @@ private:
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
-                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kPoolWrite, kSparseSoftmax, kSparseColumns, kRouteSqrtSoftplus,
+                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kPoolWrite, kSparseSoftmax, kSparseSoftmaxG, kSparseColumns, kSparseColumns64, kRouteSqrtSoftplus,
                   kNormRopeForm, kDeltaStep,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
-                  kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8,
-                  kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRoutedStreamQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRoutedStreamQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8, kRoutedStreamQ6K8,
-                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRoutedStreamQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRoutedStreamQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kRoutedStreamIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedNarrowMXFP48, kRoutedStreamMXFP48,
+                  kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8, kRoutedStream8, kRoutedThinMXFP416,
+                  kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRoutedStreamQ4K8, kRoutedMidQ4K16, kRoutedMidQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRoutedStreamQ5K8, kRoutedMidQ5K16, kRoutedMidQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8, kRoutedStreamQ6K8, kRoutedMidQ6K16, kRoutedMidQ6K8,
+                  kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRoutedStreamQ508, kRoutedMidQ5016, kRoutedMidQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRoutedStreamQ518, kRoutedMidQ5116, kRoutedMidQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kRoutedStreamIQ4NL8, kRoutedMidIQ4NL16, kRoutedMidIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedNarrowMXFP48, kRoutedStreamMXFP48, kRoutedMidMXFP416, kRoutedMidMXFP48,
                   kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kHcMix8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kKernels };
     static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.hip, which backend-rocm twins holds at 2 to 16 rows
     // The build for n columns: one column's own, else the one of up to kHcColumns.
@@ -1849,16 +1856,16 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_columns", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_softmax_g", "llmx_sparse_columns", "llmx_sparse_columns64", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
                                                            "llmx_q8_0_rows8_8_r4", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce", "llmx_q8_0_half8_1", "llmx_q8_0_half8_1p", "llmx_q8_0_half8_1r2",
                                                            "llmx_q8_0_half8_2", "llmx_q8_0_half8_2_r4", "llmx_q8_0_half8_4", "llmx_q8_0_half8_4_r4", "llmx_q8_0_half8_8",
-                                                           "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8", "llmx_q8_0_routed_stream8",
-                                                           "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q4_k_routed_stream8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q5_k_routed_stream8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8", "llmx_q6_k_routed_stream8",
-                                                           "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_0_routed_stream8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8", "llmx_q5_1_routed_stream8",
-                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8", "llmx_iq4_nl_routed_stream8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_narrow8", "llmx_mxfp4_routed_stream8",
+                                                           "llmx_q8_0_half8_8_r4", "llmx_q8_0_half8_16", "llmx_q8_0_tile16_tall", "llmx_q8_0_tile8_tall", "llmx_q8_0_routed16", "llmx_q8_0_routed8", "llmx_q8_0_routed_half8", "llmx_q8_0_routed16_g2", "llmx_q8_0_routed16_g4", "llmx_q8_0_routed16_g8", "llmx_q8_0_routed8_g2", "llmx_q8_0_routed8_g4", "llmx_q8_0_routed8_g8", "llmx_q8_0_routed_half8_g2", "llmx_q8_0_routed_half8_g4", "llmx_q8_0_routed_half8_g8", "llmx_q8_0_routed_tile16", "llmx_q8_0_routed_tile8", "llmx_q8_0_routed_narrow16", "llmx_q8_0_routed_narrow8", "llmx_q8_0_routed_stream8", "llmx_mxfp4_routed_thin16",
+                                                           "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q4_k_routed_stream8", "llmx_q4_k_routed_mid16", "llmx_q4_k_routed_mid8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q5_k_routed_stream8", "llmx_q5_k_routed_mid16", "llmx_q5_k_routed_mid8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8", "llmx_q6_k_routed_stream8", "llmx_q6_k_routed_mid16", "llmx_q6_k_routed_mid8",
+                                                           "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_0_routed_stream8", "llmx_q5_0_routed_mid16", "llmx_q5_0_routed_mid8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8", "llmx_q5_1_routed_stream8", "llmx_q5_1_routed_mid16", "llmx_q5_1_routed_mid8",
+                                                           "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8", "llmx_iq4_nl_routed_stream8", "llmx_iq4_nl_routed_mid16", "llmx_iq4_nl_routed_mid8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_narrow8", "llmx_mxfp4_routed_stream8", "llmx_mxfp4_routed_mid16", "llmx_mxfp4_routed_mid8",
                                                            "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
@@ -1869,7 +1876,8 @@ private:
         Kernel tile[2], tall[2];
         Kernel routed[3];
         Kernel grouped[3][3];
-        Kernel routed_tile[2], routed_narrow[2];
+        Kernel routed_tile[2], routed_narrow[2], routed_mid[2];
+        Kernel routed_thin;     // the 16-bit twin's thin build, groups of up to kThinRows entries (kernels/int16.hip, k_thin), MXFP4's alone
         Kernel routed_stream;   // the 8-bit twin's routed stream, groups of up to its kStreamRows entries (kernels/int16.hip, routed_stream)
         float group_from[2];
         size_t tile_from[2][2];
@@ -1893,6 +1901,8 @@ private:
                                          {{kGrouped16x2, kGrouped16x4, kGrouped16x8}, {kGrouped8x2, kGrouped8x4, kGrouped8x8}, {kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8}},
                                          {kRoutedTile16, kRoutedTile8},
                                          {kRoutedNarrow16, kRoutedNarrow8},
+                                         {kKernels, kKernels},
+                                         kKernels,
                                          kRoutedStream8,
                                          {1.25f, 0.0f},
                                          {{32, 32}, {32, 32}},
@@ -1912,6 +1922,8 @@ private:
                 {{k(14), k(15), k(16)}, {k(17), k(18), k(19)}, {k(17), k(18), k(19)}},
                 {k(20), k(21)},
                 {k(22), k(23)},
+                {k(25), k(26)},
+                kKernels,
                 k(24),
                 {group_from16, group_from8},
                 {{up_from16, up_from8}, {down_from16, down_from8}},
@@ -1935,11 +1947,13 @@ private:
         return q;
     };
     static constexpr TwinKernels kQ4KTwins = k_twins(kRowsQ4K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ5KTwins = k_twins(kRowsQ5K16x1, 2.5f, 1.25f, 128, 32, 32, 32, 256, 8, true), kQ6KTwins = k_twins(kRowsQ6K16x1, 1.25f, 1.25f, 128, 32, 32, 32, 256, 16, false);
-    static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Twins = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
+    static constexpr TwinKernels kQ50Base = k_twins(kRowsQ5016x1, 1.25f, 1.25f, 128, 32, 32, 32, 32, 1, false), kQ51Base = k_twins(kRowsQ5116x1, 5.0f, 1.25f, 128, 32, 32, 32, 32, 1, false), kIQ4NLTwins = k_twins(kRowsIQ4NL16x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false), kMXFP4Base = k_twins(kRowsMXFP416x1, 0.3125f, 0.3125f, 32, 32, 32, 32, 32, 4, false);
     static constexpr TwinKernels kQ50Quarter = quarter_twins(kQ50Base, kQuarterQ5016x1, 1.25f, 1.25f), kQ51Quarter = quarter_twins(kQ51Base, kQuarterQ5116x1, 1.25f, 2.5f);
     static constexpr auto with_quarter = [](TwinKernels t, const TwinKernels* q) { t.quarter = q; return t; };
     static constexpr TwinKernels kQ50Twins = with_quarter(kQ50Base, &kQ50Quarter), kQ51Twins = with_quarter(kQ51Base, &kQ51Quarter);
-    static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8 && kIQ4NLTwins.routed_stream == kRoutedStreamIQ4NL8 && kMXFP4Twins.routed_stream == kRoutedStreamMXFP48 && kMXFP4Twins.routed_narrow[1] == kRoutedNarrowMXFP48, "a K-type's kernels follow LLMX_KTYPE's order");
+    // MXFP4 alone has the thin build, which the narrow tile beat on Q4_K (docs/STATUS.md, DeepSeek-V4.1 ROCm kernels).
+    static constexpr TwinKernels kMXFP4Twins = [] { TwinKernels t = kMXFP4Base; t.routed_thin = kRoutedThinMXFP416; return t; }();
+    static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8 && kIQ4NLTwins.routed_stream == kRoutedStreamIQ4NL8 && kMXFP4Twins.routed_stream == kRoutedStreamMXFP48 && kMXFP4Twins.routed_narrow[1] == kRoutedNarrowMXFP48 && kMXFP4Twins.routed_mid[1] == kRoutedMidMXFP48, "a K-type's kernels follow LLMX_KTYPE's order");
     static_assert(kQ51Quarter.two[1][4] == kQuarterQ518x16 && kQ51Quarter.routed[1] == kQuarterRoutedQ518 && kQ51Quarter.grouped[1][2] == kQuarterGroupedQ518x8 && kQ51Quarter.tile[1] == kTileQ518, "a quarter form's kernels follow LLMX_KQUARTER's order");
     // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, the same over several rows, its embedding, its routed exact product and its twin kernels.
     // A type without twins takes its exact product in every class.
@@ -2594,13 +2608,16 @@ private:
                 t.parts = 1;
                 t.xrow = (unsigned)nblk;
                 t.xblock = 1;
-                // Each group runs in one build by its entries: the narrow tile where they fit its 16 rows, the 64-row tile past them, and on the 8-bit twin the stream up to its 8; the other builds' workgroups return at once.
-                const std::pair<Kernel, unsigned> builds[3] = {{kinds.twin->routed_tile[int8], kThreads}, {kinds.twin->routed_narrow[int8], kThreads}, {int8 ? kinds.twin->routed_stream : kKernels, kStreamLanes}};
+                // Each group runs in one build by its entries: thin (16-bit) or stream (8-bit) up to 8, narrow up to 16, a K-type's mid up to 32, the 64-row tile past.
+                // The other builds' workgroups return at once; the thin build takes four output tiles a workgroup, a thread an output.
+                const Kernel thin = int8 ? kKernels : kinds.twin->routed_thin;
+                const std::pair<Kernel, unsigned> builds[5] = {{kinds.twin->routed_tile[int8], kThreads}, {kinds.twin->routed_mid[int8], kThreads}, {kinds.twin->routed_narrow[int8], kThreads},
+                                                               {thin, kThreads}, {int8 ? kinds.twin->routed_stream : kKernels, kStreamLanes}};
                 for (const auto& [kernel, threads] : builds)
-                    for (size_t first = 0; kernel != kKernels && first < groups; first += kGridY) {
+                    for (size_t first = 0; kernel != kKernels && first < groups && (route_only_.empty() || std::strstr(kKernelNames[kernel], route_only_.c_str())); first += kGridY) {
                         tg.first = first;
                         const Args args(t, tg, q, d);
-                        launch(kernel, (unsigned)gx, (unsigned)std::min<size_t>(kGridY, groups - first), args, 1, threads);
+                        launch(kernel, (unsigned)(kernel == thin ? (gx + 3) / 4 : gx), (unsigned)std::min<size_t>(kGridY, groups - first), args, 1, threads);
                     }
             } else if (rk.groups(entries, routing.n_expert, int8) && routing.n_expert <= kGroupExperts) {
                 // One expert's entries a group of the narrowest grouped build that holds their average, up to 8, each column the bits of its one-column product.
@@ -2914,11 +2931,11 @@ private:
         kept_ = kept;
         for (const auto& [y, n] : writes) forget_written((const float*)y, n);
     }
-    void launch(Kernel k, unsigned gx, unsigned gy, const Args& args, unsigned gz = 1, unsigned threads = kThreads) {
+    void launch(Kernel k, unsigned gx, unsigned gy, const Args& args, unsigned gz = 1, unsigned threads = kThreads, unsigned shared = 0) {
         raise_failed();
         // Any kernel but a product may write a kept twin's input.
         if (k < kRows16x1) forget_twins();
-        issue(kernels_[k], gx, gy, gz, threads, args, kKernelNames[k]);
+        issue(kernels_[k], gx, gy, gz, threads, args, kKernelNames[k], shared);
         ++launched_[k];
     }
     // A fused step's launch, which writes only the outputs moe_step forgets after it.
@@ -2961,7 +2978,7 @@ private:
         size_t at, size;   // a kernel's argument bytes in op_bytes_
         void* dst;
         const void* src;
-        size_t bytes;
+        size_t bytes;   // a copy's or fill's bytes, a wait's or write's value, a kernel's dynamic shared memory
         hipMemcpyKind dir;
     };
     void hold(const Held& op) {
@@ -2974,11 +2991,11 @@ private:
             chunk_ = dev_.profile.dispatch_chunk;
         }
     }
-    void issue(hipFunction_t f, unsigned gx, unsigned gy, unsigned gz, unsigned threads, const Args& args, const char* name) {
+    void issue(hipFunction_t f, unsigned gx, unsigned gy, unsigned gz, unsigned threads, const Args& args, const char* name, unsigned shared = 0) {
         const size_t at = (op_bytes_.size() + 15) & ~size_t(15);
         op_bytes_.resize(at + args.size);
         std::memcpy(op_bytes_.data() + at, args.bytes, args.size);
-        hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, 0, hipMemcpyDefault});
+        hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, shared, hipMemcpyDefault});
     }
     void hold_copy(void* dst, const void* src, size_t bytes, hipMemcpyKind dir) { hold({Held::copy, nullptr, 0, 0, 0, 0, "hipMemcpyAsync", 0, 0, dst, src, bytes, dir}); }
     void hold_fill(void* dst, size_t bytes) { hold({Held::fill, nullptr, 0, 0, 0, 0, "hipMemsetAsync", 0, 0, dst, nullptr, bytes, hipMemcpyDefault}); }
@@ -3004,7 +3021,7 @@ private:
             if (op.kind == Held::kernel) {
                 size_t size = op.size;
                 void* extra[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, bytes.data() + op.at, HIP_LAUNCH_PARAM_BUFFER_SIZE, &size, HIP_LAUNCH_PARAM_END};
-                launch_check(f.hipModuleLaunchKernel(op.f, op.gx, op.gy, op.gz, op.threads, 1, 1, 0, stream_, nullptr, extra), op.name);
+                launch_check(f.hipModuleLaunchKernel(op.f, op.gx, op.gy, op.gz, op.threads, 1, 1, (unsigned)op.bytes, stream_, nullptr, extra), op.name);
             } else if (op.kind == Held::copy) {
                 launch_check(f.hipMemcpyAsync(op.dst, op.src, op.bytes, op.dir, stream_), op.name);
             } else if (op.kind == Held::wait_word) {
@@ -3061,6 +3078,8 @@ private:
     std::vector<Held> ops_;   // the stream operations held since the last flush
     std::vector<uint8_t> op_bytes_;   // their kernels' arguments
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
+    size_t sparse_q_floats_ = 0;   // the query floats llmx_sparse_softmax_g stages in the shared memory its own arrays leave, its kSparseSoftmaxHeads heads' at most
+    std::string route_only_;   // rocm_route_only's filter of the routed tile builds, empty for all of them
     std::mutex failed_mu_;
     std::string failed_;
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.hip, llmx_group_sum)
@@ -3084,6 +3103,7 @@ namespace backend {
 BackendPtr make_rocm_backend(int device) { return std::make_shared<RocmBackend>(device); }
 
 std::map<std::string, size_t> rocm_take_launches(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).take_launches(); }
+void rocm_route_only(Backend& backend, std::string build) { dynamic_cast<RocmBackend&>(backend).route_only(std::move(build)); }
 
 DeviceProfile& rocm_profile(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).profile(); }
 

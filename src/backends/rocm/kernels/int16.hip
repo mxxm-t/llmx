@@ -449,6 +449,7 @@ __device__ void q8_0_half_pair(const RowCall& rc, const signed char* q, const fl
 }
 
 constexpr int kTileOut = 64, kTileRows = 64, kNarrowRows = 16;   // a narrow routed tile's rows: a group of up to 16 entries
+constexpr unsigned kStreamRows = 8;   // the most entries of a group the 8-bit twin's routed stream takes (routed_stream)
 
 // A tile call: up to three projections of one X and one twin, projection p's output tiles from workgroup start[p] on, the inner dimension in parts of kper blocks (blockIdx.z the part).
 // A split call writes part z of projection p at partials + parts * nrows * (outputs of the projections before p) + z * nrows * nout[p], which llmx_tile_reduce adds in part order.
@@ -489,8 +490,8 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
     const unsigned long long gi = ROUTED ? tg.first + blockIdx.y : 0;
     const unsigned long long nout = c.nout[pi], nrows = ROUTED ? tg.tab[4 * gi + 2] : c.nrows, nin = c.nin;
-    // A routed group takes the narrow tile when it fits its rows and the 64-row tile otherwise; a column's sums are the same in both.
-    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows))) return;
+    // A routed group takes the narrow tile when it fits its rows and the 64-row tile otherwise, and the 8-bit twin's stream below both; a column's sums are the same in all.
+    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows) || sizeof(QT) == 1 && nrows <= kStreamRows)) return;
     const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
     const unsigned char* W = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0);
     __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
@@ -1087,7 +1088,7 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
     const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
     const unsigned long long gi = ROUTED ? tg.first + blockIdx.y : 0;
     const unsigned long long nout = c.nout[pi], nrows = ROUTED ? tg.tab[4 * gi + 2] : c.nrows, nin = c.nin;
-    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows))) return;   // as q8_0_tile's groups
+    if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows) || sizeof(QT) == 1 && nrows <= kStreamRows)) return;   // as q8_0_tile's groups
     const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
     const unsigned long long blocks = nin / 32, row_bytes = nin / KT::values * KT::bytes;
     __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
@@ -1218,6 +1219,185 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
         }
 }
 
+// The routed prompt stream: a block one wave over a group of at most kStreamRows entries of one expert, a lane one output, the entries' twin rows staged in shared memory a chunk at a time.
+// A lane reads its weight row once with vector loads and decodes it in registers; each entry's sum takes the routed tile's terms in its order, so an entry has the tile's bits.
+constexpr int kStreamLanes = 64;   // a block's outputs
+constexpr unsigned kStreamBlocks = 16;   // the 32-value twin blocks a chunk stages
+constexpr int kLeanWords = 48;   // a lane load's words past which the entry loop takes its lean form (routed_stream)
+
+// NB whole blocks of a type as words from their first byte, read as 16-byte loads from the 4-byte word holding it and shifted into place where blocks are not 4-byte multiples.
+// Every word read holds a byte of the blocks, so no load leaves the weights.
+template <typename KT, int NB> struct StreamWords {
+    static constexpr unsigned bytes = NB * KT::bytes;
+    static constexpr int blocks = NB;
+    static constexpr bool aligned = KT::bytes % 4 == 0;
+    static constexpr int n = (bytes + 3) / 4;
+    unsigned w[n];
+    __device__ void load(const unsigned char* p) {
+        const unsigned s = aligned ? 0u : (unsigned)(unsigned long long)p & 3u;
+        const unsigned char* base = p - s;
+        unsigned raw[n + 1];
+#pragma unroll
+        for (int i = 0; i + 4 <= n; i += 4) {
+            const QWords<4> v = *(const QWords<4>*)(base + 4 * i);
+            raw[i] = v.x, raw[i + 1] = v.y, raw[i + 2] = v.z, raw[i + 3] = v.w;
+        }
+        if constexpr (n % 4 >= 2) {
+            const QWords<2> v = *(const QWords<2>*)(base + 4 * (n / 4 * 4));
+            raw[n / 4 * 4] = v.x, raw[n / 4 * 4 + 1] = v.y;
+        }
+        if constexpr (n % 2) raw[n - 1] = *(const unsigned*)(base + 4 * (n - 1));
+        raw[n] = 0;
+        if (!aligned && s + bytes > 4u * n) raw[n] = *(const unsigned*)(base + 4 * n);
+#pragma unroll
+        for (int i = 0; i < n; ++i) w[i] = aligned ? raw[i] : s ? __builtin_amdgcn_alignbyte(raw[i + 1], raw[i], s) : raw[i];
+    }
+};
+
+// Block i's 32-value block sub as eight words of byte values with its scale, and min for the K-quants, per half: Q8_0's words as they are, the others through their KRaw.
+template <typename KT> struct StreamDecode {
+    static constexpr int H = KRaw<KT>::halves;
+    template <int NB> __device__ static void get(const StreamWords<KT, NB>& c, int i, unsigned sub, int (&v)[8], float (&ds)[H], float (&dm)[H]) {
+#pragma unroll
+        for (unsigned part = 0; part < 4; ++part) {
+            KRaw<KT> raw;
+            raw.load((const unsigned char*)c.w + i * KT::bytes, sub, part);
+            unsigned u[2];
+            float d, m;
+            raw.decode(sub, part, u, d, m);
+            v[2 * part] = (int)u[0], v[2 * part + 1] = (int)u[1];
+            if (part % (4 / H) == 0) ds[part / (4 / H)] = d, dm[part / (4 / H)] = m;
+        }
+    }
+};
+// Q5_0's 22-byte blocks sit at even offsets, so its halves come from the words by shifts; a byte pointer into the words left them in scratch.
+template <> struct StreamDecode<rq::Q5_0> {
+    static constexpr int H = 1;
+    template <int NB> __device__ static void get(const StreamWords<rq::Q5_0, NB>& c, int i, unsigned, int (&v)[8], float (&ds)[1], float (&dm)[1]) {
+        const auto half = [&](unsigned k) { const unsigned b = i * rq::Q5_0::bytes + 2 * k; return (unsigned short)(c.w[b / 4] >> (8 * (b % 4))); };
+#pragma unroll
+        for (unsigned part = 0; part < 4; ++part) {
+            KRaw<rq::Q5_0> raw;
+            raw.d = half(0), raw.h[0] = half(1), raw.h[1] = half(2);
+#pragma unroll
+            for (unsigned t = 0; t < 4; ++t) raw.lo[t] = half(3 + 4 * (part & 1) + t);
+            unsigned u[2];
+            float d, m;
+            raw.decode(0, part, u, d, m);
+            v[2 * part] = (int)u[0], v[2 * part + 1] = (int)u[1];
+            if (part == 0) ds[0] = d, dm[0] = m;
+        }
+    }
+};
+template <> struct StreamDecode<rq::Q8_0> {
+    static constexpr int H = 1;
+    template <int NB> __device__ static void get(const StreamWords<rq::Q8_0, NB>& c, int i, unsigned, int (&v)[8], float (&ds)[1], float (&dm)[1]) {
+        const unsigned b = i * kQ8, wi = (b + 2) / 4;
+        const bool al = (b + 2) % 4 == 0;
+#pragma unroll
+        for (int k = 0; k < 8; ++k) v[k] = (int)(al ? c.w[wi + k] : __builtin_amdgcn_alignbit(c.w[wi + k + 1], c.w[wi + k], 16));
+        ds[0] = __half2float(__ushort_as_half((unsigned short)(b % 4 == 0 ? c.w[b / 4] & 0xffff : c.w[b / 4] >> 16)));
+        dm[0] = 0.0f;
+    }
+};
+
+template <typename KT>
+__device__ void routed_stream(const TileCall& c, const TileGroups& tg, const signed char* q, const float* dx) {
+    constexpr bool Q8 = std::is_same<KT, rq::Q8_0>::value;
+    constexpr int H = StreamDecode<KT>::H, SUBS = KT::values / 32, R = (int)kStreamRows;
+    constexpr int NB = KT::values >= 256 ? 1 : 128 / KT::values;   // blocks a lane loads at once
+    constexpr unsigned KB = kStreamBlocks;
+    static_assert(KB % (NB * SUBS) == 0, "a chunk holds whole loads");
+    const unsigned pi = c.nproj > 2 && blockIdx.x >= c.start[2] ? 2 : c.nproj > 1 && blockIdx.x >= c.start[1] ? 1 : 0;
+    const unsigned long long gi = tg.first + blockIdx.y;
+    const unsigned nrows = tg.tab[4 * gi + 2];
+    if (!nrows || nrows > kStreamRows) return;   // the tiles' groups
+    const unsigned* ent = tg.tab + tg.order0 + tg.tab[4 * gi + 1];
+    const unsigned long long nout = c.nout[pi], o = (unsigned long long)(blockIdx.x - c.start[pi]) * kStreamLanes + threadIdx.x;
+    const unsigned blocks = (unsigned)(c.nin / 32);
+    const unsigned long long row_bytes = c.nin / KT::values * KT::bytes;
+    const unsigned char* wrow = c.w[pi] + tg.tab[4 * gi] * tg.stride[pi] + (o < nout ? o : 0) * row_bytes;
+    __shared__ int4 xs[R][2 * KB];
+    __shared__ int2 xm[R][KB * H];   // a half block's twin sum and its block's scale
+    float acc[R];
+#pragma unroll
+    for (int j = 0; j < R; ++j) acc[j] = 0.0f;
+    // Each entry's terms of a load's blocks, from block cb of the staged chunk.
+    const auto compute = [&](const auto& wc, unsigned cb) {
+        constexpr int N = std::decay_t<decltype(wc)>::blocks;
+#pragma unroll
+        for (int i = 0; i < N; ++i)
+#pragma unroll
+            for (int sub = 0; sub < SUBS; ++sub) {
+                const unsigned bl = cb + i * SUBS + sub;
+                int v[8];
+                float ds[H], dm[H];
+                StreamDecode<KT>::get(wc, i, (unsigned)sub, v, ds, dm);
+#pragma unroll
+                for (int j = 0; j < R; ++j) {
+                    // Past kLeanWords words the loop skips the entries past the group rather than leaving, which the compiler holds in fewer registers (Q6_K spilled).
+                    if (j >= (int)nrows) {
+                        if constexpr (std::decay_t<decltype(wc)>::n > kLeanWords) continue;
+                        else break;
+                    }
+                    const int4 x0 = xs[j][2 * bl], x1 = xs[j][2 * bl + 1];
+                    const int x[8] = {x0.x, x0.y, x0.z, x0.w, x1.x, x1.y, x1.z, x1.w};
+#pragma unroll
+                    for (int h = 0; h < H; ++h) {
+                        const int2 m = xm[j][bl * H + h];
+                        int is = 0;
+#pragma unroll
+                        for (int k = h * (8 / H); k < (h + 1) * (8 / H); ++k) is = word_dot(v[k], x[k], is, (signed char)0);
+                        if constexpr (Q8) acc[j] = fmaf(ds[0] * __int_as_float(m.y), (float)is, acc[j]);
+                        else acc[j] = fmaf(__int_as_float(m.y), k_term<KT>(ds[h], dm[h], is, m.x), acc[j]);
+                    }
+                }
+            }
+    };
+    const unsigned loads = blocks / (NB * SUBS);   // a lane's whole loads
+    for (unsigned k0 = 0; k0 < blocks; k0 += KB) {
+        const unsigned kn = blocks - k0 < KB ? blocks - k0 : KB;
+        __syncthreads();
+        for (unsigned u = threadIdx.x; u < nrows * kn; u += kStreamLanes) {
+            const unsigned j = u / kn, b = u % kn;
+            const unsigned long long xb = (unsigned long long)(ent[j] / tg.per) * c.xrow + (unsigned long long)(k0 + b) * c.xblock;
+            const int4 a0 = ((const int4*)q)[2 * xb], a1 = ((const int4*)q)[2 * xb + 1];
+            xs[j][2 * b] = a0, xs[j][2 * b + 1] = a1;
+            const int d = __float_as_int(dx[xb]);
+            const int w[8] = {a0.x, a0.y, a0.z, a0.w, a1.x, a1.y, a1.z, a1.w};
+#pragma unroll
+            for (int h = 0; h < H; ++h) {
+                int s = 0;
+#pragma unroll
+                for (int i = h * (8 / H); i < (h + 1) * (8 / H); ++i) s = word_dot(0x01010101, w[i], s, (signed char)0);
+                xm[j][b * H + h] = make_int2(s, d);
+            }
+        }
+        __syncthreads();
+        const unsigned l0 = k0 / (NB * SUBS), l1 = l0 + kn / (NB * SUBS) < loads ? l0 + kn / (NB * SUBS) : loads;
+#pragma unroll 1
+        for (unsigned l = l0; l < l1; ++l) {
+            StreamWords<KT, NB> wc;
+            wc.load(wrow + (unsigned long long)l * NB * KT::bytes);
+            compute(wc, l * NB * SUBS - k0);
+        }
+        // Past the last whole load, one block at a time.
+        if constexpr (NB > 1)
+            for (unsigned cb = (l1 - l0) * NB * SUBS; cb < kn; cb += SUBS) {
+                StreamWords<KT, 1> wc;
+                wc.load(wrow + (unsigned long long)(k0 + cb) / SUBS * KT::bytes);
+                compute(wc, cb);
+            }
+    }
+    if (o >= nout) return;
+#pragma unroll
+    for (int j = 0; j < R; ++j) {
+        if (j >= (int)nrows) break;
+        float* y = c.y[pi] + (unsigned long long)ent[j] * nout + o;
+        *y = c.add ? *y + acc[j] : acc[j];
+    }
+}
+
 // A routed row call (backend.hpp matmul_experts): the row kernel's call over expert 0, each projection's bytes an expert, the entries' ids, the launch's first entry and the entries a twin column serves.
 struct RoutedCall {
     RowCall c;
@@ -1331,6 +1511,10 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_tile16(T
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_tile8(TileCall c, TileGroups g, const signed char* q, const float* dx) { q8_0_tile<signed char, 4, true>(c, q, dx, g); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_narrow16(TileCall c, TileGroups g, const short* q, const float* dx) { q8_0_tile<short, 4, true, kNarrowRows>(c, q, dx, g); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_narrow8(TileCall c, TileGroups g, const signed char* q, const float* dx) { q8_0_tile<signed char, 4, true, kNarrowRows>(c, q, dx, g); }
+// The routed prompt stream of a type's 8-bit twin, the groups of up to kStreamRows entries (routed_stream).
+#define LLMX_STREAM(name, KT) \
+    extern "C" __global__ void __launch_bounds__(kStreamLanes) name(TileCall c, TileGroups g, const signed char* q, const float* dx) { routed_stream<KT>(c, g, q, dx); }
+LLMX_STREAM(llmx_q8_0_routed_stream8, rq::Q8_0)
 
 // The twin types' row builds and tiles but Q8_0's, a type's set named by its type: the builds the host takes by a call's columns (rocm_backend.cpp, TwinKernels), two rows a wave.
 #define LLMX_KROWS(name, KT, C, QT, G, L)                                                                                                               \
@@ -1400,7 +1584,8 @@ LLMX_GROUPED(llmx_q8_0_routed_half8_g8, signed char, 8, q8_0_rows_half<8, 2, 4, 
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile16, KT, short, kTileRows)                                  \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile8, KT, signed char, kTileRows)                             \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow16, KT, short, kNarrowRows)                              \
-    LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow8, KT, signed char, kNarrowRows)
+    LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow8, KT, signed char, kNarrowRows)                         \
+    LLMX_STREAM(llmx_##t##_routed_stream8, KT)
 LLMX_KTYPE(q4_k, rq::Q4_K)
 LLMX_KTYPE(q5_k, rq::Q5_K)
 LLMX_KTYPE(q6_k, rq::Q6_K)

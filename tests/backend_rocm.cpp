@@ -3055,7 +3055,7 @@ void experts(Backend& g, Backend& c) {
                             ran += (ran.empty() ? "" : "+") + kn;
                             const bool exact = kn.rfind("llmx_routed_", 0) == 0, twin = kn.find("_routed") != std::string::npos && !exact;
                             const bool group_build = twin && kn.find("_g", kn.find("_routed")) != std::string::npos;
-                            const bool tile = kn.find("_routed_tile") != std::string::npos || kn.find("_routed_narrow") != std::string::npos;
+                            const bool tile = kn.find("_routed_tile") != std::string::npos || kn.find("_routed_narrow") != std::string::npos || kn.find("_routed_stream") != std::string::npos;
                             if (twin && !tile) lane_form = lane_form && (kn.find("_quarter_") != std::string::npos) == quarter_form(type, nin);
                             routed_ran = routed_ran || (tiled ? tile : twins && dt != Dtype::f32 ? twin && !tile && group_build == grouped : exact);
                             routed_only = routed_only && (tiled ? tile || kn.rfind("llmx_twin", 0) == 0 || kn == "llmx_moe_group"
@@ -3509,12 +3509,15 @@ void sparse_grouped(Backend& g) {
             }
 }
 
-// The narrow build's column quads: experts of 1 to 16 entries each side of every quad, 17 and 33 on the 64-row build, an empty expert between, every type in f16 and int8.
-// Every entry must be the bits of the same entry routed alone, which sits in quad 0 of the narrow build.
+// The routed builds by group: experts of 1 to 16 entries each side of every narrow quad, 17 and 33 on the 64-row build, an empty expert between, every type in f16 and int8, 1 to 8 entries on the stream.
+// Every entry must be the bits of the entry routed alone (narrow quad 0 in f16, the stream in int8), at inner sizes ending the stream's last chunk full, at half a K-quant chunk, short and with a one-block tail.
 void experts_quads(Backend& g) {
     const size_t n_expert = 24, ff = 256, sizes[] = {1, 3, 4, 5, 8, 9, 12, 13, 16, 17, 33};
-    const std::vector<std::pair<uint32_t, size_t>> kinds = {{quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560}, {quant::GGML_TYPE_Q6_K, 2560},
-                                                            {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560}};
+    std::vector<std::pair<uint32_t, size_t>> kinds;
+    for (uint32_t type : {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
+        for (size_t nin : {size_t(2560), size_t(768)}) kinds.push_back({type, nin});
+    for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4})
+        for (size_t nin : {size_t(2560), size_t(640), size_t(800)}) kinds.push_back({type, nin});
     for (const auto& [type, nin] : kinds) {
         const std::string name = quant::storage_type(type)->name;
         const std::vector<uint8_t> w = type == quant::GGML_TYPE_Q8_0 ? q8_matrix(nin, n_expert * ff, uint32_t(nin + 3)) : typed_matrix(type, nin, n_expert * ff, uint32_t(type * 19 + nin));
@@ -3549,7 +3552,8 @@ void experts_quads(Backend& g) {
             };
             std::string ran;
             const std::vector<float> all = call(ids, ran);
-            require(ran.find("_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos, at + ": a " + std::to_string(rows) + "-row prompt takes both routed tile builds, ran " + ran);
+            require(ran.find("_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos && (ran.find("_routed_stream") != std::string::npos) == (dt == Dtype::int8),
+                    at + ": a " + std::to_string(rows) + "-row prompt takes both routed tile builds, and the stream in int8 only, ran " + ran);
             bool same = true;
             for (size_t i = 0; i < std::size(sizes); ++i)
                 for (size_t r : of[i]) {

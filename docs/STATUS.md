@@ -1,5 +1,44 @@
 # llmx - Development Status
 
+## ROCm routed prompt stream (2026-11-09, PRE2, PRE2b, PRE2c then PRE2d, branch perf/rocm-moe-prompt-stream stacked on perf/rocm-hc-mix-rows over main 4b5f9236d; F2DEV's reviews of 2026-11-08 22:20, B1 to B3, and of 2026-11-09 02:50, B1 and B2; lands by fast-forward)
+
+**Goal:** a routed MoE prompt group of few entries reads its expert's weights once at full bandwidth on ROCm, with the routed tile's bits.
+
+**Done:**
+- `routed_stream` (kernels/int16.hip), for every twin type (Q4_K, Q5_K, Q6_K, Q5_0, Q5_1, IQ4_NL, MXFP4, Q8_0) on the 8-bit twin: a group of up to kStreamRows (8) entries is one wave, a lane one output that reads its weight row once as whole 16-byte loads and decodes it in registers, the group's twin rows staged in shared memory.
+  `RocmBackend`'s routed-tile branch launches the three builds over the groups and each group runs in one by its entries: the stream up to 8 (8-bit twin only), the narrow tile up to 16, the 64-row tile past; no build above 8 entries changed.
+- Each entry takes the tile's integer block sums and float terms in block order, so an entry has one result whichever build its group takes; no K split (one part, as the tile), no flag and no profile number.
+- Past kLeanWords (48) words a lane load, Q6_K's 210-byte superblock, the entry loop skips the entries past the group instead of leaving it, which took Q6_K's stream from 256 VGPRs and 124 bytes of scratch a lane to 206 and none; Q5_0 reads its halves from the words by shifts (`StreamDecode<rq::Q5_0>`), which took its 56 bytes of scratch away.
+  Taken by every type, the skipping loop cost Q4_K 548 to 505 GB/s at 1 to 4 entries, Q5_K 416 to 361 at 5 to 8 and MXFP4 170 to 156 at 1 to 4 (mb/m1.txt under /opt/claude-work/pre2d), so only the loads that spilled take it.
+- Microbenchmark (one MI50, mb/r16.txt and r17.txt under /opt/claude-work/pre2): 0 differing outputs against main's tile and narrow builds for all 8 types at group sizes 1 to 65 and on real routing, the entry alone the entry in its group in every case.
+  GB/s main to branch at 1-4 / 5-8 entries: Q4_K 209 to 554 / 193 to 373, Q5_K 180 to 572 / 171 to 416, Q5_1 247 to 439 / 220 to 332, Q8_0 450 to 519 / 421 to 469, Q6_K 250 to 532 / 227 to 364 (mb/m1.txt, with the skipping loop; 340 / 218 before it), MXFP4 98 to 169 / 94 to 149 (182 to 392 / 169 to 265 against main 1227b7871, whose MXFP4 decode reads aligned words; mb/m3.txt), IQ4_NL 133 to 185 / 129 to 165 (the same against 1227b7871), Q5_0 242 to 464 / 227 to 334 (mb/m2.txt under /opt/claude-work/pre2d, with its shifts; 281 / 238 before them).
+  The tradeoff: at 9 to 16 entries every group runs in the narrow tile and the stream's launch is all early returns, which costs Q8_0 5 to 7% there (640 by 2560 389 to 365 GB/s, 2592 by 640 424 to 396) and the other types up to 3%.
+  That cost is the launch's grid, a wave for every 64 outputs of every group, not its registers (Q8_0 at 99 VGPRs instead of 153 lost the same), and the host cannot size the grid without reading the groups back; on mixed routing (`real`) Q8_0 is +3 to +8% at 640 by 2560 and level at 2592 by 640.
+- backend-rocm `moe`: `experts_quads` now requires the stream in int8 and not in f16 and holds every entry of groups of 1 to 33 to the entry routed alone, bit for bit, for all 8 types, at inner sizes 2560 and 768 for the K-quants and 2560, 640 and 800 for the others, which end the stream's last chunk full, at half a chunk, short and with a one-block tail, and the routed class check counts the stream among the tile builds; it passes on one MI50.
+- A static_assert holds that every twin type has its stream, since the 8-bit routed tiles leave it the groups of up to 8 entries.
+
+**Timing** (LAND13's landing round on the stacked head of this branch and perf/rocm-hc-mix-rows: Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm on four MI50s at default clocks, `--cpus 8`, nr_throttled 1 to 3, host load 11 to 21; main 4b5f9236d against the head, `bench --p P --n 1 --r 3`, ABBA, 2 rounds, 12 runs an arm; per-run tok/s in /opt/claude-work/land13/out/ab):
+
+| cell | main | head | delta | Vulkan main c319438bc | gate |
+|---|---|---|---|---|---|
+| layer-4 pp2048, fast mode | 1554.5 (7 runs) | 1749.6 (8 runs) | +12.6% | 1715 | 2615 |
+| layer-4 pp2048, slow mode | 1185.7 (3 runs) | 1257.2 (4 runs) | +6.0% | | |
+| layer-4 pp16384 | 1953.9 | 2077.6 | +6.3% | 2331 | - |
+| 2x2 pp2048 | 1494.5 | 1548.7 | +3.6% | 1581 | 1939 |
+| 2x2 pp16384 | 1550.2 | 1616.8 | +4.3% | 1714 | - |
+
+Layer-4 pp2048 is bimodal in both arms: every slow run is the first of a process's three, and main has two more between the modes (1392.2 and 1437.2), so each mode is compared within itself; the all-run means are 1439.0 against 1585.5 (+10.2%).
+Greedy replies are main's text in the 2x2 server cells (one user with MTP, and four users without drafts, perf/rocm-hc-mix-rows's block).
+The Vulkan column was measured on main c319438bc (PP16's baseline), not on 4b5f9236d.
+
+- ISA at the landed head: no stream build uses scratch (VGPRs q8_0 153, q4_k 248, q5_k 249, q6_k 206, q5_0 164, q5_1 168, iq4_nl 164, mxfp4 167).
+- Landing gates: the ones listed in perf/rocm-hc-mix-rows's block (CTest with backend-rocm `moe` and `twins`, suites, identity on the CPU, vulkan:0 and rocm:0, hosted run); no Radeon VII check, as the change is ROCm only and the Windows build compiles it out.
+
+**Left:**
+- The 16-bit twin keeps the narrow tile for groups of 1 to 16: the stream was built and measured for the 8-bit twin only.
+- Q5_1, which spills in neither loop, was faster with the skipping loop too (5 to 8 entries 366 to 436 GB/s at 2592 by 640, mixed routing 303 to 322); a loop chosen by type rather than by spilling is left open.
+- Vulkan: the routed narrow tile on runs of 1 to 8 entries is measured, and a stream build there is a follow-up branch if it pays.
+
 ## Multi-row hyper-connection mix on ROCm (2026-11-09, MTP5, branch perf/rocm-hc-mix-rows on main 4b5f9236d, landed stacked under perf/rocm-moe-prompt-stream; MTP4's item 4 of 2026-11-08; F2DEV's review of 01:12; lands by fast-forward)
 
 **Goal:** verify and multi-user decode rows mix their hyper-connection streams in one launch, as a decode row does, with each column's bits the one-column launch's, so verify rows equal decode rows; the chain stays only for the shapes the launch does not take.

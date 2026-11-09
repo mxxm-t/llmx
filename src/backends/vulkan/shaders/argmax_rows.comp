@@ -2,7 +2,8 @@
 // The id of each row's largest logit, ties to the lowest id, as a 32-bit integer; n where the largest is not finite or a logit is NaN, and n where the row's prior id is n or more (backend.hpp, argmax_rows).
 // Mode 0 reduces a row in one workgroup; mode 1 reduces each slice of a row's ids to a partial (value, id, NaN seen), a workgroup a slice, and mode 2 a row's partials, in slice order by the same comparison, to its id.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint n; uint has_after; uint mode; uint slices; uint slice; } p;
+// With cand set, modes 0 and 2 write the row's candidate for argmax_pick instead of its id, and mode 3 picks a row's id from its candidates (backend.hpp, argmax_part).
+layout(push_constant) uniform P { uint n; uint has_after; uint mode; uint slices; uint slice; uint first; uint slot; uint slots; uint cand; } p;
 layout(set = 0, binding = 0) writeonly buffer O { uint ids[]; };
 layout(set = 0, binding = 1) readonly buffer L { float logits[]; };
 layout(set = 0, binding = 2) readonly buffer A { uint after[]; };
@@ -15,9 +16,9 @@ void main() {
     uint lid = gl_LocalInvocationID.x;
     uint r = p.mode == 1u ? gl_WorkGroupID.y : gl_WorkGroupID.x, s = gl_WorkGroupID.x;
     uint base = r * p.n;
-    // What the workgroup reduces: a row's ids, one slice of them, or the row's partials.
+    // What the workgroup reduces: a row's ids, one slice of them, the row's partials or its candidates.
     uint first = p.mode == 1u ? s * p.slice : 0u;
-    uint end = p.mode == 1u ? min(p.n, first + p.slice) : p.mode == 2u ? p.slices : p.n;
+    uint end = p.mode == 1u ? min(p.n, first + p.slice) : p.mode == 2u ? p.slices : p.mode == 3u ? p.slots : p.n;
     float bv = 0.0;
     uint bi = NONE, nan = 0u;
     // Ascending ids and a strict comparison keep each lane's first largest.
@@ -30,6 +31,12 @@ void main() {
             id = parts[at + 1u];
             if (id == NONE) continue;
             v = uintBitsToFloat(parts[at]);
+        } else if (p.mode == 3u) {
+            uint at = (r * p.slots + i) * 3u;
+            if (logits[at + 2u] != 0.0) nan = 1u;
+            v = logits[at];
+            id = uint(logits[at + 1u]);
+            if (isnan(v)) continue;
         } else {
             v = logits[base + i];
             if (isnan(v)) { nan = 1u; continue; }
@@ -61,6 +68,16 @@ void main() {
         return;
     }
     uint id = best_i[0];
+    if (p.cand != 0u) {
+        // The candidate's slot holds (largest, first + its id, flag), and the row's other slots zeros.
+        uint at = r * p.slots * 3u;
+        for (uint k = 0u; k < p.slots * 3u; ++k) ids[at + k] = 0u;
+        bool bad = nans[0] != 0u || id == NONE || (isinf(best_v[0]) && best_v[0] > 0.0);
+        ids[at + p.slot * 3u] = floatBitsToUint(id == NONE ? 0.0 : best_v[0]);
+        ids[at + p.slot * 3u + 1u] = floatBitsToUint(float(p.first + (id == NONE ? 0u : id)));
+        ids[at + p.slot * 3u + 2u] = floatBitsToUint(bad ? 1.0 : 0.0);
+        return;
+    }
     if (nans[0] != 0u || id == NONE || isinf(best_v[0]) || (p.has_after != 0u && after[r] >= p.n)) id = p.n;
     ids[r] = id;
 }

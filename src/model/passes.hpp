@@ -966,7 +966,9 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             members.push_back(devices_[m]->b.get());
             devices_[m]->b->wait(ctx.tickets[m]);
         }
-        ctx.collectives[g] = devices_[g]->b->join(members, rows, sum_width(plan_));
+        // A drafter's chain sums 3 floats a member a row in the same partials (Model::draft_record), more than a tiny model's row holds.
+        const size_t sw = sum_width(plan_), cands = plan_.drafter ? 3 * width_ : 0;
+        ctx.collectives[g] = devices_[g]->b->join(members, cands > sw ? (rows * cands + sw - 1) / sw : rows, sw);
         if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
         // An allocation is zero-filled, and nothing writes this row.
         for (size_t m = g; clears && m < g + width_; ++m)

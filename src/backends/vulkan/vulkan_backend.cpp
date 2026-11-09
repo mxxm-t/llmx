@@ -1760,20 +1760,41 @@ public:
         if (!n || n >= UINT32_MAX) throw std::runtime_error("vulkan: argmax over no ids or more than 32 bits name");
         if (floats_from(ids) < rows || floats_from(logits) < size_mul(rows, n) || (after.buffer && floats_from(after) < rows))
             throw std::runtime_error("vulkan: argmax_rows operand outside its allocation");
-        const VkDescriptorBufferInfo prior = after.buffer ? bind(after) : bind(logits);
+        argmax(ids, logits, rows, n, after.buffer ? bind(after) : bind(logits), {u32(n), after.buffer ? 1u : 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u});
+    }
+    void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots) override {
+        if (!rows) return;
+        if (!n || slot >= slots || first + n > kExactIds) throw std::runtime_error("vulkan: argmax_part over no ids, ids a float does not hold, or a slot past its row");
+        if (floats_from(cands) < size_mul(size_mul(rows, slots), 3) || floats_from(logits) < size_mul(rows, n))
+            throw std::runtime_error("vulkan: argmax_part operand outside its allocation");
+        argmax(cands, logits, rows, n, bind(logits), {u32(n), 0u, 0u, 0u, 0u, u32(first), u32(slot), u32(slots), 1u});
+    }
+    // One workgroup a row reads its candidates (mode 3); without prior ids the candidates are bound in their place and not read.
+    void argmax_pick(Slice ids, CSlice cands, size_t rows, size_t slots, size_t n, CSlice after = {}) override {
+        if (!rows) return;
+        if (!slots || n > kExactIds) throw std::runtime_error("vulkan: argmax_pick over no candidates or ids a float does not hold");
+        if (floats_from(ids) < rows || floats_from(cands) < size_mul(size_mul(rows, slots), 3) || (after.buffer && floats_from(after) < rows))
+            throw std::runtime_error("vulkan: argmax_pick operand outside its allocation");
+        const uint32_t pc[9] = {u32(n), after.buffer ? 1u : 0u, 3u, 0u, 0u, 0u, 0u, u32(slots), 0u};
+        const VkDescriptorBufferInfo prior = after.buffer ? bind(after) : bind(cands);
+        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(cands), prior, bind(ids)}, pc, sizeof(pc), u32(rows));
+    }
+    // argmax_rows and argmax_part over rows of `n` logits, writing ids or candidates into `out` as pc[8] says.
+    void argmax(Slice out, CSlice logits, size_t rows, size_t n, VkDescriptorBufferInfo prior, std::array<uint32_t, 9> pc) {
         const size_t slices = (n + kVulkanArgmaxSlice - 1) / kVulkanArgmaxSlice;
-        uint32_t pc[5] = {u32(n), after.buffer ? 1u : 0u, 0u, u32(slices), u32(kVulkanArgmaxSlice)};
+        pc[3] = u32(slices);
+        pc[4] = u32(kVulkanArgmaxSlice);
         if (slices == 1 || unordered_) {
-            dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, bind(ids)}, pc, sizeof(pc), u32(rows));
+            dispatch(K_ARGMAX_ROWS, {bind(out), bind(logits), prior, bind(out)}, pc.data(), sizeof(pc), u32(rows));
             return;
         }
         const size_t bytes = size_mul(size_mul(rows, slices), 3 * sizeof(uint32_t));
         if (!argmax_parts_ || argmax_parts_->size() < bytes) grow(argmax_parts_, bytes);
         const VkDescriptorBufferInfo parts{argmax_parts_->handle(), 0, VK_WHOLE_SIZE};
         pc[2] = 1u;
-        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, parts}, pc, sizeof(pc), u32(slices), u32(rows));
+        dispatch(K_ARGMAX_ROWS, {bind(out), bind(logits), prior, parts}, pc.data(), sizeof(pc), u32(slices), u32(rows));
         pc[2] = 2u;
-        dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, parts}, pc, sizeof(pc), u32(rows));
+        dispatch(K_ARGMAX_ROWS, {bind(out), bind(logits), prior, parts}, pc.data(), sizeof(pc), u32(rows));
     }
     void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;

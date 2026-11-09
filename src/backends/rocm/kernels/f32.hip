@@ -2169,7 +2169,7 @@ extern "C" __global__ void llmx_argmax_slices(const float* logits, unsigned* ids
     }
     argmax_block(v, id, bad);
     if (threadIdx.x) return;
-    if (nslice == 1) {
+    if (ids && nslice == 1) {
         ids[r] = argmax_id(v, id, bad, n, after, r);
     } else {
         parts[2 * blockIdx.x] = bad ? NAN : v;
@@ -2186,6 +2186,38 @@ extern "C" __global__ void llmx_argmax_merge(const float* parts, unsigned* ids, 
         const float x = parts[2 * (r * nslice + s)];
         bad = bad || isnan(x);
         argmax_pick(v, id, x, __float_as_uint(parts[2 * (r * nslice + s) + 1]));
+    }
+    ids[r] = argmax_id(v, id, bad, n, after, r);
+}
+// A row's candidate for argmax_pick from its slices' maxima (Backend::argmax_part): (largest, first + its id, 1 where a slice saw a NaN or an infinity) at `slot`, zeros in the row's other slots.
+extern "C" __global__ void llmx_argmax_part(const float* parts, float* cands, unsigned nslice, unsigned first, unsigned slot, unsigned slots) {
+    const unsigned r = blockIdx.x;
+    if (threadIdx.x) return;
+    float v = -INFINITY;
+    unsigned id = UINT_MAX;
+    bool bad = false;
+    for (unsigned s = 0; s < nslice; ++s) {
+        const float x = parts[2 * (r * nslice + s)];
+        bad = bad || isnan(x);
+        argmax_pick(v, id, x, __float_as_uint(parts[2 * (r * nslice + s) + 1]));
+    }
+    float* out = cands + 3ull * r * slots;
+    for (unsigned k = 0; k < 3 * slots; ++k) out[k] = 0.0f;
+    out[3 * slot] = bad ? 0.0f : v;
+    out[3 * slot + 1] = float(first + (id == UINT_MAX ? 0u : id));
+    out[3 * slot + 2] = bad || v == INFINITY ? 1.0f : 0.0f;
+}
+// Each row's id from its candidates (Backend::argmax_pick), by argmax_pick's comparison over them in slot order.
+extern "C" __global__ void llmx_argmax_pick(const float* cands, unsigned* ids, unsigned n, unsigned slots, const unsigned* after) {
+    const unsigned r = blockIdx.x;
+    if (threadIdx.x) return;
+    float v = -INFINITY;
+    unsigned id = UINT_MAX;
+    bool bad = false;
+    for (unsigned s = 0; s < slots; ++s) {
+        const float* c = cands + 3ull * (r * slots + s);
+        bad = bad || c[2] != 0.0f || isnan(c[0]);
+        argmax_pick(v, id, c[0], unsigned(c[1]));
     }
     ids[r] = argmax_id(v, id, bad, n, after, r);
 }

@@ -459,6 +459,8 @@ inline const char* op_name(Op op) {
 
 // The most devices a tensor group holds (docs/TENSOR-SPLIT.md, section 4.6); a backend's collective sizes its storage by it.
 constexpr size_t kMaxTensorWidth = 16;
+// The ids argmax_part and argmax_pick carry as float values, every one exact below 2^24.
+constexpr size_t kExactIds = size_t(1) << 24;
 
 // A tensor group's sum over backends of one kind, made once at load (docs/TENSOR-SPLIT.md, section 4.3): sum_into adds the members' partial rows (partial() says where) into every member's residual in member order.
 class Collective {
@@ -678,6 +680,17 @@ public:
     // It is `n` where the largest is not finite or a logit is NaN, and for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
     virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) {
         (void)ids; (void)logits; (void)rows; (void)n; (void)after;
+        lacks(Op::argmax_rows);
+    }
+    // argmax_rows over a vocabulary split into slices on several devices, around a sum of the candidates (docs/src/backends-backend.md).
+    // argmax_part writes a row's (largest, its id as a float value, NaN or +inf flag) at slot `slot` of `slots` and zeros in the others.
+    virtual void argmax_part(Slice cands, CSlice logits, size_t rows, size_t n, size_t first, size_t slot, size_t slots) {
+        (void)cands; (void)logits; (void)rows; (void)n; (void)first; (void)slot; (void)slots;
+        lacks(Op::argmax_rows);
+    }
+    // argmax_pick gives each row's id from its summed candidates as argmax_rows gives it over the whole row of `n`.
+    virtual void argmax_pick(Slice ids, CSlice cands, size_t rows, size_t slots, size_t n, CSlice after = {}) {
+        (void)ids; (void)cands; (void)rows; (void)slots; (void)n; (void)after;
         lacks(Op::argmax_rows);
     }
 

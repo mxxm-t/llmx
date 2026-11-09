@@ -41,6 +41,14 @@ inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t ga
     if (g && u && g->type != u->type) layer.ops.push_back({part, backend::Op::mixed_experts});
 }
 
+// A drafter's head, `output` over the `nin`-wide rows `x`: one device's logits and their argmax as the next ids, or on a tensor group the member's vocabulary rows and their candidate, which Model::draft_record sums and picks.
+inline void draft_head(const DraftStep& s, const Weight& output, backend::CSlice x, size_t nin) {
+    const size_t n = output.nout;
+    s.b.matmul_logits(output.operand(), x, s.logits, nin, n, s.rows, s.runs, s.dtype);
+    if (s.width > 1) s.b.argmax_part(s.partial, s.logits, s.rows, n, s.first, s.member, s.width);
+    else s.b.argmax_rows(s.next, s.logits, s.rows, n, s.id);
+}
+
 // Declare how role `id` of `roles` splits over a tensor group (Role::shard); a role the list lacks is the plan's error.
 inline void shard(std::vector<Role>& roles, uint16_t id, Axis axis, std::vector<ShardSection> sections) {
     for (Role& role : roles)

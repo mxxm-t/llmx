@@ -140,7 +140,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     }
     const ModelPlan& kept = width > 1 ? heads : plan;
     // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
-    // A member holds its shards of the drafter's block and reads the head whole (DraftStep), which its own head, a shard, does not hold, so the head's matrix counts here once more, or where it is tied with the embedding table.
+    // A member holds its shards of the drafter's block and head (blocks::draft_head), each a buffer of its own beside the pass's, so the head's matrix counts here once more, or where it is tied with the embedding table.
     if (plan.drafter) {
         std::vector<size_t> held;
         for (const Role& role : plan.pass)
@@ -164,10 +164,11 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
         fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux_floats())),
                                              backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
-        // A chain's ids and logits for a mark's sequences at the most drafts a mark holds (Model::reserve_drafting).
+        // A chain's ids and a member's logits of its vocabulary rows for a mark's sequences at the most drafts a mark holds (Model::reserve_drafting).
         if (options.mark_slots && options.mark_rows > 1) {
             const size_t ids = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), sizeof(uint32_t));
-            const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows - 1), backend::size_mul(plan.vocab, sizeof(float)));
+            const size_t vocab = width > 1 ? fp.output.rows : plan.vocab;
+            const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows - 1), backend::size_mul(vocab, sizeof(float)));
             fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_add(ids, logits));
         }
     }

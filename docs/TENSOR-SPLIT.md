@@ -374,7 +374,10 @@ The flag means the same on every backend or is refused and reads nothing from th
 ### 4.8 Speculative decoding over a group
 
 One system, as SPECULATIVE section 3 requires: proposers over one verify, accept and retract path, with no path specific to groups.
-As built, the drafter's chain has no argmax exchange: each member reads the head whole and finds a draft row's token itself, and the exchange described below is the path to return to (section 8, Step 6 as built).
+As built, the chain's argmax is exchanged as described below, through the collective's sum with no new call of `Collective`; Step 6 as it was first built (section 8) read the head whole on every member instead.
+Each member computes its vocabulary rows' logits of the drafter's head, split as the target's is, and their candidate, the largest logit, its id as a float value and a flag for a NaN or +inf, at its slot of a row of zeros (`Backend::argmax_part`); `Collective::sum_in_place` sums those rows, exact since every other member adds zeros, and each member picks the id by `argmax_rows`' rule (`Backend::argmax_pick`).
+An id travels as a float value, exact below 2^24, never as an integer's bits, which a device flushing denormals would lose.
+The candidates of a row take 3 floats a member, so where a model's summed row is narrower than that, as in the tiny test fixtures, the group's collective is made for more rows (`Model::ensure`).
 
 - **The embedded MTP drafter** (SPECULATIVE section 7) is a layer of the target's last stage: its roles shard as a layer's do (its attention by heads with its KV in the group's pool, its feed-forward rows and columns, `eh_proj` replicated, a 2E by E product the draft chain reads whole), and the head is the target's vocabulary-split head.
   The draft chain's argmax over the vocabulary becomes each member's argmax over its slice and one small exchange of (value, id) pairs, the largest value winning and the lower id on a tie, which gives one device's id exactly; every member then embeds the same id from its replicated table.

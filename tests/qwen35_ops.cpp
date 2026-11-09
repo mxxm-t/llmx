@@ -947,6 +947,23 @@ size_t check_drafter_ops(std::mt19937& g) {
     // Without a prior id the valid row of a prior invalid one is its own argmax.
     cpu.argmax_rows({out.get(), 0}, {logits.get(), 5 * n}, 1, n);
     require(id_at(cpu, *out, 0) == 2, "argmax_rows without prior ids");
+    // The rows split into 2 to 4 vocabulary slices, the tie at 5 and 20 across a slice's end: argmax_part's candidates summed in member order and argmax_pick give the same ids.
+    for (size_t W = 2; W <= 4; ++W) {
+        std::vector<float> total(rows.size() * 3 * W);
+        for (size_t k = 0; k < W; ++k) {
+            const size_t a = n * k / W, e = n * (k + 1) / W;
+            std::vector<float> part;
+            for (const auto& r : rows) part.insert(part.end(), r.begin() + a, r.begin() + e);
+            const BufferPtr lp = upload(cpu, part), cands = zeros(cpu, total.size() * sizeof(float));
+            cpu.argmax_part({cands.get(), 0}, {lp.get(), 0}, rows.size(), e - a, a, k, W);
+            const std::vector<float> got = download(cpu, *cands, total.size());
+            for (size_t i = 0; i < total.size(); ++i) total[i] = k ? total[i] + got[i] : got[i];
+        }
+        const BufferPtr summed = upload(cpu, total);
+        cpu.argmax_pick({out.get(), 0}, {summed.get(), 0}, rows.size(), W, n, {prior.get(), 0});
+        for (size_t r = 0; r < rows.size(); ++r)
+            require(id_at(cpu, *out, r) == want[r], "argmax_pick over " + std::to_string(W) + " slices, row " + std::to_string(r) + " gave " + std::to_string(id_at(cpu, *out, r)));
+    }
 
     const size_t width = 8, vocab = 5;
     const std::vector<float> table = uniform(g, width * vocab, -1.0f, 1.0f);

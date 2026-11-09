@@ -211,6 +211,60 @@ On ROCm the fused launch is 30.9 against the chain's 49.8 us at one row and 57.0
 - Measured and not kept: a wave-uniform row base with 32-bit offsets for ROCm MXFP4 rows (gate+up 251 to 257 us), a one-step weight prefetch in ROCm's one-column Q8_0 rows (32768x1280 66 to 86 us), Vulkan's columns kernel staging p through shared memory (139 to 349 us at 16k), 1024-thread and 512-thread sparse attention blocks, q in shared memory for the ROCm scores, ROCm k_rows load unroll and four rows a cluster, and q_a with kv as one group call (ROCm's group differs from separate products at four columns).
 - Scores of a sparse attention bench whose window values dwarf the entries hide the entries entirely (every output hash the same at any entry count); the bench's scales were set so both sources count.
 
+## Drafter head split over a tensor group (2026-11-09, VKH1 to VKH4, branch perf/drafter-head-split on main e899036de; VKH1's proposal of 02:41 approved by F2DEV at 02:45 with changes 1 to 6; lands by fast-forward)
+
+**Goal:** a group's draft step reads its share of the drafter's output head, not the whole 675 MB on every member, and every member still picks the id one device's `argmax_rows` gives.
+
+**Done:**
+- The drafter's `output` role shards by vocabulary rows as the target head's does (`blocks::shard` in `qwen4exp` and `qwen35`), and `blocks::draft_head` is the one head step of both modules: one device's logits and `argmax_rows`, or on a group the member's rows and `Backend::argmax_part`.
+- `Model::draft_record` owns the exchange: in phase 2 each member writes (largest logit, -inf counted; its id as a float value; a NaN or +inf flag) at its slot of a row of zeros, `Collective::sum_in_place` sums 3W floats a row, and `Backend::argmax_pick` gives every member the same id: the invalid id where a flag is set or the largest is not finite, else the largest, ties to the lowest id, then the prior id's rule.
+  An id is a float value, exact below 2^24 (`kExactIds`), never an integer's bits, which a device flushing denormals would lose; x+0 keeps finite values, inf and NaN, and -0 to +0 is harmless under strict >.
+- `Model::draft_logits` reads a row from the members' slices into a host row at their offsets, so tests read the whole vocabulary at width 2 as before, and member 0 no longer writes R*V floats a step into host-visible memory.
+- `Model::ensure` makes the group's collective for ceil(rows*3W/sum_width) rows where 3W exceeds a tiny fixture's summed row; the fit counts a member's logits of its own rows (`footprint`).
+- The ROCm `llmx_argmax_part` flags a +inf largest as the CPU and Vulkan do.
+- Tests: `qwen35-ops` on the CPU and `backend-vulkan`/`backend-rocm` (`qwen35_checks.hpp`) split the argmax rows into 2 to 4 slices, ties across a slice end, a half of -inf, signed zeros, -inf with a NaN, and require argmax_rows' ids with and without prior ids; `server-spec`'s injected chain failure fires in `argmax_pick` too.
+- Focused runs on the rig (split builds of this tree): `qwen35-ops`, `qwen4exp-mtp` (CPU groups at widths 2 and 4), `server-spec`, `arch-qwen35`, `arch-qwen4exp`, `placement`, `backend-vulkan`, `backend-rocm`, and `qwen4exp-mtp` on Vulkan and ROCm groups of width 2 over 2 and 4 cards (1305 and 1307 checks), all rc 0.
+- Timing (Qwen3.8-Flash-Next UD-Q4_K_XL int8 with the Q8_0-v2 MTP head, draft-max 3, four MI50s at default clocks, `--cpus 8`, host load 17 to 30, a cardlock per cell; main and the branch built the same way, `llmx 0.1.0+unknown`):
+  | cell | main e899036de | branch |
+  |---|---|---|
+  | Vulkan 2x2 bench, chain of 3 drafts (ms, ABBA) | 5.020, 7.889 | 3.648, 4.830 |
+  | Vulkan 2x2 bench, verify of 3 (ms) | 29.13, 38.93 | 28.68, 36.84 |
+  | Vulkan 2x2 profile, chain of 3 device time a member (ms) | 4.86, 4.69 | 4.21, 4.02 |
+  | ROCm 2x2 bench, chain of 3 drafts (ms, ABBA) | 4.914, 5.276 | 3.158, 3.140 |
+  | ROCm 2x2 bench, verify of 3 (ms) | 28.59, 28.80 | 28.83, 28.87 |
+  | Vulkan 2x2 server, 1 user, 3 fresh servers alternated (tok/s) | 88.5/88.0/78.2, 58.7/58.5/57.2, 75.4/71.3/71.8 (mean 71.9) | 54.9/57.3/59.8, 77.8/74.9/77.7, 90.8/92.3/92.9 (mean 75.4, +4.8%) |
+  | ROCm 2x2 server, 1 user, 3 fresh servers alternated (tok/s) | 76.2/75.0/80.9, 69.7/70.2/71.7, 78.2/78.9/75.3 (mean 75.1) | 80.8/84.4/84.7, 84.3/86.1/85.8, 78.8/84.4/80.3 (mean 83.3, +10.9%) |
+  | Vulkan layer-4 server, 1 user (tok/s) | 70.7/71.5/70.0 | 72.2/71.4/71.1 |
+  | ROCm layer-4 server, 1 user (tok/s) | 66.8/66.3/65.7 | 66.9/68.1/69.6 |
+  The chain of 3 is 1.4 to 3.1 ms shorter on Vulkan and 1.8 to 2.1 ms on ROCm; ROCm one user gains 10.9%, while Vulkan's +4.8% is inside the fresh-server swing of 55 to 93 tok/s both arms show.
+  Tok/s are the runs after a warm one; every server drafted 779 to 1031 rows and kept 526 to 655.
+  The research branch research/rocm-mtp-draft-head-split-rejected summed a whole vocabulary row a step and lost; this one sums 3 floats a member a row.
+- Identity: every bench verify of both arms fed the ids 133396 187579 208057 106674; every greedy reply is main's text (Vulkan 2x2 sha 1fe3e3d2, ROCm 2x2 and both layer-4 cells 10eb8235).
+
+**Landing gates** (stacked head gate/land21 823379f6b on main 298a94a65, this branch first, then perf/vulkan-mxfp4-routed, perf/lookup-early-reads and feat/deepseek4-serving; F2DEV's approval of 21:22 and Fable review of 22:06; Release builds of detached worktrees, main `llmx 0.1.0+g298a94a65943`, head ROCm `llmx 0.1.0+g2d644643ef8b` and Vulkan `llmx 0.1.0+g41c6c26ecaef`, whose sources equal 823379f6b's; run by LAND20 to LAND22 on MI50s at default clocks):
+- CTest at 2d644643 passes 98 of 100 on the Vulkan build and 83 of 84 on the ROCm build; the failures, `spec` and `backend-vulkan`, were stale expectations (the drafter footprint now q8(V/2,E), the routed MXFP4 single-entry call now the narrow build), fixed in these branches' tests, and both pass at the head on an MI50 and on the Radeon VII.
+- The suite passes with `--device vulkan:0` at the head; on the CPU and rocm:0 at 2d644643 it failed only the server component's stale key set, which lacked `lookups_kept`, `lookups_restarted` and `lookups_late`, and `--only server` passes at the head on the CPU and rocm:0; docs and dead-code pass.
+- Radeon VII (Windows): CTest 99 of 101 at 2d644643, its two failures the stale `spec` and `backend-vulkan`, which pass at the head; the suite's server component passes on the CPU and vulkan:0.
+- Identity against main: Qwen3-0.6B Q8_0, MXFP4 and IQ4_NL, the deepseek4 fork fixture and the raw-block fixtures, 7 files on the CPU and 31 on vulkan:0 and on rocm:0, none differ; Qwen3.8-Flash-Next UD-Q4_K_XL int8, 1400 prompt rows and 64 greedy ids equal on 2x2 and layer-4, ROCm and Vulkan; DeepSeek-V4.1-Flash MXFP4 over ten MI50s, 1400 prompt rows equal on ROCm and Vulkan.
+- Timing, Qwen3.8-Flash-Next int8 over four MI50s, the MTP one-user server (draft-max 3, a fresh server a cell, three greedy 256-token replies after a warm one, ABBA), in a quiet window (hostwait 66 to 239 ms over 12 to 17 s a cell, nr_throttled 0):
+
+| cell | main tok/s | head tok/s |
+|---|---|---|
+| ROCm 2x2 | 84.8 | 89.4 (+5.4%) |
+| Vulkan 2x2 | 88.3 | 91.5 (+3.6%) |
+| ROCm layer-4 | 72.2 | 71.4 (-1.1%) |
+| Vulkan layer-4 | 69.1 | 70.5 (+2.0%) |
+
+  Layer-4 has no tensor group, so its cells are the control, three replies an arm; every reply is main's text (Vulkan 2x2 sha 1fe3e3d2, the others 10eb8235).
+  An earlier round on a host at load 35 to 39 (hostwait 0.2 to 14.5 s) gave ROCm 2x2 81.9 and 87.3 and is kept with the quiet one.
+- Bench pp2048/tg128, ABBA, main against head: ROCm 2x2 1561.9 and 1561.7 tok/s, tg 64.4 and 64.0; ROCm layer-4 1746.1 and 1749.9, tg 53.4 and 53.4; Vulkan 2x2 1639.5 and 1640.4, tg 52.8 and 52.3; Vulkan layer-4 1734.5 and 1733.1, tg 54.0 and 54.0.
+- DeepSeek-V4.1-Flash MXFP4, layer split over ten MI50s, bench pp2048/tg32 ABBA: ROCm pp 507.2 and 505.4, tg 20.72 and 20.74; Vulkan pp 173.1 and 492.6 over six runs an arm (2.85x, perf/vulkan-mxfp4-routed), tg 16.16 and 16.09 (spread 15.77 to 16.41); these cells were flagged contended (hostwait 0.8 to 23 s).
+- Hosted run 42685663170 passes, 8 of 8 jobs, on 823379f6b; the landing commits differ from it only in these records, and the docs and dead-code components pass on them.
+
+**Left:** the drafter's head slice is a buffer beside the main head's identical slice, about 337 MB a member at width 2; sharing it is a follow-up to measure.
+
+**Gotchas:** the candidates ride in the group's partial rows, so a fixture whose summed row is narrower than 3W floats needs the larger collective `Model::ensure` makes; ROCm has no `--profile`, so its chain is read from the bench wall times only.
+
 ## Draft price outliers (2026-11-08, MTP3, MTP4 then MTP5, branch perf/mtp-draft-price on main ed9780218; MTP2's finding of 19:24 and 19:35, F2DEV's reviews of MTP2 items 1a to 1c and of this branch at 22:26; lands by fast-forward)
 
 **Goal:** every fresh MTP server drafts at the depth its measured passes give, as one drafting at the cap does (75-83 tok/s on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2, one user), stable across fresh servers, within the one price owner.

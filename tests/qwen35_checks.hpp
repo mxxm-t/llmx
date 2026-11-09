@@ -456,9 +456,18 @@ size_t check_drafter_ops(Pair& p, size_t slice, std::vector<uint8_t> (*matrix)(u
         flat[8 * n] = 9.25f;                             // and in the first
         flat[9 * n] = flat[9 * n + n - 1] = 9.75f;       // a tie between the first id and the last
         flat[10 * n + n - 1] = inf;                      // an infinity in the last slice
+        flat[11 * n + n / 2 - 1] = flat[11 * n + n / 2] = 9.75f;   // a tie across the middle, where a group of two splits the row
+        for (size_t i = 0; i < n / 2; ++i) flat[12 * n + i] = -inf;   // a first half of -inf
+        for (size_t i = 0; i < n; ++i) flat[13 * n + i] = i % 2 ? 0.0f : -0.0f;   // zeros of both signs
+        for (size_t i = 0; i < n; ++i) flat[14 * n + i] = -1.0f;
+        flat[14 * n + 1] = -0.0f;                        // -0 first, +0 last as the largest
+        flat[14 * n + n - 1] = 0.0f;
+        for (size_t i = 0; i < n; ++i) flat[15 * n + i] = -inf;
+        flat[15 * n + n - 1] = nan;                      // -inf and a NaN in the last slice
         std::vector<uint32_t> prior(rows, 0);
         prior[6] = (uint32_t)n;
         const backend::BufferPtr lc = floats_on(p.cpu, flat), lv = floats_on(p.dev, flat), pc = ids_on(p.cpu, prior), pv = ids_on(p.dev, prior);
+        std::vector<uint32_t> whole[2];
         for (bool with_prior : {true, false}) {
             const backend::BufferPtr oc = p.cpu.alloc(rows * sizeof(float), backend::Memory::device), ov = p.dev.alloc(rows * sizeof(float), backend::Memory::device);
             p.cpu.argmax_rows({oc.get(), 0}, {lc.get(), 0}, rows, n, with_prior ? backend::CSlice{pc.get(), 0} : backend::CSlice{});
@@ -468,7 +477,34 @@ size_t check_drafter_ops(Pair& p, size_t slice, std::vector<uint8_t> (*matrix)(u
             require(c == v, ("argmax_rows differs from the CPU over " + std::to_string(n) + " ids").c_str());
             require(c[1] == 3 && c[2] == n && c[3] == n && c[4] == n && c[5] == n && c[6] == (with_prior ? n : 7), "argmax_rows over ties, infinities and NaN");
             require(c[7] == n - 1 && c[8] == 0 && c[9] == 0 && c[10] == n, "argmax_rows over the first and the last slice of a row");
+            require(c[11] == n / 2 - 1 && c[13] == 0 && c[14] == 1 && c[15] == n, "argmax_rows over a tie in the middle, signed zeros and -inf");
+            whole[with_prior] = c;
             values += rows;
+        }
+        // The row split into a tensor group's 2 to 4 vocabulary slices: argmax_part on each, the candidates summed as Collective::sum_in_place sums them, and argmax_pick give argmax_rows' ids on both sides.
+        for (size_t W : {size_t(2), size_t(3), size_t(4)}) {
+            for (backend::Backend* b : std::initializer_list<backend::Backend*>{&p.cpu, &p.dev}) {
+                std::vector<float> total(rows * 3 * W);
+                for (size_t k = 0; k < W; ++k) {
+                    const size_t a = n * k / W, e = n * (k + 1) / W;
+                    std::vector<float> part(rows * (e - a));
+                    for (size_t r = 0; r < rows; ++r) std::copy(flat.begin() + r * n + a, flat.begin() + r * n + e, part.begin() + r * (e - a));
+                    const backend::BufferPtr lp = floats_on(*b, part), cands = b->alloc(total.size() * sizeof(float), backend::Memory::device);
+                    b->argmax_part({cands.get(), 0}, {lp.get(), 0}, rows, e - a, a, k, W);
+                    b->sync();
+                    const std::vector<float> got = read_floats(*b, *cands, total.size());
+                    for (size_t i = 0; i < total.size(); ++i) total[i] = k ? total[i] + got[i] : got[i];
+                }
+                const backend::BufferPtr summed = floats_on(*b, total), pb = ids_on(*b, prior);
+                for (bool with_prior : {true, false}) {
+                    const backend::BufferPtr out = b->alloc(rows * sizeof(float), backend::Memory::device);
+                    b->argmax_pick({out.get(), 0}, {summed.get(), 0}, rows, W, n, with_prior ? backend::CSlice{pb.get(), 0} : backend::CSlice{});
+                    b->sync();
+                    require(ids_of(*b, *out, rows) == whole[with_prior],
+                            ("argmax_part and argmax_pick over " + std::to_string(W) + " slices differ from argmax_rows over " + std::to_string(n) + " ids").c_str());
+                    values += rows;
+                }
+            }
         }
     }
     const size_t width = 64, vocab = 9;

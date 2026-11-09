@@ -1110,10 +1110,19 @@ public:
     }
     // The rows a pass after a mark may take (ModelOptions::mark_rows), the most one verify of drafts feeds.
     size_t mark_rows() const { return options_.mark_rows; }
-    // The logits of draft row i of the last draft's sequence `r`, in the order it was asked for, valid until the next.
+    // The logits of draft row i of the last draft's sequence `r`, in the order it was asked for, read from the members' vocabulary rows, valid until the next draft or another row is read.
     const float* draft_logits(size_t i, size_t r = 0) const {
         if (draft_logits_.empty() || r >= draft_order_.size() || i >= draft_k_[r]) throw std::out_of_range("inference: no such draft row");
-        return (const float*)draft_logits_[0]->host_ptr() + (i * draft_width_ + draft_order_[r]) * plan_.vocab;
+        const size_t row = i * draft_width_ + draft_order_[r];
+        if (draft_read_ == row) return draft_row_.data();
+        draft_row_.resize(plan_.vocab);
+        for (size_t m = 0, at = 0; m < width_; ++m) {
+            const size_t n = draft_head_rows(m);
+            devices_[(size_t)place_.output_device + m]->b->read(*draft_logits_[m], row * n * sizeof(float), draft_row_.data() + at, n * sizeof(float));
+            at += n;
+        }
+        draft_read_ = row;
+        return draft_row_.data();
     }
     // Checkpoint slots in all, and those a keep can still take.
     size_t checkpoint_slots() const { return state_layers_ ? options_.checkpoint_slots : 0; }
@@ -1429,9 +1438,11 @@ private:
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
     std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
     size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
-    // The last draft's ids, the last picks first, host visible, and its rows' logits per member of the head's group: the first member's for every row of every step, each other member's one step's rows, which only its argmax reads.
+    // The last draft's ids per member of the head's group, the last picks first, host visible, and each member's logits of its own vocabulary rows for every row of every step, on its device.
     std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
-    size_t draft_id_rows_ = 0, draft_rows_ = 0, draft_seqs_ = 0;   // the ids, the logits rows and a step's rows they hold
+    size_t draft_id_rows_ = 0, draft_rows_ = 0;   // the ids and the logits rows they hold
+    mutable std::vector<float> draft_row_;        // the draft row draft_logits read last, draft_read_, none after a draft
+    mutable size_t draft_read_ = SIZE_MAX;
     std::vector<size_t> draft_order_, draft_k_;     // the last draft's sequences' places in its steps' rows and their chains' lengths, in the order they were asked for
     size_t draft_width_ = 0;                        // the last draft's sequences with a chain, the rows of its first step
     void draft_buffers(size_t seqs, size_t steps);
@@ -1444,6 +1455,12 @@ private:
     const Weight* pass_row(size_t m) const { return m ? member_pass_[m - 1].data() : pass_.data(); }
     const Weight* home_row(size_t m, size_t l) const { return m ? member_home_[m - 1][l].data() : home_[l].data(); }
     const Weight* drafter_row(size_t m) const { return m ? member_drafter_[m - 1].data() : drafter_.data(); }
+    // The vocabulary rows member m computes of the drafter's head, the drafter's matrix of the vocabulary's rows (blocks::draft_head).
+    size_t draft_head_rows(size_t m) const {
+        for (const Role& role : plan_.drafter->roles)
+            if (role.kind == RoleKind::matrix && role.out == plan_.vocab) return drafter_row(m)[role.id].nout;
+        throw std::logic_error("inference: a drafter without a head");
+    }
     // The vocabulary rows member m of the head's group computes, its share of the head's matrix.
     size_t head_rows(size_t m) const {
         for (const Role& role : plan_.pass)

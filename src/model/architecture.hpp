@@ -307,6 +307,7 @@ struct DraftStep : Step {
     backend::CSlice id, prev;
     const uint32_t* prev_rows = nullptr;
     backend::Slice next, out, logits;
+    size_t member = 0, first = 0;   // on a tensor group, the member and the first id of its vocabulary rows (blocks::draft_head)
 };
 
 // An architecture: its configuration, read from a file, the plan of that file's tensors, the values of its position tables, and the math of each part as backend ops.

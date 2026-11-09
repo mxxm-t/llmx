@@ -284,6 +284,55 @@ public:
             std::memcpy(ids + r, &best, sizeof(best));
         }
     }
+    void argmax_part(Slice cands_s, CSlice logits_s, size_t rows, size_t n, size_t first, size_t slot, size_t slots) override {
+        if (!rows) return;
+        if (!n || slot >= slots || first + n > kExactIds) throw std::runtime_error("backend: argmax_part over no ids, ids a float does not hold, or a slot past its row");
+        span(*logits_s.buffer, logits_s.offset * sizeof(float), size_mul(size_mul(rows, n), sizeof(float)));
+        span(*cands_s.buffer, cands_s.offset * sizeof(float), size_mul(size_mul(rows, slots), 3 * sizeof(float)));
+        const float* logits = at(logits_s);
+        float* cands = at(cands_s);
+        for (size_t r = 0; r < rows; ++r) {
+            const float* row = logits + r * n;
+            size_t best = 0;
+            bool bad = std::isnan(row[0]);
+            for (size_t i = 1; i < n; ++i) {
+                bad = bad || std::isnan(row[i]);
+                if (row[i] > row[best]) best = i;
+            }
+            float* out = cands + r * slots * 3;
+            std::fill(out, out + slots * 3, 0.0f);
+            out[slot * 3] = row[best];
+            out[slot * 3 + 1] = float(first + best);
+            out[slot * 3 + 2] = bad || row[best] == INFINITY ? 1.0f : 0.0f;
+        }
+    }
+    void argmax_pick(Slice ids_s, CSlice cands_s, size_t rows, size_t slots, size_t n, CSlice after = {}) override {
+        if (!rows) return;
+        if (!slots || n > kExactIds) throw std::runtime_error("backend: argmax_pick over no candidates or ids a float does not hold");
+        span(*cands_s.buffer, cands_s.offset * sizeof(float), size_mul(size_mul(rows, slots), 3 * sizeof(float)));
+        span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        if (after.buffer) span(*after.buffer, after.offset * sizeof(float), size_mul(rows, sizeof(float)));
+        const float* cands = at(cands_s);
+        const float* prior = after.buffer ? at(after) : nullptr;
+        float* ids = at(ids_s);
+        for (size_t r = 0; r < rows; ++r) {
+            const float* row = cands + r * slots * 3;
+            size_t best = 0;
+            bool bad = false;
+            for (size_t s = 0; s < slots; ++s) {
+                bad = bad || row[s * 3 + 2] != 0.0f;
+                if (row[s * 3] > row[best * 3]) best = s;
+            }
+            uint32_t id = (uint32_t)row[best * 3 + 1];
+            if (bad || !std::isfinite(row[best * 3])) id = (uint32_t)n;
+            if (prior) {
+                uint32_t before;
+                std::memcpy(&before, prior + r, sizeof(before));
+                if (before >= n) id = (uint32_t)n;
+            }
+            std::memcpy(ids + r, &id, sizeof(id));
+        }
+    }
 
     // Host memory is host visible whatever was asked for.
     BufferPtr alloc(size_t bytes, Memory) override { return std::make_shared<CpuBuffer>(bytes); }

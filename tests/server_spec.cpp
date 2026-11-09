@@ -798,14 +798,21 @@ void steady_gap() {
                 total(late.drafted) - total(early.drafted), proposer.begun, gaps[gaps.size() / 2], gaps[gaps.size() * 99 / 100], 240.0 / span);
 }
 
-// A wide CPU backend whose drafter argmax throws once `armed` is set, the first such call taking it, so a chain on the head stage's thread fails.
+// A wide CPU backend whose drafter argmax, one device's or a group's pick, throws once `armed` is set, the first such call taking it, so a chain on the head stage's thread fails.
 struct ChainThrows : Wide {
     std::shared_ptr<std::atomic<bool>> armed;
     explicit ChainThrows(std::shared_ptr<std::atomic<bool>> a) : armed(std::move(a)) {}
-    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
+    void fire() {
         bool expected = true;
         if (armed->compare_exchange_strong(expected, false)) throw std::runtime_error("injected chain failure");
+    }
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
+        fire();
         backend::CpuBackend::argmax_rows(ids, logits, rows, n, after);
+    }
+    void argmax_pick(backend::Slice ids, backend::CSlice cands, size_t rows, size_t slots, size_t n, backend::CSlice after = {}) override {
+        fire();
+        backend::CpuBackend::argmax_pick(ids, cands, rows, slots, n, after);
     }
 };
 

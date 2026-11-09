@@ -670,6 +670,7 @@ public:
         expert_roles(d, tensors, pre);
         for (infer::Role& r : d.roles) { r.part = Part::draft; r.stream = Stream::none; }
         for (OpUse& op : d.ops) op.part = Part::draft;
+        blocks::shard(d.roles, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
         d.ops.push_back({Part::draft, backend::Op::argmax_rows});
         d.ops.push_back({Part::draft, backend::Op::embed_ids});
         p.draft_h = p.slots.size();
@@ -714,8 +715,7 @@ public:
         if (s.phase < 0 || s.phase == 2) {
             s.b.copy(*s.out.buffer, s.out.offset * sizeof(float), *layer.x.buffer, layer.x.offset * sizeof(float), s.rows * R * sizeof(float));
             mix(cfg_, layer, {s.w[output_hc_norm], s.w[output_hc_down], s.w[output_hc_up]}, s.slot(mixed), mix_scratch(s));
-            s.b.matmul_logits(s.w[output].operand(), s.slot(mixed), s.logits, size_t(cfg_.n_embd), vocab_, s.rows, s.runs, s.dtype);
-            s.b.argmax_rows(s.next, s.logits, s.rows, vocab_, s.id);
+            blocks::draft_head(s, s.w[output], s.slot(mixed), size_t(cfg_.n_embd));
         }
     }
 

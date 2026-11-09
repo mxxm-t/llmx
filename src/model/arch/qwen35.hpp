@@ -281,6 +281,7 @@ public:
         ffn_roles(d, tensors, pre, Part::draft);
         for (infer::Role& r : d.roles) r.stream = Stream::none;
         d.routed = false;
+        blocks::shard(d.roles, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
         d.ops.push_back({Part::draft, backend::Op::argmax_rows});
         d.ops.push_back({Part::draft, backend::Op::embed_ids});
         p.role_ids = nextn_shared_head_norm + 1;
@@ -319,7 +320,7 @@ public:
     void draft(const DraftStep& s) const override {
         backend::Backend& b = s.b;
         const Weight* w = s.w;
-        const size_t E = (size_t)cfg_.n_embd, V = w[output].nout, n = s.rows;
+        const size_t E = (size_t)cfg_.n_embd, n = s.rows;
         const size_t base = draft_slot();
         const backend::Slice pair = s.slot(base + 1), x = s.slot(base + 3);
         Step layer = s;
@@ -336,8 +337,7 @@ public:
         if (s.phase < 0 || s.phase == 1) ffn(layer);
         if (s.phase < 0 || s.phase == 2) {
             b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), n, E, E, cfg_.rms_eps);
-            b.matmul_logits(w[output].operand(), s.out, s.logits, E, V, n, s.runs, s.dtype);
-            b.argmax_rows(s.next, s.logits, n, V, s.id);
+            blocks::draft_head(s, w[output], s.out, E);
         }
     }
 

@@ -575,7 +575,7 @@ void lookup_first(const std::string& name, const gguf::GGUFModel& plain, size_t 
     require(got.own > 0, name + ": no draft of the reply's own continuation met the end token");
 }
 
-// A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model a group of two splits whole: the block's shards, its projection and norms whole, the head and embedding whole.
+// A member's footprint with the embedded drafter (infer::footprint with a width) against counts made here, on the hybrid model a group of two splits whole: the block's and head's shards, the projection, norms and embedding whole.
 void drafter_footprint(const gguf::GGUFModel& mtp) {
     const infer::ModelWeights w = infer::gguf_weights(mtp);
     const infer::ModelPlan plan = infer::plan_model(w, true);
@@ -592,8 +592,8 @@ void drafter_footprint(const gguf::GGUFModel& mtp) {
     // Five norms of E and two of a head, eh_proj E rows of 2 E.
     const size_t whole = (5 * E + 2 * D) * sizeof(float) + q8(E, 2 * E);
     require(bytes(one.drafter) == whole + q8(2 * H * D, E) + 2 * q8(HKV * D, E) + q8(E, H * D) + 2 * q8(F, E) + q8(E, F), "the drafter's weights on one device");
-    require(bytes(half.drafter) == whole + q8(H * D, E) + 2 * q8(HKV * D / 2, E) + q8(E, H * D / 2) + 2 * q8(F / 2, E) + q8(E, F / 2) + q8(V, E),
-            "a member's shards of the drafter's block, with the head whole");
+    require(bytes(half.drafter) == whole + q8(H * D, E) + 2 * q8(HKV * D / 2, E) + q8(E, H * D / 2) + 2 * q8(F / 2, E) + q8(E, F / 2) + q8(V / 2, E),
+            "a member's shards of the drafter's block and head");
     require(half.drafter_embedding.bytes == q8(V, E) && one.drafter_embedding.bytes == q8(V, E), "the drafter's embedding table is not whole on a member");
     require(one.drafter_cache - half.drafter_cache == infer::kv_tokens(plan, o) * infer::kv_bytes_per_position(plan, o) / 2, "a member's drafter KV is not its KV heads'");
 }

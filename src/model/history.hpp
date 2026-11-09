@@ -1355,23 +1355,21 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
     draft_end(*c);
 }
 
-// The drafter's room for chains of `seqs` sequences of `steps` steps: the ids of every step, the first member's logits of every step and the others' of one.
+// The drafter's room for chains of `seqs` sequences of `steps` steps: the ids of every step, and each member's logits of its vocabulary rows of every step, on the device until draft_logits reads them.
 inline void Model::draft_buffers(size_t seqs, size_t steps) {
-    const size_t o = (size_t)place_.output_device, W = width_, V = plan_.vocab;
-    if (draft_id_rows_ >= seqs * (steps + 1) && draft_rows_ >= seqs * steps && draft_seqs_ >= seqs) return;
-    const size_t id_rows = std::max(draft_id_rows_, seqs * (steps + 1)), rows = std::max(draft_rows_, seqs * steps), most = std::max(draft_seqs_, seqs);
+    const size_t o = (size_t)place_.output_device, W = width_;
+    if (draft_id_rows_ >= seqs * (steps + 1) && draft_rows_ >= seqs * steps) return;
+    const size_t id_rows = std::max(draft_id_rows_, seqs * (steps + 1)), rows = std::max(draft_rows_, seqs * steps);
     std::vector<backend::BufferPtr> ids(W), logits(W);
     for (size_t m = 0; m < W; ++m) {
         backend::Backend& b = *devices_[o + m]->b;
         ids[m] = b.alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
-        logits[m] = m ? b.alloc(backend::size_mul(most, backend::size_mul(V, sizeof(float))))
-                      : b.alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
+        logits[m] = b.alloc(backend::size_mul(rows, backend::size_mul(draft_head_rows(m), sizeof(float))));
     }
     draft_ids_ = std::move(ids);
     draft_logits_ = std::move(logits);
     draft_id_rows_ = id_rows;
     draft_rows_ = rows;
-    draft_seqs_ = most;
 }
 
 // The fit counts both (Footprint::context_rows, Footprint::drafter_cache).
@@ -1477,7 +1475,7 @@ inline void Model::draft_record(Chain& c) {
                                    m ? nullptr : c.carried.data(),
                                    {draft_ids_[g].get(), (m + 1) * R},
                                    hn,
-                                   {draft_logits_[g].get(), g ? 0 : m * R * V}};
+                                   {draft_logits_[g].get(), m * R * draft_head_rows(g)}};
                     step.views = &c.views[(m * W + g) * R];
                     step.n_views = rows;
                     step.kv_layer = drafter_kv_;
@@ -1487,10 +1485,18 @@ inline void Model::draft_record(Chain& c) {
                         step.width = W;
                         step.partial = ctx_.collectives[o]->partial(g);
                         step.zero = ctx_.zeros[o + g].get();
+                        step.member = g;
+                        for (size_t k = 0; k < g; ++k) step.first += draft_head_rows(k);
                     }
                     arch_->draft(step);
                 }
                 if (phase == 0 || phase == 1) group_sum(ctx_, o, x, rows, {&run, 1}, plan_.drafter->kind, [&](size_t g) { return drafter_row(g); });
+                // Each member's candidate from its vocabulary rows, summed into every member's slots, gives every member the id one device's argmax gives.
+                if (phase == 2) {
+                    ctx_.collectives[o]->sum_in_place(rows, 3 * W);
+                    for (size_t g = 0; g < W; ++g)
+                        devices_[o + g]->b->argmax_pick({draft_ids_[g].get(), (m + 1) * R}, ctx_.collectives[o]->partial(g), rows, W, V, {draft_ids_[g].get(), m * R});
+                }
             }
         }
         c.sent.assign(W, 0);
@@ -1518,6 +1524,7 @@ inline void Model::draft_end(Chain& c) {
     draft_order_.assign(c.asks.size(), R);
     draft_k_.assign(c.asks.size(), 0);
     draft_width_ = R;
+    draft_read_ = SIZE_MAX;
     if (!c.recorded) return;
     for (size_t p = 0; p < R; ++p) {
         draft_order_[c.order[p]] = p;

@@ -203,6 +203,17 @@ placement contracts in `docs/EXECUTION.md`.
   `n` where the largest is not finite or a logit is NaN, and `n` where the
   row's id in `after`, when given, is `n` or more, so a draft chain ends at
   its first invalid draft. Both throw by default, naming the op.
+- `argmax_part(cands, logits, rows, n, first, slot, slots)` and
+  `argmax_pick(ids, cands, rows, slots, n, after)`: `argmax_rows` over a
+  vocabulary split into `slots` slices on a tensor group's members, around a
+  sum of the candidates. `argmax_part` writes each row's candidate from one
+  slice whose first id is `first` at slot `slot` of a row of zeros: the
+  largest logit, -inf counted, `first` plus the lowest id holding it as a
+  float value, and 1 where a logit is NaN or the largest is +inf.
+  `argmax_pick` gives `n` where a flag is set or the largest is not finite,
+  else the largest's id, ties to the lowest, then `after`'s rule, so the id
+  is `argmax_rows`' over the whole row. Ids travel as float values, exact
+  below `kExactIds` (2^24). Both throw by default, naming `argmax_rows`.
 - `rms_norm(dst, src, w, n, eps)`: RMS norm of one row, not virtual:
   `rms_norm_rows` over that one row.
 - `rms_norm_rows(dst, src, w, rows, n, stride, eps, runs)`: RMS norm of `rows` rows

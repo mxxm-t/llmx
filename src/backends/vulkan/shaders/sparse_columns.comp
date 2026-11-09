@@ -1,0 +1,48 @@
+#version 450
+#extension GL_EXT_control_flow_attributes : require
+// Sparse attention with a sink, its second kernel: one workgroup 8 columns of a chunk row for every head, the kept rows' values of those columns decoded once into shared memory.
+// A lane a head and two columns; each output is p times value over the kept rows in their order, divided by its head's denominator, as the CPU sums it (docs/src/backends-vulkan.md).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint heads; uint dim; uint named; uint kv_format; uint entry_format; uint first_row; uint den_at; uint kept_at; uint counts_at; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
+layout(set = 0, binding = 1) readonly buffer S { float scf[]; };
+layout(set = 0, binding = 1) readonly buffer SU { uint scu[]; };
+layout(set = 0, binding = 2) readonly buffer K { float kv[]; };
+layout(set = 0, binding = 3) readonly buffer A { float aux[]; };
+layout(set = 0, binding = 2) readonly buffer KU { uint kv_words[]; };
+layout(set = 0, binding = 3) readonly buffer AU { uint aux_words[]; };
+#include "sparse_rows.glsl"
+#define COLUMNS 8u
+shared float vals[1024u * COLUMNS];
+void main() {
+    uint r = gl_WorkGroupID.y, d0 = gl_WorkGroupID.x * COLUMNS, lid = gl_LocalInvocationID.x;
+    uint total = scu[p.counts_at + 2u * r], kk = scu[p.counts_at + 2u * r + 1u], kb = p.kept_at + r * p.named;
+    for (uint i = lid; i < total * COLUMNS; i += 256u) {
+        uint c = i / COLUMNS, d = d0 + (i - c * COLUMNS);
+        vals[i] = d < p.dim ? row_value(scu[kb + c], d, c >= kk, c >= kk ? p.entry_format : p.kv_format) : 0.0;
+    }
+    barrier();
+    uint lane = lid % 64u, col = lid / 64u * 2u;
+    uint pb = r * p.named * p.heads;
+    for (uint h = lane; h < p.heads; h += 64u) {
+        precise float o0 = 0.0, o1 = 0.0;
+        uint c = 0u;
+        for (; c + 16u <= total; c += 16u) {
+            float pv[16];
+            [[unroll]] for (uint u = 0u; u < 16u; ++u) pv[u] = scf[pb + (c + u) * p.heads + h];
+            [[unroll]] for (uint u = 0u; u < 16u; ++u) {
+                o0 = fma(pv[u], vals[(c + u) * COLUMNS + col], o0);
+                o1 = fma(pv[u], vals[(c + u) * COLUMNS + col + 1u], o1);
+            }
+        }
+        for (; c < total; ++c) {
+            float pc = scf[pb + c * p.heads + h];
+            o0 = fma(pc, vals[c * COLUMNS + col], o0);
+            o1 = fma(pc, vals[c * COLUMNS + col + 1u], o1);
+        }
+        float dn = scf[p.den_at + r * p.heads + h];
+        uint o = ((p.first_row + r) * p.heads + h) * p.dim + d0 + col;
+        if (d0 + col < p.dim) outv[o] = o0 / dn;
+        if (d0 + col + 1u < p.dim) outv[o + 1u] = o1 / dn;
+    }
+}

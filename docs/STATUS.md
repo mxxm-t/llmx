@@ -1,5 +1,63 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 decode speed: serial kernels spread, MXFP4 expert rows and sparse attention as two kernels (2026-11-08 to 2026-11-09, DSDEV52 to DSDEV56, branch perf/deepseek4-decode on main ed9780218; DSDEV52's plan of 2026-11-08 19:42; lands by fast-forward)
+
+**Goal:** DeepSeek-V4.1-Flash's decode on ten MI50s in a layer split, ROCm and Vulkan, with every kernel the bits it had on main: the per-token kernels that ran on one lane or one thread spread over their workgroups, the expert MXFP4 rows faster, and sparse attention split so each kept row is decoded once for all heads.
+
+**Done:**
+- Serial kernels, ROCm and Vulkan in their backend owners (`kernels/f32.hip`, `shaders/hc_coeffs.comp`, `shaders/hc_collapse_norm.comp`, `shaders/indexer_scores.comp`): `indexer_scores` a lane a (position, head) dot with the head sum's chain on one lane over shared memory; `hc_coeffs` its Sinkhorn rounds on hc * hc lanes, each entry's row and column sums in the CPU's order, its loads batched; `hc_collapse_norm` the CPU's chains with batched loads, on ROCm 1024 lanes with the row staged in shared memory.
+- MXFP4 expert rows: ROCm reads each block's scale and nibble words raw from the aligned words around it and widens the nibbles by byte selects of the E2M1 table held in registers (`KRaw<MXFP4>`), and MXFP4, a type with no min, skips the twin sum and widens its bytes to 16 bits by byte selects, while IQ4_NL keeps main's form, its term `ds * isum` the value of the old `fmaf(ds, isum, -(0 * xsum))`; Vulkan's one-column MXFP4 chunk takes two rows a cluster where the transposed reduction holds the cluster (`column_builds`).
+- `sparse_attention_sink` as two kernels on both backends over a scratch the backend grows, a chunk of rows of at most 32 MiB at a time: a softmax kernel a (row, head) keeps the named rows that name something in name order, forms each kept row's score on its own lane from the row's aligned words and a shared table of the E4M3 and E2M1 values, and writes p by kept row and head, the denominator with exp(sink - max) and the kept rows; a columns kernel decodes eight columns of the kept rows once into shared memory for every head, a lane a head and two columns (docs/src/backends-rocm.md, docs/src/backends-vulkan.md).
+  Every score and output is the CPU's multiply-add chain over the same rows in the same order, so the result is the one-kernel form's bit for bit.
+- Microbenchmarks on one MI50 at DeepSeek-V4.1-Flash's shapes (64 heads of 512, a 128-row FP8 window and 512 FP4 entries), output hashes equal to the one-kernel form at every position and at 64 rows:
+
+  | kernel, us a call | position 96 | position 16384 | 64 rows at 2048 |
+  |---|---|---|---|
+  | ROCm one kernel / two kernels | 475 / 58 | 1440 / 116 | |
+  | Vulkan one kernel / two kernels | 668 / 96 | 1586 / 259 | 60262 / 4927 |
+
+- Ten MI50s, DeepSeek-V4.1-Flash-1017 MXFP4, layer split, `--lookup-storage file`, default clocks, `--cpus 8`, nr_throttled 0 to 2 (tok/s):
+
+  | backend | main tg32 | branch tg32 | branch pp2048 | branch pp16384 |
+  |---|---|---|---|---|
+  | ROCm | 9.81, 9.79 | 21.20, 21.17 | 512 | 575 |
+  | Vulkan | 6.39, 6.39 | 16.40, 16.91 | 172.8 | 304.3 |
+
+  main's figures are its landing record's (`--r 3`); the branch's are `--p 64 --n 32 --r 2` at `--ubatch 64` and `--ubatch 512` for the prompts.
+  Vulkan with the two sparse kernels against the branch's one-kernel shader, the same slot, head then branch then branch then head: tg32 14.48, 14.61 to 16.40, 16.91, pp2048 91.9 to 172.8, pp16384 122.9 to 304.3.
+  No matched mx fork figure: its loader reads the whole 411 GB MXFP4 set, lookup tables included, at about 250 MB/s on one thread, and an attempt with `--repack 0` had put nothing on the cards after 13 minutes; with repacking at `-ub 512` it failed to place a 35.5 GB repacked buffer on device 0.
+
+- Forced-path checks (`tests/deepseek4_checks.hpp`, run by `backend-rocm` and `backend-vulkan`): `hc_coeffs` at hc 16, `indexer_scores` at 64 and 300 heads, and `check_sparse_shapes`, `sparse_attention_sink` at 160-wide heads in every stored format (four-block runs and a tail), 65 heads, 600 named rows and 140 rows of 1024 named rows over 64 heads, past one scratch chunk on both backends.
+  ROCm's `sparse_attention_sink` stays held to 1e-5 against the CPU, not its bits: its exponentials are `expf`'s, and the bit check failed by one ulp (0.0846442953 against 0.0846443027) on the first pooled case.
+- Identity: greedy ids of the 64-token chat prompt on the real file equal main's on ROCm (md5 83aacc46) and Vulkan; the tiny deepseek4 fork fixture's greedy ids and `logits` rows equal main's on `rocm:0` and `vulkan:0`, f32 and default caches; `backend-rocm` and `llmx-backend-vulkan-test --deepseek4` pass.
+- Identity after the review fixes, branch against main built the same way: DeepSeek-V4.1-Flash-1017 MXFP4 on ten MI50s, 1489 prompt tokens at `--ubatch 512` (three passes, each over two or more sparse scratch chunks), `logits --last 1400 --top 8` the same bytes on ROCm and Vulkan.
+  On one MI50, ROCm and Vulkan: the suite's MXFP4 and IQ4_NL raw-block fixtures (dense tied, untied and qwen3moe MoE, contexts 16 and 128, prompts at `--ubatch 64` and greedy ids), Qwen3-0.6B MXFP4 and Qwen3-0.6B IQ4_NL (632-token prompt rows at `--ubatch 512` and 48 greedy ids) are main's bytes.
+  Qwen3.8-Flash-Next UD-Q4_K_XL holds IQ4_NL only in `per_layer_token_embd`, a lookup no matmul reads, so it reaches neither the ROCm widening nor the MXFP4 builds.
+- Landing gates (LAND12 and LAND16, rebased on main e899036de, both arms built the same way from exported trees, `llmx 0.1.0+unknown`; the change lands by fast-forward):
+  On 1227b7871: CTest ROCm 84/84 and Vulkan 100/100; the suite on the CPU 47/47, on `vulkan:0` 47/47 and on `rocm:0` PASS (reference-generator and raw-blocks rerun with numpy in the container); Radeon VII on Windows CTest 101/101 and suite 48/48; byte identity against main of 31 files each on the CPU, `vulkan:0` and `rocm:0` and of the ten-card logits; hosted run 42549312996 green on all 8 jobs.
+  Timing there (Qwen3-0.6B, one MI50, `bench --p 512 --n 128`, `--cpus 8`, nr_throttled 0, tg128 tok/s): ROCm MXFP4 219.7 to 293.4, Vulkan MXFP4 328.7 to 333.8, Vulkan IQ4_NL 272.4 to 271.3, and ROCm IQ4_NL 243.2 to 236.5 (-2.8%, six ABBA pairs, the head lower in five), which F2DEV's ruling of 08:19 traced to the twin-sum skip and the byte-select widening that IQ4_NL shared with MXFP4 and gained nothing from.
+  The landing head restores main's ROCm IQ4_NL form (no `KNoMin`, the shift widening; `widen` takes the type and keeps byte selects for MXFP4 alone), a delta to `kernels/int16.hip` only, so the Vulkan, CPU and Radeon VII results carry forward and the ROCm checks it reaches were rerun.
+  On the landing head, ROCm on one MI50 (renderD130): the build; byte identity on `rocm:0` against main of the MXFP4 and IQ4_NL raw-block fixtures, Qwen3-0.6B MXFP4 and IQ4_NL, Qwen3-0.6B Q8_0 and the tiny deepseek4 fork fixture, 31 files, none differing.
+  Timing, Qwen3-0.6B tg128 tok/s at `--r 5`, `--cpus 8`, nr_throttled 0 in every cell, no host activity monitor (host load average about 18):
+
+  | ROCm, one MI50 | main | head | delta |
+  |---|---|---|---|
+  | IQ4_NL, six ABBA pairs | 245.03, 244.91, 245.42, 227.57, 233.29, 225.59 (mean 236.97) | 242.94, 243.95, 222.40, 231.39, 217.42, 214.75 (mean 228.81) | -3.4% |
+  | IQ4_NL, the first five cells (spread under 1 tok/s a cell) | 245.12 | 243.45 | -0.7% |
+  | MXFP4, one ABBA round | 214.50, 207.62 (mean 211.06) | 282.50, 303.64 (mean 293.07) | +38.9% |
+
+  From the sixth cell on the host was contended, each cell's spread 6 to 17 tok/s against under 1 before, so the six-pair mean mixes quiet and loaded pairs; in the quiet pairs the head is 0.4 and 0.9 percent below main, inside the code layout band of AGENTS.md (Principles), with the IQ4_NL kernels' source main's.
+  ROCm IQ4_NL prompt pp512 is level (main 7110 to 7134, head 7062 to 7133 tok/s).
+  The hosted run of the landing head is named in the devlog's landing entry and on GitHub gate/deepseek4-decode.
+
+**Left:**
+- A matched mx fork reference, once its loader keeps the lookup tables off the cards.
+- Further decode work: a Vulkan decode profile of the branch (the last, before the two sparse kernels, gave Q8_0 one-column rows 31 percent and MXFP4 rows 27 percent of a card's time); ROCm `mxfp4_routed16` is VALU-bound (89 percent busy, about 127 VALU an iteration of two rows).
+
+**Gotchas:**
+- Measured and not kept: a wave-uniform row base with 32-bit offsets for ROCm MXFP4 rows (gate+up 251 to 257 us), a one-step weight prefetch in ROCm's one-column Q8_0 rows (32768x1280 66 to 86 us), Vulkan's columns kernel staging p through shared memory (139 to 349 us at 16k), 1024-thread and 512-thread sparse attention blocks, q in shared memory for the ROCm scores, ROCm k_rows load unroll and four rows a cluster, and q_a with kv as one group call (ROCm's group differs from separate products at four columns).
+- Scores of a sparse attention bench whose window values dwarf the entries hide the entries entirely (every output hash the same at any entry count); the bench's scales were set so both sources count.
+
 ## Draft price outliers (2026-11-08, MTP3, MTP4 then MTP5, branch perf/mtp-draft-price on main ed9780218; MTP2's finding of 19:24 and 19:35, F2DEV's reviews of MTP2 items 1a to 1c and of this branch at 22:26; lands by fast-forward)
 
 **Goal:** every fresh MTP server drafts at the depth its measured passes give, as one drafting at the cap does (75-83 tok/s on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2, one user), stable across fresh servers, within the one price owner.

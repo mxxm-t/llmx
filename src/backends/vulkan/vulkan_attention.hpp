@@ -14,6 +14,9 @@
 namespace backend {
 namespace {
 
+// The columns of a row a sparse_columns workgroup takes, its COLUMNS (shaders/sparse_columns.comp).
+constexpr size_t kSparseColumns = 8;
+
 // A non-causal attention call's workgroups cut into dispatches of at most `budget` multiply-adds, as boundaries from 0 to the call's workgroup count.
 // `runs` gives, view by view, its workgroups and each one's multiply-adds; a view whose workgroups do not fit beside the open piece is cut into near-equal pieces, and a workgroup over the budget is a piece alone.
 inline std::vector<size_t> attention_pieces(const std::vector<std::pair<size_t, size_t>>& runs, size_t budget) {
@@ -470,16 +473,31 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
         aux = pooled.aux;
         tab = args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t));
     }
-    const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows, kv_format, entry_format, kv_words; }
-        pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? 1u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
-           pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw)};
-    dispatch(K_SPARSE_ATTENTION_SINK, {bind(out), bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids)}, &pc, sizeof(pc),
-             u32(size_mul(rows, heads)));
+    // The scratch holds a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows' first words and their two counts (shaders/sparse_softmax.comp).
+    const size_t named = size_add(k, entry_k), row_words = size_add(size_add(size_mul(named, heads), heads), size_add(named, 2));
+    const size_t chunk = std::min(rows, std::max<size_t>(1, ((size_t)8 << 20) / row_words));
+    const size_t den_at = size_mul(size_mul(chunk, named), heads), kept_at = size_add(den_at, size_mul(chunk, heads)), counts_at = size_add(kept_at, size_mul(chunk, named));
+    const size_t words = size_add(counts_at, size_mul(chunk, 2));
+    // The kernels address the scratch by 32-bit word offsets.
+    if (words > UINT32_MAX) throw std::runtime_error("vulkan: sparse attention scratch past 32-bit word offsets");
+    if (!scratch_ || scratch_->size() < words * sizeof(float)) grow(scratch_, words * sizeof(float));
+    const VkDescriptorBufferInfo sc{scratch_->handle(), 0, VK_WHOLE_SIZE};
+    for (size_t first = 0; first < rows; first += chunk) {
+        const size_t n = std::min(chunk, rows - first);
+        const struct { uint32_t rows, heads, dim, k, entry_k; float scale; uint32_t views, tokens, bt, block_floats, rows_floats, width, kv_rows, kv_format, entry_format, kv_words,
+                       first_row, den_at, kept_at, counts_at; }
+            pc{u32(rows), u32(heads), u32(dim), u32(k), u32(entry_k), scale, n_views ? 1u : 0u, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats,
+               pooled.plane.rows_floats, pooled.width, u32(kv_rows), uint32_t(kv_format), uint32_t(entry_format), u32(kw), u32(first), u32(den_at), u32(kept_at), u32(counts_at)};
+        dispatch(K_SPARSE_SOFTMAX, {sc, bind(q), bind(kv), bind(ids), bind(sink), aux, tab, en ? bind(entry_ids) : bind(ids)}, &pc, sizeof(pc), u32(size_mul(n, heads)));
+        const struct { uint32_t heads, dim, named, kv_format, entry_format, first_row, den_at, kept_at, counts_at; }
+            cc{u32(heads), u32(dim), u32(named), uint32_t(kv_format), uint32_t(entry_format), u32(first), u32(den_at), u32(kept_at), u32(counts_at)};
+        dispatch(K_SPARSE_COLUMNS, {bind(out), sc, bind(kv), aux}, &cc, sizeof(cc), u32((dim + kSparseColumns - 1) / kSparseColumns), u32(n));
+    }
 }
 
 inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads,
                                           size_t dim, ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size) {
-    if (!heads || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
+    if (!heads || heads > 1024 || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
         throw std::runtime_error("vulkan: invalid index score dimensions");
     size_t rows = 0;
     for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
@@ -498,7 +516,7 @@ inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, con
         pc{u32(rows), u32(heads), u32(dim), u32(n), w_scale, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats, pooled.plane.rows_floats, pooled.width,
            bn ? u32(block_k) : 0u, u32(block_size), uint32_t(key_format), u32(key_words)};
     dispatch(K_INDEXER_SCORES, {bind(out), bind(q), pooled.aux, args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t)), bind(w),
-                                bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc), groups(n, 256), u32(rows));
+                                bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc), std::min<uint32_t>(groups(n, std::max<size_t>(1, 256 / heads)), 65535), u32(rows));
 }
 
 inline void VulkanBackend::pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) {

@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_control_flow_attributes : require
 // One workgroup a row: u = sum over k in order of pre[k] X_k as the CPU forms it, then the RMSNorm of u with w after a tree sum of its squares.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint hc; uint dim; float eps; } p;
@@ -11,11 +12,23 @@ void main() {
     uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
     uint width = p.hc * p.dim;
     precise float s = 0.0;
-    for (uint d = lid; d < p.dim; d += 256u) {
-        precise float u = pre[r * p.hc] * x[r * width + d];
-        for (uint k = 1u; k < p.hc; ++k) u = fma(pre[r * p.hc + k], x[r * width + k * p.dim + d], u);
-        dst[r * p.dim + d] = u;
-        s = fma(u, u, s);
+    // A lane forms four steps' sums side by side, each in the order above, so their loads go out together.
+    for (uint d0 = lid; d0 < p.dim; d0 += 1024u) {
+        precise float u[4];
+        uint dt[4];
+        [[unroll]] for (uint t = 0u; t < 4u; ++t) {
+            dt[t] = min(d0 + 256u * t, p.dim - 1u);
+            u[t] = pre[r * p.hc] * x[r * width + dt[t]];
+        }
+        for (uint k = 1u; k < p.hc; ++k) {
+            float pk = pre[r * p.hc + k];
+            [[unroll]] for (uint t = 0u; t < 4u; ++t) u[t] = fma(pk, x[r * width + k * p.dim + dt[t]], u[t]);
+        }
+        [[unroll]] for (uint t = 0u; t < 4u; ++t)
+            if (d0 + 256u * t < p.dim) {
+                dst[r * p.dim + d0 + 256u * t] = u[t];
+                s = fma(u[t], u[t], s);
+            }
     }
     red[lid] = s;
     barrier();
@@ -24,5 +37,9 @@ void main() {
         barrier();
     }
     float scale = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
-    for (uint d = lid; d < p.dim; d += 256u) dst[r * p.dim + d] = dst[r * p.dim + d] * scale * w[d];
+    for (uint d0 = lid; d0 < p.dim; d0 += 1024u) {
+        float v[4];
+        [[unroll]] for (uint t = 0u; t < 4u; ++t) v[t] = d0 + 256u * t < p.dim ? dst[r * p.dim + d0 + 256u * t] * scale * w[d0 + 256u * t] : 0.0;
+        [[unroll]] for (uint t = 0u; t < 4u; ++t) if (d0 + 256u * t < p.dim) dst[r * p.dim + d0 + 256u * t] = v[t];
+    }
 }

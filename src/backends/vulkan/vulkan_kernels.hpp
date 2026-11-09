@@ -1039,8 +1039,11 @@ const uint32_t kSpvHcCollapseNorm[] = {
 const uint32_t kSpvHcExpand[] = {
 #include "vulkan/hc_expand.inc"
 };
-const uint32_t kSpvSparseAttentionSink[] = {
-#include "vulkan/sparse_attention_sink.inc"
+const uint32_t kSpvSparseSoftmax[] = {
+#include "vulkan/sparse_softmax.inc"
+};
+const uint32_t kSpvSparseColumns[] = {
+#include "vulkan/sparse_columns.inc"
 };
 const uint32_t kSpvTopkRows[] = {
 #include "vulkan/topk_rows.inc"
@@ -1390,7 +1393,8 @@ const uint32_t kSpvHold[] = {
     X(K_HC_COEFFS, "hc_coeffs", kSpvHcCoeffs, sizeof(kSpvHcCoeffs), 7, nullptr) \
     X(K_HC_COLLAPSE_NORM, "hc_collapse_norm", kSpvHcCollapseNorm, sizeof(kSpvHcCollapseNorm), 4, nullptr) \
     X(K_HC_EXPAND, "hc_expand", kSpvHcExpand, sizeof(kSpvHcExpand), 5, nullptr) \
-    X(K_SPARSE_ATTENTION_SINK, "sparse_attention_sink", kSpvSparseAttentionSink, sizeof(kSpvSparseAttentionSink), 8, nullptr) \
+    X(K_SPARSE_SOFTMAX, "sparse_softmax", kSpvSparseSoftmax, sizeof(kSpvSparseSoftmax), 8, nullptr) \
+    X(K_SPARSE_COLUMNS, "sparse_columns", kSpvSparseColumns, sizeof(kSpvSparseColumns), 4, nullptr) \
     X(K_TOPK_ROWS, "topk_rows", kSpvTopkRows, sizeof(kSpvTopkRows), 3, nullptr) \
     X(K_COMPRESS_POOL, "compress_pool", kSpvCompressPool, sizeof(kSpvCompressPool), 4, nullptr) \
     X(K_INDEXER_SCORES, "indexer_scores", kSpvIndexerScores, sizeof(kSpvIndexerScores), 6, nullptr) \
@@ -1717,8 +1721,8 @@ const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWid
                                {kRowColsOne, 2}, {4, 2, true}, {8, 2, true}, {16, 4, true}};
 // The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
-// The one-column low-bit build: two rows for Q1_0 and four for Q2_0.
-const int kLowBitsRows = 7;
+// The one-column two-row build, which MXFP4 rows take (VulkanBackend::column_builds); low-bit rows take it as two rows for Q1_0 and four for Q2_0.
+const int kRowOneColumnTwoRows = 7, kLowBitsRows = kRowOneColumnTwoRows;
 // Q2_0's four-row build with a 32-lane transposed reduction.
 const int kQ2TreeRows = 8;
 // The two-row builds a grouped routed call takes, narrowest first, each the plain build of its shape reading its columns through the grouping.

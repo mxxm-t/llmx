@@ -1,5 +1,6 @@
 #version 450
-// One workgroup a row: the mHC coefficients pre, post and comb from the row's (2 + hc) * hc mixes, in the CPU's order after a tree sum of the stream's squares (docs/DEEPSEEK4.md, section 4.2).
+#extension GL_EXT_control_flow_attributes : require
+// One workgroup a row: the mHC coefficients pre, post and comb from the row's (2 + hc) * hc mixes, a lane a comb entry forming each row and column sum in the CPU order after a tree sum of the squares (docs/DEEPSEEK4.md, section 4.2).
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint hc; uint dim; uint iters; float norm_eps; float eps; } p;
 layout(set = 0, binding = 0) writeonly buffer A { float pre[]; };
@@ -16,47 +17,73 @@ void main() {
     uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x, hc = p.hc;
     uint width = hc * p.dim, mix = (hc + 2u) * hc;
     precise float s = 0.0;
-    for (uint i = lid; i < width; i += 256u) { float v = x[r * width + i]; s = fma(v, v, s); }
+    // A lane's loads of eight steps go out before their squares, which still add in order.
+    for (uint i0 = lid; i0 < width; i0 += 2048u) {
+        float v[8];
+        [[unroll]] for (uint t = 0u; t < 8u; ++t) v[t] = x[r * width + min(i0 + 256u * t, width - 1u)];
+        [[unroll]] for (uint t = 0u; t < 8u; ++t) if (i0 + 256u * t < width) s = fma(v[t], v[t], s);
+    }
     red[lid] = s;
     barrier();
     for (uint k = 128u; k > 0u; k >>= 1u) {
         if (lid < k) red[lid] += red[lid + k];
         barrier();
     }
-    if (lid != 0u) return;
     precise float rs = 1.0 / sqrt(red[0] / float(width) + p.norm_eps);
-    uint m = r * mix;
-    for (uint k = 0u; k < hc; ++k) {
-        precise float a = mixes[m + k] * rs, b = mixes[m + hc + k] * rs;
-        precise float ga = fma(a, scale[0], base[k]), gb = fma(b, scale[1], base[hc + k]);
-        pre[r * hc + k] = sigmoid_of(ga) + p.eps;
-        post[r * hc + k] = 2.0 * sigmoid_of(gb);
+    uint m = r * mix, cells = hc * hc, i = lid / hc, j = lid - i * hc;
+    bool own = lid < cells;
+    if (lid < hc) {
+        precise float a = mixes[m + lid] * rs, b = mixes[m + hc + lid] * rs;
+        precise float ga = fma(a, scale[0], base[lid]), gb = fma(b, scale[1], base[hc + lid]);
+        pre[r * hc + lid] = sigmoid_of(ga) + p.eps;
+        post[r * hc + lid] = 2.0 * sigmoid_of(gb);
     }
-    for (uint i = 0u; i < hc; ++i) {
-        float peak = -1.0 / 0.0;
-        for (uint j = 0u; j < hc; ++j) {
-            precise float a = mixes[m + 2u * hc + i * hc + j] * rs;
-            precise float v = fma(a, scale[2], base[2u * hc + i * hc + j]);
-            c[i * hc + j] = v;
-            peak = max(peak, c[i * hc + j]);
-        }
-        precise float sum = 0.0;
-        for (uint j = 0u; j < hc; ++j) { c[i * hc + j] = exp(c[i * hc + j] - peak); sum += c[i * hc + j]; }
-        for (uint j = 0u; j < hc; ++j) c[i * hc + j] = c[i * hc + j] / sum + p.eps;
+    precise float v = 0.0;
+    if (own) {
+        precise float a = mixes[m + 2u * hc + lid] * rs;
+        v = fma(a, scale[2], base[2u * hc + lid]);
+        c[lid] = v;
     }
+    barrier();
+    float peak = -1.0 / 0.0;
+    if (own)
+        for (uint q = 0u; q < hc; ++q) peak = max(peak, c[i * hc + q]);
+    barrier();
+    if (own) {
+        v = exp(v - peak);
+        c[lid] = v;
+    }
+    barrier();
+    precise float sum = 0.0;
+    if (own)
+        for (uint q = 0u; q < hc; ++q) sum += c[i * hc + q];
+    barrier();
+    if (own) {
+        v = v / sum + p.eps;
+        c[lid] = v;
+    }
+    barrier();
     for (uint round = 0u; round < p.iters; ++round) {
         if (round != 0u) {
-            for (uint i = 0u; i < hc; ++i) {
-                precise float sum = 0.0;
-                for (uint j = 0u; j < hc; ++j) sum += c[i * hc + j];
-                for (uint j = 0u; j < hc; ++j) c[i * hc + j] /= sum + p.eps;
+            sum = 0.0;
+            if (own)
+                for (uint q = 0u; q < hc; ++q) sum += c[i * hc + q];
+            barrier();
+            if (own) {
+                v /= sum + p.eps;
+                c[lid] = v;
             }
+            barrier();
         }
-        for (uint j = 0u; j < hc; ++j) {
-            precise float sum = 0.0;
-            for (uint i = 0u; i < hc; ++i) sum += c[i * hc + j];
-            for (uint i = 0u; i < hc; ++i) c[i * hc + j] /= sum + p.eps;
+        sum = 0.0;
+        if (own)
+            for (uint q = 0u; q < hc; ++q) sum += c[q * hc + j];
+        barrier();
+        if (own) {
+            v /= sum + p.eps;
+            c[lid] = v;
         }
+        barrier();
     }
-    for (uint i = 0u; i < hc * hc; ++i) comb[r * hc * hc + i] = c[i];
+    if (own) comb[r * cells + lid] = v;
 }

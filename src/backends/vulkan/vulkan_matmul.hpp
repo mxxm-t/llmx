@@ -311,8 +311,9 @@ inline size_t VulkanBackend::column_builds(KernelId id, size_t nin, size_t rows,
             if (kVecBuilds[v].capacity() <= dev_->profile.q8_decode_cols) out[n++] = v == 1 ? one_column_build(nin, rows, reads_x8(id)) : v;
         return n;
     }
-    if (row_kernel_builds_one_column(id)) out[n++] = 1;
     const uint32_t tree = row_tree_cluster(id, kRowByWidth[0], dev_->profile, dev_->caps.subgroup_size);
+    // An MXFP4 row's one-column chunk takes two rows a cluster where the transposed reduction holds its cluster, as a cluster's one block a step leaves one row short of work (docs/src/backends-vulkan.md).
+    if (row_kernel_builds_one_column(id)) out[n++] = id == K_MATMUL_ROW_MXFP4_DOT && tree && tree == cluster ? kRowOneColumnTwoRows : 1;
     if (row_kernel_builds_two_rows(id) && dev_->profile.row_decode_cols >= kRowBuilds[kRowByWidth[0]].cols && (tree == 0 || tree == cluster)) {
         for (int v : kRowByWidth)
             if (kRowBuilds[v].cols <= dev_->profile.row_decode_cols) out[n++] = v;

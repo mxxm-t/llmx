@@ -883,25 +883,29 @@ template <> struct KRaw<rq::IQ4_NL> {
         dmin = 0.0f;
     }
 };
-// MXFP4: a 17-byte block at any byte, its E8M0 scale and the lane's eight nibble bytes as byte loads; each nibble's doubled E2M1 value as a signed byte under half the scale.
+// MXFP4: a 17-byte block at any byte, its E8M0 scale and the lane's eight nibble bytes from the aligned words around them; each nibble's doubled E2M1 value as a signed byte under half the scale.
+// The values come from byte selects of the table held in registers, positive and negated, picked by the nibble's sign bit, so no table is read from memory.
 template <> struct KRaw<rq::MXFP4> {
     static constexpr int offset = 0, halves = 1;
     using Lane = QuarterLane<rq::MXFP4>;
-    unsigned char e, lo[8];
+    unsigned e, lo[2];
     __device__ void load(const unsigned char* b, unsigned, unsigned part) {
-        e = b[0];
-#pragma unroll
-        for (int i = 0; i < 8; ++i) lo[i] = b[1 + 8 * (part & 1) + i];
+        const unsigned off = (unsigned)((unsigned long long)b & 3u), s = off + 1u + 8u * (part & 1u);
+        const unsigned* q = (const unsigned*)(b - off);
+        e = (q[0] >> (8u * off)) & 0xffu;
+        const unsigned w0 = q[s / 4u], w1 = q[s / 4u + 1u], w2 = q[(s + 7u) / 4u];
+        lo[0] = __builtin_amdgcn_alignbyte(w1, w0, s & 3u);
+        lo[1] = __builtin_amdgcn_alignbyte(w2, w1, s & 3u);
     }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
 #pragma unroll
         for (int i = 0; i < 2; ++i) {
-            v[i] = 0;
-#pragma unroll
-            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)quant::FP4_VALUES[(lo[4 * i + j] >> sh) & 0xF] & 0xffu) << (8 * j);
+            const unsigned x = (lo[i] >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, neg = ((x >> 3) & 0x01010101u) * 0xffu;
+            const unsigned pos = __builtin_amdgcn_perm(0x0C080604u, 0x03020100u, idx), minus = __builtin_amdgcn_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
+            v[i] = (pos & ~neg) | (minus & neg);
         }
-        ds = rq::e8m0_half(e);
+        ds = rq::e8m0_half((unsigned char)e);
         dmin = 0.0f;
     }
 };
@@ -919,11 +923,22 @@ template <typename KT> struct QuarterLane {
 template <typename KT> struct KSigned { static constexpr bool value = false; };
 template <> struct KSigned<rq::IQ4_NL> { static constexpr bool value = true; };
 template <> struct KSigned<rq::MXFP4> { static constexpr bool value = true; };
+// Whether a type's decode sets no min, so a term is ds * isum, which is fmaf(ds, isum, -(0 * xsum))'s value, and the twin sum is not needed.
+template <typename KT> struct KNoMin { static constexpr bool value = false; };
+template <> struct KNoMin<rq::MXFP4> { static constexpr bool value = true; };
 // The eight byte values as the twin's words: two words of four bytes, or four of two 16-bit values.
 template <typename QT> struct KWords { static constexpr int n = sizeof(QT) == 2 ? 4 : 2; };
-template <typename QT, bool S>
+template <typename QT, typename KT>
 __device__ inline void widen(const unsigned (&v)[2], int (&w)[KWords<QT>::n]) {
-    if constexpr (sizeof(QT) == 2 && S) {
+    if constexpr (sizeof(QT) == 2 && __is_same(KT, rq::MXFP4)) {
+#pragma unroll
+        for (int i = 0; i < 2; ++i) {
+            // Each byte and its sign as a 16-bit value: perm selectors 8 to 11 repeat the sign of the pool's bytes 1, 3, 5 and 7, which v << 8 puts bytes 0 and 2 at.
+            const unsigned h = v[i] << 8;
+            w[2 * i] = (int)__builtin_amdgcn_perm(h, v[i], 0x08010a00u);
+            w[2 * i + 1] = (int)__builtin_amdgcn_perm(h, v[i], 0x09030b02u);
+        }
+    } else if constexpr (sizeof(QT) == 2 && KSigned<KT>::value) {
 #pragma unroll
         for (int i = 0; i < 2; ++i) {
             const int x = (int)v[i];
@@ -1012,7 +1027,7 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
                     for (int i = 0; i < NV; i += 2) {
                         const unsigned pair[2] = {v[i], v[i + 1]};
                         int w2[KWords<QT>::n];
-                        widen<QT, KSigned<KT>::value>(pair, w2);
+                        widen<QT, KT>(pair, w2);
 #pragma unroll
                         for (int x = 0; x < KWords<QT>::n; ++x) ww[j][i / 2 * KWords<QT>::n + x] = w2[x];
                     }
@@ -1043,14 +1058,17 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
 #pragma unroll
                     for (int c = 0; c < G; ++c) {
                         int xsum = 0;
+                        if constexpr (!KNoMin<KT>::value) {
 #pragma unroll
-                        for (int i = 0; i < NW; ++i) xsum = word_dot(ONES, xw[c][i], xsum, QT(0));
+                            for (int i = 0; i < NW; ++i) xsum = word_dot(ONES, xw[c][i], xsum, QT(0));
+                        }
 #pragma unroll
                         for (int j = 0; j < R; ++j) {
                             int isum = 0;
 #pragma unroll
                             for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
-                            acc[j][g + c] = fmaf(xd[c], k_term<KT>(ds[j], dm[j], isum, xsum), acc[j][g + c]);
+                            const float term = KNoMin<KT>::value ? ds[j] * (float)isum : k_term<KT>(ds[j], dm[j], isum, xsum);
+                            acc[j][g + c] = fmaf(xd[c], term, acc[j][g + c]);
                         }
                     }
                 }
@@ -1126,7 +1144,7 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
             float ds, dm;
             raw[s].decode((unsigned)((k0 + s) % (KT::values / 32)), ws, v, ds, dm);
             int w[NW];
-            widen<QT, KSigned<KT>::value>(v, w);
+            widen<QT, KT>(v, w);
 #pragma unroll
             for (int i = 0; i < NW; ++i) wq[s * WORDS + ws * NW + i][wr] = wok[s] ? w[i] : 0;
             if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;

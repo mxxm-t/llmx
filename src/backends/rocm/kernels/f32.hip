@@ -2343,7 +2343,15 @@ __device__ float cpu_squares(const float* x, unsigned n, float* lds) {
     const unsigned t = threadIdx.x, whole = n / 8u * 8u;
     if (t < 8u) {
         float a = 0.0f;
-        for (unsigned i = t; i < whole; i += 8u) a = fmaf(x[i], x[i], a);
+        unsigned i = t;
+        for (; i + 120u < whole; i += 128u) {
+            float v[16];
+#pragma unroll
+            for (unsigned u = 0; u < 16u; ++u) v[u] = x[i + 8u * u];
+#pragma unroll
+            for (unsigned u = 0; u < 16u; ++u) a = fmaf(v[u], v[u], a);
+        }
+        for (; i < whole; i += 8u) a = fmaf(x[i], x[i], a);
         lds[t] = a;
     }
     __syncthreads();
@@ -2360,7 +2368,7 @@ __device__ float cpu_squares(const float* x, unsigned n, float* lds) {
 }
 __device__ inline float sigmoid_of(float v) { return 1.0f / (1.0f + expf(-v)); }
 
-// A block a row: pre, post and comb from the row's (2 + hc) * hc mixes, the stream's squares summed by block_sum and the rest on one thread in the CPU's order; hc is at most 16.
+// A block a row: pre, post and comb from the row's (2 + hc) * hc mixes, the stream's squares summed by block_sum; a lane a comb entry forms each row and column sum in the CPU's order.
 extern "C" __global__ void llmx_hc_coeffs(float* pre, float* post, float* comb, const float* mixes, const float* x, const float* scale, const float* base, unsigned hc,
                                           unsigned dim, float norm_eps, float eps, unsigned iters) {
     __shared__ float lds[kThreads], c[256];
@@ -2368,55 +2376,114 @@ extern "C" __global__ void llmx_hc_coeffs(float* pre, float* post, float* comb, 
     const unsigned width = hc * dim, mix = (hc + 2u) * hc;
     const float* xr = x + r * width;
     float sq = 0.0f;
-    for (unsigned i = threadIdx.x; i < width; i += kThreads) sq = fmaf(xr[i], xr[i], sq);
+    // A lane's loads of sixteen steps go out before their squares, which still add in order.
+    for (unsigned i0 = threadIdx.x; i0 < width; i0 += 16u * kThreads) {
+        float v[16];
+#pragma unroll
+        for (unsigned u = 0; u < 16u; ++u) v[u] = xr[min(i0 + u * kThreads, width - 1u)];
+#pragma unroll
+        for (unsigned u = 0; u < 16u; ++u)
+            if (i0 + u * kThreads < width) sq = fmaf(v[u], v[u], sq);
+    }
     const float rs = 1.0f / sqrtf(block_sum(sq, lds) / (float)width + norm_eps);
-    if (threadIdx.x) return;
+    const unsigned t = threadIdx.x, cells = hc * hc, i = t / hc, j = t - i * hc;
+    const bool own = t < cells;
     const float* m = mixes + r * mix;
-    for (unsigned k = 0; k < hc; ++k) {
-        pre[r * hc + k] = sigmoid_of(fmaf(m[k] * rs, scale[0], base[k])) + eps;
-        post[r * hc + k] = 2.0f * sigmoid_of(fmaf(m[hc + k] * rs, scale[1], base[hc + k]));
+    if (t < hc) {
+        pre[r * hc + t] = sigmoid_of(fmaf(m[t] * rs, scale[0], base[t])) + eps;
+        post[r * hc + t] = 2.0f * sigmoid_of(fmaf(m[hc + t] * rs, scale[1], base[hc + t]));
     }
-    for (unsigned i = 0; i < hc; ++i) {
-        float peak = -INFINITY;
-        for (unsigned j = 0; j < hc; ++j) {
-            c[i * hc + j] = fmaf(m[2u * hc + i * hc + j] * rs, scale[2], base[2u * hc + i * hc + j]);
-            peak = fmaxf(peak, c[i * hc + j]);
-        }
-        float sum = 0.0f;
-        for (unsigned j = 0; j < hc; ++j) sum += c[i * hc + j] = expf(c[i * hc + j] - peak);
-        for (unsigned j = 0; j < hc; ++j) c[i * hc + j] = c[i * hc + j] / sum + eps;
-    }
+    float v = own ? fmaf(m[2u * hc + t] * rs, scale[2], base[2u * hc + t]) : 0.0f;
+    if (own) c[t] = v;
+    __syncthreads();
+    float acc = -INFINITY;
+    if (own)
+        for (unsigned q = 0; q < hc; ++q) acc = fmaxf(acc, c[i * hc + q]);
+    v = expf(v - acc);
+    __syncthreads();
+    if (own) c[t] = v;
+    __syncthreads();
+    acc = 0.0f;
+    if (own)
+        for (unsigned q = 0; q < hc; ++q) acc += c[i * hc + q];
+    __syncthreads();
+    v = v / acc + eps;
+    if (own) c[t] = v;
+    __syncthreads();
     for (unsigned round = 0; round < iters; ++round) {
-        if (round)
-            for (unsigned i = 0; i < hc; ++i) {
-                float sum = 0.0f;
-                for (unsigned j = 0; j < hc; ++j) sum += c[i * hc + j];
-                for (unsigned j = 0; j < hc; ++j) c[i * hc + j] /= sum + eps;
-            }
-        for (unsigned j = 0; j < hc; ++j) {
-            float sum = 0.0f;
-            for (unsigned i = 0; i < hc; ++i) sum += c[i * hc + j];
-            for (unsigned i = 0; i < hc; ++i) c[i * hc + j] /= sum + eps;
+        if (round) {
+            acc = 0.0f;
+            if (own)
+                for (unsigned q = 0; q < hc; ++q) acc += c[i * hc + q];
+            __syncthreads();
+            v /= acc + eps;
+            if (own) c[t] = v;
+            __syncthreads();
         }
+        acc = 0.0f;
+        if (own)
+            for (unsigned q = 0; q < hc; ++q) acc += c[q * hc + j];
+        __syncthreads();
+        v /= acc + eps;
+        if (own) c[t] = v;
+        __syncthreads();
     }
-    for (unsigned i = 0; i < hc * hc; ++i) comb[r * hc * hc + i] = c[i];
+    if (own) comb[r * cells + t] = v;
 }
 
 // A block a row: u = sum over k in order of pre[k] X_k, a thread a channel, then its RMS norm with the CPU's sums and products, so the row is the CPU's bits.
-extern "C" __global__ void llmx_hc_collapse_norm(float* dst, const float* x, const float* pre, const float* w, unsigned hc, unsigned dim, float eps) {
-    __shared__ float lds[16];
+// The norm's last step for llmx_hc_collapse_norm: u = us * (rs * w), S channels a lane a round.
+template <unsigned S, unsigned T>
+__device__ inline void collapse_scale(float* u, const float* us, const float* w, float rs, unsigned dim) {
+    for (unsigned d0 = threadIdx.x; d0 < dim; d0 += S * T) {
+        float v[S];
+#pragma unroll
+        for (unsigned t = 0; t < S; ++t) {
+            const unsigned d = min(d0 + t * T, dim - 1u);
+            v[t] = us[d] * (rs * w[d]);
+        }
+#pragma unroll
+        for (unsigned t = 0; t < S; ++t)
+            if (d0 + t * T < dim) u[d0 + t * T] = v[t];
+    }
+}
+// A row up to kCollapseStage wide is staged in LDS, so the squares' eight chains read it there; the block's kCollapseThreads lanes take kCollapseSteps channels each a round.
+constexpr unsigned kCollapseStage = 8192, kCollapseThreads = 1024, kCollapseSteps = 5;
+extern "C" __global__ void __launch_bounds__(kCollapseThreads) llmx_hc_collapse_norm(float* __restrict__ dst, const float* __restrict__ x, const float* __restrict__ pre, const float* __restrict__ w, unsigned hc,
+                                                 unsigned dim, float eps) {
+    __shared__ float lds[16], stage[kCollapseStage];
     const unsigned long long r = blockIdx.x;
     const float* xr = x + r * hc * dim;
     const float* p = pre + r * hc;
     float* u = dst + r * dim;
-    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
-        float sum = p[0] * xr[d];
-        for (unsigned k = 1; k < hc; ++k) sum = fmaf(p[k], xr[(unsigned long long)k * dim + d], sum);
-        u[d] = sum;
+    const bool staged = dim <= kCollapseStage;
+    // A lane forms its channels' sums side by side, each in the order above, so their loads go out together.
+    constexpr unsigned S = kCollapseSteps, T = kCollapseThreads;
+    for (unsigned d0 = threadIdx.x; d0 < dim; d0 += S * T) {
+        unsigned dt[S];
+        float sum[S];
+#pragma unroll
+        for (unsigned t = 0; t < S; ++t) {
+            dt[t] = min(d0 + t * T, dim - 1u);
+            sum[t] = p[0] * xr[dt[t]];
+        }
+        for (unsigned k = 1; k < hc; ++k) {
+            const float pk = p[k];
+#pragma unroll
+            for (unsigned t = 0; t < S; ++t) sum[t] = fmaf(pk, xr[(unsigned long long)k * dim + dt[t]], sum[t]);
+        }
+#pragma unroll
+        for (unsigned t = 0; t < S; ++t)
+            if (d0 + t * T < dim) {
+                u[d0 + t * T] = sum[t];
+                if (staged) stage[d0 + t * T] = sum[t];
+            }
     }
     __syncthreads();
-    const float rs = 1.0f / sqrtf(cpu_squares(u, dim, lds) / (float)dim + eps);
-    for (unsigned d = threadIdx.x; d < dim; d += kThreads) u[d] = u[d] * (rs * w[d]);
+    // Each branch names its array, so the staged one reads LDS directly rather than through a generic pointer.
+    const float rs = 1.0f / sqrtf((staged ? cpu_squares(stage, dim, lds) : cpu_squares(u, dim, lds)) / (float)dim + eps);
+    if (staged) collapse_scale<S, T>(u, stage, w, rs, dim);
+    else collapse_scale<S, T>(u, u, w, rs, dim);
 }
 
 // A thread a (row, channel): X'_k = post[k] f + sum over j in order of comb[j][k] X_j with the CPU's multiply-adds, every old stream read before a new one is written, so dst may be the stream.
@@ -2471,8 +2538,8 @@ __device__ inline unsigned e2m1_code(float v) {
 __device__ inline float format_clamp(float v, float limit) { return v < -limit ? -limit : (v > limit ? limit : v); }
 // Format 0 is fp8_power, 1 fp4_power and 2 fp4_e4m3 (backend.hpp ModelFormat), 3 the F32 values themselves; the inverse maxima come from the host as the CPU rounds them.
 // A packed block is its scale byte, then the codes: one a byte for FP8, two a byte for FP4 with the low nibbles the block's first half (quant/model_formats.hpp).
-__device__ inline unsigned format_values(unsigned format) { return format == 2u ? 16u : 32u; }
-__device__ inline unsigned format_bytes(unsigned format) { return format == 0u ? 33u : format == 1u ? 17u : 9u; }
+constexpr unsigned format_values(unsigned format) { return format == 2u ? 16u : 32u; }
+constexpr unsigned format_bytes(unsigned format) { return format == 0u ? 33u : format == 1u ? 17u : 9u; }
 __device__ inline float stored_value(const float* row, unsigned d, unsigned format) {
     if (format == 3u) return row[d];
     const unsigned char* b = (const unsigned char*)row + d / format_values(format) * format_bytes(format);
@@ -2480,6 +2547,21 @@ __device__ inline float stored_value(const float* row, unsigned d, unsigned form
     if (format == 0u) return e4m3_value(b[1u + i]) * __uint_as_float((unsigned)b[0] << 23);
     const unsigned c = i < half ? b[1u + i] & 15u : b[1u + i - half] >> 4;
     return e2m1_value(c) * (format == 1u ? __uint_as_float((unsigned)b[0] << 23) : e4m3_value(b[0]));
+}
+// q dot row as one multiply-add chain in d's order, the row's format a constant so its decode leaves the loop.
+template <unsigned F> __device__ inline float stored_dot_of(const float* q, const float* row, unsigned dim) {
+    float dot = 0.0f;
+#pragma unroll 8
+    for (unsigned d = 0; d < dim; ++d) dot = fmaf(q[d], stored_value(row, d, F), dot);
+    return dot;
+}
+__device__ inline float stored_dot(const float* q, const float* row, unsigned dim, unsigned format) {
+    switch (format) {
+        case 0u: return stored_dot_of<0u>(q, row, dim);
+        case 1u: return stored_dot_of<1u>(q, row, dim);
+        case 2u: return stored_dot_of<2u>(q, row, dim);
+        default: return stored_dot_of<3u>(q, row, dim);
+    }
 }
 // Packing, block blk of row blk / row_blocks goes to its place in the row from word row * stride, and the row's last block zeroes the bytes after it to the row's last word.
 extern "C" __global__ void llmx_model_format_qdq(float* x, float* packed, unsigned long long blocks, unsigned format, float inv_fp8, float inv_fp4, unsigned row_blocks,
@@ -2625,31 +2707,41 @@ __device__ inline unsigned long long pooled_at(const unsigned* rows, unsigned r,
     return (unsigned long long)rows[rows[2u * r] + t / bt] * block_floats + rows_floats + (unsigned long long)((t % bt) / tokens) * width;
 }
 
-// A thread a (row, position): sum over heads of w[h] w_scale ReLU(q_h dot key) with the CPU's multiply-add chains, key the last dim floats of the pooled row, -inf where the row cannot see it.
+// A block a run of positions of one row, a lane a (position, head) dot: sum over heads in order of w[h] w_scale ReLU(q_h dot key) with the CPU's multiply-add chains.
+// The key is the last dim floats of the pooled row, -inf where the row cannot see it; per positions a block, kThreads / heads at least one, and heads at most 1024.
 extern "C" __global__ void llmx_indexer_scores(float* out, const float* q, const float* aux, const unsigned* rows, const float* w, const unsigned* blocks, unsigned n,
                                                unsigned heads, unsigned dim, float w_scale, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats,
-                                               unsigned width, unsigned block_k, unsigned block_size, unsigned key_format, unsigned key_words) {
-    const unsigned t = blockIdx.x * kThreads + threadIdx.x, r = blockIdx.y;
-    if (t >= n) return;
-    float* o = out + (unsigned long long)r * n + t;
-    bool reached = t < rows[2u * r + 1u] / tokens;
-    if (reached && block_k) {
-        reached = false;
-        for (unsigned b = 0; b < block_k && !reached; ++b) reached = blocks[(unsigned long long)r * block_k + b] == t / block_size;
+                                               unsigned width, unsigned block_k, unsigned block_size, unsigned key_format, unsigned key_words, unsigned per) {
+    __shared__ float dots[1024];
+    __shared__ int seen[kThreads];
+    const unsigned r = blockIdx.y, first = blockIdx.x * per;
+    for (unsigned p = threadIdx.x; p < per; p += kThreads) {
+        const unsigned t = first + p;
+        bool reached = t < n && t < rows[2u * r + 1u] / tokens;
+        if (reached && block_k) {
+            reached = false;
+            for (unsigned b = 0; b < block_k && !reached; ++b) reached = blocks[(unsigned long long)r * block_k + b] == t / block_size;
+        }
+        seen[p] = reached;
     }
-    if (!reached) {
-        *o = -INFINITY;
-        return;
+    __syncthreads();
+    for (unsigned i = threadIdx.x; i < per * heads; i += kThreads) {
+        const unsigned p = i / heads, h = i - p * heads, t = first + p;
+        if (!seen[p]) continue;
+        const float* key = aux + pooled_at(rows, r, t, tokens, bt, block_floats, rows_floats, width) + width - key_words;
+        dots[i] = stored_dot(q + ((unsigned long long)r * heads + h) * dim, key, dim, key_format);
     }
-    const float* key = aux + pooled_at(rows, r, t, tokens, bt, block_floats, rows_floats, width) + width - key_words;
-    float sum = 0.0f;
-    for (unsigned h = 0; h < heads; ++h) {
-        const float* qh = q + ((unsigned long long)r * heads + h) * dim;
-        float dot = 0.0f;
-        for (unsigned d = 0; d < dim; ++d) dot = fmaf(qh[d], stored_value(key, d, key_format), dot);
-        sum = fmaf(fmaxf(dot, 0.0f), w[(unsigned long long)r * heads + h] * w_scale, sum);
+    __syncthreads();
+    for (unsigned p = threadIdx.x; p < per; p += kThreads) {
+        const unsigned t = first + p;
+        if (t >= n) continue;
+        float sum = -INFINITY;
+        if (seen[p]) {
+            sum = 0.0f;
+            for (unsigned h = 0; h < heads; ++h) sum = fmaf(fmaxf(dots[p * heads + h], 0.0f), w[(unsigned long long)r * heads + h] * w_scale, sum);
+        }
+        out[(unsigned long long)r * n + t] = sum;
     }
-    *o = sum;
 }
 
 // A thread a float of the call's groups, each group's first float in the auxiliary plane given by the host, copied from the rows in order.
@@ -2660,56 +2752,156 @@ extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const u
     aux[at[g] + (i - g * width)] = src[i];
 }
 
-// A block a (row, head): attention over the kv rows its ids name, then the pooled rows its entry ids name, one row serving as K and V, under one softmax whose denominator takes exp(sink - max).
-// Each dot and the output's sums are the CPU's multiply-add chains in its order, and an id that names nothing is skipped; at most 1024 rows are named.
-extern "C" __global__ void llmx_sparse_attention_sink(float* out, const float* q, const float* kv, const unsigned* ids, const float* sink, const float* aux, const unsigned* rows,
-                                                      const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k, float scale, unsigned kv_rows,
-                                                      unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width,
-                                                      unsigned kv_format, unsigned entry_format, unsigned kv_words) {
-    __shared__ float pr[1024], red[kThreads];
-    __shared__ const float* at[1024];
-    __shared__ unsigned char packed_of[1024];
-    __shared__ float denominator;
-    const unsigned rh = blockIdx.x, r = rh / heads, h = rh - r * heads, named = k + entry_k;
-    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
-    const float* qr = q + (unsigned long long)rh * dim;
-    float peak = -1e30f;
-    for (unsigned t = threadIdx.x; t < named; t += kThreads) {
-        const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
-        const float* row = nullptr;
-        if (t < k && j < kv_rows) row = kv + (unsigned long long)j * kv_words;
-        else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
-        const unsigned format = t < k ? kv_format : entry_format;
-        at[t] = row;
-        packed_of[t] = (unsigned char)format;
-        if (!row) continue;
-        float dot = 0.0f;
-        for (unsigned d = 0; d < dim; ++d) dot = fmaf(qr[d], stored_value(row, d, format), dot);
-        pr[t] = dot * scale;
-        peak = fmaxf(peak, pr[t]);
+__device__ inline unsigned word_byte(const unsigned* w, unsigned o) { return (w[o >> 2] >> (8u * (o & 3u))) & 255u; }
+// A block's scale and its value i, the codes read through `lut`: the 256 E4M3 values, then the 16 E2M1 ones, each as e4m3_value and e2m1_value give it.
+template <unsigned F> __device__ inline float lut_scale(unsigned b, const float* lut) { return F == 2u ? lut[b] : __uint_as_float(b << 23); }
+template <unsigned F> __device__ inline float lut_value(const unsigned* w, unsigned o, unsigned i, float s, const float* lut) {
+    if (F == 0u) return lut[word_byte(w, o + 1u + i)] * s;
+    constexpr unsigned half = format_values(F) / 2u;
+    const unsigned c = i < half ? word_byte(w, o + 1u + i) & 15u : word_byte(w, o + 1u + i - half) >> 4;
+    return lut[256u + c] * s;
+}
+// stored_dot's chain, the row read as aligned words four blocks at a time and each block's values decoded before their multiply-adds.
+template <unsigned F> __device__ inline float lut_dot(const float* q, const float* row, unsigned dim, const float* lut) {
+    float dot = 0.0f;
+    unsigned d = 0;
+    if (F != 3u) {
+        constexpr unsigned VB = format_values(F), BB = format_bytes(F);
+        const unsigned* rw = (const unsigned*)row;
+        for (; d + 4u * VB <= dim; d += 4u * VB, rw += BB) {
+            unsigned w[BB];
+#pragma unroll
+            for (unsigned j = 0; j < BB; ++j) w[j] = rw[j];
+#pragma unroll
+            for (unsigned b = 0; b < 4u; ++b) {
+                const float s = lut_scale<F>(word_byte(w, b * BB), lut);
+                float v[VB], qv[VB];
+#pragma unroll
+                for (unsigned i = 0; i < VB; ++i) v[i] = lut_value<F>(w, b * BB, i, s, lut), qv[i] = q[d + b * VB + i];
+#pragma unroll
+                for (unsigned i = 0; i < VB; ++i) dot = fmaf(qv[i], v[i], dot);
+            }
+        }
     }
-    red[threadIdx.x] = peak;
+#pragma unroll 8
+    for (; d < dim; ++d) dot = fmaf(q[d], stored_value(row, d, F), dot);
+    return dot;
+}
+__device__ inline float lut_dot_any(const float* q, const float* row, unsigned dim, unsigned format, const float* lut) {
+    switch (format) {
+        case 0u: return lut_dot<0u>(q, row, dim, lut);
+        case 1u: return lut_dot<1u>(q, row, dim, lut);
+        case 2u: return lut_dot<2u>(q, row, dim, lut);
+        default: return lut_dot<3u>(q, row, dim, lut);
+    }
+}
+// Sparse attention with a sink runs as two kernels over a scratch row a call row from first_row: p by kept row then head, the denominators, the kept rows and their counts.
+// A block a (row, head): the kept rows, each kept row's dot on its own thread, the softmax over them and exp(sink - max) in the denominator; head 0 writes the kept rows.
+extern "C" __global__ void llmx_sparse_softmax(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
+                                               const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k,
+                                               float scale, unsigned kv_rows, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width,
+                                               unsigned kv_format, unsigned entry_format, unsigned kv_words, unsigned first_row) {
+    __shared__ float pr[1024], red[kThreads], lut[272];
+    __shared__ const float* at[1024];
+    __shared__ unsigned cnt[kThreads], kept_kv;
+    const unsigned rh = blockIdx.x, s_r = rh / heads, h = rh - s_r * heads, r = first_row + s_r, named = k + entry_k, tid = threadIdx.x;
+    const unsigned visible = rows ? rows[2u * r + 1u] / tokens : 0u;
+    const float* qr = q + ((unsigned long long)r * heads + h) * dim;
+    for (unsigned c = tid; c < 272u; c += kThreads) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
+    if (tid == 0) kept_kv = 0;
+    // A thread a run of consecutive named rows, so a scan of the counts keeps their order.
+    constexpr unsigned kPer = 1024u / kThreads;
+    const unsigned per = (named + kThreads - 1) / kThreads, t0 = tid * per;
+    const float* mine[kPer];
+    unsigned n = 0, nk = 0;
+    for (unsigned i = 0; i < per; ++i) {
+        const unsigned t = t0 + i;
+        const float* row = nullptr;
+        if (t < named) {
+            const unsigned j = t < k ? ids[(unsigned long long)r * k + t] : entries[(unsigned long long)r * entry_k + t - k];
+            if (t < k && j < kv_rows) row = kv + (unsigned long long)j * kv_words;
+            else if (t >= k && j < visible) row = aux + pooled_at(rows, r, j, tokens, bt, block_floats, rows_floats, width);
+        }
+        if (row) mine[n++] = row, nk += t < k;
+    }
+    cnt[tid] = n;
+    __syncthreads();
+    if (nk) atomicAdd(&kept_kv, nk);
+    for (unsigned s = 1; s < kThreads; s <<= 1) {
+        const unsigned v = tid >= s ? cnt[tid - s] : 0u;
+        __syncthreads();
+        cnt[tid] += v;
+        __syncthreads();
+    }
+    const unsigned first = cnt[tid] - n, total = cnt[kThreads - 1];
+    for (unsigned i = 0; i < n; ++i) at[first + i] = mine[i];
+    __syncthreads();
+    const unsigned kk = kept_kv;
+    if (h == 0) {
+        for (unsigned i = 0; i < n; ++i) kept[(unsigned long long)s_r * named + first + i] = mine[i];
+        if (tid == 0) counts[2u * s_r] = total, counts[2u * s_r + 1u] = kk;
+    }
+    float peak = -1e30f;
+    for (unsigned c = tid; c < total; c += kThreads) {
+        pr[c] = lut_dot_any(qr, at[c], dim, c < kk ? kv_format : entry_format, lut) * scale;
+        peak = fmaxf(peak, pr[c]);
+    }
+    red[tid] = peak;
     __syncthreads();
     for (unsigned s = kThreads / 2; s > 0; s >>= 1) {
-        if (threadIdx.x < s) red[threadIdx.x] = fmaxf(red[threadIdx.x], red[threadIdx.x + s]);
+        if (tid < s) red[tid] = fmaxf(red[tid], red[tid + s]);
         __syncthreads();
     }
     peak = red[0];
-    for (unsigned t = threadIdx.x; t < named; t += kThreads)
-        if (at[t]) pr[t] = expf(pr[t] - peak);
-    __syncthreads();
-    if (threadIdx.x == 0) {
-        float sum = 0.0f;
-        for (unsigned t = 0; t < named; ++t)
-            if (at[t]) sum += pr[t];
-        denominator = sum + expf(sink[h] - peak);
+    for (unsigned c = tid; c < total; c += kThreads) {
+        pr[c] = expf(pr[c] - peak);
+        pt[((unsigned long long)s_r * named + c) * heads + h] = pr[c];
     }
     __syncthreads();
-    for (unsigned d = threadIdx.x; d < dim; d += kThreads) {
-        float o = 0.0f;
-        for (unsigned t = 0; t < named; ++t)
-            if (at[t]) o = fmaf(pr[t], stored_value(at[t], d, packed_of[t]), o);
-        out[(unsigned long long)rh * dim + d] = o / denominator;
+    if (tid == 0) {
+        float sum = 0.0f;
+#pragma unroll 8
+        for (unsigned c = 0; c < total; ++c) sum += pr[c];
+        den[rh] = sum + expf(sink[h] - peak);
+    }
+}
+// A block kSparseColumns columns of one row for every head: the kept rows' values of those columns decoded once into shared memory, then a lane a head and two columns.
+// Each output is p times value over the kept rows in their order, divided by its head's denominator, as the CPU sums it.
+constexpr unsigned kSparseColumns = 2u * kThreads / 64u, kSparseNamed = 1024u;
+extern "C" __global__ void llmx_sparse_columns(float* out, const float* pt, const float* den, const float* const* kept, const unsigned* counts, unsigned heads, unsigned dim,
+                                               unsigned named, unsigned kv_format, unsigned entry_format, unsigned first_row) {
+    __shared__ float vals[kSparseNamed * kSparseColumns];
+    const unsigned r = blockIdx.y, d0 = blockIdx.x * kSparseColumns, tid = threadIdx.x, total = counts[2u * r], kk = counts[2u * r + 1u];
+    const float* const* kr = kept + (unsigned long long)r * named;
+    for (unsigned i = tid; i < total * kSparseColumns; i += kThreads) {
+        const unsigned c = i / kSparseColumns, j = i - c * kSparseColumns, d = d0 + j;
+        vals[i] = d < dim ? stored_value(kr[c], d, c < kk ? kv_format : entry_format) : 0.0f;
+    }
+    __syncthreads();
+    const unsigned lane = tid % 64u, col = tid / 64u * 2u;
+    const float* pr = pt + (unsigned long long)r * named * heads;
+    for (unsigned h = lane; h < heads; h += 64u) {
+        float o0 = 0.0f, o1 = 0.0f;
+        unsigned c = 0;
+        for (; c + 8u <= total; c += 8u) {
+            float pv[8];
+#pragma unroll
+            for (unsigned u = 0; u < 8u; ++u) pv[u] = pr[(unsigned long long)(c + u) * heads + h];
+#pragma unroll
+            for (unsigned u = 0; u < 8u; ++u) {
+                o0 = fmaf(pv[u], vals[(c + u) * kSparseColumns + col], o0);
+                o1 = fmaf(pv[u], vals[(c + u) * kSparseColumns + col + 1u], o1);
+            }
+        }
+        for (; c < total; ++c) {
+            const float p = pr[(unsigned long long)c * heads + h];
+            o0 = fmaf(p, vals[c * kSparseColumns + col], o0);
+            o1 = fmaf(p, vals[c * kSparseColumns + col + 1u], o1);
+        }
+        const float dn = den[(unsigned long long)r * heads + h];
+        float* o = out + ((unsigned long long)(first_row + r) * heads + h) * dim + d0 + col;
+        if (d0 + col < dim) o[0] = o0 / dn;
+        if (d0 + col + 1u < dim) o[1] = o1 / dn;
     }
 }
 

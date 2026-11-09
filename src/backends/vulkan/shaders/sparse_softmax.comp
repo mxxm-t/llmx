@@ -1,0 +1,150 @@
+#version 450
+#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_EXT_control_flow_attributes : require
+// Sparse attention with a sink, its first kernel: one workgroup a (row, head) of a chunk from first_row, the kv rows its ids name then the pooled rows its entry ids name, kept in order.
+// It writes p = exp(score - max) by kept row then head, the denominator with exp(sink - max), and for head 0 the kept rows' first words and their counts (docs/src/backends-vulkan.md).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P {
+    uint rows; uint heads; uint dim; uint k; uint entry_k; float scale; uint views; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width;
+    uint kv_rows; uint kv_format; uint entry_format; uint kv_words_n; uint first_row; uint den_at; uint kept_at; uint counts_at;
+} p;
+layout(set = 0, binding = 0) writeonly buffer O { float scf[]; };
+layout(set = 0, binding = 0) writeonly buffer OU { uint scu[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer K { float kv[]; };
+layout(set = 0, binding = 3) readonly buffer I { uint ids[]; };
+layout(set = 0, binding = 4) readonly buffer S { float sink[]; };
+layout(set = 0, binding = 5) readonly buffer A { float aux[]; };
+layout(set = 0, binding = 6) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 7) readonly buffer E { uint entry_ids[]; };
+layout(set = 0, binding = 2) readonly buffer KU { uint kv_words[]; };
+layout(set = 0, binding = 5) readonly buffer AU { uint aux_words[]; };
+#include "views.glsl"
+#include "sparse_rows.glsl"
+#define NAMED_MAX 1024u
+#define PER (NAMED_MAX / 256u)
+const uint NONE = 0xffffffffu;
+shared float pr[NAMED_MAX];
+shared uint at[NAMED_MAX];
+shared uint cnt[256];
+shared uint cidx[NAMED_MAX];
+shared float pk[NAMED_MAX];
+shared float red[256];
+shared uint kept_kv;
+shared float lut[272];
+// The dot of q with a row, in d order: four blocks' words loaded at once and each value its code's table entry times its block's scale, the product the per-value decode gives.
+#define WORD_BYTE(wd, o) ((wd[(o) >> 2u] >> (((o) & 3u) * 8u)) & 0xFFu)
+#define SOURCE_DOT(DOT, WORDS, VALUE, F, VB, BB)                                                                                        \
+    float DOT(uint qb, uint w0) {                                                                                                      \
+        precise float dot = 0.0;                                                                                                       \
+        uint d = 0u, w = w0;                                                                                                           \
+        if (F != 3u)                                                                                                                   \
+            for (; d + 4u * VB <= p.dim; d += 4u * VB, w += BB) {                                                                      \
+                uint wd[BB];                                                                                                           \
+                [[unroll]] for (uint j = 0u; j < BB; ++j) wd[j] = WORDS[w + j];                                                        \
+                [[unroll]] for (uint b = 0u; b < 4u; ++b) {                                                                            \
+                    uint sb = WORD_BYTE(wd, b * BB);                                                                                   \
+                    float sc = F == 2u ? lut[sb] : uintBitsToFloat(sb << 23);                                                          \
+                    [[unroll]] for (uint i = 0u; i < VB; ++i) {                                                                        \
+                        uint c = F == 0u ? WORD_BYTE(wd, b * BB + 1u + i)                                                              \
+                                         : 256u + (i < VB / 2u ? WORD_BYTE(wd, b * BB + 1u + i) & 15u                                  \
+                                                                : WORD_BYTE(wd, b * BB + 1u + i - VB / 2u) >> 4u);                     \
+                        precise float v = lut[c] * sc;                                                                                 \
+                        dot = fma(q[qb + d + b * VB + i], v, dot);                                                                     \
+                    }                                                                                                                  \
+                }                                                                                                                      \
+            }                                                                                                                          \
+        for (; d < p.dim; ++d) dot = fma(q[qb + d], VALUE(w0, d), dot);                                                                \
+        return dot;                                                                                                                    \
+    }
+SOURCE_DOT(kv_dot0, kv_words, kv0, 0u, 32u, 33u)
+SOURCE_DOT(kv_dot1, kv_words, kv1, 1u, 32u, 17u)
+SOURCE_DOT(kv_dot2, kv_words, kv2, 2u, 16u, 9u)
+SOURCE_DOT(kv_dot3, kv_words, kv3, 3u, 1u, 1u)
+SOURCE_DOT(ax_dot0, aux_words, ax0, 0u, 32u, 33u)
+SOURCE_DOT(ax_dot1, aux_words, ax1, 1u, 32u, 17u)
+SOURCE_DOT(ax_dot2, aux_words, ax2, 2u, 16u, 9u)
+SOURCE_DOT(ax_dot3, aux_words, ax3, 3u, 1u, 1u)
+float row_dot(uint qb, uint w, bool pooled) {
+    uint f = pooled ? p.entry_format : p.kv_format;
+    if (pooled) return f == 0u ? ax_dot0(qb, w) : f == 1u ? ax_dot1(qb, w) : f == 2u ? ax_dot2(qb, w) : ax_dot3(qb, w);
+    return f == 0u ? kv_dot0(qb, w) : f == 1u ? kv_dot1(qb, w) : f == 2u ? kv_dot2(qb, w) : kv_dot3(qb, w);
+}
+void main() {
+    uint rh = gl_WorkGroupID.x, sr = rh / p.heads, h = rh - sr * p.heads, r = p.first_row + sr, lid = gl_LocalInvocationID.x;
+    uint named = p.k + p.entry_k;
+    uint visible = 0u, v = 0u;
+    if (p.views != 0u) {
+        uint b;
+        view_of_row(r, v, b);
+        visible = (view_hist(v) + b + 1u) / p.tokens;
+    }
+    for (uint c = lid; c < 272u; c += 256u) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
+    if (lid == 0u) kept_kv = 0u;
+    barrier();
+    // A thread a named row t, its dot where the row exists.
+    float peak = -1e30;
+    for (uint t = lid; t < named; t += 256u) {
+        uint j = t < p.k ? ids[r * p.k + t] : entry_ids[r * p.entry_k + t - p.k];
+        uint where = NONE;
+        bool pooled = false;
+        if (t < p.k && j < p.kv_rows) where = j * p.kv_words_n;
+        else if (t >= p.k && j != NONE && j < visible) { where = pooled_row(v, j, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width); pooled = true; }
+        at[t] = where;
+        if (where == NONE) continue;
+        precise float s = row_dot((r * p.heads + h) * p.dim, where, pooled) * p.scale;
+        pr[t] = s;
+        peak = max(peak, s);
+    }
+    // Compaction in order over rounds of 256 named rows: a wave's ballot gives a row's place within it, the shared counts the waves before it.
+    uint running = 0u, wave = gl_SubgroupID;
+    for (uint base = 0u; base < named; base += 256u) {
+        uint t = base + lid;
+        bool keep = t < named && at[t] != NONE;
+        uvec4 bal = subgroupBallot(keep);
+        uint within = subgroupBallotExclusiveBitCount(bal);
+        if (subgroupElect()) cnt[wave] = subgroupBallotBitCount(bal);
+        barrier();
+        uint before = running;
+        for (uint w = 0u; w < wave; ++w) before += cnt[w];
+        uint all = 0u;
+        for (uint w = 0u; w < gl_NumSubgroups; ++w) all += cnt[w];
+        if (keep) {
+            uint c = before + within;
+            cidx[t] = c;
+            if (h == 0u) scu[p.kept_at + sr * named + c] = at[t];
+            if (t < p.k) atomicAdd(kept_kv, 1u);
+        }
+        running += all;
+        barrier();
+    }
+    uint total = running;
+    red[lid] = peak;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+        if (lid < s) red[lid] = max(red[lid], red[lid + s]);
+        barrier();
+    }
+    peak = red[0];
+    uint kk2 = kept_kv;
+    for (uint t = lid; t < named; t += 256u)
+        if (at[t] != NONE) {
+            float e = exp(pr[t] - peak);
+            pk[cidx[t]] = e;
+            scf[(sr * named + cidx[t]) * p.heads + h] = e;
+        }
+    barrier();
+    if (lid == 0u) {
+        precise float sum = 0.0;
+        uint c = 0u;
+        for (; c + 8u <= total; c += 8u) {
+            float e[8];
+            [[unroll]] for (uint u = 0u; u < 8u; ++u) e[u] = pk[c + u];
+            [[unroll]] for (uint u = 0u; u < 8u; ++u) sum += e[u];
+        }
+        for (; c < total; ++c) sum += pk[c];
+        scf[p.den_at + rh] = sum + exp(sink[h] - peak);
+        if (h == 0u) scu[p.counts_at + 2u * sr] = total, scu[p.counts_at + 2u * sr + 1u] = kk2;
+    }
+}

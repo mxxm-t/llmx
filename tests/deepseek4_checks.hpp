@@ -69,8 +69,9 @@ size_t meet(const Exact& exact, const char* op, const std::vector<float>& a, con
 
 size_t check_mhc(Pair& p, const Exact& exact) {
     size_t values = 0;
-    for (size_t dim : {40, 256}) {
-        const size_t rows = 5, hc = 4, mix = (hc + 2) * hc;
+    // hc 16 gives a comb entry to each of a block's 256 lanes.
+    for (const auto& [hc, dim] : {std::pair<size_t, size_t>{4, 40}, {4, 256}, {16, 40}, {16, 256}}) {
+        const size_t rows = 5, mix = (hc + 2) * hc;
         Pair::In mi = held(p, uniform(rows * mix, 1, -2.0f, 2.0f)), xi = held(p, uniform(rows * hc * dim, 2, -1.5f, 1.5f));
         Pair::In si = held(p, std::vector<float>{0.7f, 1.3f, 0.9f}), bi = held(p, uniform(mix, 3, -0.5f, 0.5f));
         Pair::Out pre = p.out(rows * hc), post = p.out(rows * hc), comb = p.out(rows * hc * hc);
@@ -333,8 +334,9 @@ size_t check_pooled(Pair& p, const Exact& exact) {
     p.cpu.pool_write(0, cw, 2, ri.cs());
     p.dev.pool_write(0, vw, 2, ri.vs());
     size_t values = 0;
-    {
-        const size_t heads = 4, n = 80, bs = 8, bk = 3;
+    // 64 heads fill a block with four positions, 300 take more than a block's lanes for one position.
+    for (size_t heads : {4, 64, 300}) {
+        const size_t n = 80, bs = 8, bk = 3;
         const std::vector<backend::KVView> cv = {view(false, true, 280, 10), view(false, false, 13, 3)}, dv = {view(true, true, 280, 10), view(true, false, 13, 3)};
         const size_t m = 13;
         std::vector<uint32_t> cand(m * bk, kNone);
@@ -346,7 +348,8 @@ size_t check_pooled(Pair& p, const Exact& exact) {
             p.cpu.indexer_scores(o.cs(), qi.cs(), 0, cv.data(), cv.size(), wi.cs(), 0.375f, heads, key, backend::ModelFormat::f32, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
             p.dev.indexer_scores(o.vs(), qi.vs(), 0, dv.data(), dv.size(), wi.vs(), 0.375f, heads, key, backend::ModelFormat::f32, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
             auto r = p.results(o);
-            values += meet(exact, "indexer_scores", r.first, r.second, 1e-5, std::string("indexer_scores differs beyond 1e-5") + (blocks ? " over candidate blocks" : ""), true);
+            values += meet(exact, "indexer_scores", r.first, r.second, 1e-5,
+                           "indexer_scores differs beyond 1e-5 at " + std::to_string(heads) + " heads" + (blocks ? " over candidate blocks" : ""), true);
         }
     }
     {
@@ -374,7 +377,7 @@ size_t check_pooled(Pair& p, const Exact& exact) {
             p.dev.sparse_attention_sink(o.vs(), qi.vs(), ki.vs(), ii.vs(), si.vs(), m, heads, dim, kv_rows, k, scale, 0, with_views ? dv.data() : nullptr,
                                         with_views ? dv.size() : 0, with_views ? ei.vs() : backend::CSlice{}, with_views ? ek : 0, backend::ModelFormat::f32, backend::ModelFormat::f32);
             auto r = p.results(o);
-            values += close(r.first, r.second, 1e-5, "sparse_attention_sink differs beyond 1e-5");
+            values += meet(exact, "sparse_attention_sink", r.first, r.second, 1e-5, "sparse_attention_sink differs beyond 1e-5");
         }
     }
     return values;
@@ -497,6 +500,74 @@ size_t check_packed(Pair& p) {
     return values;
 }
 
+// sparse_attention_sink at the shapes a device's kernels branch on: packed rows of four-block runs and a tail in every format, over 64 heads, over 256 named rows, and rows past one scratch chunk.
+size_t check_sparse_shapes(Pair& p, const Exact& exact) {
+    using backend::ModelFormat;
+    struct Case {
+        size_t heads, dim, k, entry_k, rows;
+        ModelFormat kv_format, entry_format;
+    };
+    const Case cases[] = {{65, 160, 20, 24, 3, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {3, 160, 20, 24, 3, ModelFormat::fp4_power, ModelFormat::f32},
+                          {2, 160, 300, 300, 3, ModelFormat::fp4_e4m3, ModelFormat::fp4_power},
+                          {64, 64, 512, 512, 140, ModelFormat::fp8_power, ModelFormat::fp4_e4m3}};
+    const size_t ratio = 4, length = 2048, kv_rows = 600;
+    size_t values = 0;
+    uint32_t seed = 101;
+    for (const Case& c : cases) {
+        const size_t kw = backend::format_words(c.kv_format, c.dim), ew = backend::format_words(c.entry_format, c.dim), positions = length + c.rows, groups = positions / ratio;
+        // Rows of a format on both backends, each backend packing them itself.
+        const auto rows_of = [&](ModelFormat f, size_t n, size_t words) {
+            const std::vector<float> x = uniform(n * c.dim, seed++, -2.0f, 2.0f);
+            Pair::Out o = p.out(n * words);
+            if (f == ModelFormat::f32) {
+                p.cpu.write(*o.c, 0, x.data(), x.size() * 4);
+                p.dev.write(*o.v, 0, x.data(), x.size() * 4);
+            } else {
+                Pair::In xi = held(p, x);
+                p.cpu.model_format_pack(o.cs(), words, xi.cs(), n, c.dim, f);
+                p.dev.model_format_pack(o.vs(), words, xi.vs(), n, c.dim, f);
+            }
+            return o;
+        };
+        Pair::Out kv = rows_of(c.kv_format, kv_rows, kw), pooled = rows_of(c.entry_format, groups, ew);
+        auto cs = p.cpu.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, ew}});
+        auto vs = p.dev.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, ew}});
+        std::vector<int32_t> tables[2];
+        for (int dev = 0; dev < 2; ++dev) {
+            const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens;
+            for (size_t i = 0, nb = (positions + bt - 1) / bt; i < nb; ++i) tables[dev].push_back(int32_t(nb - 1 - i));
+        }
+        const auto view = [&](bool dev, size_t at, size_t nq) { return backend::KVView{dev ? vs.get() : cs.get(), tables[dev].data(), tables[dev].size(), at, nq}; };
+        const backend::KVView cw = view(false, 0, positions), vw = view(true, 0, positions), cr = view(false, length, c.rows), vr = view(true, length, c.rows);
+        p.cpu.pool_write(0, &cw, 1, pooled.cs());
+        p.dev.pool_write(0, &vw, 1, pooled.vs());
+        // About one name in five names nothing, so the kept rows are a compaction of the named ones.
+        std::vector<uint32_t> ids(c.rows * c.k, kNone), entries(c.rows * c.entry_k, kNone);
+        uint32_t s = seed++;
+        const auto draw = [&] { return s = s * 1664525u + 1013904223u, s >> 8; };
+        for (size_t r = 0; r < c.rows; ++r) {
+            for (size_t t = 0; t < c.k; ++t)
+                if (draw() % 5) ids[r * c.k + t] = draw() % kv_rows;
+            for (size_t t = 0; t < c.entry_k; ++t)
+                if (draw() % 5) entries[r * c.entry_k + t] = uint32_t(draw() % ((length + r + 1) / ratio));
+        }
+        Pair::In qi = held(p, uniform(c.rows * c.heads * c.dim, seed++)), ii = held(p, as_floats(ids)), ei = held(p, as_floats(entries));
+        Pair::In si = held(p, uniform(c.heads, seed++, -1.0f, 1.0f));
+        const float scale = 1.0f / std::sqrt(float(c.dim));
+        Pair::Out o = p.out(c.rows * c.heads * c.dim);
+        p.cpu.sparse_attention_sink(o.cs(), qi.cs(), kv.cs(), ii.cs(), si.cs(), c.rows, c.heads, c.dim, kv_rows, c.k, scale, 0, &cr, 1, ei.cs(), c.entry_k, c.kv_format,
+                                    c.entry_format);
+        p.dev.sparse_attention_sink(o.vs(), qi.vs(), kv.vs(), ii.vs(), si.vs(), c.rows, c.heads, c.dim, kv_rows, c.k, scale, 0, &vr, 1, ei.vs(), c.entry_k, c.kv_format,
+                                    c.entry_format);
+        auto r = p.results(o);
+        values += meet(exact, "sparse_attention_sink", r.first, r.second, 1e-5,
+                       "sparse_attention_sink differs beyond 1e-5 at " + std::to_string(c.heads) + " heads of " + std::to_string(c.dim) + ", " +
+                           std::to_string(c.k + c.entry_k) + " named rows and " + std::to_string(c.rows) + " rows");
+    }
+    return values;
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
@@ -508,6 +579,7 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_pool_and_routing(p, exact);
     values += check_rope_forms(p, exact);
     values += check_pooled(p, exact);
+    if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
     return values;
 }
 } // namespace ds4

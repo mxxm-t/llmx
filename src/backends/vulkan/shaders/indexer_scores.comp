@@ -1,6 +1,6 @@
 #version 450
-// One lane a (row, position): out = sum over heads of w[h] w_scale ReLU(dot(q_h, key)), key the last dim floats of the view's pooled row of the position.
-// Each dot and the head sum are the CPU's multiply-add chains, and a position the row cannot see is -inf (docs/src/backends-vulkan.md).
+// A workgroup runs of max(1, 256 / heads) positions of one row, a lane a (position, head) dot: out = sum over heads of w[h] w_scale ReLU(dot(q_h, key)).
+// The key is the view's pooled row's last dim floats; each dot and the head sum are the CPU's multiply-add chains, and a position the row cannot see is -inf.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; float w_scale; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint block_k; uint block_size; uint key_format; uint key_words; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
@@ -14,35 +14,62 @@ layout(set = 0, binding = 2) readonly buffer AU { uint aux_words[]; };
 #include "views.glsl"
 #include "model_formats.glsl"
 #define FORMAT_WORD(i) aux_words[i]
-float key_value(uint key, uint d) {
-    if (p.key_format == 3u) return aux[key + d];
-    precise float v;
-    FORMAT_VALUE(key, d, p.key_format, v)
-    return v;
-}
+float key_value0(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 0u, v) return v; }
+float key_value1(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 1u, v) return v; }
+float key_value2(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 2u, v) return v; }
+#define KEY_DOT(VALUE) \
+    for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], VALUE, dot);
+shared float dots[1024];
+shared uint seen[256];
 void main() {
-    uint t = gl_GlobalInvocationID.x, r = gl_WorkGroupID.y;
-    if (t >= p.n) return;
+    uint r = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
+    uint per = max(1u, 256u / p.heads);
     uint v, b;
     view_of_row(r, v, b);
     uint len = (view_hist(v) + b + 1u) / p.tokens;
-    bool reached = t < len;
-    if (reached && p.block_k != 0u) {
-        reached = false;
-        for (uint i = 0u; i < p.block_k && !reached; ++i) reached = blocks[r * p.block_k + i] == t / p.block_size;
+    for (uint first = gl_WorkGroupID.x * per; first < p.n; first += gl_NumWorkGroups.x * per) {
+        for (uint j = lid; j < per; j += 256u) {
+            uint t = first + j;
+            bool reached = t < p.n && t < len;
+            if (reached && p.block_k != 0u) {
+                reached = false;
+                for (uint i = 0u; i < p.block_k && !reached; ++i) reached = blocks[r * p.block_k + i] == t / p.block_size;
+            }
+            seen[j] = reached ? 1u : 0u;
+        }
+        barrier();
+        for (uint i = lid; i < per * p.heads; i += 256u) {
+            uint j = i / p.heads, h = i - j * p.heads;
+            if (seen[j] == 0u) continue;
+            uint key = pooled_row(v, first + j, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.key_words;
+            uint qh = (r * p.heads + h) * p.dim;
+            precise float dot = 0.0;
+            if (p.key_format == 3u) {
+                KEY_DOT(aux[key + d])
+            } else if (p.key_format == 0u) {
+                KEY_DOT(key_value0(key, d))
+            } else if (p.key_format == 1u) {
+                KEY_DOT(key_value1(key, d))
+            } else {
+                KEY_DOT(key_value2(key, d))
+            }
+            dots[i] = dot;
+        }
+        barrier();
+        for (uint j = lid; j < per; j += 256u) {
+            uint t = first + j;
+            if (t >= p.n) continue;
+            if (seen[j] == 0u) {
+                outv[r * p.n + t] = -1.0 / 0.0;
+                continue;
+            }
+            precise float sum = 0.0;
+            for (uint h = 0u; h < p.heads; ++h) {
+                precise float scaled = w[r * p.heads + h] * p.w_scale;
+                sum = fma(max(dots[j * p.heads + h], 0.0), scaled, sum);
+            }
+            outv[r * p.n + t] = sum;
+        }
+        barrier();
     }
-    if (!reached) {
-        outv[r * p.n + t] = -1.0 / 0.0;
-        return;
-    }
-    uint key = pooled_row(v, t, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.key_words;
-    precise float sum = 0.0;
-    for (uint h = 0u; h < p.heads; ++h) {
-        uint qh = (r * p.heads + h) * p.dim;
-        precise float dot = 0.0;
-        for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], key_value(key, d), dot);
-        precise float scaled = w[r * p.heads + h] * p.w_scale;
-        sum = fma(max(dot, 0.0), scaled, sum);
-    }
-    outv[r * p.n + t] = sum;
 }

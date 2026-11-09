@@ -218,6 +218,15 @@ On ROCm the fused launch is 30.9 against the chain's 49.8 us at one row and 57.0
 
 **Gotchas:** the launch's grid grows by a block a stream for each column with inject gates, so its residency is checked a build and a column count; the bench mode stays out of the tree.
 
+## DeepSeek-V4.1 step 11: serving (2026-11-09, DSDEV63 to DSDEV66, branch feat/deepseek4-serving on main 4b5f9236d; DSDEV63's proposal of 08:42, F2DEV's reviews of 09:13 and 12:38; lands by fast-forward)
+
+**Goal:** `serve` runs DeepSeek-V4.1-Flash with prefix reuse, pause and resume through the checkpoint slots qwen35 uses, every reply the CLI's (docs/DEEPSEEK4.md, step 11 and section 5.6), and the ten-card server cells recorded.
+**Done:** an entries layer already keeps a state slot (`keeps_slot`), so checkpoints, `keep_at`, `make_room`, parking and the host and disk tiers apply as they are; `ModelPlan::unserved`, `Model::unserved` and the scheduler's refusal are removed, deepseek41 being their only user, and the deepseek4 component checks serving against the CLI (docs/TESTS.md).
+The component runs under f32 and native caches, pins a fork at 128 with a 160-token prompt and donor, brings a checkpoint back from the host tier and compares a forked request's log-probabilities with a fresh server's; it passes on the CPU, rocm:0 and vulkan:0 (one MI50) at this head.
+`tools/server_mix_check.py` takes `--dtype` and `--lookup-storage`, which the real file needs.
+**Left:** `tools/server_mix_check.py` on the real file over the ten-card layer split, which also covers the replicas' blocks under a fork; the server cells through `tools/server_load.py` on ten MI50s, 1 to 64 users at 4096/256 and 16384/128, ROCm and Vulkan. Landing gates: the stack's, in (Drafter head split over a tensor group, below).
+**Gotchas:** a prompt keeps its checkpoint at its last whole KV block short of its end (`Model::kv_block_tokens`, 128 on the CPU and 64 on ROCm and Vulkan), so the prefix a later request can fork differs by backend; the window ring and open groups are copied whole there, while a pause keeps the whole slot at any length; DSpark's serving cases wait for step 13.
+
 ## DeepSeek-V4.1 decode speed: serial kernels spread, MXFP4 expert rows and sparse attention as two kernels (2026-11-08 to 2026-11-09, DSDEV52 to DSDEV56, branch perf/deepseek4-decode on main ed9780218; DSDEV52's plan of 2026-11-08 19:42; lands by fast-forward)
 
 **Goal:** DeepSeek-V4.1-Flash's decode on ten MI50s in a layer split, ROCm and Vulkan, with every kernel the bits it had on main: the per-token kernels that ran on one lane or one thread spread over their workgroups, the expert MXFP4 rows faster, and sparse attention split so each kept row is decoded once for all heads.

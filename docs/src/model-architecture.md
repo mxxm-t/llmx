@@ -47,7 +47,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   widths, the K and V heads and head width of every layer whose cache is
   KV, the common recurrent-state prefix shape (`backend::StateShape`) of every layer
   whose cache is a state, with each layer's optional `state_tail` extending only
-  its own slots, the tables' fixed floats (`tables`) and the floats each covered position adds (`table_steps`), the slots that hold a float for every `per` covered positions (`position_slots`), `unserved` (why the server refuses the model, naming it, while a step its serving needs is not built, empty where it serves it), `image_streams` (per rotated pair, which of an image row's three positions turns it, empty where the model takes no image rows), `index_width`, the maximum number of host `uint32_t` lookup
+  its own slots, the tables' fixed floats (`tables`) and the floats each covered position adds (`table_steps`), the slots that hold a float for every `per` covered positions (`position_slots`), `image_streams` (per rotated pair, which of an image row's three positions turns it, empty where the model takes no image rows), `index_width`, the maximum number of host `uint32_t` lookup
   indices per activation row, reused by token embedding expansion and
   gathered-weight lookups (zero means no index scratch), and an embedded
   drafter's `LayerPlan` when a caller asked

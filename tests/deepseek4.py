@@ -7,11 +7,12 @@ No selection of the golden sits within 2e-5 of a tie (margin_floor), so no run n
 The upstream layout is refused by its key.
 On a configured device the same gate runs; a device whose backend lacks one of the model's ops refuses the file at load by that op's name, and the component reports SKIP.
 Its cache is kept as native, the model's packed formats and its default, or f32: the whole, decode and ubatch 3 runs under native print the f32 runs' logits, and f16 or two different sides are refused by the flag before the model is built.
-`serve` refuses the model by name until step 11, `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
+`serve` gives the CLI's ids alone, together, after a prefix split, from a kept checkpoint and through a pause (check_serve), `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
 """
 import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 
@@ -21,7 +22,6 @@ import fixture_deepseek4
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "deepseek41_reference.json")
 UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
 DEVICE = "which the backend of its device does not implement"
-SERVE = "server: deepseek41 is not served until its checkpoints, pause and prefix reuse are built"
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
 NATIVE = ["--cache-type-k", "native", "--cache-type-v", "native"]
 LOGIT_BOUND = 2e-5
@@ -102,6 +102,89 @@ def gate(path, directory, document):
           % (len(runs), worst[0], LOGIT_BOUND, worst[1], NLL_BOUND, mean, document["mean_nll"], closest))
 
 
+def cli_ids(model, prompt, n, cache):
+    """The ids greedy `generate` draws after `prompt`, with `cache` as both cache types."""
+    p = common.run_process(["generate", model, prompt, "-n", str(n), "--temp", "0", "--ignore-eos", "--verbose", "--cache-type-k", cache, "--cache-type-v", cache])
+    assert p.returncode == 0, "deepseek4: generate failed: %s" % p.stderr.decode("utf-8", "replace")
+    line = re.search(rb"^ids:(.*)$", common.cli_stdout(p.stdout), re.M)
+    return [int(i) for i in line[1].replace(b",", b" ").split()]
+
+
+def greedy(text, n=24, logprobs=False):
+    body = {"prompt": text, "temperature": 0, "max_tokens": n, "ignore_eos": True}
+    return dict(body, logprobs=True, top_logprobs=5) if logprobs else body
+
+
+def check_serve(model, cache, whole):
+    """Section 5.6 of docs/DEEPSEEK4.md on the fork file with a context of 1024, both cache sides `cache`: greedy ids equal the CLI's, and a forked request's log-probabilities a fresh server's.
+    Without `whole` only the 129 donor, the 128-token shared prefix, the follow-up turn through the host tier and the pause without checkpoints run; with it also four prompts alone and together, donors of 1, 3, 127 and 128 tokens and pauses with checkpoints."""
+    import server
+    flags = ["--cache-type-k", cache, "--cache-type-v", cache]
+    cpu = all(d == "cpu" for d in os.environ.get("LLMX_DEVICE", "cpu").split(","))
+    # The fixture's vocabulary is single characters without a space.
+    prompts = ["helloworld", "abc", "thequickbrownfox", "0123456789"]
+    if whole:
+        srv = server.Server(model, "--max-seqs", "4", *flags)
+        try:
+            server.alone_and_together(srv, [greedy(text) for text in prompts])
+            for text in prompts:
+                assert server.post_ok(srv, "/v1/generate", greedy(text))["ids"] == cli_ids(model, text, 24, cache), text
+        finally:
+            srv.close()
+        print("deepseek4: %s: served greedy ids alone and four at once equal the CLI's" % cache)
+    # One character a token, so a prefix of s characters is a donor of s tokens; a prompt keeps a checkpoint at its last whole block short of its end, the model's largest KV block (128 on the CPU, 64 on the devices).
+    text = "".join(chr(97 + (i * 7) % 26) for i in range(200))
+    # A 160-token prompt and a donor of its first 128 and 32 others: one length, so one row class, and a checkpoint at 128 under either block.
+    short = text[:160]
+    other = text[:128] + "".join(chr(65 + (i * 3) % 26) for i in range(32))
+    want = {p: cli_ids(model, p, 24, cache) for p in (text, short)}
+    for split, donor, prompt in [(s, text[:s], text) for s in ((1, 3, 127, 128, 129) if whole else (129,))] + [(128, other, short)]:
+        srv = server.Server(model, "--max-seqs", "4", *flags)
+        try:
+            server.post_ok(srv, "/v1/generate", greedy(donor, 1))
+            reply = server.post_ok(srv, "/v1/generate", greedy(prompt))
+            assert reply["ids"] == want[prompt], (split, len(donor), reply["ids"], want[prompt])
+            # A device takes the donor's rows only where both prompts fall in one row class (Model::row_class): the CPU's always do, and prompts of one length do everywhere.
+            reuse = {128} if donor == other or split > 128 and cpu else {0, 128} if split > 128 else {0}
+            assert reply["reused_tokens"] in reuse, (split, len(donor), reply["reused_tokens"], srv.get("/v1/health")["reuse"])
+        finally:
+            srv.close()
+    print("deepseek4: %s: after donors of %s tokens of a 200-token prompt and a 160-token donor sharing 128 of a 160-token prompt, a fresh server gives the CLI's ids, forking the 128-token checkpoint"
+          % (cache, "1, 3, 127, 128 and 129" if whole else "129"))
+    first = "".join(chr(97 + (i * 5) % 26) for i in range(300))
+    follow = first + "andthen?"
+    fresh = server.Server(model, "--max-seqs", "4", *flags)
+    try:
+        alone = server.post_ok(fresh, "/v1/generate", greedy(follow, logprobs=True))
+    finally:
+        fresh.close()
+    # The first turn's checkpoint at 256 is moved to the host by a 900-token request on a pool of 1024, then brought back for the follow-up turn.
+    srv = server.Server(model, "--max-seqs", "4", "--kv-tokens", "1024", "--host-cache-bytes", str(1 << 28), *flags)
+    try:
+        server.post_ok(srv, "/v1/generate", greedy(first))
+        server.post_ok(srv, "/v1/generate", greedy("".join(chr(65 + (i * 11) % 26) for i in range(900)), 8))
+        again = server.post_ok(srv, "/v1/generate", greedy(follow, logprobs=True))
+        health = srv.get("/v1/health")["reuse"]
+        assert again["reused_tokens"] == 256 and health["host"]["since_start"]["promotions"] > 0, (again["reused_tokens"], health)
+        assert again["ids"] == cli_ids(model, follow, 24, cache) and again["logprobs"] == alone["logprobs"], (again["ids"], alone["ids"])
+    finally:
+        srv.close()
+    print("deepseek4: %s: a follow-up turn forks its first turn's checkpoint brought back from the host, with the CLI's ids and a fresh server's log-probabilities" % cache)
+    uncapped = [{"prompt": text, "temperature": 0, "ignore_eos": True} for text in prompts]
+    for kept in ((["--state-checkpoints", "0"], []) if whole else (["--state-checkpoints", "0"],)):
+        # Its blocks span 128 tokens and a request takes its prompt and 256 more as it is admitted, so a pool of 1024 admits two of the four, which then pause each other.
+        srv = server.Server(model, "--max-seqs", "4", "--kv-tokens", "1024", *kept, *flags)
+        try:
+            alone = [server.post_ok(srv, "/v1/completions", body)["choices"][0]["text"] for body in uncapped]
+            for (status, reply), body, want_text in zip(srv.together("/v1/completions", uncapped), uncapped, alone):
+                assert status == 200 and reply["choices"][0]["text"] == want_text, (body, reply, want_text)
+            health = srv.get("/v1/health")
+            assert health["requests"]["now"]["active"] == 0 and health["requests"]["now"]["paused"] == 0 and health["pressure"]["since_start"]["pauses"] > 0, (kept, health["requests"]["now"], health["pressure"])
+        finally:
+            srv.close()
+    print("deepseek4: %s: four uncapped requests on a pool of 1024 tokens pause and resume with the text each gives alone, %s" % (cache, "with and without checkpoints" if whole else "without checkpoints"))
+
+
 def run(require=False):
     with open(GOLDEN, encoding="utf-8") as f:
         document = json.load(f)
@@ -123,9 +206,9 @@ def run(require=False):
         refused(fork, "--cache-type-v: this model keeps its cache in native or f32, not f16", ["--cache-type-k", "f32", "--cache-type-v", "f16"])
         refused(fork, "--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not f32 and native", ["--cache-type-k", "f32", "--cache-type-v", "native"])
         print("deepseek4: an f16 cache side and two different sides refused by the flags; native and the default print the f32 runs' logits")
-        p = common.run_process(["serve", fork, "--host", "127.0.0.1", "--port", str(common.free_port())], text=True, timeout=120)
-        assert p.returncode == 1 and SERVE in p.stderr, "deepseek4: serve gave exit %d, stderr %r" % (p.returncode, p.stderr[-400:])
-        print("deepseek4: serve refuses the model by name until step 11")
+        served = fixture_deepseek4.write_deepseek41(os.path.join(directory, "serve.gguf"), dict(args, max_seq_len=1024), state, engram, "fork")
+        check_serve(served, "f32", True)
+        check_serve(served, "native", False)
         common.check_drafts("deepseek4", fork)
         print("deepseek4: generate with --drafter lookup at 1, 4, 8 and 16 drafts, greedy and seeded, gives the ids it gives with drafts off")
         metadata, tensors = fixture_deepseek4.map_deepseek41(args, state, engram, "fork")

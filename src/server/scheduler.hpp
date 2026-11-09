@@ -363,7 +363,6 @@ public:
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms),
           proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? std::min(draft_max, infer::spec::kVerifyRows - 1) : 0), draft_rows_(draft_rows(max_seqs, draft_max_)), priced_(priced), pools_(pools_of(model)),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
-        if (!model_.unserved().empty()) throw std::runtime_error("server: " + model_.unserved());
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
                                    std::to_string(model_.state_slots()));

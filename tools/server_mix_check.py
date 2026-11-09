@@ -16,6 +16,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --passes N serves with N passes in flight, which a layer split takes above one.
 --host-cache-bytes N serves with that much host memory for evicted prefixes; without it the server's own default runs.
 --tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
+--dtype D and --lookup-storage S pass the runtime's flags of those names to the server and the CLI alike.
 --drafter lookup|embedded|PATH, or lookup,embedded and lookup,PATH, serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts.
 It prints the drafts the server fed and kept, and fails where it fed none.
 --fresh-phases starts each capped phase and the final repeat on a fresh server and requires zero prefix reuse and pauses, isolating batching from history reuse.
@@ -214,6 +215,8 @@ def main():
     p.add_argument("--device", default="cpu")
     p.add_argument("--layer-shares")
     p.add_argument("--tensor-width", type=int, help="the devices form tensor groups of this many, on every server and CLI comparison")
+    p.add_argument("--dtype", help="activation dtype, on every server and CLI comparison; omitted uses the runtime default")
+    p.add_argument("--lookup-storage", help="where bounded lookup tables are read from, on every server and CLI comparison; omitted uses the runtime default")
     p.add_argument("--cache-type", choices=["f16", "f32"], help="KV cache type for both sides, on every server and CLI comparison; omitted uses the runtime default")
     p.add_argument("--requests", type=int, help="16, or 12 with --uncapped")
     p.add_argument("--max-seqs", type=int, help="8, or 6 with --uncapped")
@@ -243,6 +246,8 @@ def main():
     flags = ["--device", args.device] + (["--layer-shares", args.layer_shares] if args.layer_shares else [])
     if args.tensor_width:
         flags += ["--tensor-width", str(args.tensor_width)]
+    for flag, value in (("--dtype", args.dtype), ("--lookup-storage", args.lookup_storage)):
+        flags += [flag, value] if value else []
     if args.cache_type:
         flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
     server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])

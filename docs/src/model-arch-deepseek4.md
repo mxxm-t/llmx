@@ -2,7 +2,7 @@
 
 The module in namespace `infer::deepseek4` reads a `deepseek41` GGUF file's configuration, holds it to the rules DeepSeek's model.py at e5decd76, of the 1bae0e10 checkpoint builds its caches by, and plans the fork layout's tensors ([DEEPSEEK4](../DEEPSEEK4.md), step 4).
 `src/model/arch/registry.hpp` registers it as `deepseek41` (`open_v41`), declared dtype BF16, with no drafter pairing until step 13.
-Its math runs on the CPU (step 7): the hyper-connection frame, the window, compressed and indexed attention, Engram and the MoE FFN; a device backend lacking one of its ops refuses the file at load naming the op, and `serve` refuses it by name until step 11 (`ModelPlan::unserved`).
+Its math runs on the CPU (step 7): the hyper-connection frame, the window, compressed and indexed attention, Engram and the MoE FFN; a device backend lacking one of its ops refuses the file at load naming the op, and `serve` runs it through the checkpoint slots its entries layers keep (step 11).
 
 - **Layouts.** The reader tells the fork layout, which the 1017 files on the test machine use, by its key `engram.layer_ids` from the upstream converter's by `ple.layers`; the upstream layout is refused by that key ("unsupported metadata deepseek41.ple.layers") until step 16 reads it, a file holding both is refused naming both, and one with neither is refused as missing `engram.layer_ids`.
 - `read_config(file, prefix, vocab)`: every key the math reads is read and required, but `attention.value_length`, which takes the key width, `hash_layer_count`, which takes 0, and the candidate keys, all absent or all present.

@@ -386,7 +386,6 @@ public:
         const uint64_t lookups = uint64_t(c.engram_ngram > 0 ? c.engram_ngram - 1 : 0) * uint64_t(c.engram_heads);
         ModelPlan p;
         p.role_ids = role_count;
-        p.unserved = "deepseek41 is not served until its checkpoints, pause and prefix reuse are built (docs/DEEPSEEK4.md, step 11)";
         p.vocab = c.vocab;
         p.pass_ops = {{Part::head, backend::Op::hc_collapse_norm}};
         p.pass = {{token_embd, Part::embed, RoleKind::gather, "token_embd.weight", "", E, p.vocab},

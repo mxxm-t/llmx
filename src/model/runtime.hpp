@@ -1153,7 +1153,6 @@ public:
     void add_media(MediaRun run) { add_media(seq_, std::move(run)); }
     // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams).
     bool takes_images() const { return !plan_.image_streams.empty(); }
-    const std::string& unserved() const { return plan_.unserved; }
     // The rows of a sequence's images, [first, end) in order, which a drafter does not draft from; the CLI's own sequence without one.
     std::vector<std::pair<size_t, size_t>> image_rows(const Sequence& s) const {
         std::vector<std::pair<size_t, size_t>> rows;

@@ -180,8 +180,6 @@ struct ModelPlan {
     size_t draft_h = 0, draft_x = 0;
     // Whether the layers' declared native widths are in effect (LayerPlan::native, settle_cache).
     bool native = false;
-    // Why the server refuses this model, naming it, while a step its serving needs is not built; empty where it serves it.
-    std::string unserved;
 };
 
 // The positions a model's tables and position slots cover under a KV budget of `budget` tokens: no more than a sequence may reach, which is the context and the pool's tokens.

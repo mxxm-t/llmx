@@ -829,44 +829,58 @@ public:
         launch_writing({{d, out_n}}, kMixStreams, (unsigned)((out_n + kThreads - 1) / kThreads), 1, args);
         keep(t.t, d, out_n);
     }
-    // The hyper-connection mix as one persistent launch (kernels/int16.hip, llmx_hc_mix) for a decode row over 8-bit activations on a 64-lane wave; the chain of ops otherwise.
+    // The hyper-connection mix as persistent launches (kernels/int16.hip, llmx_hc_mix) for generated rows over 8-bit activations on a 64-lane wave, up to 8 columns a launch; the chain of ops otherwise.
+    // A column gives the one-column launch's bits in any build, so verify rows mix as the decode row would.
     void hyper_mix(Slice out, CSlice x, const HyperMix& m, size_t rows, size_t streams, size_t dim, size_t low_rank, float eps, RowRuns runs, Dtype dtype) override {
         const bool inj = m.inject.data.buffer != nullptr;
         const size_t width = streams * dim;
-        bool fits = rows == 1 && dtype == Dtype::int8 && dev_.caps.subgroup_size == 64 && streams && dim % 32 == 0 && low_rank && low_rank % 32 == 0 &&
-                    low_rank <= 512 && width <= INT32_MAX && std::isfinite(eps) && eps > 0.0f && m.down.type == quant::GGML_TYPE_Q8_0 && m.up.type == quant::GGML_TYPE_Q8_0 &&
-                    (!inj || m.inject.type == quant::GGML_TYPE_F32) && m.down.data.buffer && m.up.data.buffer;
+        bool generated = runs.n ? rows > 0 : rows == 1;
+        for (size_t r = 0; r < runs.n; ++r) generated = generated && runs.runs[r].extent == 1;
+        bool fits = generated && dtype == Dtype::int8 && dev_.caps.subgroup_size == 64 && streams && dim % 32 == 0 && low_rank && low_rank % 32 == 0 &&
+                    low_rank <= 512 && size_mul(width, kHcColumns) <= INT32_MAX && std::isfinite(eps) && eps > 0.0f && m.down.type == quant::GGML_TYPE_Q8_0 &&
+                    m.up.type == quant::GGML_TYPE_Q8_0 && (!inj || m.inject.type == quant::GGML_TYPE_F32) && m.down.data.buffer && m.up.data.buffer;
         if (fits)
             for (const CSlice& v : {CSlice(out), x, m.norm, CSlice(m.normed), CSlice(m.low), CSlice(m.gates), inj ? CSlice(m.inject_gates) : x})
                 if (!v.buffer || as_rocm(*v.buffer).host_ptr()) fits = false;
-        const unsigned grid = (unsigned)((low_rank + 3) / 4 + (inj ? streams : 0));
-        if (!fits || !hc_resident(grid)) {
+        // A launch of n columns is ceil(low rank / 4) down blocks and a block an inject output of a column.
+        const auto grid = [&](size_t n) { return (unsigned)((low_rank + 3) / 4 + (inj ? streams * n : 0)); };
+        if (fits)
+            for (size_t left = rows; left && fits; left -= std::min(left, kHcColumns))
+                fits = hc_resident(hc_build(std::min(left, kHcColumns)), grid(std::min(left, kHcColumns)));
+        if (!fits) {
             Backend::hyper_mix(out, x, m, rows, streams, dim, low_rank, eps, runs, dtype);
             return;
         }
         const size_t q8 = 34;
-        span(*out.buffer, out.offset * sizeof(float), dim * sizeof(float));
-        for (const CSlice& v : {x, m.norm, CSlice(m.normed), CSlice(m.gates)}) span(*v.buffer, v.offset * sizeof(float), width * sizeof(float));
-        span(*m.low.buffer, m.low.offset * sizeof(float), low_rank * sizeof(float));
+        span(*out.buffer, out.offset * sizeof(float), size_mul(rows, dim * sizeof(float)));
+        for (const CSlice& v : {x, CSlice(m.normed), CSlice(m.gates)}) span(*v.buffer, v.offset * sizeof(float), size_mul(rows, width * sizeof(float)));
+        span(*m.norm.buffer, m.norm.offset * sizeof(float), width * sizeof(float));
+        span(*m.low.buffer, m.low.offset * sizeof(float), size_mul(rows, low_rank * sizeof(float)));
         span(*m.down.data.buffer, m.down.data.offset * sizeof(float), size_mul(low_rank, width / 32 * q8));
         span(*m.up.data.buffer, m.up.data.offset * sizeof(float), size_mul(width, low_rank / 32 * q8));
         if (inj) {
             span(*m.inject.data.buffer, m.inject.data.offset * sizeof(float), size_mul(streams, width) * sizeof(float));
-            span(*m.inject_gates.buffer, m.inject_gates.offset * sizeof(float), streams * sizeof(float));
+            span(*m.inject_gates.buffer, m.inject_gates.offset * sizeof(float), size_mul(rows, streams * sizeof(float)));
         }
-        // The launch's scratch: the two barrier counters first, which the allocation zeroes and every launch leaves at zero, then each stream's root, the twin's scales and the twin.
+        // The launch's scratch: the two barrier counters first, which the allocation zeroes and every launch leaves at zero, then each stream's root, the twin's scales and the twin, for a launch's columns.
         // The counters keep their offset whatever the shape, so a launch on scratch a wider mix used reads zeros there, never that mix's twin bytes.
-        const size_t rr_at = 64, nd_at = rr_at + (streams * sizeof(float) + 15) / 16 * 16, nq_at = nd_at + (width / 32 * sizeof(float) + 15) / 16 * 16, need = nq_at + width;
+        const size_t cols = std::min(rows, kHcColumns), rr_at = 64, nd_at = rr_at + (cols * streams * sizeof(float) + 15) / 16 * 16,
+                     nq_at = nd_at + (cols * width / 32 * sizeof(float) + 15) / 16 * 16, need = nq_at + cols * width;
         if (!hc_scratch_ || hc_scratch_->size() < need) hc_scratch_ = alloc(need, Memory::device);
         uint8_t* sc = (uint8_t*)as_rocm(*hc_scratch_).data();
         forget_twins();
         StreamTwin t = stream_twin(out, rows, dim, runs);
         if (t.major || t.level == 1) t = {};
-        const HcMix a{f32(x), f32(m.norm), bytes(m.down.data), inj ? f32(m.inject.data) : nullptr, bytes(m.up.data), f32(m.normed), (signed char*)(sc + nq_at),
-                      (float*)(sc + nd_at), f32(m.low), inj ? f32(m.inject_gates) : nullptr, f32(m.gates), f32(out), (signed char*)t.q, t.d,
-                      (float*)(sc + rr_at), (unsigned*)sc, (unsigned)streams, (unsigned)dim, (unsigned)low_rank, eps, 1.0f / float(streams)};
-        launch(kHcMix, grid, 1, Args(a));
-        keep(t.t, f32(out), dim);
+        for (size_t at = 0; at < rows;) {
+            const size_t n = std::min(rows - at, kHcColumns);
+            const HcMix a{f32(x) + at * width, f32(m.norm), bytes(m.down.data), inj ? f32(m.inject.data) : nullptr, bytes(m.up.data), f32(m.normed) + at * width,
+                          (signed char*)(sc + nq_at), (float*)(sc + nd_at), f32(m.low) + at * low_rank, inj ? f32(m.inject_gates) + at * streams : nullptr,
+                          f32(m.gates) + at * width, f32(out) + at * dim, t.q ? (signed char*)t.q + at * dim : nullptr, t.q ? t.d + at * dim / 32 : nullptr,
+                          (float*)(sc + rr_at), (unsigned*)sc, (unsigned)streams, (unsigned)dim, (unsigned)low_rank, (unsigned)n, eps, 1.0f / float(streams)};
+            launch(hc_build(n), grid(n), 1, Args(a));
+            at += n;
+        }
+        keep(t.t, f32(out), rows * dim);
     }
     // The kernel's argument, laid out as kernels/int16.hip's HcMix.
     struct HcMix {
@@ -886,29 +900,30 @@ public:
         float* od;
         float* rr;
         unsigned* bar;
-        unsigned streams, dim, lowr;
+        unsigned streams, dim, lowr, cols;
         float eps, scale;
     };
-    static_assert(offsetof(HcMix, streams) == 16 * sizeof(void*) && sizeof(HcMix) == 16 * sizeof(void*) + 5 * 4 + 4, "HcMix mirrors the kernel's argument");
-    // Whether a grid of llmx_hc_mix is resident at once, which its barriers need: the blocks a compute unit holds times the units, read once; a grid past it is said once and runs the chain.
-    bool hc_resident(unsigned grid) {
-        if (hc_per_cu_ < 0) {
+    static_assert(offsetof(HcMix, streams) == 16 * sizeof(void*) && sizeof(HcMix) == 16 * sizeof(void*) + 6 * 4, "HcMix mirrors the kernel's argument");
+    // Whether a grid of the build is resident at once, which its barriers need: the blocks a compute unit holds times the units, read once a build; a grid past it is said once and runs the chain.
+    bool hc_resident(int k, unsigned grid) {
+        const size_t i = k == kHcMix ? 0 : 1;
+        if (hc_per_cu_[i] < 0) {
             int n = 0;
             // HIP finds the module's function through the calling thread's device, which another backend's call may have changed.
             hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-            hip_check(hip().hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(&n, kernels_[kHcMix], kThreads, 0), "hipModuleOccupancyMaxActiveBlocksPerMultiprocessor");
-            hc_per_cu_ = n;
+            hip_check(hip().hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(&n, kernels_[k], kThreads, 0), "hipModuleOccupancyMaxActiveBlocksPerMultiprocessor");
+            hc_per_cu_[i] = n;
         }
-        const bool ok = size_t(grid) <= size_t(hc_per_cu_) * dev_.caps.compute_units;
+        const bool ok = size_t(grid) <= size_t(hc_per_cu_[i]) * dev_.caps.compute_units;
         if (!ok && !hc_refused_) {
             hc_refused_ = true;
             std::fprintf(stderr, "rocm: the hyper-connection mix's %u workgroups exceed the %d a compute unit times %u units resident on %s; it runs as separate launches\n", grid,
-                         hc_per_cu_, dev_.caps.compute_units, identity().c_str());
+                         hc_per_cu_[i], dev_.caps.compute_units, identity().c_str());
         }
         return ok;
     }
     BufferPtr hc_scratch_;
-    int hc_per_cu_ = -1;
+    int hc_per_cu_[2] = {-1, -1};
     bool hc_refused_ = false;
     void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
         if (!streams || !dim) throw std::runtime_error("rocm: invalid stream injection dimensions");
@@ -1713,7 +1728,10 @@ private:
                   kHalf8x1, kHalf8x1p, kHalf8x1r2, kHalf8x2, kHalf8x2r4, kHalf8x4, kHalf8x4r4, kHalf8x8, kHalf8x8r4, kHalf8x16, kTile16Tall, kTile8Tall, kRouted16, kRouted8, kRoutedHalf8, kGrouped16x2, kGrouped16x4, kGrouped16x8, kGrouped8x2, kGrouped8x4, kGrouped8x8, kGroupedHalf8x2, kGroupedHalf8x4, kGroupedHalf8x8, kRoutedTile16, kRoutedTile8, kRoutedNarrow16, kRoutedNarrow8,
                   kRowsQ4K16x1, kRowsQ4K16x2, kRowsQ4K16x4, kRowsQ4K16x8, kRowsQ4K16x16, kRowsQ4K8x1, kRowsQ4K8x2, kRowsQ4K8x4, kRowsQ4K8x8, kRowsQ4K8x16, kTileQ4K16, kTileQ4K8, kRoutedQ4K16, kRoutedQ4K8, kGroupedQ4K16x2, kGroupedQ4K16x4, kGroupedQ4K16x8, kGroupedQ4K8x2, kGroupedQ4K8x4, kGroupedQ4K8x8, kRoutedTileQ4K16, kRoutedTileQ4K8, kRoutedNarrowQ4K16, kRoutedNarrowQ4K8, kRowsQ5K16x1, kRowsQ5K16x2, kRowsQ5K16x4, kRowsQ5K16x8, kRowsQ5K16x16, kRowsQ5K8x1, kRowsQ5K8x2, kRowsQ5K8x4, kRowsQ5K8x8, kRowsQ5K8x16, kTileQ5K16, kTileQ5K8, kRoutedQ5K16, kRoutedQ5K8, kGroupedQ5K16x2, kGroupedQ5K16x4, kGroupedQ5K16x8, kGroupedQ5K8x2, kGroupedQ5K8x4, kGroupedQ5K8x8, kRoutedTileQ5K16, kRoutedTileQ5K8, kRoutedNarrowQ5K16, kRoutedNarrowQ5K8, kRowsQ6K16x1, kRowsQ6K16x2, kRowsQ6K16x4, kRowsQ6K16x8, kRowsQ6K16x16, kRowsQ6K8x1, kRowsQ6K8x2, kRowsQ6K8x4, kRowsQ6K8x8, kRowsQ6K8x16, kTileQ6K16, kTileQ6K8, kRoutedQ6K16, kRoutedQ6K8, kGroupedQ6K16x2, kGroupedQ6K16x4, kGroupedQ6K16x8, kGroupedQ6K8x2, kGroupedQ6K8x4, kGroupedQ6K8x8, kRoutedTileQ6K16, kRoutedTileQ6K8, kRoutedNarrowQ6K16, kRoutedNarrowQ6K8,
                   kRowsQ5016x1, kRowsQ5016x2, kRowsQ5016x4, kRowsQ5016x8, kRowsQ5016x16, kRowsQ508x1, kRowsQ508x2, kRowsQ508x4, kRowsQ508x8, kRowsQ508x16, kTileQ5016, kTileQ508, kRoutedQ5016, kRoutedQ508, kGroupedQ5016x2, kGroupedQ5016x4, kGroupedQ5016x8, kGroupedQ508x2, kGroupedQ508x4, kGroupedQ508x8, kRoutedTileQ5016, kRoutedTileQ508, kRoutedNarrowQ5016, kRoutedNarrowQ508, kRowsQ5116x1, kRowsQ5116x2, kRowsQ5116x4, kRowsQ5116x8, kRowsQ5116x16, kRowsQ518x1, kRowsQ518x2, kRowsQ518x4, kRowsQ518x8, kRowsQ518x16, kTileQ5116, kTileQ518, kRoutedQ5116, kRoutedQ518, kGroupedQ5116x2, kGroupedQ5116x4, kGroupedQ5116x8, kGroupedQ518x2, kGroupedQ518x4, kGroupedQ518x8, kRoutedTileQ5116, kRoutedTileQ518, kRoutedNarrowQ5116, kRoutedNarrowQ518, kRowsIQ4NL16x1, kRowsIQ4NL16x2, kRowsIQ4NL16x4, kRowsIQ4NL16x8, kRowsIQ4NL16x16, kRowsIQ4NL8x1, kRowsIQ4NL8x2, kRowsIQ4NL8x4, kRowsIQ4NL8x8, kRowsIQ4NL8x16, kTileIQ4NL16, kTileIQ4NL8, kRoutedIQ4NL16, kRoutedIQ4NL8, kGroupedIQ4NL16x2, kGroupedIQ4NL16x4, kGroupedIQ4NL16x8, kGroupedIQ4NL8x2, kGroupedIQ4NL8x4, kGroupedIQ4NL8x8, kRoutedTileIQ4NL16, kRoutedTileIQ4NL8, kRoutedNarrowIQ4NL16, kRoutedNarrowIQ4NL8, kRowsMXFP416x1, kRowsMXFP416x2, kRowsMXFP416x4, kRowsMXFP416x8, kRowsMXFP416x16, kRowsMXFP48x1, kRowsMXFP48x2, kRowsMXFP48x4, kRowsMXFP48x8, kRowsMXFP48x16, kTileMXFP416, kTileMXFP48, kRoutedMXFP416, kRoutedMXFP48, kGroupedMXFP416x2, kGroupedMXFP416x4, kGroupedMXFP416x8, kGroupedMXFP48x2, kGroupedMXFP48x4, kGroupedMXFP48x8, kRoutedTileMXFP416, kRoutedTileMXFP48, kRoutedNarrowMXFP416, kRoutedNarrowMXFP48,
-                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kKernels };
+                  kQuarterQ5016x1, kQuarterQ5016x2, kQuarterQ5016x4, kQuarterQ5016x8, kQuarterQ5016x16, kQuarterQ508x1, kQuarterQ508x2, kQuarterQ508x4, kQuarterQ508x8, kQuarterQ508x16, kQuarterRoutedQ5016, kQuarterRoutedQ508, kQuarterGroupedQ5016x2, kQuarterGroupedQ5016x4, kQuarterGroupedQ5016x8, kQuarterGroupedQ508x2, kQuarterGroupedQ508x4, kQuarterGroupedQ508x8, kQuarterQ5116x1, kQuarterQ5116x2, kQuarterQ5116x4, kQuarterQ5116x8, kQuarterQ5116x16, kQuarterQ518x1, kQuarterQ518x2, kQuarterQ518x4, kQuarterQ518x8, kQuarterQ518x16, kQuarterRoutedQ5116, kQuarterRoutedQ518, kQuarterGroupedQ5116x2, kQuarterGroupedQ5116x4, kQuarterGroupedQ5116x8, kQuarterGroupedQ518x2, kQuarterGroupedQ518x4, kQuarterGroupedQ518x8, kHcMix, kHcMix8, kMoeStepUpQ4K, kMoeStepUpQ5K, kMoeStepDownQ51, kMoeStepDownQ8, kMoeStepUpQ4KW, kMoeStepUpQ5KW, kKernels };
+    static constexpr size_t kHcColumns = 8;   // llmx_hc_mix8's columns, hc_mix<8> in kernels/int16.hip, which backend-rocm twins holds at 2 to 16 rows
+    // The build for n columns: one column's own, else the one of up to kHcColumns.
+    static Kernel hc_build(size_t n) { return n == 1 ? kHcMix : kHcMix8; }
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_copy", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
                                                            "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
@@ -1735,7 +1753,7 @@ private:
                                                            "llmx_q4_k_rows16_1", "llmx_q4_k_rows16_2", "llmx_q4_k_rows16_4", "llmx_q4_k_rows16_8", "llmx_q4_k_rows16_16", "llmx_q4_k_rows8_1", "llmx_q4_k_rows8_2", "llmx_q4_k_rows8_4", "llmx_q4_k_rows8_8", "llmx_q4_k_rows8_16", "llmx_q4_k_tile16", "llmx_q4_k_tile8", "llmx_q4_k_routed16", "llmx_q4_k_routed8", "llmx_q4_k_routed16_g2", "llmx_q4_k_routed16_g4", "llmx_q4_k_routed16_g8", "llmx_q4_k_routed8_g2", "llmx_q4_k_routed8_g4", "llmx_q4_k_routed8_g8", "llmx_q4_k_routed_tile16", "llmx_q4_k_routed_tile8", "llmx_q4_k_routed_narrow16", "llmx_q4_k_routed_narrow8", "llmx_q5_k_rows16_1", "llmx_q5_k_rows16_2", "llmx_q5_k_rows16_4", "llmx_q5_k_rows16_8", "llmx_q5_k_rows16_16", "llmx_q5_k_rows8_1", "llmx_q5_k_rows8_2", "llmx_q5_k_rows8_4", "llmx_q5_k_rows8_8", "llmx_q5_k_rows8_16", "llmx_q5_k_tile16", "llmx_q5_k_tile8", "llmx_q5_k_routed16", "llmx_q5_k_routed8", "llmx_q5_k_routed16_g2", "llmx_q5_k_routed16_g4", "llmx_q5_k_routed16_g8", "llmx_q5_k_routed8_g2", "llmx_q5_k_routed8_g4", "llmx_q5_k_routed8_g8", "llmx_q5_k_routed_tile16", "llmx_q5_k_routed_tile8", "llmx_q5_k_routed_narrow16", "llmx_q5_k_routed_narrow8", "llmx_q6_k_rows16_1", "llmx_q6_k_rows16_2", "llmx_q6_k_rows16_4", "llmx_q6_k_rows16_8", "llmx_q6_k_rows16_16", "llmx_q6_k_rows8_1", "llmx_q6_k_rows8_2", "llmx_q6_k_rows8_4", "llmx_q6_k_rows8_8", "llmx_q6_k_rows8_16", "llmx_q6_k_tile16", "llmx_q6_k_tile8", "llmx_q6_k_routed16", "llmx_q6_k_routed8", "llmx_q6_k_routed16_g2", "llmx_q6_k_routed16_g4", "llmx_q6_k_routed16_g8", "llmx_q6_k_routed8_g2", "llmx_q6_k_routed8_g4", "llmx_q6_k_routed8_g8", "llmx_q6_k_routed_tile16", "llmx_q6_k_routed_tile8", "llmx_q6_k_routed_narrow16", "llmx_q6_k_routed_narrow8",
                                                            "llmx_q5_0_rows16_1", "llmx_q5_0_rows16_2", "llmx_q5_0_rows16_4", "llmx_q5_0_rows16_8", "llmx_q5_0_rows16_16", "llmx_q5_0_rows8_1", "llmx_q5_0_rows8_2", "llmx_q5_0_rows8_4", "llmx_q5_0_rows8_8", "llmx_q5_0_rows8_16", "llmx_q5_0_tile16", "llmx_q5_0_tile8", "llmx_q5_0_routed16", "llmx_q5_0_routed8", "llmx_q5_0_routed16_g2", "llmx_q5_0_routed16_g4", "llmx_q5_0_routed16_g8", "llmx_q5_0_routed8_g2", "llmx_q5_0_routed8_g4", "llmx_q5_0_routed8_g8", "llmx_q5_0_routed_tile16", "llmx_q5_0_routed_tile8", "llmx_q5_0_routed_narrow16", "llmx_q5_0_routed_narrow8", "llmx_q5_1_rows16_1", "llmx_q5_1_rows16_2", "llmx_q5_1_rows16_4", "llmx_q5_1_rows16_8", "llmx_q5_1_rows16_16", "llmx_q5_1_rows8_1", "llmx_q5_1_rows8_2", "llmx_q5_1_rows8_4", "llmx_q5_1_rows8_8", "llmx_q5_1_rows8_16", "llmx_q5_1_tile16", "llmx_q5_1_tile8", "llmx_q5_1_routed16", "llmx_q5_1_routed8", "llmx_q5_1_routed16_g2", "llmx_q5_1_routed16_g4", "llmx_q5_1_routed16_g8", "llmx_q5_1_routed8_g2", "llmx_q5_1_routed8_g4", "llmx_q5_1_routed8_g8", "llmx_q5_1_routed_tile16", "llmx_q5_1_routed_tile8", "llmx_q5_1_routed_narrow16", "llmx_q5_1_routed_narrow8",
                                                            "llmx_iq4_nl_rows16_1", "llmx_iq4_nl_rows16_2", "llmx_iq4_nl_rows16_4", "llmx_iq4_nl_rows16_8", "llmx_iq4_nl_rows16_16", "llmx_iq4_nl_rows8_1", "llmx_iq4_nl_rows8_2", "llmx_iq4_nl_rows8_4", "llmx_iq4_nl_rows8_8", "llmx_iq4_nl_rows8_16", "llmx_iq4_nl_tile16", "llmx_iq4_nl_tile8", "llmx_iq4_nl_routed16", "llmx_iq4_nl_routed8", "llmx_iq4_nl_routed16_g2", "llmx_iq4_nl_routed16_g4", "llmx_iq4_nl_routed16_g8", "llmx_iq4_nl_routed8_g2", "llmx_iq4_nl_routed8_g4", "llmx_iq4_nl_routed8_g8", "llmx_iq4_nl_routed_tile16", "llmx_iq4_nl_routed_tile8", "llmx_iq4_nl_routed_narrow16", "llmx_iq4_nl_routed_narrow8", "llmx_mxfp4_rows16_1", "llmx_mxfp4_rows16_2", "llmx_mxfp4_rows16_4", "llmx_mxfp4_rows16_8", "llmx_mxfp4_rows16_16", "llmx_mxfp4_rows8_1", "llmx_mxfp4_rows8_2", "llmx_mxfp4_rows8_4", "llmx_mxfp4_rows8_8", "llmx_mxfp4_rows8_16", "llmx_mxfp4_tile16", "llmx_mxfp4_tile8", "llmx_mxfp4_routed16", "llmx_mxfp4_routed8", "llmx_mxfp4_routed16_g2", "llmx_mxfp4_routed16_g4", "llmx_mxfp4_routed16_g8", "llmx_mxfp4_routed8_g2", "llmx_mxfp4_routed8_g4", "llmx_mxfp4_routed8_g8", "llmx_mxfp4_routed_tile16", "llmx_mxfp4_routed_tile8", "llmx_mxfp4_routed_narrow16", "llmx_mxfp4_routed_narrow8",
-                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w"};
+                                                           "llmx_q5_0_quarter_rows16_1", "llmx_q5_0_quarter_rows16_2", "llmx_q5_0_quarter_rows16_4", "llmx_q5_0_quarter_rows16_8", "llmx_q5_0_quarter_rows16_16", "llmx_q5_0_quarter_rows8_1", "llmx_q5_0_quarter_rows8_2", "llmx_q5_0_quarter_rows8_4", "llmx_q5_0_quarter_rows8_8", "llmx_q5_0_quarter_rows8_16", "llmx_q5_0_quarter_routed16", "llmx_q5_0_quarter_routed8", "llmx_q5_0_quarter_routed16_g2", "llmx_q5_0_quarter_routed16_g4", "llmx_q5_0_quarter_routed16_g8", "llmx_q5_0_quarter_routed8_g2", "llmx_q5_0_quarter_routed8_g4", "llmx_q5_0_quarter_routed8_g8", "llmx_q5_1_quarter_rows16_1", "llmx_q5_1_quarter_rows16_2", "llmx_q5_1_quarter_rows16_4", "llmx_q5_1_quarter_rows16_8", "llmx_q5_1_quarter_rows16_16", "llmx_q5_1_quarter_rows8_1", "llmx_q5_1_quarter_rows8_2", "llmx_q5_1_quarter_rows8_4", "llmx_q5_1_quarter_rows8_8", "llmx_q5_1_quarter_rows8_16", "llmx_q5_1_quarter_routed16", "llmx_q5_1_quarter_routed8", "llmx_q5_1_quarter_routed16_g2", "llmx_q5_1_quarter_routed16_g4", "llmx_q5_1_quarter_routed16_g8", "llmx_q5_1_quarter_routed8_g2", "llmx_q5_1_quarter_routed8_g4", "llmx_q5_1_quarter_routed8_g8", "llmx_hc_mix", "llmx_hc_mix8", "llmx_moe_step_up_q4_k", "llmx_moe_step_up_q5_k", "llmx_moe_step_down_q5_1", "llmx_moe_step_down_q8_0", "llmx_moe_step_up_q4_k_w", "llmx_moe_step_up_q5_k_w"};
     // A type's twin kernels by form and columns, with its routed builds' break-evens and tile extents (docs/src/backends-rocm.md, weight types).
     // kKernels marks a build the type lacks.
     struct TwinKernels {

@@ -1,5 +1,40 @@
 # llmx - Development Status
 
+## Multi-row hyper-connection mix on ROCm (2026-11-09, MTP5, branch perf/rocm-hc-mix-rows on main 4b5f9236d, landed stacked under perf/rocm-moe-prompt-stream; MTP4's item 4 of 2026-11-08; F2DEV's review of 01:12; lands by fast-forward)
+
+**Goal:** verify and multi-user decode rows mix their hyper-connection streams in one launch, as a decode row does, with each column's bits the one-column launch's, so verify rows equal decode rows; the chain stays only for the shapes the launch does not take.
+
+**Done:**
+- `RocmBackend::hyper_mix` takes generated rows (every run of extent 1) in launches of up to 8 columns: `llmx_hc_mix` for one column, unchanged, and `llmx_hc_mix8` for 2 to 8, from one template (`hc_mix<C>` in kernels/int16.hip) whose phases run the columns one after another on the weights a wave already holds, with a block an inject output of each column.
+  Unrolling the columns spilled 267 VGPRs at 4 columns and made the launch slower than the chain (89 us against 77 at 4 rows); rolled, `llmx_hc_mix` spills 39 VGPRs into 120 bytes of scratch a lane as main's does, and `llmx_hc_mix8` 46 into 144 bytes, neither more than that scratch.
+- `backend-rocm twins` (`hyper_mix_bits`): 1, 2, 3, 4, 5, 8, 9, 13 and 16 rows at four shapes, out, the normed streams, the low rows, the gates and the inject gates bit for bit against the chain and against each column launched alone, and out's twin through a product; it counts the `llmx_hc_mix8` launches a call, one a chunk of 8 rows and one for a last chunk of 2 to 7 (none at 1 row, 2 at 13 and 16).
+- Microbenchmark (rig-only bench mode of the backend test, one MI50, the Flash-Next shape 4 x 2560 streams of low rank 320 with inject gates, us a call):
+
+  | rows | 1 | 2 | 3 | 4 | 8 | 16 |
+  |---|---|---|---|---|---|---|
+  | chain | 49.8 | 61.1 | 72.9 | 77.3 | 130.7 | 202.9 |
+  | fused | 30.9 | 39.7 | 49.3 | 57.0 | 87.0 | 173.8 |
+  | one-column launch a row | 30.9 | 61.9 | 92.9 | 123.8 | 248.5 | 494.8 |
+
+- Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2 on four MI50s at default clocks, one user, MTP draft-max 3, `--cpus 8` with nr_throttled 0, a fresh server an arm in turn, three rounds, greedy 256-token replies, tok/s of the runs after the warm one (host load 20 to 24 from other work):
+  perf/mtp-draft-price 724b32941 78.5/80.5/76.9, 77.7/80.6/80.9, 75.3/75.3/78.7 (mean 78.2); this branch 87.3/84.8/84.0, 80.8/84.3/83.5, 81.1/84.1/85.4 (mean 83.9, +7.3%); the reference build measured 92 to 96 on this cell.
+  Every reply of both arms, warm ones included, is main's text (sha256 10eb8235), so verify rows mixed in the multi-column launch change no token.
+- Layer-4, the same cell (nr_throttled 5 to 10 in every server of both arms): perf/mtp-draft-price 67.4/65.4/66.7, 66.8/65.5/67.0, 65.2/67.3/64.8 (mean 66.2); this branch 74.2/70.2/72.7, 71.3/70.7/71.7, 70.8/70.2/71.6 (mean 69.3, +4.6%); every reply main's text.
+- `llmx_hc_mix` against main's: the index math of one column is guarded by `C == 1`, the VGPR, SGPR, spill and scratch counts are main's (128 VGPRs with 39 spilled, 120 bytes of scratch a lane, 17 SGPRs spilled), and the instructions differ in scheduling and in the argument's layout (3587 against 3593), so a drafts-off decode A/B against the parent head holds it.
+- Drafts off, the same 2x2 cell, three fresh servers an arm (host load 18 to 26): perf/mtp-draft-price 63.0/63.1/59.3, 61.2/52.2/59.3, 63.0/61.5/59.7 (mean 60.2); this branch 62.1/62.1/62.1, 58.0/62.0/61.7, 61.2/61.2/62.4 (mean 61.4); every reply main's text, so the one-row launch keeps its speed.
+- rocprofv3 on the stage-0 device, generate of 48 tokens at draft-max 3: the chain's six launches at 4 columns take about 92 us a mix (27.5 + 23.0 + 18.6 + 10.6 + 6.6 + 5.3), `llmx_hc_mix8` 68.0 us, and `llmx_hc_mix` 39.5 against 38.8 at one row.
+
+**Landing gates** (LAND13, at the stacked head of this branch and perf/rocm-moe-prompt-stream on main 4b5f9236d; that block gives the table):
+- Fresh ROCm and Vulkan builds; ROCm CTest 84/84 with backend-rocm in full, `twins`, `moe` and `deepseek4` on one MI50; the CPU suite and the suite on rocm:0 pass; docs and dead-code pass; hosted run 42588340137 8/8 green.
+- Byte identity against main for Qwen3-0.6B Q8_0 and the tiny MoE fixtures on the CPU, vulkan:0 and rocm:0.
+- Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2, four users without drafts (the 2 to 8 column launch): main 186.2, head 204.4 tok/s, every reply main's text; one user with MTP draft-max 3, three fresh servers an arm alternated: main 80.4, head 83.2 tok/s (one head run of 68.1; medians 80.7 and 84.8), every reply sha256 10eb8235.
+- The Windows build.bat binary compiles the ROCm backend out (no hc_mix or routed_stream kernel names in it).
+
+**Left:** the Vulkan backend has no fused mix at any row count (the chain at every width, so its verify rows already equal its decode rows), and a fused Vulkan mix is a design of its own, since Vulkan gives no co-residency for grid barriers.
+On ROCm the fused launch is 30.9 against the chain's 49.8 us at one row and 57.0 against 77.3 at four, 0.5 to 0.9 ms a stage pass of 12 layers, the size of what a Vulkan fused mix could take; Vulkan's own chain is not yet measured at these widths.
+
+**Gotchas:** the launch's grid grows by a block a stream for each column with inject gates, so its residency is checked a build and a column count; the bench mode stays out of the tree.
+
 ## DeepSeek-V4.1 decode speed: serial kernels spread, MXFP4 expert rows and sparse attention as two kernels (2026-11-08 to 2026-11-09, DSDEV52 to DSDEV56, branch perf/deepseek4-decode on main ed9780218; DSDEV52's plan of 2026-11-08 19:42; lands by fast-forward)
 
 **Goal:** DeepSeek-V4.1-Flash's decode on ten MI50s in a layer split, ROCm and Vulkan, with every kernel the bits it had on main: the per-token kernels that ran on one lane or one thread spread over their workgroups, the expert MXFP4 rows faster, and sparse attention split so each kept row is decoded once for all heads.

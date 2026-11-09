@@ -1832,56 +1832,78 @@ void moe_rows_bits(Backend& g) {
     if (fused) require(wide_runs > 0 && lean_runs > 0, "the fused gate+up takes the wide build where its grid is resident and the lean one elsewhere");
 }
 
-// The hyper-connection mix's one launch (llmx_hc_mix) against the chain of ops it replaces (Backend::hyper_mix's own steps), bit for bit, at the shapes and orders docs/TESTS.md gives (backend-rocm, `twins`).
-// With `other`, another device's backend is made current before each fused call, as a layer split's earlier stage leaves it.
+// The hyper-connection mix's launches (llmx_hc_mix and its column builds) against the chain of ops they replace (Backend::hyper_mix's own steps), bit for bit, over 1 to 16 generated rows (backend-rocm, `twins`).
+// Each column of a launch of several is also the one-column launch's, so verify rows mix as decode rows; with `other`, another device's backend is made current before each fused call, as a layer split's earlier stage leaves it.
 void hyper_mix_bits(Backend& g, Backend* other = nullptr) {
     struct Shape {
         size_t streams, dim, low;
         bool inject;
     };
     const Shape shapes[] = {{4, 2560, 320, true}, {4, 2560, 320, false}, {2, 512, 64, true}, {2, 256, 64, true}};
-    for (const Shape& sh : shapes) {
-        const size_t width = sh.streams * sh.dim, nout = 64;
-        const std::vector<uint8_t> down = q8_matrix(width, sh.low, 151), up = q8_matrix(sh.low, width, 152), head = q8_matrix(sh.dim, nout, 153);
-        const std::vector<float> x = row_classes::values(width, 154), w = row_classes::values(width, 155), inj = row_classes::values(sh.streams * width, 156);
-        auto db = g.adopt(down.data(), down.size()), ub = g.adopt(up.data(), up.size()), hb = g.adopt(head.data(), head.size());
-        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ib = g.adopt(inj.data(), inj.size() * 4);
-        const WeightView hv{quant::GGML_TYPE_Q8_0, {hb.get(), 0}};
-        struct Slots {
-            BufferPtr out, normed, low, gates, injg, y;
-        };
-        const auto slots = [&] { return Slots{g.alloc(sh.dim * 4), g.alloc(width * 4), g.alloc(sh.low * 4), g.alloc(width * 4), g.alloc(sh.streams * 4), g.alloc(nout * 4)}; };
-        Slots s[2] = {slots(), slots()};
-        const RowRun decode[1] = {{1, 1}};
-        const auto mix = [&](Slots& o) {
-            return Backend::HyperMix{{wb.get(), 0}, {quant::GGML_TYPE_Q8_0, {db.get(), 0}}, {quant::GGML_TYPE_Q8_0, {ub.get(), 0}},
-                                     sh.inject ? WeightView{quant::GGML_TYPE_F32, {ib.get(), 0}} : WeightView{}, {o.normed.get(), 0}, {o.low.get(), 0}, {o.gates.get(), 0},
-                                     {o.injg.get(), 0}};
-        };
-        // A product in the 8-bit class first, so the producers write their twins.
-        g.matmul(hv, {xb.get(), 0}, {s[0].y.get(), 0}, sh.dim, nout, 1, {}, Dtype::int8);
-        rocm_take_launches(g);
-        g.Backend::hyper_mix({s[0].out.get(), 0}, {xb.get(), 0}, mix(s[0]), 1, sh.streams, sh.dim, sh.low, 1e-6f, {decode, 1}, Dtype::int8);
-        g.matmul(hv, {s[0].out.get(), 0}, {s[0].y.get(), 0}, sh.dim, nout, 1, {decode, 1}, Dtype::int8);
-        const size_t chain_fused = rocm_take_launches(g).count("llmx_hc_mix");
-        if (other) (void)other->alloc(4);
-        g.hyper_mix({s[1].out.get(), 0}, {xb.get(), 0}, mix(s[1]), 1, sh.streams, sh.dim, sh.low, 1e-6f, {decode, 1}, Dtype::int8);
-        const auto fused = rocm_take_launches(g);
-        g.matmul(hv, {s[1].out.get(), 0}, {s[1].y.get(), 0}, sh.dim, nout, 1, {decode, 1}, Dtype::int8);
-        size_t twins = 0;
-        for (const auto& [k, v] : rocm_take_launches(g))
-            if (k.rfind("llmx_twin", 0) == 0) twins += v;
-        const std::string at = std::to_string(sh.streams) + "x" + std::to_string(sh.dim) + " low " + std::to_string(sh.low) + (sh.inject ? " with inject gates" : "");
-        require(chain_fused == 0, "the hyper mix's chain launches no llmx_hc_mix, " + at);
-        require(fused.size() == 1 && fused.count("llmx_hc_mix") == 1 && fused.at("llmx_hc_mix") == 1, "the hyper mix is one llmx_hc_mix launch, " + at);
-        require(twins == 0, "a product of the fused mix's output reads its kept twin, " + at);
-        require(same(read(g, *s[0].out, sh.dim), read(g, *s[1].out, sh.dim)), "llmx_hc_mix's output is the chain's, " + at);
-        require(same(read(g, *s[0].normed, width), read(g, *s[1].normed, width)), "llmx_hc_mix's normed streams are the chain's, " + at);
-        require(same(read(g, *s[0].low, sh.low), read(g, *s[1].low, sh.low)), "llmx_hc_mix's low row is the chain's, " + at);
-        require(same(read(g, *s[0].gates, width), read(g, *s[1].gates, width)), "llmx_hc_mix's gates are the chain's, " + at);
-        if (sh.inject) require(same(read(g, *s[0].injg, sh.streams), read(g, *s[1].injg, sh.streams)), "llmx_hc_mix's inject gates are the chain's, " + at);
-        require(same(read(g, *s[0].y, nout), read(g, *s[1].y, nout)), "a product of llmx_hc_mix's output and twin is the chain's, " + at);
-    }
+    for (const Shape& sh : shapes)
+        for (size_t rows : {1, 2, 3, 4, 5, 8, 9, 13, 16}) {
+            const size_t width = sh.streams * sh.dim, nout = 64;
+            const std::vector<uint8_t> down = q8_matrix(width, sh.low, 151), up = q8_matrix(sh.low, width, 152), head = q8_matrix(sh.dim, nout, 153);
+            const std::vector<float> x = row_classes::values(rows * width, 154), w = row_classes::values(width, 155), inj = row_classes::values(sh.streams * width, 156);
+            auto db = g.adopt(down.data(), down.size()), ub = g.adopt(up.data(), up.size()), hb = g.adopt(head.data(), head.size());
+            auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ib = g.adopt(inj.data(), inj.size() * 4);
+            const WeightView hv{quant::GGML_TYPE_Q8_0, {hb.get(), 0}};
+            struct Slots {
+                BufferPtr out, normed, low, gates, injg, y;
+            };
+            const auto slots = [&] {
+                return Slots{g.alloc(rows * sh.dim * 4), g.alloc(rows * width * 4), g.alloc(rows * sh.low * 4), g.alloc(rows * width * 4), g.alloc(rows * sh.streams * 4),
+                             g.alloc(rows * nout * 4)};
+            };
+            Slots s[3] = {slots(), slots(), slots()};
+            const RowRun generated[1] = {{rows, 1}}, decode[1] = {{1, 1}};
+            const auto mix = [&](Slots& o, size_t r) {
+                return Backend::HyperMix{{wb.get(), 0}, {quant::GGML_TYPE_Q8_0, {db.get(), 0}}, {quant::GGML_TYPE_Q8_0, {ub.get(), 0}},
+                                         sh.inject ? WeightView{quant::GGML_TYPE_F32, {ib.get(), 0}} : WeightView{}, {o.normed.get(), r * width}, {o.low.get(), r * sh.low},
+                                         {o.gates.get(), r * width}, {o.injg.get(), r * sh.streams}};
+            };
+            // A product in the 8-bit class first, so the producers write their twins.
+            g.matmul(hv, {xb.get(), 0}, {s[0].y.get(), 0}, sh.dim, nout, 1, {}, Dtype::int8);
+            rocm_take_launches(g);
+            g.Backend::hyper_mix({s[0].out.get(), 0}, {xb.get(), 0}, mix(s[0], 0), rows, sh.streams, sh.dim, sh.low, 1e-6f, {generated, 1}, Dtype::int8);
+            g.matmul(hv, {s[0].out.get(), 0}, {s[0].y.get(), 0}, sh.dim, nout, rows, {generated, 1}, Dtype::int8);
+            const size_t chain_fused = rocm_take_launches(g).count("llmx_hc_mix");
+            if (other) (void)other->alloc(4);
+            g.hyper_mix({s[1].out.get(), 0}, {xb.get(), 0}, mix(s[1], 0), rows, sh.streams, sh.dim, sh.low, 1e-6f, {generated, 1}, Dtype::int8);
+            const auto fused = rocm_take_launches(g);
+            g.matmul(hv, {s[1].out.get(), 0}, {s[1].y.get(), 0}, sh.dim, nout, rows, {generated, 1}, Dtype::int8);
+            size_t twins = 0;
+            for (const auto& [k, v] : rocm_take_launches(g))
+                if (k.rfind("llmx_twin", 0) == 0) twins += v;
+            // Each column alone, as a decode row.
+            for (size_t r = 0; r < rows; ++r) g.hyper_mix({s[2].out.get(), r * sh.dim}, {xb.get(), r * width}, mix(s[2], r), 1, sh.streams, sh.dim, sh.low, 1e-6f, {decode, 1}, Dtype::int8);
+            const auto alone = rocm_take_launches(g);
+            size_t launches = 0, wanted = 0;
+            for (const auto& [k, v] : fused) launches += k.rfind("llmx_hc_mix", 0) == 0 ? v : 0;
+            for (size_t left = rows; left; left -= std::min<size_t>(left, 8)) ++wanted;
+            const std::string at = std::to_string(sh.streams) + "x" + std::to_string(sh.dim) + " low " + std::to_string(sh.low) + (sh.inject ? " with inject gates" : "") + ", " +
+                                   std::to_string(rows) + " rows";
+            require(chain_fused == 0, "the hyper mix's chain launches no llmx_hc_mix, " + at);
+            const size_t wide = fused.count("llmx_hc_mix8") ? fused.at("llmx_hc_mix8") : 0;
+            require(launches == wanted && wide == rows / 8 + (rows % 8 > 1) && (rows > 1 || fused.count("llmx_hc_mix")), "the hyper mix is llmx_hc_mix8 launches of 8 columns at most and llmx_hc_mix for one, " + at);
+            for (const auto& [k, v] : fused) require(k.rfind("llmx_hc_mix", 0) == 0, "the fused hyper mix launches " + k + ", " + at);
+            require(alone.size() == 1 && alone.count("llmx_hc_mix") && alone.at("llmx_hc_mix") == rows, "a column alone is one llmx_hc_mix launch, " + at);
+            require(twins == 0, "a product of the fused mix's output reads its kept twin, " + at);
+            for (int k = 1; k < 3; ++k) {
+                const std::string of = (k == 1 ? "the fused mix's " : "a column alone's ") + std::string("%s are the chain's, ") + at;
+                const auto says = [&](const char* what) {
+                    std::string m = of;
+                    m.replace(m.find("%s"), 2, what);
+                    return m;
+                };
+                require(same(read(g, *s[0].out, rows * sh.dim), read(g, *s[k].out, rows * sh.dim)), says("outputs"));
+                require(same(read(g, *s[0].normed, rows * width), read(g, *s[k].normed, rows * width)), says("normed streams"));
+                require(same(read(g, *s[0].low, rows * sh.low), read(g, *s[k].low, rows * sh.low)), says("low rows"));
+                require(same(read(g, *s[0].gates, rows * width), read(g, *s[k].gates, rows * width)), says("gates"));
+                if (sh.inject) require(same(read(g, *s[0].injg, rows * sh.streams), read(g, *s[k].injg, rows * sh.streams)), says("inject gates"));
+            }
+            require(same(read(g, *s[0].y, rows * nout), read(g, *s[1].y, rows * nout)), "a product of the fused mix's output and twin is the chain's, " + at);
+        }
 }
 
 // group_rms_norm takes four values a thread where its operands lie on 16 bytes and one a thread at an offset of one float: both give the same output and twin, at dims 256, 1024 and 2560, generated rows and runs of both kernels.

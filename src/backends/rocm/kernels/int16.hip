@@ -1431,7 +1431,7 @@ LLMX_KTYPE(mxfp4, rq::MXFP4)
 LLMX_KQUARTER(q5_0, rq::Q5_0)
 LLMX_KQUARTER(q5_1, rq::Q5_1)
 
-// The hyper-connection mix of one decode row as one persistent launch (Backend::hyper_mix), its phases split by grid barriers, on a 64-lane wave.
+// The hyper-connection mix of up to C decode rows as one persistent launch (Backend::hyper_mix), its phases split by grid barriers, on a 64-lane wave.
 // Each value keeps the bits of the launch it replaces: group_rms_norm, the down and inject products, silu_scaled, the up product and mix_streams, each with that kernel's chains and trees.
 namespace {
 constexpr unsigned kHcMaxLow = 512;   // the up rows' blocks a half wave holds in one step, as q8_0_half_pair does
@@ -1538,7 +1538,7 @@ struct HcMix {
     float* od;
     float* rr;                   // each stream's reciprocal root
     unsigned* bar;               // the barrier counter and the exit counter, zero between launches
-    unsigned streams, dim, lowr;
+    unsigned streams, dim, lowr, cols;   // a launch's columns, each row of x, normed, low, gates and out a column's
     float eps, scale;
 };
 // A thread's chain of fmaf(u[i], v[i]) over i = t, t + kThreads, ... below n, in that order, with up to 24 loads of each in flight at a time.
@@ -1568,18 +1568,19 @@ __device__ inline void hc_bar(unsigned* bar, unsigned target) {
     __syncthreads();
     __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
 }
-} // namespace
 
-// The host launches it only where every block is resident at once (hipModuleOccupancyMaxActiveBlocksPerMultiprocessor), with ceil(low / 4) down blocks then a block an inject output.
-extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix(HcMix a) {
+// Up to C columns' mixes, each with the one-column launch's bits (rocm_backend.cpp, hyper_mix): every phase repeats per column on the weights it already loaded, and C = 1 keeps the one-row index math.
+// The host launches it only where every block is resident at once (hipModuleOccupancyMaxActiveBlocksPerMultiprocessor), with ceil(low / 4) down blocks then a block an inject output of a column.
+template <unsigned C>
+__device__ inline void hc_mix(const HcMix& a) {
 #if defined(__GFX9__)
     __shared__ float lds[kThreads];
-    __shared__ __attribute__((aligned(16))) signed char lq[kHcMaxLow];
-    __shared__ float ld[kHcMaxLow / 32];
+    __shared__ __attribute__((aligned(16))) signed char lq[C][kHcMaxLow];
+    __shared__ float ld[C][kHcMaxLow / 32];
     const unsigned G = gridDim.x, B = blockIdx.x, t = threadIdx.x, lane = t % 64;
-    const unsigned H = a.streams, E = a.dim, L = a.lowr, R = H * E;
+    const unsigned H = a.streams, E = a.dim, L = a.lowr, R = H * E, N = C == 1 ? 1 : a.cols;
     const unsigned wave = B * (kThreads / 64) + t / 64, waves = G * (kThreads / 64);
-    const unsigned injectors = a.inj ? H : 0, down_waves = (G - injectors) * (kThreads / 64);
+    const unsigned injectors = a.inj ? H * N : 0, down_waves = (G - injectors) * (kThreads / 64);
     // The wave's first down row loads before the norm, so its read overlaps phases A and B, where a row takes one step.
     const unsigned blocks = R / 32;
     const bool ahead = B < G - injectors && wave < L && blocks <= kHcDownSteps * 32;
@@ -1588,41 +1589,46 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix(HcMix a) {
         const unsigned* w[1] = {(const unsigned*)(a.down + (unsigned long long)wave * blocks * kQ8)};
         dl.load(w, lane >> 1, blocks, lane & 1);
     }
-    // A: each stream's sum of squares, group_rms_norm's chains and tree, a block a stream.
-    for (unsigned g = B; g < H; g += G) {
+    // A: each stream's sum of squares, group_rms_norm's chains and tree, a block a stream of a column.
+    for (unsigned g = B; g < H * N; g += G) {
         const float s = hc_chain(a.x + g * E, a.x + g * E, t, E, 0.0f);
         const float r = 1.0f / sqrtf(hc_block_sum(s, lds) / (float)E + a.eps);
         if (t == 0) a.rr[g] = r;
     }
     hc_bar<false>(a.bar, G);
     // B: the normed streams and their twin.
-    for (unsigned e = B * kThreads + t; e < R; e += G * kThreads) {
-        const float v = a.x[e] * (a.rr[e / E] * a.norm_w[e]);
+    for (unsigned e = B * kThreads + t; e < R * N; e += G * kThreads) {
+        const float v = a.x[e] * (a.rr[e / E] * a.norm_w[C == 1 ? e : e % R]);
         a.normed[e] = v;
         hc_twin8(v, a.nq + e, a.nd + e / 32, (int)(e % 32));
     }
     hc_bar(a.bar, 2 * G);
-    // C: the down rows, a wave each in the half-block order, and the inject outputs, a block each, a chain a thread and the F32 product's pair tree.
+    // C: the down rows, a wave each in the half-block order, and the inject outputs, a block each of a column, a chain a thread and the F32 product's pair tree.
     if (B >= G - injectors) {
-        const unsigned o = B - (G - injectors);
-        const float* wr = a.inj + (unsigned long long)o * R;
-        lds[t] = hc_chain(wr, a.normed, t, R, 0.0f);
+        const unsigned o = B - (G - injectors), c = C == 1 ? 0 : o / H, so = C == 1 ? o : o % H;
+        const float* wr = a.inj + (unsigned long long)so * R;
+        lds[t] = hc_chain(wr, a.normed + c * R, t, R, 0.0f);
         __syncthreads();
         for (int h = kThreads / 2; h > 0; h >>= 1) {
             if ((int)t < h) lds[t] = lds[t] + lds[t + h];
             __syncthreads();
         }
-        if (t == 0) a.injg[o] = lds[0];
+        if (t == 0) a.injg[c * H + so] = lds[0];
     } else {
+        // A row of one step stays in registers for every column; the columns run one after another, so a build's registers do not grow with them.
+        const bool held = blocks <= kHcDownSteps * 32;
         for (unsigned o = wave; o < L; o += down_waves) {
             const unsigned* w[1] = {(const unsigned*)(a.down + (unsigned long long)o * blocks * kQ8)};
-            float acc[1] = {0.0f};
-            for (unsigned b = lane >> 1; b < blocks; b += kHcDownSteps * 32) {
-                if (!ahead || o != wave) dl.load(w, b, blocks, lane & 1);
-                dl.dots(a.nq, a.nd, b, blocks, lane & 1, acc);
+#pragma unroll 1
+            for (unsigned c = 0; c < N; ++c) {
+                float acc[1] = {0.0f};
+                for (unsigned b = lane >> 1; b < blocks; b += kHcDownSteps * 32) {
+                    if ((!ahead || o != wave) && (!held || c == 0)) dl.load(w, b, blocks, lane & 1);
+                    dl.dots(a.nq + c * R, a.nd + c * blocks, b, blocks, lane & 1, acc);
+                }
+                const float v = wave_sum(acc[0]);
+                if (lane == 0) a.low[c * L + o] = v;
             }
-            const float v = wave_sum(acc[0]);
-            if (lane == 0) a.low[o] = v;
         }
     }
     // The wave's first up rows load before their input is made.
@@ -1643,44 +1649,51 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix(HcMix a) {
     }
     hc_bar(a.bar, 3 * G);
     // D: silu_scaled and its twin, each block its own copy in LDS.
-    for (unsigned i = t; i < L; i += kThreads) {
+    for (unsigned i = t; i < L * N; i += kThreads) {
+        const unsigned c = C == 1 ? 0 : i / L, k = C == 1 ? i : i % L;
         const float v = a.low[i] * a.scale, y = v / (1.0f + expf(-v));
-        hc_twin8(y, lq + i, ld + i / 32, (int)(i % 32));
+        hc_twin8(y, lq[c] + k, ld[c] + k / 32, (int)(k % 32));
     }
     __syncthreads();
     // E: the up rows, kHcUpPairs row pairs a wave, each half wave a row in q8_0_half_pair's lanes, the next rows loading while these compute.
     for (; o0 < R; o0 += 2ull * kHcUpPairs * waves) {
-        float acc[kHcUpPairs];
-#pragma unroll
-        for (int j = 0; j < kHcUpPairs; ++j) acc[j] = 0.0f;
-        ul.dots(lq, ld, sl >> 1, ublocks, uhl, acc);
         const unsigned long long on = o0 + 2ull * kHcUpPairs * waves;
-        if (on < R) {
-            const unsigned* w[kHcUpPairs];
-            up_rows(on, w);
-            ul.load(w, sl >> 1, ublocks, uhl);
-        }
+#pragma unroll 1
+        for (unsigned c = 0; c < N; ++c) {
+            float acc[kHcUpPairs];
 #pragma unroll
-        for (int j = 0; j < kHcUpPairs; ++j) {
-            const unsigned long long o = o0 + 2 * j + lane / 32;
-            const float v = wave_sum(acc[j] + 0.0f, 16);
-            if (sl == 0 && o < R) a.gates[o] = v;
+            for (int j = 0; j < kHcUpPairs; ++j) acc[j] = 0.0f;
+            ul.dots(lq[c], ld[c], sl >> 1, ublocks, uhl, acc);
+            if (c + 1 == N && on < R) {
+                const unsigned* w[kHcUpPairs];
+                up_rows(on, w);
+                ul.load(w, sl >> 1, ublocks, uhl);
+            }
+#pragma unroll
+            for (int j = 0; j < kHcUpPairs; ++j) {
+                const unsigned long long o = o0 + 2 * j + lane / 32;
+                const float v = wave_sum(acc[j] + 0.0f, 16);
+                if (sl == 0 && o < R) a.gates[c * R + o] = v;
+            }
         }
     }
     hc_bar(a.bar, 4 * G);
     // The silu outputs go out once every block has read the down outputs.
     if (B == 0)
-        for (unsigned i = t; i < L; i += kThreads) {
+        for (unsigned i = t; i < L * N; i += kThreads) {
             const float v = a.low[i] * a.scale;
             a.low[i] = v / (1.0f + expf(-v));
         }
     // F: mix_streams and its twin.
-    for (unsigned d = B * kThreads + t; d < E; d += G * kThreads) {
+    for (unsigned i = B * kThreads + t; i < E * N; i += G * kThreads) {
+        const unsigned c = C == 1 ? 0 : i / E, d = C == 1 ? i : i % E;
+        const float* nc = a.normed + c * R;
+        const float* gc = a.gates + c * R;
         float sum = 0.0f;
-        for (unsigned s = 0; s < H; ++s) sum = fmaf(a.normed[s * E + d], 1.0f / (1.0f + expf(-a.gates[s * E + d])), sum);
+        for (unsigned s = 0; s < H; ++s) sum = fmaf(nc[s * E + d], 1.0f / (1.0f + expf(-gc[s * E + d])), sum);
         const float v = sum / (float)H;
-        a.out[d] = v;
-        if (a.oq) hc_twin8(v, a.oq + d, a.od + d / 32, (int)(d % 32));
+        a.out[i] = v;
+        if (a.oq) hc_twin8(v, a.oq + i, a.od + i / 32, (int)(i % 32));
     }
     // The last block out zeroes both counters, so the next launch on the stream starts from zero whatever its grid.
     __syncthreads();
@@ -1690,6 +1703,9 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix(HcMix a) {
     }
 #endif
 }
+} // namespace
+extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix(HcMix a) { hc_mix<1>(a); }
+extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix8(HcMix a) { hc_mix<8>(a); }
 
 // The fused decode moe_step's products, on the dot module alone: they take 64-lane waves and the int8 dot.
 #ifdef LLMX_DOT16

@@ -9,7 +9,8 @@ Where the sender's backend serves the destination (`Device::served`, asked once 
 Each carried slot of the plan (`ModelPlan::carried`) goes with the residual in every one of them: a handoff buffer holds slot 0's rows, then each carried slot's, each a region of the buffer's rows, so a plan without carried slots makes the copies it made before them.
 A reader of an earlier layer's pooled rows (`LayerPlan::entry_source`) is handed its device's storage views with `kv_layer` the source's storage layer or its replica, and `appends` where it fills that replica.
 
-`start_lookup` starts reading a layer's external lookup rows as its stage begins, and `finish_lookup` takes them just before the layer and uploads them, for a single device or a tensor group.
+`start_lookups` starts reading every layer's external lookup rows as the pass is formed (`begin`), into the pass's own scratch, with the preceding ids predicted from the committed tail where the token stage holds the history the pass follows, else from the tail the sequence's last formed pass leaves (`Sequence::formed_tail_`).
+`start_lookup` computes the ids again from the stage's own snapshot as the stage begins, keeps the early read where they match and starts the read again where they do not, so the rows are those of a read started there, and counts each layer's read as kept, restarted or late (begun only there, where `start_lookups` started none), which `Model::lookup_reads` gives; `finish_lookup` takes them just before the layer and uploads them, for a single device or a tensor group.
 `single_record` and `group_record` start every lookup of their stage before recording the layer operations and finish each before its layer's mixers, so the layers before it record and run while the rows are read.
 The architecture's `lookup_ids`
 fills dedicated IDs from the pass and its preceding-token snapshots;

@@ -31,7 +31,7 @@ inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, s
     if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
     ExecContext reserved;
     ensure(reserved, rows, logit_rows, handoffs(slots));
-    reserved.passes.assign(slots, Pass{});
+    reserved.passes.resize(slots);
     reserved.slots = slots;
     reserved.pass_rows = rows;
     ctx = std::move(reserved);
@@ -304,6 +304,7 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     }
     p.long_runs = false;
     for (size_t e = 0; e < n_entries; ++e) p.long_runs = p.long_runs || streams(p, e);
+    start_lookups(ctx, p, ctx.slots ? ctx.pass_rows : rows);
     // Last, once nothing can fail: the checks above left a free slot for each.
     for (size_t e = 0; fresh && e < n_entries; ++e) entries[e].seq->state_.take(slots_);
     for (size_t e = 0; e < n_entries; ++e) entries[e].seq->mark_.ran = entries[e].seq->mark_.held();
@@ -527,8 +528,81 @@ inline void Model::single_prepare(Pass& p, size_t s) {
     prepare_tokens(p, s);
 }
 
-// Start reading a layer's requested rows on the group's first member, as its stage begins (WeightRows::start), so the layers before it record and run meanwhile.
-inline void Model::start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l) {
+// Start every lookup layer's rows as the pass is formed, on its table's readers, so the stages before a layer run meanwhile; start_lookup checks them when the layer's stage begins.
+// The preceding ids are the committed tail where the token stage holds the history the pass follows, else the tail the sequence's last formed pass leaves; a read that fails to start here is started there.
+inline void Model::start_lookups(ExecContext& ctx, Pass& p, size_t rows) {
+    const size_t L = plan_.layers.size();
+    const auto source = [&](size_t l) -> const WeightRows* {
+        const auto& lookup = plan_.layers[l].lookup;
+        return lookup ? home_[l][lookup->role].row_source.get() : nullptr;
+    };
+    if (p.lookups.size() != L) {
+        p.lookups.clear();
+        p.lookups.resize(L);
+        p.lookup_rows = 0;
+    }
+    if (p.lookup_rows < rows) {
+        for (size_t l = 0; l < L; ++l) {
+            if (!source(l)) continue;
+            const size_t count = backend::size_mul(rows, plan_.layers[l].lookup->rows);
+            p.lookups[l].host = std::make_unique<WeightRows::Scratch>(*source(l), count);
+            p.lookups[l].ids.resize(count);
+        }
+        p.lookup_rows = rows;
+    }
+    for (Pass::Lookup& early : p.lookups) early.started = false;
+    const size_t n = p.entries.size(), W = token_width_;
+    std::vector<uint32_t> previous(backend::size_mul(n, W)), tail(W);
+    bool known = true;
+    for (size_t e = 0, first = 0; e < n; first += p.entries[e].n, ++e) {
+        Sequence& q = *p.entries[e].seq;
+        const size_t len = p.start[e];
+        uint32_t* out = previous.data() + e * W;
+        if (!W) continue;
+        bool have = true;
+        if (q.stage_length(token_stage_) == len) {
+            const size_t src = q.from_[token_stage_] == Sequence::kLive ? q.state_.slot() : q.from_[token_stage_];
+            if (!len) std::fill_n(out, W, token_padding_);
+            else std::copy_n(token_tails_.data() + src * W, W, out);
+        } else if (q.formed_ == len && q.formed_tail_.size() == W) {
+            std::copy_n(q.formed_tail_.data(), W, out);
+        } else {
+            have = known = false;
+        }
+        advance_tokens(tail.data(), out, len, p.ids.data() + first, p.entries[e].n);
+        q.formed_tail_ = tail;
+        q.formed_ = have ? len + p.entries[e].n : SIZE_MAX;
+    }
+    if (!known) return;
+    std::vector<backend::StateView> views(n);
+    for (size_t e = 0; e < n; ++e) views[e].nq = p.entries[e].n;
+    try {
+        for (size_t l = 0; l < L; ++l) {
+            if (!source(l)) continue;
+            const LayerPlan& layer = plan_.layers[l];
+            const size_t group = size_t(place_.mixer_device[l]);
+            Pass::Lookup& early = p.lookups[l];
+            Step step = part(ctx, group, home_row(devices_[group]->member, l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()}, int(l));
+            step.indices = early.ids.data();
+            step.indices_size = early.ids.size();
+            step.states = views.data();
+            step.n_views = n;
+            if (layer.token_history) {
+                step.tokens = p.ids.data();
+                step.previous_tokens = previous.data();
+                step.previous_count = W;
+            }
+            arch_->lookup_ids(step);
+            source(l)->start(early.ids.data(), backend::size_mul(p.rows, layer.lookup->rows), *early.host);
+            early.started = true;
+        }
+    } catch (const std::exception&) {
+        // An id the table refuses or memory the read could not take, bad_alloc included: the layer's stage starts its read again and throws there.
+    }
+}
+
+// Check a layer's early read on the group's first member as its stage begins: the ids from the stage's own snapshot, the read started again where they differ from the ones read.
+inline void Model::start_lookup(ExecContext& ctx, Pass& p, size_t group, int l) {
     const auto& lookup = plan_.layers[size_t(l)].lookup;
     if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
     ExecContext::Scratch& owner = ctx.scratch[group];
@@ -538,7 +612,13 @@ inline void Model::start_lookup(ExecContext& ctx, const Pass& p, size_t group, i
     step.indices = prepared.ids.data();
     step.indices_size = prepared.ids.size();
     arch_->lookup_ids(step);
-    home_[size_t(l)][lookup->role].row_source->start(prepared.ids.data(), backend::size_mul(p.rows, lookup->rows), *prepared.host);
+    Pass::Lookup& early = p.lookups[size_t(l)];
+    const size_t count = backend::size_mul(p.rows, lookup->rows);
+    const bool same = early.started && std::equal(prepared.ids.begin(), prepared.ids.begin() + std::ptrdiff_t(count), early.ids.begin());
+    (same ? lookups_kept_ : early.started ? lookups_restarted_ : lookups_late_).fetch_add(1, std::memory_order_relaxed);
+    if (same) return;
+    home_[size_t(l)][lookup->role].row_source->start(prepared.ids.data(), count, *early.host);
+    early.started = true;
 }
 
 // Take a layer's rows read since start_lookup, just before the layer, and upload the packed rows to each member's own buffer.
@@ -549,7 +629,7 @@ inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, 
     ExecContext::Scratch& owner = ctx.scratch[group];
     auto& prepared = owner.lookups[size_t(l)];
     const auto waited = std::chrono::steady_clock::now();
-    const auto rows = home_[size_t(l)][lookup->role].row_source->finish(*prepared.host);
+    const auto rows = home_[size_t(l)][lookup->role].row_source->finish(*p.lookups[size_t(l)].host);
     p.lookup_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - waited).count();
     for (size_t i = 0; i < rows.requested; ++i) prepared.ids[i] = uint32_t(rows.remap[i]);
     const size_t bytes = backend::size_mul(rows.unique, rows.row_bytes);
@@ -882,10 +962,7 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             if (count > UINT32_MAX) throw std::length_error("inference: lookup staging exceeds row ID range");
             if (result.empty()) result.resize(plan_.layers.size());
             auto& target = result[l];
-            if (device % width_ == 0) {
-                target.host = std::make_unique<WeightRows::Scratch>(*source, count);
-                target.ids.resize(count);
-            }
+            if (device % width_ == 0) target.ids.resize(count);
             target.data = devices_[device]->b->alloc(mul(count, source->row_bytes()));
         }
         return result;

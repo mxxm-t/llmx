@@ -1447,6 +1447,85 @@ void rollback(const std::string& path) {
     }
 }
 
+// A prompt in passes in flight on two CPUs cut at layer 1, its Engram tables read from the file, each pass formed before the one ahead of it runs its second stage, where the token tails are kept.
+// Every layer keeps the read begun at its pass's formation, from the tail the pass ahead leaves, and the rows are the slices' one after another; a pass whose early ids are spoiled reads again and gives them too.
+void early_reads(const std::string& path) {
+    gguf::GGUFModel file = gguf::read_gguf(path);
+    gguf::map_payload(file);
+    put(file, P + "context_length", scalar(gguf::V_UINT32, 1024));
+    infer::ModelWeights w = infer::gguf_weights(file);
+    std::shared_ptr<const format::FileReader> reader;
+    size_t tables = 0;
+    for (size_t i = 0; i < w.tensors.size(); ++i) {
+        infer::TensorView& t = w.tensors[i];
+        if (t.name.find("engram_embed.weight") == std::string::npos) continue;
+        const format::FileSpan span = file.span(i);
+        if (!reader) reader = std::make_shared<const format::FileReader>(span.file);
+        t.row_source = std::make_shared<const infer::WeightRows>(t.type, size_t(t.shape[0]), size_t(t.shape[1]), reader, span.offset, span.bytes);
+        t.data = nullptr;
+        ++tables;
+    }
+    require(tables == golden.engram_layers.size(), "every Engram table reads from the file");
+    const size_t V = golden["vocab_size"], chunk = size_t(golden["window_size"]) / 2, chunks = 5;
+    std::vector<uint32_t> ids;
+    for (uint32_t i = 0; i < chunk * chunks; ++i) ids.push_back(uint32_t((i * 2654435761u >> 11) % V));
+    infer::ModelOptions o;
+    o.dtype = backend::Dtype::f32;
+    o.kv_tokens = 2048;
+    o.state_slots = 1;
+    o.mark_slots = 1;
+    o.mark_rows = chunk;
+    const auto split = [&] {
+        std::vector<backend::BackendPtr> backends{backend::make_cpu_backend(), backend::make_cpu_backend()};
+        for (auto& b : backends) b->set_threads(1);
+        infer::Placement placement;
+        placement.mixer_device = placement.ffn_device = {0, 1, 1, 1, 1, 1, 1, 1};
+        placement.output_device = 1;
+        return std::make_unique<infer::Model>(w, std::move(backends), placement, o);
+    };
+    const auto serial = split();
+    infer::Sequence s = serial->make_sequence();
+    infer::ExecContext serial_ctx;
+    std::vector<infer::BatchEntry> slices;
+    for (size_t c = 0; c < chunks; ++c) {
+        infer::BatchEntry e{&s, ids.data() + c * chunk, chunk, c + 1 == chunks};
+        e.extent = ids.size();
+        slices.push_back(e);
+        serial->forward(serial_ctx, &slices.back(), 1);
+    }
+    const std::vector<float> want(serial_ctx.logits(0), serial_ctx.logits(0) + V);
+    for (const bool spoil : {false, true}) {
+        const auto flight = split();
+        infer::Sequence q = flight->make_sequence();
+        infer::ExecContext ctx;
+        flight->reserve_passes(ctx, 2, chunk, 1);
+        for (infer::BatchEntry& e : slices) e.seq = &q;
+        std::vector<float> got;
+        for (size_t t = 0; t <= chunks; ++t) {
+            if (t < chunks) {
+                flight->begin_pass(ctx, t % 2, &slices[t], 1, 0);
+                // Another id where the first Engram layer's early read asked for its first row, so its stage finds other ids and reads them again.
+                if (spoil && t == 2) {
+                    uint32_t& id = ctx.passes[t % 2].lookups[golden.engram_layers[0]].ids[0];
+                    id = id ? 0 : 1;
+                }
+                flight->run_pass_stage(ctx, t % 2, 0);
+            }
+            if (!t) continue;
+            const size_t c = t - 1;
+            flight->run_pass_stage(ctx, c % 2, 1);
+            if (c + 1 == chunks) got.assign(flight->pass_logits(ctx, c % 2, 0), flight->pass_logits(ctx, c % 2, 0) + V);
+            flight->end_pass(ctx, c % 2);
+        }
+        const infer::Model::LookupReads reads = flight->lookup_reads();
+        const std::string what = spoil ? "passes in flight with one early read spoiled" : "passes in flight";
+        std::cout << "arch-deepseek4: " << what << ": lookup reads kept " << reads.kept << ", restarted " << reads.restarted << ", late " << reads.late << "\n";
+        require(reads.kept + reads.restarted == chunks * tables && reads.restarted == (spoil ? 1u : 0u) && reads.late == 0,
+                what + ": every early read kept but the spoiled one");
+        require(q.length() == ids.size() && got == want, what + ": the last row is the slices' one after another");
+    }
+}
+
 // A file the Python writer wrote holds the metadata and the tensor table this test builds: the same keys with the same values and types, and the same tensors with the same shapes and types.
 void same_file(const std::string& path) {
     const gguf::GGUFModel file = gguf::read_gguf(path), m = fork();
@@ -1481,6 +1560,7 @@ int main(int argc, char** argv) {
             prefill_then_decode(argv[3]);
             native_cache(argv[3]);
             rollback(argv[3]);
+            early_reads(argv[3]);
         } else {
             removed_keys();
             held_values();

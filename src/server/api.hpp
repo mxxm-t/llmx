@@ -420,6 +420,7 @@ private:
                 at += (j ? ",[" : "[") + n(a.drafted()[j]) + "," + n(a.kept()[j]) + "," + n(a.reached()[j]) + "]";
             by_source += (i ? "," : "") + std::string("{\"source\":") + jmini::quote(kSources[i]) + ",\"by_position\":[" + at + "]}";
         }
+        const infer::Model::LookupReads reads = model_.lookup_reads();
         const std::string numerics = std::string(LLMX_NUMERICS).substr(0, 16);
         const int64_t up = (int64_t)std::time(nullptr) - started_;
         c.respond(200, "application/json",
@@ -452,7 +453,8 @@ private:
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
                   ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" + ",\"by_source\":[" + by_source + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
-                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"rule_replies\":" + n(s.rule_replies) + ",\"rule_chunks\":" + n(s.rule_chunks) + ",\"rule_mixed\":" + n(s.rule_mixed) + ",\"rule_jobs\":" + n(s.rule_jobs) + ",\"holds\":" + n(s.holds) + ",\"stage_waits\":" + n(s.stage_waits) + "}}" +
+                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"rule_replies\":" + n(s.rule_replies) + ",\"rule_chunks\":" + n(s.rule_chunks) + ",\"rule_mixed\":" + n(s.rule_mixed) + ",\"rule_jobs\":" + n(s.rule_jobs) + ",\"holds\":" + n(s.holds) + ",\"stage_waits\":" + n(s.stage_waits) + ",\"lookups_kept\":" + n(reads.kept) + ",\"lookups_restarted\":" + n(reads.restarted) +
+                  ",\"lookups_late\":" + n(reads.late) + "}}" +
                   ",\"service\":" + service_json(s.service) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }

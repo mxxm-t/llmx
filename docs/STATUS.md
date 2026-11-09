@@ -330,6 +330,32 @@ On ROCm the fused launch is 30.9 against the chain's 49.8 us at one row and 57.0
 
 **Gotchas:** the candidates ride in the group's partial rows, so a fixture whose summed row is narrower than 3W floats needs the larger collective `Model::ensure` makes; ROCm has no `--profile`, so its chain is read from the bench wall times only.
 
+## Lookup reads started at pass formation (2026-11-09, DSDEV64, DSDEV65 then DSDEV70, branch perf/lookup-early-reads on main 4b5f9236d; COORD's task B of 2026-11-09, the "Never wait" principle; F2DEV reviews)
+
+**Goal:** a pass's lookup-table rows (DeepSeek-V4.1's Engram tables, Qwen3.8-Flash-Next's per-layer embedding) are read while the stages before their layer run, so a lookup layer's stage no longer waits for its rows; one owner, the pass, for both architectures.
+
+**Done:**
+- `Model::start_lookups` (passes.hpp) computes every lookup layer's ids as the pass is formed (`begin`) and starts its `WeightRows` read into a scratch the `Pass` owns (`Pass::lookups`), so passes in flight never share one.
+  The preceding ids come from the committed tail where the token stage holds everything the pass follows, else from the tail the sequence's last formed pass leaves (`Sequence::formed_tail_`), which is what a pipelined prompt chunk needs.
+- `Model::start_lookup` stays where the stage begins as the check: it computes the ids from the stage's own snapshot, keeps the early read where they match and starts the read again where they do not, and counts the read kept, restarted or late (`Model::lookup_reads`, printed by `generate --verbose` and in the health's `passes.since_start`).
+- The fit counts a pass's host lookup rows and their ids once a pass in flight, the larger of `slots` and the used stages (`split_layers`); `tests/placement.cpp` holds the exact sum.
+- No new reader, store, thread or flag; `finish_lookup` and the device rows buffer are unchanged.
+- Tests: `arch-deepseek4 --gguf` runs 320 tokens in five passes formed ahead on two CPUs cut at layer 1 with the Engram tables read from the file: kept 10, restarted 0, late 0 and the serial slices' last row; with one early id spoiled, kept 9, restarted 1 and the same row.
+- Measured on DeepSeek-V4.1-Flash-1017 MXFP4, ROCm int8, ten MI50s at default clocks, `--lookup-storage file` with both Engram shards on a 4K-record ZFS dataset, the 2070-token wiki prompt and 16 tokens, a process a cell, one warm cell then ABBA twice, `--cpus 8`, nr_throttled 0 to 2, every cell flagged contended by ZFS reads: pp main 410.2, 412.6, 422.7 and 373.8, the branch 424.0, 423.3, 423.5 and 423.7 tok/s (404.8 to 423.6 on the means, +4.6%; 411.4 to 423.6 on the medians, +3.0%); tg 19.82 against 19.81; greedy ids the same in every cell.
+  An earlier run at main e899036de, before 4b5f9236d rewrote DeepSeek's per-token kernels and with the shards at 1M records, gave pp 80.96 and 85.36 against 90.48 and 92.39 tok/s (+9.9%).
+- Byte identity against main e899036de with the tables read from the file (`--lookup-storage file`): Qwen3.8-Flash-Next UD-Q4_K_XL int8 on four MI50s under ROCm, layer-4 and 2x2 at `--ubatch 64` so the prompt runs as chunks in flight, generated ids and logits rows the same; the tiny deepseek4 fixture's logits rows the same on the CPU and on rocm:0.
+  Flash-Next has no CPU leg: a CPU run is one stage holding its one lookup layer (layer 1), so its read starts as that stage begins on main too, and the CPU path of `start_lookups` and `start_lookup` is held by the deepseek4 fixture's CPU leg and `arch-deepseek4 --gguf`.
+- Measured on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm on four MI50s at default clocks, `--lookup-storage file`, one warmed 2006-token prompt and 16 tokens, a process a cell, ABBA after a warm cell, `--cpus 8`, nr_throttled 0 to 2, every cell flagged contended by ZFS reads: 2x2 pp main 1149.8 and the branch 1148.6 tok/s over six each (-0.1%), tg 61.82 and 61.32; layer-4 pp 632.7 and 636.8 over four each (+0.6%), tg 51.32 and 51.57; every branch cell kept every early read (26 and 30, none restarted or late) and gave main's greedy ids.
+  With its one lookup layer in the first stage, the early read starts about when main's does, so neutral is the expected result.
+  An earlier run that fed each cell a different prompt never read before showed 2x2 at -27%; its main cells alone differed by 12%, and the same prompt warmed shows no difference.
+- The same Flash-Next cells on Vulkan, two an arm after a warm cell: 2x2 pp main 726.5 and 728.0, the branch 727.6 and 736.4 tok/s (+0.6%), tg 27.26 against 26.86; layer-4 pp 847.4 and 838.0 against 848.2 and 832.1 (-0.3%), tg 26.60 against 26.31; every early read kept and greedy ids main's in each placement.
+
+**Left:** server cells with the counters on DeepSeek-V4.1, which feat/deepseek4-serving serves (its Left). Landing gates: the stack's, in (Drafter head split over a tensor group, above); every timing cell there reads its lookup rows from file.
+
+**Gotchas:**
+- A start that throws at formation (an id the table refuses, or bad_alloc) is swallowed there and thrown again by the stage's own start, so `begin` still refuses nothing it did not refuse before.
+- The formed tail is used only where the token stage (the first stage with a history layer) has not committed the pass ahead, so a split whose first stage holds the first Engram layer always takes the committed path.
+
 ## Draft price outliers (2026-11-08, MTP3, MTP4 then MTP5, branch perf/mtp-draft-price on main ed9780218; MTP2's finding of 19:24 and 19:35, F2DEV's reviews of MTP2 items 1a to 1c and of this branch at 22:26; lands by fast-forward)
 
 **Goal:** every fresh MTP server drafts at the depth its measured passes give, as one drafting at the cap does (75-83 tok/s on Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm 2x2, one user), stable across fresh servers, within the one price owner.

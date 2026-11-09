@@ -49,7 +49,7 @@ arrays. An external row source requires an unsharded gather role; a tensor
 group shares the host read and replicates the requested packed rows.
 
 The runtime's `start_lookup` and `finish_lookup`, used by single-device and tensor-group stages,
-start the read once on the group's first member as the stage begins and finish it before the layer, upload the unique packed rows
+start the read once on the group's first member as the pass is formed (`start_lookups`), check its ids as the stage begins and finish it before the layer, upload the unique packed rows
 to each member, and supply shared remapped IDs through `PreparedLookup`. Existing
 backend embedding decodes those rows in request order. Backend writes consume
 the host bytes before returning, and backend storage follows the execution

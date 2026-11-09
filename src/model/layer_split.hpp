@@ -149,7 +149,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         const size_t page = core::page_size();
         return backend::size_mul(backend::size_add(bytes, page - 1) / page, page);
     };
-    std::vector<size_t> lookup_device(L, 0), lookup_host(L, 0);
+    std::vector<size_t> lookup_device(L, 0), lookup_host(L, 0), lookup_pass(L, 0);
     for (size_t l = 0; l < L && !fp.lookups.empty(); ++l) {
         const LookupMemory& lookup = fp.lookups[l];
         if (!lookup.rows_per_token) continue;
@@ -162,8 +162,10 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             const size_t arrays = backend::size_mul(count, 2 * sizeof(size_t) + 2 * sizeof(uint32_t));
             return backend::size_add(raw, arrays);
         };
-        // The table's own host bytes, its store and its read windows, are counted once (WeightRows::host_bytes).
-        lookup_host[l] = backend::size_add(host_capacity(rows), page_bytes(lookup.io_bytes));
+        // The table's own host bytes, its store and its read windows, are counted once (WeightRows::host_bytes) with the context's ids, and the rows read for a pass and their ids once a pass in flight (Pass::lookups).
+        const size_t ids = backend::size_mul(backend::size_mul(rows, lookup.rows_per_token), sizeof(uint32_t));
+        lookup_host[l] = backend::size_add(ids, page_bytes(lookup.io_bytes));
+        lookup_pass[l] = backend::size_add(host_capacity(rows), ids);
     }
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);
@@ -217,7 +219,9 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         // A layer split is pipelined, and every stage but the last sends its residual on.
         h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
         h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(rows, fp.host_scratch_per_row)));
-        for (size_t l = 0; l < L; ++l) h.need = backend::size_add(h.need, lookup_host[l]);
+        // A pipelined prompt keeps a pass in flight a stage, a server its slots.
+        const size_t in_flight = std::max(slots, used.size());
+        for (size_t l = 0; l < L; ++l) h.need = backend::size_add(h.need, backend::size_add(lookup_host[l], backend::size_mul(in_flight, lookup_pass[l])));
         for (size_t d : used) {
             h.need += devices[d].host_side;
             if (devices[d].host && h.carrier == SIZE_MAX) h.carrier = d;

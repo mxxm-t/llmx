@@ -210,7 +210,7 @@ Hashing, row layout interpretation and the learned operations stay in the archit
 The loader (`src/inference/load.hpp`) builds a `WeightRows` source over each table's exact file span, and placement (`plan_placement` in `src/model/place.hpp`) chooses each table's storage before the loader reads any whole table.
 A table read from its file is counted in the fit by its host and device row staging alone, and never joins the load's stream or the warming of `mapped`.
 
-Each pass, `Model::start_lookup` has the architecture compute the row ids on the group's first member as the stage begins and starts reading each distinct row once on the reader's threads (`WeightRows::start` sorts and deduplicates the ids, coalesces contiguous rows and keeps an ordered remap), and `Model::finish_lookup` takes them just before the layer and uploads the packed rows to each member of the group.
+Each pass, `Model::start_lookups` has the architecture compute the row ids as the pass is formed and starts reading each distinct row once on the reader's threads (`WeightRows::start` sorts and deduplicates the ids, coalesces contiguous rows and keeps an ordered remap), `Model::start_lookup` checks the ids as the layer's stage begins, and `Model::finish_lookup` takes them just before the layer and uploads the packed rows to each member of the group.
 The backend's gather then reads them in the request's order, duplicates included.
 Ordinary passes and passes recorded apart have separate row staging and remap storage, since the ordinary embedding reuses its index scratch.
 The recurrent rerun after a retract uses the saved PLE inputs and reads no rows again.

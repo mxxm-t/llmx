@@ -97,8 +97,9 @@ delegated to a `backend::Backend`.
   on that device, borrowed by `Step` for synchronous ID gather calls; zero
   width allocates no index storage. The index buffer is not part of the device arena.
   Each external lookup has a packed backend buffer on every member of its
-  mixer group. The first member owns the host row-reader scratch and remapped
-  U32 IDs shared by that group's prepared views, indexed by layer. Their capacities are reserved with
+  mixer group. The first member owns the remapped U32 IDs shared by that
+  group's prepared views, indexed by layer, and each `Pass` owns its host
+  row-reader scratch (`Pass::lookups`), so passes in flight never share one. The context's capacities are reserved with
   the arenas, and replacing normal scratch waits for that device's last ticket.
   It also owns the host-visible handoff buffers on each device the residual
   leaves, one, two when a prompt's chunks are pipelined, and in a context reserved for

@@ -164,6 +164,9 @@ private:
     std::shared_ptr<Deferred> deferred_;
     const Model* owner_ = nullptr;
     size_t flights_ = 0;                   // its passes in flight
+    // The token-history tail after the last pass formed of it and the history that pass ends at, which a pass formed before the token stage commits that one predicts its preceding ids from (Model::start_lookups).
+    std::vector<uint32_t> formed_tail_;
+    size_t formed_ = SIZE_MAX;
     // Its images in history order, each with its rows uploaded to every embedding device that has read them (Model::add_media).
     struct Media {
         MediaRun run;
@@ -274,6 +277,14 @@ struct Pass {
     std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
     size_t committed = 0;                              // the stages stage_commit has committed, on every path a pass runs
+    // Per layer with an external lookup, the rows read for the pass from its formation (Model::start_lookups): its own scratch, so passes in flight never share one, and the ids it asked for.
+    struct Lookup {
+        std::unique_ptr<WeightRows::Scratch> host;
+        std::vector<uint32_t> ids;
+        bool started = false;
+    };
+    std::vector<Lookup> lookups;
+    size_t lookup_rows = 0;                            // the rows each lookup scratch holds
 };
 
 // Where a context's passes run, as plain data Model fills: an activation arena per device, host-visible handoff buffers on each device a crossing leaves, the logits rows on the output device, and the tickets of the submissions.
@@ -328,7 +339,6 @@ struct ExecContext {
 
     struct Scratch {
         struct LookupScratch {
-            std::unique_ptr<WeightRows::Scratch> host;
             std::vector<uint32_t> ids;
             backend::BufferPtr data;
             PreparedLookup view;
@@ -979,6 +989,13 @@ public:
         const Pass& p = in_flight(ctx, slot);
         return {devices_[p.sent_at]->b.get(), p.before[p.sent_at], p.sent};
     }
+    // Lookup layers' row reads since the model was made, as each layer's stage began (start_lookup): the read begun at the pass's formation kept, begun again for other ids, or begun only there.
+    struct LookupReads {
+        size_t kept = 0, restarted = 0, late = 0;
+    };
+    LookupReads lookup_reads() const {
+        return {lookups_kept_.load(std::memory_order_relaxed), lookups_restarted_.load(std::memory_order_relaxed), lookups_late_.load(std::memory_order_relaxed)};
+    }
     // The last stage recorded of that pass: the milliseconds its recording waited for lookup rows and spent in tensor-group sums.
     std::pair<double, double> stage_host_waits(ExecContext& ctx, size_t slot) {
         const Pass& p = in_flight(ctx, slot);
@@ -1408,6 +1425,7 @@ private:
     std::vector<size_t> host_allocated_;                        // per device, its slabs alive, idle or in a copy
     SlotPool slots_;
     size_t token_width_ = 0, token_stage_ = SIZE_MAX;
+    std::atomic<size_t> lookups_kept_{0}, lookups_restarted_{0}, lookups_late_{0};   // Model::lookup_reads
     uint32_t token_padding_ = 0;
     std::vector<uint32_t> token_tails_, marked_tokens_; // host IDs indexed by the existing state slot and mark buffer IDs
     std::vector<Stage> stages_;
@@ -1635,7 +1653,8 @@ private:
     std::vector<std::chrono::steady_clock::time_point> run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk,
                                                                   std::vector<std::vector<double>>& stage_ms);
     void single_prepare(Pass& p, size_t s);
-    void start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l);
+    void start_lookups(ExecContext& ctx, Pass& p, size_t rows);
+    void start_lookup(ExecContext& ctx, Pass& p, size_t group, int l);
     void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
     void single_record(ExecContext& ctx, Pass& p, size_t s);
     void group_prepare(Pass& p, size_t s);

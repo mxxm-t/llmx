@@ -1,5 +1,39 @@
 # llmx - Development Status
 
+## ROCm frees beside the devices (2026-11-09, PRE4, branch perf/rocm-defer-free on main e899036d; PDEV1's item 1 of 2026-11-07, F2DEV's review of PRE3b at 06:48, item 6; lands by fast-forward as two commits, the failing test and then the fix)
+
+**Goal:** no free that drains a device on the pass path of any thread, in the one owner of dropped ROCm memory (`Graves` in `rocm_backend.cpp`).
+
+**Done:**
+- Microbench on one MI50 (gfx906, ROCm 7.2.1, 3 repeats): `hipFree`, `hipHostFree` and `hipFreeAsync` of `hipMalloc` memory each hold their caller until the queued work has run (200 ms queued: 201.0, 201.5 and 200.5 ms); with the stream idle `hipFree` takes 0.04 to 0.19 ms from 16 MiB to 4 GiB; `hipMalloc` does not wait (0.1 ms).
+  `hipMallocAsync` with `hipFreeAsync` does not wait but the pool keeps the memory (31510 MiB free before the free, after it and after a synchronise), which the fit would read as used, so it was not taken.
+  A second thread's `hipFree`, `hipHostFree` or `hipStreamSynchronize` while the first keeps the stream fed leaves the feeder's `hipEventRecord` at 0.01 to 0.07 ms, its `hipEventQuery` at 0.00 to 0.03 ms and the device's gaps as with no second call (1.84 against 1.85 ms over 200 kernels); a second thread's `hipEventSynchronize` on an event the feeder queries holds the query 12.8 ms.
+- Profile (main with every allocation and drop of 1 MiB or more and every free timed, Qwen3.8-Flash-Next UD-Q4_K_XL int8, four MI50s): on layer-4 pp2048 the first run with a new slice plan freed 28 buffers in 700 ms on the recording threads, at 1149 tok/s against 1564; they are the backend's twins and split-K partials grown for the larger slices (`take_twin_slot`, the split tile's partials), so any split meets it on a plan change.
+  A server taking prompts of 516, 2313, 9205, 748 and 14772 tokens freed 84, 164 and 132 buffers in 1.8, 3.2 and 4.3 s inside the 2313, 9205 and 14772-token prompts, the first of each size, and none in repeats.
+- The fix: `record` and `wait` free nothing; a thread the backend starts last in its constructor and joins in its destructor takes each grave whose covering ticket is recorded, synchronises the stream and frees it, woken by `record`. An allocation HIP refuses waits for the graves under recorded tickets to be freed (`Graves::settle`), which waits for the whole stream, and is tried once more; it records nothing, since `alloc` may run beside the recording thread. A grave now lives until the stream has run past it and what was queued then, instead of until the next record or wait after its ticket retired.
+- After F2DEV's review (08:30, PRE5): `memory_available` settles the recorded graves before it reads and `sync` records a ticket for drops since the last one, so the fit's readings after `sync` (`build_fitted`'s `before`, `after` and `short_by`) count dropped memory as free; `memory_available` is read only by placement, never on a pass.
+  `backend-rocm` now also reads the memory at once after `sync`, with no polling, for drops under a ticket and after the last one, and with the device filled requires an allocation the device refuses to take a buffer dropped under a ticket with about 200 ms of copies still queued, and one with nothing dropped to still be refused.
+  On main it fails four checks (submission after a drop 180.2 ms, wait 182.7 ms, a drop after the last submission still held after `sync`, the allocation refused with 581 MB free and work queued); on the branch the whole test passes.
+  Rechecked on the reviewed fix, layer-4 pp2048 as below, four processes an arm alternated ABBA ABBA (main the same binary as below): mean main 1437.5 and the branch 1556.8 tok/s, slow runs 6/20 and 0/20, first runs 1481, 1492, 1495, 1495 against 1549, 1549, 1548, 1549, fast medians 1556.8 and 1558.3, nr_throttled 1 and 4.
+- `backend-rocm`: the new check fails on main (submission after a drop 179.3 ms, wait 182.3 ms) and passes on the branch, the whole test passing.
+- Timing, Qwen3.8-Flash-Next UD-Q4_K_XL int8, ROCm on four MI50s (renderD132-135) at default clocks, bench pp2048 five runs a process, eight processes an arm alternated ABBA ABBA, --cpus 8, slow below 0.9 times the pooled median:
+
+| cell | main mean tok/s | branch mean tok/s | slow main / branch | first runs main | first runs branch | fast median main / branch |
+|---|---|---|---|---|---|---|
+| layer-4 pp2048 | 1440.6 | 1543.0 | 7/20 / 0/20 | 1327, 1149, 1148, 1397 | 1547, 1544, 1407, 1547 | 1557.4 / 1557.2 |
+| 2x2 pp2048 | 1462.3 | 1455.8 | 0/20 / 1/20 (1308, a second run) | 1459, 1467, 1465, 1475 | 1449, 1468, 1467, 1468 | 1460.1 / 1467.4 |
+
+  nr_throttled over all processes: layer-4 3 and 4, 2x2 3 and 8. Three of main's slow runs are not a process's first (1174, 1175, 1176 at 6 slices); the profile saw no free in later runs, so they are not attributed here.
+- Server, layer-4, one fresh server a run alternated main, branch, branch, main, prompt tok/s of the first 2313 and 14772-token prompts: main 905 and 918, 1367 and 1021; branch 1060 and 1089, 1653 and 1660; the repeated 14772-token prompt 1694 and 1688 against 1690 and 1690.
+- Greedy ids: 64 tokens after a 2.5k-token prompt are the same on main and the branch, layer-4 and 2x2.
+
+**Landing gates:** run once on the stacked head 5e4eef071 with perf/prefill-pipeline-flow below this branch, all passing, including layer-4 pp2048 and the server's first prompts against main; recorded in (A ROCm ticket some thread synchronises on reads as not done, below).
+Lands by fast-forward together with perf/prefill-pipeline-flow, as that branch's two commits and then this branch's failing test and fix.
+
+**Gotchas:**
+- Only a stream synchronise may wait on the thread: an event synchronise there would hold the recording thread's `done` queries (12.8 ms in the microbench, PRE3b's slow mode).
+- Vulkan's `vkFreeMemory` does not wait for the device (F2DEV, 2026-11-07), so Vulkan keeps freeing a ring slot's buffers as the slot is reopened.
+
 ## A ROCm ticket some thread synchronises on reads as not done (2026-11-09, PRE3 then PRE3b, branch perf/prefill-pipeline-flow on main ed9780218; PRE3's proposal of 2026-11-08 22:46 with F2DEV's review of 23:28, items 1 to 7; lands by fast-forward as two commits, the failing test and then the fix)
 
 **Goal:** remove the layer-split prompt's slow mode on ROCm, where about one prefill in five ran at 1186 instead of 1552 tok/s on Qwen3.8-Flash-Next layer-4.

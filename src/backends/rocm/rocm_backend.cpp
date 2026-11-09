@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstring>
 #include <exception>
@@ -18,6 +19,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -107,13 +109,69 @@ void unregister_host(void* memory) {
     r.held.erase(it);
 }
 
-// Memory of dropped buffers, freed once the work recorded before the drop retires, since hipFree does not wait for a launch or copy still queued that names it.
+// Memory of dropped buffers, freed once the work recorded before the drop is done, since hipFree does not wait for a launch or copy still queued that names it.
+// The backend's own thread frees it: hipFree waits for every stream of the device, so a recording or waiting thread that freed would stop feeding its device until all the work queued after the drop had run (docs/src/backends-rocm.md).
 struct Graves {
     std::mutex m;
+    std::condition_variable wake;
     std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
+    size_t freeing = 0;                                             // graves the thread has taken and not yet freed
     const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
     hipStream_t stream = nullptr;                                   // the backend's stream, null once it is drained
     std::function<void()> flush;                                    // issues the backend's held stream operations, before a drop waits for its stream
+    bool stop = false;                                              // set as the backend goes, which frees what is left and ends the thread
+    std::thread thread;
+
+    // The thread: a grave whose covering ticket is recorded has its work on the stream, which a stream synchronise ends without holding another thread's query or launch.
+    void run(int device) {
+        const HipFn& f = hip();
+        (void)f.hipSetDevice(device);
+        std::unique_lock<std::mutex> lock(m);
+        for (;;) {
+            const Ticket last = tickets ? tickets->last() : ~Ticket(0);
+            std::vector<std::pair<void*, bool>> ready;
+            const auto kept = std::remove_if(held.begin(), held.end(), [&](const auto& g) {
+                if (g.first > last) return false;
+                ready.push_back(g.second);
+                return true;
+            });
+            held.erase(kept, held.end());
+            if (ready.empty()) {
+                if (stop) return;
+                wake.wait(lock);
+                continue;
+            }
+            freeing = ready.size();
+            const hipStream_t s = stream;
+            lock.unlock();
+            if (s) (void)f.hipStreamSynchronize(s);
+            for (const auto& r : ready) free_memory(r.first, r.second);
+            lock.lock();
+            freeing = 0;
+            wake.notify_all();
+        }
+    }
+    // A ticket was recorded: the graves it covers are ready for the thread.
+    void recorded() {
+        std::lock_guard<std::mutex> lock(m);
+        if (!held.empty()) wake.notify_all();
+    }
+    // Waits until every grave whose ticket is recorded is freed, and says whether there was any.
+    bool settle() {
+        std::unique_lock<std::mutex> lock(m);
+        const Ticket last = tickets ? tickets->last() : ~Ticket(0);
+        auto pending = [&] { return freeing || std::any_of(held.begin(), held.end(), [&](const auto& g) { return g.first <= last; }); };
+        if (!pending()) return false;
+        wake.notify_all();
+        wake.wait(lock, [&] { return !pending(); });
+        return true;
+    }
+    // Whether a drop waits for a ticket not yet recorded.
+    bool unrecorded() {
+        std::lock_guard<std::mutex> lock(m);
+        const Ticket last = tickets ? tickets->last() : ~Ticket(0);
+        return std::any_of(held.begin(), held.end(), [&](const auto& g) { return g.first > last; });
+    }
 };
 
 // Device memory from hipMalloc, pinned host memory the device reads in place (Memory::host_visible), or the caller's host memory registered with HIP (wrap_host).
@@ -220,6 +278,7 @@ public:
             stage_.slots[s] = std::make_shared<RocmBuffer>(kStageBytes, true, graves_);
             pass_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, false, graves_);
         }
+        graves_->thread = std::thread([g = graves_.get(), index] { g->run(index); });
     }
     ~RocmBackend() override {
         const HipFn& f = hip();
@@ -231,9 +290,10 @@ public:
             graves_->tickets = nullptr;
             graves_->stream = nullptr;
             graves_->flush = nullptr;
-            for (const auto& g : graves_->held) free_memory(g.second.first, g.second.second);
-            graves_->held.clear();
+            graves_->stop = true;
+            graves_->wake.notify_all();
         }
+        if (graves_->thread.joinable()) graves_->thread.join();
         parts_ = {};
         sparse_ = {};
         twin_ = {};
@@ -259,7 +319,9 @@ public:
     std::string pci_root() const override { return dev_.pci_root; }
     void set_threads(int) override {}
     int threads_available() const override { return 0; }
+    // The recorded graves are freed first, so a reading after sync() counts dropped memory as free.
     std::optional<size_t> memory_available() const override {
+        graves_->settle();
         size_t free = 0, total = 0;
         if (hip().hipSetDevice(dev_.index) != hipSuccess || hip().hipMemGetInfo(&free, &total) != hipSuccess) return std::nullopt;
         return free;
@@ -299,7 +361,15 @@ public:
     // HIP allocates on the calling thread's current device, and a backend may be called from several threads.
     BufferPtr alloc(size_t bytes, Memory where) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-        auto b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
+        std::shared_ptr<RocmBuffer> b;
+        try {
+            b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
+        } catch (const std::runtime_error&) {
+            // Dropped memory whose covering ticket is recorded goes back first, which waits for the whole stream; a drop since the last ticket waits for the next.
+            // Nothing is recorded here, since alloc may run beside the thread that records.
+            if (!graves_->settle()) throw;
+            b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
+        }
         forget_twins();
         if (!bytes) return b;
         // KV growth and the model read a fresh buffer as zeros.
@@ -339,10 +409,10 @@ public:
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
         if (t > kEvents) wait(t - kEvents);
-        bury();
         if (!started_) hip_check(hip().hipEventRecord(starts_[i], stream_), "hipEventRecord");
         hip_check(hip().hipEventRecord(events_[i], stream_), "hipEventRecord");
         tickets_.take();
+        graves_->recorded();
         opened_ = started_ = false;
         for (Ring* r : {&args_, &stage_, &pass_}) r->tag(t);
         return t;
@@ -367,7 +437,6 @@ public:
         held.fetch_sub(1, std::memory_order_acq_rel);
         if (e != hipSuccess) remember(e, "a submission");
         tickets_.retired(t);
-        bury();
     }
     bool done(Ticket t) noexcept override {
         if (tickets_.settled(t)) return true;
@@ -385,7 +454,7 @@ public:
         return true;
     }
     void sync() noexcept override {
-        if (opened_) {
+        if (opened_ || graves_->unrecorded()) {
             try { record(); } catch (const std::exception&) {}
         }
         wait(tickets_.last());
@@ -2835,18 +2904,6 @@ private:
     void remember(hipError_t e, const char* where) noexcept {
         std::lock_guard<std::mutex> lk(failed_mu_);
         if (failed_.empty()) failed_ = std::string("rocm: ") + where + " failed on the device with " + hip().hipGetErrorName(e);
-    }
-    // Frees the graves whose covering ticket has retired.
-    void bury() noexcept {
-        std::lock_guard<std::mutex> lock(graves_->m);
-        auto& held = graves_->held;
-        const Ticket last = tickets_.last();
-        const auto kept = std::remove_if(held.begin(), held.end(), [&](const auto& g) {
-            if (g.first > last || !tickets_.settled(g.first)) return false;
-            free_memory(g.second.first, g.second.second);
-            return true;
-        });
-        held.erase(kept, held.end());
     }
     // A group sum that gave up on this device (fault_) throws once, at the next call that checks; the collective's later sums take the conservative path, so the backend goes on.
     void raise_failed() {

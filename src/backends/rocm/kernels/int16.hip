@@ -898,11 +898,38 @@ template <> struct KRaw<rq::IQ4_NL> {
         dmin = 0.0f;
     }
 };
+// MXFP4's row lane: two lanes a block, lane t the nibbles of half t of all 16 bytes, so values 16t to 16t + 15, the quarters 2t and 2t + 1, from one scale and one five-word gather.
+// Its two chains keep each quarter's terms in an accumulator of their own, and the host gives the row half the lanes the four quarters would take (rocm_backend.cpp, row_cluster), so every sum has the four-lane order's bits.
+struct MXFP4Lane {
+    static constexpr int lanes = 2, segments = 1, values = 16, chains = 2;
+    unsigned q[5], off;
+    __device__ void load(const unsigned char* b, unsigned) {
+        off = (unsigned)((unsigned long long)b & 3u);
+        const unsigned* p = (const unsigned*)(b - off);
+#pragma unroll
+        for (int i = 0; i < 5; ++i) q[i] = p[i];
+    }
+    __device__ static unsigned xblock(unsigned, int) { return 0; }
+    __device__ static unsigned xoff(unsigned t, int) { return 16 * t; }
+    __device__ void decode(unsigned t, int, unsigned (&v)[4], float& ds, float& dmin) const {
+        const unsigned s = off + 1u, a = s >> 2, r = s & 3u, sh = 4 * t;
+#pragma unroll
+        for (int i = 0; i < 4; ++i) {
+            // Bytes 4i to 4i + 3 of the 16 from byte s of the words; the sign mask repeats each nibble's bit 3 over its byte by a byte select.
+            const unsigned lo = __builtin_amdgcn_alignbyte(a ? (i + 2 < 5 ? q[i + 2] : q[4]) : q[i + 1], a ? q[i + 1] : q[i], r);
+            const unsigned x = (lo >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, y = x << 4, neg = __builtin_amdgcn_perm(y, y << 8, 0x0B090A08u);
+            const unsigned pos = __builtin_amdgcn_perm(0x0C080604u, 0x03020100u, idx), minus = __builtin_amdgcn_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
+            v[i] = (pos & ~neg) | (minus & neg);
+        }
+        ds = rq::e8m0_half((unsigned char)((q[0] >> (8u * off)) & 0xffu));
+        dmin = 0.0f;
+    }
+};
 // MXFP4: a 17-byte block at any byte, its E8M0 scale and the lane's eight nibble bytes from the aligned words around them; each nibble's doubled E2M1 value as a signed byte under half the scale.
 // The values come from byte selects of the table held in registers, positive and negated, picked by the nibble's sign bit, so no table is read from memory.
 template <> struct KRaw<rq::MXFP4> {
     static constexpr int offset = 0, halves = 1;
-    using Lane = QuarterLane<rq::MXFP4>;
+    using Lane = MXFP4Lane;
     unsigned e, lo[2];
     __device__ void load(const unsigned char* b, unsigned, unsigned part) {
         const unsigned off = (unsigned)((unsigned long long)b & 3u), s = off + 1u + 8u * (part & 1u);
@@ -934,6 +961,11 @@ template <typename KT> struct QuarterLane {
     __device__ static unsigned xoff(unsigned t, int) { return 8 * t; }
     __device__ void decode(unsigned t, int, unsigned (&v)[2], float& ds, float& dmin) const { raw.decode(0, t, v, ds, dmin); }
 };
+// The accumulators a lane keeps a (row, column): its words split evenly between them, each chained on its own (MXFP4Lane); 1 for every other lane.
+template <typename L, typename = void> struct LaneChains { static constexpr int n = 1; };
+template <typename L> struct LaneChains<L, decltype((void)L::chains)> { static constexpr int n = L::chains; };
+// The columns a grouped build of 8 loads a step: 2 where a lane keeps two chains, whose accumulators held 121 VGPRs at 4, two waves a SIMD on gfx906, and 4 otherwise.
+template <typename KT> struct G8Step { static constexpr int n = LaneChains<typename KRaw<KT>::Lane>::n == 2 ? 2 : 4; };
 // Whether a type's decoded bytes are signed, which its 16-bit words then extend.
 template <typename KT> struct KSigned { static constexpr bool value = false; };
 template <> struct KSigned<rq::IQ4_NL> { static constexpr bool value = true; };
@@ -1004,6 +1036,35 @@ __device__ inline void store_cluster_sums(float (&acc)[R][C], const Row (&r)[R],
     }
 }
 
+// The sums of a lane's two chains (MXFP4Lane), each by the xor tree over the cluster, then added in the lane, which is the last level of the tree over twice the lanes.
+template <int R, int C, typename M>
+__device__ inline void store_cluster_pairs(float (&a)[R][C], float (&b)[R][C], const Row (&r)[R], int lane, unsigned cl, unsigned long long o, unsigned long long total, int ncols, int add, const M& m) {
+    constexpr int NV = R * C;
+    float va[NV], vb[NV];
+#pragma unroll
+    for (int j = 0; j < R; ++j)
+#pragma unroll
+        for (int c = 0; c < C; ++c) va[j * C + c] = a[j][c], vb[j * C + c] = b[j][c];
+    const unsigned sl = lane & (cl - 1);
+    if (cl >= NV) {
+        if constexpr (NV > 1) {
+            halve<NV / 2>(va, lane, (int)cl / 2);
+            halve<NV / 2>(vb, lane, (int)cl / 2);
+        }
+        const unsigned share = cl / NV;
+        const float s = wave_sum(va[0], (int)share / 2) + wave_sum(vb[0], (int)share / 2);
+        const int k = (int)(sl / share);
+        store_sum<R>(r, s, k / C, k % C, sl % share == 0, o, total, ncols, add, m);
+        return;
+    }
+#pragma unroll
+    for (int i = 0; i < NV; ++i) {
+        float sa = va[i], sb = vb[i];
+        for (unsigned d = cl / 2; d > 0; d /= 2) sa += lane_xor(sa, (int)d), sb += lane_xor(sb, (int)d);
+        store_sum<R>(r, sa + sb, i / C, i % C, sl == 0, o, total, ncols, add, m);
+    }
+}
+
 // A cluster of rc.cluster lanes computes R output rows for up to C generated rows; each lane adds its runs' terms into F32 in block order, and the cluster folds them by one xor tree.
 // The cluster and the lane follow the row's width and type alone (rocm_backend.cpp, row_cluster and row_form), so a row and a column keep their bits in every build.
 template <typename KT, int C, typename QT, int R, int G, typename M = Cols, typename L = typename KRaw<KT>::Lane>
@@ -1019,11 +1080,13 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
         Row r[R];
 #pragma unroll
         for (int j = 0; j < R; ++j) r[j] = row_of(rc, o + j < rc.total ? o + j : rc.total - 1, row_bytes);
-        float acc[R][C];
+        constexpr int CH = LaneChains<L>::n;
+        static_assert(CH == 1 || (CH == 2 && KNoMin<KT>::value), "two chains split the words of a type without a min");
+        float acc[R][C], acc2[R][C];
 #pragma unroll
         for (int j = 0; j < R; ++j)
 #pragma unroll
-            for (int c = 0; c < C; ++c) acc[j][c] = 0.0f;
+            for (int c = 0; c < C; ++c) acc[j][c] = 0.0f, acc2[j][c] = 0.0f;
         for (unsigned long long u = sl; u < units; u += cl) {
             const unsigned long long kb = u / L::lanes;
             const unsigned t = (unsigned)(u % L::lanes);
@@ -1079,17 +1142,26 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
                         }
 #pragma unroll
                         for (int j = 0; j < R; ++j) {
-                            int isum = 0;
+                            if constexpr (CH == 2) {
+                                int ia = 0, ib = 0;
 #pragma unroll
-                            for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
-                            const float term = KNoMin<KT>::value ? ds[j] * (float)isum : k_term<KT>(ds[j], dm[j], isum, xsum);
-                            acc[j][g + c] = fmaf(xd[c], term, acc[j][g + c]);
+                                for (int i = 0; i < NW / 2; ++i) ia = word_dot(ww[j][i], xw[c][i], ia, QT(0)), ib = word_dot(ww[j][NW / 2 + i], xw[c][NW / 2 + i], ib, QT(0));
+                                acc[j][g + c] = fmaf(xd[c], ds[j] * (float)ia, acc[j][g + c]);
+                                acc2[j][g + c] = fmaf(xd[c], ds[j] * (float)ib, acc2[j][g + c]);
+                            } else {
+                                int isum = 0;
+#pragma unroll
+                                for (int i = 0; i < NW; ++i) isum = word_dot(ww[j][i], xw[c][i], isum, QT(0));
+                                const float term = KNoMin<KT>::value ? ds[j] * (float)isum : k_term<KT>(ds[j], dm[j], isum, xsum);
+                                acc[j][g + c] = fmaf(xd[c], term, acc[j][g + c]);
+                            }
                         }
                     }
                 }
             }
         }
-        store_cluster_sums<R, C>(acc, r, lane, cl, o, rc.total, ncols, add, m);
+        if constexpr (CH == 2) store_cluster_pairs<R, C>(acc, acc2, r, lane, cl, o, rc.total, ncols, add, m);
+        else store_cluster_sums<R, C>(acc, r, lane, cl, o, rc.total, ncols, add, m);
     }
 }
 
@@ -1749,10 +1821,10 @@ LLMX_GROUPED(llmx_q8_0_routed_half8_g8, signed char, 8, q8_0_rows_half<8, 2, 4, 
     LLMX_ROUTED(llmx_##t##_routed8, signed char, k_rows<KT, 1, signed char, 2, 1>)                      \
     LLMX_GROUPED(llmx_##t##_routed16_g2, short, 2, k_rows<KT, 2, short, 2, 2, EntryCols<2>>)            \
     LLMX_GROUPED(llmx_##t##_routed16_g4, short, 4, k_rows<KT, 4, short, 2, 4, EntryCols<4>>)            \
-    LLMX_GROUPED(llmx_##t##_routed16_g8, short, 8, k_rows<KT, 8, short, 2, 4, EntryCols<8>>)            \
+    LLMX_GROUPED(llmx_##t##_routed16_g8, short, 8, k_rows<KT, 8, short, 2, G8Step<KT>::n, EntryCols<8>>)            \
     LLMX_GROUPED(llmx_##t##_routed8_g2, signed char, 2, k_rows<KT, 2, signed char, 2, 2, EntryCols<2>>) \
     LLMX_GROUPED(llmx_##t##_routed8_g4, signed char, 4, k_rows<KT, 4, signed char, 2, 4, EntryCols<4>>) \
-    LLMX_GROUPED(llmx_##t##_routed8_g8, signed char, 8, k_rows<KT, 8, signed char, 2, 4, EntryCols<8>>) \
+    LLMX_GROUPED(llmx_##t##_routed8_g8, signed char, 8, k_rows<KT, 8, signed char, 2, G8Step<KT>::n, EntryCols<8>>) \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile16, KT, short, kTileRows)                                  \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile8, KT, signed char, kTileRows)                             \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow16, KT, short, kNarrowRows)                              \

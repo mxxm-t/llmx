@@ -8,6 +8,7 @@
 #include "core/host_memory.hpp"
 #include "deepseek4_checks.hpp"
 #include "model/kv_cache.hpp"
+#include "quant/fp4.hpp"
 #include "quant/types.hpp"
 #include "group_sums.hpp"
 #include "qwen35_checks.hpp"
@@ -1166,6 +1167,98 @@ void q8_decode_bits(Backend& g) {
                     require(zero, what + ": the zero rows are +0");
                     if (xv == &periodic && n > 2) require(y[2] == 0.0f && !std::signbit(y[2]), what + ": the cancelling row is +0");
                 }
+            }
+        }
+    }
+}
+
+// One MXFP4 decode row on the host in the order every MXFP4 row kernel keeps: four units a block of eight values, unit u's terms chained in accumulator u % W.
+// W is the power of two covering the units, at most the wave, and the accumulators are summed by the xor tree from W / 2.
+float mxfp4_row_host(const uint8_t* row, const std::vector<float>& d, const int16_t* q, size_t blocks, unsigned wave) {
+    unsigned W = 1;
+    while (W < wave && W < blocks * 4) W *= 2;
+    std::vector<float> acc(W, 0.0f);
+    for (size_t u = 0; u < blocks * 4; ++u) {
+        const size_t b = u / 4, t = u % 4;
+        const uint8_t* block = row + b * 17;
+        int s = 0;
+        for (size_t j = 8 * t; j < 8 * t + 8; ++j) s += quant::FP4_VALUES[j < 16 ? block[1 + j] & 15 : block[1 + j - 16] >> 4] * q[b * 32 + j];
+        const uint32_t bits = block[0] <= 1 ? 0x00200000u << block[0] : uint32_t(block[0] - 1) << 23;
+        float ds;
+        std::memcpy(&ds, &bits, 4);
+        acc[u % W] = std::fmaf(d[b], ds * float(s), acc[u % W]);
+    }
+    for (unsigned m = W / 2; m; m /= 2) {
+        std::vector<float> next(W);
+        for (unsigned l = 0; l < W; ++l) next[l] = acc[l] + acc[l ^ m];
+        acc = next;
+    }
+    return acc[0];
+}
+
+// Every MXFP4 decode build against the host's row bit for bit in both twins: dense rows of 1 to 16 columns, routed entries and the grouped builds of 2, 4 and 8.
+// The widths take 4 to 640 units a row, on both sides of 32 and 64, with DeepSeek-V4.1-Flash's 2304 and 5120 and a 65-block row.
+void mxfp4_decode_bits(Backend& g) {
+    const unsigned wave = rocm_device(0).caps.subgroup_size;
+    const uint32_t T = quant::GGML_TYPE_MXFP4;
+    const size_t nout = 40, ne = 4, cols = 16, K = 2;
+    for (size_t nin : {size_t(32), size_t(224), size_t(256), size_t(288), size_t(480), size_t(512), size_t(544), size_t(2080), size_t(2304), size_t(5120)}) {
+        const size_t blocks = nin / 32, rowb = blocks * 17;
+        // 64 experts of rows, so the routed calls over 64 have them all; the entries pick among the first 4.
+        const std::vector<uint8_t> w = typed_matrix(T, nin, nout * 64, uint32_t(nin + 3));
+        const std::vector<float> x = row_classes::values(nin * cols, uint32_t(nin + 4));
+        std::vector<uint32_t> ids(cols * K);
+        for (size_t c = 0; c < cols; ++c)
+            for (size_t k = 0; k < K; ++k) ids[c * K + k] = uint32_t((c + 3 * k) % ne);
+        const std::vector<float> wts(cols * K, 0.5f);
+        auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
+        auto yb = g.alloc(nout * ne * cols * 4);
+        for (Dtype dt : {Dtype::f16, Dtype::int8}) {
+            const float L = dt == Dtype::int8 ? 127.0f : 32767.0f;
+            std::vector<std::vector<float>> d(cols, std::vector<float>(blocks));
+            std::vector<std::vector<int16_t>> q(cols, std::vector<int16_t>(nin));
+            for (size_t c = 0; c < cols; ++c)
+                for (size_t b = 0; b < blocks; ++b) twin_rule(x.data() + c * nin + b * 32, d[c][b], q[c].data() + b * 32, L);
+            const std::string tw = dt == Dtype::int8 ? "8" : "16", at = std::to_string(nin) + " wide, " + dtype_name(dt);
+            const auto bits = [&](const std::vector<float>& y, const std::vector<std::pair<size_t, size_t>>& rc, const std::string& what) {
+                bool ok = true;
+                for (size_t i = 0; ok && i < rc.size(); ++i) {
+                    const float h = mxfp4_row_host(w.data() + rc[i].first * rowb, d[rc[i].second], q[rc[i].second].data(), blocks, wave);
+                    ok = std::memcmp(&h, &y[i], 4) == 0;
+                    if (!ok) std::fprintf(stderr, "  output %zu: %.9g against %.9g\n", i, y[i], h);
+                }
+                require(ok, what + ": every output the host row's bits");
+            };
+            const auto ran = [&](const std::string& build, const std::string& what) {
+                const auto l = rocm_take_launches(g);
+                require(l.count(build) > 0, what + " runs " + build);
+            };
+            for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(5), size_t(9), size_t(16)}) {
+                const RowRun rr{n, 1};
+                rocm_take_launches(g);
+                g.matmul({T, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout * ne, n, {&rr, 1}, dt);
+                const std::string what = "MXFP4 decode rows " + at + ", " + std::to_string(n) + " columns";
+                ran("llmx_mxfp4_rows" + tw + "_" + std::to_string(n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 8 ? 8 : 16), what);
+                std::vector<std::pair<size_t, size_t>> rc;
+                for (size_t c = 0; c < n; ++c)
+                    for (size_t o = 0; o < nout * ne; ++o) rc.push_back({o, c});
+                bits(read(g, *yb, nout * ne * n), rc, what);
+            }
+            // 64 experts keep the entries below the grouped builds' break-even; over 4 the average entries an expert pick g2, g4 and g8.
+            const std::pair<size_t, size_t> cases[] = {{64, 1}, {64, 6}, {4, 1}, {4, 6}, {4, 16}};
+            for (const auto& [n_expert, n] : cases) {
+                const RowRun rr{n, 1};
+                const Backend::Routing routing{{ib.get(), 0}, {tb.get(), 0}, K, n_expert};
+                rocm_take_launches(g);
+                g.matmul_experts({Projection{{T, {wb.get(), 0}}, {yb.get(), 0}, nout}}, {xb.get(), 0}, nin, n, routing, {&rr, 1}, dt);
+                const size_t avg = n * K / std::min(n_expert, n * K);
+                const std::string build = "llmx_mxfp4_routed" + tw + (n_expert == 64 ? "" : avg <= 2 ? "_g2" : avg <= 4 ? "_g4" : "_g8");
+                const std::string what = "MXFP4 routed decode " + at + ", " + std::to_string(n) + " columns over " + std::to_string(n_expert) + " experts";
+                ran(build, what);
+                std::vector<std::pair<size_t, size_t>> rc;
+                for (size_t e = 0; e < n * K; ++e)
+                    for (size_t o = 0; o < nout; ++o) rc.push_back({ids[e] * nout + o, e / K});
+                bits(read(g, *yb, nout * n * K), rc, what);
             }
         }
     }
@@ -4086,6 +4179,8 @@ int main(int argc, char** argv) {
             exact_rows(*g);
             twin_types(*g, *c);
             q8_decode_bits(*g);
+        mxfp4_decode_bits(*g);
+            mxfp4_decode_bits(*g);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
         }
@@ -4097,6 +4192,7 @@ int main(int argc, char** argv) {
         exact_rows(*g);
         twin_types(*g, *c);
         q8_decode_bits(*g);
+        mxfp4_decode_bits(*g);
         attention(*g, *c);
         classes(*g);
         twin_products(*g, Dtype::f16);

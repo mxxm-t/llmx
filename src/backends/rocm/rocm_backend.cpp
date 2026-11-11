@@ -1885,7 +1885,8 @@ private:
         float group_from[2];
         size_t tile_from[2][2];
         size_t block_values;   // a weight block's values
-        unsigned row_lanes;    // the row kernel's lanes a weight block (kernels/int16.hip, KRaw's Lane), 0 where a wave takes a row
+        unsigned row_lanes;    // the row kernel's lane units a weight block (kernels/int16.hip, KRaw's Lane), 0 where a wave takes a row
+        unsigned row_chains;   // the lane units a lane holds, each in an accumulator of its own: 2 for MXFP4 (kernels/int16.hip, MXFP4Lane), else 1
         bool k45;              // Q4_K or Q5_K, whose rows take at most the profile's k45_row_lanes
         const TwinKernels* quarter;   // the quarter form's row, routed and grouped builds (kernels/int16.hip, QuarterLane), which row_form may take instead
         // Whether routed products of entries over n_expert take the grouped builds, whose break-even is group_from.
@@ -1911,6 +1912,7 @@ private:
                                          {{32, 32}, {32, 32}},
                                          32,
                                          0,
+                                         1,
                                          false,
                                          nullptr};
     // A K-type's twins from its first kernel, its set in LLMX_KTYPE's order (kernels/int16.hip), which the static_assert below holds.
@@ -1932,6 +1934,7 @@ private:
                 {{up_from16, up_from8}, {down_from16, down_from8}},
                 block_values,
                 row_lanes,
+                1,
                 k45,
                 nullptr};
     };
@@ -1955,7 +1958,7 @@ private:
     static constexpr auto with_quarter = [](TwinKernels t, const TwinKernels* q) { t.quarter = q; return t; };
     static constexpr TwinKernels kQ50Twins = with_quarter(kQ50Base, &kQ50Quarter), kQ51Twins = with_quarter(kQ51Base, &kQ51Quarter);
     // MXFP4 alone has the thin build, which the narrow tile beat on Q4_K (docs/STATUS.md, DeepSeek-V4.1 ROCm kernels).
-    static constexpr TwinKernels kMXFP4Twins = [] { TwinKernels t = kMXFP4Base; t.routed_thin = kRoutedThinMXFP416; return t; }();
+    static constexpr TwinKernels kMXFP4Twins = [] { TwinKernels t = kMXFP4Base; t.routed_thin = kRoutedThinMXFP416; t.row_chains = 2; return t; }();
     static_assert(kQ6KTwins.tile[1] == kTileQ6K8 && kIQ4NLTwins.routed[1] == kRoutedIQ4NL8 && kIQ4NLTwins.grouped[1][2] == kGroupedIQ4NL8x8 && kIQ4NLTwins.routed_tile[1] == kRoutedTileIQ4NL8 && kIQ4NLTwins.routed_narrow[1] == kRoutedNarrowIQ4NL8 && kIQ4NLTwins.routed_stream == kRoutedStreamIQ4NL8 && kMXFP4Twins.routed_stream == kRoutedStreamMXFP48 && kMXFP4Twins.routed_narrow[1] == kRoutedNarrowMXFP48 && kMXFP4Twins.routed_mid[1] == kRoutedMidMXFP48, "a K-type's kernels follow LLMX_KTYPE's order");
     static_assert(kQ51Quarter.two[1][4] == kQuarterQ518x16 && kQ51Quarter.routed[1] == kQuarterRoutedQ518 && kQ51Quarter.grouped[1][2] == kQuarterGroupedQ518x8 && kQ51Quarter.tile[1] == kTileQ518, "a quarter form's kernels follow LLMX_KQUARTER's order");
     // Each weight type's kernels, one row a type for every caller (docs/ROCM.md, Owners and boundaries): its exact product, the same over several rows, its embedding, its routed exact product and its twin kernels.
@@ -2407,7 +2410,8 @@ private:
         unsigned cl = 1;
         while (cl < wave && cl < units) cl *= 2;
         if (tk.k45) cl = std::min(cl, std::max(8u, (unsigned)dev_.profile.k45_row_lanes));
-        return cl;
+        // A lane holding several units takes their share of the lanes: MXFP4's row covers at least four units, so its cluster is at least two lanes.
+        return cl / tk.row_chains;
     }
     // The lane form of a row of nin values: for Q5_0 and Q5_1 the quarter form where its lane units fill the cluster's steps fuller than one lane a block does, one lane a block on a tie; every other type its one form.
     // Like row_cluster it reads the row's width and type alone, so a dense row and a routed entry of one weight row take one form and one order.

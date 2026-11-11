@@ -1,5 +1,45 @@
 # llmx - Development Status
 
+## ROCm MXFP4 decode lane: two lanes a block, the quarter order's bits (2026-11-11, DSDEV113 then DSDEV118, branch perf/routed-decode-wide on main 12b84ea73, rebased onto main 4eaa874bd under perf/q8-decode-steps; DSDEV113's proposal of 06:17, F2DEV's review of 06:24, DSDEV118's results of 07:08 and 09:59, COORD's ruling to land the MXFP4 lane alone; DSDEV124 gated it; lands by fast-forward)
+
+**Goal:** MXFP4 decode rows, dense, routed and grouped, faster on ROCm with main's bits, so DeepSeek-V4.1-Flash's routed experts decode faster with no re-baseline.
+
+**Done:**
+- MXFP4's row lane (`MXFP4Lane`, kernels/int16.hip) takes two lanes a block, a lane the nibbles of one half of the 16 bytes, so 16 values from one scale decode, one five-word gather and one index step, where the quarter form took four lanes of 8.
+- A lane keeps one accumulator a quarter (`row_chains`), each chained over the blocks its quarter lane chained, on a cluster of half the lanes (`row_cluster`); the two trees' sums are added in the lane (`store_cluster_pairs`), the quarter tree's last level, so every output keeps main's bits.
+- Its grouped build of 8 loads 2 columns a step (`G8Step`), since 4 held 121 VGPRs, two waves a SIMD, and took 1654 us gate+up at 16 rows against the 2-column build's 1155; 1 column a step took 1304, and one row a cluster 1865 at 4 columns and 1475 at 2.
+- `mxfp4_decode_bits` (backend-rocm) holds dense rows of 1 to 16 columns, routed, g2, g4 and g8, f16 and int8, 32 to 5120 wide, to a host emulation of the quarter order bit for bit; `types` passes on an MI50.
+
+**Measured** (one MI50, default clocks, int8, a scratch harness over the production kernels at DeepSeek-V4.1-Flash's expert shapes, 5120 into 2x2304 and 2304 into 5120, 6 experts a row, main / branch / DSDEV113's re-baselining half form interleaved, 3 rounds, us a call):
+
+| call | gate+up main / branch / half | down main / branch / half |
+|---|---:|---:|
+| routed, 1 row | 227 / 174 / 175 | 151 / 111 / 134 |
+| routed, 6 rows | 1366 / 998 / 1028 | 872 / 611 / 752 |
+| g2, 1 row of 16 experts | 284 / 212 / 218 | 193 / 140 / 174 |
+| g4, 6 rows | 990 / 740 / 806 | 667 / 472 / 616 |
+| g8, 16 rows | 1714 / 1155 / 1092 | 1145 / 746 / 860 |
+
+Every branch output hash equals main's.
+Counters at 1 row (gate+up, down): VALU active cycles 20.3M and 13.0M on main, 13.2M and 8.2M on the branch; VALUBusy 88% and 84% to 74% and 71%; MemUnitBusy 65% and 58% to 60% and 54%.
+On Vulkan at the same shapes, same card, main's routed MXFP4 decode takes 262 to 272 us for gate+up and 215 us for down at 1 row, below this ROCm rate; it is a later step of its own.
+
+**Landing gates** (DSDEV124, one MI50, the head's code at 949e8296 on main 12b84ea73, against main's build of 12b84ea73):
+- Qwen3-30B-A3B Q4_K_M on rocm:0: greedy ids over 64 tokens and logits over 1400 positions are main's, in int8 and auto.
+- The scratch harness's 60 hash cases (MXFP4, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1 and IQ4_NL; dense, routed and g8; 1 and 16 rows; f16 and int8) are main's.
+- CTest 84 of 84 on an MI50; the suite on rocm:0 passes every component but `docs` and `dead-code`, which fail in the container only because the worktree's git directory is not mounted there, and pass on the host.
+- No Vulkan code changes, so neither the Vulkan suite nor the Radeon VII check applies.
+- At the stacked head with perf/q8-decode-steps (LAND26, 9b53dcfda on main 4eaa874bd), against main's build of 4eaa874bd made the same way: greedy ids and top-8 logits are main's for DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s on ROCm int8 and Vulkan (64 ids and 1400 logit positions of a short prompt, 64 ids and 512 positions of a 15032-token prompt), and on rocm:0 under auto and int8 for Qwen3-30B-A3B Q4_K_M (64 ids, 1400 positions) and a synthetic MXFP4 qwen3moe file of random blocks (width 1024, 16 experts of 768, 4 used; 64 ids, 1400 positions).
+  The stack's other gates and its timing round against main are in the perf/q8-decode-steps block above; the change lands by fast-forward after the Radeon VII check.
+
+**Left:**
+- The lean `k_rows` loop (proposal item 2), every type with main's bits, is a step of its own: measured against main's loop it took Q5_0 and Q5_1 about 40% lower at 16 dense columns and Q5_1's g8 45% lower, and was slower on MXFP4's g8 (+42% to +64%, 83 to 114 VGPRs), Q4_K (+5% to +11%, g8 +65% to +75%) and IQ4_NL (g8 +16% to +21%, 16 dense columns +248%), wherever the compiler then hoisted per-column 64-bit addresses.
+  So it is a per-build choice, which needs its own rule and review.
+
+**Gotchas:**
+- The bits hold because the quarter tree's last level pairs the quarters 2t and 2t + 1 that one lane now holds, and the levels above pair lanes that differ in the block index alone; IEEE addition commutes, so the in-lane add is that level.
+- docs/ROCM.md has no MXFP4 lane text, so only docs/src/backends-rocm.md changes.
+
 ## DeepSeek-V4.1 narrow decode ops on ROCm and Vulkan (2026-11-11, DSDEV114 to DSDEV117, branch perf/narrow-decode-ops on main 12b84ea73; F2DEV's review of DSDEV114's proposal, 05:03; lands by fast-forward)
 
 **Goal:** the DeepSeek-V4.1 ops that run a row or a few at decode, and grow with depth, take their time from the work they do rather than from serial lanes, with every output's bits unchanged.

@@ -1,14 +1,17 @@
 #version 450
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_ballot : require
+#extension GL_EXT_control_flow_attributes : require
 // One workgroup a row: the `picks` best of `items` scores by score, then lower index, written by ascending index, mode 0 being topk_rows and mode 1 candidate_blocks (docs/src/backends-vulkan.md).
-// The k-th best key is found bit by bit from the top over counts of the row, so the workspace is the workgroup's at any row length.
+// The k-th best key is found four bits at a time from the top by a radix select over counts of the row, so the workspace is the workgroup's at any row length.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint n; uint stride; uint picks; uint offset; uint mode; uint block_size; uint items; } p;
 layout(set = 0, binding = 0) writeonly buffer O { uint ids[]; };
 layout(set = 0, binding = 1) readonly buffer S { float scores[]; };
 layout(set = 0, binding = 2) readonly buffer L { uint lens[]; };
-const uint NONE = 0xffffffffu;
-shared uint red[256];
-shared uint scan[256];
+const uint NONE = 0xffffffffu, GROUPS = 8u;   // subgroups a workgroup, at most, with subgroups of at least 32 lanes
+shared uint hist[GROUPS * 16u];
+shared uint counts[GROUPS];
 uint row, len, pinned;
 float score_of(uint i) {
     if (p.mode == 0u) return scores[row * p.n + i];
@@ -23,51 +26,61 @@ uint key_of(float s) {
     uint u = floatBitsToUint(s == 0.0 ? 0.0 : s);
     return (u >> 31) != 0u ? ~u : u | 0x80000000u;
 }
-uint count_at_least(uint t, bool strict) {
-    uint lid = gl_LocalInvocationID.x, c = 0u;
-    for (uint i = lid; i < p.items; i += 256u) {
-        uint key = key_of(score_of(i));
-        c += uint(strict ? key > t : key >= t);
+// v's exclusive rank over the workgroup's lanes by subgroup ballots, and the workgroup's total.
+uint rank(bool v, out uint total) {
+    uvec4 bal = subgroupBallot(v);
+    if (subgroupElect()) counts[gl_SubgroupID] = subgroupBallotBitCount(bal);
+    barrier();
+    uint before = 0u, all = 0u;
+    for (uint w = 0u; w < gl_NumSubgroups; ++w) {
+        before += w < gl_SubgroupID ? counts[w] : 0u;
+        all += counts[w];
     }
-    red[lid] = c;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
-        if (lid < k) red[lid] += red[lid + k];
-        barrier();
-    }
-    uint total = red[0];
-    barrier();
-    return total;
-}
-// The inclusive prefix of v over the workgroup's lanes, and its total.
-uint prefix(uint v, out uint total) {
-    uint lid = gl_LocalInvocationID.x;
-    scan[lid] = v;
-    barrier();
-    for (uint k = 1u; k < 256u; k <<= 1u) {
-        uint add = lid >= k ? scan[lid - k] : 0u;
-        barrier();
-        scan[lid] += add;
-        barrier();
-    }
-    uint s = scan[lid];
-    total = scan[255];
-    barrier();
-    return s;
+    total = all;
+    return before + subgroupBallotExclusiveBitCount(bal);
 }
 void main() {
     row = gl_WorkGroupID.x;
     len = lens[row];
     pinned = p.mode == 1u && len != 0u && (len - 1u) / p.block_size < p.items ? (len - 1u) / p.block_size : NONE;
-    uint lid = gl_LocalInvocationID.x;
-    uint threshold = 0u;
-    if (p.picks != 0u)
-        for (int bit = 31; bit >= 0; --bit) {
-            uint candidate = threshold | (1u << uint(bit));
-            if (count_at_least(candidate, false) >= p.picks) threshold = candidate;
+    uint lid = gl_LocalInvocationID.x, group = gl_SubgroupID * 16u;
+    // Each round counts the keys under the prefix found so far by their next four bits, a subgroup's histogram apiece, and takes the highest digit whose keys from the top reach the picks.
+    uint threshold = 0u, need = 0u;
+    if (p.picks != 0u) {
+        uint mask = 0u;
+        need = p.picks;
+        for (int shift = 28; shift >= 0; shift -= 4) {
+            for (uint i = lid; i < GROUPS * 16u; i += 256u) hist[i] = 0u;
+            barrier();
+            uint first = 0u;
+            for (; first + 1024u <= p.items; first += 1024u) {
+                uint key[4];
+                [[unroll]] for (uint u = 0u; u < 4u; ++u) key[u] = key_of(score_of(first + u * 256u + lid));
+                [[unroll]] for (uint u = 0u; u < 4u; ++u)
+                    if ((key[u] & mask) == threshold) atomicAdd(hist[group + ((key[u] >> uint(shift)) & 15u)], 1u);
+            }
+            for (uint i = first + lid; i < p.items; i += 256u) {
+                uint key = key_of(score_of(i));
+                if ((key & mask) == threshold) atomicAdd(hist[group + ((key >> uint(shift)) & 15u)], 1u);
+            }
+            barrier();
+            uint digit = 0u;
+            for (int b = 15; b >= 0; --b) {
+                uint h = 0u;
+                for (uint w = 0u; w < gl_NumSubgroups; ++w) h += hist[w * 16u + uint(b)];
+                if (h >= need) {
+                    digit = uint(b);
+                    break;
+                }
+                need -= h;
+            }
+            barrier();
+            threshold |= digit << uint(shift);
+            mask |= 15u << uint(shift);
         }
-    uint above = p.picks != 0u ? count_at_least(threshold, true) : 0u;
-    uint need = p.picks - above, ties = 0u, kept = 0u;
+    }
+    uint ties = 0u, kept = 0u;
     for (uint first = 0u; first < p.items; first += 256u) {
         uint i = first + lid;
         uint key = 0u;
@@ -77,12 +90,13 @@ void main() {
             key = key_of(s);
         }
         bool live = i < p.items && p.picks != 0u;
-        uint tie = uint(live && key == threshold), tie_total, written_total;
-        uint tie_before = ties + prefix(tie, tie_total) - tie;
-        bool picked = live && (key > threshold || (tie != 0u && tie_before < need));
+        bool tie = live && key == threshold;
+        uint tie_total, written_total;
+        uint tie_before = ties + rank(tie, tie_total);
+        bool picked = live && (key > threshold || (tie && tie_before < need));
         bool written = picked && (p.mode == 0u || s > -1.0 / 0.0);
-        uint at = prefix(uint(written), written_total);
-        if (written) ids[row * p.stride + kept + at - 1u] = p.mode == 0u ? (i < len ? i + p.offset : NONE) : i;
+        uint at = rank(written, written_total);
+        if (written) ids[row * p.stride + kept + at] = p.mode == 0u ? (i < len ? i + p.offset : NONE) : i;
         ties += tie_total;
         kept += written_total;
     }

@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_control_flow_attributes : require
 // A workgroup runs of max(1, 256 / heads) positions of one row, a lane a (position, head) dot: out = sum over heads of w[h] w_scale ReLU(dot(q_h, key)).
 // The key is the view's pooled row's last dim floats; each dot and the head sum are the CPU's multiply-add chains, and a position the row cannot see is -inf.
 layout(local_size_x = 256) in;
@@ -17,9 +18,13 @@ layout(set = 0, binding = 2) readonly buffer AU { uint aux_words[]; };
 float key_value0(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 0u, v) return v; }
 float key_value1(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 1u, v) return v; }
 float key_value2(uint key, uint d) { precise float v; FORMAT_VALUE(key, d, 2u, v) return v; }
-#define KEY_DOT(VALUE) \
-    for (uint d = 0u; d < p.dim; ++d) dot = fma(q[qh + d], VALUE, dot);
+float key_value3(uint key, uint d) { return aux[key + d]; }
 shared float dots[1024];
+shared float lut[272];
+FORMAT_DOT(key_dot0, aux_words, key_value0, 0u, 32u, 33u)
+FORMAT_DOT(key_dot1, aux_words, key_value1, 1u, 32u, 17u)
+FORMAT_DOT(key_dot2, aux_words, key_value2, 2u, 16u, 9u)
+FORMAT_DOT(key_dot3, aux_words, key_value3, 3u, 1u, 1u)
 shared uint seen[256];
 void main() {
     uint r = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
@@ -27,6 +32,7 @@ void main() {
     uint v, b;
     view_of_row(r, v, b);
     uint len = (view_hist(v) + b + 1u) / p.tokens;
+    for (uint c = lid; c < 272u; c += 256u) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
     for (uint first = gl_WorkGroupID.x * per; first < p.n; first += gl_NumWorkGroups.x * per) {
         for (uint j = lid; j < per; j += 256u) {
             uint t = first + j;
@@ -43,17 +49,8 @@ void main() {
             if (seen[j] == 0u) continue;
             uint key = pooled_row(v, first + j, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.key_words;
             uint qh = (r * p.heads + h) * p.dim;
-            precise float dot = 0.0;
-            if (p.key_format == 3u) {
-                KEY_DOT(aux[key + d])
-            } else if (p.key_format == 0u) {
-                KEY_DOT(key_value0(key, d))
-            } else if (p.key_format == 1u) {
-                KEY_DOT(key_value1(key, d))
-            } else {
-                KEY_DOT(key_value2(key, d))
-            }
-            dots[i] = dot;
+            uint f = p.key_format;
+            dots[i] = f == 3u ? key_dot3(qh, key) : f == 0u ? key_dot0(qh, key) : f == 1u ? key_dot1(qh, key) : key_dot2(qh, key);
         }
         barrier();
         for (uint j = lid; j < per; j += 256u) {

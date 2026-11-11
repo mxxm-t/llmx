@@ -42,7 +42,7 @@ int ceil_log2(float v) {
 float pow2(int e) { return uintBitsToFloat(uint(e + 127) << 23); }
 float e4m3_value(uint c) {
     uint e = (c >> 3) & 15u, m = c & 7u;
-    float v = e != 0u ? ldexp(float(8u + m), int(e) - 10) : ldexp(float(m), -9);
+    float v = e == 15u && m == 7u ? uintBitsToFloat(0x7FC00000u) : e != 0u ? ldexp(float(8u + m), int(e) - 10) : ldexp(float(m), -9);
     return (c & 0x80u) != 0u ? -v : v;
 }
 uint e4m3_code(float v) {
@@ -80,5 +80,31 @@ uint format_bytes(uint format) { return format == 0u ? 33u : format == 1u ? 17u 
             uint b_ = FORMAT_BYTE(base, at_ + 1u + (i_ < half_ ? i_ : i_ - half_));                                         \
             out_value = e2m1_value(i_ < half_ ? b_ & 15u : b_ >> 4u) * ((format) == 1u ? uintBitsToFloat(scale_ << 23) : e4m3_value(scale_)); \
         }                                                                                                                   \
+    }
+// q from qb dot the row from word w0 in d order, for a shader holding q, p.dim and the 272-entry code table lut (E4M3 then E2M1 values).
+// Four blocks' words load at once and a value is its code's table entry times its block's scale, the product the per-value decode gives.
+#define WORD_BYTE(wd, o) ((wd[(o) >> 2u] >> (((o) & 3u) * 8u)) & 0xFFu)
+#define FORMAT_DOT(DOT, WORDS, VALUE, F, VB, BB)                                                                                        \
+    float DOT(uint qb, uint w0) {                                                                                                      \
+        precise float dot = 0.0;                                                                                                       \
+        uint d = 0u, w = w0;                                                                                                           \
+        if (F != 3u)                                                                                                                   \
+            for (; d + 4u * VB <= p.dim; d += 4u * VB, w += BB) {                                                                      \
+                uint wd[BB];                                                                                                           \
+                [[unroll]] for (uint j = 0u; j < BB; ++j) wd[j] = WORDS[w + j];                                                        \
+                [[unroll]] for (uint b = 0u; b < 4u; ++b) {                                                                            \
+                    uint sb = WORD_BYTE(wd, b * BB);                                                                                   \
+                    float sc = F == 2u ? lut[sb] : uintBitsToFloat(sb << 23);                                                          \
+                    [[unroll]] for (uint i = 0u; i < VB; ++i) {                                                                        \
+                        uint c = F == 0u ? WORD_BYTE(wd, b * BB + 1u + i)                                                              \
+                                         : 256u + (i < VB / 2u ? WORD_BYTE(wd, b * BB + 1u + i) & 15u                                  \
+                                                                : WORD_BYTE(wd, b * BB + 1u + i - VB / 2u) >> 4u);                     \
+                        precise float v = lut[c] * sc;                                                                                 \
+                        dot = fma(q[qb + d + b * VB + i], v, dot);                                                                     \
+                    }                                                                                                                  \
+                }                                                                                                                      \
+            }                                                                                                                          \
+        for (; d < p.dim; ++d) dot = fma(q[qb + d], VALUE(w0, d), dot);                                                                \
+        return dot;                                                                                                                    \
     }
 #endif

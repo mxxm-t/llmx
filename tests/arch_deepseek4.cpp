@@ -596,8 +596,7 @@ void plan() {
                                     (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]),
                                     heads * size_t(golden["engram_head_dim"]), hc * d, d, hc * d, hc * d, golden["head_dim"], golden["head_dim"],
                                     golden["head_dim"], golden["index_head_dim"], size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]),
-                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, 1, golden["index_topk"], golden["candidate_topk_blocks"],
-                                    (size_t(golden["head_dim"]) / 32 * 33 + 3) / 4};
+                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, 1, golden["index_topk"], golden["candidate_topk_blocks"]};
     require(p.residual == hc * d && p.embed_copies == hc && p.context_length == ctx && p.slots == slots &&
                 p.vocab == golden["vocab_size"] && p.index_width == std::max(size_t(heads), window) && !p.kv_heads && !p.head_dim,
             "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots and the index scratch of the lookup and the window");
@@ -682,7 +681,7 @@ void footprint() {
                        3 * (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]) +
                        size_t(golden["engram_n_heads"]) * (size_t(golden["engram_max_ngram_size"]) - 1) * size_t(golden["engram_head_dim"]) + 3 * R + size_t(golden["dim"]) +
                        4 * size_t(golden["head_dim"]) + 2 * size_t(golden["index_head_dim"]) + size_t(golden["index_n_heads"]) * (size_t(golden["index_head_dim"]) + 1) +
-                       ctx + 1 + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]) + (size_t(golden["head_dim"]) / 32 * 33 + 3) / 4;
+                       ctx + 1 + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]);
     require(fp.tables == (2 * ctx * rd + R + norms + hc + groups + size_t(golden["dim"])) * sizeof(float) && fp.activations_per_row == slots * sizeof(float) &&
                 fp.handoff_per_row == (R + 2 * hc + size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]) + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"])) * sizeof(float) && fp.host_scratch_per_row == window * sizeof(uint32_t),
             "the tables, the slots, the handoff row with the carried slots and the index scratch");

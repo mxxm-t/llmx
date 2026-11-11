@@ -1,19 +1,19 @@
 #version 450
-// One lane a block: DeepSeek-V4.1's storage formats quantized and dequantized in place as quant/model_formats.hpp does, or one lane a word of a packed row, so the CPU and the device store the same bytes.
+// A lane a value: DeepSeek-V4.1's storage formats quantized and dequantized in place as quant/model_formats.hpp does, or packed into rows, so the CPU and the device store the same bytes.
 // The block's quotients by its scale are correctly rounded by an integer division, codes come from exact comparisons, and a value is one multiply of code and scale, which needs subnormals kept.
 #define LLMX_PRESERVE_F32
 #include "float_controls.glsl"
-layout(local_size_x = 64) in;
+layout(local_size_x = 256) in;
 // Format 0 is fp8_power, 1 fp4_power and 2 fp4_e4m3; the inverse maxima and the FP8 floor come from the host as the CPU rounds them.
-// With `packed` set, `blocks` counts rows of `dim` values, each packed into `row_words` words of O from word row * stride, a lane a word, and X is left as it is.
+// With `packed` set, `blocks` counts rows of `dim` values, each packed into `row_words` words of O from word row * stride, and X is left as it is.
 layout(push_constant) uniform P { uint blocks; uint format; float inv_fp8; float inv_fp4; float fp8_floor; uint packed; uint dim; uint stride; uint row_words; } p;
 layout(set = 0, binding = 0) buffer X { float x[]; };
 layout(set = 0, binding = 1) buffer O { uint o[]; };
 #include "model_formats.glsl"
-// The block of n values from x[base]: its scale's byte and value.
-void block_scale(uint base, uint n, out uint scale, out float s) {
-    float amax = 0.0;
-    for (uint i = 0u; i < n; ++i) amax = max(amax, abs(x[base + i]));
+shared float mags[256];
+shared uint words[66];   // a packed row's runs of four blocks, whole words, gathered here: at most two runs of 33 words (FP8) a workgroup
+// The block's scale byte and value from its amax.
+void block_scale(float amax, out uint scale, out float s) {
     if (p.format == 2u) {
         scale = e4m3_code(div_rn(max(amax, 6.0 * uintBitsToFloat(0x3B000000u)), FP4_MAX));
         s = e4m3_value(scale);
@@ -23,42 +23,44 @@ void block_scale(uint base, uint n, out uint scale, out float s) {
     else s = pow2(ceil_log2(max(amax, 6.0 * uintBitsToFloat(0x00800000u)) * p.inv_fp4));
     scale = floatBitsToUint(s) >> 23;
 }
+// A NaN takes the CPU's codes, 0x7F under FP8 and a signed zero under FP4, which the integer division does not give.
 uint code_of(float v, float s) {
+    if (isnan(v)) return p.format == 0u ? 0x7Fu : (floatBitsToUint(v) >> 31) << 3;
     float q = div_rn(v, s);
     return p.format == 0u ? e4m3_code(clamp_to(q, FP8_MAX)) : e2m1_code(clamp_to(q, FP4_MAX));
 }
-// Byte i of a packed row from x[row]: its blocks' scale byte then codes, zero past the blocks; the block's scale is kept across the word's bytes.
-uint cached = 0xFFFFFFFFu, cached_code;
-float cached_scale;
-uint row_byte(uint row, uint i) {
-    uint n = format_values(p.format), bytes = p.format == 0u ? 1u + n : 1u + n / 2u, b = i / bytes, at = i % bytes;
-    if (b >= p.dim / n) return 0u;
-    uint base = row + b * n;
-    if (b != cached) {
-        block_scale(base, n, cached_code, cached_scale);
-        cached = b;
-    }
-    if (at == 0u) return cached_code;
-    if (p.format == 0u) return code_of(x[base + at - 1u], cached_scale);
-    return code_of(x[base + at - 1u], cached_scale) | code_of(x[base + at - 1u + n / 2u], cached_scale) << 4u;
-}
 void main() {
-    uint id = gl_GlobalInvocationID.x;
+    uint n = format_values(p.format), lane = gl_LocalInvocationID.x, i = lane % n, id = gl_GlobalInvocationID.x;
+    uint bytes = p.format == 0u ? 1u + n : 1u + n / 2u, run = 4u * n, runs = (p.dim / n + 3u) / 4u, row = 0u, v = id;
+    bool live = id < p.blocks * n;
     if (p.packed != 0u) {
-        if (id >= p.blocks * p.row_words) return;
-        uint r = id / p.row_words, w = id % p.row_words, row = r * p.dim, v = 0u;
-        for (uint j = 0u; j < 4u; ++j) v |= row_byte(row, 4u * w + j) << (8u * j);
-        o[r * p.stride + w] = v;
+        row = id / run / runs;
+        v = id / run % runs * run + id % run;
+        live = row < p.blocks && v < p.dim;
+    }
+    uint at = row * p.dim + v;
+    float value = live ? x[at] : 0.0;
+    mags[lane] = isnan(value) ? 0.0 : abs(value);   // the CPU's fmax passes over a NaN
+    for (uint w = lane; w < 66u; w += 256u) words[w] = 0u;
+    barrier();
+    // The block's amax in the CPU's order over its values, each lane of the block forming it alike.
+    float amax = 0.0;
+    for (uint j = lane - i; j < lane - i + n; ++j) amax = max(amax, mags[j]);
+    uint scale;
+    precise float s;
+    block_scale(amax, scale, s);
+    uint c = code_of(value, s);
+    if (p.packed == 0u) {
+        precise float q = p.format == 0u ? e4m3_value(c) * s : e2m1_value(c) * s;
+        if (live) x[at] = q;
         return;
     }
-    if (id >= p.blocks) return;
-    uint n = format_values(p.format);
-    uint base = id * n, scale;
-    precise float s;
-    block_scale(base, n, scale, s);
-    for (uint i = 0u; i < n; ++i) {
-        uint c = code_of(x[base + i], s);
-        precise float v = p.format == 0u ? e4m3_value(c) * s : e2m1_value(c) * s;
-        x[base + i] = v;
+    if (live) {
+        uint base = lane / run * bytes * 4u + lane % run / n * bytes, b = base + 1u + (p.format == 0u ? i : i % (n / 2u));
+        if (i == 0u) atomicOr(words[base / 4u], scale << (8u * (base % 4u)));
+        atomicOr(words[b / 4u], c << (8u * (b % 4u) + (p.format != 0u && i >= n / 2u ? 4u : 0u)));
     }
+    barrier();
+    uint per = 256u / run, first = gl_WorkGroupID.x * per, w = lane % bytes, r = first + lane / bytes;
+    if (lane < per * bytes && r / runs < p.blocks && r % runs * bytes + w < p.row_words) o[r / runs * p.stride + r % runs * bytes + w] = words[lane];
 }

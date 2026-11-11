@@ -1,17 +1,20 @@
 #version 450
-// A workgroup a row: route_experts' sqrt_softplus rule in the CPU's order, s = sqrt(softplus(x)), the k picks by s + bias, highest first and ties to the lower id, weighed s / (sum + 1e-20) when normalizing more than one, then times scale.
-// Each pick is an exact argmax over (s + bias, id), the same in any order, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of UINT32_MAX with weights 0.
-layout(local_size_x = 256) in;
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_control_flow_attributes : require
+// A workgroup of 64 lanes a row: route_experts' sqrt_softplus rule in the CPU's order: s = sqrt(softplus(x)), the k picks by s + bias, highest first, ties to lower ids, weighed s / (sum + 1e-20) if normalizing more than one, times scale.
+// Each pick is an exact argmax over (s + bias, id) by subgroup shuffles, then shared memory, and the sum runs in pick order on one lane; a row whose s + bias is not finite everywhere gives k picks of UINT32_MAX, weights 0.
+layout(local_size_x = 64) in;
 layout(push_constant) uniform P { uint rows; uint n_expert; uint k; uint has_bias; uint normalize; float scale; } p;
 layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
 layout(set = 0, binding = 1) readonly buffer B { float bias[]; };
 layout(set = 0, binding = 2) writeonly buffer I { uint ids[]; };
 layout(set = 0, binding = 3) writeonly buffer W { float weights[]; };
-shared float s_of[1024];
-shared float b_of[1024];
-shared float best_b[256];
-shared uint best_e[256];
+const uint LANES = 64u, HELD = 1024u / LANES;   // a lane holds experts lane, lane + 64, ..., of at most 1024
+shared float s_of[1024], b_in[1024];
 shared uint chosen[256];
+shared uint group_e[LANES];
+shared float group_b[LANES];
 shared uint all_finite;
 shared float total_of;
 // log(1 + u) kept accurate where 1 + u rounds, as log1p is.
@@ -20,51 +23,46 @@ float log1p_of(float u) {
     if (v == 1.0) return u;
     return log(v) * (u / (v - 1.0));
 }
+void take(inout uint be, inout float bb, uint oe, float ob) {
+    if (oe != p.n_expert && (be == p.n_expert || ob > bb || (ob == bb && oe < be))) { be = oe; bb = ob; }
+}
 void main() {
     const uint r = gl_WorkGroupID.x, t = gl_LocalInvocationID.x, n = p.n_expert;
     if (t == 0u) all_finite = 1u;
     barrier();
-    for (uint e = t; e < n; e += 256u) {
+    for (uint e = t; e < n; e += LANES) {
         float v = scores[r * n + e];
         float s = sqrt(v > 20.0 ? v : log1p_of(exp(v)));
         precise float b = p.has_bias != 0u ? s + bias[e] : s;
         s_of[e] = s;
-        b_of[e] = b;
+        b_in[e] = b;
         if (isnan(b) || isinf(b)) all_finite = 0u;
     }
     barrier();
     if (all_finite == 0u) {
-        for (uint j = t; j < p.k; j += 256u) { ids[r * p.k + j] = 0xffffffffu; weights[r * p.k + j] = 0.0; }
+        for (uint j = t; j < p.k; j += LANES) { ids[r * p.k + j] = 0xffffffffu; weights[r * p.k + j] = 0.0; }
         return;
     }
+    float b_of[HELD];
+    [[unroll]] for (uint i = 0u; i < HELD; ++i) b_of[i] = t + i * LANES < n ? b_in[t + i * LANES] : -1.0 / 0.0;
     for (uint j = 0u; j < p.k; ++j) {
-        // A taken expert holds -inf, below every finite score, so the argmax skips it.
+        // A taken expert, and a lane's place past the row, holds -inf, below every finite score, so the argmax skips it.
         uint be = n;
         float bb = 0.0;
-        for (uint e = t; e < n; e += 256u) {
-            float b = b_of[e];
-            if (!isinf(b) && (be == n || b > bb)) { be = e; bb = b; }
-        }
-        best_e[t] = be;
-        best_b[t] = bb;
-        barrier();
-        for (uint w = 128u; w > 0u; w >>= 1) {
-            if (t < w) {
-                uint oe = best_e[t + w];
-                float ob = best_b[t + w];
-                uint me = best_e[t];
-                if (oe != n && (me == n || ob > best_b[t] || (ob == best_b[t] && oe < me))) { best_e[t] = oe; best_b[t] = ob; }
-            }
+        [[unroll]] for (uint i = 0u; i < HELD; ++i)
+            if (!isinf(b_of[i]) && (be == n || b_of[i] > bb)) { be = t + i * LANES; bb = b_of[i]; }
+        for (uint o = gl_SubgroupSize / 2u; o > 0u; o >>= 1u) take(be, bb, subgroupShuffleXor(be, o), subgroupShuffleXor(bb, o));
+        if (gl_NumSubgroups > 1u) {
+            if (subgroupElect()) { group_e[gl_SubgroupID] = be; group_b[gl_SubgroupID] = bb; }
+            barrier();
+            for (uint w = 0u; w < gl_NumSubgroups; ++w) take(be, bb, group_e[w], group_b[w]);
             barrier();
         }
-        if (t == 0u) {
-            const uint e = best_e[0];
-            chosen[j] = e;
-            b_of[e] = -1.0 / 0.0;
-            ids[r * p.k + j] = e;
-        }
-        barrier();
+        [[unroll]] for (uint i = 0u; i < HELD; ++i)
+            if (t + i * LANES == be) b_of[i] = -1.0 / 0.0;
+        if (t == 0u) { chosen[j] = be; ids[r * p.k + j] = be; }
     }
+    barrier();
     if (t == 0u) {
         precise float total = 0.0;
         for (uint j = 0u; j < p.k; ++j) total += s_of[chosen[j]];
@@ -72,7 +70,7 @@ void main() {
     }
     barrier();
     bool divide = p.normalize != 0u && p.k > 1u;
-    for (uint j = t; j < p.k; j += 256u) {
+    for (uint j = t; j < p.k; j += LANES) {
         float s = s_of[chosen[j]];
         precise float wgt = divide ? s / (total_of + 1e-20) : s;
         weights[r * p.k + j] = wgt * p.scale;

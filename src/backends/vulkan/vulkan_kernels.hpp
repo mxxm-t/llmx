@@ -1396,7 +1396,7 @@ const uint32_t kSpvHold[] = {
     X(K_ATTENTION_FULL_TILE_D64, "attention_full_tile_d64", kSpvAttentionFullTileD64, sizeof(kSpvAttentionFullTileD64), 6, nullptr) \
     X(K_ATTENTION_FULL_TILE_D72, "attention_full_tile_d72", kSpvAttentionFullTileD72, sizeof(kSpvAttentionFullTileD72), 6, nullptr) \
     X(K_HC_COEFFS, "hc_coeffs", kSpvHcCoeffs, sizeof(kSpvHcCoeffs), 7, nullptr) \
-    X(K_HC_COLLAPSE_NORM, "hc_collapse_norm", kSpvHcCollapseNorm, sizeof(kSpvHcCollapseNorm), 4, nullptr) \
+    X(K_HC_COLLAPSE_NORM, "hc_collapse_norm", kSpvHcCollapseNorm, sizeof(kSpvHcCollapseNorm), 5, nullptr) \
     X(K_HC_EXPAND, "hc_expand", kSpvHcExpand, sizeof(kSpvHcExpand), 5, nullptr) \
     X(K_SPARSE_SOFTMAX, "sparse_softmax", kSpvSparseSoftmax, sizeof(kSpvSparseSoftmax), 8, nullptr) \
     X(K_SPARSE_COLUMNS, "sparse_columns", kSpvSparseColumns, sizeof(kSpvSparseColumns), 4, nullptr) \

@@ -1,5 +1,68 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 narrow decode ops on ROCm and Vulkan (2026-11-11, DSDEV114 to DSDEV117, branch perf/narrow-decode-ops on main 12b84ea73; F2DEV's review of DSDEV114's proposal, 05:03; lands by fast-forward)
+
+**Goal:** the DeepSeek-V4.1 ops that run a row or a few at decode, and grow with depth, take their time from the work they do rather than from serial lanes, with every output's bits unchanged.
+
+**Done:**
+- `model_format_qdq` and `model_format_pack` take a lane a value: on ROCm each block's amax a shuffle reduction over its lanes, on Vulkan over shared memory in the CPU's order, a pack on Vulkan gathering runs of four blocks' bytes, whole words, in shared memory.
+- Vulkan codes a NaN as the CPU does, 0x7F under FP8 and a signed zero under FP4, and reads E4M3's 0x7F and 0xFF back as NaN; main's integer division coded a NaN otherwise and read 0x7F as 480 (the first commit's checks, failing on main's Vulkan).
+- `indexer_scores` reads its keys through the code table four blocks of words at a time (ROCm `lut_dot`, Vulkan `FORMAT_DOT` in `model_formats.glsl`, which `sparse_softmax.comp` shares); `stored_dot` goes.
+- `route_experts` under sqrt_softplus runs a row on one wave of 64 lanes, each pick an argmax by shuffles, the sum in pick order on one lane as before.
+- `topk_rows` and `candidate_blocks` find the picks' least key four bits a round by a radix select over wave histograms instead of bit by bit, and place picks by ballot ranks.
+- The window packs its rows straight into the ring under native, a pack a ring run, and the `packed_kv` slot and its copy go.
+- `hc_collapse_norm` writes its output's twin beside it, as `rms_norm_rows` does, so the head's product quantizes nothing.
+- Not kept: a one-block-a-row decode softmax (item 2), under the 2x F2DEV set at every form tried (64 heads of 640, d 4096, main 86 us: dots 81 to 138 us, norms 24 to 143 us); window ids once a pass, which needs a first-layer-of-key flag in the plan and per-key slots for about 0.3%; the compressor's products straight into the ring, which splits prompt products at ring runs; a shared zero row for `moe_step` (F2DEV's item 1, every MoeStep::zero user); the collapse's sum of squares moved into `hc_coeffs`, which changes bits.
+
+**Measured:** one op a call on one MI50, us, main / branch, every output hash main's (a private bench over the backend libraries):
+
+| op, shape | ROCm main / branch | Vulkan main / branch |
+|---|---:|---:|
+| `model_format_qdq` FP4, 8192 values (index query) | 41.4 / 3.5 | 45.2 / 12.8 |
+| `model_format_qdq` FP4, 8192 x 512 | 1271.4 / 82.0 | 1187.0 / 298.4 |
+| `model_format_qdq` FP8, 512 (window) | 22.9 / 3.1 | 39.2 / 7.0 |
+| `model_format_pack` FP8, 1 x 512 (window) | 20.8 / 3.3 | 26.5 / 8.6 |
+| `model_format_pack` FP4 under E4M3, 1 x 512 (entry) | 8.1 / 3.4 | 23.2 / 8.8 |
+| `model_format_pack` FP4, 1 x 128 (key) | 12.0 / 3.3 | 31.5 / 10.9 |
+| `model_format_pack` FP8, 512 x 512 | 33.6 / 9.4 | 46.7 / 32.4 |
+| `topk_rows` 1 x 512, k 512 | 45.6 / 11.7 | 53.2 / 31.0 |
+| `topk_rows` 1 x 4096, k 512 | 155.4 / 37.1 | 185.2 / 104.4 |
+| `topk_rows` 1 x 16384, k 512 | 701.2 / 131.4 | 801.3 / 334.3 |
+| `topk_rows` 1 x 65536, k 512 | 2704.9 / 490.9 | 3099.5 / 1197.0 |
+| `topk_rows` 512 x 4096, k 512 | 556.9 / 129.0 | 457.1 / 227.6 |
+| `candidate_blocks` 1 x 4096, blocks of 64, k 16 | 340.6 / 90.3 | 428.4 / 139.8 |
+| `candidate_blocks` 1 x 16384 | 946.6 / 251.5 | 959.2 / 285.0 |
+| `candidate_blocks` 1 x 36 | 35.6 / 11.1 | 41.4 / 43.5 |
+| `route_experts` sqrt_softplus, 1 x 384, k 6 | 19.8 / 18.1 | 23.5 / 19.2 |
+| `route_experts` sqrt_softplus, 512 x 384 | 42.3 / 23.7 | 51.1 / 36.5 |
+| `indexer_scores` 1 row x 1024 keys | 320.1 / 72.9 | 199.9 / 57.0 |
+| `indexer_scores` 1 x 4096 | 1133.8 / 245.7 | 1005.1 / 173.7 |
+| `indexer_scores` 64 x 4096 | 62374.3 / 12441.5 | 59446.4 / 8562.8 |
+| `sparse_attention_sink` 1 x 64 heads, 128 + 512 named | 130.4 / 130.4 | 139.7 / 140.7 |
+| `sparse_attention_sink` 64 x 64 heads, 128 + 36 named | 809.0 / 805.3 | 1126.9 / 1164.9 |
+
+The minimum of two rounds a cell, arms alternated, in one container a backend (/opt/claude-work/dsdev117/out/ob-R.txt and ob-V.txt).
+`sparse_attention_sink` shares the dot with `indexer_scores` and moves within 3%; with `lut_dot` inlined by the compiler's choice instead of forced, ROCm's decode softmax lost 46% (130.2 to 191.2 us at 128 + 512) while `indexer_scores` at 64 x 4096 gained 13% (12437 to 10834 us), so the forced inline is kept.
+The window pack into the ring and the collapse's twin have no op cell of their own; the model timings below hold them.
+
+**Landing gates:** measured on f241c46f, whose tree differs from the head that lands in docs and comments only (the four changed shaders compile to the same SPIR-V).
+- Focused: backend-rocm `deepseek4` (4018314 values, the formats, selections, routing picks, collapse, expansion, index scores and rope forms bit for bit), backend-vulkan `--deepseek4` and arch-deepseek4 (788 checks) pass; the first commit's checks fail on main's Vulkan (`model_format_qdq` format 0, CPU NaN against device 0.000106811523) and pass on main's ROCm.
+- CTest on the ROCm build (84 of 84) and the Vulkan build (100 of 100); the suite on rocm:0 and vulkan:0 passes every component it runs, rocm:0 skipping the types it refuses and both the absent baseline models; `docs` and `dead-code` pass on the head that lands.
+- Byte identity against main: the tiny deepseek4 fixture on the CPU, rocm:0 and vulkan:0 (48 greedy ids and logits at 80 positions under f16 and f32 caches, `--dtype auto` and `int8`); DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s on ROCm `--dtype int8` and on Vulkan `--ubatch 512`, 64 greedy ids and logits at 1400 positions of a short prompt and 64 ids and logits at 512 positions of a 15032-token prompt; Qwen3.8-Flash-Next UD-Q4_K_XL in layer-4 on four MI50s and Qwen3.5-0.8B Q4_K_M on one, ids and logits at 1400 positions, on both backends.
+- `tools/long_context_check.py` at 16384 tokens over ten MI50s, the baseline the same devices: ROCm int8 passes (two runs the same 190 tokens, every one the re-reading's top choice); Vulkan repeats its 189 tokens and one token sits 1.132 logits below the re-reading's top (token 124, 9400 at 40.524 against 396 at 39.393), main's binary queued through the same check (/opt/claude-work/dsdev117/out/V-lcc-main.txt) to tell whether that gap is main's, the branch's ids and logits at 15032 tokens being main's bytes.
+- Timing against main, default clocks, `--cpus 8`, one process a cell, ABBA, means of two cells an arm in tok/s; hostwait flags every cell contended (run-queue wait 2 to 264 s a cell, another agent's build beside them):
+
+| cell | ROCm main | ROCm branch | change | Vulkan main | Vulkan branch | change |
+|---|---:|---:|---:|---:|---:|---:|
+| pp2048 | 1104.3 | 1167.7 | +5.7% | 494.9 | 507.0 | +2.5% |
+| tg32 | 21.46 | 21.60 | +0.7% | 16.10 | 16.11 | 0.0% |
+| pp16384 | 856.1 | 1128.8 | +31.8% | 452.3 | 486.8 | +7.6% |
+| tg16 after pp16384 | 21.06 | 21.79 | +3.4% | 16.27 | 16.65 | +2.3% |
+
+  Cells: ROCm pp2048 1115.6, 1092.9 against 1177.3, 1158.0; pp16384 855.5, 856.7 against 1128.2, 1129.3; Vulkan pp2048 494.9, 494.8 against 507.0, 507.1; pp16384 452.3, 452.4 against 486.9, 486.8 (/opt/claude-work/dsdev117/out).
+
+**Left:** the Radeon VII check on Windows before the fast-forward.
+
 ## ROCm Q8_0 decode of 9 to 16 columns: one build a width at two rows a wave (2026-11-10, KRES17 to KRES19, branch perf/rocm-q8-wide-decode on main a5684cab3; lands by fast-forward)
 
 **Goal:** the int8 class's half-block Q8_0 decode of 9 to 16 columns no slower than main on any shape, with one host rule and the one-column build's bits.

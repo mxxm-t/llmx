@@ -1,12 +1,17 @@
 #version 450
 #extension GL_EXT_control_flow_attributes : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 // One workgroup a row: u = sum over k in order of pre[k] X_k as the CPU forms it, then the RMSNorm of u with w after a tree sum of its squares.
+// With `quant` set the row is whole blocks and the output's twin goes beside it (xquant.glsl), as rms_norm_rows writes it.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint rows; uint hc; uint dim; float eps; } p;
+layout(push_constant) uniform P { uint rows; uint hc; uint dim; float eps; uint quant; uint n; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer X { float x[]; };
 layout(set = 0, binding = 2) readonly buffer A { float pre[]; };
 layout(set = 0, binding = 3) readonly buffer W { float w[]; };
+layout(set = 0, binding = 4) writeonly buffer Q { uint xq[]; };
+#include "xquant.glsl"
 shared float red[256];
 void main() {
     uint r = gl_WorkGroupID.x, lid = gl_LocalInvocationID.x;
@@ -40,6 +45,10 @@ void main() {
     for (uint d0 = lid; d0 < p.dim; d0 += 1024u) {
         float v[4];
         [[unroll]] for (uint t = 0u; t < 4u; ++t) v[t] = d0 + 256u * t < p.dim ? dst[r * p.dim + d0 + 256u * t] * scale * w[d0 + 256u * t] : 0.0;
-        [[unroll]] for (uint t = 0u; t < 4u; ++t) if (d0 + 256u * t < p.dim) dst[r * p.dim + d0 + 256u * t] = v[t];
+        [[unroll]] for (uint t = 0u; t < 4u; ++t)
+            if (d0 + 256u * t < p.dim) {
+                dst[r * p.dim + d0 + 256u * t] = v[t];
+                if (p.quant != 0u) xquant_block(r * p.dim + d0 + 256u * t, v[t], p.n);
+            }
     }
 }

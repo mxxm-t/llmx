@@ -1414,8 +1414,13 @@ public:
             throw std::runtime_error("vulkan: mHC collapse operand outside its allocation");
         if (overlaps(CSlice(dst), dn, stream, xn) || overlaps(CSlice(dst), dn, pre, pn) || overlaps(CSlice(dst), dn, w, dim))
             throw std::runtime_error("vulkan: mHC collapse output must be disjoint from its inputs");
-        const struct { uint32_t rows, hc, dim; float eps; } pc{u32(rows), u32(hc), u32(dim), eps};
-        dispatch(K_HC_COLLAPSE_NORM, {bind(dst), bind(stream), bind(pre), bind(w)}, &pc, sizeof(pc), u32(rows));
+        // The output's twin beside it, as rms_norm_rows writes it, where its rows are whole blocks (shaders/hc_collapse_norm.comp).
+        const bool quant = dim % 32 == 0;
+        const struct { uint32_t rows, hc, dim; float eps; uint32_t quant, n; } pc{u32(rows), u32(hc), u32(dim), eps, quant ? 1u : 0u, u32(dn)};
+        const size_t slot = quant ? take_twin(dn) : 0;
+        dispatch(K_HC_COLLAPSE_NORM, {bind(dst), bind(stream), bind(pre), bind(w), quant ? twin_binding(slot) : bind(dst)}, &pc, sizeof(pc), u32(rows), 1,
+                 quant ? twin_variant() : 0, {dn, 0, 0, 0, dn});
+        if (quant) keep_twin(slot, bind(dst), dn, 0);
     }
 
     void hc_expand(Slice dst, CSlice f, CSlice stream, CSlice post, CSlice comb, size_t rows, size_t hc, size_t dim) override {
@@ -1432,7 +1437,7 @@ public:
         dispatch(K_HC_EXPAND, {bind(dst), bind(f), bind(stream), bind(post), bind(comb)}, &pc, sizeof(pc), groups(lanes, 256));
     }
 
-    // qdq and pack are one kernel (shaders/model_format_qdq.comp), a lane a block rounding values in place or a lane a row writing its packed blocks to `out`.
+    // qdq and pack are one kernel (shaders/model_format_qdq.comp), a lane a value rounding values in place or writing its code into a row's packed words in `out`.
     void model_format_qdq(Slice x, size_t count, ModelFormat format) override {
         if (format == ModelFormat::f32) throw std::runtime_error("vulkan: f32 is no model format");
         const size_t block = format_block_values(format);
@@ -1442,7 +1447,7 @@ public:
         const size_t blocks = count / block;
         const struct { uint32_t blocks, format; float inv_fp8, inv_fp4, fp8_floor; uint32_t packed, dim, stride, row_words; }
             pc{u32(blocks), uint32_t(format), 1.0f / quant::model_formats::FP8_MAX, 1.0f / quant::model_formats::FP4_MAX, 1e-4f, 0, 0, 0, 0};
-        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(x)}, &pc, sizeof(pc), groups(blocks, 64));
+        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(x)}, &pc, sizeof(pc), groups(count, 256));
     }
     void model_format_pack(Slice out, size_t stride, CSlice x, size_t rows, size_t dim, ModelFormat format) override {
         if (format == ModelFormat::f32) throw std::runtime_error("vulkan: f32 is no packed model format");
@@ -1454,7 +1459,8 @@ public:
         if (overlaps(CSlice(out), on, x, xn)) throw std::runtime_error("vulkan: packed model format output must be disjoint from its input");
         const struct { uint32_t rows, format; float inv_fp8, inv_fp4, fp8_floor; uint32_t packed, dim, stride, row_words; }
             pc{u32(rows), uint32_t(format), 1.0f / quant::model_formats::FP8_MAX, 1.0f / quant::model_formats::FP4_MAX, 1e-4f, 1, u32(dim), u32(stride), u32(words)};
-        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(out)}, &pc, sizeof(pc), groups(size_mul(rows, words), 64));
+        const size_t run = 4 * format_block_values(format), runs = (dim / format_block_values(format) + 3) / 4;
+        dispatch(K_MODEL_FORMAT_QDQ, {bind(x), bind(out)}, &pc, sizeof(pc), groups(size_mul(size_mul(rows, runs), run), 256));
     }
 
     // topk_rows and candidate_blocks are one kernel, a row a workgroup (shaders/topk_rows.comp).

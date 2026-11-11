@@ -1132,8 +1132,11 @@ public:
         float* o = f32(dst);
         const float *x = f32(stream), *p = f32(pre), *wp = f32(w);
         unsigned h = u32(hc), d = u32(dim);
-        const Args args(o, x, p, wp, h, d, eps);
-        launch(kHcCollapseNorm, u32(rows), 1, args, 1, 1024);   // kernels/f32.hip, kCollapseThreads
+        // The output's twin beside it where a product reads one next, as rms_norm_rows writes it.
+        StreamTwin t = stream_twin(dst, rows, dim, {}, dim % 32 == 0);
+        const Args args(o, x, p, wp, h, d, eps, t.q, t.d, t.level, t.map, t.major);
+        launch_writing({{o, dn}}, kHcCollapseNorm, u32(rows), 1, args, 1, 1024);   // kernels/f32.hip, kCollapseThreads
+        keep(t.t, o, dn);
     }
     void hc_expand(Slice dst, CSlice f, CSlice stream, CSlice post, CSlice comb, size_t rows, size_t hc, size_t dim) override {
         if (!hc || hc > 16 || !dim) throw std::runtime_error("rocm: invalid mHC expansion dimensions");
@@ -1150,7 +1153,7 @@ public:
         const Args args(o, fp, x, p, c, h, d, lanes);
         launch(kHcExpand, u32((fn + kThreads - 1) / kThreads), 1, args);
     }
-    // qdq and pack are one kernel, a thread a block (kernels/f32.hip, llmx_model_format_qdq), writing values in place or each row's packed blocks to `out`.
+    // qdq and pack are one kernel, a lane a value (kernels/f32.hip, llmx_model_format_qdq), writing values in place or each row's packed blocks to `out`.
     void model_format(float* out, size_t stride, CSlice x, size_t count, size_t dim, ModelFormat format) {
         if (format == ModelFormat::f32) throw std::runtime_error("rocm: f32 is no model format");
         const size_t block = format_block_values(format);
@@ -1162,7 +1165,7 @@ public:
         unsigned fm = unsigned(format), row_blocks = u32(dim / block), st = u32(stride), words = u32(format_words(format, dim));
         float inv8 = 1.0f / quant::model_formats::FP8_MAX, inv4 = 1.0f / quant::model_formats::FP4_MAX;
         const Args args(p, out, blocks, fm, inv8, inv4, row_blocks, st, words);
-        launch(kModelFormatQdq, u32((blocks + kThreads - 1) / kThreads), 1, args);
+        launch(kModelFormatQdq, u32((count + kThreads - 1) / kThreads), 1, args);
     }
     void model_format_qdq(Slice x, size_t count, ModelFormat format) override { model_format(nullptr, 0, x, count, format_block_values(format), format); }
     void model_format_pack(Slice out, size_t stride, CSlice x, size_t rows, size_t dim, ModelFormat format) override {
@@ -1331,14 +1334,14 @@ public:
         float* w = f32(weights);
         unsigned ne = (unsigned)n_expert, kk = (unsigned)k;
         int norm = rule.normalize;
-        // The sqrt_softplus rule takes a block a row in the CPU's order (kernels/f32.hip, llmx_route_sqrt_softplus).
+        // The sqrt_softplus rule takes a wave a row in the CPU's order (kernels/f32.hip, llmx_route_sqrt_softplus).
         if (rule.score == RouteRule::Score::sqrt_softplus) {
             if (rule.bias.buffer) floats(rule.bias, n_expert);
             const float* bias = rule.bias.buffer ? f32(rule.bias) : nullptr;
             unsigned long long nr = rows;
             float scale = rule.scale;
             const Args args(sc, bias, id, w, nr, ne, kk, norm, scale);
-            return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32(rows), 1, args, 1, 256);
+            return launch_writing({{id, size_mul(rows, k)}, {w, size_mul(rows, k)}}, kRouteSqrtSoftplus, u32(rows), 1, args, 1, 64);
         }
         rule.softmax_only("rocm");
         const Args args(sc, id, w, ne, kk, norm);

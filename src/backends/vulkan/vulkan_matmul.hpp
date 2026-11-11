@@ -504,7 +504,7 @@ inline void VulkanBackend::row_dispatch(const RowPlan& plan, const std::vector<c
                        : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
 }
 
-// route_experts' sqrt_softplus rule, a workgroup a row in the CPU's order (shaders/route_sqrt_softplus.comp).
+// route_experts' sqrt_softplus rule, a workgroup of 64 lanes a row in the CPU's order (shaders/route_sqrt_softplus.comp).
 inline void VulkanBackend::route_sqrt_softplus(CSlice scores, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids, Slice weights) {
     if (!std::isfinite(rule.scale)) throw std::runtime_error("vulkan: a routing scale that is not finite");
     if (!rows) return;

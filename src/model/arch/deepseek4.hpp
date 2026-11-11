@@ -320,7 +320,7 @@ enum : size_t { rope_cos, rope_sin, compressed_cos, compressed_sin, ones, first_
 enum Slot : size_t {
     residual, pre_attn, pre_ffn, mixes, post, comb, collapsed, head_x, head_pre, q_lora, query, window_kv, attn, window_ids, group_ids, grouped, block_out,
     scores, picks, pick_weights, gates, ups, acts, engram_rows, engram_keys, engram_value_row, engram_streams, engram_gated,
-    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids, packed_kv
+    compress_kv, compress_score, latent, index_keys, pooled, index_query, index_weights, index_scores, index_lens, index_picks, candidate_ids
 };
 
 // The words a window row takes in the ring under native, its FP8 blocks.
@@ -338,7 +338,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t groups = least ? size_t(c.context_length / least) : 0;
     return {HC * E, HC, HC, (2 + HC) * HC, HC, HC * HC, E, HC * E, HC, size_t(c.q_lora_rank), HD, size_t(c.head_dim), HD, size_t(c.window), G,
             G * size_t(c.out_rank), E, size_t(c.n_expert), k, k, FF, FF, FF, lookups * size_t(c.engram_head_dim), ER, engram ? E : 0, ER, ER,
-            D, D, D, ID, D + ID, IH * ID, IH, groups, 1, size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0), window_words(D)};
+            D, D, D, ID, D + ID, IH * ID, IH, groups, 1, size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0)};
 }
 
 // One sublayer's coefficients from the streams x entering it: the mixes as an F32 product of hc_fn, then hc_coeffs' rsqrt over the flattened streams, sigmoids and Sinkhorn rounds (model.py:948-957 at e5decd76).
@@ -672,11 +672,9 @@ private:
         s.b.norm_rope_partial(s.slot(query), s.slot(query), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, turn);
         s.b.matmul(w[attn_kv].operand(), s.slot(collapsed), s.slot(window_kv), w[attn_kv].nin, w[attn_kv].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos, turn);
-        // A ring row is the row's values rounded to the window's FP8 as F32, or under native its packed blocks (Step::native).
+        // A ring row is the row's values rounded to the window's FP8 as F32, or under native its packed blocks (Step::native), which the pack writes straight into the ring.
         const size_t RW = s.native ? window_words(D) : D;
-        const size_t from_slot = s.native ? packed_kv : window_kv;
-        if (s.native) s.b.model_format_pack(s.slot(packed_kv), RW, s.slot(window_kv), rows, D, backend::ModelFormat::fp8_power);
-        else s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(rows, D), backend::ModelFormat::fp8_power);
+        if (!s.native) s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(rows, D), backend::ModelFormat::fp8_power);
 
         // The kv rows are the layer's whole state buffer, a slot's ring starting on a row; each row reads its window's positions oldest first, none before 0.
         if (!s.states || !s.n_views) throw std::logic_error("inference: a DeepSeek-V4.1 window without state views");
@@ -723,9 +721,11 @@ private:
                 if (chunk >= v.nq) continue;
                 const size_t n = std::min(W, v.nq - chunk), from = row + chunk;
                 for (size_t i = 0; i < n;) {
-                    const size_t at = size_t(s.pos[from + i] % ring), run = std::min(n - i, ring - at);
-                    s.b.copy(kv, (v.dst * slot_floats + prefix + at * RW) * sizeof(float), *s.arena, s.offsets[from_slot] + (from + i) * RW * sizeof(float),
-                             run * RW * sizeof(float));
+                    const size_t at = size_t(s.pos[from + i] % ring), run = std::min(n - i, ring - at), to = v.dst * slot_floats + prefix + at * RW;
+                    if (s.native)
+                        s.b.model_format_pack({&kv, to}, RW, {s.slot(window_kv).buffer, s.slot(window_kv).offset + (from + i) * D}, run, D, backend::ModelFormat::fp8_power);
+                    else
+                        s.b.copy(kv, to * sizeof(float), *s.arena, s.offsets[window_kv] + (from + i) * D * sizeof(float), run * D * sizeof(float));
                     i += run;
                 }
                 if (from != end) {

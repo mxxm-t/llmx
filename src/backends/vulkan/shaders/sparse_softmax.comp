@@ -33,39 +33,14 @@ shared float pk[NAMED_MAX];
 shared float red[256];
 shared uint kept_kv;
 shared float lut[272];
-// The dot of q with a row, in d order: four blocks' words loaded at once and each value its code's table entry times its block's scale, the product the per-value decode gives.
-#define WORD_BYTE(wd, o) ((wd[(o) >> 2u] >> (((o) & 3u) * 8u)) & 0xFFu)
-#define SOURCE_DOT(DOT, WORDS, VALUE, F, VB, BB)                                                                                        \
-    float DOT(uint qb, uint w0) {                                                                                                      \
-        precise float dot = 0.0;                                                                                                       \
-        uint d = 0u, w = w0;                                                                                                           \
-        if (F != 3u)                                                                                                                   \
-            for (; d + 4u * VB <= p.dim; d += 4u * VB, w += BB) {                                                                      \
-                uint wd[BB];                                                                                                           \
-                [[unroll]] for (uint j = 0u; j < BB; ++j) wd[j] = WORDS[w + j];                                                        \
-                [[unroll]] for (uint b = 0u; b < 4u; ++b) {                                                                            \
-                    uint sb = WORD_BYTE(wd, b * BB);                                                                                   \
-                    float sc = F == 2u ? lut[sb] : uintBitsToFloat(sb << 23);                                                          \
-                    [[unroll]] for (uint i = 0u; i < VB; ++i) {                                                                        \
-                        uint c = F == 0u ? WORD_BYTE(wd, b * BB + 1u + i)                                                              \
-                                         : 256u + (i < VB / 2u ? WORD_BYTE(wd, b * BB + 1u + i) & 15u                                  \
-                                                                : WORD_BYTE(wd, b * BB + 1u + i - VB / 2u) >> 4u);                     \
-                        precise float v = lut[c] * sc;                                                                                 \
-                        dot = fma(q[qb + d + b * VB + i], v, dot);                                                                     \
-                    }                                                                                                                  \
-                }                                                                                                                      \
-            }                                                                                                                          \
-        for (; d < p.dim; ++d) dot = fma(q[qb + d], VALUE(w0, d), dot);                                                                \
-        return dot;                                                                                                                    \
-    }
-SOURCE_DOT(kv_dot0, kv_words, kv0, 0u, 32u, 33u)
-SOURCE_DOT(kv_dot1, kv_words, kv1, 1u, 32u, 17u)
-SOURCE_DOT(kv_dot2, kv_words, kv2, 2u, 16u, 9u)
-SOURCE_DOT(kv_dot3, kv_words, kv3, 3u, 1u, 1u)
-SOURCE_DOT(ax_dot0, aux_words, ax0, 0u, 32u, 33u)
-SOURCE_DOT(ax_dot1, aux_words, ax1, 1u, 32u, 17u)
-SOURCE_DOT(ax_dot2, aux_words, ax2, 2u, 16u, 9u)
-SOURCE_DOT(ax_dot3, aux_words, ax3, 3u, 1u, 1u)
+FORMAT_DOT(kv_dot0, kv_words, kv0, 0u, 32u, 33u)
+FORMAT_DOT(kv_dot1, kv_words, kv1, 1u, 32u, 17u)
+FORMAT_DOT(kv_dot2, kv_words, kv2, 2u, 16u, 9u)
+FORMAT_DOT(kv_dot3, kv_words, kv3, 3u, 1u, 1u)
+FORMAT_DOT(ax_dot0, aux_words, ax0, 0u, 32u, 33u)
+FORMAT_DOT(ax_dot1, aux_words, ax1, 1u, 32u, 17u)
+FORMAT_DOT(ax_dot2, aux_words, ax2, 2u, 16u, 9u)
+FORMAT_DOT(ax_dot3, aux_words, ax3, 3u, 1u, 1u)
 float row_dot(uint qb, uint w, bool pooled) {
     uint f = pooled ? p.entry_format : p.kv_format;
     if (pooled) return f == 0u ? ax_dot0(qb, w) : f == 1u ? ax_dot1(qb, w) : f == 2u ? ax_dot2(qb, w) : ax_dot3(qb, w);

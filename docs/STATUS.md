@@ -1,5 +1,36 @@
 # llmx - Development Status
 
+## ROCm Q8_0 decode of 9 to 16 columns: one build a width at two rows a wave (2026-11-10, KRES17 to KRES19, branch perf/rocm-q8-wide-decode on main a5684cab3; lands by fast-forward)
+
+**Goal:** the int8 class's half-block Q8_0 decode of 9 to 16 columns no slower than main on any shape, with one host rule and the one-column build's bits.
+
+**Done:**
+- Main ran 9 to 15 columns on the sixteen-column build, a column past the call skipped by a branch in its loads and products, at four rows a wave.
+- `q8_0_rows_half` builds over 8 columns compute every column they hold, a column past the call reading the call's last column and stored by nobody, and sum as 16 columns; one build a width from 9 to 16 (`llmx_q8_0_half8_9` to `_16`), the host taking the narrowest that holds the call (`kHalfWide`).
+- Every build over 8 columns takes two rows a wave: at four rows they held 153 to 251 VGPRs and ran one wave a SIMD on an MI50, a 256-VGPR register file (a device with a 512-entry file could run four rows at two waves, unmeasured), and the nine-column build at 251 VGPRs drained its loads 14 times a loop against 10 at ten columns, slower than main at 9 columns on 12 of 17 shapes (8192x5120 291 to 368 us).
+  At two rows they hold 99 to 114 VGPRs, two waves a SIMD; a row keeps its lanes and order, so the bits do not change.
+- Builds of 1 to 8 columns are unchanged.
+- Checks: every column of every width 1 to 16 and 64 equals the one-column build's bits on 17 shapes; backend-rocm passes on an MI50.
+
+**Measured** (one MI50, default clocks, a scratch harness over the production kernels, 17 shapes in input x output, ABAB of main and this branch, us a call, mean of two rounds):
+
+| shape | 9 main / branch | 12 main / branch | 16 main / branch | 64 main / branch |
+|---|---:|---:|---:|---:|
+| 8192x5120 | 289 / 183 | 385 / 215 | 500 / 270 | 1966 / 1079 |
+| 6144x25600 | 1043 / 644 | 1339 / 761 | 1709 / 945 | 6729 / 3813 |
+| 5120x1280 | 61 / 39 | 78 / 44 | 99 / 53 | 418 / 217 |
+| 1280x32768 | 455 / 329 | 532 / 397 | 629 / 484 | 2527 / 1929 |
+| 2560x512 | 21 / 18 | 25 / 22 | 29 / 25 | 119 / 94 |
+| 320x10240 | 101 / 74 | 113 / 87 | 130 / 104 | 530 / 414 |
+
+Every cell of 9 to 16 columns and 64 is faster on the branch, by 12% to 51%, but one sample: 2560x512 at 10 columns measured 18.8 and 40.3 us in its two rounds, and a rerun gave 18.9 and 19.1 against main's 22.4 and 22.3.
+Columns 1 to 8 moved -4.8% to +2.0%, their code unchanged.
+
+**Landing gates:** landed stacked on perf/deepseek4-rocm-kernels by LAND24; the gates and timing round of the stack are in that block (DeepSeek-V4.1 ROCm kernels, below).
+DeepSeek-V4.1-Flash-1017 MXFP4 int8 on ten MI50s decodes 16 sequences at 50.97 tok/s on the stacked head against main's 49.07 (+3.9%, both branches); DSRUN1 measured this branch alone on a5684cab3 at +1.8% for 16 sequences and +2.5% for 64, every cell above main's, with the greedy ids of 16 and 64 concurrent requests main's.
+
+**Left:** the Radeon VII check on Windows before the fast-forward.
+
 ## DeepSeek-V4.1 ROCm kernels: routed prompt groups by size, sparse prefill (2026-11-09, DSDEV62, DSDEV67 and DSDEV68, then DSDEV78, DSDEV80 and DSDEV82, branch perf/deepseek4-rocm-kernels on main 298a94a65 and rebased on a5684cab3 to land, carrying perf/deepseek4-rocm-mxfp4 43174a802 and perf/deepseek4-rocm-mxfp4-2 de5de5da3; F2DEV's review of 19:39, B1 to B4, COORD's rulings of 19:42 and 20:49; lands by fast-forward)
 
 **Goal:** DeepSeek-V4.1-Flash-1017 MXFP4 prefill and decode on ten MI50s in a layer split on ROCm toward the reference's 642 tok/s at pp16965 and 25.6 tok/s decode, every output the bits it had, one build for each range of a routed group's entries and each class.

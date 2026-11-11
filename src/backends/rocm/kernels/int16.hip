@@ -264,6 +264,8 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
 // Each lane scales its integer dots in block order and the lanes fold by wave_sums' transposed tree, so every column has the same bits whatever C and R the call takes.
 template <int C, int R, int G, typename M = Cols>
 __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
+    // A build wider than 8 columns computes every column it holds, one past the call reading the call's last column, so no column branch splits its loads (docs/STATUS.md).
+    constexpr bool whole = C > 8;
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     const unsigned hl = lane & 1;
@@ -287,15 +289,15 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
             // The lane's bytes start sh bytes into word wi and its weights s0 bytes in, 4 meaning the next word.
             // The even lane's fifth word lies inside its block and the odd lane's, read only where its bytes do not start on a word, inside the block after it.
             const unsigned at = b * kQ8, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
-            // Columns in groups of G, a column past the call skipped: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
+            // Columns in groups of G, a column past the call skipped below 9 columns: the first group's twin loads issue before the weights' and each group's before its products (docs/STATUS.md, ROCm wide decode rows).
             int4 xq[G];
             float xd[G];
             const auto load = [&](int g) {
 #pragma unroll
                 for (int c = 0; c < G; ++c) {
-                    if (g + c >= ncols) continue;
+                    if (whole ? g + c >= C : g + c >= ncols) continue;
                     // The column's base is the wave's and the lane's offset 32-bit, one register for every column.
-                    const unsigned long long col = m.x(g + c) * blocks;
+                    const unsigned long long col = m.x(whole && g + c >= ncols ? ncols - 1 : g + c) * blocks;
                     xq[c] = *(const int4*)(q + col * 32 + (b * 32 + 16 * hl));
                     xd[c] = dx[col + b];
                 }
@@ -321,7 +323,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 if (g) load(g);
 #pragma unroll
                 for (int c = 0; c < G; ++c) {
-                    if (g + c >= ncols) continue;
+                    if (whole ? g + c >= C : g + c >= ncols) continue;
 #pragma unroll
                     for (int j = 0; j < R; ++j) {
                         int t = word_dot((int)wq[j][0], xq[c].x, 0, (signed char)0);
@@ -333,7 +335,18 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 }
             }
         }
-        store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
+        // A build of 9 to 15 columns sums its columns as 16, the padded ones summed and not stored.
+        constexpr int CP = C > 8 ? 16 : C;
+        if constexpr (CP == C) {
+            store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
+        } else {
+            float sums[R][CP];
+#pragma unroll
+            for (int j = 0; j < R; ++j)
+#pragma unroll
+                for (int c = 0; c < CP; ++c) sums[j][c] = c < C ? acc[j][c] : 0.0f;
+            store_sums<R, CP>(sums, r, lane, o, rc.total, ncols, add, m);
+        }
     }
 }
 
@@ -1637,7 +1650,15 @@ LLMX_HALF(llmx_q8_0_half8_4, 4, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_4_r4, 4, 4, 4)
 LLMX_HALF(llmx_q8_0_half8_8, 8, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_8_r4, 8, 4, 4)
-LLMX_HALF(llmx_q8_0_half8_16, 16, 4, 4)
+// Builds over 8 columns compute every column they hold, so the host takes the narrowest that holds the call; at two rows a wave they stay within two waves a SIMD (docs/STATUS.md).
+LLMX_HALF(llmx_q8_0_half8_9, 9, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_10, 10, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_11, 11, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_12, 12, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_13, 13, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_14, 14, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_15, 15, 2, 4)
+LLMX_HALF(llmx_q8_0_half8_16, 16, 2, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }

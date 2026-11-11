@@ -1887,6 +1887,28 @@ size_t check_kernels(backend::Backend& vk) {
                 values += exact(a, b, "grouped projections differ from separate ones");
             }
         }
+        // DeepSeek-V4.1's query and window projections, 1280 and 512 rows 5120 wide, in one decode call equal the two calls at 1 and 2 columns, in both activation types.
+        {
+            const size_t width = 5120, rows[2] = {1280, 512};
+            const std::vector<uint8_t> m0 = matrix(quant::GGML_TYPE_Q8_0, width, rows[0], 95), m1 = matrix(quant::GGML_TYPE_Q8_0, width, rows[1], 96);
+            Pair::In w0 = p.in(m0.data(), m0.size()), w1 = p.in(m1.data(), m1.size());
+            for (backend::Dtype dt : {backend::Dtype::f16, backend::Dtype::int8})
+                for (const auto& [nbatch, extent] : std::vector<std::pair<size_t, size_t>>{{1, 1}, {2, 1}}) {
+                    const auto x = uniform(nbatch * width, 50 + (uint32_t)nbatch);
+                    Pair::In xi = p.in(x);
+                    const backend::RowRun run[1] = {{nbatch, extent}};
+                    Pair::Out sep[2] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1])}, grp[2] = {p.out(nbatch * rows[0]), p.out(nbatch * rows[1])};
+                    p.dev.matmul({quant::GGML_TYPE_Q8_0, w0.vs()}, xi.vs(), sep[0].vs(), width, rows[0], nbatch, {run, 1}, dt);
+                    p.dev.matmul({quant::GGML_TYPE_Q8_0, w1.vs()}, xi.vs(), sep[1].vs(), width, rows[1], nbatch, {run, 1}, dt);
+                    p.dev.matmul_group({{{quant::GGML_TYPE_Q8_0, w0.vs()}, grp[0].vs(), rows[0]}, {{quant::GGML_TYPE_Q8_0, w1.vs()}, grp[1].vs(), rows[1]}}, xi.vs(), width, nbatch, {run, 1}, dt);
+                    for (int i = 0; i < 2; ++i) {
+                        std::vector<float> a(sep[i].n), b(grp[i].n);
+                        p.dev.read(*sep[i].v, 0, a.data(), a.size() * sizeof(float));
+                        p.dev.read(*grp[i].v, 0, b.data(), b.size() * sizeof(float));
+                        values += exact(a, b, "the query and window projections in one call differ from two calls");
+                    }
+                }
+        }
         // At tile widths the integer-dot tile takes the projections of one type in one dispatch, split or not, and a type of its own in another: two Q8_0 projections and a Q4_0 one between them, against the CPU fed the activations the tile reads.
         for (size_t nbatch : {size_t(64), size_t(249)}) {
             const auto x = uniform(nbatch * nin, 40 + (uint32_t)nbatch);

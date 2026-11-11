@@ -63,6 +63,8 @@ struct DeviceProfile {
     // Output rows of a call from which a wider one-column chunk over 8-bit activations takes the build of two rows and two steps ahead rather than one row and four steps, which gives a call of few rows twice the subgroups.
     // The Vulkan and ROCm backends both read it; on ROCm the knee measured between 1280 and 2560 rows (docs/STATUS.md, ROCm decode).
     uint32_t q8_decode_two_rows_from = 2560;
+    // Row blocks from which the ROCm Q8_0 decode build of two rows a wave loads four steps ahead rather than two; measured on the MI50 (docs/STATUS.md, ROCm decode steps).
+    uint32_t q8_decode_four_steps_from = 256;
     // Output rows below which such a chunk over 16-bit activations takes the build of one row and four steps, and from which it keeps two rows and one step.
     uint32_t q8_decode_one_row_below_16bit = 1024;
     // Waves per compute unit a ROCm decode row call must launch at four rows a wave before its two- to eight-column builds take four rows rather than two (docs/STATUS.md, ROCm many users).

@@ -1109,7 +1109,13 @@ float q8_row_host(const uint8_t* row, const std::vector<float>& d, const std::ve
 void q8_decode_bits(Backend& g) {
     const unsigned W = rocm_device(0).caps.subgroup_size;
     const size_t nout = 33;
-    for (size_t nin : {size_t(256), size_t(512), size_t(576), size_t(768), size_t(2560), size_t(6144)}) {
+    DeviceProfile& profile = rocm_profile(g);
+    const uint32_t keep = profile.q8_decode_two_rows_from;
+    const size_t four = profile.q8_decode_four_steps_from;
+    // Row widths reach both edges of the step rule (63 to 65 and 254 to 257 blocks) and step tails, and output counts both edges of the two-row rule at both profiles' values.
+    for (size_t blocks0 : {size_t(8), size_t(16), size_t(18), size_t(20), size_t(24), size_t(33), size_t(40), size_t(63), size_t(64), size_t(65), size_t(80), size_t(191), size_t(192),
+                           size_t(193), size_t(254), size_t(255), size_t(256), size_t(257)}) {
+        const size_t nin = blocks0 * 32;
         const size_t blocks = nin / 32;
         std::vector<uint8_t> w = q8_matrix(nin, nout, uint32_t(nin + 5));
         const auto set_scale = [&](size_t o, size_t b, float s) {
@@ -1143,18 +1149,28 @@ void q8_decode_bits(Backend& g) {
                 std::vector<float> d(blocks);
                 std::vector<int16_t> q(nin);
                 for (size_t b = 0; b < blocks; ++b) twin_rule(xv->data() + b * 32, d[b], q.data() + b * 32, L);
-                for (size_t n : {size_t(1), size_t(2), nout, size_t(4097)}) {
+                for (const auto& [from, n] : std::vector<std::pair<uint32_t, size_t>>{{2560, 1}, {2560, 2}, {2560, nout}, {2560, 2559}, {2560, 2560}, {2560, 4097}, {4096, 4095}, {4096, 4096}}) {
+                    if (dt == Dtype::f16 && from == 4096) continue;
                     const RowRun rr{1, 1};
+                    profile.q8_decode_two_rows_from = from;
                     rocm_take_launches(g);
                     g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, 1, {&rr, 1}, dt);
+                    profile.q8_decode_two_rows_from = keep;
                     const std::vector<float> y = read(g, *yb, n);
                     std::string ran;
                     for (const auto& [k, v] : rocm_take_launches(g))
                         if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
                     // The half-block rows take one row a wave for few outputs and two for many, paired where a row has at most 16 blocks.
-                    const std::string want = !half ? "llmx_q8_0_rows" + std::string(dt == Dtype::int8 ? "8" : "16") + "_1"
-                                                   : W == 64 && blocks <= 16 ? "llmx_q8_0_half8_1p" : n <= nout ? "llmx_q8_0_half8_1" : "llmx_q8_0_half8_1r2";
-                    const std::string what = "a Q8_0 decode row " + std::to_string(nin) + " wide, " + std::to_string(n) + " outputs, " + dtype_name(dt) + (xv == &periodic ? ", periodic twin" : "");
+                    // A row under two spans of blocks takes one step a load, and at two rows a wave from the profile's four-step width four.
+                    const bool narrow = blocks < W;
+                    const std::string want = !half                   ? "llmx_q8_0_rows" + std::string(dt == Dtype::int8 ? "8" : "16") + "_1"
+                                             : W == 64 && blocks <= 16 ? "llmx_q8_0_half8_1p"
+                                             : n < from              ? (narrow ? "llmx_q8_0_half8_1s1" : "llmx_q8_0_half8_1")
+                                             : narrow                ? "llmx_q8_0_half8_1r2s1"
+                                             : blocks >= four        ? "llmx_q8_0_half8_1r2s4"
+                                                                     : "llmx_q8_0_half8_1r2";
+                    const std::string what = "a Q8_0 decode row " + std::to_string(nin) + " wide, " + std::to_string(n) + " outputs from " + std::to_string(from) + ", " + dtype_name(dt) +
+                                             (xv == &periodic ? ", periodic twin" : "");
                     require(ran == want, what + " runs " + want + " (ran " + ran + ")");
                     bool ok = true;
                     for (size_t o = 0; o < n; ++o) {
@@ -1165,7 +1181,7 @@ void q8_decode_bits(Backend& g) {
                     bool zero = true;
                     for (size_t o = 0; o < std::min<size_t>(n, 2); ++o) zero = zero && y[o] == 0.0f && !std::signbit(y[o]);
                     require(zero, what + ": the zero rows are +0");
-                    if (xv == &periodic && n > 2) require(y[2] == 0.0f && !std::signbit(y[2]), what + ": the cancelling row is +0");
+                    if (xv == &periodic && n > 2 && blocks % 2 == 0) require(y[2] == 0.0f && !std::signbit(y[2]), what + ": the cancelling row is +0");
                 }
             }
         }
@@ -1471,6 +1487,36 @@ void twin_products(Backend& g, Dtype dt) {
             }
         }
         require(group_ok, form + ": a decode group of three different projections in one launch is each projection's own call, bit for bit, at 1, 2 and 17 rows");
+    }
+    // DeepSeek-V4.1's query and window projections, 1280 and 512 rows, and a third of 1024, as two and three projections of one decode call on rows across the step rule's edges.
+    // At one column the three take two rows a wave where the two take one, and each projection is its own call at 1 and 2 columns; a prompt's tile splits by the call's outputs, so a prompt group is not held to it.
+    {
+        const size_t outs[3] = {1280, 512, 1024};
+        bool group_ok = true;
+        for (size_t w : {size_t(1280), size_t(5120), size_t(6144)}) {
+            const std::vector<float> xw = row_classes::values(w * 17, 93);
+            auto xwb = g.adopt(xw.data(), xw.size() * 4);
+            std::vector<BufferPtr> gw, gy, ys;
+            for (size_t p = 0; p < 3; ++p) {
+                const std::vector<uint8_t> m = q8_matrix(w, outs[p], 94 + (uint32_t)p);
+                gw.push_back(g.adopt(m.data(), m.size()));
+                gy.push_back(g.alloc(outs[p] * 17 * 4));
+                ys.push_back(g.alloc(outs[p] * 17 * 4));
+            }
+            const auto proj = [&](size_t p, const BufferPtr& y) { return Projection({quant::GGML_TYPE_Q8_0, {gw[p].get(), 0}}, {y.get(), 0}, outs[p]); };
+            for (size_t nproj : {size_t(2), size_t(3)})
+                for (const auto& [n, extent] : std::vector<std::pair<size_t, size_t>>{{1, 1}, {2, 1}}) {
+                    const RowRun run[1] = {{n, extent}};
+                    for (size_t p = 0; p < nproj; ++p) g.matmul({quant::GGML_TYPE_Q8_0, {gw[p].get(), 0}}, {xwb.get(), 0}, {ys[p].get(), 0}, w, outs[p], n, {run, 1}, dt);
+                    if (nproj == 2) g.matmul_group({proj(0, gy[0]), proj(1, gy[1])}, {xwb.get(), 0}, w, n, {run, 1}, dt);
+                    else g.matmul_group({proj(0, gy[0]), proj(1, gy[1]), proj(2, gy[2])}, {xwb.get(), 0}, w, n, {run, 1}, dt);
+                    for (size_t p = 0; p < nproj; ++p) {
+                        const std::vector<float> a = read(g, *gy[p], outs[p] * n), b = read(g, *ys[p], outs[p] * n);
+                        group_ok = group_ok && std::memcmp(a.data(), b.data(), a.size() * 4) == 0;
+                    }
+                }
+        }
+        require(group_ok, form + ": groups of 1280 and 512 rows, and of a third of 1024, are each projection's own call, bit for bit, at 1 and 2 columns");
     }
     // A prompt row gives the same bits in calls of 1 to 21 rows and of 63 to 65, 128 and 130, which cross the tile's 64 rows, over 100 outputs, which end inside its 64.
     {
@@ -3193,7 +3239,10 @@ bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert, size_t 
     const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 1.25) : type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K ? (i8 ? 1.25 : 2.5)
                       : type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 ? 1.25 : type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4 ? 0.3125
                       : quarter ? (i8 ? 2.5 : 1.25) : (i8 ? 1.25 : 5.0);
-    return entries >= 1 && double(entries) >= from * double(n_expert);
+    // The half-block form's calls of at most one entry an expert take the one-column build an entry where it fills its steps.
+    const size_t blocks = nin / 32, sub = rocm_device(0).caps.subgroup_size;
+    const bool half = type == quant::GGML_TYPE_Q8_0 && i8 && blocks % 2 == 0 && (blocks < sub || blocks >= 2 * sub);
+    return entries >= 1 && double(entries) >= from * double(n_expert) && !(half && entries <= n_expert);
 }
 
 // The prompt extent from which a routed build takes the routed tile for gate and up or for the down, the backend's `TwinKernels::tile_from`: 32, but gate and up in block-int16 from 128 for the types other than Q8_0, IQ4_NL and MXFP4.
@@ -3306,7 +3355,7 @@ void experts_grouped(Backend& g) {
     // Past each build's break-even the calls below take the 4-, 8-, 4- and 2-column builds, below it the one-column build, and 4 rows of 300 the one-column build below every break-even.
     const Case cases[] = {{300, 8, 80, false}, {16, 8, 33, true}, {16, 8, 5, false}, {64, 2, 64, true}, {300, 8, 4, false}};
     const size_t ff = 256;
-    for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
+    for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_Q8_0, 2080}, {quant::GGML_TYPE_Q8_0, 2560}, {quant::GGML_TYPE_Q8_0, 1280}, {quant::GGML_TYPE_Q8_0, 4096}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q5_K, 2560},
                                                                              {quant::GGML_TYPE_Q6_K, 2560}, {quant::GGML_TYPE_Q5_0, 2560}, {quant::GGML_TYPE_Q5_1, 2560}, {quant::GGML_TYPE_IQ4_NL, 2560}, {quant::GGML_TYPE_MXFP4, 2560},
                                                                              {quant::GGML_TYPE_Q5_0, 640}, {quant::GGML_TYPE_Q5_1, 640}}) {
         const std::string name = quant::storage_type(type)->name;
@@ -3341,12 +3390,15 @@ void experts_grouped(Backend& g) {
                     const bool grouped = groups_at(type, dt, entries, cs.n_expert, nin);
                     const size_t touched = std::min(cs.n_expert, entries), average = (entries + touched - 1) / touched;
                     const std::string build = !grouped ? "" : average <= 2 ? "_g2" : average <= 4 ? "_g4" : "_g8";
+                    // The half-block one-column build takes one step a load on a row under two spans of blocks, as the dense one-column build does.
+                    const bool half = type == quant::GGML_TYPE_Q8_0 && dt == Dtype::int8 && nin / 32 % 2 == 0;
+                    const std::string one_build = !half ? "" : nin / 32 < rocm_device(0).caps.subgroup_size ? "llmx_q8_0_routed_half8s1" : "llmx_q8_0_routed_half8";
                     std::string ran;
                     bool built = false, grouping = false;
                     for (const auto& [kn, v] : rocm_take_launches(g)) {
                         ran += (ran.empty() ? "" : "+") + kn;
                         const size_t r = kn.find("_routed");
-                        built = built || (r != std::string::npos && (grouped ? kn.compare(kn.size() - 3, 3, build) == 0 : kn.find("_g", r) == std::string::npos));
+                        built = built || (r != std::string::npos && (grouped ? kn.compare(kn.size() - 3, 3, build) == 0 : kn.find("_g", r) == std::string::npos && (one_build.empty() || kn == one_build)));
                         grouping = grouping || kn == "llmx_moe_group";
                     }
                     require(built && grouping == grouped, at + " takes its " + (grouped ? build.substr(1) + " grouped" : "one-column") + " build, ran " + ran);

@@ -1,5 +1,69 @@
 # llmx - Development Status
 
+## ROCm Q8_0 decode steps by row width, DeepSeek-V4.1 query and window in one call, one-entry routed calls without grouping (2026-11-11, DSDEV121 proposal, F2DEV review, DSDEV122, branch perf/q8-decode-steps on main 12b84ea73, rebased onto main 4eaa874bd over perf/routed-decode-wide; lands by fast-forward)
+
+**Goal:** the int8 class's one-column Q8_0 decode on ROCm closer to its read floor at DeepSeek-V4.1-Flash, Qwen3 and Qwen3.5 shapes, every output the bits main gives.
+
+**Done:**
+- `q8_0_half_one<R, NS>` builds by row width (`kernels/int16.hip`): a row under two spans of blocks (64 on a 64-lane wave) loads one step at a time (`kNarrowSteps`, `llmx_q8_0_half8_1s1` and `_1r2s1`), since it cannot fill a second step a load and the steps it holds cost registers (71 against 39 VGPRs at one row, 3 against 5 waves a SIMD); at two rows a wave a row of the profile's `q8_decode_four_steps_from` blocks (256 on the MI50) loads four (`llmx_q8_0_half8_1r2s4`).
+  A step count changes how many blocks a lane loads ahead, never its blocks, their order or the tree, so every build gives the one-row build's bits; the rule reads the row width, the output count and the type, never the call's columns.
+- The four-step width is a measured knee, a `DeviceProfile` value without a flag: at 192 blocks 25600 rows gained 2.4% and 2560 rows (Qwen3.8-Flash-Next's `ssm_out` and `attn_output`) lost 2 to 3%; 256 blocks (DeepSeek's `attn_output_b`) and 384 (Qwen3-8B's down) gain.
+- `window_attention` (`arch/deepseek4.hpp`) projects the query latent and the window key in one `matmul_group` call on generated rows.
+  A prompt keeps two calls: the tile splits its sums by the call's outputs, so a prompt group is not the bits of its projections alone (both backends, 5120 and 6144 wide at 17 rows); the indexer's weights projection stays apart, BF16 in the real file.
+- Routed half-block Q8_0 calls of at most one entry an expert take the one-column build an entry with no grouping launch where that build fills its steps, under two spans of blocks (`llmx_q8_0_routed_half8s1`) and from four (`routed_half8`); between, the grouped build's two steps measured faster (Qwen3-30B-A3B's 2048-wide gate and up at 2 tokens: 85.0 us grouped, 91.8 us per entry).
+  The other routed Q8_0 builds, the 16-bit and odd-block forms and the other types keep their break-evens.
+- Checks: `q8_decode_bits` holds every one-column int8 build to the host's one-row sum at rows of 8 to 257 blocks, 63 to 65 and 254 to 257 among them, and at outputs on both sides of `q8_decode_two_rows_from` at 2560 and 4096, with the expected build witnessed; groups of 1280 and 512 rows and a third of 1024 against their projections' calls at 1 and 2 columns on ROCm, 1280 and 512 on Vulkan in f16 and int8; `experts_grouped` witnesses `routed_half8s1` and `routed_half8` on Q8_0 rows 1280 and 4096 wide.
+
+**Measured** (one MI50, default clocks, production kernels through the backend, 200 calls a cell, best of 5, ABAB, both arms built in the same container, us a token over the calls each model makes; every output hash main's):
+
+| model, calls | main | branch |
+|---|---|---|
+| DeepSeek-V4.1-Flash, 1 token: q_b, idx_qb, out_a, out_b, wkv, q_a+kv | 8977 | 8033 |
+| the same at 2 tokens | 8832 | 8647 |
+| Qwen3-0.6B Q8_0: qkv, gate+up, output | 984 | 844 |
+| Qwen3-8B Q8_0: down | 2657 | 2613 |
+| Qwen3.8-Flash-Next: ssm_out, attn_output (unchanged builds) | 1256 | 1258 |
+| routed Q8_0 decode, 1 token: Flash-Next down, Qwen3.5-35B-A3B and Qwen3-30B-A3B shapes | 221 | 203 |
+| the same at 2 tokens | 228 | 211 |
+
+Per call at one token: DeepSeek q_b 75.2 to 61.3 us, out_a 58.3 to 49.3 (no grouping launch), out_b 60.6 to 59.9, idx_qb 13.8 to 12.6; Qwen3-0.6B output 227 to 200; the query and window rows in one call 16.7 us against 13.5 and 9.4 in two (DSDEV121's harness, same card), 0.25 ms a token over 40 layers beside the table's 0.94 ms.
+Vulkan: the deepseek4 call is the only change, 17.7 us for the pair against 19.6 and 12.4 in two.
+
+**Gates** (the branch's code at its head, both arms built the same way in one container, `llmx 0.1.0+unknown` each):
+- Byte identity against main, greedy ids and top-8 logits under auto and int8: the tiny deepseek4 fixture, Qwen3-0.6B Q8_0 and Qwen3-8B Q8_0 on the CPU, rocm:0 and vulkan:0, no file differing.
+- CTest on ROCm 84/84 and on Vulkan 100/100; the suite on rocm:0 32 passed and 16 skipped (types ROCm does not run, and the real-model baseline), on vulkan:0 47 passed and the baseline skipped; `docs` and `dead-code` pass.
+- ROCm int8 bench on one MI50, ABBA in two rounds, tok/s: Qwen3-0.6B Q8_0 tg128 375.7 to 402.7 (+7.2%), pp512 10787 to 10764; Qwen3-8B Q8_0 tg128 76.3 to 77.9, main's rounds 77.7 and 74.9 and the branch's 77.9 both, pp512 1251 to 1250.
+- No HF rerun: every output is main's bits.
+
+**Landing gates** (LAND26, the stack's code at 9b53dcfda, this commit over perf/routed-decode-wide on main 4eaa874bd; the head that lands differs in STATUS only; main's build of 4eaa874bd made the same way, llmx 0.1.0+g4eaa874bdb44 against 0.1.0+g9b53dcfda903):
+- Builds ROCm, Vulkan and CPU-only; CTest CPU 81/81, ROCm 84/84, Vulkan 99/100: `vulkan-lifetime` measured a hold's release at p99 1.26 ms against its 1 ms limit with the host's load near 40, and passed three times on each arm at load 13 (p99 0.08 to 0.11 ms); no Vulkan backend or Vulkan test source changes in the stack.
+- The suite on the CPU passes every component but the absent baseline model; on vulkan:0 every component it runs; on rocm:0 every component but one `mxfp4` run, below.
+- `mxfp4` on rocm:0, 14:00 at host load near 33: the dense-tied fixture's `logits` diagnostic on its 7-token case with f32 caches wrote all its output (the 257 logits and the path witness) and exited nonzero with no message, which `run_hf` refuses; no bound was reached (dense-untied's max logit error 0.00021952 against 0.0033). The kernel logged a segfault of llmx at address 0 in libstdc++ (offset d4754, the red-black tree's rebalance for erase) at process exit. The teardown code is main's: the stack changes kernels, kernel tables and selection, `device_profile.hpp` and `deepseek4.hpp`, no thread, map or teardown code (F2DEV, 15:47). The component then passed 8 runs of the stack's binary and 7 of main's on the same card, the same errors on both arms.
+- Byte identity against main, greedy ids and top-8 logits, no file differing: Qwen3-0.6B Q8_0 (and its server's greedy replies), Qwen3-8B Q8_0 and the tiny deepseek4 fixture under f16 and f32 caches on the CPU, and under auto and int8 on rocm:0 and vulkan:0; on rocm:0 also Qwen3-30B-A3B Q4_K_M and a synthetic MXFP4 qwen3moe file; DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s on ROCm int8 and Vulkan, 64 ids and logits at 1400 positions of a short prompt and 64 ids and logits at 512 positions of a 15032-token prompt; Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s, ROCm int8, layer-4 and 2x2 tensor groups, 64 ids and logits at 1400 positions.
+- Timing against main, default clocks, `--cpus 8`, one process a cell, ABAB, means of two cells an arm in tok/s; hostwait flags every DeepSeek cell contended (run-queue wait 0.1 to 132 s a cell), the Qwen3-0.6B cells and three Flash-Next cells not:
+
+| cell | main | stack | change |
+|---|---:|---:|---:|
+| DeepSeek-V4.1 ten MI50s ROCm int8, pp2048 | 1174.7 | 1173.0 | -0.1% |
+| tg32 | 21.52 | 23.91 | +11.1% |
+| pp16384 | 1129.3 | 1130.0 | +0.1% |
+| tg16 after pp16384 | 21.78 | 24.18 | +11.0% |
+| 16 sequences, tg32 each, aggregate | 51.17 | 64.07 | +25.2% |
+| Vulkan, pp2048 | 507.8 | 508.1 | 0.0% |
+| Vulkan, tg32 | 16.23 | 16.52 | +1.8% |
+| Qwen3.8-Flash-Next layer-4 ROCm int8, pp2048 | 1763.6 | 1764.9 | +0.1% |
+| tg32 | 53.35 | 54.04 | +1.3% |
+| Qwen3-0.6B Q8_0 rocm:0 int8, pp512 | 10902 | 10903 | 0.0% |
+| tg128 | 391.9 | 415.7 | +6.1% |
+
+  Cells (main, main / stack, stack): DeepSeek tg32 21.38, 21.66 / 23.77, 24.05; 16 sequences 51.16, 51.18 / 64.07, 64.07; Vulkan tg32 16.65, 15.81 / 16.40, 16.64; Flash-Next tg32 53.96, 52.73 / 54.97, 53.11; Qwen3-0.6B tg128 389.74, 394.06 / 414.66, 416.71 (/opt/claude-work/land26/out/progress).
+
+**Left:**
+- Vulkan, open: DeepSeek-V4.1's q_a, kv and idx_qb rows run 30 to 45% slower than on ROCm at one token (19.6, 12.4 and 18.1 us against 13.5, 9.4 and 14.0, DSDEV121, one MI50).
+- The Radeon VII check on Windows before the fast-forward.
+- A fix branch of its own for the exit segfault above: a stress test running that `logits` command in a loop under host load with core files kept, to find the thread erasing from a tree at exit.
+- Not byte-identical, not opened: what is left to the read floor after these (about 2 ms a token at DeepSeek's shapes) needs another load form and so regrouped sums.
+
 ## ROCm MXFP4 decode lane: two lanes a block, the quarter order's bits (2026-11-11, DSDEV113 then DSDEV118, branch perf/routed-decode-wide on main 12b84ea73, rebased onto main 4eaa874bd under perf/q8-decode-steps; DSDEV113's proposal of 06:17, F2DEV's review of 06:24, DSDEV118's results of 07:08 and 09:59, COORD's ruling to land the MXFP4 lane alone; DSDEV124 gated it; lands by fast-forward)
 
 **Goal:** MXFP4 decode rows, dense, routed and grouped, faster on ROCm with main's bits, so DeepSeek-V4.1-Flash's routed experts decode faster with no re-baseline.

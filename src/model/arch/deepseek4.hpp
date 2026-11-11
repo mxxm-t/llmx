@@ -666,11 +666,20 @@ private:
         const bool squeezed = s.kind & reads_compressed;
         const backend::CSlice cos{s.tables[squeezed ? compressed_cos : rope_cos].get(), 0}, sin{s.tables[squeezed ? compressed_sin : rope_sin].get(), 0};
         const backend::RopeForm turn{true, D - rd, false}, back{true, D - rd, true};
-        s.b.matmul(w[attn_q_a].operand(), s.slot(collapsed), s.slot(q_lora), w[attn_q_a].nin, w[attn_q_a].nout, rows, s.runs, s.dtype);
+        // On generated rows the query's low-rank row and the window's kv row read the collapsed row in one call, each row the product two calls give it.
+        // A prompt's tile splits its sums by the call's outputs, so prompt rows keep two calls and their bits.
+        bool generated = s.runs.n || rows == 1;
+        for (size_t i = 0; i < s.runs.n; ++i) generated = generated && s.runs.runs[i].extent == 1;
+        if (generated) {
+            s.b.matmul_group({blocks::projection(w[attn_q_a], s.slot(q_lora)), blocks::projection(w[attn_kv], s.slot(window_kv))}, s.slot(collapsed), w[attn_q_a].nin, rows, s.runs,
+                             s.dtype);
+        } else {
+            s.b.matmul(w[attn_q_a].operand(), s.slot(collapsed), s.slot(q_lora), w[attn_q_a].nin, w[attn_q_a].nout, rows, s.runs, s.dtype);
+            s.b.matmul(w[attn_kv].operand(), s.slot(collapsed), s.slot(window_kv), w[attn_kv].nin, w[attn_kv].nout, rows, s.runs, s.dtype);
+        }
         s.b.rms_norm_rows(s.slot(q_lora), s.slot(q_lora), w[attn_q_a_norm].slice(), rows, Q, Q, c.rms_eps, s.runs);
         s.b.matmul(w[attn_q_b].operand(), s.slot(q_lora), s.slot(query), w[attn_q_b].nin, w[attn_q_b].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(query), s.slot(query), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, turn);
-        s.b.matmul(w[attn_kv].operand(), s.slot(collapsed), s.slot(window_kv), w[attn_kv].nin, w[attn_kv].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos, turn);
         // A ring row is the row's values rounded to the window's FP8 as F32, or under native its packed blocks (Step::native), which the pack writes straight into the ring.
         const size_t RW = s.native ? window_words(D) : D;

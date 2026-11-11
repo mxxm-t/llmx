@@ -353,6 +353,8 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
 // The one-column build of the half-block kernel: NS steps of a lane's loads for each of R rows issued before any of their products, then each step's products in block order, as the other builds sum.
 // The scheduling barrier keeps the loads together (docs/STATUS.md, ROCm decode rows); TAIL skips a step past the row in its loads and its products alike, so a lane's blocks keep their order.
 constexpr int kSteps = 4;
+// The steps of the builds for a row under two spans of blocks (64 on a 64-lane wave): such a row cannot fill a second step a load, and each step held costs registers, 71 against 39 at one row (docs/STATUS.md, ROCm decode steps).
+constexpr int kNarrowSteps = 1;
 template <int NS, int R, bool TAIL = false>
 __device__ inline void half_steps(const unsigned* const (&w)[R], const signed char* q, const float* dx, unsigned& b, unsigned blocks, unsigned hl, float (&acc)[R]) {
     const unsigned span = warpSize / 2;
@@ -1716,6 +1718,16 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1p(RowCal
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, 2>(c, q, dx, nin, add);
 }
+// The one-column builds by row width: kNarrowSteps under two spans of blocks, kSteps at two rows a wave from the profile's q8_decode_four_steps_from (rocm_backend.cpp, product_twin).
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1s1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
+    q8_0_half_one<1, kNarrowSteps>(c, q, dx, nin, add);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
+    q8_0_half_one<2, kNarrowSteps>(c, q, dx, nin, add);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s4(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
+    q8_0_half_one<2, kSteps>(c, q, dx, nin, add);
+}
 LLMX_HALF(llmx_q8_0_half8_2, 2, 2, 2)
 LLMX_HALF(llmx_q8_0_half8_2_r4, 2, 4, 2)
 LLMX_HALF(llmx_q8_0_half8_4, 4, 2, 4)
@@ -1784,6 +1796,12 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_half8(Ro
     unsigned long long col;
     if (!routed_entry(rc, c, col)) return;
     q8_0_half_one<1, kSteps>(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 0);
+}
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_half8s1(RoutedCall rc, const signed char* q, const float* dx, unsigned long long nin) {
+    RowCall c;
+    unsigned long long col;
+    if (!routed_entry(rc, c, col)) return;
+    q8_0_half_one<1, kNarrowSteps>(c, q + col * (nin / 32) * 32, dx + col * (nin / 32), nin, 0);
 }
 // A grouped build runs a row build of C columns over one expert's entries (EntryCols), a column an entry, so each entry has the bits of its one-column product and the expert's rows are read once a group.
 #define LLMX_GROUPED(name, QT, C, ...)                                                                                                                                                 \

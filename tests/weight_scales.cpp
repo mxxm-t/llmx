@@ -137,6 +137,33 @@ void routed(backend::CpuBackend& cpu) {
     }
 }
 
+// A routed add rounds each pick's product before it joins the sum: -1 * a + b * b with b * b rounding to a gives 0, where a product fused into the add gives 2^-24.
+void unfused(backend::CpuBackend& cpu) {
+    const float a = 1.0f + std::ldexp(1.0f, -11), b = 1.0f + std::ldexp(1.0f, -12);
+    std::vector<float> experts(2 * width, 0.0f), input(width, 0.0f);
+    experts[0] = a;
+    experts[width] = b;
+    input[0] = 1.0f;
+    auto w = cpu.adopt(experts.data(), experts.size() * sizeof(float));
+    const backend::WeightView weight{quant::GGML_TYPE_F32, {w.get(), 0}};
+    const uint32_t ids[] = {0, 1};
+    const float gains[] = {-1.0f, b};
+    auto ib = cpu.adopt(ids, sizeof ids), gb = cpu.adopt(gains, sizeof gains);
+    const backend::Backend::Routing routing{{ib.get(), 0}, {gb.get(), 0}, 2, 2};
+    std::vector<float> both(2 * width, 0.0f);
+    both[0] = both[width] = 1.0f;
+    auto x = cpu.adopt(both.data(), both.size() * sizeof(float));
+    auto y = cpu.alloc(3 * sizeof(float), backend::Memory::host_visible);
+    for (size_t extent : {1u, 2u}) {
+        const backend::RowRun run{1, extent};
+        reset(cpu, *y, 3, 0.0f);
+        cpu.matmul_experts_add(weight, {x.get(), 0}, {y.get(), 1}, width, 1, 1, routing, {&run, 1}, backend::Dtype::f32);
+        const auto out = read(cpu, *y, 3);
+        require(out[0] == 0.0f && out[2] == 0.0f, "routed add stays in its row");
+        require(bits(out[1]) == 0, "routed add rounds each product before the sum");
+    }
+}
+
 void refusals(backend::CpuBackend& cpu) {
     const auto data = packed(); auto w = cpu.adopt(data.data(), data.size());
     const float scale = 1; auto sb = cpu.adopt(&scale, sizeof scale);
@@ -505,8 +532,8 @@ int main(int argc, char** argv) {
     }
     if (argc != 1) { std::cerr << "usage: llmx-weight-scales-test [--vulkan]\n"; return 1; }
     try {
-        for (int threads : {1, 3}) { backend::CpuBackend cpu; cpu.set_threads(threads); dense(cpu); routed(cpu); refusals(cpu); fp8(cpu); }
-        std::cout << "weight scales: signed/zero/range dense+embedding, per-expert products/adds and pre-write refusals; F8_E4M3 grids at row shifts 0 and 7, f16 and f32 inputs, embedding, batch-invariant rows, per-expert grids and grid refusals [ok]\n";
+        for (int threads : {1, 3}) { backend::CpuBackend cpu; cpu.set_threads(threads); dense(cpu); routed(cpu); unfused(cpu); refusals(cpu); fp8(cpu); }
+        std::cout << "weight scales: signed/zero/range dense+embedding, per-expert products/adds, unfused routed adds and pre-write refusals; F8_E4M3 grids at row shifts 0 and 7, f16 and f32 inputs, embedding, batch-invariant rows, per-expert grids and grid refusals [ok]\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

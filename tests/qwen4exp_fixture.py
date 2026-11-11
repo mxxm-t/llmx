@@ -273,6 +273,11 @@ def _canonical_reference_hash(state):
 class Qwen4ExpFixtureTests(unittest.TestCase):
     require_native = False
 
+    def skip_unsplit(self):
+        # The fixture's shared expert of 7 rows does not split under LLMX_TENSOR_WIDTH; the group test pads it to 8.
+        if common.tensor_width() > 1:
+            self.skipTest("the fixture's shared expert of 7 rows does not split at tensor width %d" % common.tensor_width())
+
     def _check_server_hf_reply(self, reply, logits, label, prompt_tokens):
         top = sorted(range(len(logits)), key=lambda i: (-logits[i], i))
         shift = max(logits)
@@ -573,8 +578,9 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             model = Path(directory) / "reference.gguf"
             qwen4exp.write_qwen4exp(model, document["config"], qwen4exp.state_from_document(document))
             command = [str(tool), "--gguf", str(model), "--reference", str(reference)]
+            # One device at width 1, the first of a list; the call below checks a group.
             if os.environ.get("LLMX_DEVICE"):
-                command += ["--device", os.environ["LLMX_DEVICE"]]
+                command += ["--device", os.environ["LLMX_DEVICE"].split(",")[0]]
             result = subprocess.run(command, capture_output=True, text=True, timeout=120)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
@@ -587,6 +593,7 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             if self.require_native:
                 self.fail("llmx executable is required for the server fixture")
             self.skipTest("llmx executable is unavailable for the server fixture")
+        self.skip_unsplit()
         reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
         document = json.loads(reference.read_text(encoding="utf-8"))
         state = qwen4exp.state_from_document(document)
@@ -615,6 +622,7 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             if self.require_native:
                 self.fail("llmx executable is required for the server fixture")
             self.skipTest("llmx executable is unavailable for the server fixture")
+        self.skip_unsplit()
         reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
         document = json.loads(reference.read_text(encoding="utf-8"))
         cases = document["cases"]
@@ -681,6 +689,7 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             if self.require_native:
                 self.fail("llmx executable is required for the server fixture")
             self.skipTest("llmx executable is unavailable for the server fixture")
+        self.skip_unsplit()
         reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
         document = json.loads(reference.read_text(encoding="utf-8"))
         case = document["persistence_case"]
@@ -732,6 +741,7 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             if self.require_native:
                 self.fail("llmx executable is required for the server fixture")
             self.skipTest("llmx executable is unavailable for the server fixture")
+        self.skip_unsplit()
         reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
         document = json.loads(reference.read_text(encoding="utf-8"))
         eos = document["config"]["eos_token_id"]
@@ -951,6 +961,7 @@ class Qwen4ExpFixtureTests(unittest.TestCase):
             if self.require_native:
                 self.fail("llmx executable is required for the server fixture")
             self.skipTest("llmx executable is unavailable for the server fixture")
+        self.skip_unsplit()
 
         reference = Path(__file__).resolve().parent / "data" / "qwen4exp_reference.json"
         document = json.loads(reference.read_text(encoding="utf-8"))

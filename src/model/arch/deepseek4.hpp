@@ -392,6 +392,9 @@ public:
                   {output_norm, Part::head, RoleKind::norm, "output_norm.weight", "", E},
                   {output, Part::head, RoleKind::matrix, "output.weight", "", E, p.vocab}};
         for (const infer::Role& role : p.pass) tensors.at(role.name);
+        blocks::shard(p.pass, output, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
+        // The BF16 table is the first group's largest replicated tensor, so its rows split too, summed into the residual as the pass begins (docs/TENSOR-SPLIT.md, section 4.6).
+        blocks::shard(p.pass, token_embd, Axis::rows, {{p.vocab, 1, 1, "vocabulary rows"}});
         p.layers.resize(size_t(c.n_layer));
         for (int l = 0; l < c.n_layer; ++l) {
             const Layer& t = layers_[size_t(l)];
@@ -506,9 +509,19 @@ public:
             ops(Part::ffn, {Op::hc_coeffs, Op::hc_collapse_norm, Op::hc_expand, Op::sqrt_softplus_routing});
             if (c.swiglu_exp[size_t(l)] != 0.0f || c.swiglu_shexp[size_t(l)] != 0.0f) ops(Part::ffn, {Op::silu_mul_clamp});
             blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
+            // A tensor group splits the query and the sinks by head, the output's low-rank stage by output group and the experts by rows of each; the shared vector, the indexer, Engram and the router stay whole (docs/DEEPSEEK4.md, section 7).
+            const ShardSection heads{uint64_t(c.n_head), D, 1, "heads"}, out_groups{G, uint64_t(c.out_rank), 1, "output groups"};
+            blocks::shard(layer.roles, attn_q_b, Axis::rows, {heads});
+            blocks::shard(layer.roles, attn_sinks, Axis::columns, {{uint64_t(c.n_head), 1, 1, "heads"}});
+            blocks::shard(layer.roles, attn_output_a, Axis::rows, {out_groups});
+            blocks::shard(layer.roles, attn_output_b, Axis::columns, {out_groups});
+            blocks::shard_experts(layer.roles, tensors, ffn_gate_exps, ffn_up_exps, ffn_down_exps, F, X);
+            blocks::shard_experts(layer.roles, tensors, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, F, 1);
         }
         p.context_length = size_t(c.context_length);
         p.residual = size_t(R);
+        // A group sums a sublayer's output, and each member expands the sum into its streams (join).
+        p.partial = size_t(E);
         p.slots = slot_widths(c);
         // The index scores hold a pooled group's score for each position the tables cover at the least ratio.
         int least = 0;
@@ -597,7 +610,7 @@ public:
         // The first reader on a device after its source's device stores the carried pooled rows into its replica, as the source stored them (LayerPlan::entry_source).
         if (s.appends) s.b.pool_write(s.kv_layer, s.views, s.n_views, s.slot(pooled));
         window_attention(s);
-        s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
 
     // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back; its pre is the next block's (model.py:988-993 at e5decd76).
@@ -608,13 +621,19 @@ public:
         s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_attn), w[ffn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
         if (s.layer < 0 || size_t(s.layer) >= cfg_.swiglu_exp.size()) throw std::logic_error("inference: a DeepSeek-V4.1 FFN without its layer");
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, cfg_.swiglu_shexp[size_t(s.layer)]};
+        // The routed and shared products accumulate from zero into the output, a member's partial rows on a group.
         Step out = s;
-        out.x = s.slot(block_out);
+        out.x = s.width > 1 ? s.partial : s.slot(block_out);
         out.width = 1;
         blocks::moe_step(out, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used),
                          backend::RouteRule::sqrt_softplus(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(collapsed), s.slot(gates), s.slot(ups),
                          s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), cfg_.swiglu_exp[size_t(s.layer)]);
-        s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+    }
+
+    // On a group, the summed output of the sublayer just run, expanded into the streams with the post and comb that sublayer left.
+    void join(const Step& s) const override {
+        s.b.hc_expand(s.x, s.partial, s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
 
     // The wanted rows' streams collapsed with the last block's pre, normed, then the logits (model.py:1271-1272 at e5decd76).
@@ -661,8 +680,9 @@ private:
     void window_attention(const Step& s) const {
         const Config& c = cfg_;
         const Weight* w = s.w;
-        const size_t D = size_t(c.head_dim), H = size_t(c.n_head), HD = H * D, Q = size_t(c.q_lora_rank), rd = size_t(c.rope_dim), W = size_t(c.window);
-        const size_t ring = 2 * W, G = size_t(c.out_groups), rows = s.rows;
+        // A group member's heads and output groups are its shares of the query's and the output's (Step::width).
+        const size_t D = size_t(c.head_dim), H = w[attn_q_b].nout / D, HD = H * D, Q = size_t(c.q_lora_rank), rd = size_t(c.rope_dim), W = size_t(c.window);
+        const size_t ring = 2 * W, G = w[attn_output_a].nout / size_t(c.out_rank), rows = s.rows;
         const bool squeezed = s.kind & reads_compressed;
         const backend::CSlice cos{s.tables[squeezed ? compressed_cos : rope_cos].get(), 0}, sin{s.tables[squeezed ? compressed_sin : rope_sin].get(), 0};
         const backend::RopeForm turn{true, D - rd, false}, back{true, D - rd, true};
@@ -756,7 +776,8 @@ private:
         s.b.gather_rows(s.slot(group_ids), {s.tables[groups].get(), 0}, G, s.indices, rows);
         s.b.matmul_grouped(backend::Projection(w[attn_output_a].operand(), s.slot(grouped), size_t(c.out_rank)), s.slot(attn), HD / G, rows, G, s.slot(group_ids),
                            s.runs, s.dtype, *s.scratch);
-        s.b.matmul(w[attn_output_b].operand(), s.slot(grouped), s.slot(block_out), w[attn_output_b].nin, w[attn_output_b].nout, rows, s.runs, s.dtype);
+        s.b.matmul(w[attn_output_b].operand(), s.slot(grouped), s.width > 1 ? s.partial : s.slot(block_out), w[attn_output_b].nin, w[attn_output_b].nout, rows, s.runs,
+                   s.dtype);
     }
 
     // A compressed layer's entries and picks before its attention reads them (model.py:729-764 at e5decd76), returning the picks each row reads.

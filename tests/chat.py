@@ -128,7 +128,8 @@ def run():
             assert common.cli_stdout(p.stdout) == BANNER + expected
             if not verbose:
                 requested = os.environ.get("LLMX_DTYPE", "auto").encode("ascii")
-                assert re.fullmatch(rb"dtype: " + requested + rb" -> (?:f16|bf16|f32|int8) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
+                # A ROCm group states its collective's path once, before the dtype line (docs/src/backends-rocm.md).
+                assert re.fullmatch(rb"(?:rocm: tensor group of devices [^\r\n]+\r?\n)*dtype: " + requested + rb" -> (?:f16|bf16|f32|int8) \(model declares bf16\); [^\r\n]+\r?\n", p.stderr), p.stderr
                 continue
             percents = [int(x) for x in re.findall(rb"Loading tensor data: (\d+)%", p.stderr)]
             assert percents[0] == 0 and percents[-1] == 100

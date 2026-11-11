@@ -270,7 +270,7 @@ def check_served_refusals(model):
 
 
 def run():
-    if common.f32_cache_skip("image"):
+    if common.f32_cache_skip("image") or common.tensor_width_skip("image"):
         return common.SKIPPED
     doc = golden()
     with tempfile.TemporaryDirectory(prefix="llmx_image_") as directory:

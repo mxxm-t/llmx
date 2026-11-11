@@ -1057,21 +1057,110 @@ struct Recorder : backend::CpuBackend {
     }
 };
 
+// A file on tensor groups of `width` CPUs (docs/TENSOR-SPLIT.md): the same bits over runs, prompt slices and two staged groups, and one CPU's rows within F32 sum order.
+void groups(const std::string& path, size_t width) {
+    gguf::GGUFModel m = gguf::read_gguf(path);
+    gguf::map_payload(m);
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    const infer::deepseek4::Config c = config_of(m);
+    const size_t V = c.vocab, L = size_t(c.n_layer);
+    std::vector<uint32_t> ids;
+    for (uint32_t i = 0; i < 40; ++i) ids.push_back((i * 37 + 5) % uint32_t(V));
+    // `stages` groups of `w` CPUs, the layers cut evenly between them.
+    const auto logits = [&](size_t w_, size_t stages, int ubatch) {
+        std::vector<backend::BackendPtr> backends;
+        for (size_t d = 0; d < w_ * stages; ++d) {
+            backends.push_back(backend::make_cpu_backend());
+            backends.back()->set_threads(1);
+        }
+        infer::Placement placement;
+        for (size_t l = 0; l < L; ++l) placement.mixer_device.push_back(int(l * stages / L * w_));
+        placement.ffn_device = placement.mixer_device;
+        placement.output_device = placement.mixer_device.back();
+        placement.width = w_;
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        infer::Model model(w, std::move(backends), placement, options);
+        model.set_ubatch(ubatch);
+        std::vector<float> out;
+        model.score(ids, [&](size_t, const float* row) { out.insert(out.end(), row, row + V); });
+        for (size_t i = 0; i < 4; ++i) {
+            const float* row = model.step(&ids[i], 1);
+            out.insert(out.end(), row, row + V);
+        }
+        return out;
+    };
+    const std::string group = "a group of " + std::to_string(width) + " CPUs";
+    const std::vector<float> one = logits(1, 1, 3), got = logits(width, 1, 3);
+    require(got.size() == one.size() && std::all_of(got.begin(), got.end(), [](float x) { return std::isfinite(x); }), group + " gives 44 finite rows");
+    require(!std::memcmp(logits(width, 1, 3).data(), got.data(), got.size() * sizeof(float)), group + " gives the same bits on a second run");
+    require(!std::memcmp(logits(width, 1, 40).data(), got.data(), got.size() * sizeof(float)), group + " gives the same bits for the prompt in one pass and in slices of 3");
+    require(!std::memcmp(logits(width, 2, 3).data(), got.data(), got.size() * sizeof(float)), "two staged groups of " + std::to_string(width) + " give one group's bits");
+    double most = 0, scale = 0;
+    size_t argmax = 0;
+    for (size_t r = 0; r < 44; ++r) {
+        const float* a = &one[r * V];
+        const float* b = &got[r * V];
+        for (size_t v = 0; v < V; ++v) {
+            most = std::max(most, std::fabs(double(a[v]) - double(b[v])));
+            scale = std::max(scale, std::fabs(double(a[v])));
+        }
+        argmax += std::max_element(a, a + V) - a == std::max_element(b, b + V) - b;
+    }
+    std::cout << "arch-deepseek4: " << group << ", alone and staged twice, gives the same 44 rows over runs and prompt slices, within " << most << " of one CPU's (largest logit "
+              << scale << ", bound 1e-4), the same top token at " << argmax << " of 44\n";
+    require(most <= 1e-4 && argmax == 44, group + " within 1e-4 of one CPU's logits with every top token the same");
+    // Every member picks the same experts, index entries and candidate blocks, which the replicated chain computes on each.
+    std::vector<std::shared_ptr<Recorder>> members;
+    std::vector<backend::BackendPtr> backends;
+    for (size_t i = 0; i < width; ++i) {
+        members.push_back(std::make_shared<Recorder>());
+        backends.push_back(members.back());
+    }
+    infer::Placement placement;
+    placement.mixer_device = placement.ffn_device = std::vector<int>(L, 0);
+    placement.width = width;
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    infer::Model model(w, std::move(backends), placement, options);
+    model.set_ubatch(int(ids.size()));
+    model.prefill(ids);
+    require(members[0]->picks.size() == L && !members[0]->index_picks.empty() && !members[0]->candidates.empty(), group + " records a routing a layer and index and candidate picks");
+    for (size_t i = 1; i < width; ++i)
+        require(members[i]->picks == members[0]->picks && members[i]->index_picks == members[0]->index_picks && members[i]->candidates == members[0]->candidates,
+                group + ": member " + std::to_string(i) + " picks member 0's experts, index entries and candidate blocks");
+    std::cout << "arch-deepseek4: every member of " << group << " picks the same experts, index entries and candidate blocks over the 40-token prompt\n";
+}
+
 // The golden's sequence through Model::forward on the writer's file in one F32 pass: every layer's sublayer outputs y against the reference's.
-// Second lines: their coefficients and router picks, the index picks of layers 2, 4, 5 and 7, and layer 5's candidate blocks.
-void forward_records(const std::string& path) {
+// Second lines: their coefficients and router picks, the index picks of layers 2, 4, 5 and 7, and layer 5's candidate blocks, which on a group of `width` CPUs every member records alike (docs/DEEPSEEK4.md, section 7).
+void forward_records(const std::string& path, size_t width = 1) {
     gguf::GGUFModel file = gguf::read_gguf(path);
     gguf::map_payload(file);
     const infer::deepseek4::Config c = config_of(file);
     const size_t H = size_t(c.hc_count), E = size_t(c.n_embd);
-    auto recorder = std::make_shared<Recorder>();
+    std::vector<std::shared_ptr<Recorder>> members;
+    std::vector<backend::BackendPtr> backends;
+    for (size_t m = 0; m < width; ++m) {
+        members.push_back(std::make_shared<Recorder>());
+        backends.push_back(members.back());
+    }
+    const std::shared_ptr<Recorder> recorder = members[0];
     infer::ModelOptions options;
     options.dtype = backend::Dtype::f32;
-    infer::Model model(infer::gguf_weights(file), recorder, options);
+    infer::Placement placement;
+    placement.mixer_device = placement.ffn_device = std::vector<int>(size_t(c.n_layer), 0);
+    placement.width = width;
+    infer::Model model(infer::gguf_weights(file), std::move(backends), placement, options);
     const std::vector<uint64_t> sequence = wholes(field(golden.root, "sequence"));
     model.set_ubatch(int(sequence.size()));
     model.prefill(std::vector<uint32_t>(sequence.begin(), sequence.end()));
     const size_t rows = sequence.size(), layers = size_t(c.n_layer);
+    const std::string on = width > 1 ? " on a group of " + std::to_string(width) + " CPUs" : "";
+    for (size_t m = 1; m < width; ++m)
+        require(members[m]->picks == recorder->picks && members[m]->index_picks == recorder->index_picks && members[m]->candidates == recorder->candidates &&
+                    members[m]->outputs == recorder->outputs,
+                "member " + std::to_string(m) + " records member 0's router picks, index picks, candidate blocks and summed sublayer outputs");
     require(recorder->outputs.size() == 2 * layers && recorder->coefficients.size() == 2 * layers && recorder->picks.size() == layers &&
                 recorder->index_picks.size() == 4 && recorder->candidates.size() == 1,
             "two sublayer outputs, two coefficient sets and a routing a layer, four index selections and one of candidate blocks");
@@ -1089,7 +1178,7 @@ void forward_records(const std::string& path) {
                 require(r < rows, "the reference's output position " + key);
                 close(want, &recorder->outputs[at][r * E], E, layer + what + " output at position " + key, most);
             }
-            std::cout << "arch-deepseek4: " << layer << what << " output y through Model::forward differs from the reference's by at most " << most << " (bound 1e-5)\n";
+            std::cout << "arch-deepseek4: " << layer << what << " output y through Model::forward" << on << " differs from the reference's by at most " << most << " (bound 1e-5)\n";
             require(most <= 1e-5, layer + what + " output y within 1e-5 of the reference's");
         }
     const auto coefficients = [&](const Recorder::Coefficients& got, size_t l, const char* part, const std::string& what) {
@@ -1548,12 +1637,17 @@ void same_file(const std::string& path) {
 
 int main(int argc, char** argv) {
     try {
-        if (argc != 2 && !(argc == 4 && std::string(argv[2]) == "--gguf"))
-            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE]");
+        if (argc != 2 && !(argc == 4 && (std::string(argv[2]) == "--gguf" || std::string(argv[2]) == "--groups")))
+            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE | --groups FILE]");
         read_golden(argv[1]);
-        if (argc == 4) {
+        if (argc == 4 && std::string(argv[2]) == "--groups") {
+            groups(argv[3], 2);
+            groups(argv[3], 4);
+        } else if (argc == 4) {
             same_file(argv[3]);
             forward_records(argv[3]);
+            forward_records(argv[3], 2);
+            groups(argv[3], 2);
             slices(argv[3]);
             split_cuts(argv[3]);
             prefill_then_decode(argv[3]);

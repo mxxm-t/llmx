@@ -173,10 +173,9 @@ def check_drafter(directory, single, widths, require):
     worst = 0.0
     for spec in (dict(QWEN35, name="split-mtp", mtp=True), dict(QWEN35MOE, name="split-moe-mtp", mtp=True)):
         model = qwen35.write_fixture(directory, dict(spec, config=dict(spec["config"], context_length=128)), tokens=TOKENS)
-        one = drafts(tool, model, directory, single if single == "cpu" else single.split(":", 1)[1], 1)
+        one = drafts(tool, model, directory, single, 1)
         for width, devices in widths:
-            listed = ",".join(d if d == "cpu" else d.split(":", 1)[1] for d in devices.split(","))
-            for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, listed, width), one):
+            for (pick, ids, rows), (want_pick, want_ids, want_rows) in zip(drafts(tool, model, directory, devices, width), one):
                 assert pick == want_pick and ids == want_ids,                     "tensor-split: a group of %d drafts %s after %d on %s, one device %s after %d" % (width, ids, pick, spec["name"], want_ids, want_pick)
                 worst = max(worst, max(abs(a - b) for row, want in zip(rows, want_rows) for a, b in zip(row, want)))
     assert worst < common.F32_HF_LOGIT_BOUND, "tensor-split: a group's draft logits %.8f from one device's" % worst

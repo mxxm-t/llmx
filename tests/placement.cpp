@@ -2213,7 +2213,17 @@ void passes_refused() {
     refused([&] { m.begin_pass(ctx, 0, &ea, 1, 2); }, "a pass's logits rows beyond the reservation");
     const infer::BatchEntry twice[2] = {ea, ea};
     refused([&] { m.begin_pass(ctx, 0, twice, 2, 0); }, "a sequence listed twice in a pass");
-    require(!a.in_flight(), "a refused pass left its sequence in flight");
+    // A token id past the embedding's rows is refused as the pass is formed, since the gather would read it as a zero row.
+    const std::vector<uint32_t> past{3, uint32_t(V)};
+    const infer::BatchEntry outside{&a, past.data(), 2, true};
+    for (const auto& run : {std::function<void()>([&] { m.begin_pass(ctx, 0, &outside, 1, 0); }),
+                            std::function<void()>([&] { infer::ExecContext own_ctx; m.forward(own_ctx, &outside, 1); })}) {
+        std::string message;
+        try { run(); } catch (const std::runtime_error& e) { message = e.what(); }
+        require(message == "inference: token id " + std::to_string(V) + " is outside the embedding's rows", "a token id past the embedding's rows was not refused by the pass");
+        ++checked;
+    }
+    require(!a.in_flight() && a.length() == 0, "a refused pass left its sequence in flight or changed");
     refused([&] { m.run_pass_stage(ctx, 0, 0); }, "a stage ran in a slot a refused pass left");
 
     m.begin_pass(ctx, 0, &ea, 1, 1);

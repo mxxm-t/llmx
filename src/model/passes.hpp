@@ -208,6 +208,11 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     for (size_t e = 0; e < n_entries; ++e)
         for (size_t f = 0; f < e; ++f)
             if (entries[f].seq == entries[e].seq) throw std::logic_error("inference: a sequence listed twice in a pass");
+    // The embedding's gather writes a zero row for an id past its rows (Backend::embed), so such an id is refused here, before the pass takes anything.
+    const uint64_t vocab = embedding_role(plan_).out;
+    for (size_t e = 0; e < n_entries; ++e)
+        for (size_t b = 0; b < entries[e].n; ++b)
+            if (entries[e].ids[b] >= vocab) throw std::runtime_error("inference: token id " + std::to_string(entries[e].ids[b]) + " is outside the embedding's rows");
     if (ctx.slots && (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want))
         throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
     // Every entry holds a state slot from its first pass on, so a pass never runs short of one, and a keep entry a checkpoint slot; a pass that cannot take them all, is refused or fails to plan takes none.
@@ -726,6 +731,36 @@ inline void Model::prepare_tokens(Pass& p, size_t s) const {
     }
 }
 
+// The embedding on group g's members: each gathers whole rows where the table is replicated.
+// Where it is split by rows, each gathers the ids it holds and zero rows for the others into its partial rows, whose sum is the whole rows, copied into its residual.
+inline void Model::group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Collective& sum, const std::vector<backend::Slice>& x) {
+    const backend::RowRuns all{p.runs.data(), p.runs.size()};
+    const size_t W = width_;
+    if (!embedding_split(plan_)) {
+        for (size_t m = 0; m < W; ++m) arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
+        return;
+    }
+    const Role& role = embedding_role(plan_);
+    std::vector<uint32_t> ids(p.rows);
+    for (size_t m = 0; m < W; ++m) {
+        const std::vector<shard::Span> own = shard::spans(role, W, m);
+        if (own.size() != 1) throw std::logic_error("inference: a split embedding's member holds one run of rows");
+        const uint64_t first = own[0].begin, rows = own[0].count;
+        for (size_t r = 0; r < p.rows; ++r) ids[r] = p.ids[r] >= first && p.ids[r] - first < rows ? uint32_t(p.ids[r] - first) : uint32_t(rows);
+        Step step = part(ctx, g + m, pass_row(m), 0, 0, p.rows, all);
+        step.x = sum.partial(m);
+        arch_->embed(step, ids.data());
+    }
+    const auto from = std::chrono::steady_clock::now();
+    sum.sum_in_place(p.rows, plan_.residual);
+    p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+    const size_t bytes = backend::size_mul(backend::size_mul(p.rows, plan_.residual), sizeof(float));
+    for (size_t m = 0; m < W; ++m) {
+        const backend::Slice partial = sum.partial(m);
+        devices_[g + m]->b->copy(*x[m].buffer, x[m].offset * sizeof(float), *partial.buffer, partial.offset * sizeof(float), bytes);
+    }
+}
+
 // A group's stage on its devices, through its last submission: it touches the pass, the stage's devices and their tickets, and no history or pool.
 inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
     const Stage& st = stages_[s];
@@ -741,9 +776,9 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
     };
     std::vector<backend::Slice> x(W);
     for (size_t m = 0; m < W; ++m) x[m] = slot(ctx, g + m, 0);
+    if (s == 0) group_embed(ctx, p, g, sum, x);
     for (size_t m = 0; m < W; ++m) {
         if (s == 0) {
-            arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
             if (p.image_rows) write_media(ctx, p, g + m);
         } else {
             const auto [waited, wrote] = receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows);

@@ -203,8 +203,20 @@ inline void cover_positions(ModelPlan& plan, size_t positions) {
     for (const auto& [slot, per] : plan.position_slots) plan.slots.at(slot) = positions / per;
 }
 
-// Floats in a row a tensor group sums (ModelPlan::partial).
-inline size_t sum_width(const ModelPlan& plan) { return plan.partial ? plan.partial : plan.residual; }
+// The pass's embedding role, a gather the plan has one of.
+inline const Role& embedding_role(const ModelPlan& plan) {
+    for (const Role& role : plan.pass)
+        if (role.part == Part::embed && role.kind == RoleKind::gather) return role;
+    throw std::logic_error("inference: a plan without an embedding");
+}
+
+// Whether a tensor group splits the embedding by rows, its members' rows summed into the residual (Model::group_embed).
+inline bool embedding_split(const ModelPlan& plan) {
+    return std::any_of(plan.pass.begin(), plan.pass.end(), [](const Role& r) { return r.part == Part::embed && r.shard.axis != Axis::none; });
+}
+
+// Floats in a row a tensor group sums: a layer's partial rows (ModelPlan::partial), or the residual's where the embedding is split.
+inline size_t sum_width(const ModelPlan& plan) { return embedding_split(plan) || !plan.partial ? plan.residual : plan.partial; }
 
 // Floats in a row a handoff carries: the residual's and each carried slot's.
 inline size_t handoff_width(const ModelPlan& plan) {

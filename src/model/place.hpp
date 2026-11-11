@@ -121,7 +121,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         counted.push_back(field);
         if (!role.tensor) continue;
         *field = matrix(*role.tensor, field == &fp.output, &role);
-        // A member's head is its shard, a buffer of its own beside the whole table the embedding reads, so a group counts both.
+        // A member's head is its shard, a buffer of its own beside the embedding's table or, where the architecture splits it, the member's rows of it, so a group counts both.
         if (field == &fp.output) fp.tied = role.aliased && width == 1;
     }
     // The host's logits rows hold the whole vocabulary; on a tensor group each member of the head's group keeps its slice of them too, and off one the head's device keeps argmax passes' rows.

@@ -664,7 +664,7 @@ public:
     virtual void matmul_add(WeightView weight, CSlice X,
                             Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
-    // Gather `count` rows of an embedding table into `dst`, row-major, `nin` floats each.
+    // Gather `count` rows of an embedding table into `dst`, row-major, `nin` floats each; an id of `nrows` or more writes a zero row, as a member of a split table gathers the ids it does not hold.
     // This is an op rather than a model-side read because the table is a Buffer: a device backend holds it in its own memory and the model cannot address it.
     virtual void embed(Slice dst, WeightView weight,
                        size_t nin, size_t nrows, const uint32_t* ids,

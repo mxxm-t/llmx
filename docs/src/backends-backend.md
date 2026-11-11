@@ -192,8 +192,10 @@ placement contracts in `docs/EXECUTION.md`.
   KV blocks a number of positions needs.
 - `embed(dst, weight, nin, nrows, ids, count)`: gather `count` embedding
   rows into `dst`, row-major. An op rather than a model-side read because the
-  table is a buffer the model cannot address on a device backend. Rejects a
-  token id at or beyond `nrows`.
+  table is a buffer the model cannot address on a device backend. An id at or
+  beyond `nrows` writes a zero row, as `embed_ids` does, so a member of a
+  table split by rows gathers the ids it does not hold as zeros; the pass
+  refuses a token id past the embedding's rows before it runs.
 - `embed_ids(dst, weight, nin, nrows, ids, count)`: `embed` with the ids
   read on the device, 32-bit integers in float-sized slots, as an embedded
   drafter's chain feeds a draft back (docs/SPECULATIVE.md, section 7); an id

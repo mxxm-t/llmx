@@ -23,6 +23,9 @@ and remapped IDs, so the source is read once per layer and pass, not once per
 member. Every member borrows those IDs until its gather calls consume them.
 Resident tables retain their ordinary path.
 
+`group_embed` runs the embedding on a group's members: whole rows where the table is replicated; where the plan splits it by rows (`embedding_split`), each member gathers the ids its rows hold and zero rows for the rest into its partial rows, the group sums them in place over the residual width and each member copies the sum into its residual.
+The pass refuses a token id past the embedding's rows as it is formed, since a gather writes a zero row for one.
+
 The row reader and its scratch perform no backend work. `Backend::write`
 consumes the host source before returning; the packed backend buffer remains
 owned by execution scratch through its consuming submissions. A failed read publishes no prepared view; the normal pass

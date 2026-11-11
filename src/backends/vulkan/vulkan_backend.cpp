@@ -1730,9 +1730,10 @@ public:
         if (!count || !nin) return;
         check_matrix(type, table, nin, nrows, "embedding");
         check_weight_scales(weight);
-        for (size_t i = 0; i < count; ++i)
-            if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
-        gather_views(weight_kernels(type)->embed, dst, weight, nin, nrows, args(ids, count * sizeof(uint32_t)), count, false);
+        // An id past the table takes embed_ids' kernel, which writes its zero row.
+        const bool past = std::any_of(ids, ids + count, [&](uint32_t id) { return id >= nrows; });
+        if (past && nrows >= UINT32_MAX) throw std::runtime_error("vulkan: an embedding of more rows than 32-bit ids name");
+        gather_views(past ? weight_kernels(type)->embed_ids : weight_kernels(type)->embed, dst, weight, nin, nrows, args(ids, count * sizeof(uint32_t)), count, past);
     }
 
     // Ids past the table write zero rows; both embedding calls use the format's decoder (shaders/embed.comp).

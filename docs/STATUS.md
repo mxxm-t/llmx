@@ -167,6 +167,83 @@ The window pack into the ring and the collapse's twin have no op cell of their o
 
 **Left:** the Radeon VII check on Windows before the fast-forward.
 
+## DeepSeek-V4.1 step 14: tensor groups (2026-11-11, DSDEV120 and DSDEV123, branch feat/deepseek4-tensor-groups on main 4eaa874bd, rebased onto main a8d33bfa8; DSDEV112's design with F2DEV's review of 08:10, items 1 to 10; lands by fast-forward as an opt-in, `--tensor-width 2`, the owner's call)
+
+**Goal:** DeepSeek-V4.1 runs on tensor groups (docs/DEEPSEEK4.md, step 14): ten MI50s as five stages of width 2, the only shape whose weights fit them, ROCm first and Vulkan recorded for parity, through the runtime's groups as they are.
+
+**Done:**
+- Shard declarations in `src/model/arch/deepseek4.hpp`: the query (`attn_q_b`) by head, the sinks as a column vector of heads (F2DEV's item 2), the output's low-rank stage by output group (`attn_output_a` rows, `attn_output_b` columns), the routed and shared experts by rows of each (`blocks::shard_experts`), the head and the BF16 embedding by vocabulary rows; the shared vector, the compressor, the indexer, Engram and the router stay whole on every member.
+- A group sums each sublayer's output of the embedding width (`ModelPlan::partial`), the routed and shared products accumulated from zero into the member's partial rows, and each member expands the sum into its streams (`join` is `hc_expand`), the bits `x + post * (b0 + b1)`; a member's heads and output groups come from its shares of `attn_q_b` and `attn_output_a`.
+- Width 1 is main's code path: the tiny fork, served and group-legal files give main's bytes on the CPU (199 logits rows under native and f32 caches, 48 greedy ids).
+- CPU groups: `arch-deepseek4 --gguf` holds every layer's outputs on a group of 2 to the reference within 2.5e-7 (bound 1e-5), and `--groups` on the group-legal file (four output groups) at widths 2 and 4: the same bits over runs, prompt slices and two staged groups, within 6e-7 of one CPU's logits with every top token the same, and every member's router picks, index picks and candidate blocks the same (F2DEV's item 3).
+- `llmx-split-check` over two staged groups of 2 and of 4 CPUs gives one group's bits on the served and group-legal files (prompt, chunks, decode, replays, verifies, passes in flight).
+- The embedding split (the memory lever): `sum_width` is the residual's where `embedding_split` finds the embedding role split (`model/architecture.hpp`); `Model::group_embed` (`model/passes.hpp`, the pass's owner) has each member gather the ids its vocabulary rows hold and zero rows for the rest into its partial rows, sums them in place over the residual width and copies the sum into the residual, so the first group holds 0.62 GiB of the table a member instead of 1.23 and pays one sum as the pass begins; nothing names DeepSeek outside its module, which declares the split.
+  `Backend::embed` writes a zero row for an id past its rows, as `embed_ids` does, on the CPU, ROCm (whose kernel already did) and Vulkan (taking the `embed_ids` kernel where an id is past), and the pass refuses a token id past the embedding's rows as it is formed, which `placement` holds by its text through `begin_pass` and `forward`; `backend-rocm` and `backend-vulkan` check the zero row through host ids.
+  After it, the `deepseek4` component passes on the CPU build (groups of 2 and 4 within 4.8e-7 and 6.0e-7 of one CPU, every top token the same, members' picks equal) and the tiny fork, served and group-legal files give main's bytes at width 1 (`id1.sh`).
+- The 2-card cell (first 8 layers of the real file, Engram dropped, two MI50s): `--ubatch 512` did not fit because the one group holds all 8 layers, the replicated embedding and half the head, 29.50 GiB a member, beside the ROCm reserve of 256 MiB plus a twentieth of free memory (1.85 GiB) and 512 rows of activations and collective rows (about 0.7 GiB), 32.05 against 31.79 GiB; at 256 it fit with 2.20 GiB of activations and scratch.
+  Layer split against width 2 at `--ubatch 256`, ROCm int8, ABAB: tg48 91.1 to 92.6 against 135.7 to 139.1 tok/s, pp512 1706 to 1719 against 2030 to 2041, 16 sequences pp64 867 against 1353 (COORD's go).
+- Dry fit at 5x2 from the headers (`fit52.py` in the rig directory): per member 29.04 / 27.82 / 27.64 / 27.64 / 28.26 GiB of weights at 8 layers a group; group 0 carries the 1.23 GiB embedding and misses by about 0.13 GiB beside the layer split's 2.79 GiB of activations and scratch at `--ubatch 512`.
+
+- Ten cards at 5x2 (DeepSeek-V4.1-Flash-1017 MXFP4, DSDEV123's `s2.sh`, rebased branch's tests by DSDEV125): the group fits at `--ubatch 512`; against main's layer split on the same cards, the short prompt's 1400 positions keep the top token at 1366 (ROCm int8) and 1364 (Vulkan), as ROCm and Vulkan on main agree at 1364, and 16k's 512 at 494 and 501, main's backends at 491; width 1 gives main's bytes.
+  Read through decode steps (`logits --per-token`, `s3.sh`) against its own batched reading at the same 1400 positions, ROCm int8 on main's layer split flips the top token at 36 positions, 13 of them by a gap above 0.5 logits, largest 2.30; on the group at 33, 10 above 0.5, largest 4.21 (F2DEV's recount from `s3` against DSDEV123's `s2`).
+  `tools/long_context_check.py` at 16384 tokens, ROCm int8: main's layer split misses 0 of 190 checked tokens against its own reading; the group 3 of 110 against its own (gaps 0.39, 0.08 and 2.10, the last at token 39) and 4 of 110 against the layer split's (largest 2.435); Vulkan's group passes against the layer split (188 tokens, largest gap 0.113).
+  At the 0.9% rate the 1400-position readings give, 0 of 190 has probability 0.17 and at least 1 of 110 0.64, so both 16k results fit one rate of decode-against-prompt flips; the check's 0.5 margin against another split is not this model's gate, which is TENSOR-SPLIT section 4.4's: the HF bounds (the `deepseek4` component on groups of rocm:0,1 and vulkan:0,1, within 1.17e-6 and 2e-6 against 2e-5, and the ten-card 16k checks below) and the changed greedy ids reported.
+  Follow-up for main, not this branch: on DeepSeek-V4.1 ROCm int8's layer split, decode rows and prompt rows differ by up to 2.3 logits at 13 of 1400 positions.
+- HF correctness of the real file on groups is open, as on main: section 5.3's layered reference is not built (step 10 lands on byte identity only), so the 16k raw and chat sequences have no file-exact HF to run against; the tracked item is DEEPSEEK4.md section 5.3, whose 16k rule now scores the 5x2 groups beside the layer split before any HF claim for groups (F2DEV's answer of 15:50).
+  The group carries the tiny goldens, the only smaller DeepSeek-V4.1 there is: within 6e-7 on CPU groups of 2 and 4 and 1.17e-6 and 2e-6 on rocm:0,1 and vulkan:0,1 groups against 2e-5.
+  The suite under `--tensor-width 2` on two MI50s passes on ROCm and Vulkan; each multi-device process pays the fit's free-memory leveling (`model/place.hpp`, 20 reads of 250 ms), 7.7 s against 0.27 s for a tiny file (10.2 s as a group), so the suite ran with `--layer-shares 1`, and `half-weights`, whose tool takes a share a device, ran without it.
+  Fixed in the tests: the backend tests' refusal of an embedding id past the table (now its +0 row), `reference-consumer`'s qwen4exp server tests (skip under a width, the 7-row shared expert) and its width-1 tool call (the first device), `image` (skips under a width), `chat` (the ROCm group's collective line), `llmx-decode-probe` (takes `rocm:N`, so `tensor-split`'s drafter check runs on ROCm groups), `iq2-s` (a host id past the table now its +0 row) and `arch-qwen35`'s token-history adapter, whose ids past its 32-row table the pass now refuses, so it feeds ids inside the table.
+- Gate (b), the device-reference criterion (`common.check_device_rows` and `check_device_greedy` in calibration mode) of 5x2 against the layer split on ten MI50s (DeepSeek-V4.1-Flash-1017 MXFP4, the branch at c53243fdb, DSDEV127's `g.sh` and `cmp127.py`, results in `out/g` of its rig directory), ROCm int8 and Vulkan at its default f16, on the 1489-token prompt and a 16k sequence of 15032 tokens, with Vulkan's layer split against ROCm int8's as the calibration pair (F2DEV's answer of 15:50).
+  Each cell gives batched / decode readings: top-1 flips outside the 0.1 tie margin, positions whose top 5 changes, the largest logit gap and the mean NLL difference; greedy is 64 steps from the prompt.
+
+  | sequence | pair | top-1 flips | top-5 changed | max logit gap | NLL delta | greedy |
+  |---|---|---|---|---|---|---|
+  | 1489 | ROCm 5x2 vs layer | 32 / 35 | 477 / 482 | 27.88 / 32.28 | 0.0128 / 0.0237 | same to the tie at step 23, 37 ids changed |
+  | 1489 | Vulkan 5x2 vs layer | 32 / 27 | 378 / 403 | 12.66 / 32.23 | 0.0085 / 0.0028 | differs at step 6 before any tie, 57 changed |
+  | 1489 | Vulkan layer vs ROCm layer | 37 / 26 | 451 / 427 | 33.20 / 12.23 | 0.0232 / 0.0219 | same to the tie at step 23, 36 changed |
+  | 15032 | ROCm 5x2 vs layer | 217 / 205 | 3320 / 3199 | 76.22 / 107.81 | 0.0013 / 0.0044 | same to the tie at step 7, 53 changed |
+  | 15032 | Vulkan 5x2 vs layer | 189 / 164 | 2649 / 2697 | 107.97 / 76.27 | 0.0008 / 0.0034 | all 64 the same (first tie at step 21) |
+  | 15032 | Vulkan layer vs ROCm layer | 230 / 200 | 3182 / 3187 | 108.21 / 61.78 | 0.0033 / 0.0047 | same to the tie at step 7, 54 changed |
+
+  Against the pair's larger reading on the same sequence, every group figure is within on top-1, top-5, logit gap and NLL and greedy agrees to the tie, except three, each explained (F2DEV's review of 19:12, which passed the gate).
+  ROCm's top-5 changes sit above the pair's in all four readings, 477 and 482 against 451 at 1489 and 3320 and 3199 against 3187 at 15032, +0.4 to +7%, with top-1, logit gap and NLL within.
+  The same configuration spreads as far against itself: each layer split's batched rows against its own decode rows at 1489 (F2DEV's `phase.py`) change the top 5 at 460 positions on ROCm int8 (top-1 33, max gap 30.8, NLL delta 0.0066) and 387 on Vulkan (28, 10.5, 0.0053), beside the pair's 451 and 427, so the ROCm group's 477 and 482 and its gaps lie inside the spread 427 to 482 its readings already show.
+  ROCm's decode NLL delta at 1489 is 0.0237 against 0.0232, 0.0005 nats; the group's 0.8034 lies between the ROCm layer split's 0.8272 and Vulkan's 0.8053.
+  Vulkan's greedy at 1489 flips at step 6, where the layer split's top two (ids 990 and 477) stand 0.391 apart, outside the 0.1 tie margin, and the group's reading moves them by 0.489 to 0.098; the group's largest gap over steps 0 to 6 is 1.0 to 2.2 logits, the pair's 1.2 to 3.1, so it is a near tie the margin does not name, and the ids after it follow another history.
+
+**Landing gates** (LAND27 then LAND28, the branch rebased onto main a8d33bfa8 at 19ab544b8, whose code is the measured binaries' and differs from the head that lands in STATUS only; main's build of a8d33bfa8 made the same way, llmx 0.1.0+ga8d33bfa8013 against 0.1.0+g19ab544b843d; rig directories `land27` and `land28`):
+- Builds ROCm, Vulkan and CPU-only; CTest CPU 81/81; ROCm 84/84 and Vulkan 100/100, every test but `arch-qwen35` and `iq2-s` (and `iq2-s-vulkan`) on 71aa2f8cb, whose llmx is this head's, and those on this head (3/3, 4/4).
+- The suite on the CPU passes every component it runs, on rocm:0 and vulkan:0 likewise; under `--tensor-width 2 --layer-shares 1` on rocm:0,rocm:1 and vulkan:0,vulkan:1 every component but `half-weights`, whose tool takes a share a device and refuses one share for two devices, and which passes on each backend's pair without `--layer-shares`.
+- Byte identity against main at width 1, greedy ids and top-8 logits, no file differing: the CPU (9 files), rocm:0 (25) and vulkan:0 (17) on the tiny fixtures; DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s on ROCm int8 and Vulkan, 64 ids and logits at 1400 positions of a short prompt and 64 ids and logits at 512 positions of a 15032-token prompt; Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s, ROCm int8, layer-4 and 2x2 tensor groups, 64 ids and logits at 1400 positions.
+- Timing on ten MI50s, DeepSeek-V4.1-Flash-1017 MXFP4, default clocks, `--cpus 8`, one process a cell, M B T T B M (main's layer split, the branch's layer split, the branch's 5x2), ROCm `--dtype int8` and Vulkan `--ubatch 512`, `--lookup-storage file`, means of two cells an arm in tok/s; the server cells are 128 prompts of 512 tokens with 128-token replies at 16 and 64 users, output tok/s, no request failing; hostwait flags every DeepSeek bench cell contended (run-queue wait 5.9 to 233 s a cell) and records none for the server cells:
+
+| cell | main layer | branch layer | branch 5x2 | 5x2 against main |
+|---|---:|---:|---:|---:|
+| ROCm pp2048 | 1168.8 | 1173.0 | 1061.1 | -9.2% |
+| ROCm tg32 | 24.00 | 23.94 | 31.44 | +31.0% |
+| ROCm pp16384 | 1123.6 | 1129.4 | 811.0 | -27.8% |
+| ROCm tg16 after it | 23.83 | 24.06 | 31.63 | +32.7% |
+| ROCm server, 16 users | 28.2 | 28.5 | 45.2 | +60.3% |
+| ROCm server, 64 users | 31.3 | 31.3 | 46.5 | +48.6% |
+| Vulkan pp2048 | 506.4 | 505.1 | 513.7 | +1.4% |
+| Vulkan tg32 | 15.85 | 15.41 | 18.99 | +19.8% |
+| Vulkan pp16384 | 481.4 | 486.2 | 347.6 | -27.8% |
+| Vulkan tg16 after it | 15.73 | 15.33 | 21.20 | +34.8% |
+| Vulkan server, 16 users | 23.0 | 21.6 | 28.1 | +22.2% |
+| Vulkan server, 64 users | 48.9 | 50.1 | 44.5 | -8.9% |
+
+  The branch's layer split is main's within the arms' own spread: ROCm within 1%, Vulkan's tg32 at -2.8% with main's two cells 15.54 and 16.15 and the branch's 15.10 and 15.72, and Vulkan's server cells spreading 41.2 to 56.5 at 64 users on main alone.
+  ROCm's server at 16 users halves the reply step, 157.6 ms to 103.3 ms a token at p50, and its first token comes at 32.9 s against 52.6 s.
+  Qwen3.8-Flash-Next UD-Q4_K_XL on four MI50s, ROCm int8, main against the branch ABAB: layer-4 pp2048 1765.4 to 1766.1 and tg32 53.39 to 54.41, 2x2 pp2048 1566.1 to 1565.1 and tg32 65.72 to 65.27.
+- The tradeoff: 5x2 decodes 31 to 33% faster than the layer split on ROCm and 20 to 35% on Vulkan, and serves 49 to 60% more tokens at 16 and 64 users on ROCm, while its prompts are 9% slower at 2048 tokens and 28% at 16k on both backends, and Vulkan's server at 64 users is 9% lower; so it lands as an opt-in, and the layer split stays the default.
+- Follow-ups, none of them this branch's: DSDEV138's levers on the group's prompt, the `indexer_scores` kernel with each key decoded once for all heads and rows and `sparse_columns64` below 64 heads (DSDEV136's proposal, F2DEV's review of 22:42), which carry most of the 7.6 s of repeated work a member pays at 16k in DSDEV132's profile; Vulkan's 5x2 server at 64 users, -9% here and -8% in DSDEV132's cells; main's prompt slicer, whose slice count moves ROCm's pp2048 by up to 20% between runs of one binary (DSDEV132, 22:30: 14 to 20 slices against 16 to 17).
+
+**Left:** the Radeon VII check.
+
+**Gotchas:**
+- The golden's two output groups split at width 2 alone, so the `deepseek4` component skips above width 2 and the group-legal file carries width 4.
+- CPU groups come only from the test tools (`--device cpu,cpu` is refused as listed twice), so the suite's `--tensor-width` runs need devices.
+
 ## ROCm Q8_0 decode of 9 to 16 columns: one build a width at two rows a wave (2026-11-10, KRES17 to KRES19, branch perf/rocm-q8-wide-decode on main a5684cab3; lands by fast-forward)
 
 **Goal:** the int8 class's half-block Q8_0 decode of 9 to 16 columns no slower than main on any shape, with one host rule and the one-column build's bits.

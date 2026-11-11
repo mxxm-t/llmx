@@ -351,12 +351,7 @@ struct TokenHistoryArchitecture final : infer::Architecture {
         return p;
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
-    void embed(const infer::Step& s, const uint32_t* ids) const override {
-        // Large raw IDs are preserved in Step::tokens; only this tiny fixture's embedding lookup is mapped into its 32-row table.
-        std::vector<uint32_t> mapped(s.rows);
-        for (size_t i = 0; i < s.rows; ++i) mapped[i] = ids[i] % (uint32_t)VOCAB;
-        base->embed(s, mapped.data());
-    }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override {
         if (s.previous_count) {
             require(s.tokens && s.previous_tokens && s.states && s.n_views, "token-history mixer fields are incomplete");
@@ -416,26 +411,26 @@ void token_history_short_reset_failure() {
     infer::Model model(weights, std::move(cpu), options);
     infer::Sequence seq = model.make_sequence();
     infer::ExecContext ctx;
-    const std::vector<uint32_t> short_ids = {0x01000005u, 31u}; // 31 is both padding and a real token here.
+    const std::vector<uint32_t> short_ids = {0x05u, 31u}; // 31 is both padding and a real token here.
     infer::BatchEntry first{&seq, short_ids.data(), short_ids.size(), false};
     model.forward(ctx, &first, 1);
     expect_token_call(*log, 0, {short_ids}, {{31u, 31u}});
-    const std::vector<uint32_t> follow = {0x01000011u};
+    const std::vector<uint32_t> follow = {0x11u};
     infer::BatchEntry second{&seq, follow.data(), follow.size(), false};
     model.forward(ctx, &second, 1);
     expect_token_call(*log, 1, {follow}, {{short_ids[0], 31u}});
 
     // A recycled state slot must take fresh padding, never its previous owner's tail.
     model.reset(seq);
-    const std::vector<uint32_t> fresh = {0x0100001bu};
+    const std::vector<uint32_t> fresh = {0x1bu};
     infer::BatchEntry reset{&seq, fresh.data(), fresh.size(), false};
     model.forward(ctx, &reset, 1);
     expect_token_call(*log, 2, {fresh}, {{31u, 31u}});
 
-    // A throw in the owner mixer happens before its stage commit; retry sees the same prior raw IDs.
+    // A throw in the owner mixer happens before its stage commit; retry sees the same prior IDs.
     // A whole-block checkpoint before the failure fixes the rollback point and its tail.
-    const std::vector<uint32_t> before_failure = {0x01000002u, 31u};
-    std::vector<uint32_t> establish_ids(127, 0x01000008u);
+    const std::vector<uint32_t> before_failure = {0x02u, 31u};
+    std::vector<uint32_t> establish_ids(127, 0x08u);
     establish_ids[125] = before_failure[0];
     establish_ids[126] = before_failure[1];
     infer::BatchEntry establish{&seq, establish_ids.data(), establish_ids.size(), false};
@@ -443,7 +438,7 @@ void token_history_short_reset_failure() {
     establish.extent = 128;
     model.forward(ctx, &establish, 1);
     expect_token_call(*log, 3, {establish_ids}, {{31u, fresh[0]}});
-    const std::vector<uint32_t> retry_id = {0x01000017u};
+    const std::vector<uint32_t> retry_id = {0x17u};
     infer::BatchEntry retry{&seq, retry_id.data(), retry_id.size(), false};
     log->fail_next = true;
     refuses("owner stage fails before commit", "injected before token-history owner commit", [&] { model.forward(ctx, &retry, 1); });
@@ -456,9 +451,9 @@ void token_history_short_reset_failure() {
 }
 
 void token_history_fork_and_marks() {
-    const std::vector<uint32_t> base = {0x01000005u, 31u};
-    const std::vector<uint32_t> source_id = {0x01000012u}, fork_id = {0x0100001cu};
-    const std::vector<uint32_t> next_source = {0x01000009u}, next_fork = {0x01000003u};
+    const std::vector<uint32_t> base = {0x05u, 31u};
+    const std::vector<uint32_t> source_id = {0x12u}, fork_id = {0x1cu};
+    const std::vector<uint32_t> next_source = {0x09u}, next_fork = {0x03u};
     {
         const gguf::GGUFModel file = tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); });
         infer::ModelWeights weights = infer::gguf_weights(file);
@@ -473,7 +468,7 @@ void token_history_fork_and_marks() {
         infer::Sequence src = model.make_sequence();
         infer::ExecContext ctx;
         std::vector<uint32_t> prefix(128);
-        for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = 0x01000001u + (uint32_t)i;
+        for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = (1u + (uint32_t)i) % (uint32_t)VOCAB;
         prefix[127] = 31u;
         infer::BatchEntry kept{&src, prefix.data(), prefix.size(), false};
         kept.keep = true;
@@ -491,8 +486,8 @@ void token_history_fork_and_marks() {
         model.reset(src);
     }
 
-    const std::vector<uint32_t> verify = {0x0100000au, 0x0100000bu, 0x0100000cu};
-    const std::vector<uint32_t> trigger = {0x0100001du};
+    const std::vector<uint32_t> verify = {0x0au, 0x0bu, 0x0cu};
+    const std::vector<uint32_t> trigger = {0x1du};
     for (size_t accepted : {size_t(0), size_t(1), verify.size()}) {
         const gguf::GGUFModel file = tiny();
         infer::ModelWeights weights = infer::gguf_weights(file);
@@ -599,7 +594,7 @@ void token_history_host(bool split) {
     infer::Sequence source = model.make_sequence();
     infer::ExecContext ctx;
     std::vector<uint32_t> prefix(128);
-    for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = 0x01000021u + (uint32_t)i;
+    for (size_t i = 0; i < prefix.size(); ++i) prefix[i] = (0x21u + (uint32_t)i) % (uint32_t)VOCAB;
     prefix[127] = 31u;
     infer::BatchEntry keep{&source, prefix.data(), prefix.size(), false};
     keep.keep = true;
@@ -641,7 +636,7 @@ void token_history_host(bool split) {
     ordered_host_operation("state-only host save", [&] { model.save_host(source, prefix.size(), state, any, false); });
     inspect_host_tail(state);
 
-    const std::vector<uint32_t> source_id = {0x01000004u}, restored_id = {0x0100000eu}, fork_id = {0x01000018u};
+    const std::vector<uint32_t> source_id = {0x04u}, restored_id = {0x0eu}, fork_id = {0x18u};
     infer::BatchEntry advance{&source, source_id.data(), 1, false};
     model.forward(ctx, &advance, 1);
     expect_token_call(*log, 1, {source_id}, {expected_tail});
@@ -653,7 +648,7 @@ void token_history_host(bool split) {
     model.forward(ctx, branches, 3);
     expect_token_call(*log, 2, {{restored_id[0]}, {restored_id[0]}, {fork_id[0]}},
                       {{prefix[127], source_id[0]}, expected_tail, expected_tail});
-    const std::vector<uint32_t> next[] = {{0x01000002u}, {0x01000003u}, {0x01000005u}};
+    const std::vector<uint32_t> next[] = {{0x02u}, {0x03u}, {0x05u}};
     infer::BatchEntry following[] = {{&source, next[0].data(), 1, false}, {&restored, next[1].data(), 1, false}, {&fork, next[2].data(), 1, false}};
     model.forward(ctx, following, 3);
     expect_token_call(*log, 3, {{next[0][0]}, {next[1][0]}, {next[2][0]}},
@@ -2367,9 +2362,9 @@ struct TwoLookups {
     }
 };
 
-std::vector<uint32_t> raw_ids(uint32_t first, size_t n) {
+std::vector<uint32_t> run_ids(uint32_t first, size_t n) {
     std::vector<uint32_t> ids(n);
-    for (size_t i = 0; i < n; ++i) ids[i] = 0x01000000u + first + (uint32_t)i;
+    for (size_t i = 0; i < n; ++i) ids[i] = (first + (uint32_t)i) % (uint32_t)VOCAB;
     return ids;
 }
 
@@ -2382,7 +2377,7 @@ void token_history_overlapping_passes() {
     infer::Model& m = *t.split;
     infer::ExecContext ctx;
     m.reserve_passes(ctx, 2, 16, 4);
-    const std::vector<uint32_t> P = raw_ids(1, 10);
+    const std::vector<uint32_t> P = run_ids(1, 10);
     infer::Sequence q = m.make_sequence();
     infer::BatchEntry a{&q, P.data(), 4, false}, b{&q, P.data() + 4, 3, false}, c{&q, P.data() + 7, 3, true};
     a.extent = b.extent = c.extent = P.size();
@@ -2411,7 +2406,7 @@ void token_history_overlapping_passes() {
     require(!std::memcmp(own.logits(0), split_c.data(), VOCAB * sizeof(float)), "a prompt in overlapping chunks differs from one CPU");
 
     // x's pass waits at its second stage while y's runs its first, then a pass of both runs ahead of z's.
-    const std::vector<uint32_t> X = raw_ids(20, 4), Y = raw_ids(40, 3), Z = raw_ids(60, 2);
+    const std::vector<uint32_t> X = run_ids(20, 4), Y = run_ids(40, 3), Z = run_ids(60, 2);
     infer::Sequence x = m.make_sequence(), y = m.make_sequence(), z = m.make_sequence();
     const size_t from = t.log->calls.size();
     infer::BatchEntry x0{&x, X.data(), 3, false}, y0{&y, Y.data(), 2, false};
@@ -2463,7 +2458,7 @@ void token_history_restores() {
         infer::Model& m = *t.split;
         infer::ExecContext ctx;
         m.reserve_passes(ctx, 2, 136, 4);
-        const std::vector<uint32_t> P = raw_ids(1, 128), more = raw_ids(200, 5);
+        const std::vector<uint32_t> P = run_ids(1, 128), more = run_ids(200, 5);
         infer::Sequence q = m.make_sequence();
         infer::BatchEntry kept{&q, P.data(), P.size(), false};
         kept.keep = true;
@@ -2475,14 +2470,14 @@ void token_history_restores() {
         infer::Sequence r = m.fork(q, P.size());
         require(m.retract(q, P.size()) == P.size(), "a retract to the checkpoint did not reach it");
         const size_t from = t.log->calls.size();
-        const std::vector<uint32_t> T = raw_ids(300, 1);
+        const std::vector<uint32_t> T = run_ids(300, 1);
         infer::BatchEntry pair[] = {{&q, T.data(), 1, true}, {&r, T.data(), 1, true}};
         t.run(ctx, 0, pair, 2);
         t.expect(from, {0, 1}, {{T, T}, {T, T}}, {{{P[126], P[127]}, {P[126], P[127]}}, {{P[126], P[127]}, {P[126], P[127]}}}, "a checkpoint restored");
         m.reset(q);
         m.reset(r);
     }
-    const std::vector<uint32_t> base = raw_ids(1, 3), verify = raw_ids(10, 3), trigger = raw_ids(20, 1);
+    const std::vector<uint32_t> base = run_ids(1, 3), verify = run_ids(10, 3), trigger = run_ids(20, 1);
     for (size_t accepted = 0; accepted <= verify.size(); ++accepted) {
         infer::ModelOptions options;
         options.state_slots = 1;

@@ -1690,6 +1690,7 @@ private:
     };
     std::vector<Retiring> retiring_;
     void write_media(ExecContext& ctx, const Pass& p, size_t dev);
+    void group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Collective& sum, const std::vector<backend::Slice>& x);
 
     // Whether `pos` is whole blocks in every KV storage, as a fork and a checkpoint need.
     bool whole_blocks(size_t pos) const {

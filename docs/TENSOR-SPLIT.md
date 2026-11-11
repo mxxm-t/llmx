@@ -217,12 +217,14 @@ A tiled member's share is several spans; on the column axis each span starts and
 | router | replicated | replicated | replicated |
 | routed experts' gate and up, the shared expert's | rows of each expert | rows of each expert; the shared expert's rows | as full attention |
 | routed experts' down, the shared expert's | columns | columns | as full attention |
-| embedding | replicated | replicated | replicated |
+| embedding | replicated, or rows (vocabulary) where the module declares it | replicated | replicated |
 | head | rows (vocabulary) | rows | rows |
 | output norm | replicated | replicated | replicated |
 
 - **Attention, KV and state:** each member runs attention and the recurrence over its own heads, keeps the KV of its KV heads and the recurrent state's common-prefix V heads, and needs no exchange inside the mixer. If a state layer has an optional per-layer F32 tail, each member also holds that complete tail under the shared slot ids. A declared token-history tail is one model-global host U32 array indexed by those slot IDs; every member receives the same current and preceding IDs for its layer step.
   Where the width exceeds the KV heads and divides into them evenly, each KV head is replicated on width / Hkv members as vLLM does, its K and V products computed on each; the fit counts the replicated cache.
+- **The embedding:** replicated unless a module splits it by vocabulary rows, as DeepSeek-V4.1 does with its BF16 table, the first group's largest replicated tensor; then each member gathers the ids it holds and zero rows for the rest into its partial rows (`Backend::embed` writes a zero row for an id past its rows), the group sums them over the residual width and each member copies the sum into its residual (`Model::group_embed`), so a split table costs one sum as the pass begins, the fit counts a member's half and the group's collective rows are as wide as the residual (`sum_width`).
+  A row sums to its own values and zeros, which changes no bit but the sign of a negative zero.
 - **The tables and the head:** every member holds the rope tables; the head's vocabulary rows are split evenly, each member writes its slice of every logits row into one host buffer imported into every member, so the host reads whole rows with no join copy.
 - **Legality, refused at load with the projection named:** the width divides the q heads, the K heads and the V heads, and divides the KV heads or is a multiple of them; every column split falls on whole quant blocks per member; every split is even, so no member holds a remainder (section 4.5); a group's members are one backend kind with one device profile, so a sum computes the same bits on every member.
   On the models in view: Qwen3-32B (64 q, 8 KV heads, F 25600) is legal at 2 and 4 in every type and at 8 only where `ffn_down` is Q8_0 (25600 / 8 = 3200 is not whole 256-value blocks); Qwen3.6-27B (24 q, 4 KV, 16 K and 48 V heads, F 17408) is legal at 2 and 4, and at 8 only with KV replicated and `ffn_down` in Q8_0.
@@ -231,12 +233,13 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
 
 ### 4.3 The reductions
 
-- **Where:** at the end of the mixer and of the feed-forward part of every layer, two a layer, and none in the embedding (replicated) or the head (its slices are joined in host memory).
+- **Where:** at the end of the mixer and of the feed-forward part of every layer, two a layer, one in the embedding where a module splits it (section 4.2), and none in the head (its slices are joined in host memory).
 - **What a module changes:** the part's final residual projection goes through one block helper that adds into the residual at width 1, as today, and writes the member's partial into the slot the group gives at width W; the module reads its member's head counts from the `Step`.
   At width 1 every module runs the same ops as on main, which is how gate 1 holds.
 - **What the runtime does:** it runs each part on every member, then asks the group to sum the partials into every member's residual, then runs the next part.
 - **A part that ends in an elementwise join** (2026-10-30): where a part's last projection is followed by a step linear in its output, the group sums the projection's output and each member runs that step on the sum, as one device runs it on its whole output.
   qwen4exp injects a 2560-wide block into four residual streams with per-stream gates, so its members sum the block in place (`Collective::sum_in_place`) and each injects it (`Architecture::join`), a quarter of the bytes of summing four injected streams; a group's bits there are `x + w * (b0 + b1)` in place of `x + (w * b0 + w * b1)`.
+  DeepSeek-V4.1 sums each sublayer's output of the embedding width the same way and each member expands it into its four streams (`hc_expand`), its post and comb computed on every member from the whole residual, so its bits are `x + post * (b0 + b1)` (docs/src/model-arch-deepseek4.md).
   On Qwen3.8-Flash-Next 2x2 the sums had been 29% of each card's prompt time, all of it the copies into the peer's inbox at 9.1 GB/s (docs/STATUS.md).
 - **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; it is one algorithm at every message size, and a two-shot form for large messages is allowed only if it adds each element in the same order, so its bits are the one-shot's.
 - **The collective is a backend concern** with two implementations from its first branch, which is the second use that justifies the seam:

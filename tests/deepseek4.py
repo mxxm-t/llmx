@@ -186,6 +186,9 @@ def check_serve(model, cache, whole):
 
 
 def run(require=False):
+    # The golden's two output groups split at width 2 alone; the group-legal file below holds widths 2 and 4.
+    if os.environ.get("LLMX_TENSOR_WIDTH", "1") not in ("1", "2") and common.tensor_width_skip("deepseek4"):
+        return common.SKIPPED
     with open(GOLDEN, encoding="utf-8") as f:
         document = json.load(f)
     args, state, engram = fixture_deepseek4.fixture_from_document(document)
@@ -227,7 +230,12 @@ def run(require=False):
         p = subprocess.run([tool, GOLDEN, "--gguf", fork], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
         assert p.returncode == 0, "deepseek4: the writer's fork file is not the test's: %s%s" % (p.stdout, p.stderr)
         print("deepseek4: the writer's fork file holds the arch-deepseek4 test's keys and tensors")
-        for line in p.stdout.splitlines():
-            if line.startswith(("arch-deepseek4: layer ", "arch-deepseek4: a 512-row", "arch-deepseek4: the writer's file over", "arch-deepseek4: a 12", "arch-deepseek4: one CPU", "arch-deepseek4: a fork", "arch-deepseek4: two CPUs", "arch-deepseek4: an abort")):
+        # Four output groups make every split role divide at widths 2 and 4 (docs/DEEPSEEK4.md, section 7).
+        gargs, gstate, gengram = fixture_deepseek4.fixture_from_document(document, o_groups=4)
+        grouped = str(fixture_deepseek4.write_deepseek41(os.path.join(directory, "groups.gguf"), gargs, gstate, gengram, "fork"))
+        g = subprocess.run([tool, GOLDEN, "--groups", grouped], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+        assert g.returncode == 0, "deepseek4: tensor groups: %s%s" % (g.stdout, g.stderr)
+        for line in (p.stdout + g.stdout).splitlines():
+            if line.startswith(("arch-deepseek4: layer ", "arch-deepseek4: a 512-row", "arch-deepseek4: the writer's file over", "arch-deepseek4: a 12", "arch-deepseek4: one CPU", "arch-deepseek4: a fork", "arch-deepseek4: two CPUs", "arch-deepseek4: an abort", "arch-deepseek4: a group", "arch-deepseek4: every member")):
                 print("deepseek4: " + line.split(": ", 1)[1])
     return True

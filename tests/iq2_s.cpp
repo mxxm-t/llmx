@@ -237,14 +237,12 @@ size_t embeddings(backend::Backend& b) {
         }
         require(bits(got[i]) == want, "device IDs, invalid IDs or embedding guards");
     }
+    // A host id past the table writes a +0 row, as device ids do (Backend::embed).
     const uint32_t invalid = uint32_t(rows);
-    bool refused = false;
-    try { b.embed({output.get(), 1}, {22, {weights.get(), 1}}, width, rows, &invalid, 1); }
-    catch (const std::runtime_error&) { refused = true; }
-    require(refused, "host embedding accepted invalid ID");
+    b.embed({output.get(), 1}, {22, {weights.get(), 1}}, width, rows, &invalid, 1);
     const auto after_invalid = read(b, *output, initial.size());
     for (size_t i = 0; i < got.size(); ++i)
-        require(bits(after_invalid[i]) == bits(got[i]), "invalid host ID changed output");
+        require(bits(after_invalid[i]) == (i > 0 && i <= width ? 0u : bits(got[i])), "a host ID past the table wrote no +0 row or changed other output");
     std::vector<uint8_t> after(packed.size());
     b.read(*weights, 0, after.data(), after.size());
     require(after == packed, "embedding changed weights");

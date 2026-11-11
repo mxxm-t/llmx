@@ -239,6 +239,13 @@ size_t check_large_table(backend::Backend& vk) {
                 (std::string("a ") + k.name + " table past 4 GiB gives other rows than the CPU").c_str());
         std::vector<uint32_t> device_ids = big_ids;
         device_ids.push_back(uint32_t(rows));
+        // Host ids past the table write a zero row as device ids do (Backend::embed).
+        std::fill(got.begin(), got.end(), 19.0f);
+        vk.write(*y, 0, got.data(), got.size() * sizeof(float));
+        vk.embed({y.get(), 0}, {k.type, {big.get(), 0}}, k.nin, rows, device_ids.data(), device_ids.size());
+        vk.read(*y, 0, got.data(), got.size() * sizeof(float));
+        require(std::memcmp(got.data(), want.data(), want.size() * sizeof(float)) == 0,
+                (std::string("a ") + k.name + " table past 4 GiB gives other rows than the CPU through host ids past it").c_str());
         const auto ids = vk.adopt(device_ids.data(), device_ids.size() * sizeof(uint32_t));
         std::fill(got.begin(), got.end(), 19.0f);
         vk.write(*y, 0, got.data(), got.size() * sizeof(float));
@@ -246,7 +253,7 @@ size_t check_large_table(backend::Backend& vk) {
         vk.read(*y, 0, got.data(), got.size() * sizeof(float));
         require(std::memcmp(got.data(), want.data(), want.size() * sizeof(float)) == 0,
                 (std::string("a ") + k.name + " table past 4 GiB gives other rows than the CPU through device ids").c_str());
-        checked += 2 * n * k.nin + k.nin;
+        checked += 3 * n * k.nin + 2 * k.nin;
     }
     return checked;
 }
@@ -1000,11 +1007,16 @@ size_t check_kernels(backend::Backend& vk) {
             auto rk = p.results(dk);
             values += exact(rk.first, rk.second, k == 0 ? "embed Q4_K differs" : "embed Q5_K differs");
         }
-        const uint32_t beyond[1] = {10};
-        bool rejected = false;
-        try { p.dev.embed(d.vs(), {quant::GGML_TYPE_F32, t.vs()}, nin, nrows, beyond, 1); }
-        catch (const std::runtime_error&) { rejected = true; }
-        require(rejected, "embedding row beyond the table accepted");
+        // An id past the table writes a +0 row beside the valid ones, as on the CPU (Backend::embed).
+        const uint32_t beyond[3] = {3, 10, 0};
+        for (const auto& [type, table_in] : {std::pair<uint32_t, const Pair::In*>{quant::GGML_TYPE_F32, &t}, {quant::GGML_TYPE_Q8_0, &tq}}) {
+            p.cpu.embed(d.cs(), {type, table_in->cs()}, nin, nrows, beyond, 3);
+            p.dev.embed(d.vs(), {type, table_in->vs()}, nin, nrows, beyond, 3);
+            auto rb = p.results(d);
+            values += exact(rb.first, rb.second, "embed with an id past the table differs");
+            require(std::all_of(rb.second.begin() + std::ptrdiff_t(nin), rb.second.begin() + std::ptrdiff_t(2 * nin), [](float v) { return v == 0.0f && !std::signbit(v); }),
+                    "an embedding id past the table wrote no +0 row");
+        }
         // A table that holds fewer rows than the call names is refused before any row is read, even when every id is inside the table.
         const uint32_t first[1] = {0};
         auto short_table_refused = [&](uint32_t type, const Pair::In& table_in) {
@@ -3794,7 +3806,7 @@ size_t check_refusals(backend::Backend& vk) {
     routed("routed product of a row ending inside a block accepted", q8, stack.size(), partial, {});
     routed("routed product with row runs out of order accepted", q8, stack.size(), nin, {disordered, 3});
 
-    const uint32_t first[1] = {0}, past[1] = {uint32_t(nrows)};
+    const uint32_t first[1] = {0};
     refused("embedding of a type without a kernel accepted", [&](const Out& out) {
         const auto tb = floats(tf);
         vk.embed(out(nin), {i16, at(tb)}, nin, nrows, first, 1);
@@ -3810,10 +3822,6 @@ size_t check_refusals(backend::Backend& vk) {
     refused("embedding row ending inside a block accepted", [&](const Out& out) {
         const auto tb = in(tq.data(), tq.size());
         vk.embed(out(partial), {q8, at(tb)}, partial, nrows, first, 1);
-    });
-    refused("embedding row beyond the table accepted", [&](const Out& out) {
-        const auto tb = floats(tf);
-        vk.embed(out(nin), {f32, at(tb)}, nin, nrows, past, 1);
     });
     return checks;
 }

@@ -40,7 +40,8 @@ int main(int argc, char** argv) {
         if (draft && (!draft->isNumber() || draft->asNumber() != std::floor(draft->asNumber()) || draft->asNumber() < 1 || draft->asNumber() > 63))
             throw std::runtime_error("draft is not a whole number from 1 to 63");
         infer::PlacementRequest request;
-        for (const std::string& d : core::comma_list(device)) request.names.push_back(d == "cpu" ? d : "vulkan:" + d);
+        // A bare index is a Vulkan device; a named one, rocm:1 say, is taken as named.
+        for (const std::string& d : core::comma_list(device)) request.names.push_back(d == "cpu" || d.find(':') != std::string::npos ? d : "vulkan:" + d);
         request.width = argc > 4 ? (size_t)std::atoi(argv[4]) : 1;
         if (request.names.size() != request.width) throw std::runtime_error("the devices listed are one device, or one tensor group of the width given");
         // A fixture's `drafter_file` holds the MTP blocks the draft takes, beside the model, rather than its own (infer::load_model).

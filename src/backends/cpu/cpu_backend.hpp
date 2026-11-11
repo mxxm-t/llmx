@@ -234,7 +234,10 @@ public:
             throw std::runtime_error("backend: unsupported embedding type");
         const size_t stride = quant::row_bytes(type, nin);
         for (size_t i = 0; i < count; ++i) {
-            if (ids[i] >= nrows) throw std::runtime_error("backend: embedding row out of range");
+            if (ids[i] >= nrows) {
+                std::fill_n(dst + i * nin, nin, 0.0f);
+                continue;
+            }
             const uint8_t* row = rows + (size_t)ids[i] * stride;
             if (qt) qt->dequantize(row, dst + i * nin, nin / qt->block_size);
             else std::memcpy(dst + i * nin, row, nin * sizeof(float));

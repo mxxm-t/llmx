@@ -495,15 +495,18 @@ void types(Backend& g, Backend& c) {
             const std::string at = name + " " + std::to_string(nin) + "->" + std::to_string(nout);
             const std::vector<uint8_t> w = typed_matrix(type, nin, nout, uint32_t(type * 31 + nin + nout));
             const std::vector<float> x = row_classes::values(nin * 33, uint32_t(nin + 5));
-            const uint32_t ids[4] = {uint32_t(nout - 1), 0, 7, uint32_t(nout / 2)};
+            // The last id is past the table, which writes a zero row (Backend::embed).
+            const uint32_t ids[5] = {uint32_t(nout - 1), 0, 7, uint32_t(nout / 2), uint32_t(nout)};
             std::vector<float> emb[2];
             Backend* bs[2] = {&g, &c};
             for (int k = 0; k < 2; ++k) {
                 Backend& b = *bs[k];
-                auto wb = b.adopt(w.data(), w.size()), eb = b.alloc(4 * nin * 4);
-                b.embed({eb.get(), 0}, {type, {wb.get(), 0}}, nin, nout, ids, 4);
-                emb[k] = read(b, *eb, 4 * nin);
+                auto wb = b.adopt(w.data(), w.size()), eb = b.alloc(5 * nin * 4);
+                b.embed({eb.get(), 0}, {type, {wb.get(), 0}}, nin, nout, ids, 5);
+                emb[k] = read(b, *eb, 5 * nin);
             }
+            require(std::all_of(emb[0].end() - std::ptrdiff_t(nin), emb[0].end(), [](float v) { return v == 0.0f && !std::signbit(v); }),
+                    "a " + at + " embedding writes a zero row for an id past its table");
             for (size_t i = 0; i < emb[0].size(); ++i)
                 if (std::memcmp(&emb[0][i], &emb[1][i], 4)) {
                     std::fprintf(stderr, "  value %zu: %.9g against %.9g\n", i, emb[0][i], emb[1][i]);
@@ -985,8 +988,11 @@ void ops(Backend& g, Backend& c) {
         require(same(read(g, *ob, 4 * width), want), "embed gives the table's rows");
         g.gather_rows({ob.get(), 0}, {tb.get(), 0}, width, ids, 4);
         require(same(read(g, *ob, 4 * width), want), "gather_rows gives the source's rows");
-        const uint32_t bad[1] = {20};
-        require(throws([&] { g.embed({ob.get(), 0}, {quant::GGML_TYPE_F32, {tb.get(), 0}}, width, nrows, bad, 1); }), "an embedding row past the table is refused");
+        const uint32_t past[2] = {20, 3};
+        g.embed({ob.get(), 0}, {quant::GGML_TYPE_F32, {tb.get(), 0}}, width, nrows, past, 2);
+        want.assign(width, 0.0f);
+        want.insert(want.end(), t.begin() + 3 * width, t.begin() + 4 * width);
+        require(same(read(g, *ob, 2 * width), want), "an embedding id past the table writes a zero row beside the table's rows");
     }
 }
 

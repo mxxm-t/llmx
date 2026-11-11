@@ -570,8 +570,7 @@ public:
     void embed(Slice dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) override {
         const TypeKernels& kinds = check_weight(weight, nin, "embedding");
         if (!count) return;
-        for (size_t i = 0; i < count; ++i)
-            if (ids[i] >= nrows) throw std::runtime_error("rocm: embedding row out of range");
+        if (nrows > UINT32_MAX) throw std::runtime_error("rocm: an embedding of more rows than 32-bit ids name");
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nrows));
         gather(kinds.embed, dst, bytes(weight.data), nin, (const unsigned*)arg(ids, count * sizeof(uint32_t)), count, nrows);
     }

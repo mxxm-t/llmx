@@ -409,9 +409,9 @@ def write_deepseek41(path, args, state, engram, layout):
     return path
 
 
-def fixture_from_document(document):
-    """The args, state and Engram constants a committed golden names, rebuilt from its seed."""
-    args = document["args"]
+def fixture_from_document(document, **overrides):
+    """The args, state and Engram constants a committed golden names, rebuilt from its seed; `overrides` replace args, as the group-legal shape's four output groups do."""
+    args = dict(document["args"], **overrides)
     engram = document["engram"]
     zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
     state = make_state(args, [sum(row) for row in engram["primes"]], document["seed"], zero_rows)

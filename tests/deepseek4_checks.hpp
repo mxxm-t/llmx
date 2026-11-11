@@ -108,7 +108,7 @@ size_t check_mhc(Pair& p, const Exact& exact) {
     return values;
 }
 
-// Inputs reaching every exponent, zeros of both signs and subnormals, in blocks whose peaks set scales from tiny to large.
+// Inputs reaching every exponent, zeros of both signs and subnormals, in blocks whose peaks set scales from tiny to large; a NaN in some blocks, a block of NaNs, and peaks in a block's last value.
 size_t check_formats(Pair& p) {
     std::vector<float> x;
     uint32_t s = 7;
@@ -120,6 +120,9 @@ size_t check_formats(Pair& p) {
             if (i == 3) v = 0.0f;
             if (i == 4) v = -0.0f;
             if (i == 5) v = std::ldexp(1.0f, -140);
+            if (blk % 7 == 2 && i == 9) v = std::nanf("");
+            if (blk == 50) v = std::nanf("");
+            if (blk % 5 == 1 && i % 16 == 15) v = 1.5f * peak;
             x.push_back(v);
         }
     }
@@ -404,7 +407,10 @@ size_t check_packed(Pair& p) {
     };
     for (ModelFormat f : {ModelFormat::fp8_power, ModelFormat::fp4_power, ModelFormat::fp4_e4m3}) {
         const size_t rows = 7, dim = 96, words = backend::format_words(f, dim), stride = words + 3, n = (rows - 1) * stride + words;
-        const std::vector<float> x = raw(rows * dim, 91 + uint32_t(f));
+        std::vector<float> x = raw(rows * dim, 91 + uint32_t(f));
+        // A NaN, coded 0x7F under FP8, and a row whose peak is its blocks' last values.
+        x[dim + 7] = std::nanf("");
+        for (size_t i = 2 * dim + 15; i < 3 * dim; i += 16) x[i] = 1e4f;
         Pair::In xi = held(p, x);
         Pair::Out o = p.out(n);
         const std::vector<float> fill(n, ds4::as_floats({0xA5A5A5A5u})[0]);

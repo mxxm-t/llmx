@@ -203,6 +203,83 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## GCC and Clang builds without implicit contraction (2026-11-12, DSDEV134, DSDEV140 then DSDEV143, branch dsdev140/fp-contract on main a8d33bfa8; F2DEV's review of 2026-11-11 23:41; lands by fast-forward as two commits, the failing test and then the fix)
+
+**Goal:** a multiply-add fuses only where the code writes an FMA, on every compiler, so no build's bits rest on what its compiler version fuses.
+
+**Done:**
+- `CMakeLists.txt` passes `-ffp-contract=off` to every GCC and Clang target (docs/BUILD.md); the four test targets that set it alone (`backend-group`, `twin-quotients`, `vulkan-quantization`, `vulkan-index`) take it from the build's loop, and the HIP kernels already had it (`LLMX_HIP_FLAGS`).
+  MSVC's `/fp:precise` contracts nothing from Visual Studio 2022 on, BUILD.md's floor, and Vulkan stays the driver's unless `precise` (docs/VULKAN.md), both unchanged.
+- `weight-scales` holds an F32 routed add to products that round before the sum: gains -1 and b = 1 + 2^-12 over outputs a = 1 + 2^-11 and b give 0, where the second product fused into the add gives 2^-24.
+  It fails on main's flags in the GCC 13.3 and GCC 14.2 Release builds and passes with the flag; on MSVC it passes on main too, so the hosted Windows job never saw it fail.
+- Why: on dsdev126/dspark-groups a DSpark draft on a tensor group of two CPUs sat 4.58e-5 from the reference's draft logits under GCC 13.3, over the 2e-5 bound, where GCC 14.2 gave 5.79e-7.
+  GCC 13.3 fused matmul_experts_add's weighted sum and the expert and row dots differently from GCC 14.2, which moved one stage window key of the 130-token prefill to 0.453125149, the other side of the FP8 midpoint 0.453125 from GCC 14.2's 0.453124791 (0.46875 against 0.4375); in the DeepSeek-V4.1 test's binary 27 functions fused differently under GCC 13.3 than without contraction.
+  With the flag both compilers give the group's draft logits within 6.36e-7; the key sat 1.5e-7 from the midpoint, so the flag put it on the lucky side rather than fixed the fixture, and the fixture's format-margin floor goes with DSpark on dsdev140/dspark-margin, its 3e-5 draft-block floor awaiting F2DEV's sign-off.
+
+**Fused-op diff of the CLI** (`objdump -d` of `llmx`, `vfmadd`/`vfmsub`/`vfnmadd` a function, main against the branch):
+- GCC 14.2 (the Docker image, CPU and Vulkan): 970 fused ops to 703 over 47 functions; GCC 13.3 (Ubuntu 24.04, the hosted Linux compiler), CPU-only and ROCm builds alike: 778 to 515 over the same 47.
+- Model numerics (GCC 14.2, GCC 13.3 in brackets where it differs): `attention` 21 to 16 (17 to 12), `row_dot` 28 to 24, `q8::dot` 12 to 11, `matmul_experts_add` 1 to 0 and its worker 1 to 0, `pool_kv` 17 to 1, `select_kv` 18 to 2, `inject_streams` 6 to 0 and its worker 6 to 0, `deepseek4::rope_frequencies` 1 to 0, `layer_norm_rows` 8 to 0 and its worker 8 to 0, `gelu` 1 to 0 and its worker 1 to 0, `image_detail::taps` 5 to 0, `sample` 1 to 0, and the dequantizers `q2_K` 16, `q4_1` 32, `q4_K` 10, `q5_K` 10 and `q5_1` 1, each to 0.
+- Host arithmetic in double: `Model::prefill` 9, `SlicePeriods::fit`, `observe` and `cut` 8, 10 and 12, `prompt_cut` and `next_slice` for `slice_rows` 4 and 1, `slice_rows` 8, `spec::draft_depths` 12, `pass_ms` 4, `Acceptance::verified` and `Record::verified` 1 each, the scheduler's `plan`, `propose`, `retire`, `end_chain` and `settle_verifies` 3, 12, 13, 5 and 1, `PriceTable::decode_curve` 2, `ServiceRecord::measure` 1, the cache's `flush_disk`, `flush_one`, `landed_write` and `DiskStore::write` 1 each, `cmd_bench_model` 1 twice and `qwen3::synthetic_model` 2 twice, each to 0.
+
+**Linux CPU bits** (the branch against main, GCC):
+- Move: attention's output on every model (the value sums, `add(acc, mul)` in three variants at `cpu_backend.hpp:994-1035 at a8d33bfa8`), the MoE routed add, Q4_1's f16 decode mins and the K-quant F32 decode dots' scalar terms, and where a model reaches them DeepSeek-V4.1's `inject_streams`, `pool_kv`, `select_kv` and rope frequencies, the vision encoder's `layer_norm_rows`, `gelu` and the image taps, and the sampler's frequency penalty.
+- Do not move: the dequantizers (an f16 scale times a small integer is exact in F32, so fused or not gives one result), the matmul and q8 dot loops (their FMAs are written), and every Windows result.
+- The host's cost models (scheduler, slicing, draft depths) lose fusions in double arithmetic; they choose slicings and draft depths, never a row's bits.
+- The numerics fingerprint changes with `CMakeLists.txt`, so a GCC build's disk tier adopts no entries main's build wrote.
+
+**Gates:**
+- MSVC control (Windows, `build.bat`, Visual Studio 2022, `/fp:precise`): main's and the branch's `llmx.exe` give Qwen3-0.6B Q8_0's greedy 64 ids and top-8 logits at 400 positions byte for byte.
+- HF baseline (`run_tests.py --only baseline`, then with `--cache-type f32`; Qwen3-0.6B Q8_0, Q4_0, Q5_K_M, Q4_K_M and UD-Q8_K_XL, Qwen3.5-0.8B Q8_0 and Q4_K_M), main and the branch each built with GCC 14.2 and with GCC 13.3: all pass, and each arm's log is byte-identical between the two compilers.
+  Logits checks (top-1, top-5 sets, exact orders) are main's on every file; the NLL deltas against HF move by at most 1.01e-4 (f16 cache) and 3.0e-5 (f32 cache).
+
+  | check (worst against its bound) | cache | main | branch | bound | branch headroom |
+  |---|---|---|---|---|---|
+  | Qwen3-0.6B Q4_K_M c=64 chunks=4 | f16 | 0.215258 | 0.215221 | 0.25 | 13.9% |
+  | Qwen3-0.6B Q8_0 c=123 chunks=2 | f16 | 0.012399 | 0.012396 | 0.020 | 38.0% |
+  | Qwen3-0.6B Q4_K_M c=64 chunks=4 | f32 | 0.215162 | 0.215175 | 0.25 | 13.9% |
+  | Qwen3-0.6B Q8_0 c=123 chunks=2 | f32 | 0.012408 | 0.012408 | 0.020 | 38.0% |
+
+- Device identity, Qwen3-0.6B Q8_0 on one MI50, main a8d33bfa8 against the branch (ROCm and Vulkan builds of each): greedy 64 ids and top-8 logits at 400 positions byte-identical on rocm:0 and vulkan:0 under `--dtype auto` and `int8`.
+- CPU (GCC 14.2, 8 threads), same model and commands: greedy 64 ids identical; logits at 400 positions keep every top-1, 394 of 400 rows keep their top-8 order, and logits differ by at most 0.0083, the attention output's moved bits.
+- CPU timing, GCC 14.2, Docker `--cpus 8`, `--threads 8`, ABBA three times; tok/s; hostwait run-queue wait in ms, over 100 ms is contended, so every cell is flagged.
+  Ten cells hit the 30-minute timeout in the depth phase, so `@ d16384` has one pair; t1 overlapped a build for 80 s.
+
+  | cell | arm | synth prefill | synth decode | pp2048 | tg128 | pp128 @ d16384 | tg128 @ d16384 | wait ms | flags |
+  |---|---|---|---|---|---|---|---|---|---|
+  | t1 | main | 954.8 | 499.3 | 138.73 | 30.16 | timeout | timeout | 1015355 | contended, build 80 s |
+  | t2 | branch | 232.1 | 316.5 | 99.00 | 8.41 | timeout | timeout | 1055321 | contended |
+  | t3 | branch | 2846.8 | 1892.7 | 159.06 | 27.48 | timeout | timeout | 860976 | contended |
+  | t4 | main | 1691.3 | 5727.8 | 162.07 | 34.13 | timeout | timeout | 1041147 | contended |
+  | t5 | main | 1346.4 | 4434.2 | 150.40 | 24.42 | timeout | timeout | 165918 | contended |
+  | t6 | branch | 4362.9 | 4295.4 | 163.53 | 27.88 | timeout | timeout | 188740 | contended |
+  | t7 | branch | 4909.1 | 4346.2 | 153.55 | 38.56 | timeout | timeout | 197510 | contended |
+  | t8 | main | 4829.4 | 3451.5 | 148.15 | 35.23 | timeout | timeout | 213814 | contended |
+  | t9 | main | 4748.4 | 4584.7 | 148.95 | 38.37 | timeout | timeout | 276179 | contended |
+  | t10 | branch | 279.7 | 297.8 | 73.62 | 14.89 | timeout | timeout | 1702389 | contended |
+  | t11 | branch | 4114.5 | 5264.6 | 219.75 | 43.30 | 21.44 | 7.07 | 109771 | contended |
+  | t12 | main | 5745.6 | 3878.8 | 194.76 | 41.31 | 19.11 | 7.31 | 115327 | contended |
+
+  Means over all cells, main against the branch: pp2048 157.18 and 144.75, tg128 33.94 and 26.75; over the seven cells waiting under 300 s (t5 to t9, t11, t12): pp2048 160.57 and 178.94, tg128 34.83 and 36.58.
+  The spread inside one arm (tg128 8.41 to 43.30) is far wider than any difference between arms, so the round shows no loss outside noise and no gain; the attention value sum's cell, tg128 at depth 16384, has one pair, 7.31 to 7.07 (-3.3%), which this round cannot resolve.
+- Rebased on land/20261118 57a932e49 (0.1.0+ge940d649c503 against 0.1.0+g57a932e49b0a, both GCC in the same container): CPU CTest 90/90, and the HF baseline (`--only baseline`) passes on both arms with the same NLL deltas (Qwen3-0.6B UD-Q8_K_XL c=123 batched 0.000274 against 0.020 on each).
+  A second CPU timing round on the rebased arms, same settings with `@ d8192`, ABBA twice; every cell contended again, and the branch's cells waited 224 to 761 s where land's waited 966 to 2320 s, so the arms are not matched for contention.
+
+  | cell | arm | synth prefill | pp2048 | tg128 | pp128 @ d8192 | tg128 @ d8192 | wait s |
+  |---|---|---|---|---|---|---|---|
+  | c1 | land | 301.7 | 90.28 | 12.71 | 19.87 | 5.28 | 1848 |
+  | c2 | branch | 442.5 | 131.54 | 13.94 | 30.34 | 11.50 | 303 |
+  | c3 | branch | 877.5 | 144.32 | 26.92 | 31.10 | 12.39 | 761 |
+  | c4 | land | 3266.8 | 146.64 | 39.31 | 21.90 | 8.34 | 2320 |
+  | c5 | land | 142.2 | 148.30 | 30.04 | 16.57 | 10.03 | 966 |
+  | c6 | branch | 3048.9 | 144.16 | 35.35 | 31.65 | 10.56 | 470 |
+  | c7 | branch | 1272.2 | 149.06 | 33.67 | 31.30 | 12.00 | 224 |
+  | c8 | land | 2402.1 | 65.82 | 29.81 | 31.43 | 6.79 | 1443 |
+
+  Medians, land against the branch: pp2048 118.46 and 144.24, tg128 29.93 and 30.31, pp128 @ d8192 20.89 and 31.20, tg128 @ d8192 7.57 and 11.75.
+  The branch is ahead in every median, but its cells were the less contended ones, so this round, like the first, shows no loss and does not measure a gain; an uncontended round is still owed before a figure for either is quoted.
+
+**Left:** the hosted run of the head that lands.
+
 ## A waiting read-ahead job says it waits for spare room once (2026-11-19, BACKLOG1, branch fix/job-wait-line on land/20261118 57a932e49)
 
 - **Why:** production's log repeated "a job of N ids waits for spare room" every one to four seconds for each conversation whose reply was being written (2026-10-17): every follow-up of the reply's ids, each 32 generated tokens, replaced the waiting job with a new one, which said the line again.

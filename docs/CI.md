@@ -312,12 +312,10 @@ The full logs, check annotations and all native durations remain in `.tmp-half-r
 
 ## Exact reduction test compilation
 
-The `backend-group` test disables implicit floating-point contraction on
-GCC/Clang, including AppleClang. Its explicit SIMD FMA and `std::fma` calls
-remain fused, and nothing else is.
-Its bitwise oracle for the prompt's three-, two- and one-column float dots takes every product, the tail's included, as an explicit FMA, so under this option a kernel matches it only if the kernel's tail is written as FMAs too.
-That is the rule the kernels keep (`docs/src/backends-cpu.md`): a tail left as `v += a * b` is fused or not at the compiler's choice, and GCC 14 under UBSan fused it in one column kernel and not in another, which gave a prompt row different bits by its place in the batch.
-The option applies only to this test target, not the CLI or performance tools; the CLI HF checks separately exercise the normal runtime flags.
+Every target, the CLI and the tests alike, is built without implicit floating-point contraction on GCC/Clang, including AppleClang (`-ffp-contract=off`, docs/BUILD.md).
+Explicit SIMD FMA and `std::fma` calls remain fused, and nothing else is.
+The `backend-group` test's bitwise oracle for the prompt's three-, two- and one-column float dots takes every product, the tail's included, as an explicit FMA, so a kernel matches it only if the kernel's tail is written as FMAs too.
+That is the rule the kernels keep (`docs/src/backends-cpu.md`): a tail written as `v += a * b` rounds its product alone, and before the build turned contraction off, GCC 14 under UBSan fused it in one column kernel and not in another, which gave a prompt row different bits by its place in the batch.
 
 The reference-generator path test checks an absolute path and filesystem
 identity, so Windows short names such as `RUNNER~1` and their long names are

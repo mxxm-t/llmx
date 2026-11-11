@@ -15,6 +15,7 @@ CPU implementation of the `Backend` interface, in namespace `backend`.
 F16 and BF16 weight storage is read-only. Embedding and prompt products widen through the registry; decode uses the shared `dot_float` below. The weights always retain their stored values, independently of activation dtype. F16 execution retains F32 activation inputs for these float-storage products; BF16 execution rounds inputs before the same float math. Model roles that require F32 vectors keep that requirement.
 The build requires x86-64 AVX2, FMA and F16C (`docs/BUILD.md`), and the kernels use them with no runtime check and no scalar fallback; their scalar loops cover the tails of lengths that are not a multiple of 8.
 Every multiply-add in those tails is an explicit FMA (`std::fma`), never `a * b + c`: a compiler that contracts fuses such an expression in one inlined copy and not in another by the code around it, which gave a prompt row different bits by its place in the batch (`tests/backend_group.cpp`, docs/STATUS-2026-09.md).
+The build turns contraction off (`-ffp-contract=off`, docs/BUILD.md), so a product written apart, such as `matmul_experts_add`'s weighted sum or the K-quant dots' `d * sum - m * sum`, rounds alone in every build, as `weight-scales` holds for the routed add.
 A compile without them stops at one `#error` at the top of the header.
 
 - Persistent worker pool. The decode row dots and attention both run through it; previously each created and joined `std::thread`s per call, which on Qwen3-8B was thousands of thread creations per token.

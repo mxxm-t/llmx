@@ -515,8 +515,15 @@ inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, con
     const struct { uint32_t rows, heads, dim, n; float w_scale; uint32_t tokens, bt, block_floats, rows_floats, width, block_k, block_size, key_format, key_words; }
         pc{u32(rows), u32(heads), u32(dim), u32(n), w_scale, pooled.tokens, pooled.plane.bt, pooled.plane.block_floats, pooled.plane.rows_floats, pooled.width,
            bn ? u32(block_k) : 0u, u32(block_size), uint32_t(key_format), u32(key_words)};
-    dispatch(K_INDEXER_SCORES, {bind(out), bind(q), pooled.aux, args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t)), bind(w),
-                                bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc), std::min<uint32_t>(groups(n, std::max<size_t>(1, 256 / heads)), 65535), u32(rows));
+    const VkDescriptorBufferInfo tab = args(pooled.table.words.data(), pooled.table.words.size() * sizeof(uint32_t));
+    // Rows of a view in runs of 16 share each decoded key in the tile shader (shaders/indexer_scores_tile.comp), taken where its work fills the device; rows a view each, as decode's, keep a workgroup a row.
+    constexpr size_t tile_bytes = (32 + 16) * 132 * sizeof(float) + 16 * 32 * sizeof(uint32_t);   // the tile shader's ks, qs and seen
+    if (dim % 4 == 0 && dim <= 128 && rows >= size_mul(n_views, 4) && tile_fills_twice(dev_->caps, tile_bytes, 16, 32, rows, n)) {
+        if (groups(n, 32) > dev_->props.limits.maxComputeWorkGroupCount[0]) throw std::runtime_error("vulkan: index scores of more positions than a dispatch holds");
+        return dispatch(K_INDEXER_SCORES_TILE, {bind(out), bind(q), pooled.aux, tab, bind(w), bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc), groups(n, 32), u32((rows + 15) / 16));
+    }
+    dispatch(K_INDEXER_SCORES, {bind(out), bind(q), pooled.aux, tab, bind(w), bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc),
+             std::min<uint32_t>(groups(n, std::max<size_t>(1, 256 / heads)), 65535), u32(rows));
 }
 
 inline void VulkanBackend::pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) {

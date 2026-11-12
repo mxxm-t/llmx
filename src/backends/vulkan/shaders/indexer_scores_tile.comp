@@ -1,0 +1,115 @@
+#version 450
+#extension GL_EXT_control_flow_attributes : require
+// indexer_scores.comp's values for a tile of 16 rows and 32 positions a workgroup: each key decoded once into shared memory for every row and head of the tile, a head's queries staged in turn.
+// An invocation keeps 2 rows by 2 positions, each dot the same multiply-add chain in d order and the head sum in h order; rows of another view take a pass of their own, and dim is a multiple of 4 up to 128.
+layout(local_size_x = 128) in;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; float w_scale; uint tokens; uint bt; uint block_floats; uint rows_floats; uint width; uint block_k; uint block_size; uint key_format; uint key_words; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer A { float aux[]; };
+layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 4) readonly buffer W { float w[]; };
+layout(set = 0, binding = 5) readonly buffer B { uint blocks[]; };
+layout(set = 0, binding = 2) readonly buffer AU { uint aux_words[]; };
+#include "views.glsl"
+#include "model_formats.glsl"
+#define FORMAT_WORD(i) aux_words[i]
+float key_value(uint key, uint d) {
+    precise float v;
+    if (p.key_format == 3u) v = aux[key + d];
+    else if (p.key_format == 0u) FORMAT_VALUE(key, d, 0u, v)
+    else if (p.key_format == 1u) FORMAT_VALUE(key, d, 1u, v)
+    else FORMAT_VALUE(key, d, 2u, v)
+    return v;
+}
+#define TR 16u
+#define TP 32u
+#define NT 128u
+#define STRIDE 132u
+shared float ks[TP * STRIDE];
+shared float qs[TR * STRIDE];
+shared uint seen[TR * TP];
+void main() {
+    uint tid = gl_LocalInvocationID.x, tp = tid % 16u, tr = tid / 16u;
+    uint t0 = gl_WorkGroupID.x * TP, r0 = gl_WorkGroupID.y * TR, rn = min(TR, p.rows - r0);
+    uint s0 = 0u;
+    while (s0 < rn) {
+        // The segment [s0, s1) of the tile's rows reading one view, whose last row sees the most groups.
+        uint v, b0, v1, b1;
+        view_of_row(r0 + s0, v, b0);
+        uint s1 = s0 + 1u;
+        while (s1 < rn) {
+            view_of_row(r0 + s1, v1, b1);
+            if (v1 != v) break;
+            ++s1;
+        }
+        uint live = min(p.n, (view_hist(v) + b0 + (s1 - s0)) / p.tokens);
+        barrier();
+        for (uint i = tid; i < TR * TP; i += NT) seen[i] = p.block_k == 0u ? 1u : 0u;
+        barrier();
+        // Each row's candidate ids spread over the invocations, each marking the positions of the tile its block holds.
+        for (uint i = tid; i < (s1 - s0) * p.block_k; i += NT) {
+            uint rr = s0 + i / p.block_k, id = blocks[(r0 + rr) * p.block_k + i % p.block_k];
+            if (id >= (t0 + TP + p.block_size - 1u) / p.block_size || (id + 1u) * p.block_size <= t0) continue;
+            for (uint t = max(id * p.block_size, t0); t < min((id + 1u) * p.block_size, t0 + TP); ++t) seen[rr * TP + t - t0] = 1u;
+        }
+        barrier();
+        for (uint i = tid; i < TR * TP; i += NT) {
+            uint rr = i / TP, t = t0 + i % TP;
+            bool in_seg = rr >= s0 && rr < s1;
+            seen[i] = in_seg && seen[i] != 0u && t < p.n && t < (view_hist(v) + b0 + rr - s0 + 1u) / p.tokens ? 1u : 0u;
+        }
+        // A tile past every row's reach takes no barrier below, and its outputs read other invocations' marks.
+        barrier();
+        precise float acc[2][2];
+        [[unroll]] for (uint a = 0u; a < 2u; ++a) [[unroll]] for (uint c = 0u; c < 2u; ++c) acc[a][c] = 0.0;
+        if (t0 < live) {
+            for (uint i = tid; i < TP * p.dim; i += NT) {
+                uint pp = i / p.dim, d = i - pp * p.dim, t = t0 + pp;
+                ks[pp * STRIDE + d] = t < live ? key_value(pooled_row(v, t, p.tokens, p.bt, p.block_floats, p.rows_floats, p.width) + p.width - p.key_words, d) : 0.0;
+            }
+            for (uint h = 0u; h < p.heads; ++h) {
+                barrier();
+                for (uint i = tid; i < TR * p.dim; i += NT) {
+                    uint rr = i / p.dim, d = i - rr * p.dim;
+                    qs[rr * STRIDE + d] = rr >= s0 && rr < s1 ? q[((r0 + rr) * p.heads + h) * p.dim + d] : 0.0;
+                }
+                barrier();
+                precise float dot[2][2];
+                [[unroll]] for (uint a = 0u; a < 2u; ++a) [[unroll]] for (uint c = 0u; c < 2u; ++c) dot[a][c] = 0.0;
+                for (uint d = 0u; d < p.dim; d += 4u) {
+                    vec4 qv[2], kv[2];
+                    [[unroll]] for (uint a = 0u; a < 2u; ++a) {
+                        uint o = (tr + 8u * a) * STRIDE + d;
+                        qv[a] = vec4(qs[o], qs[o + 1u], qs[o + 2u], qs[o + 3u]);
+                    }
+                    [[unroll]] for (uint c = 0u; c < 2u; ++c) {
+                        uint o = (tp + 16u * c) * STRIDE + d;
+                        kv[c] = vec4(ks[o], ks[o + 1u], ks[o + 2u], ks[o + 3u]);
+                    }
+                    [[unroll]] for (uint a = 0u; a < 2u; ++a)
+                        [[unroll]] for (uint c = 0u; c < 2u; ++c) {
+                            dot[a][c] = fma(qv[a].x, kv[c].x, dot[a][c]);
+                            dot[a][c] = fma(qv[a].y, kv[c].y, dot[a][c]);
+                            dot[a][c] = fma(qv[a].z, kv[c].z, dot[a][c]);
+                            dot[a][c] = fma(qv[a].w, kv[c].w, dot[a][c]);
+                        }
+                }
+                [[unroll]] for (uint a = 0u; a < 2u; ++a) {
+                    uint rr = tr + 8u * a;
+                    precise float scaled = rr < rn ? w[(r0 + rr) * p.heads + h] * p.w_scale : 0.0;
+                    [[unroll]] for (uint c = 0u; c < 2u; ++c) acc[a][c] = fma(max(dot[a][c], 0.0), scaled, acc[a][c]);
+                }
+            }
+        }
+        [[unroll]] for (uint a = 0u; a < 2u; ++a) {
+            uint rr = tr + 8u * a;
+            if (rr < s0 || rr >= s1) continue;
+            [[unroll]] for (uint c = 0u; c < 2u; ++c) {
+                uint pp = tp + 16u * c, t = t0 + pp;
+                if (t < p.n) outv[(r0 + rr) * p.n + t] = seen[rr * TP + pp] != 0u ? acc[a][c] : -1.0 / 0.0;
+            }
+        }
+        s0 = s1;
+    }
+}

@@ -1,7 +1,7 @@
 #version 450
 #extension GL_EXT_control_flow_attributes : require
 // Sparse attention with a sink, its second kernel: one workgroup 8 columns of a chunk row for every head, the kept rows' values of those columns decoded once into shared memory.
-// A lane a head and two columns; each output is p times value over the kept rows in their order, divided by its head's denominator, as the CPU sums it (docs/src/backends-vulkan.md).
+// A lane a head and two columns, or where heads divide 32 two lanes a head and a column each; each output is p times value over the kept rows in their order, divided by its head's denominator, as the CPU sums it (docs/src/backends-vulkan.md).
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint heads; uint dim; uint named; uint kv_format; uint entry_format; uint first_row; uint den_at; uint kept_at; uint counts_at; } p;
 layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
@@ -24,6 +24,21 @@ void main() {
     barrier();
     uint lane = lid % 64u, col = lid / 64u * 2u;
     uint pb = r * p.named * p.heads;
+    if (p.heads <= 32u && 32u % p.heads == 0u) {
+        uint h = lane / 2u, cc = col + lane % 2u;
+        if (h >= p.heads) return;
+        precise float o0 = 0.0;
+        uint c = 0u;
+        for (; c + 16u <= total; c += 16u) {
+            float pv[16];
+            [[unroll]] for (uint u = 0u; u < 16u; ++u) pv[u] = scf[pb + (c + u) * p.heads + h];
+            [[unroll]] for (uint u = 0u; u < 16u; ++u) o0 = fma(pv[u], vals[(c + u) * COLUMNS + cc], o0);
+        }
+        for (; c < total; ++c) o0 = fma(scf[pb + c * p.heads + h], vals[c * COLUMNS + cc], o0);
+        float dn = scf[p.den_at + r * p.heads + h];
+        if (d0 + cc < p.dim) outv[((p.first_row + r) * p.heads + h) * p.dim + d0 + cc] = o0 / dn;
+        return;
+    }
     for (uint h = lane; h < p.heads; h += 64u) {
         precise float o0 = 0.0, o1 = 0.0;
         uint c = 0u;

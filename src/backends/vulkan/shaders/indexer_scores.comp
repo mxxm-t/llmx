@@ -34,14 +34,20 @@ void main() {
     uint len = (view_hist(v) + b + 1u) / p.tokens;
     for (uint c = lid; c < 272u; c += 256u) lut[c] = c < 256u ? e4m3_value(c) : e2m1_value(c - 256u);
     for (uint first = gl_WorkGroupID.x * per; first < p.n; first += gl_NumWorkGroups.x * per) {
+        if (p.block_k != 0u) {
+            // The row's candidate ids spread over the lanes, each marking the positions of this run its block holds.
+            for (uint j = lid; j < per; j += 256u) seen[j] = 0u;
+            barrier();
+            for (uint i = lid; i < p.block_k; i += 256u) {
+                uint id = blocks[r * p.block_k + i];
+                if (id >= (first + per + p.block_size - 1u) / p.block_size || (id + 1u) * p.block_size <= first) continue;
+                for (uint t = max(id * p.block_size, first); t < min((id + 1u) * p.block_size, first + per); ++t) seen[t - first] = 1u;
+            }
+            barrier();
+        }
         for (uint j = lid; j < per; j += 256u) {
             uint t = first + j;
-            bool reached = t < p.n && t < len;
-            if (reached && p.block_k != 0u) {
-                reached = false;
-                for (uint i = 0u; i < p.block_k && !reached; ++i) reached = blocks[r * p.block_k + i] == t / p.block_size;
-            }
-            seen[j] = reached ? 1u : 0u;
+            seen[j] = t < p.n && t < len && (p.block_k == 0u || seen[j] != 0u) ? 1u : 0u;
         }
         barrier();
         for (uint i = lid; i < per * p.heads; i += 256u) {

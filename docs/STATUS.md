@@ -1,5 +1,64 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1 tensor-group prompt levers: the index score tile and sparse_columns lanes (2026-11-12, DSDEV136, DSDEV138, DSDEV146, DSDEV147 then DSDEV149, branch dsdev146/tg-prompt-levers on main de368dad4, one commit; DSDEV136's proposal of 22:34, F2DEV's reviews of 22:42 and 10:47; lands by fast-forward)
+
+**Goal:** the masked index layers that bound the 16k prompt in both modes on ten MI50s (`indexer_scores` 18.4 s a member of stages 4 and 5 at 5x2, 9.2 s a device at layer split, DSDEV132's traces) take a fraction of their time, with every score the bits the base kernels give, on ROCm and Vulkan.
+
+**Done:**
+- `llmx_indexer_scores_tile` (ROCm) and `shaders/indexer_scores_tile.comp` (Vulkan), a block 16 rows by 32 positions of 128 threads, each 2 rows by 2 positions: a run of rows reading one view decodes its keys once into shared memory, each dot one multiply-add chain from zero in d order, the head sum in h order with `w * w_scale` rounded once, -inf where unseen; taken at 4 rows a view or more with keys a multiple of 4 wide (Vulkan also at most 128) where the call's work fills the device, else the old kernel, decode's among them.
+- Both kernels mark a row's candidate blocks with its ids spread over the threads, each marking its block's positions inside the tile or run, so no position scans every id, the mask bounded by the tile's positions and not by n; the ids need not be ascending. Both mark into the one mask that then takes the row's reach in place, as the tile does, and the row kernels take no marking barriers where no candidate blocks are given (F2DEV's review of 10:47), so they hold main's shared arrays.
+- `llmx_sparse_columns64` takes 64 / heads lanes a head where the heads divide 64 (at most 16) and a lane a head otherwise; Vulkan's `sparse_columns.comp` two lanes a head where they divide 32. Each column's chain and each lane's denominator are unchanged.
+- `tile_fills_twice` (`backends/device_profile.hpp`), the one rule both backends ask: a tile block costs about a wave however few rows fill it, so the tile takes a call whose work in full tiles, rows times position tiles over 16, reaches twice the device's compute units times the tiles its shared memory holds (2 a CU at dim 128 on an MI50, 240 tiles). On one MI50 over 362 calls (ratio 1 masked and ratio 2, 256 to 16384 positions, 4 to 512 rows, 2 rounds, /opt/claude-work/dsdev146/ic.txt), every tile output the row kernel's bits, the rule costs 0.66% (ROCm) and 1.18% (Vulkan) of the summed time of the faster kernel at each call, against 2.28% and 6.15% for taking the tile at every call of 4 rows a view; factors of 1.5 and 2.5 cost 0.26/1.49% and 1.28/0.96%, and 2 is the least summed over both backends but for 1.5's 0.4 points, kept for Vulkan's higher floor. A tile larger than a workgroup's shared memory is never taken, and the ROCm host bounds its tile at half of `caps.shared_bytes`, two blocks a compute unit, rather than a fixed 32 KiB.
+- A barrier before a tile past every row's reach writes its outputs (found by the hashes below: without it such a tile read other threads' marks before they were refined, and the output hash changed from run to run on both backends). The race was in the branch's own new kernel and never on main, so the branch has no failing-test commit before its fix.
+- `ds4::check_index_tile` (`tests/deepseek4_checks.hpp`, in `check_ops`) runs `indexer_scores` over 640 rows of 2048 groups at 4 and 32 heads, over F32 keys and keys packed in FP4 as the model's are, unmasked and over candidate blocks, the second view's rows starting inside a tile: 2560 full tiles, which the rule gives the tile on devices of up to about 180 compute units (840 resident tiles at dim 32 on an MI50 under ROCm, 240 under Vulkan). `check_sparse_shapes` adds 8 to 12 rows over 32, 16 and 8 heads, which `llmx_sparse_columns64` takes at 2, 4 and 8 lanes a head and Vulkan's `sparse_columns` at two lanes a head. `backend-rocm deepseek4` passes and `backend-vulkan --deepseek4` meets the CPU on 14578314 values on one MI50, and CTest's `arch-deepseek4` and `deepseek4-ops` pass on both builds.
+
+**Resources** (gfx906 code object notes; RADV shader statistics): ROCm `llmx_indexer_scores_tile` 57 VGPRs, 98 SGPRs, no spills, 2048 static bytes of shared memory plus (16 + 32) (dim + 4) floats dynamic, 25344 at dim 128, 27392 in all; Vulkan's tile 28 VGPRs, 48 SGPRs, 27648 bytes of LDS, no spills. `llmx_sparse_columns64` 60 VGPRs against 59, 2 SGPR spills against none; `llmx_indexer_scores` and Vulkan's `indexer_scores` hold main's shared arrays, 6208 and 6656 bytes (the first version's second 1 KiB mask, 7232 and 7680, is gone); their registers were not re-read after that change.
+
+**Measured** (one MI50, default clocks, the backend's kernels through a scratch harness at DeepSeek-V4.1-Flash's index shapes, 32 heads of 128 with FP4 keys at 16384 positions, base against branch interleaved over 2 rounds, best of 3 x 5 calls, us a call; every output hash of 82 cases the base's on both backends in both rounds, among them the four key formats at 1003 positions over two views on different block tables, masked and unmasked, and the sparse attention at 64, 32, 24 and 16 heads):
+
+| call | ROCm base | ROCm branch | Vulkan base | Vulkan branch |
+|---|---:|---:|---:|---:|
+| masked (ratio 1), 512 rows of one view at 16384 | 381957 | 60295 | 1067716 | 73723 |
+| masked, 300 rows of two views | 221718 | 36663 | 620052 | 45038 |
+| masked, 16 decode rows of 16 views | 11466 | 3126 | 32095 | 2717 |
+| masked, 1 decode row | 855 | 223 | 2379 | 224 |
+| ratio 2, 512 rows of one view at 8192 | 50956 | 25307 | 45035 | 31539 |
+| ratio 2, 1 decode row | 126.0 | 125.6 | 149.0 | 144.2 |
+| `sparse_attention_sink` 512 rows, 32 heads | 10445 | 9104 | 24435 | 24351 |
+| the same, 16 heads | 8122 | 6691 | 19868 | 19726 |
+| the same, 64 heads | 15054 | 15104 | 32915 | 33226 |
+
+  The tile has a floor of about 330 us a call on ROCm and 530 on Vulkan at few blocks, which the rule leaves to the old kernel: the harness's 82 cases rerun on this head (2 rounds, base against branch) give the base's hashes on both backends, and the calls of 13 to 90 rows at 501 and 1003 positions, 0.5x to 1.3x the base under the tile, take the old kernels. With the row kernels marking in place (DSDEV149, /opt/claude-work/dsdev149/out/run.txt, base, the first version and this one interleaved over 2 rounds), the 82 cases give the base's hashes on both backends in both rounds, and the calls at 501 and 1003 positions run at 0.90x to 1.16x the base on ROCm, the high end the masked 5-row calls at 501 positions, 37 to 43 against 33 to 38 us, which take the marking barriers. On Vulkan these cells are bimodal in every arm, the base's unmasked 90 rows at 501 positions in key format 0 at 705 and 657 us in one run and 480 to 504 in the first version's: run alone over 6 interleaved rounds (/opt/claude-work/dsdev149/out/v90.txt), the unmasked 90-row calls at 501 positions have medians of 747, 667, 661 and 1609 us on the base, 744, 667, 662 and 1609 on the first version and 744, 667, 661 and 1608 on this one in key formats 0 to 3, so the 1.12x to 1.46x recorded for the first version was that noise, not its shared mask. The masked 90-row calls there are 483, 311, 458 and 1086 us against the base's 477, 562, 499 and 1054, F32 keys (format 3) 3% slower under the spread marking in both versions.
+
+**Measured, ten MI50s** (DeepSeek-V4.1-Flash-1017 MXFP4, `--lookup-storage file`, default clocks, ABAB over 2 rounds, `bench --r 2` at 2048 and `--r 1` at 16384, tok/s, mean of the two cells an arm with the cells in brackets; base 31b99cc8d `c36d6f5ab70e`, branch cbfae59e4 `ff3cfadecb6b`; hostwait flags every cell contended, 8.6 to 267 s of run-queue wait, /opt/claude-work/dsdev136/out/progress):
+
+| ROCm int8 cell | base | branch | change |
+|---|---:|---:|---:|
+| layer split pp2048 | 1176.0 (1177.4, 1174.7) | 1166.7 (1188.1, 1145.3) | -0.8% |
+| layer split tg32 | 23.91 (24.05, 23.76) | 23.92 (23.75, 24.08) | 0.0% |
+| layer split pp16384 | 1129.7 (1129.6, 1129.9) | 1538.5 (1543.7, 1533.2) | +36.2% |
+| layer split tg16 after it | 24.00 (23.77, 24.22) | 23.88 (24.05, 23.70) | -0.5% |
+| 5x2 pp2048 | 1058.7 (1062.5, 1054.8) | 1103.3 (1102.6, 1104.1) | +4.2% |
+| 5x2 tg32 | 31.53 (31.35, 31.71) | 31.13 (30.97, 31.28) | -1.3% |
+| 5x2 pp16384 | 811.2 (811.2, 811.2) | 1357.3 (1361.3, 1353.2) | +67.3% |
+| 5x2 tg16 after it | 31.00 (30.79, 31.20) | 31.29 (31.25, 31.33) | +0.9% |
+
+| Vulkan cell (base `ff5baaa8d66b`, branch `47a0fd449975`) | base | branch | change |
+|---|---:|---:|---:|
+| layer split pp2048 | 506.65 (506.62, 506.68) | 506.75 (506.96, 506.53) | 0.0% |
+| layer split tg32 | 16.82 (16.86, 16.77) | 16.80 (16.86, 16.73) | -0.1% |
+| layer split pp16384 | 484.3 (480.1, 488.5) | 803.3 (804.3, 802.4) | +65.9% |
+| layer split tg16 after it | 16.53 (16.41, 16.65) | 15.90 (15.87, 15.92) | -3.8% |
+| 5x2 pp2048 | 532.3 (532.3, 532.4) | 541.1 (537.7, 544.6) | +1.6% |
+| 5x2 tg32 | 22.30 (22.28, 22.31) | 22.33 (22.33, 22.33) | +0.2% |
+| 5x2 pp16384 | 349.6 (349.6, 349.6) | 688.6 (688.5, 688.7) | +97.0% |
+| 5x2 tg16 after it | 21.86 (21.93, 21.79) | 21.95 (21.86, 22.03) | +0.4% |
+
+  The Vulkan layer split's decode after the 16k prompt read 3.8% lower in the first ABAB while its short-prompt decode, the 5x2 decode and ROCm's held, and `bench --profile` showed no kernel loss (948.3 ms of device time summed over the ten devices against 963.7, the same dispatches). The control run on the same cells (/opt/claude-work/dsdev149/tc/progress, one cardlock a round, hostwait flags every cell contended) holds a base, a perturbed base (e7e58d699, the base plus an unused inline in vulkan_attention.hpp) and the branch, tg16 tok/s: round 1 base 16.08, perturbed 16.43, branch 16.10; round 2 branch 16.25, perturbed 16.51, base 16.57. The base's own two cells span 16.08 to 16.57 (3.0%) and the base and perturbed cells together 16.08 to 16.57, so the branch's 16.10 and 16.25 (mean 16.18 against the base's 16.33, -0.9%) lie inside the band that code layout and noise make; the -3.8% is not a loss of the branch. The same cells' pp16384 were 488.4 and 488.2 (base), 480.0 and 488.4 (perturbed) and 803.6 and 803.3 (branch), +64.6% over the base's mean.
+- Byte identity against the base (ROCm base 229fa68f6059, Vulkan base cb7d23fd7cd0, both de368dad4; branch binaries from 69605707 with the same src and tests, /opt/claude-work/dsdev149/id/progress): DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s, ROCm int8 and Vulkan, the layer split (M) and 5x2 (T), 64 greedy ids and logits at 1400 positions of a short prompt and 512 positions of a 15032-token prompt, all SAME in all 16 comparisons. The rule changes only which of two kernels with the same bits takes a call.
+
+**Left:** the landing gates (COORD); the Vulkan layer split's tg16 after 16k is inside the base-to-perturbed band, so the timing round needs no special hold.
+
 ## ROCm Q8_0 decode steps by row width, DeepSeek-V4.1 query and window in one call, one-entry routed calls without grouping (2026-11-11, DSDEV121 proposal, F2DEV review, DSDEV122, branch perf/q8-decode-steps on main 12b84ea73, rebased onto main 4eaa874bd over perf/routed-decode-wide; lands by fast-forward)
 
 **Goal:** the int8 class's one-column Q8_0 decode on ROCm closer to its read floor at DeepSeek-V4.1-Flash, Qwen3 and Qwen3.5 shapes, every output the bits main gives.

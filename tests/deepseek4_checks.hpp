@@ -507,7 +507,7 @@ size_t check_packed(Pair& p) {
 }
 
 // sparse_attention_sink at the shapes a device's kernels branch on: four-block runs and a tail in every format, 64 heads, 256 named rows, rows past one scratch chunk.
-// Calls of 7 and 8 rows sit each side of the wide prompt kernels, the 8-row ones over 65 heads and over heads 640 wide.
+// Calls of 7 and 8 rows sit each side of the wide prompt kernels, the 8-row ones over 65 heads and over heads 640 wide, and 8 to 12 rows over 32, 16 and 8 heads take the wide kernel's 2, 4 and 8 lanes a head.
 size_t check_sparse_shapes(Pair& p, const Exact& exact) {
     using backend::ModelFormat;
     struct Case {
@@ -520,7 +520,10 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
                           {64, 64, 512, 512, 140, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
                           {65, 160, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
                           {9, 160, 20, 24, 7, ModelFormat::fp4_power, ModelFormat::f32},
-                          {2, 640, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_power}};
+                          {2, 640, 20, 24, 8, ModelFormat::fp8_power, ModelFormat::fp4_power},
+                          {32, 128, 64, 64, 8, ModelFormat::fp8_power, ModelFormat::fp4_e4m3},
+                          {16, 192, 40, 48, 12, ModelFormat::fp4_power, ModelFormat::fp4_e4m3},
+                          {8, 64, 30, 30, 9, ModelFormat::fp8_power, ModelFormat::f32}};
     const size_t ratio = 4, length = 2048, kv_rows = 600;
     size_t values = 0;
     uint32_t seed = 101;
@@ -578,6 +581,79 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
     return values;
 }
 
+// indexer_scores at a size the tile kernels take (tile_fills_twice) on a device of up to about 180 compute units: 640 rows over 2048 groups of 32-value keys, as F32 and packed in FP4 as the model's are.
+// Sequence A holds 8192 positions on its blocks in reverse order, its last 628 positions the first view's rows, and the second view's 12 rows on sequence B start inside a tile.
+size_t check_index_tile(Pair& p, const Exact& exact) {
+    const size_t ratio = 4, entry = 24, key = 32, width = entry + key, na = 8192, nb = 16, n = na / ratio, bs = 64, bk = 3, ma = 628, mb = 12, m = ma + mb;
+    auto cs = p.cpu.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
+    auto vs = p.dev.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
+    std::vector<int32_t> tables[2][2];
+    for (int dev = 0; dev < 2; ++dev) {
+        const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens, blocks_a = (na + bt - 1) / bt;
+        for (size_t i = 0; i < blocks_a; ++i) tables[dev][0].push_back(int32_t(blocks_a - 1 - i));
+        tables[dev][1].push_back(int32_t(blocks_a));
+    }
+    auto view = [&](bool dev, bool on_a, size_t length, size_t nq) {
+        const std::vector<int32_t>& t = tables[dev][on_a ? 0 : 1];
+        return backend::KVView{dev ? vs.get() : cs.get(), t.data(), t.size(), length, nq};
+    };
+    const size_t g = (na + nb) / ratio;
+    const std::vector<float> rows = uniform(g * width, 71);
+    Pair::In ri = held(p, rows);
+    const backend::KVView cw[] = {view(false, true, 0, na), view(false, false, 0, nb)}, vw[] = {view(true, true, 0, na), view(true, false, 0, nb)};
+    p.cpu.pool_write(0, cw, 2, ri.cs());
+    p.dev.pool_write(0, vw, 2, ri.vs());
+    const std::vector<backend::KVView> cv = {view(false, true, na - ma, ma), view(false, false, nb - mb, mb)}, dv = {view(true, true, na - ma, ma), view(true, false, nb - mb, mb)};
+    // The same rows with their keys packed in FP4 into storage of its own, on both backends.
+    const bool packed = p.dev.implements(backend::Op::model_format_pack);
+    const size_t kw = backend::format_words(backend::ModelFormat::fp4_power, key), pw = entry + kw;
+    auto cpk = p.cpu.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, pw}});
+    auto vpk = p.dev.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, pw}});
+    const auto on = [&](backend::KVView w, backend::KVStorage* st) {
+        w.storage = st;
+        return w;
+    };
+    std::vector<float> lead(g * pw, 0.0f), keys(g * key);
+    for (size_t i = 0; i < g; ++i) {
+        std::copy(rows.begin() + i * width, rows.begin() + i * width + entry, lead.begin() + i * pw);
+        std::copy(rows.begin() + i * width + entry, rows.begin() + (i + 1) * width, keys.begin() + i * key);
+    }
+    Pair::Out pk = p.out(g * pw);
+    Pair::In ki = held(p, keys);
+    if (packed) {
+        p.cpu.write(*pk.c, 0, lead.data(), lead.size() * 4);
+        p.dev.write(*pk.v, 0, lead.data(), lead.size() * 4);
+        p.cpu.model_format_pack({pk.c.get(), entry}, pw, ki.cs(), g, key, backend::ModelFormat::fp4_power);
+        p.dev.model_format_pack({pk.v.get(), entry}, pw, ki.vs(), g, key, backend::ModelFormat::fp4_power);
+        const backend::KVView pcw[] = {on(cw[0], cpk.get()), on(cw[1], cpk.get())}, pvw[] = {on(vw[0], vpk.get()), on(vw[1], vpk.get())};
+        p.cpu.pool_write(0, pcw, 2, pk.cs());
+        p.dev.pool_write(0, pvw, 2, pk.vs());
+    }
+    const std::vector<backend::KVView> pcv = {on(cv[0], cpk.get()), on(cv[1], cpk.get())}, pdv = {on(dv[0], vpk.get()), on(dv[1], vpk.get())};
+    std::vector<uint32_t> cand(m * bk, kNone);
+    for (size_t i = 0; i < cand.size(); ++i)
+        if (i % 3) cand[i] = uint32_t(i * 7 % (n / bs));
+    size_t values = 0;
+    for (size_t heads : {4, 32}) {
+        Pair::In qi = held(p, uniform(m * heads * key, 72)), wi = held(p, uniform(m * heads, 73, -0.5f, 0.5f)), bi = held(p, as_floats(cand));
+        for (bool fp4 : {false, true})
+            for (bool blocks : {false, true}) {
+                if (fp4 && !packed) continue;
+                const backend::ModelFormat f = fp4 ? backend::ModelFormat::fp4_power : backend::ModelFormat::f32;
+                const std::vector<backend::KVView>&c = fp4 ? pcv : cv, &d = fp4 ? pdv : dv;
+                Pair::Out o = p.out(m * n);
+                p.cpu.indexer_scores(o.cs(), qi.cs(), 0, c.data(), c.size(), wi.cs(), 0.375f, heads, key, f, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
+                p.dev.indexer_scores(o.vs(), qi.vs(), 0, d.data(), d.size(), wi.vs(), 0.375f, heads, key, f, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
+                auto r = p.results(o);
+                values += meet(exact, "indexer_scores", r.first, r.second, 1e-5,
+                               "indexer_scores of the tile's size differs beyond 1e-5 at " + std::to_string(heads) + " heads" + (fp4 ? " over FP4 keys" : "") +
+                                   (blocks ? " over candidate blocks" : ""),
+                               true);
+            }
+    }
+    return values;
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
@@ -589,6 +665,7 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_pool_and_routing(p, exact);
     values += check_rope_forms(p, exact);
     values += check_pooled(p, exact);
+    values += check_index_tile(p, exact);
     if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
     return values;
 }

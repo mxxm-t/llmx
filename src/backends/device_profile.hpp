@@ -1,6 +1,7 @@
 #pragma once
 // What a device backend needs to know about its device to shape its kernels, apart from any one vendor's API: `DeviceCaps` holds what the hardware reports, `DeviceProfile` numbers found by measuring the kernels.
 // A capability decides which kernel to launch and a profile number shapes the same kernel; branch on what a device reports, never on its vendor name.
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -201,6 +202,14 @@ inline uint32_t tile_rows_for(const DeviceCaps& caps, const DeviceProfile& profi
     if (nin >= tall_from && groups(rows_tall) >= tall_per_cu * caps.compute_units) return rows_tall;
     const size_t fill = nin < profile.tile_narrow_nin ? caps.compute_units : (caps.compute_units + 1) / 2;
     return groups(rows_short) >= fill ? rows_short : rows_small;
+}
+
+// Whether a shared-memory tile of tile_rows by tile_cols takes a call of rows by cols over a kernel a row: a tile block costs about a wave however few rows fill it.
+// So the tile takes a call whose work in full tiles fills the blocks the device holds at once twice, those bounded by the tile's shared bytes, and never a tile larger than a workgroup's shared memory (docs/src/backends-device_profile.md).
+inline bool tile_fills_twice(const DeviceCaps& caps, size_t tile_bytes, size_t tile_rows, size_t tile_cols, size_t rows, size_t cols) {
+    if (tile_bytes > caps.shared_bytes) return false;
+    const size_t resident = size_t(std::max(1u, caps.compute_units)) * std::max<size_t>(1, caps.shared_bytes / std::max<size_t>(1, tile_bytes));
+    return rows * ((cols + tile_cols - 1) / tile_cols) >= 2 * resident * tile_rows;
 }
 
 } // namespace backend

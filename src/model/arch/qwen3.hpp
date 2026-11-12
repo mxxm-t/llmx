@@ -183,6 +183,20 @@ public:
         p.residual = (size_t)cfg.n_embd;
         p.kv_heads = (size_t)cfg.n_head_kv;
         p.head_dim = (size_t)cfg.head_dim;
+        {
+            backend::PassWidths& w = p.widths;
+            const size_t q = (size_t)cfg.n_head * cfg.head_dim, e = (size_t)cfg.n_embd;
+            w.heads = (size_t)cfg.n_head;
+            w.head_dim = (size_t)cfg.head_dim;
+            w.dense_attention = true;
+            if (cfg.n_expert) {
+                w.routed = (size_t)cfg.n_expert_used;
+                w.expert_in = (size_t)cfg.n_ff_exp;
+                w.expert_out = e;
+            }
+            w.product_in = std::max({e, q, any_dense ? (size_t)cfg.n_ff : 0});
+            w.product_out = std::max({q + 2 * (size_t)cfg.n_head_kv * cfg.head_dim, e, any_dense ? 2 * (size_t)cfg.n_ff : 0});
+        }
         p.tables.assign(2, 0);
         p.table_steps.assign(2, (size_t)(cfg.head_dim / 2));
         return p;

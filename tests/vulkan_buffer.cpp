@@ -1,6 +1,7 @@
 // Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "model/kv_cache.hpp"
+#include "scratch_growth.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -53,6 +54,7 @@ struct VulkanLifetimeTest {
     static size_t attention_scratch_cap(VulkanBackend& b) { return b.attention_scratch_cap_; }
     static void attention_scratch_cap(VulkanBackend& b, size_t bytes) { b.attention_scratch_cap_ = bytes; }
     static VkSemaphore timeline(VulkanBackend& b) { return b.timeline_; }
+    static void make_kernel(VulkanBackend& b, int id, int variant) { b.kernel(KernelId(id), variant); }
     static bool submits_apart(VulkanBackend& b) { return b.submitter_ != nullptr; }
     static Ticket last(VulkanBackend& b) { return b.tickets_.last(); }
     // Whether a binding names the argument arena of a ring slot other than the one recording.
@@ -91,13 +93,6 @@ struct VulkanLifetimeTest {
     }
     static bool query_empty(VulkanBackend& b) { return b.queries_.empty(); }
     static void clear_query(VulkanBackend& b) { b.queries_.clear(); }
-    static void prepare_drop(VulkanBackend& b) {
-        b.open();
-        std::vector<std::shared_ptr<VulkanBuffer>> pending;
-        pending.reserve(1);
-        b.pending_[b.ring_index_].swap(pending);
-    }
-    static size_t retained(VulkanBackend& b) { return b.pending_[b.ring_index_].size(); }
     static bool device_clock(VulkanBackend& b) { return b.dev_->device_clock; }
     // Whether the last hold queued ends within `ns`.
     static bool hold_ended(VulkanBackend& b, uint64_t ns, uint64_t value = 0) {
@@ -110,7 +105,6 @@ struct VulkanLifetimeTest {
         return b.dev_->fn.vkWaitSemaphores(b.dev_->device, &wi, ns) == VK_SUCCESS;
     }
     static uint64_t hold_last(VulkanBackend& b) { return b.hold_.last; }
-    static void drop(VulkanBackend& b, VulkanBuffer& buffer) { b.drop_padded(buffer); }
     // Every submission retired, nothing open and no wait left for a next submission.
     static bool idle(VulkanBackend& b) {
         VkSemaphoreWaitInfo wi{};
@@ -245,7 +239,7 @@ struct KernelCalls {
 
 // A row's MXFP4 decoder can use integer dots without ever creating a tile copy.
 // Fitting must reserve that copy only when the device's tile path can reach it.
-int scratch_reserve_checks() {
+int scratch_copy_checks() {
     auto owner = std::make_unique<backend::VulkanBackend>(0);
     auto& b = *owner;
     const auto dev = backend::VulkanLifetimeTest::device(b);
@@ -255,16 +249,92 @@ int scratch_reserve_checks() {
         for (const bool row_dot : {false, true}) {
             dev->profile.lookup_integer_dot = row_dot;
             dev->profile.prefer_integer_dot = true;
-            const size_t copied = b.scratch_reserve(free);
+            backend::PassWidths w;
+            w.rows = 1 + free / (size_t(1) << 30);
+            w.product_in = w.product_out = 4096;
+            const size_t copied = b.scratch_bytes(w);
             dev->profile.prefer_integer_dot = false;
-            const size_t direct = b.scratch_reserve(free);
-            const bool ok = copied >= backend::kMxCopyBytes && direct == copied - backend::kMxCopyBytes;
+            const size_t direct = b.scratch_bytes(w);
+            const bool ok = direct + backend::kMxCopyBytes == copied;
             std::cout << "scratch free=" << free << " row_dot=" << row_dot
                       << " copy=" << copied << " no_copy=" << direct << (ok ? " PASS\n" : " FAIL\n");
             if (!ok) ++failures;
         }
     }
     dev->profile = saved;
+    return failures;
+}
+
+// The scratch a fit prices holds every pass of its widths on a synthetic Qwen3 and on a GGUF `file` when given, as backend-rocm-scratch checks on ROCm (docs/TESTS.md).
+// The device-local heap's usage, which counts the driver's own allocations beside the backend's buffers, rises through a server's passes by no more than the backend keeps.
+int scratch_checks(const std::string& file, int index) {
+    std::shared_ptr<backend::Device> dev;
+    const auto make = [&] {
+        auto b = std::make_shared<backend::VulkanBackend>(index);
+        dev = backend::VulkanLifetimeTest::device(*b);
+        return backend::BackendPtr(b);
+    };
+    make();
+    if (!dev->memory_budget) {
+        std::cout << "scratch: SKIP - the device reports no heap usage (VK_EXT_memory_budget)\n";
+        return 0;
+    }
+    const auto used = [&] {
+        VkPhysicalDeviceMemoryBudgetPropertiesEXT budget{};
+        budget.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+        VkPhysicalDeviceMemoryProperties2 mp{};
+        mp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+        mp.pNext = &budget;
+        dev->fn.vkGetPhysicalDeviceMemoryProperties2(dev->physical, &mp);
+        size_t most = 0;
+        for (uint32_t h = 0; h < mp.memoryProperties.memoryHeapCount; ++h)
+            if (mp.memoryProperties.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) most = std::max(most, (size_t)budget.heapUsage[h]);
+        return most;
+    };
+    std::string why;
+    int failures = 0;
+    // Every pipeline a pass can make lazily, the first of each kernel and its other builds, grows the heap together by no more than the backend keeps.
+    {
+        backend::VulkanBackend b(index);
+        const size_t before = used();
+        size_t made = 0, extra = 0;
+        for (int id = 0; id < backend::K_COUNT; ++id) {
+            try { backend::VulkanLifetimeTest::make_kernel(b, id, 0); ++made; } catch (const std::exception&) {}
+        }
+        const size_t mid = used();
+        const size_t roster = mid - std::min(mid, before);
+        for (int id = 0; id < backend::K_COUNT; ++id) {
+            const int builds = backend::is_vec_kernel(backend::KernelId(id)) ? backend::kVariants
+                : backend::row_kernel_builds_two_rows(backend::KernelId(id)) ? int(std::size(backend::kRowBuilds)) : 3;
+            for (int v = 1; v < builds; ++v) {
+                if (backend::build_cols(backend::KernelId(id), v) == 0 || backend::build_rows(backend::KernelId(id), v) == 0) continue;
+                try { backend::VulkanLifetimeTest::make_kernel(b, id, v); ++extra; } catch (const std::exception&) {}
+            }
+        }
+        const size_t end = used();
+        const size_t others = end - std::min(end, mid);
+        const size_t kept = b.memory_kept(0);
+        std::cout << "scratch: " << made << " first pipelines grew " << roster << " bytes, " << extra << " other builds " << others << " bytes, kept " << kept << "\n";
+        if (roster + others > kept) {
+            std::cout << "scratch: the pipelines grew the heap past what the backend keeps FAIL\n";
+            ++failures;
+        }
+    }
+    const std::string name = "vulkan:" + std::to_string(index);
+    const gguf::GGUFModel qwen3 = infer::synthetic_model({2, 1024, 1024, 8, 2, 128, 8192, 20261111u});
+    if (!scratch_growth::held(infer::gguf_weights(qwen3), make, name, used, true, why)) {
+        std::cout << "scratch: Qwen3: " << why << " FAIL\n";
+        ++failures;
+    }
+    if (!file.empty()) {
+        gguf::GGUFModel m = gguf::read_gguf(file);
+        gguf::map_payload(m);
+        if (!scratch_growth::held(infer::gguf_weights(m), make, name, used, false, why)) {
+            std::cout << "scratch: " << file << ": " << why << " FAIL\n";
+            ++failures;
+        }
+    }
+    std::cout << (failures ? "vulkan scratch: FAIL\n" : "vulkan scratch: PASS\n");
     return failures;
 }
 
@@ -544,36 +614,30 @@ int query_checks(bool fail) {
     return ok ? 0 : 1;
 }
 
-int padded_drop_checks() {
+// A product matrix's padded copy made as the model is built, before the loader writes its bytes in pieces, holds those bytes, and a product of fewer rows binds the same copy.
+int padded_refresh_checks() {
     auto base = backend::make_vulkan_backend(0);
     auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
-    QueueCalls q(b);
-    auto weights = b.alloc(512 * sizeof(float), backend::Memory::host_visible);
-    auto& w = backend::as_vulkan(*weights);
-    w.adopted = true;
-    const auto first = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1);
-    const auto second = backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1);
-    b.sync();
-    backend::VulkanLifetimeTest::prepare_drop(b);
-    q.mark(first.buffer); q.mark(second.buffer);
-    allocation_countdown = 1;
-    bool threw = false;
-    try { backend::VulkanLifetimeTest::drop(b, w); }
-    catch (const std::bad_alloc&) { threw = true; }
-    allocation_countdown = -1;
-    bool intact = w.padded.size() == 2;
-    for (const auto& entry : w.padded) intact = intact && bool(entry.second.copy);
-    if (intact) {
-        intact = backend::VulkanLifetimeTest::padded(b, {weights.get(), 0}, 1).buffer == first.buffer &&
-                 backend::VulkanLifetimeTest::padded(b, {weights.get(), 256}, 1).buffer == second.buffer;
+    std::vector<float> w(3 * 256);
+    for (size_t i = 0; i < w.size(); ++i) w[i] = float(i % 89) - 44.0f;
+    const size_t bytes = w.size() * sizeof(float);
+    auto filled = b.alloc_weight(bytes);
+    auto& fv = backend::as_vulkan(*filled);
+    b.prepare_matrix(backend::WeightView{quant::GGML_TYPE_F32, {filled.get(), 0}}, 256, 3);
+    const bool made = fv.padded.size() == 1;
+    for (size_t off = 0; off < bytes; off += 1000) b.write(*filled, off, (const uint8_t*)w.data() + off, std::min<size_t>(1000, bytes - off));
+    const auto all = backend::VulkanLifetimeTest::padded(b, {filled.get(), 0}, 3);
+    const auto fewer = backend::VulkanLifetimeTest::padded(b, {filled.get(), 0}, 2);
+    bool held = made && fv.padded.size() == 1 && all.buffer == fewer.buffer;
+    if (held) {
+        const size_t stride = 256 + backend::kF32Pad;
+        std::vector<float> copy(3 * stride);
+        b.read(*fv.padded.begin()->second.copy, 0, copy.data(), copy.size() * sizeof(float));
+        b.sync();
+        for (size_t r = 0; r < 3; ++r) held = held && std::memcmp(copy.data() + r * stride, w.data() + r * 256, 256 * sizeof(float)) == 0;
     }
-    backend::VulkanLifetimeTest::drop(b, w);
-    const bool retained = backend::VulkanLifetimeTest::retained(b) == 2 && w.padded.empty();
-    b.sync();
-    const bool ok = threw && intact && retained && q.premature == 0;
-    std::cout << "padded_drop threw=" << threw << " intact=" << intact << " retained=" << retained
-              << " premature=" << q.premature << (ok ? " PASS\n" : " FAIL\n");
-    return ok ? 0 : 1;
+    std::cout << "padded_refresh made=" << made << " held=" << held << (held ? " PASS\n" : " FAIL\n");
+    return held ? 0 : 1;
 }
 
 // A loader's weight: alloc_weight storage is device-local and adopted, so written in pieces that end inside a row it holds the bytes and still gets the float tile's padded copy, which storage from alloc does not.
@@ -2535,9 +2599,11 @@ int main(int argc, char** argv) {
         if ((argc == 2 || argc == 3) && std::string(argv[1]) == "--float-controls") return float_control_checks(argc == 3 ? argv[2] : nullptr) ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--float-controls-device") return created_float_control_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
+        // `--scratch [FILE [DEVICE]]`: a fitted model's passes grow no device memory past what its fit priced and its backend keeps, on FILE too when given.
+        if (argc >= 2 && argc <= 4 && std::string(argv[1]) == "--scratch") return scratch_checks(argc > 2 ? argv[2] : "", argc > 3 ? std::atoi(argv[3]) : 0) ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
-            const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks() + tile_split_cap_checks() + tile_split_deep_checks();
+            const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_refresh_checks() +
+                                 loader_weight_checks() + scratch_copy_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks() + tile_split_cap_checks() + tile_split_deep_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

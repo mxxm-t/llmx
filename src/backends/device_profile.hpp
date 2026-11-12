@@ -212,4 +212,35 @@ inline bool tile_fills_twice(const DeviceCaps& caps, size_t tile_bytes, size_t t
     return rows * ((cols + tile_cols - 1) / tile_cols) >= 2 * resident * tile_rows;
 }
 
+// The parts a split tile call of `workgroups` workgroups over `nblk` blocks of 32 takes: it splits below `per_cu` workgroups a compute unit, keeping at least the profile's fewest blocks a part, and 1 is no split.
+inline size_t split_parts(const DeviceProfile& p, const DeviceCaps& caps, size_t workgroups, size_t nblk, size_t per_cu) {
+    const size_t target = per_cu * std::max(1u, caps.compute_units);
+    if (workgroups >= target) return 1;
+    return std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / std::max<size_t>(p.tile_split_min_blocks, 2)));
+}
+
+// The blocks a part of that call sums, a multiple of the tile's step of two; `per_cu` 0 takes the integer-dot tile's target, the narrow one for inputs narrower than tile_narrow_nin.
+inline size_t split_blocks(const DeviceProfile& p, const DeviceCaps& caps, size_t workgroups, size_t nblk, size_t per_cu = 0) {
+    if (!per_cu) per_cu = nblk * 32 < p.tile_narrow_nin ? p.tile_split_per_cu_narrow : p.tile_split_per_cu;
+    const size_t parts = split_parts(p, caps, workgroups, nblk, per_cu);
+    if (parts <= 1) return nblk;
+    return std::min((((nblk + parts - 1) / parts) + 1) & ~size_t(1), nblk);
+}
+
+// The most values a split tile call keeps of parts over at most `rows` rows whose inputs are `nin` wide and outputs at most `nout`, under split_parts at the widest of the profile's targets.
+// A call of g workgroups `unit` outputs tall over t column tiles, the tiles a run of its rows gives (at most 8), splits only while g * t is short of the target.
+inline size_t split_partials_most(const DeviceProfile& p, const DeviceCaps& caps, size_t rows, size_t nin, size_t nout, size_t unit) {
+    const size_t per_cu = std::max({p.tile_split_per_cu, p.tile_split_per_cu_narrow, p.float_tile_split_per_cu}), target = per_cu * std::max(1u, caps.compute_units);
+    size_t most = 0;
+    for (size_t t = 1; t <= 8; ++t) {
+        const size_t r = t == 8 ? rows : std::min(rows, 64 * t);
+        for (size_t g = 1; g * t < target && (g - 1) * unit < nout; ++g) {
+            const size_t parts = split_parts(p, caps, g * t, nin / 32, per_cu);
+            if (parts > 1) most = std::max(most, parts * r * std::min(nout, g * unit));
+        }
+        if (r == rows) break;
+    }
+    return most;
+}
+
 } // namespace backend

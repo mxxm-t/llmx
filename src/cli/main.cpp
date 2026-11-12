@@ -589,9 +589,12 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
     return specs;
 }
 
-// Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
+// The logits rows a command's prompt passes keep when it scores every row of them, as `logits` and `perplexity` do: a pass's prompt tokens.
+size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)(exec.ubatch > 0 ? exec.ubatch : infer::kDefaultUbatch); }
+
+// Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed for its ubatch plus `decode_rows` generated tokens a pass and `logit_rows` logits rows.
 // The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes) are described in docs/src/cli-main.md, open_model.
-std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
+std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t logit_rows, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {},
@@ -615,13 +618,9 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
     request.slots = slots;
-    // A server's passes carry a verify's draft rows where it drafts, and it keeps logits rows for its passes in flight by its own rule, a row a request and those drafts, not one for every row of a pass.
-    if (slots) {
-        // A drafting server's mark holds a verify, its last pick and `--draft-max` drafts.
-        const size_t draft_max = mark_rows ? mark_rows - 1 : 0;
-        request.draft_rows = server::Scheduler::draft_rows(decode_rows, draft_max);
-        request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, draft_max)).size;
-    }
+    request.logit_rows = logit_rows;
+    // A server's passes carry a verify's draft rows where it drafts; a drafting server's mark holds a verify, its last pick and `--draft-max` drafts.
+    if (slots) request.draft_rows = server::Scheduler::draft_rows(decode_rows, mark_rows ? mark_rows - 1 : 0);
     request.kv_auto = slots > 0 && exec.kv_tokens <= 0;
     if (history_tokens) {
         request.histories = decode_rows;
@@ -770,6 +769,8 @@ struct Drafts {
     std::unique_ptr<infer::LoadedModel> beside;   // a draft model the file was, loaded as a model of its own
     // The rows of a verify a mark must save, none without a proposer.
     size_t mark_rows() const { return proposer || embedded || !file.empty() ? infer::spec::verify_rows(draft_max) : 0; }
+    // The logits rows a pass of the one sequence keeps: a verify's, or the one row a step reads.
+    size_t logit_rows() const { return std::max<size_t>(1, mark_rows()); }
     // The proposer over what the model was loaded with: its embedded drafter or the MTP blocks the drafter file held, or the draft model the file was, opened on the same devices once the model has taken its room.
     // A `server` takes no draft model, which drafts on its own history.
     void attach(const infer::LoadedModel& loaded, const ExecOptions& exec, bool progress, bool server = false);
@@ -822,7 +823,7 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
     if (server)
         throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
     // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
-    beside = open_model(file, exec, progress, exec.threads, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
+    beside = open_model(file, exec, progress, exec.threads, infer::spec::kVerifyRows, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
     proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, lookup_first);
 }
 
@@ -830,7 +831,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
                  Drafts& drafts, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("generate");
     const bool progress = show_progress(exec);
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file, {},
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, drafts.logit_rows(), 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file, {},
                                    std::nullopt, {}, true);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
@@ -900,7 +901,7 @@ void matrix_record(infer::LoadedModel& loaded) {
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
                int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("logits");
-    const auto loaded = open_model(model_path, exec, false, exec.threads);
+    const auto loaded = open_model(model_path, exec, false, exec.threads, prompt_logit_rows(exec));
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
 
@@ -947,7 +948,7 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
 int cmd_perplexity(const std::string& model_path, const std::string& text,
                    const ExecOptions& exec, int context_size, int chunks, bool per_token) {
     const int threads = exec.threads_batch > 0 ? exec.threads_batch : exec.threads;   // main refuses --threads-batch with --per-token
-    const auto loaded = open_model(model_path, exec, false, threads, 0, exec.verbose);
+    const auto loaded = open_model(model_path, exec, false, threads, prompt_logit_rows(exec), 0, exec.verbose);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     if (exec.verbose)
@@ -974,7 +975,7 @@ int cmd_perplexity(const std::string& model_path, const std::string& text,
 int cmd_chat(const std::string& model_path, const std::string& system, const infer::GenParams& gp, const ExecOptions& exec, Drafts& drafts) {
     const bool progress = show_progress(exec);
     // A model that keeps a state keeps it where the next turn will begin, and two slots let a turn's checkpoint take over from the last one's.
-    const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded, drafts.file, {},
+    const auto loaded = open_model(model_path, exec, progress, exec.threads, drafts.logit_rows(), 0, exec.verbose, nullptr, 0, 0, false, 2, drafts.mark_rows(), drafts.embedded, drafts.file, {},
                                    std::nullopt, {}, true);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
@@ -1162,7 +1163,8 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     // What each sequence holds at most: a batched one its prompt and its generated tokens, the one sequence its depth and the longer of its two tests, or the drafter's reach.
     const size_t reach = seqs > 1 ? (size_t)P + (size_t)G : std::max((size_t)D + (size_t)std::max(P, G), drafter ? std::max(rollback_reach, draft_reach) : 0);
     std::vector<backend::Backend*> devices;   // the devices --profile times
-    const auto loaded = open_model(path, exec, false, exec.threads, (size_t)seqs, true, profile ? &devices : nullptr, reach, 0, false, 0,
+    // A pass keeps a logits row a sequence, or a verify's or a rollback's rows on the one sequence with the drafter.
+    const auto loaded = open_model(path, exec, false, exec.threads, std::max<size_t>((size_t)seqs, drafter ? mark_rows : 1), (size_t)seqs, true, profile ? &devices : nullptr, reach, 0, false, 0,
                                    drafter ? mark_rows : 0, drafts.embedded, drafts.file);
     if (loaded->drafter == infer::spec::DrafterKind::model)
         throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafts.file + " is a draft model");
@@ -1444,7 +1446,9 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
 // The rest of `serve` once the server listens: the model loaded, the start recorded as it goes, then the routes served on `front`.
 void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, server::Front& front) {
     server::Startup& startup = front.startup();
-    const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
+    // The scheduler keeps logits rows for its passes in flight by its own rule, a row a request and its drafts, not one for every row of a pass.
+    const size_t logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(cfg.max_seqs, drafts.mark_rows() ? drafts.mark_rows() - 1 : 0)).size;
+    const auto loaded = open_model(model_path, exec, true, exec.threads, logit_rows, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
                                    drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); });
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;

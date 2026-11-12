@@ -13,6 +13,7 @@
 #include "group_sums.hpp"
 #include "qwen35_checks.hpp"
 #include "row_classes.hpp"
+#include "scratch_growth.hpp"
 
 #include <algorithm>
 #include <array>
@@ -2384,6 +2385,26 @@ void vec_bits(Backend& g) {
     }
 }
 
+// The scratch a fit prices holds every pass of its widths (Backend::reserve_scratch, docs/src/backends-rocm.md, Scratch), on a synthetic Qwen3 and on a GGUF `file` when given.
+// HIP's free memory, polled through a server's passes, falls below its reading by no more than the device keeps; a model whose scratch was made for one row must show the growth.
+void scratch_reserved(const std::string& file, int index) {
+    const auto used = [index] {
+        static thread_local bool set = false;
+        if (!set) set = hip().hipSetDevice(index) == hipSuccess;
+        size_t f = 0, t = 0;
+        return hip().hipMemGetInfo(&f, &t) == hipSuccess ? t - f : 0;
+    };
+    const auto make = [index] { return make_rocm_backend(index); };
+    const std::string name = "rocm:" + std::to_string(index);
+    std::string why;
+    const gguf::GGUFModel qwen3 = infer::synthetic_model({2, 1024, 1024, 8, 2, 128, 8192, 20261111u});
+    require(scratch_growth::held(infer::gguf_weights(qwen3), make, name, used, true, why), "Qwen3: " + why);
+    if (file.empty()) return;
+    gguf::GGUFModel m = gguf::read_gguf(file);
+    gguf::map_payload(m);
+    require(scratch_growth::held(infer::gguf_weights(m), make, name, used, false, why), file + ": " + why);
+}
+
 // A prompt's rows whose histories cross a change in the attention's chunks, at heads 128 and 256 wide and at 16K on the tile: each row the bits of that row alone in its class.
 void attention_chunks(Backend& g) {
     const int n_head = 4, n_head_kv = 2;
@@ -4333,6 +4354,12 @@ int main(int argc, char** argv) {
             routed_builds_witness(*g);
             experts_add(*g);
             std::cout << (failures ? "backend-rocm moe: FAIL\n" : "backend-rocm moe: PASS\n");
+            return failures ? 1 : 0;
+        }
+        // `scratch [FILE [DEVICE]]` runs only the check that a fitted model's passes grow no device memory past what its fit priced, on FILE too when given.
+        if (argc > 1 && std::string(argv[1]) == "scratch") {
+            scratch_reserved(argc > 2 ? argv[2] : "", argc > 3 ? std::atoi(argv[3]) : 0);
+            std::cout << (failures ? "backend-rocm scratch: FAIL\n" : "backend-rocm scratch: PASS\n");
             return failures ? 1 : 0;
         }
         // `attention` runs only the attention checks, the focused test of its kernels.

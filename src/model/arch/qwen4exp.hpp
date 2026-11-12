@@ -553,6 +553,25 @@ public:
         p.kv_heads = size_t(c.n_head_kv);
         p.head_dim = size_t(c.head_dim);
         p.state = {size_t(c.k_heads), size_t(c.v_heads), size_t(c.k_dim), size_t(c.v_dim)};
+        {
+            backend::PassWidths& w = p.widths;
+            const size_t e = size_t(c.n_embd), q = size_t(c.n_head) * size_t(c.head_dim), kv = size_t(c.n_head_kv) * size_t(c.head_dim);
+            const size_t inner = size_t(c.v_heads) * size_t(c.v_dim), channels = 2 * size_t(c.k_heads) * size_t(c.k_dim) + inner;
+            w.heads = size_t(c.n_head);
+            w.head_dim = size_t(c.head_dim);
+            w.dense_attention = true;
+            w.sparse_ids = size_t(c.indexer_budget) + size_t(std::max(c.indexer_compress_ratio, c.nextn_compress_ratio)) - 1;
+            const int least = c.nextn_compress_ratio > 1 ? std::min(c.indexer_compress_ratio, c.nextn_compress_ratio) : c.indexer_compress_ratio;
+            w.index_compression = size_t(std::max(least, 1));
+            w.routed = size_t(c.n_expert_used);
+            w.expert_in = size_t(c.n_ff_exp);
+            w.expert_out = e;
+            w.shared_ff = size_t(c.n_ff_shexp);
+            w.streams = size_t(c.hc_count);
+            w.mix_width = e;
+            w.product_in = std::max({e * size_t(c.hc_count), q, inner, size_t(c.n_ff_shexp)});
+            w.product_out = std::max({2 * q + 2 * kv, channels + inner + 2 * size_t(c.v_heads), e, 2 * size_t(c.n_ff_shexp)});
+        }
         p.tables = {0, 0, size_t(R)};
         p.table_steps = {size_t(c.rope_dim / 2), size_t(c.rope_dim / 2)};
         // Images take Qwen 3.5's interleaved positions, a pooled group turning at its first row's (Step::group_pos), and an embedding row fills every residual stream.

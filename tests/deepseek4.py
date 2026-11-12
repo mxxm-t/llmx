@@ -8,6 +8,7 @@ The upstream layout is refused by its key.
 On a configured device the same gate runs; a device whose backend lacks one of the model's ops refuses the file at load by that op's name, and the component reports SKIP.
 Its cache is kept as native, the model's packed formats and its default, or f32: the whole, decode and ubatch 3 runs under native print the f32 runs' logits, and f16 or two different sides are refused by the flag before the model is built.
 `serve` gives the CLI's ids alone, together, after a prefix split, from a kept checkpoint and through a pause (check_serve), `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
+On one ROCm or Vulkan device the backend's test beside the executable runs its scratch check on the served file (check_scratch): its passes grow the device by no more than the fit priced and the backend keeps.
 """
 import json
 import math
@@ -28,8 +29,26 @@ LOGIT_BOUND = 2e-5
 NLL_BOUND = 1e-5
 
 
-def tool_path():
-    return os.path.join(os.path.dirname(common.exe_path()), "llmx-arch-deepseek4-test" + (".exe" if os.name == "nt" else ""))
+def tool_path(name="llmx-arch-deepseek4-test"):
+    return os.path.join(os.path.dirname(common.exe_path()), name + (".exe" if os.name == "nt" else ""))
+
+
+# The scratch check of the one device's backend test (docs/TESTS.md, backend-rocm-scratch and vulkan-scratch) on `path`.
+def check_scratch(path, require):
+    devices = os.environ.get("LLMX_DEVICE", "cpu").split(",")
+    kind, _, index = devices[0].partition(":")
+    tools = {"rocm": ("llmx-backend-rocm-test", "scratch"), "vulkan": ("llmx-vulkan-lifetime-test", "--scratch")}
+    if len(devices) != 1 or kind not in tools or not index.isdigit():
+        return
+    tool = tool_path(tools[kind][0])
+    if not os.path.exists(tool):
+        assert not require, "deepseek4: %s not found beside the executable" % tool
+        print("deepseek4: scratch not checked - %s not found beside the executable" % tool)
+        return
+    p = subprocess.run([tool, tools[kind][1], path, index], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+    assert p.returncode == 0, "deepseek4: the scratch check failed on %s: %s%s" % (devices[0], p.stdout[-2000:], p.stderr[-2000:])
+    grew = [line for line in p.stdout.splitlines() if line.startswith("scratch fitted")]
+    print("deepseek4: on %s the served file's passes grow the device by no more than its backend keeps (%s)" % (devices[0], grew[-1] if grew else "no line"))
 
 
 def refused(path, text, flags=()):
@@ -212,6 +231,7 @@ def run(require=False):
         served = fixture_deepseek4.write_deepseek41(os.path.join(directory, "serve.gguf"), dict(args, max_seq_len=1024), state, engram, "fork")
         check_serve(served, "f32", True)
         check_serve(served, "native", False)
+        check_scratch(served, require)
         common.check_drafts("deepseek4", fork)
         print("deepseek4: generate with --drafter lookup at 1, 4, 8 and 16 drafts, greedy and seeded, gives the ids it gives with drafts off")
         metadata, tensors = fixture_deepseek4.map_deepseek41(args, state, engram, "fork")

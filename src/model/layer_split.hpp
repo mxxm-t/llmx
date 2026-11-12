@@ -55,6 +55,7 @@ struct Footprint {
     size_t host_state = 0;                     // model-owned host state, counted once rather than per device
     size_t context_rows = 0;                   // the model's own context beside a server's passes, which a mark's rerun and a drafter's chain take (Model::reserve_drafting)
     size_t host_scratch_per_row = 0;           // host lookup indices for each used stage's execution arena
+    backend::PassWidths widths;                // the widest shapes a device's passes run, a member's heads on a tensor group; rows and logits are the fit's (pass_widths)
 };
 
 // The handoff buffers each device the residual leaves keeps for `slots` passes in flight: on a pipelined split one per slot, two at least, so a prompt's chunk goes out through one while the one before waits in the other; otherwise one.
@@ -68,11 +69,21 @@ struct DeviceBudget {
     bool host = false;
     std::function<size_t(const Matrix&)> resident;
     size_t host_side = 0;
-    size_t scratch = 0;   // what the backend's kernels keep for themselves (Backend::scratch_reserve)
+    size_t scratch = 0;   // what the device keeps free beside its priced scratch (Backend::memory_kept)
     std::function<size_t(size_t members, size_t width)> collective = nullptr;   // what a member of a tensor group keeps a row of a sum (Backend::collective_bytes_per_row)
     size_t collective_per_row = 0;                                    // on a tensor group, the most its members keep a row of a sum (group_budgets)
     bool argmax = false;                                              // the device keeps argmax passes' logits rows (not the CPU, and it implements argmax_rows)
+    std::function<size_t(const backend::PassWidths&)> priced = nullptr;   // the scratch passes of those widths take there (Backend::scratch_bytes)
 };
+
+// The widths a device's passes run its scratch at (Backend::scratch_bytes): the footprint's, at a pass's rows or the model's own context rows, whichever is more, and on the head's device its logits rows.
+inline backend::PassWidths pass_widths(const Footprint& fp, size_t rows, size_t logit_rows, bool head) {
+    backend::PassWidths w = fp.widths;
+    w.rows = std::max(rows, fp.context_rows);
+    w.logit_rows = head ? logit_rows : 0;
+    if (!head) w.vocab = 0;
+    return w;
+}
 
 // A budget for each backend, named as its caller names it: what the backend reports free, whether it reads weights in place, what adopting a matrix keeps on it, and its own host memory.
 inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendPtr>& backends, const std::vector<std::string>& names) {
@@ -83,9 +94,10 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
         const std::optional<size_t> free = b->memory_available();
         budgets.push_back(DeviceBudget{names[d], free, b->reads_in_place(),
                                        [b](const Matrix& w) { return b->resident_bytes(w.type, w.nin, w.rows, w.bytes, w.product); },
-                                       b->host_resident(), b->scratch_reserve(free.value_or(0)),
+                                       b->host_resident(), b->memory_kept(free.value_or(0)),
                                        [b](size_t members, size_t width) { return b->collective_bytes_per_row(members, width); }});
         budgets.back().argmax = !b->is_cpu() && b->implements(backend::Op::argmax_rows);
+        budgets.back().priced = [b](const backend::PassWidths& w) { return b->scratch_bytes(w); };
     }
     return budgets;
 }
@@ -233,15 +245,16 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // A carrier's budget checks the host's needs with its own; without one they must fit the host's room.
     auto host_fits = [&](const Host& h) { return h.carrier != SIZE_MAX || !host_room || h.need <= *host_room; };
 
-    // Besides weights and caches: a pass's activations, the backend's reserve and, where weights are copied, the device's own tables; the carrier also holds the host's needs, since its budget is the host's memory.
-    auto overhead = [&](size_t d, const Host& h) {
+    // Besides weights and caches: a pass's activations, the scratch at the pass's widths, what the device keeps free and, where weights are copied, its tables; the carrier also holds the host's needs, its budget being the host's.
+    auto overhead = [&](size_t d, const Host& h, bool last) {
         const size_t copies = devices[d].host ? 0 : fp.tables;
-        return (rows + fp.context_rows) * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
+        const size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
+        return (rows + fp.context_rows) * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
         return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[i + k] - cached[i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
-                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row + (devices[d].argmax ? std::min(logit_rows.value_or(rows), fp.argmax_rows) * fp.argmax_per_row : 0) : 0), overhead(d, h)));
+                                 backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row + (devices[d].argmax ? std::min(logit_rows.value_or(rows), fp.argmax_rows) * fp.argmax_per_row : 0) : 0), overhead(d, h, last)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
@@ -331,7 +344,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         LayerSplit::Stage& st = out.stages[d];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
         st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0);
-        st.other = backend::size_add(overhead(d, h), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
+        st.other = backend::size_add(overhead(d, h, d == used.back()), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {
             char msg[256];

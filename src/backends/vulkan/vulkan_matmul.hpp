@@ -159,7 +159,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
             // Split only below a quarter of a workgroup per compute unit to limit reduction overhead (docs/VULKAN.md).
             const size_t fwg = groups(pr->rows, hs) * st;
             const bool starved = fwg * 4 < dev_->caps.compute_units;
-            const size_t base_kper = starved ? split_blocks(groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;
+            const size_t base_kper = starved ? split_blocks(dev_->profile, dev_->caps, groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;
             // Shorter F32 sums keep the BF16 depth agreement; retain a finer split chosen for occupancy.
             const size_t kper = dtype == Dtype::bf16 ? std::min(base_kper, (steps + 3) / 4) : base_kper;
             const size_t parts = (steps + kper - 1) / kper;
@@ -226,7 +226,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
                                               i8 ? dev_->profile.qtile_tall_from_8bit : dev_->profile.qtile_tall_from);
             size_t gxs = 0;
             for (const Projection* pr : group) gxs += groups(pr->rows, hs);
-            const size_t kper = split_blocks(gxs * st, nblk);
+            const size_t kper = split_blocks(dev_->profile, dev_->caps, gxs * st, nblk);
             const size_t parts = (nblk + kper - 1) / kper;
             const uint32_t pc[16] = {u32(nin), u32(nbatch), group[0]->weight.type, accumulate && parts == 1 ? 1u : 0u, u32(kper),
                                      u32(group.size()), t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], 0, 0, u32(nbatch), xpad};
@@ -731,20 +731,6 @@ inline void VulkanBackend::copy_mxfp4(CSlice data, size_t rows, size_t nin, size
     const size_t total = (size_mul(blocks, kMxCopyBlock / 4) + 255) / 256;
     const size_t gx = std::min(total, size_t(dev_->props.limits.maxComputeWorkGroupCount[0]));
     dispatch(K_COPY_MXFP4, {bind(data), output}, pc, sizeof(pc), u32(gx), u32(groups(total, gx)));
-}
-
-// Split below the profile's workgroup target, retaining at least tile_split_min_blocks per part; per_cu overrides the target.
-inline size_t VulkanBackend::split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu) const {
-    const bool narrow = nblk * 32 < dev_->profile.tile_narrow_nin;
-    const size_t target = (size_t)(per_cu ? per_cu : narrow ? dev_->profile.tile_split_per_cu_narrow : dev_->profile.tile_split_per_cu) *
-                          dev_->caps.compute_units;
-    const size_t floor_blocks = std::max<size_t>(dev_->profile.tile_split_min_blocks, 2);
-    if (workgroups >= target) return nblk;
-    size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / floor_blocks));
-    if (parts <= 1) return nblk;
-    size_t kper = (nblk + parts - 1) / parts;
-    kper = (kper + 1) & ~size_t(1);   // a split call's parts are a multiple of the tile's STEP of two
-    return std::min(kper, nblk);
 }
 
 // Whether all runs take one integer-dot tile call, independent of weight type.

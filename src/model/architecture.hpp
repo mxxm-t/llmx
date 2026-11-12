@@ -168,6 +168,8 @@ struct ModelPlan {
     size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
+    // The widest shapes the pass runs, whole-model rather than a member's share; the fit adds rows and logits (backend::PassWidths).
+    backend::PassWidths widths;
     std::vector<size_t> tables;         // floats in each table besides those of its positions
     std::vector<size_t> table_steps;    // floats each covered position adds to each table, none past its end; a table without any is fixed
     // Per rotated pair, which of an image row's three positions turns it (backend::RopeStreams, docs/VISION.md, section 4); empty where the model takes no image rows.

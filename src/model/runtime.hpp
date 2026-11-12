@@ -1572,9 +1572,10 @@ private:
                 weight.data = std::move(buffer);
                 weight.nin = rows ? size_t(role.in) : n;
                 weight.nout = rows ? n : size_t(role.out);
-                return weight;
+            } else {
+                weight.data = take(i, device + member);
             }
-            weight.data = take(i, device + member);
+            if (role.kind == RoleKind::matrix) b.prepare_matrix(weight.operand(), weight.nin, weight.nout);
             return weight;
         };
         pass_.assign(plan_.role_ids, Weight{});

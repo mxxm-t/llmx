@@ -291,6 +291,7 @@ public:
             pass_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, false, graves_);
         }
         graves_->thread = std::thread([g = graves_.get(), index] { g->run(index); });
+        probe_memory();
     }
     ~RocmBackend() override {
         const HipFn& f = hip();
@@ -308,6 +309,10 @@ public:
         if (graves_->thread.joinable()) graves_->thread.join();
         parts_ = {};
         sparse_ = {};
+        moe_out_ = {};
+        step_twin_ = {};
+        moe_tab_ = {};
+        hc_scratch_ = {};
         twin_ = {};
         staged_ = {};
         partials_ = {};
@@ -338,9 +343,23 @@ public:
         if (hip().hipSetDevice(dev_.index) != hipSuccess || hip().hipMemGetInfo(&free, &total) != hipSuccess) return std::nullopt;
         return free;
     }
-    // HIP rounds each device allocation to its pages (2 MiB past 1 MiB) and keeps memory of its own, and the kernels' scratch grows with a pass, so the fit leaves the share Vulkan leaves.
-    // A group's signal block is a fixed size beside the staging collective_bytes_per_row counts.
-    size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + kGroupSignalBytes + free / 20; }
+    // Each buffer as hipMalloc takes it (alloc_bytes), so a weight's fit counts its pages.
+    size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return alloc_bytes(bytes); }
+    size_t scratch_bytes(const PassWidths& w) const override {
+        size_t n = 0;
+        for (size_t b : scratch_sizes(w)) n = size_add(n, alloc_bytes(b));
+        return n;
+    }
+    // Each scratch buffer made at its priced size before the first pass, so no pass grows one and none waits in the graves beside its successor.
+    void reserve_scratch(const PassWidths& w) override {
+        const ScratchSizes z = scratch_sizes(w);
+        for (size_t i = 0; i < z.size(); ++i) {
+            BufferPtr& b = *scratch_buffer(i);
+            if (z[i] && (!b || b->size() < z[i])) b = alloc(z[i], Memory::device);
+        }
+    }
+    // The runtime's private scratch for the kernels that spill, which it takes at their first launch, and a group's signal block beside the staging collective_bytes_per_row counts.
+    size_t memory_kept(size_t) const override { return size_add(driver_scratch_, alloc_bytes(kGroupSignalBytes)); }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::vector<size_t> member_order(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
@@ -607,7 +626,7 @@ public:
         const float* lp = f32(logits);
         unsigned* ip = (unsigned*)f32(ids);
         const unsigned* ap = after.buffer ? (const unsigned*)f32(after) : nullptr;
-        const size_t need = size_mul(size_mul(rows, nslice), 2 * sizeof(float));
+        const size_t need = argmax_parts_bytes(rows, n);
         if (nslice > 1 && (!argmax_parts_ || argmax_parts_->size() < need)) argmax_parts_ = alloc(need, Memory::device);
         float* pp = nslice > 1 ? (float*)as_rocm(*argmax_parts_).data() : nullptr;
         unsigned nn = (unsigned)n, sl = (unsigned)slice, ns = (unsigned)nslice;
@@ -627,7 +646,7 @@ public:
         span(*cands.buffer, cands.offset * sizeof(float), size_mul(size_mul(rows, slots), 3 * sizeof(float)));
         const size_t slice = std::max<size_t>(1, std::min(dev_.profile.argmax_slice, n)), nslice = (n + slice - 1) / slice;
         if (size_mul(rows, nslice) > UINT32_MAX) throw std::runtime_error("rocm: argmax over too many slices");
-        const size_t need = size_mul(size_mul(rows, nslice), 2 * sizeof(float));
+        const size_t need = argmax_parts_bytes(rows, n);
         if (!argmax_parts_ || argmax_parts_->size() < need) argmax_parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_rocm(*argmax_parts_).data();
         unsigned* none = nullptr;
@@ -982,8 +1001,8 @@ public:
         }
         // The launch's scratch: the two barrier counters first, which the allocation zeroes and every launch leaves at zero, then each stream's root, the twin's scales and the twin, for a launch's columns.
         // The counters keep their offset whatever the shape, so a launch on scratch a wider mix used reads zeros there, never that mix's twin bytes.
-        const size_t cols = std::min(rows, kHcColumns), rr_at = 64, nd_at = rr_at + (cols * streams * sizeof(float) + 15) / 16 * 16,
-                     nq_at = nd_at + (cols * width / 32 * sizeof(float) + 15) / 16 * 16, need = nq_at + cols * width;
+        const HcLayout hl = hc_layout(rows, streams, width);
+        const size_t rr_at = hl.rr_at, nd_at = hl.nd_at, nq_at = hl.nq_at, need = hl.need;
         if (!hc_scratch_ || hc_scratch_->size() < need) hc_scratch_ = alloc(need, Memory::device);
         uint8_t* sc = (uint8_t*)as_rocm(*hc_scratch_).data();
         forget_twins();
@@ -1235,10 +1254,9 @@ public:
         unsigned long long bf = t.block_floats;
         unsigned kf = unsigned(kv_format), ef = unsigned(entry_format), kws = u32(kw);
         // The scratch holds a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows and their two counts (kernels/f32.hip, llmx_sparse_softmax).
-        const size_t named = size_add(k, entry_k), row_bytes = size_add(size_mul(size_add(size_mul(named, heads), heads), 4), size_mul(size_add(named, 1), 8));
-        const size_t chunk = std::min(rows, std::max<size_t>(1, ((size_t)32 << 20) / row_bytes));
-        const size_t pt_bytes = size_mul(size_mul(chunk, named), heads * 4), den_bytes = size_mul(chunk, heads * 4), kept_bytes = size_mul(size_mul(chunk, named), 8);
-        const size_t den_at = pt_bytes, kept_at = (den_at + den_bytes + 7) / 8 * 8, counts_at = kept_at + kept_bytes, need = counts_at + size_mul(chunk, 8);
+        const size_t named = size_add(k, entry_k);
+        const SinkLayout sl = sink_layout(rows, named, heads);
+        const size_t chunk = sl.chunk, den_at = sl.den_at, kept_at = sl.kept_at, counts_at = sl.counts_at, need = sl.need;
         if (!sparse_ || sparse_->size() < need) sparse_ = alloc(need, Memory::device);
         uint8_t* sc = (uint8_t*)as_rocm(*sparse_).data();
         float *pt = (float*)sc, *den = (float*)(sc + den_at);
@@ -1380,7 +1398,7 @@ public:
         span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(entries, nin), sizeof(float)));
         span(*Y.buffer, Y.offset * sizeof(float), size_mul(size_mul(nrows, nout), sizeof(float)));
         span(*routing.weights.buffer, routing.weights.offset * sizeof(float), size_mul(entries, sizeof(float)));
-        const size_t out_bytes = size_mul(size_mul(entries, nout), sizeof(float));
+        const size_t out_bytes = moe_out_bytes(entries, nout);
         if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
         const Projection one{weight, Slice{moe_out_.get(), 0}, nout};
         routed_runs(&one, 1, X, nin, nrows, routing, true, runs, dtype);
@@ -1532,20 +1550,17 @@ public:
             launch(kAttentionTile, (unsigned)(tiles * n_head), 1, args);
         }
         // Each row's history in chunks of its own, merged in order (kernels/f32.hip), so its bits do not depend on the call.
-        const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
-        if (!parts_ || parts_->size() < need) {
-            parts_ = alloc(need, Memory::device);
-        }
+        const size_t need = attention_parts_bytes(rows, (size_t)n_head, kChunks, (size_t)head_dim);
+        if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_rocm(*parts_).data();
         // Rows of the tile kernel's views were answered above, and every kernel below skips them by their end of 0.
         // Heads 128 and 256 wide take the per-row kernel, its splits chunks of each row's length, as many as the longest row needs (a shorter row's extra splits are empty), within the profile's limit for the width.
         if (narrow && (head_dim == 128 || head_dim == 256)) {
-            const DeviceProfile& prof = dev_.profile;
             int longest = 0;
             for (int32_t e : ends) longest = std::max(longest, e);
-            int chunk = (int)prof.attention_split_chunk, max_parts = (int)(head_dim == 256 ? prof.attention_split_max_wide : prof.attention_split_max);
-            int nsplit = std::min(max_parts, std::max(1, (longest + chunk - 1) / chunk));
-            const size_t vneed = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul((size_t)head_dim + 2, sizeof(float)));
+            int chunk = (int)dev_.profile.attention_split_chunk, nsplit = (int)attention_splits((size_t)head_dim, (size_t)longest);
+            int max_parts = (int)(head_dim == 256 ? dev_.profile.attention_split_max_wide : dev_.profile.attention_split_max);
+            const size_t vneed = attention_parts_bytes(rows, (size_t)n_head, (size_t)nsplit, (size_t)head_dim);
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
             // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
@@ -1618,10 +1633,9 @@ public:
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens, kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16, stride = (int)id_stride;
         float scale = 1.0f / std::sqrt((float)head_dim);
         if (head_dim == 128 || head_dim == 256) {
-            size_t ids_per = dev_.profile.sparse_split_ids;
-            while ((id_stride + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
+            const size_t ids_per = sparse_split_ids(id_stride);
             int chunk = (int)ids_per, nsplit = (int)((id_stride + ids_per - 1) / ids_per);
-            const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul((size_t)head_dim + 2, sizeof(float)));
+            const size_t need = attention_parts_bytes(rows, (size_t)n_head, (size_t)nsplit, (size_t)head_dim);
             if (nsplit > 1 && (!parts_ || parts_->size() < need)) parts_ = alloc(need, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
             const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, vp, idp, stride);
@@ -1634,7 +1648,7 @@ public:
             }
             return;
         }
-        const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
+        const size_t need = attention_parts_bytes(rows, (size_t)n_head, kChunks, (size_t)head_dim);
         if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_rocm(*parts_).data();
         const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale, idp, stride);
@@ -1665,7 +1679,7 @@ public:
         if (ids.buffer == c.s->auxiliary_buffer(layer).get() || ids.buffer == c.s->k_buffer(layer).get() || ids.buffer == c.s->v_buffer(layer).get())
             throw std::runtime_error("rocm: index selection output overlaps KV storage");
         // The scores of 16 rows at most, bounded by the call's longest view and never by its rows.
-        const size_t score_bytes = size_mul(size_mul(std::min<size_t>(c.max_rows, kSelectRows), c.longest / index.compression), sizeof(float));
+        const size_t score_bytes = select_score_bytes(c.max_rows, c.longest, index.compression);
         if (score_bytes && (!scores_ || scores_->size() < score_bytes)) scores_ = alloc(score_bytes, Memory::device);
         const float* q = f32(query);
         unsigned* out = (unsigned*)f32(ids);
@@ -1681,8 +1695,8 @@ public:
             const size_t count = (views[vi].length + views[vi].nq) / index.compression;
             if (views[vi].nq && count >= dev_.profile.select_wide_from) most_slices = std::max(most_slices, (count + kSelectSlice - 1) / kSelectSlice);
         }
-        const size_t words = size_add(kSelectRows * kSelectRowWords, size_mul(size_mul(kSelectRows, most_slices), 2));
-        if (most_slices && (!select_state_ || select_state_->size() < words * sizeof(uint32_t))) select_state_ = alloc(words * sizeof(uint32_t), Memory::device);
+        const size_t state_bytes = select_state_bytes(most_slices);
+        if (most_slices && (!select_state_ || select_state_->size() < state_bytes)) select_state_ = alloc(state_bytes, Memory::device);
         unsigned* state = most_slices ? (unsigned*)f32(Slice{select_state_.get(), 0}) : nullptr;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& v = views[vi];
@@ -1754,20 +1768,20 @@ public:
             hold_fill(as_rocm(*step_counter_).data(), 64);
         }
         // The shared act's twin: rows ff-value rows of int8, then their block scales from the half.
-        const size_t sact_half = std::max<size_t>(2048, size_mul(rows, ff));
+        const size_t sact_half = step_twin_bytes(rows, ff) / 2;
         if (!step_twin_ || step_twin_->size() < 2 * sact_half) step_twin_ = alloc(2 * sact_half, Memory::device);
-        const size_t out_bytes = size_mul(size_mul(entries, nin), sizeof(float));
+        const size_t out_bytes = moe_out_bytes(entries, nin);
         if (!moe_out_ || moe_out_->size() < out_bytes) moe_out_ = alloc(out_bytes, Memory::device);
         const float* x = f32(h);
         // The twin of h unless kept, and the routed act's twin in the other slot, both kept as the base's products keep them.
         const TwinMap hm = twin_map({}, rows, nin), am = twin_map({}, entries, ff);
-        const bool h_kept = find_twin(x, rows * nin / 32, true, hm, size_mul(hm.total, 36));
+        const bool h_kept = find_twin(x, rows * nin / 32, true, hm, twin_bytes(hm.total, true));
         uint8_t* hq = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
         float* hd = (float*)(hq + size_mul(hm.total, 32));
         if (!h_kept) keep_twin({x, rows * nin, true, hm, twin_slot_});
         float* act = f32(m.act);
         forget_written(act, entries * ff);
-        (void)find_twin(act, entries * ff / 32, true, am, size_mul(am.total, 36));
+        (void)find_twin(act, entries * ff / 32, true, am, twin_bytes(am.total, true));
         uint8_t* aq = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
         float* ad = (float*)(aq + size_mul(am.total, 32));
         const size_t act_slot = twin_slot_;
@@ -2183,6 +2197,136 @@ private:
         launch(kKvIndexPool, u32(count - done), 1, args);
     }
     static constexpr size_t kSelectRows = 16, kSelectSlice = 1024, kSelectRowWords = 5122;   // a selection's rows at most and the wide form's slice and state a row (kernels/f32.hip)
+
+    // Each scratch buffer's bytes for a call, the one formula its grow site and scratch_bytes share (docs/src/backends-rocm.md, Scratch).
+    static size_t attention_parts_bytes(size_t rows, size_t heads, size_t parts, size_t dim) {
+        return size_mul(size_mul(size_mul(rows, heads), parts), size_mul(dim + 2, sizeof(float)));
+    }
+    // The per-row kernel's splits of a call whose longest row is `longest` positions, within the profile's limit for the head width.
+    size_t attention_splits(size_t dim, size_t longest) const {
+        const DeviceProfile& p = dev_.profile;
+        const size_t chunk = std::max<size_t>(1, p.attention_split_chunk), most = dim == 256 ? p.attention_split_max_wide : p.attention_split_max;
+        return std::min(most, std::max<size_t>(1, (longest + chunk - 1) / chunk));
+    }
+    // A sparse row's ids a split, doubled from the profile's until the splits fit a block.
+    size_t sparse_split_ids(size_t id_stride) const {
+        size_t ids_per = std::max<size_t>(1, dev_.profile.sparse_split_ids);
+        while ((id_stride + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
+        return ids_per;
+    }
+    // The sink's scratch for a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows and their two counts (kernels/f32.hip, llmx_sparse_softmax).
+    struct SinkLayout {
+        size_t chunk, den_at, kept_at, counts_at, need;
+    };
+    static SinkLayout sink_layout(size_t rows, size_t named, size_t heads) {
+        const size_t row_bytes = size_add(size_mul(size_add(size_mul(named, heads), heads), 4), size_mul(size_add(named, 1), 8));
+        const size_t chunk = std::min(rows, std::max<size_t>(1, ((size_t)32 << 20) / row_bytes));
+        const size_t pt_bytes = size_mul(size_mul(chunk, named), heads * 4), den_bytes = size_mul(chunk, heads * 4), kept_bytes = size_mul(size_mul(chunk, named), 8);
+        const size_t den_at = pt_bytes, kept_at = (den_at + den_bytes + 7) / 8 * 8, counts_at = kept_at + kept_bytes;
+        return {chunk, den_at, kept_at, counts_at, counts_at + size_mul(chunk, 8)};
+    }
+    // The hyper-connection mix's scratch: two barrier counters, each stream's root, the twin's scales and the twin, for a launch's columns.
+    struct HcLayout {
+        size_t cols, rr_at, nd_at, nq_at, need;
+    };
+    static HcLayout hc_layout(size_t rows, size_t streams, size_t width) {
+        const size_t cols = std::min(rows, kHcColumns), rr_at = 64, nd_at = rr_at + (cols * streams * sizeof(float) + 15) / 16 * 16,
+                     nq_at = nd_at + (cols * width / 32 * sizeof(float) + 15) / 16 * 16;
+        return {cols, rr_at, nd_at, nq_at, nq_at + cols * width};
+    }
+    static size_t moe_out_bytes(size_t entries, size_t width) { return size_mul(size_mul(entries, width), sizeof(float)); }
+    // The fused moe_step's shared act twin: `rows` ff-value rows of int8, then their block scales from the half.
+    static size_t step_twin_bytes(size_t rows, size_t ff) { return 2 * std::max<size_t>(2048, size_mul(rows, ff)); }
+    static size_t moe_tab_bytes(size_t groups, size_t entries) { return size_mul(size_add(size_mul(4, groups), entries), sizeof(unsigned)); }
+    static size_t tile_partials_bytes(size_t parts, size_t rows, size_t outputs) { return size_mul(size_mul(size_mul(parts, rows), outputs), sizeof(float)); }
+    // The indexer's scores of 16 rows at most, bounded by the call's longest view and never by its rows.
+    static size_t select_score_bytes(size_t rows, size_t longest, size_t compression) {
+        return size_mul(size_mul(std::min(rows, kSelectRows), longest / std::max<size_t>(1, compression)), sizeof(float));
+    }
+    static size_t select_state_bytes(size_t slices) { return size_mul(size_add(kSelectRows * kSelectRowWords, size_mul(size_mul(kSelectRows, slices), 2)), sizeof(uint32_t)); }
+    size_t argmax_parts_bytes(size_t rows, size_t n) const {
+        const size_t slice = std::max<size_t>(1, std::min(dev_.profile.argmax_slice, n));
+        return size_mul(size_mul(rows, (n + slice - 1) / slice), 2 * sizeof(float));
+    }
+    // A twin of `blocks` blocks of 32 values: its codes, then a scale a block.
+    static size_t twin_bytes(size_t blocks, bool int8) { return size_add(size_mul(blocks, int8 ? 32 : 64), size_mul(blocks, sizeof(float))); }
+    // The scratch buffers in one order, and what passes of widths `w` grow each to.
+    static constexpr size_t kScratchBuffers = 15;
+    using ScratchSizes = std::array<size_t, kScratchBuffers>;
+    BufferPtr* scratch_buffer(size_t i) {
+        BufferPtr* const held[kScratchBuffers] = {&parts_, &sparse_, &moe_out_, &step_counter_, &step_twin_, &moe_tab_, &delta_counter_, &staged_,
+                                                  &partials_, &scores_, &argmax_parts_, &select_state_, &hc_scratch_, &twin_[0], &twin_[1]};
+        return held[i];
+    }
+    ScratchSizes scratch_sizes(const PassWidths& w) const {
+        ScratchSizes z{};
+        const size_t R = w.rows, H = w.heads, D = w.head_dim;
+        const bool vec = D == 128 || D == 256;
+        if (!R) return z;
+        size_t parts = 0;
+        if (w.dense_attention && H) {
+            parts = attention_parts_bytes(R, H, kChunks, D);
+            if (vec) parts = std::max(parts, attention_parts_bytes(R, H, attention_splits(D, w.context), D));
+        }
+        if (w.sparse_ids && H) {
+            const size_t ids_per = sparse_split_ids(w.sparse_ids);
+            parts = std::max(parts, attention_parts_bytes(R, H, vec ? (w.sparse_ids + ids_per - 1) / ids_per : kChunks, D));
+        }
+        z[0] = parts;
+        if (w.sparse_named && H) z[1] = sink_layout(R, w.sparse_named, H).need;
+        const size_t entries = size_mul(R, w.routed);
+        if (entries) {
+            z[2] = moe_out_bytes(entries, w.expert_out);
+            // The grouped builds take groups of 2 entries at the least, and every entry may be the one of its expert.
+            z[5] = moe_tab_bytes(size_add((entries + 1) / 2, entries), entries);
+        }
+        if (w.shared_ff && dot_module_) {
+            z[3] = 64;
+            z[4] = step_twin_bytes(R, w.shared_ff);
+        }
+        z[6] = kDeltaCounters * sizeof(unsigned);
+        z[7] = size_mul(size_mul(w.logit_rows, w.vocab), sizeof(float));
+        z[8] = tile_partials_bytes(1, 1, split_partials_most(dev_.profile, dev_.caps, R, w.product_in, w.product_out, kTileOut));
+        if (w.index_compression) {
+            const size_t scored = w.context / w.index_compression;
+            z[9] = select_score_bytes(R, w.context, w.index_compression);
+            if (scored >= dev_.profile.select_wide_from) z[11] = select_state_bytes((scored + kSelectSlice - 1) / kSelectSlice);
+        }
+        if (w.logit_rows && w.vocab > std::max<size_t>(1, dev_.profile.argmax_slice)) z[10] = argmax_parts_bytes(w.logit_rows, w.vocab);
+        if (w.streams) z[12] = hc_layout(R, w.streams, w.mix_width).need;
+        // A twin slot holds a product's rows, a prompt's padded to an odd multiple of 4 in each of the map's regions (twin_map), or a routed call's entries, at the 16-bit class's bytes.
+        const size_t pad = TwinMap::kRegions * 7;
+        z[13] = z[14] = std::max(twin_bytes(size_mul(size_add(R, pad), w.product_in / 32), false), twin_bytes(size_mul(size_add(entries, pad), w.expert_in / 32), false));
+        return z;
+    }
+    // The bytes hipMalloc takes for `bytes`, at the units probe_memory read: whole words, then its small pages up to kLargeFrom and its large pages past it.
+    static constexpr size_t kLargeFrom = (size_t)1 << 20, kFallbackUnit = (size_t)2 << 20;
+    size_t alloc_bytes(size_t bytes) const {
+        if (!bytes) return 0;
+        const size_t words = (bytes + 3) & ~size_t(3), unit = words > kLargeFrom ? large_unit_ : small_unit_;
+        return size_mul((words + unit - 1) / unit, unit);
+    }
+    // The allocation units from free-memory readings around fresh allocations, and the runtime's private scratch from the kernels' private bytes a lane, read once at construction.
+    void probe_memory() {
+        const HipFn& f = hip();
+        const auto taken = [&](size_t bytes, size_t n) -> size_t {
+            size_t before = 0, after = 0, total = 0, made = 0;
+            std::vector<void*> p(n, nullptr);
+            if (f.hipMemGetInfo(&before, &total) != hipSuccess) return 0;
+            while (made < n && f.hipMalloc(&p[made], bytes) == hipSuccess) ++made;
+            const bool read = f.hipMemGetInfo(&after, &total) == hipSuccess;
+            for (size_t i = 0; i < made; ++i) (void)f.hipFree(p[i]);
+            return read && made == n && before > after ? (before - after) / n : 0;
+        };
+        small_unit_ = allocation_unit(4, taken(4, 64));
+        large_unit_ = allocation_unit(kLargeFrom + 4, taken(kLargeFrom + 4, 4));
+        int most = 0;
+        for (hipFunction_t k : kernels_) {
+            int v = 0;
+            if (k && f.hipFuncGetAttribute(&v, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, k) == hipSuccess) most = std::max(most, v);
+        }
+        driver_scratch_ = most > 0 ? alloc_bytes(size_mul(size_mul((size_t)most, dev_.lanes_resident), std::max(1u, dev_.caps.compute_units))) : 0;
+    }
 
     // Where a write's rows land: each row's KV block and token slot, read by the kernels from the argument ring.
     struct KvTargets {
@@ -2609,7 +2753,7 @@ private:
             if (tile && routing.n_expert <= kGroupExperts) {
                 // A prompt's entries in groups of up to 64 of one expert, each group a block row of the routed tile over its expert's rows (kernels/int16.hip, TileGroups); the tile never splits, so each entry's sums are its own.
                 const unsigned chunk = kTileRows, groups = (unsigned)((entries + chunk - 1) / chunk + std::min(routing.n_expert, entries));
-                const size_t tab_bytes = (4 * size_t(groups) + entries) * sizeof(unsigned);
+                const size_t tab_bytes = moe_tab_bytes(groups, entries);
                 if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert, ng = groups, ch = chunk;
@@ -2651,7 +2795,7 @@ private:
                 const size_t touched = std::min(routing.n_expert, entries), average = (entries + touched - 1) / touched;
                 const int width = average <= 2 ? 0 : average <= 4 ? 1 : 2;
                 unsigned chunk = 2u << width, groups = (unsigned)((entries + chunk - 1) / chunk + touched);
-                const size_t tab_bytes = (4 * size_t(groups) + entries) * sizeof(unsigned);
+                const size_t tab_bytes = moe_tab_bytes(groups, entries);
                 if (!moe_tab_ || moe_tab_->size() < tab_bytes) moe_tab_ = alloc(tab_bytes, Memory::device);
                 unsigned* tab = (unsigned*)as_rocm(*moe_tab_).data();
                 unsigned ne = (unsigned)entries, nx = (unsigned)routing.n_expert;
@@ -2693,17 +2837,6 @@ private:
         }
         record_matrix_path(MatrixPath::f32);
     }
-    // The blocks a part of a split tile call sums, by the Vulkan tile's rule (split_blocks): a split below the profile's workgroups per compute unit, keeping at least its fewest blocks a part.
-    size_t split_blocks(size_t workgroups, size_t nblk) const {
-        const DeviceProfile& p = dev_.profile;
-        const size_t per_cu = nblk * 32 < p.tile_narrow_nin ? p.tile_split_per_cu_narrow : p.tile_split_per_cu;
-        const size_t target = per_cu * std::max(1u, dev_.caps.compute_units);
-        if (workgroups >= target) return nblk;
-        const size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / std::max<size_t>(p.tile_split_min_blocks, 2)));
-        if (parts <= 1) return nblk;
-        const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
-        return std::min(kper, nblk);
-    }
     // Points twin_slot_ at the twin of x's `blocks` blocks under `map`: true where a kept twin holds it, which becomes the newer, false where a fresh slot waits for its build.
     bool find_twin(const float* x, size_t blocks, bool int8, const TwinMap& map, size_t need) {
         want_twin_ = int8 ? 2 : 1;
@@ -2718,7 +2851,7 @@ private:
     }
     // The twin of X's `rows` rows laid out by `map` (block-int8 for the int8 class), built unless the kept twin holds it or `build` is false.
     std::pair<const uint8_t*, const float*> twin_of(CSlice X, size_t rows, size_t nin, bool int8, TwinMap map, bool build) {
-        const size_t blocks = size_mul(rows, nin / 32), qbytes = size_mul(map.total, 32 * (int8 ? 1 : 2)), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
+        const size_t blocks = size_mul(rows, nin / 32), qbytes = size_mul(map.total, 32 * (int8 ? 1 : 2)), need = twin_bytes(map.total, int8);
         const float* x = f32(X);
         if (build && !find_twin(x, blocks, int8, map, need)) {
             uint8_t* q = (uint8_t*)as_rocm(*twin_[twin_slot_]).data();
@@ -2851,11 +2984,11 @@ private:
         c.add = add;
         c.xrow = xrow;
         c.xblock = xblock;
-        const size_t nblk = nin / 32, kper = split_blocks(gx64 * tiles, nblk);
+        const size_t nblk = nin / 32, kper = split_blocks(dev_.profile, dev_.caps, gx64 * tiles, nblk);
         c.kper = (unsigned)kper;
         c.parts = (unsigned)((nblk + kper - 1) / kper);
         if (c.parts > 1) {
-            const size_t need = size_mul(size_mul(size_mul(c.parts, rows), outputs), sizeof(float));
+            const size_t need = tile_partials_bytes(c.parts, rows, outputs);
             if (!partials_ || partials_->size() < need) partials_ = alloc(need, Memory::device);
             c.partials = (float*)as_rocm(*partials_).data();
         }
@@ -2892,7 +3025,7 @@ private:
     TwinOut twin_out(Slice dst, size_t values, const TwinMap& map) {
         if (!want_twin_ || values % 32 || as_rocm(*dst.buffer).host_ptr()) return {};
         const bool int8 = want_twin_ == 2;
-        const size_t qbytes = size_mul(map.total, int8 ? 32 : 64), need = size_add(qbytes, size_mul(map.total, sizeof(float)));
+        const size_t qbytes = size_mul(map.total, int8 ? 32 : 64), need = twin_bytes(map.total, int8);
         const size_t slot = take_twin_slot(need);
         uint8_t* q = (uint8_t*)as_rocm(*twin_[slot]).data();
         return {q, (float*)(q + qbytes), int8, map, slot};
@@ -3102,6 +3235,8 @@ private:
     BufferPtr scores_;   // the indexer's scores of 16 rows at most, grown as calls need
     BufferPtr argmax_parts_;   // argmax_rows' slice maxima and ids, grown as calls need
     BufferPtr select_state_;   // the wide selection's histograms and slice counts, zero between calls
+    size_t small_unit_ = kFallbackUnit, large_unit_ = kFallbackUnit;   // hipMalloc's pages at and past kLargeFrom (probe_memory)
+    size_t driver_scratch_ = 0;   // the runtime's private scratch for the kernels that spill, taken at their first launch
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};

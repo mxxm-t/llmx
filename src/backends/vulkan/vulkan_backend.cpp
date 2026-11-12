@@ -479,6 +479,7 @@ public:
             qp.queryCount = 2 * kBusy;
             check(fn.vkCreateQueryPool(d.device, &qp, nullptr, &busy_pool_), "vkCreateQueryPool");
         }
+        probe_memory();
     }
 
     ~VulkanBackend() override {
@@ -720,8 +721,12 @@ public:
         return ticks * dev_->timestamp_ns / 1e6;
     }
     Ticket last_ticket() const noexcept override { return tickets_.last(); }
-    size_t scratch_reserve(size_t free) const override;
+    size_t scratch_bytes(const PassWidths& w) const override;
+    void reserve_scratch(const PassWidths& w) override;
+    // The driver uploads a kernel's code to device memory when its pipeline is first made in a pass, which no fit can price (docs/src/backends-vulkan.md, Memory).
+    size_t memory_kept(size_t) const override { return kPipelineCodeBytes; }
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override;
+    void prepare_matrix(WeightView weight, size_t nin, size_t rows) override;
     void drop_tags();
     void forget_written(VkBuffer buffer, VkDeviceSize begin, VkDeviceSize end);
     BufferPtr alloc(size_t bytes, Memory where) override;
@@ -1892,8 +1897,7 @@ public:
                         const uint32_t (&pc)[16], uint32_t groups_y, std::array<size_t, 3> reach = {});
     void copy_mxfp4(CSlice data, size_t rows, size_t nin, size_t at);
     VkDescriptorBufferInfo padded_f32(CSlice data, uint32_t type, size_t rows, size_t nin);
-    void drop_padded(VulkanBuffer& b);
-    size_t split_blocks(size_t workgroups, size_t nblk, uint32_t per_cu = 0) const;
+    void refresh_padded(VulkanBuffer& b, size_t off, size_t bytes);
     bool tile_reads(size_t nin, size_t nbatch, RowRuns runs) const;
     void grow(std::shared_ptr<VulkanBuffer>& buffer, size_t bytes);
     KVLayout kv_layout() const override;
@@ -1959,6 +1963,9 @@ public:
     void keep_until_retired(BufferPtr b);
 
 private:
+    // The code of every pipeline the backend can make, 319 kernels and 946 other builds, took 31.94 MiB on the Radeon VII's Windows driver and 15.75 MiB on RADV (docs/src/backends-vulkan.md, memory_kept).
+    // The kept figure is that bound plus half, 48 MiB, so a driver that packs code larger keeps headroom, and one constant serves every device because vulkan-scratch fails any that passes it.
+    static constexpr size_t kPipelineCodeBytes = size_t(48) << 20;
     static constexpr uint32_t kRing = 16;
     uint32_t chunk_ = 0;
     // The dispatches the open command buffer takes before it is submitted, and the last submission that held any (docs/VULKAN.md, Structure).
@@ -2156,6 +2163,15 @@ private:
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
     std::shared_ptr<VulkanBuffer> moe_count_; // the fused routed step's finished workgroups, zero between calls (shaders/moe_step_route.comp)
+    // The scratch buffers in one order, what passes of widths `w` grow each to, and the bytes the device takes for a buffer at the units probe_memory read.
+    static constexpr size_t kScratchBuffers = 12;
+    using ScratchSizes = std::array<size_t, kScratchBuffers>;
+    ScratchSizes scratch_sizes(const PassWidths& w) const;
+    std::shared_ptr<VulkanBuffer>* scratch_buffer(size_t i);
+    static constexpr size_t kLargeFrom = (size_t)1 << 20;
+    size_t alloc_bytes(size_t bytes) const;
+    void probe_memory();
+    size_t small_unit_ = (size_t)2 << 20, large_unit_ = (size_t)2 << 20;
     // Which ids moe_tab_ groups: their location and count, cleared by every routing, by a new buffer (drop_tags) and by any write, copy or dispatch over its ids (forget_written).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;

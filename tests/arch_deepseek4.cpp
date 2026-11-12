@@ -578,7 +578,7 @@ void plan() {
         for (const infer::Role& role : p.layers[0].roles)
             if (role.name == name) require(role.kind == infer::RoleKind::norm, std::string(name) + " is a norm role");
     for (const infer::Role& role : p.layers[1].roles) {
-        if (role.name == "blk.1.hc_attn_fn.weight") require(role.kind == infer::RoleKind::table && role.in == hc * d && role.out == (2 + hc) * hc, "hc_attn_fn is a table");
+        if (role.name == "blk.1.hc_attn_fn.weight") require(role.kind == infer::RoleKind::matrix && role.in == hc * d && role.out == (2 + hc) * hc, "hc_attn_fn is a product matrix, so a fit counts a padded copy a backend keeps of it");
         if (role.name == "blk.1.engram_embed.weight") require(role.kind == infer::RoleKind::gather && role.out == 304, "engram_embed is gathered");
         if (role.name == "blk.1.engram_wkv.weight")
             require(role.kind == infer::RoleKind::matrix && role.tensor_rows == d * (hc + 1) &&

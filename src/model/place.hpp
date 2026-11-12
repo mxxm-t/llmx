@@ -212,6 +212,10 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     const size_t positions = covered_positions(plan, kv_tokens(plan, options));
     for (size_t t = 0; t < plan.tables.size(); ++t) fp.tables = backend::size_add(fp.tables, backend::size_mul(table_floats(plan, t, positions), sizeof(float)));
     fp.handoff_per_row = backend::size_mul(handoff_width(plan), sizeof(float));
+    fp.widths = plan.widths;
+    fp.widths.heads = (fp.widths.heads + width - 1) / width;
+    fp.widths.context = kv_tokens(plan, options);
+    fp.widths.vocab = width > 1 ? fp.output.rows : plan.vocab;
     fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
     for (size_t s = 0; s < plan.slots.size(); ++s) fp.activations_per_row += slot_floats(plan, s, positions) * sizeof(float);
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
@@ -247,6 +251,15 @@ inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& 
             b.host_side = backend::size_add(b.host_side, devices[m].host_side);
             b.scratch = std::max(b.scratch, devices[m].scratch);
         }
+        // Each member prices its own scratch, and the group fits its most.
+        std::vector<std::function<size_t(const backend::PassWidths&)>> members;
+        for (size_t m = g; m < g + width; ++m)
+            if (devices[m].priced) members.push_back(devices[m].priced);
+        b.priced = members.empty() ? nullptr : std::function<size_t(const backend::PassWidths&)>([members](const backend::PassWidths& w) {
+            size_t most = 0;
+            for (const auto& p : members) most = std::max(most, p(w));
+            return most;
+        });
         for (size_t m = g; m < g + width; ++m)
             if (devices[m].collective) b.collective_per_row = std::max(b.collective_per_row, devices[m].collective(width, summed));
         groups.push_back(std::move(b));
@@ -976,6 +989,25 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
     return placed;
 }
 
+// Each device that runs a role makes its scratch at the widths its fit priced, before the first pass (Backend::reserve_scratch).
+inline void reserve_scratch(const ModelWeights& weights, const PlannedModel& planned, const PlacementRequest& request) {
+    const Placement& pl = planned.placement;
+    const size_t width = std::max<size_t>(1, pl.width), rows = fitted_rows(request);
+    const Footprint fp = footprint(weights, planned.architecture, planned.options, width);
+    std::vector<bool> used(planned.backends.size(), false);
+    const auto use = [&](int first) {
+        for (size_t m = 0; m < width && size_t(first) + m < used.size(); ++m) used[size_t(first) + m] = true;
+    };
+    for (int d : pl.mixer_device) use(d);
+    for (int d : pl.ffn_device) use(d);
+    use(pl.embed_device);
+    use(pl.output_device);
+    const size_t head = size_t(pl.output_device);
+    for (size_t d = 0; d < planned.backends.size(); ++d)
+        if (used[d] && planned.backends[d])
+            planned.backends[d]->reserve_scratch(pass_widths(fp, rows, request.logit_rows ? request.logit_rows : rows, d >= head && d < head + width));
+}
+
 // How many times build_fitted builds again with fewer KV tokens after a build ran a device short of what its reading stated.
 inline constexpr int kShortRebuilds = 2;
 
@@ -1012,17 +1044,18 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
         std::vector<std::optional<size_t>> before(backends.size());
         for (size_t d = 0; again && d < backends.size(); ++d)
             if (device(backends[d])) before[d] = backends[d]->memory_available();
-        // What each device holding KV was short by: the reserve a built model left it below, then how far its reading fell once the build was given up.
+        // What each device holding KV was short by: what it keeps free (Backend::memory_kept) that a built model with its scratch made left it below, then how far its reading fell once the build was given up.
         std::vector<size_t> short_by(backends.size(), 0);
         std::exception_ptr failed;
         try {
             PlacedModel placed = construct_model(weights, planned, request.ubatch, adopt);
+            reserve_scratch(weights, planned, request);
             if (!again) return placed;
             for (size_t d = 0; d < backends.size(); ++d) {
                 if (!device(backends[d]) || !per_block[d]) continue;
                 const std::optional<size_t> free = backends[d]->memory_available();
-                const size_t reserve = backends[d]->scratch_reserve(0);
-                if (free && *free < reserve) short_by[d] = reserve - *free;
+                const size_t kept = backends[d]->memory_kept(free.value_or(0));
+                if (free && *free < kept) short_by[d] = kept - *free;
             }
             if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) return placed;
         } catch (const std::bad_alloc&) {

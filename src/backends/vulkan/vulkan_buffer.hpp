@@ -237,7 +237,7 @@ public:
     VulkanBuffer& operator=(const VulkanBuffer&) = delete;
 
     size_t size() const override { return size_; }
-    // Weights arrive through adopt; only those get padded copies, which a write or copy into the buffer drops (VulkanBackend::padded_f32).
+    // Weights arrive through adopt; only those get padded copies, which a write or copy into the buffer keeps current (VulkanBackend::refresh_padded).
     bool adopted = false;
     struct Padded {
         size_t rows, nin;

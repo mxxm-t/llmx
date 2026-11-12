@@ -493,7 +493,32 @@ public:
     virtual void taken(size_t reader) = 0;
 };
 
+// The allocation unit a device's reading shows: the largest power of two from 256 B to 64 MiB that rounds `request` bytes to the `took` bytes its free memory fell by, else 2 MiB, as for a reading another process moved.
+inline size_t allocation_unit(size_t request, size_t took) {
+    for (size_t u = (size_t)64 << 20; u >= 256; u >>= 1)
+        if ((request + u - 1) / u * u == took) return u;
+    return (size_t)2 << 20;
+}
+
 // A device's operations and memory; a backend takes one caller at a time, so its calls never come from two threads at once.
+// What the scratch of one device's passes follows: a pass's rows and the widest shapes its layers and head run there (docs/src/backends-backend.md, PassWidths).
+struct PassWidths {
+    size_t rows = 0;                    // a pass's rows: a prompt's batch, decode and draft rows together
+    size_t heads = 0, head_dim = 0;     // the widest attention: query heads (a member's share) and their width
+    bool dense_attention = false;       // some layer runs the dense attention kernel, beside any sparse or sink one
+    size_t context = 0;                 // the longest view a pass reads, in positions
+    size_t sparse_ids = 0;              // a sparse attention row's ids (its id stride), 0 without one
+    size_t sparse_named = 0;            // a sink attention row's named entries, 0 without one
+    size_t index_compression = 0;       // the indexer's positions a score, 0 without an indexer
+    size_t routed = 0;                  // routed slots a row, 0 without experts
+    size_t expert_in = 0, expert_out = 0;   // a routed slot's widest input row (its act) and output row
+    size_t shared_ff = 0;               // the fused routed step's shared act row, 0 without one
+    size_t product_in = 0;              // the widest row a product reads
+    size_t product_out = 0;             // the most outputs one product call writes, its projections together
+    size_t streams = 0, mix_width = 0;  // a hyper-connection mix's streams and row, 0 without one
+    size_t logit_rows = 0, vocab = 0;   // on the head's device, the logits rows a pass keeps in host memory and their width (a member's share)
+};
+
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -567,6 +592,8 @@ public:
         (void)type; (void)nin; (void)rows; (void)product;
         return bytes;
     }
+    // Makes the copy resident_bytes counts for a product matrix of `rows` rows of `nin`, once as the model is built, so no pass makes it; later writes into the matrix keep it current.
+    virtual void prepare_matrix(WeightView weight, size_t nin, size_t rows) { (void)weight; (void)nin; (void)rows; }
 
     // Host memory the backend holds for its own use, such as staging for uploads, which counts against the host rather than against memory_available().
     virtual size_t host_resident() const { return 0; }
@@ -601,8 +628,18 @@ public:
     // The last ticket submit handed out, which busy_ms takes as `a` to time the submissions after it.
     virtual Ticket last_ticket() const noexcept = 0;
 
-    // Memory the backend's kernels take for themselves beside weights, caches and activations, such as split partials and merge state, out of `free` bytes; a fit keeps it back.
-    virtual size_t scratch_reserve(size_t free) const { (void)free; return 0; }
+    // The scratch passes of widths `w` take on this backend beside weights, caches and activations, such as split partials and merge state, rounded as the device allocates it; the fit prices it and reserve_scratch makes it.
+    virtual size_t scratch_bytes(const PassWidths& w) const {
+        (void)w;
+        return 0;
+    }
+    // Makes the scratch scratch_bytes(w) prices, once as a model is built, so no pass grows it.
+    virtual void reserve_scratch(const PassWidths& w) { (void)w; }
+    // Memory a fit leaves free beside the scratch, out of the `free` bytes the fit read: what the device's runtime takes as passes run, which ignores `free`, or on the host a share of it (CpuBackend::host_reserve).
+    virtual size_t memory_kept(size_t free) const {
+        (void)free;
+        return 0;
+    }
 
     // Invoke once on the caller and complete all cleanup before returning.
     virtual void run_prefill(const std::function<void()>& work) { work(); }

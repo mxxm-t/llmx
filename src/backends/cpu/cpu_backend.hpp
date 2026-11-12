@@ -147,8 +147,9 @@ public:
     std::optional<size_t> memory_available() const override { return core::host_memory_available(); }
     bool memory_is_host() const override { return true; }
     // Page tables, allocator overhead and kernel workspaces need room beyond the fitted buffers; host memory taken after the fit leaves it too (Model::save_host).
+    // A rule of the host's own, a share of what it reports free, since the kernels' workspaces are not priced from the pass's widths there.
     static size_t host_reserve(size_t free) { return free / 20; }
-    size_t scratch_reserve(size_t free) const override { return host_reserve(free); }
+    size_t memory_kept(size_t free) const override { return host_reserve(free); }
     bool reads_in_place() const override { return true; }
     bool is_cpu() const override { return true; }
     // The same code on every x86 CPU of the AVX2 baseline, whatever its worker count, since every op is batch- and thread-invariant.

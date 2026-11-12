@@ -207,6 +207,22 @@ public:
         p.kv_heads = (size_t)c.n_head_kv;
         p.head_dim = (size_t)c.head_dim;
         p.state = backend::StateShape{(size_t)c.k_heads, (size_t)c.v_heads, (size_t)c.k_dim, (size_t)c.v_dim};
+        {
+            backend::PassWidths& w = p.widths;
+            const size_t e = (size_t)c.n_embd, q = (size_t)c.n_head * c.head_dim, kv = (size_t)c.n_head_kv * c.head_dim;
+            const size_t inner = (size_t)c.v_heads * c.v_dim, channels = 2 * (size_t)c.k_heads * c.k_dim + inner;
+            w.heads = (size_t)c.n_head;
+            w.head_dim = (size_t)c.head_dim;
+            w.dense_attention = true;
+            if (c.n_expert) {
+                w.routed = (size_t)c.n_expert_used;
+                w.expert_in = (size_t)c.n_ff_exp;
+                w.expert_out = e;
+                w.shared_ff = (size_t)c.n_ff_shexp;
+            }
+            w.product_in = std::max({e, q, inner, (size_t)c.n_ff, (size_t)c.n_ff_shexp});
+            w.product_out = std::max({2 * q + 2 * kv, channels + inner + 2 * (size_t)c.v_heads, e, 2 * (size_t)c.n_ff, 2 * (size_t)c.n_ff_shexp});
+        }
         p.tables.assign(2, 0);
         p.table_steps.assign(2, (size_t)(c.rope_dim / 2));
         p.image_streams = c.image_streams;

@@ -437,7 +437,7 @@ public:
                     if (tensors.find(pre + name)) throw std::runtime_error("inference: a tensor its layer's kind does not read " + pre + name);
             };
             add(attn_norm, Part::mixer, RoleKind::norm, "attn_norm.weight", E);
-            add(hc_attn_fn, Part::mixer, RoleKind::table, "hc_attn_fn.weight", R, MIX);
+            add(hc_attn_fn, Part::mixer, RoleKind::matrix, "hc_attn_fn.weight", R, MIX);
             add(hc_attn_base, Part::mixer, RoleKind::norm, "hc_attn_base.weight", MIX);
             add(hc_attn_scale, Part::mixer, RoleKind::norm, "hc_attn_scale.weight", 3);
             add(attn_sinks, Part::mixer, RoleKind::norm, "attn_sinks.weight", uint64_t(c.n_head));
@@ -483,7 +483,7 @@ public:
                 layer.lookup = Lookup{engram_embed, size_t(lookups)};
             }
             add(ffn_norm, Part::ffn, RoleKind::norm, "ffn_norm.weight", E, 1, 0, Stream::copy);
-            add(hc_ffn_fn, Part::ffn, RoleKind::table, "hc_ffn_fn.weight", R, MIX, 0, Stream::copy);
+            add(hc_ffn_fn, Part::ffn, RoleKind::matrix, "hc_ffn_fn.weight", R, MIX, 0, Stream::copy);
             add(hc_ffn_base, Part::ffn, RoleKind::norm, "hc_ffn_base.weight", MIX, 1, 0, Stream::copy);
             add(hc_ffn_scale, Part::ffn, RoleKind::norm, "hc_ffn_scale.weight", 3, 1, 0, Stream::copy);
             add(ffn_gate_inp, Part::ffn, RoleKind::matrix, "ffn_gate_inp.weight", E, X, 0, Stream::copy);
@@ -523,6 +523,20 @@ public:
         // A group sums a sublayer's output, and each member expands the sum into its streams (join).
         p.partial = size_t(E);
         p.slots = slot_widths(c);
+        {
+            // Attention is the sink's alone, its named entries the window and the indexer's picks; the shared expert is as wide as a routed one.
+            backend::PassWidths& w = p.widths;
+            const size_t e = size_t(c.n_embd), q = size_t(c.n_head) * size_t(c.head_dim);
+            w.heads = size_t(c.n_head);
+            w.head_dim = size_t(c.head_dim);
+            w.sparse_named = size_t(c.window) + size_t(c.index_top_k);
+            w.routed = size_t(c.n_expert_used);
+            w.expert_in = size_t(c.n_ff_exp);
+            w.expert_out = e;
+            w.shared_ff = size_t(c.n_ff_exp);
+            w.product_in = std::max({e * size_t(c.hc_count), q, size_t(c.q_lora_rank), size_t(c.n_ff_exp)});
+            w.product_out = std::max({q, e, size_t(c.out_groups) * size_t(c.out_rank), 2 * size_t(c.n_ff_exp)});
+        }
         // The index scores hold a pooled group's score for each position the tables cover at the least ratio.
         int least = 0;
         for (int r : c.compress_ratios)

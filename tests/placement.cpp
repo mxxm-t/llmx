@@ -678,7 +678,7 @@ void layer_split_fits() {
                 fp.output_norm.bytes == 8 * sizeof(float) && fp.cache.size() == 2 && fp.cache[0] > 0 && fp.cache[1] == fp.cache[0],
             "footprint does not describe the model");
     ++checked;
-    // A device that copies weights keeps back the scratch a Vulkan device reports (Backend::scratch_reserve); a host keeps none.
+    // A device that copies weights keeps back what it keeps free beside its scratch (Backend::memory_kept); a host keeps none.
     auto budget = [](const char* name, std::optional<size_t> bytes, bool host = false) {
         infer::DeviceBudget d;
         d.name = name;
@@ -1337,7 +1337,7 @@ void lookup_storage_planned() {
     const std::vector<infer::LookupCandidate> candidates{{tensor, source}};
     struct PlanningDevice : SizedDevice {
         size_t allocations = 0, adoptions = 0;
-        size_t scratch_reserve(size_t) const override { return 0; }
+        size_t memory_kept(size_t) const override { return 0; }
         backend::BufferPtr alloc(size_t bytes, backend::Memory where = backend::Memory::device) override {
             ++allocations;
             return SizedDevice::alloc(bytes, where);
@@ -1701,7 +1701,7 @@ void kv_fitted() {
                 const size_t ceiling = dropped ? room - drop : room, h = held();
                 return ceiling > h ? ceiling - h : 0;
             }
-            size_t scratch_reserve(size_t free) const override { return (size_t(64) << 10) + free / 20; }
+            size_t memory_kept(size_t) const override { return size_t(64) << 10; }
             backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
                 if (held() + bytes > room - drop) {
                     dropped = true;
@@ -1738,7 +1738,7 @@ void kv_fitted() {
                 require(false, "an automatic budget over a device whose reading overstated its room failed to build rather than fitting again");
             }
             const size_t tokens = placed.model ? placed.model->kv_tokens_total() : 0, left = device->memory_available().value_or(0);
-            require(tokens > 256 && left >= device->scratch_reserve(0) && left < device->drop,
+            require(tokens > 256 && left >= device->memory_kept(left) && left < device->drop,
                     ("an automatic budget over a device whose reading overstated its room by 3 MiB took " + std::to_string(tokens) + " tokens and left " +
                      std::to_string(left) + " bytes, not cut to the stated room beside its kernels' reserve and by no more than the overstatement").c_str());
         }

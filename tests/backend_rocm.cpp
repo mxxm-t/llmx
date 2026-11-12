@@ -3044,7 +3044,14 @@ void collective() {
         std::unique_ptr<Collective> small = d[0]->join(group, 2, 97);
         group_sums::check(group, *small, 97, {1, 2}, seed, print);
         seed += 100;
-        std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight\n";
+        // Each form forced across the devices, about a chain's chunk and at 17 chunks, peer access on from the join above.
+        for (const RocmSumForm form : {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain}) {
+            const size_t cap = 17 * 4 * 4096 + 5;
+            std::unique_ptr<Collective> forced = rocm_collective(group, cap, 1, form);
+            group_sums::check(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, print);
+            seed += 100;
+        }
+        std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight, in each form forced\n";
     }
     {
         // Devices that cannot reach each other's memory sum by pulls, the same bytes.
@@ -3085,6 +3092,25 @@ void collective() {
         group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
         seed += 100;
         std::cout << "backend-rocm: a group sum whose peer's launch failed was cancelled in " << s << " s; later sums conservative and exact\n";
+    }
+    {
+        // A launch that fails while join times the forms: join does not throw, the group is conservative from then on and its sums are exact.
+        std::vector<BackendPtr> e = rocm_devices(2);
+        group_calls.launches = 0;
+        group_calls.fail = 3;   // the probe's two launches come first
+        f.hipModuleLaunchKernel = counted_launch;
+        std::unique_ptr<Collective> c;
+        require(!throws([&] { c = e[0]->join(raw(e, 2), 64, 97); }), "a launch that failed while join timed the forms threw out of join");
+        f.hipModuleLaunchKernel = real_launch;
+        group_calls.fail = 0;
+        require(c != nullptr, "a join whose timing failed made no collective");
+        if (c) {
+            for (BackendPtr& b : e) throws([&] { b->raise(0); });   // the cancelled sum throws once on the backend whose peer waited
+            sum_calls(*c, 2, false);
+            group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
+            seed += 100;
+        }
+        std::cout << "backend-rocm: a launch that failed while join timed the forms left the group conservative and exact\n";
     }
     {
         // A member whose launch comes after a host stall longer than any wait: its peer is alive but late, so the sum stays fast and exact and nothing throws.
@@ -4003,11 +4029,86 @@ void deepseek4(Backend& g) {
     std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores and rope forms bit for bit\n";
 }
 
-// The fast path's kernel at the widest group on one device: a launch of llmx_group_sum a rank, each on its own stream and area with 16 blocks, two sums each the oracle's bits and no rank giving up (docs/TESTS.md).
-// The launches run at once only with a hardware queue for each, which main sets for this mode alone.
 const unsigned char kF32Module[] = {
 #include "rocm/f32.inc"
 };
+
+// A collective whose sums first wait for every member's queued work, so no copy waits in a hardware queue the members share behind a peer's sum that waits for this member.
+struct Settled final : Collective {
+    Settled(std::vector<Backend*> members, std::unique_ptr<Collective> c) : members(std::move(members)), c(std::move(c)) {}
+    Slice partial(size_t member) override { return c->partial(member); }
+    void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
+        settle();
+        c->sum_into(residual, rows, width);
+    }
+    void sum_in_place(size_t rows, size_t width) override {
+        settle();
+        c->sum_in_place(rows, width);
+    }
+    void settle() {
+        for (Backend* b : members) b->wait(b->submit());
+    }
+    std::vector<Backend*> members;
+    std::unique_ptr<Collective> c;
+};
+
+// Each fast sum's form forced over ranks that are backends of device 0, at widths 2 to 5, 8 and 12, sizes about the shares' and chunks' edges, and a give-up in each form (docs/TESTS.md, backend-rocm-sixteen).
+// The ranks may share the device's hardware queues, so every sum first waits for the writes before it, and two sums in flight, which queue copies between sums, run only up to width 4.
+void sum_forms() {
+    HipFn& f = hip();
+    real_launch = f.hipModuleLaunchKernel;
+    real_copy = f.hipMemcpyAsync;
+    const RocmSumForm forms[] = {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain};
+    const char* const names[] = {"one-shot", "two shots", "chain"};
+    const size_t chunk = 4 * 4096;   // a chain's chunk in floats (rocm_collective.hpp, kChainUnits)
+    auto print = [](bool ok, const std::string& what) { require(ok, what); };
+    uint32_t seed = 1601;
+    for (const size_t W : {2, 3, 4, 5, 8, 12}) {
+        std::vector<BackendPtr> d;
+        for (size_t m = 0; m < W; ++m) d.push_back(make_rocm_backend(0));
+        const std::vector<Backend*> group = raw(d, W);
+        const size_t cap = W > 5 ? 3 * chunk + 5 : 17 * chunk + 5;
+        std::vector<size_t> sizes = {1, 4 * W - 1, 4 * W + 1, 20 * W + 3, chunk - 1, chunk + 1, cap};
+        if (W <= 5) sizes.push_back(16 * chunk + 7);
+        for (size_t k = 0; k < 3; ++k) {
+            Settled c(group, rocm_collective(group, cap, 1, forms[k]));
+            sum_calls(*c.c, W, true);
+            group_sums::check(group, c, 1, sizes, seed, print);
+            seed += 100;
+            if (W <= 4) {
+                std::unique_ptr<Collective> rows = rocm_collective(group, 64, 97, forms[k]);
+                sums_in_flight(group, *rows, 97, seed);
+                seed += 100;
+            }
+            std::cout << "backend-rocm: " << W << " ranks on one device sum in " << names[k] << ", into and in place at " << sizes.size() << " sizes up to " << cap << " floats"
+                      << (W <= 4 ? ", two sequences in flight," : ",") << " each the oracle's bits\n";
+        }
+    }
+    std::vector<BackendPtr> e = {make_rocm_backend(0), make_rocm_backend(0)};
+    for (size_t k = 0; k < 3; ++k) {
+        std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, forms[k]);
+        const std::vector<float> rows(97, 1.0f);
+        for (size_t m = 0; m < 2; ++m) e[m]->write(*c->partial(m).buffer, 0, rows.data(), rows.size() * sizeof(float));
+        group_calls.launches = 0;
+        group_calls.fail = 2;
+        f.hipModuleLaunchKernel = counted_launch;
+        require(throws([&] { c->sum_in_place(1, 97); }), std::string(names[k]) + ": a group sum whose peer's launch failed did not throw");
+        f.hipModuleLaunchKernel = real_launch;
+        group_calls.fail = 0;
+        c->wait(0);
+        require(throws([&] { e[0]->raise(0); }), std::string(names[k]) + ": a group sum that gave up did not throw on its backend");
+        bool poisoned = true;
+        for (float v : read(*e[0], *c->partial(0).buffer, 97)) poisoned = poisoned && std::isnan(v);
+        require(poisoned, std::string(names[k]) + ": a group sum that gave up left values other than NaN");
+        sum_calls(*c, 2, false);
+        group_sums::check(raw(e, 2), *c, 97, {1, 64}, seed, print);
+        seed += 100;
+        std::cout << "backend-rocm: a sum in " << names[k] << " whose peer's launch failed turned the collective conservative, later sums exact\n";
+    }
+}
+
+// The fast path's kernel at the widest group on one device: a launch of llmx_group_sum a rank in each form, each on its own stream and area, sums each the oracle's bits and no rank giving up (docs/TESTS.md).
+// Only kernels go to the streams while sums run, since HIP gives this many streams on one device shared hardware queues, where a rank's queued copy would wait behind a peer's sum.
 struct SixteenPeers {
     float* stage[kMaxTensorWidth];
     unsigned* signal[kMaxTensorWidth];
@@ -4019,12 +4120,13 @@ static_assert(sizeof(SixteenPeers) == 280 && offsetof(SixteenPeers, status) == 2
 
 void sixteen_ranks() {
     HipFn& f = hip();
-    const size_t W = kMaxTensorWidth, n = 16 * 256 * 4 + 3, cap = (n + 3) / 4 * 4, signal = 4096;
+    const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = 8192, units = (n + 3) / 4;
     hip_check(f.hipSetDevice(0), "hipSetDevice");
     hipModule_t module = nullptr;
-    hipFunction_t sum = nullptr;
+    hipFunction_t sums[3] = {};
     hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
-    hip_check(f.hipModuleGetFunction(&sum, module, "llmx_group_sum"), "hipModuleGetFunction");
+    const char* const kernels[] = {"llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain"};
+    for (int k = 0; k < 3; ++k) hip_check(f.hipModuleGetFunction(&sums[k], module, kernels[k]), "hipModuleGetFunction");
     int khz = 0;
     hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
     unsigned long long timeout = (unsigned long long)khz * 1000, tick = (unsigned long long)khz;
@@ -4059,6 +4161,9 @@ void sixteen_ranks() {
     hip_check(f.hipMemcpyAsync(table, &peers, sizeof(SixteenPeers), hipMemcpyHostToDevice, streams[0]), "hipMemcpyAsync");
     hip_check(f.hipStreamSynchronize(streams[0]), "hipStreamSynchronize");
     uint32_t seed = 1601;
+    // Each form's blocks as the collective launches them (rocm_collective.hpp): the one-shot's 16, two shots a block a 256 units of a share, the chain two a chunk of 4096 units.
+    const unsigned blocks[] = {16, (unsigned)(((units + W - 1) / W + 255) / 256), (unsigned)(2 * ((units + 4095) / 4096))};
+    for (int form = 0; form < 3; ++form)
     for (const bool replace : {false, true}) {
         const group_sums::Case c = group_sums::make(W, n, seed++);
         for (size_t k = 0; k < W; ++k) {
@@ -4072,18 +4177,18 @@ void sixteen_ranks() {
             unsigned long long nn = n, cc = cap;
             int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0);
             void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout, &tick};
-            hip_check(f.hipModuleLaunchKernel(sum, 16, 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
+            hip_check(f.hipModuleLaunchKernel(sums[form], blocks[form], 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
         }
         for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
         bool met = !*fault;
         for (size_t k = 0; k < W; ++k) met = met && !status[k];
-        require(met, "a rank of the sixteen gave up waiting for its peers");
+        require(met, "a rank of the sixteen gave up waiting for its peers in form " + std::to_string(form) + (replace ? " in place" : " into"));
         const std::vector<float> want = group_sums::oracle(c, replace);
         for (size_t k = 0; k < W; ++k) {
             std::vector<float> got(n);
             hip_check(f.hipMemcpyAsync(got.data(), replace ? own[k] : out[k], n * sizeof(float), hipMemcpyDeviceToHost, streams[k]), "hipMemcpyAsync");
             hip_check(f.hipStreamSynchronize(streams[k]), "hipStreamSynchronize");
-            require(same(got, want), "rank " + std::to_string(k) + " of sixteen is not the oracle's sum in member order");
+            require(same(got, want), "rank " + std::to_string(k) + " of sixteen in form " + std::to_string(form) + " is not the oracle's sum in member order");
         }
     }
     for (size_t k = 0; k < W; ++k) {
@@ -4097,7 +4202,7 @@ void sixteen_ranks() {
     (void)f.hipHostFree(fault);
     (void)f.hipHostFree(cancel);
     (void)f.hipModuleUnload(module);
-    std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device, into and in place, each the oracle's bits\n";
+    std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device in each form, into and in place, each the oracle's bits\n";
 }
 
 // The grouped sparse softmax's head width: it runs while its four heads' queries fit the shared memory its own arrays leave, read here from the kernel itself, and the one-head build past that.
@@ -4137,7 +4242,7 @@ void sparse_head_budget(Backend& g) {
 }
 
 int main(int argc, char** argv) {
-    // `sixteen` runs the widest group's 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
+    // `sixteen` runs groups of up to 16 ranks on one device, which with the backend's own stream need more hardware queues than HIP's default of 4; a real group runs one rank per device and needs none.
     const bool sixteen = argc > 1 && std::string(argv[1]) == "sixteen";
     if (sixteen) setenv("GPU_MAX_HW_QUEUES", "32", 1);
     BackendPtr g;
@@ -4152,6 +4257,7 @@ int main(int argc, char** argv) {
     try {
         if (sixteen) {
             sixteen_ranks();
+            sum_forms();
             std::cout << (failures ? "backend-rocm: FAIL\n" : "backend-rocm: PASS\n");
             return failures ? 1 : 0;
         }

@@ -241,7 +241,7 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
   qwen4exp injects a 2560-wide block into four residual streams with per-stream gates, so its members sum the block in place (`Collective::sum_in_place`) and each injects it (`Architecture::join`), a quarter of the bytes of summing four injected streams; a group's bits there are `x + w * (b0 + b1)` in place of `x + (w * b0 + w * b1)`.
   DeepSeek-V4.1 sums each sublayer's output of the embedding width the same way and each member expands it into its four streams (`hc_expand`), its post and comb computed on every member from the whole residual, so its bits are `x + post * (b0 + b1)` (docs/src/model-arch-deepseek4.md).
   On Qwen3.8-Flash-Next 2x2 the sums had been 29% of each card's prompt time, all of it the copies into the peer's inbox at 9.1 GB/s (docs/STATUS.md).
-- **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; it is one algorithm at every message size, and a two-shot form for large messages is allowed only if it adds each element in the same order, so its bits are the one-shot's.
+- **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; a form chosen by message size is allowed only if it adds each element in the same order, so its bits are the one-shot's for every value but a NaN made of two NaN inputs, whose payload may follow either input: Vulkan sends large sums in two shots, and ROCm in two shots or a chain of neighbours in member order where its timing at join on the group's cards says so (docs/src/backends-rocm.md, the collective).
 - **The collective is a backend concern** with two implementations from its first branch, which is the second use that justifies the seam:
   - **CPU:** the members are CPU backends in one process; the partials are host memory and the sum reads them in member order.
     It makes every group test runnable on the hosted runners.
@@ -326,7 +326,7 @@ Every width keeps the member-order sum `t = p0; t += p1; ...; t += p(W-1)`, in o
 | ROCm one-shot sum, decode | 32 to 34 | 67 to 70 | about 140 | about 280 |
 
 At Qwen3-8B's 72 sums a token that extrapolation puts a width-16 group's sums near 20 ms a token on ROCm, slower than one card for one request, so a wide group serves a model that needs its memory, and many users' throughput, rather than one request's decode; this conclusion is extrapolated, not measured.
-A prompt's sum in one shot moves (W - 1) times its rows out of each card, so past width 4 a prompt wants the element-share sum in two shots that Vulkan has; on ROCm it is later work, with its own measured gain.
+A prompt's sum in one shot moves (W - 1) times its rows out of each card, so a large sum goes in two shots on Vulkan from width 3 and, on ROCm, in two shots or a chain in member order where the group's timing at join says so (section 4.3).
 Widths 8 and 16 have not run on devices on this machine; the width-8 check by hand on 8 cards is pending (section 8, Width 16).
 **Gate:** at every width offered and at 2 stages of 4, the exposed wait a sum and a token, read from GPU timestamps on every member, and the per-token cost against the model above, recorded at each merge that touches the group's execution.
 
@@ -432,7 +432,7 @@ Nothing specific to a backend sits above the backend layer: a group refused on o
 - Experts owned whole by a member, and data-parallel attention with expert parallelism: a group splits each expert's hidden rows instead (section 8, Step 8 as built), which keeps every member's work even; a file whose expert width does not split on whole quant blocks holds covering blocks (section 8, Covering blocks as built). Uneven shares stay out of scope; a cover is not a share, since every member owns the same number of an expert's columns.
 - Data-parallel attention with expert parallelism (MULTI-DEVICE phase 6b), replicas (phase 5), multi-node.
 - Uneven member shares, groups mixing device kinds or profiles, a group of the CPU and a card.
-- A wire format other than F32, and any algorithm chosen by message size that changes the order of a sum.
+- A wire format other than F32, and any form chosen by message size that changes the order of a sum; the forms both backends choose by size add every element in member order (section 4.3).
 - Command buffers recorded once and replayed (phase 3's Not doing).
 
 ## 5. What it would deliver (planned)
@@ -663,7 +663,7 @@ Decision 3's cap of 4 and decision 6's opening rule are replaced: a group holds 
 As built: the CLI's usage error reads that constant; the CPU's collective takes any width; the Vulkan sum kernel binds its sources as one array of 16 (`kSumRowsCounts`), and a device that binds fewer storage buffers a stage than the widest kernel is refused by name; the ROCm collective's signal and peer arrays are 16 wide.
 Measured on this machine: groups of CPU backends at widths 2, 5, 8 and 16 in the native tests, MI50s on Vulkan and ROCm up to width 5, and the sum's kernels at 16 sources and 16 ranks on one card; widths 8 and 16 on devices are not measured.
 Pending, by hand: Qwen3-8B Q8_0 at width 8 on 8 cards in a window off production, on Vulkan and ROCm, its bytes across stages, slices and passes in flight and its HF bounds, which also exercises the imports, files and inbox memory a width-8 group takes.
-The element-share sum in two shots on ROCm is later work, after this, with its own measured gain.
+The element-share sum in two shots and the member-order chain on ROCm followed (2026-11-12, section 4.3).
 
 ## 9. Sources (2026-10-03)
 

@@ -59,6 +59,42 @@
 
 **Left:** the landing gates (COORD); the Vulkan layer split's tg16 after 16k is inside the base-to-perturbed band, so the timing round needs no special hold.
 
+## ROCm prompt sums in two shots or a member-order chain (2026-11-12, QDEV4, branch qdev4/rs-ag on main de368dad4; QDEV3's proposal of 10:29 with F2DEV's review of 10:35, part A, items 3 to 5; lands by fast-forward)
+
+**Goal:** a ROCm tensor group's large sums move fewer bytes out of each card, or only between neighbours, with every element still `((p0 + p1) + ...) + p(W-1)` and then `r + t`, so every result keeps main's bits; Qwen3.8-27B Q8_0 1x4 prefill toward the reference's 908 tok/s.
+
+**Done:**
+- Two shots and a chain beside the one-shot (`kernels/f32.hip`): `llmx_group_two_shots` cuts the units into a share a member, every member pushes share k into member k's staging, member k adds it in member order into its output and every peer's own slot, and each member adds what it gathered; `llmx_group_chain` passes the running sum from member m to m + 1 chunk by chunk (4096 units) and the last member's total back down, so rows cross only between neighbours.
+  Every element is the one-shot's expression in the one-shot's order, so every form gives main's bytes at any size and width, and every form ends at the one-shot's last meeting, so any form may follow any other on one collective.
+  The forms are kernels of their own: in one kernel the one-shot rose from 18 to 56 VGPRs, so 16 ranks of 16 blocks no longer stayed resident on one device and the 16-rank test hung; split, the one-shot keeps 18, two shots take 27 and the chain 53.
+- `RocmCollective` takes a sum of n floats in the form that won at the largest timed size not above n, the one-shot below them all; `join` times the three forms on the group's own cards at its first collective past the sizes timed so far (least of three sums in place after a first, the reserved size and halvings down to where the one-shot wins or 4096 floats), keeps the table with the probe's answer and prints it on stderr. A constructor argument forces a form (`rocm_collective`, for the tests); there is no flag.
+  On renderD134-137 at Qwen3.8-27B's 512 rows of 5120 the table reads one-shot 9.11, two shots 5.51, chain 7.36 ms, two shots winning down to 10240 floats and the one-shot at 5120, a decode row; QDEV3's sum bench gave the chain the lead on renderD128-131 (2.2 to 2.7 against 4.4 ms), so the pick follows the cards.
+- Tests: `backend-rocm-sixteen` runs each form's kernel at 16 ranks on one device and each form forced over 2, 3, 4, 5, 8 and 12 backends of one device at sizes about the shares' and chunks' edges and the reserved size, into and in place, and a launch failure in each form turning the collective conservative; `backend-rocm` forces each form across the devices.
+  Ranks that are backends of one device share its hardware queues (`GPU_MAX_HW_QUEUES` did not give each its own), so those sums wait for their members' writes, and two sums in flight run there up to width 4.
+- Focused results at fc11d3080 (the forms as kernels of their own): `backend-rocm-sixteen` passes on one MI50, `backend-rocm` on four (renderD134-137); Qwen3.8-27B Q8_0 1x4 int8 on renderD134-137, one cell an arm, pp2048 289.8 (main) against 462.7 tok/s and tg32 53.74 against 54.02.
+- Gates at the head c6993c0d9 against main de368dad4 (both arms built alike in worktrees, llmx 297b752d08b9 branch and b7991f6f523e main on the rig; `--dtype int8`, default clocks): byte identity, logits of the last 1000 positions of a 1600-token wikitext prompt (top 8) and 64 greedy ids, SAME on renderD134-137 and on renderD128-131 for Qwen3.8-27B Q8_0 1x4 and 2x2 and Qwen3.8-Flash-Next UD-Q4_K_XL 2x2.
+- ABAB (main, branch, main, branch; Qwen3.8-27B Q8_0 1x4 int8, pp tok/s and tg32 tok/s, both runs of an arm; the mx fork reference is 908 tok/s at pp2048 on renderD134-137, quoted from its own run):
+
+| set | cell | main pp | branch pp | main tg32 | branch tg32 | pick |
+|---|---|---|---|---|---|---|
+| renderD134-137 | pp512 | 299.87, 298.83 | 486.29, 485.16 | 52.87, 53.13 | 53.58, 53.57 | two shots |
+| renderD134-137 | pp2048 | 289.07, 289.61 | 463.20, 462.89 | 53.53, 53.54 | 53.66, 53.88 | two shots |
+| renderD134-137 | pp16384 | 221.97, 221.88 | 321.76, 321.75 | 53.60, 53.26 | 53.30, 53.72 | two shots |
+| renderD128-131 | pp512 | 557.38, 557.22 | 720.43, 719.55 | 57.88, 57.30 | 58.34, 58.10 | chain |
+| renderD128-131 | pp2048 | 529.29, 529.47 | 674.07, 673.81 | 58.56, 58.10 | 58.16, 58.73 | chain |
+| renderD128-131 | pp16384 | 348.65, 342.03 | 392.47, 391.35 | 57.06, 56.55 | 57.04, 56.58 | chain |
+
+- Picks at 2621440 floats (the 512-row prompt sums): renderD134-137 one-shot 8.8 to 9.0, two shots 5.3, chain 7.2 to 7.4 ms; renderD128-131 4.4, 3.2, 2.7 ms.
+  Tensor width 2 groups of the 27B pick two shots from 1.66 to 1.56 ms on renderD134-137 and a chain from 1.34, 1.32, 1.26 ms on renderD128-131.
+  Decode is unchanged within noise (tg32 differences stay inside the spread of the arms' own runs); every pp16384 and some pp2048 cells carry a hostwait above 100 ms and are kept, as the contended flag in the rig's progress file records.
+
+**Left:**
+- Part B, the overlap of two row lanes (QDEV3's design, F2DEV's items 1 to 3).
+
+**Gotchas:**
+- Small sums stay one-shot, so decode is unchanged; a contended join may time another pick, so every measured cell records the pick from stderr.
+- The chain's 53 VGPRs hold 4 waves a SIMD, so on one device it fits 16 ranks only at a few chunks; a real group runs one rank a device.
+
 ## ROCm Q8_0 decode steps by row width, DeepSeek-V4.1 query and window in one call, one-entry routed calls without grouping (2026-11-11, DSDEV121 proposal, F2DEV review, DSDEV122, branch perf/q8-decode-steps on main 12b84ea73, rebased onto main 4eaa874bd over perf/routed-decode-wide; lands by fast-forward)
 
 **Goal:** the int8 class's one-column Q8_0 decode on ROCm closer to its read floor at DeepSeek-V4.1-Flash, Qwen3 and Qwen3.5 shapes, every output the bits main gives.

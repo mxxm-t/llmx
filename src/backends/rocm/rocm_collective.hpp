@@ -6,7 +6,10 @@
 #include <cstdio>
 #include <cstring>
 #include <atomic>
+#include <chrono>
+#include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -25,16 +28,19 @@ struct GroupPeers {
     unsigned* cancel;
 };
 static_assert(kGroupMembers == 16 && sizeof(GroupPeers) == 280 && offsetof(GroupPeers, status) == 256 && offsetof(GroupPeers, cancel) == 272, "kernels/f32.hip, GroupPeers");
-constexpr size_t kGroupBlocks = 16;       // the kernel's signal slots a member, so the most blocks a sum takes
+constexpr size_t kGroupBlocks = 32;       // the kernel's signal slots a member, so the most blocks a sum takes
+constexpr size_t kOneShotBlocks = 16;     // the one-shot's most blocks
+constexpr size_t kChainBlocks = 16, kChainUnits = 4096;   // the kernel's chain blocks each way and float4 units a chunk
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
+constexpr size_t kTimedFloor = 4096, kTimedSums = 3;   // the least floats a form is timed at, and the sums of each timing after a first
 
-// A tensor group's ordered sum (docs/src/backends-rocm.md, the collective): each member's kernel, on its own stream, pushes its partial rows into every peer's staging, meets them on device signals and adds the rows in member order.
+// A tensor group's ordered sum (docs/src/backends-rocm.md, the collective): each member's kernel, on its own stream, sends its partial rows to its peers in the form the sum's size takes and adds them in member order.
 // A member waits for a late peer as long as it takes, and a sum the host cancelled or a probe that ran out turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
 class RocmCollective final : public Collective {
 public:
-    // A probe bounds its members' waits by kProbeTimeoutMs, where peer writes that never become visible are what it looks for.
-    RocmCollective(const std::vector<RocmBackend*>& members, size_t rows, size_t width, bool fast, bool probe = false)
-        : members_(members), rows_(rows), width_(width), cap_((size_mul(rows, width) + 3) / 4 * 4), fast_(fast),
+    // A probe bounds its members' waits by kProbeTimeoutMs, where peer writes that never become visible are what it looks for; `force` takes one form for every fast sum.
+    RocmCollective(const std::vector<RocmBackend*>& members, size_t rows, size_t width, bool fast, bool probe = false, std::optional<RocmSumForm> force = std::nullopt)
+        : members_(members), rows_(rows), width_(width), cap_((size_mul(rows, width) + 3) / 4 * 4), fast_(fast), force_(force),
           area_(members.size(), nullptr), ready_(members.size(), nullptr), pulled_(members.size(), nullptr), timeout_(members.size(), 0), tick_(members.size(), 0),
           last_(members.size(), 0), before_(members.size(), 0) {
         const HipFn& f = hip();
@@ -113,6 +119,43 @@ public:
     // Whether the sums still take the fast path; a test's witness.
     bool fast() const { return fast_; }
 
+    // Each fast sum's form by its size, kept by the group's first member.
+    void use(const std::map<size_t, RocmSumForm>& forms) { forms_ = forms; }
+
+    // Each form's least time over kTimedSums sums in place of n floats, n from the reserved size down by halvings until the one-shot wins or n reaches what was timed before; the winner at each n goes into `forms`.
+    // Returns the times as stderr reports them, empty where nothing was timed.
+    std::string time_forms(std::map<size_t, RocmSumForm>& forms, size_t timed) {
+        static const char* const names[] = {"one-shot", "two shots", "chain"};
+        std::vector<Slice> own;
+        for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
+        std::string report;
+        const std::optional<RocmSumForm> kept = force_;
+        for (size_t n = size_mul(rows_, width_); fast_ && n > timed && n >= kTimedFloor; n /= 2) {
+            double ms[3];
+            size_t won = 0;
+            for (size_t f = 0; f < 3; ++f) {
+                force_ = (RocmSumForm)f;
+                ms[f] = 1e30;
+                for (size_t r = 0; r <= kTimedSums; ++r) {
+                    const auto t0 = std::chrono::steady_clock::now();
+                    summed(own, n, true);
+                    wait(0);
+                    const double t = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    if (r) ms[f] = std::min(ms[f], t);
+                }
+                if (ms[f] < ms[won]) won = f;
+            }
+            if (!fast_) break;
+            forms[n] = (RocmSumForm)won;
+            char line[160];
+            std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], names[won]);
+            report += line;
+            if (!won) break;
+        }
+        force_ = kept;
+        return report;
+    }
+
 private:
     void summed(const std::vector<Slice>& residual, size_t n, bool replace) {
         const size_t W = members_.size();
@@ -141,19 +184,32 @@ private:
         issued();
     }
 
-    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast) {
+    // The form a fast sum of n floats takes: the forced one, else the one that won at the largest timed size not above n.
+    RocmSumForm form_of(size_t n) const {
+        if (force_) return *force_;
+        auto it = forms_.upper_bound(n);
+        return it == forms_.begin() ? RocmSumForm::one_shot : (--it)->second;
+    }
+
+    // The blocks of every member's launch follow from n and the form alone, so every member's block b meets its peers' block b.
+    void launch(size_t m, const Slice& out, size_t n, bool replace, bool fast, RocmSumForm form) {
         RocmBackend& b = *members_[m];
         const float* own = RocmBackend::f32(CSlice(partial(m)));
         float* o = RocmBackend::f32(out);
         unsigned long long nn = n, cap = cap_, timeout = timeout_[m], tick = tick_[m];
-        int members = (int)members_.size(), rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
+        const size_t units = (n + 3) / 4, W = members_.size();
+        if (!fast) form = RocmSumForm::one_shot;
+        size_t blocks = std::min<size_t>(kOneShotBlocks, (units + kThreads - 1) / kThreads);
+        if (form == RocmSumForm::two_shots) blocks = std::min<size_t>(kGroupBlocks, ((units + W - 1) / W + kThreads - 1) / kThreads);
+        else if (form == RocmSumForm::chain) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
+        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
         const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
-        const size_t units = (n + 3) / 4;
-        b.group_launch((unsigned)std::min<size_t>(kGroupBlocks, (units + kThreads - 1) / kThreads), args);
+        b.group_launch(form, (unsigned)blocks, args);
     }
 
     void pushed(const std::vector<Slice>& residual, size_t n, bool replace) {
-        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true);
+        const RocmSumForm f = form_of(n);
+        for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, f);
     }
 
     // Each member records that its rows are ready, pulls every peer's once theirs are, records that it has read them, and sums once every peer has read its rows, which a later write of them must follow.
@@ -173,7 +229,7 @@ private:
         for (size_t m = 0; m < W; ++m) {
             for (size_t k = 0; k < W; ++k)
                 if (k != m) hip_check(f.hipStreamWaitEvent(members_[m]->stream_, pulled_[k], 0), "hipStreamWaitEvent");
-            launch(m, residual[m], n, replace, false);
+            launch(m, residual[m], n, replace, false, RocmSumForm::one_shot);
         }
     }
 
@@ -217,6 +273,8 @@ private:
     std::vector<RocmBackend*> members_;
     size_t rows_, width_, cap_;   // cap_: a staging slot's floats, the reserved rows rounded up to whole units of four
     bool fast_;
+    std::optional<RocmSumForm> force_;   // the form every fast sum takes, else by size from forms_
+    std::map<size_t, RocmSumForm> forms_;
     std::vector<BufferPtr> partial_;
     std::vector<void*> area_;   // per member: its signal block, then a staging slot per member
     std::vector<hipEvent_t> ready_, pulled_;   // the conservative path's events, per member
@@ -282,15 +340,33 @@ std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& membe
         group.push_back(r);
         ids.push_back(r->dev_.index);
     }
+    std::string names;
+    for (int id : ids) names += (names.empty() ? "" : ", ") + std::to_string(id);
     auto path = group_paths_.find(ids);
     if (path == group_paths_.end()) {
-        path = group_paths_.emplace(ids, group_probe(group, ids)).first;
-        std::string names;
-        for (int id : ids) names += (names.empty() ? "" : ", ") + std::to_string(id);
-        if (path->second.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer writes\n", names.c_str());
-        else std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", names.c_str(), path->second.c_str());
+        path = group_paths_.emplace(ids, GroupPath{group_probe(group, ids)}).first;
+        if (path->second.why.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer writes\n", names.c_str());
+        else std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", names.c_str(), path->second.why.c_str());
     }
-    return std::make_unique<RocmCollective>(group, rows, width, path->second.empty());
+    GroupPath& g = path->second;
+    std::unique_ptr<RocmCollective> c = std::make_unique<RocmCollective>(group, rows, width, g.why.empty());
+    // The forms are timed on the group's own cards at its first collective past the sizes timed so far, its members idle, so the topology picks them (docs/TENSOR-SPLIT.md, section 4.3).
+    const size_t n = size_mul(rows, width);
+    if (g.why.empty() && group.size() > 1 && n > g.timed) {
+        std::string times;
+        try {
+            times = c->time_forms(g.forms, g.timed);
+        } catch (const std::exception& e) {
+            g.why = std::string("timing its sums failed: ") + e.what();
+            std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", names.c_str(), g.why.c_str());
+            c.reset();
+            return std::make_unique<RocmCollective>(group, rows, width, false);
+        }
+        g.timed = n;
+        if (!times.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s timed its sums in place, ms one-shot, two shots, chain: %s\n", names.c_str(), times.c_str());
+    }
+    c->use(g.forms);
+    return c;
 }
 
 // A crossing's host-visible buffer that ROCm readers copy from on their own streams, and that the sender writes again behind each reader's last copy (docs/src/backends-rocm.md, handoffs).

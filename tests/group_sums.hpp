@@ -44,7 +44,7 @@ inline std::vector<float> oracle(const Case& c, bool replace) {
 }
 
 // sum_into on residuals at an aligned and an unaligned offset, then sum_in_place, at each of `counts` rows of `width`; each member's bytes must be the oracle's.
-inline size_t check(const std::vector<backend::Backend*>& group, backend::Collective& c, size_t width, std::initializer_list<size_t> counts, uint32_t seed,
+inline size_t check(const std::vector<backend::Backend*>& group, backend::Collective& c, size_t width, const std::vector<size_t>& counts, uint32_t seed,
                     const std::function<void(bool, const std::string&)>& require) {
     const size_t W = group.size();
     size_t checks = 0;

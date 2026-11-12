@@ -21,7 +21,8 @@ std::map<std::string, size_t> rocm_take_launches(Backend& backend);
 void rocm_route_only(Backend& backend, std::string build);
 
 // The forms of a ROCm tensor group's fast sum (docs/src/backends-rocm.md, the collective), each adding every element in member order, so each gives the one-shot's bits.
-enum class RocmSumForm { one_shot, two_shots, chain };
+// wrap is the chain whose total goes on around through member 0 rather than back down.
+enum class RocmSumForm { one_shot, two_shots, chain, wrap };
 
 // A collective over `members` whose fast sums all take `form`, the members possibly backends of one device, never probed: the tests' witness of each form.
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, RocmSumForm form);

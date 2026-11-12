@@ -33,6 +33,8 @@ constexpr size_t kOneShotBlocks = 16;     // the one-shot's most blocks
 constexpr size_t kChainBlocks = 16, kChainUnits = 4096;   // the kernel's chain blocks each way and float4 units a chunk
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
 constexpr size_t kTimedFloor = 4096, kTimedSums = 3;   // the least floats a form is timed at, and the sums of each timing after a first
+constexpr size_t kSumForms = 4;          // RocmSumForm's forms, each timed
+constexpr double kOrderMargin = 0.04;    // how much faster than the order kept a member order must sum to replace it, so even links and noise keep the listed order
 
 // A tensor group's ordered sum (docs/src/backends-rocm.md, the collective): each member's kernel, on its own stream, sends its partial rows to its peers in the form the sum's size takes and adds them in member order.
 // A member waits for a late peer as long as it takes, and a sum the host cancelled or a probe that ran out turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
@@ -122,37 +124,43 @@ public:
     // Each fast sum's form by its size, kept by the group's first member.
     void use(const std::map<size_t, RocmSumForm>& forms) { forms_ = forms; }
 
-    // Each form's least time over kTimedSums sums in place of n floats, n from the reserved size down by halvings until the one-shot wins or n reaches what was timed before; the winner at each n goes into `forms`.
-    // Returns the times as stderr reports them, empty where nothing was timed.
-    std::string time_forms(std::map<size_t, RocmSumForm>& forms, size_t timed) {
-        static const char* const names[] = {"one-shot", "two shots", "chain"};
+    // The least milliseconds of kTimedSums sums in place of n floats in `form`, after a first; unbounded where a sum gave up, which leaves the collective conservative.
+    double timed(RocmSumForm form, size_t n) {
         std::vector<Slice> own;
         for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
-        std::string report;
         const std::optional<RocmSumForm> kept = force_;
-        for (size_t n = size_mul(rows_, width_); fast_ && n > timed && n >= kTimedFloor; n /= 2) {
-            double ms[3];
+        force_ = form;
+        double ms = 1e30;
+        for (size_t r = 0; fast_ && r <= kTimedSums; ++r) {
+            const auto t0 = std::chrono::steady_clock::now();
+            summed(own, n, true);
+            wait(0);
+            const double t = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+            if (r) ms = std::min(ms, t);
+        }
+        force_ = kept;
+        return fast_ ? ms : 1e30;
+    }
+
+    // Each form timed at the reserved rows and halvings of them in whole rows down to one row, until the one-shot wins or n reaches what was timed before; the winner at each n goes into `forms`.
+    // Returns the times as stderr reports them, empty where nothing was timed.
+    std::string time_forms(std::map<size_t, RocmSumForm>& forms, size_t timed_before) {
+        static const char* const names[] = {"one-shot", "two shots", "chain", "wrap"};
+        std::string report;
+        for (size_t r = rows_, n = size_mul(r, width_); fast_ && r && n > timed_before && n >= kTimedFloor; r /= 2, n = r * width_) {
+            double ms[kSumForms];
             size_t won = 0;
-            for (size_t f = 0; f < 3; ++f) {
-                force_ = (RocmSumForm)f;
-                ms[f] = 1e30;
-                for (size_t r = 0; r <= kTimedSums; ++r) {
-                    const auto t0 = std::chrono::steady_clock::now();
-                    summed(own, n, true);
-                    wait(0);
-                    const double t = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-                    if (r) ms[f] = std::min(ms[f], t);
-                }
+            for (size_t f = 0; f < kSumForms; ++f) {
+                ms[f] = timed((RocmSumForm)f, n);
                 if (ms[f] < ms[won]) won = f;
             }
             if (!fast_) break;
             forms[n] = (RocmSumForm)won;
             char line[160];
-            std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], names[won]);
+            std::snprintf(line, sizeof line, "%s%zu floats %.3f %.3f %.3f %.3f %s", report.empty() ? "" : "; ", n, ms[0], ms[1], ms[2], ms[3], names[won]);
             report += line;
             if (!won) break;
         }
-        force_ = kept;
         return report;
     }
 
@@ -201,8 +209,8 @@ private:
         if (!fast) form = RocmSumForm::one_shot;
         size_t blocks = std::min<size_t>(kOneShotBlocks, (units + kThreads - 1) / kThreads);
         if (form == RocmSumForm::two_shots) blocks = std::min<size_t>(kGroupBlocks, ((units + W - 1) / W + kThreads - 1) / kThreads);
-        else if (form == RocmSumForm::chain) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
-        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0);
+        else if (form == RocmSumForm::chain || form == RocmSumForm::wrap) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
+        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (form == RocmSumForm::wrap ? 8 : 0);
         const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         b.group_launch(form, (unsigned)blocks, args);
     }
@@ -325,12 +333,17 @@ std::string group_probe(const std::vector<RocmBackend*>& group, const std::vecto
     return {};
 }
 
-// A collective over ROCm devices of one kind, each once, decided fast or conservative once per group by group_probe and reported on stderr.
-std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
+std::string device_list(const std::vector<int>& ids) {
+    std::string names;
+    for (int id : ids) names += (names.empty() ? "" : ", ") + std::to_string(id);
+    return names;
+}
+
+std::vector<RocmBackend*> RocmBackend::group_of(const std::vector<Backend*>& members, std::vector<int>& ids) {
     if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
     if (members.size() > kGroupMembers) throw std::runtime_error("backend: a ROCm collective of more than " + std::to_string(kGroupMembers) + " devices");
     std::vector<RocmBackend*> group;
-    std::vector<int> ids;
+    ids.clear();
     for (Backend* b : members) {
         auto* r = dynamic_cast<RocmBackend*>(b);
         if (!r) throw std::runtime_error("backend: a ROCm collective over a backend that is not ROCm");
@@ -340,15 +353,88 @@ std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& membe
         group.push_back(r);
         ids.push_back(r->dev_.index);
     }
-    std::string names;
-    for (int id : ids) names += (names.empty() ? "" : ", ") + std::to_string(id);
+    return group;
+}
+
+GroupPath& RocmBackend::group_path(const std::vector<RocmBackend*>& group, const std::vector<int>& ids) {
     auto path = group_paths_.find(ids);
-    if (path == group_paths_.end()) {
-        path = group_paths_.emplace(ids, GroupPath{group_probe(group, ids)}).first;
-        if (path->second.why.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer writes\n", names.c_str());
-        else std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", names.c_str(), path->second.why.c_str());
+    if (path != group_paths_.end()) return path->second;
+    path = group_paths_.emplace(ids, GroupPath{group_probe(group, ids)}).first;
+    if (path->second.why.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer writes\n", device_list(ids).c_str());
+    else std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", device_list(ids).c_str(), path->second.why.c_str());
+    return path->second;
+}
+
+// The order whose fastest form sums rows x width floats fastest, by swap descent from the listing, a swap taken only where it beats the order kept by kOrderMargin (docs/TENSOR-SPLIT.md, section 4.1).
+// The order's forms are timed here into the path of the group as ordered, so join times nothing twice, and every collective timed is gone before the fit reads free memory.
+std::vector<size_t> RocmBackend::member_order(const std::vector<Backend*>& members, size_t rows, size_t width) {
+    std::vector<int> ids;
+    const std::vector<RocmBackend*> group = group_of(members, ids);
+    GroupPath& listed = group_path(group, ids);
+    const size_t W = group.size(), n = size_mul(rows, width);
+    if (!listed.order.empty()) return listed.order;
+    for (size_t m = 0; m < W; ++m) listed.order.push_back(m);
+    if (W < 2 || !listed.why.empty() || n < kTimedFloor) return listed.order;
+    std::map<std::vector<size_t>, double> costs;
+    const auto cost = [&](const std::vector<size_t>& order) {
+        auto at = costs.find(order);
+        if (at != costs.end()) return at->second;
+        std::vector<RocmBackend*> ordered;
+        for (size_t k : order) ordered.push_back(group[k]);
+        double ms = 1e30;
+        // An order whose collective or timing throws is never taken, as a probe that fails falls conservative.
+        try {
+            RocmCollective c(ordered, rows, width, true);
+            for (size_t f = 0; f < kSumForms; ++f) ms = std::min(ms, c.timed((RocmSumForm)f, n));
+        } catch (const std::exception&) {
+            ms = 1e30;
+        }
+        return costs[order] = ms;
+    };
+    std::vector<size_t> kept = listed.order;
+    double ms = cost(kept);
+    const double first = ms;
+    for (bool moved = true; moved;) {
+        moved = false;
+        std::vector<size_t> best;
+        double best_ms = ms;
+        for (size_t i = 0; i < W; ++i)
+            for (size_t j = i + 1; j < W; ++j) {
+                std::vector<size_t> o = kept;
+                std::swap(o[i], o[j]);
+                const double t = cost(o);
+                if (t < best_ms) best_ms = t, best = o;
+            }
+        if (!best.empty() && best_ms < ms * (1.0 - kOrderMargin)) kept = best, ms = best_ms, moved = true;
     }
-    GroupPath& g = path->second;
+    listed.order = kept;
+    std::vector<RocmBackend*> ordered;
+    std::vector<int> order_ids;
+    for (size_t k : kept) ordered.push_back(group[k]), order_ids.push_back(ids[k]);
+    std::fprintf(stderr, "rocm: tensor group of devices %s takes member order %s, %.3f ms a sum of %zu floats against %.3f as listed, %zu orders timed\n",
+                 device_list(ids).c_str(), device_list(order_ids).c_str(), ms, n, first, costs.size());
+    GroupPath& path = ordered[0]->group_path(ordered, order_ids);
+    if (path.why.empty() && path.timed < n) {
+        std::string times;
+        try {
+            RocmCollective c(ordered, rows, width, true);
+            times = c.time_forms(path.forms, path.timed);
+            if (c.fast()) path.timed = n;
+        } catch (const std::exception& e) {
+            path.why = std::string("timing its sums failed: ") + e.what();
+            std::fprintf(stderr, "rocm: tensor group of devices %s sums by peer pulls, since %s\n", device_list(order_ids).c_str(), path.why.c_str());
+        }
+        if (!times.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", device_list(order_ids).c_str(), times.c_str());
+    }
+    return listed.order;
+}
+
+// A collective over ROCm devices of one kind, each once, decided fast or conservative once per group by group_probe and reported on stderr.
+std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
+    std::vector<int> ids;
+    const std::vector<RocmBackend*> group = group_of(members, ids);
+    const std::string names = device_list(ids);
+    GroupPath& g = group_path(group, ids);
     std::unique_ptr<RocmCollective> c = std::make_unique<RocmCollective>(group, rows, width, g.why.empty());
     // The forms are timed on the group's own cards at its first collective past the sizes timed so far, its members idle, so the topology picks them (docs/TENSOR-SPLIT.md, section 4.3).
     const size_t n = size_mul(rows, width);
@@ -363,7 +449,7 @@ std::unique_ptr<Collective> RocmBackend::join(const std::vector<Backend*>& membe
             return std::make_unique<RocmCollective>(group, rows, width, false);
         }
         g.timed = n;
-        if (!times.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s timed its sums in place, ms one-shot, two shots, chain: %s\n", names.c_str(), times.c_str());
+        if (!times.empty()) std::fprintf(stderr, "rocm: tensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", names.c_str(), times.c_str());
     }
     c->use(g.forms);
     return c;

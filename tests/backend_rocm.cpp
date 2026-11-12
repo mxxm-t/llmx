@@ -3062,13 +3062,25 @@ void collective() {
         group_sums::check(group, *small, 97, {1, 2}, seed, print);
         seed += 100;
         // Each form forced across the devices, about a chain's chunk and at 17 chunks, peer access on from the join above.
-        for (const RocmSumForm form : {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain}) {
+        for (const RocmSumForm form : {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain, RocmSumForm::wrap}) {
             const size_t cap = 17 * 4 * 4096 + 5;
             std::unique_ptr<Collective> forced = rocm_collective(group, cap, 1, form);
             group_sums::check(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, print);
             seed += 100;
         }
-        std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight, in each form forced\n";
+        // The member order timed for the group is an order of its members, asked again the same, and the group in that order sums in its member order.
+        const std::vector<size_t> order = d[0]->member_order(group, 64, 97);
+        std::vector<size_t> sorted = order;
+        std::sort(sorted.begin(), sorted.end());
+        bool permutes = sorted.size() == W;
+        for (size_t k = 0; permutes && k < W; ++k) permutes = sorted[k] == k;
+        require(permutes && d[0]->member_order(group, 64, 97) == order, "a ROCm group's member order is not one order of its members, kept");
+        std::vector<Backend*> ordered;
+        for (size_t k : order) ordered.push_back(group[k]);
+        std::unique_ptr<Collective> moved = ordered[0]->join(ordered, 64, 97);
+        group_sums::check(ordered, *moved, 97, {1, 64}, seed, print);
+        seed += 100;
+        std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight, in each form forced and in its timed member order\n";
     }
     {
         // Devices that cannot reach each other's memory sum by pulls, the same bytes.
@@ -4075,8 +4087,8 @@ void sum_forms() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
     real_copy = f.hipMemcpyAsync;
-    const RocmSumForm forms[] = {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain};
-    const char* const names[] = {"one-shot", "two shots", "chain"};
+    const RocmSumForm forms[] = {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain, RocmSumForm::wrap};
+    const char* const names[] = {"one-shot", "two shots", "chain", "wrap"};
     const size_t chunk = 4 * 4096;   // a chain's chunk in floats (rocm_collective.hpp, kChainUnits)
     auto print = [](bool ok, const std::string& what) { require(ok, what); };
     uint32_t seed = 1601;
@@ -4087,7 +4099,7 @@ void sum_forms() {
         const size_t cap = W > 5 ? 3 * chunk + 5 : 17 * chunk + 5;
         std::vector<size_t> sizes = {1, 4 * W - 1, 4 * W + 1, 20 * W + 3, chunk - 1, chunk + 1, cap};
         if (W <= 5) sizes.push_back(16 * chunk + 7);
-        for (size_t k = 0; k < 3; ++k) {
+        for (size_t k = 0; k < 4; ++k) {
             Settled c(group, rocm_collective(group, cap, 1, forms[k]));
             sum_calls(*c.c, W, true);
             group_sums::check(group, c, 1, sizes, seed, print);
@@ -4102,7 +4114,7 @@ void sum_forms() {
         }
     }
     std::vector<BackendPtr> e = {make_rocm_backend(0), make_rocm_backend(0)};
-    for (size_t k = 0; k < 3; ++k) {
+    for (size_t k = 0; k < 4; ++k) {
         std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, forms[k]);
         const std::vector<float> rows(97, 1.0f);
         for (size_t m = 0; m < 2; ++m) e[m]->write(*c->partial(m).buffer, 0, rows.data(), rows.size() * sizeof(float));
@@ -4140,7 +4152,7 @@ void sixteen_ranks() {
     const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = 8192, units = (n + 3) / 4;
     hip_check(f.hipSetDevice(0), "hipSetDevice");
     hipModule_t module = nullptr;
-    hipFunction_t sums[3] = {};
+    hipFunction_t sums[3] = {};   // the wrap is the chain's kernel with flag 8
     hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
     const char* const kernels[] = {"llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain"};
     for (int k = 0; k < 3; ++k) hip_check(f.hipModuleGetFunction(&sums[k], module, kernels[k]), "hipModuleGetFunction");
@@ -4179,8 +4191,8 @@ void sixteen_ranks() {
     hip_check(f.hipStreamSynchronize(streams[0]), "hipStreamSynchronize");
     uint32_t seed = 1601;
     // Each form's blocks as the collective launches them (rocm_collective.hpp): the one-shot's 16, two shots a block a 256 units of a share, the chain two a chunk of 4096 units.
-    const unsigned blocks[] = {16, (unsigned)(((units + W - 1) / W + 255) / 256), (unsigned)(2 * ((units + 4095) / 4096))};
-    for (int form = 0; form < 3; ++form)
+    const unsigned blocks[] = {16, (unsigned)(((units + W - 1) / W + 255) / 256), (unsigned)(2 * ((units + 4095) / 4096)), (unsigned)(2 * ((units + 4095) / 4096))};
+    for (int form = 0; form < 4; ++form)
     for (const bool replace : {false, true}) {
         const group_sums::Case c = group_sums::make(W, n, seed++);
         for (size_t k = 0; k < W; ++k) {
@@ -4192,9 +4204,9 @@ void sixteen_ranks() {
             const float* o = (const float*)own[k];
             float* x = (float*)(replace ? own[k] : out[k]);
             unsigned long long nn = n, cc = cap;
-            int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0);
+            int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0) | (form == 3 ? 8 : 0);
             void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout, &tick};
-            hip_check(f.hipModuleLaunchKernel(sums[form], blocks[form], 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
+            hip_check(f.hipModuleLaunchKernel(sums[form < 3 ? form : 2], blocks[form], 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
         }
         for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
         bool met = !*fault;

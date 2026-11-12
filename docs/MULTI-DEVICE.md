@@ -33,7 +33,7 @@ The Windows workstation has one Radeon VII (16 GB). There the only second device
 One description covers all three, so the scheduler and the model code do not branch on the mode:
 
 ```
-Group      an ordered set of devices that run the same layers together; width 1 is a single device.
+Group      an ordered set of devices that run the same layers together, in the member order placement gives it (docs/TENSOR-SPLIT.md, section 4.1); width 1 is a single device.
 Stage      a contiguous range of layers on one group; the embedding and the head are placed as roles of their own.
 Placement  the stages in layer order, plus where the embedding, the head and each layer's feed-forward block run.
 ```

@@ -76,6 +76,57 @@
   Under the new pricing more replies' passes never shorten a reply's step (R times the pass, each with its fixed cost), so R above 1 comes from the decode columns (`packed_passes`), and the `split` case the old pricing counted met is unmet by the rule.
   A split whose first stage has no thread (no lookup layer there) still records a chunk's stage 0 inline and whole, so a reply waits for it there as on main.
 
+## A tensor group's member order picked by timing before load, and the wrap chain (2026-11-12, QDEV11, branch qdev11/member-order stacked on qdev4/rs-ag c847fa762 over main 224fb760e; QDEV9's proposal of 17:35 with F2DEV's review of 17:40, items 1 to 7; lands after qdev4/rs-ag by fast-forward)
+
+**Goal:** which card holds member k of a ROCm tensor group follows the cards' PCIe places, timed before load, and a chain whose total goes on around the ring is a fourth timed form, every element still `((p0 + p1) + ...) + p(W-1)` and then `r + t`, so every result keeps main's bits; QDEV9's sum bench gave renderD134-137 2.96 against 5.3 ms a 10.5 MB sum at width 4 and renderD128-131 2.07 against 2.6.
+
+**Depends on:** qdev4/rs-ag (unmerged, head c847fa762 on main 224fb760e), which adds the two shots, the chain and `join`'s form timing.
+
+**Done:**
+- Owner: placement (`order_members` in `model/place.hpp`, called by `plan_placement` after the request's refusals and before the fit reads free memory) asks each group's listed first backend once, `Backend::member_order(members, rows, width)`, and puts the group's backends and names in that order; the default keeps the listed order, so the CPU and Vulkan are unchanged.
+  Member index, the topology's member field, the health names, `--layer-shares` per group, the drafter, the embedding and head slices and the first member that joins then follow with no second path, and nothing inside the collective reorders.
+- ROCm (`RocmBackend::member_order`, `rocm_collective.hpp`): probes the listing, then swap descent from the listed order, each order costed as its fastest form at `fitted_rows` x `sum_width` floats on a collective of its own (least of three sums in place after a first), a swap taken only where it beats the order kept by 4% (`kOrderMargin`); prints `rocm: tensor group of devices ... takes member order ..., X ms a sum of N floats against Y as listed, K orders timed`, then times the winner's forms into the path of the group as ordered, so `join` at the first context times nothing up to that size; every timed collective is freed before the fit.
+  The order is kept for the listing on the backend, so a second model on the same backends (a draft model) takes the same order.
+- The wrap (`RocmSumForm::wrap`, flag 8 on `llmx_group_chain`): the total goes W - 1 to 0 to 1 and on to W - 2, each card sending to one peer; every chunk still flows 0 to W - 1 unrotated and the total forms once at member W - 1, so its bytes are the chain's; at width 2 the two take one route. One (F, chunk) point, the chain's (16 blocks, 4096 units): QDEV9's bench on renderD134-137 in the listed order gave the wrap 3.03 ms at F16 with 64 KB chunks and 3.01 at F8 with 256 KB, so a second point is not worth a form.
+  Flag 8, since qdev10/lamport puts its parity half in flag 4 on every fast launch.
+- Tests: `backend-rocm-sixteen` runs the wrap with the other forms at 16 ranks and forced over 2, 3, 4, 5, 8 and 12 backends of one device; `backend-rocm` forces it across the devices and holds the timed member order to an order of the group, kept, whose group sums to its member order's oracle; `placement` places two CPU groups whose first backends reverse their members to the listed order's bytes.
+
+**Measured** (Qwen3.8-27B Q8_0, int8, 1x4 over four MI50s, default clocks, ABAB of two cells an arm, tok/s; rs-ag is qdev4/rs-ag c847fa762, branch is this change, main is 224fb760e; every cell's hostwait flag is in `/opt/claude-work/qdev14/out/progress`):
+
+| cards, test | rs-ag | branch | main | mx fork |
+|---|---|---|---|---|
+| renderD134-137 pp512 | 484.3, 483.5 | 683.3, 683.0 | | |
+| renderD134-137 pp2048 | 462.6, 462.2 | 640.4, 640.6 | 290.3, 290.4 | 908 |
+| renderD134-137 pp16384 | 321.2, 321.1 | 393.5, 393.6 | | |
+| renderD134-137 tg32 (at pp2048) | 53.9, 56.6 | 54.6, 54.3 | 53.7, 53.2 | |
+| renderD128-131 pp512 | 720.7, 719.5 | 806.6, 809.1 | | |
+| renderD128-131 pp2048 | 674.1, 673.8 | 746.4, 750.4 | 529.3, 529.4 | 908 |
+| renderD128-131 pp16384 | 399.2, 389.7 | 407.1, 411.3 | | |
+| renderD128-131 tg32 (at pp2048) | 57.9, 58.2 | 57.1, 58.3 | 57.1, 57.1 | |
+
+The mx fork's 908 is QDEV5's pp2048 1x4 figure (devlog 16:18), a different run, so it is quoted beside these and not subtracted from them.
+The main figures are the branch's own ABAB partner at pp2048.
+The renderD128-131 16384 cells and the Flash-Next load ran under hostwait of 14 to 557 s (contended, kept); tg32 sits within the cells' spread there.
+
+**Done (gates):**
+- Byte identity against main, logits at 1001 positions and the greedy ids, all SAME: Qwen3.8-27B Q8_0 1x4 on renderD134-137 and renderD128-131, 2x2 on renderD128-131, Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 on renderD128-131.
+- CTest on an MI50 (84 tests): all pass; `server-resume-cache` failed once in a container under load and passed alone on rerun, and it does not reach the collective.
+- Suite on rocm:0: every component that runs passes; the numpy-only raw-blocks and reference-generator skip.
+  Suite on rocm:0,1 with `--tensor-width 2`: the components run in lock-sized parts (the first run reached q5-1 inside 1750 s), all passed.
+- docs and dead-code on the head that lands.
+- Fix of the pick (QDEV14): `time_forms` halves whole rows, so a generated row's sum of 5120 floats is a timed size.
+  Before it the timing began at 513 rows, every timed size sat above one row's sum and a one-row sum always took the one-shot form; two shots decode about 3.5% faster in the model than the one-shot (renderD134-137 tg32: one-shot 54.2 on the unfixed branch, two shots 56.1 on the fix, the larger figure being the better), and the order itself costs decode nothing (unfixed branch 54.2 against 53.1 in the listed order, both one-shot).
+
+**Left:**
+- Merge: the hosted run, and the Lamport rule of F2DEV's 20:58 note (`half_at` everywhere, flip nothing, re-arm slots before the done meeting, a forced wrap in `sentinel_sums`) if this lands after qdev10/lamport.
+- qdev4/rs-ag follow-up: its own one-row form pick has the same gap, about 3.5% of tg32 on 27B 1x4.
+- Follow-up, not here (F2DEV item 6): which cards form which group in a staged split, a question over the user's listed grouping.
+
+**Gotchas:**
+- The bytes do not depend on the order (member k keeps shard k, every sum adds members in member order), so identity, caches and tests are untouched; only timing reproducibility moves, which the margin bounds.
+- Hostwait: the branch prints its timing line before the load, so its window covers the order probe and reads contended on every branch cell; compare its flag with that in mind.
+- A contended machine at load may pick another order or form, so every measured cell records the printed order and forms from stderr.
+
 ## DeepSeek-V4.1 tensor-group prompt levers: the index score tile and sparse_columns lanes (2026-11-12, DSDEV136, DSDEV138, DSDEV146, DSDEV147 then DSDEV149, branch dsdev146/tg-prompt-levers on main de368dad4, one commit; DSDEV136's proposal of 22:34, F2DEV's reviews of 22:42 and 10:47; lands by fast-forward)
 
 **Goal:** the masked index layers that bound the 16k prompt in both modes on ten MI50s (`indexer_scores` 18.4 s a member of stages 4 and 5 at 5x2, 9.2 s a device at layer split, DSDEV132's traces) take a fraction of their time, with every score the bits the base kernels give, on ROCm and Vulkan.

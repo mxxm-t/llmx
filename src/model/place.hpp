@@ -442,6 +442,31 @@ inline size_t fitted_rows(const PlacementRequest& request) {
 }
 
 
+// Each tensor group's backends and names put in the order its first backend gives (Backend::member_order), so every member index, shard and name after it follows the devices (docs/TENSOR-SPLIT.md, section 4.1).
+inline void order_members(std::vector<backend::BackendPtr>& backends, PlacementRequest& request, size_t summed) {
+    const size_t w = request.width;
+    for (size_t g = 0; w > 1 && g + w <= backends.size(); g += w) {
+        std::vector<backend::Backend*> members;
+        for (size_t m = g; m < g + w; ++m) {
+            if (!backends[m]) throw std::runtime_error("inference: missing backend");
+            members.push_back(backends[m].get());
+        }
+        const std::vector<size_t> order = backends[g]->member_order(members, fitted_rows(request), summed);
+        std::vector<char> seen(w, 0);
+        for (size_t k : order) {
+            if (k >= w || seen[k]) throw std::logic_error("placement: a member order that is not an order of the group's members");
+            seen[k] = 1;
+        }
+        if (order.size() != w) throw std::logic_error("placement: a member order that is not an order of the group's members");
+        std::vector<backend::BackendPtr> held(backends.begin() + g, backends.begin() + g + w);
+        for (size_t k = 0; k < w; ++k) backends[g + k] = held[order[k]];
+        if (request.names.size() == backends.size()) {
+            const std::vector<std::string> names(request.names.begin() + g, request.names.begin() + g + w);
+            for (size_t k = 0; k < w; ++k) request.names[g + k] = names[order[k]];
+        }
+    }
+}
+
 // Whether a backend of that placement reads weights in place: one of `backends`, or the CPU backend it adds for experts.
 inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
     return adds_host_for_experts(backends, request) ||
@@ -715,7 +740,7 @@ inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>&
 
 // The placement over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, before model buffers exist.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the device.
-inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
+inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, PlacementRequest request,
                                    ModelOptions options, const std::vector<LookupCandidate>& candidates = {}) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
     if (!request.width || backends.size() % request.width)
@@ -760,6 +785,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards, and so is a malformed split.
     shard::check_plan(plan, weights.tensors, request.width);
     check_split(backends.size() / request.width, request.shares);
+    order_members(backends, request, sum_width(plan));
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
     const std::string experts_flag = request.cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))

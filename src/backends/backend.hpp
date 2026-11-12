@@ -503,6 +503,14 @@ public:
         (void)members, (void)rows, (void)width;
         return nullptr;
     }
+    // The order a tensor group over `members`, this backend first, takes its members in for sums of `rows` rows of `width` floats, as indices into `members`, asked once before any weight loads.
+    // The members as listed where the order makes no difference this backend measures.
+    virtual std::vector<size_t> member_order(const std::vector<Backend*>& members, size_t rows, size_t width) {
+        (void)rows, (void)width;
+        std::vector<size_t> order(members.size());
+        for (size_t m = 0; m < order.size(); ++m) order[m] = m;
+        return order;
+    }
     // The device-side order for crossings from this backend's host-visible buffers to `readers`; null where it serves none of them, and every crossing goes through the host.
     virtual std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) {
         (void)readers;

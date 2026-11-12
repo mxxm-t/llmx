@@ -53,6 +53,7 @@ struct GroupPath {
     std::string why;
     size_t timed = 0;
     std::map<size_t, RocmSumForm> forms;   // from each timed size up, the form that won there; below the least, the one-shot
+    std::vector<size_t> order;             // the member order member_order gave this listing, empty until it is asked
 };
 
 class RocmBackend;
@@ -341,6 +342,7 @@ public:
     // A group's signal block is a fixed size beside the staging collective_bytes_per_row counts.
     size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + kGroupSignalBytes + free / 20; }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+    std::vector<size_t> member_order(const std::vector<Backend*>& members, size_t rows, size_t width) override;
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
     // A member's partial rows and a staging slot for each member's (RocmCollective).
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
@@ -3003,7 +3005,7 @@ private:
     void group_launch(RocmSumForm form, unsigned blocks, const Args& args) {
         forget_twins();
         if (form == RocmSumForm::two_shots) issue(kernels_[kGroupTwoShots], blocks, 1, 1, kThreads, args, "llmx_group_two_shots");
-        else if (form == RocmSumForm::chain) issue(kernels_[kGroupChain], blocks, 1, 1, kThreads, args, "llmx_group_chain");
+        else if (form == RocmSumForm::chain || form == RocmSumForm::wrap) issue(kernels_[kGroupChain], blocks, 1, 1, kThreads, args, "llmx_group_chain");
         else issue(kernels_[kGroupSum], blocks, 1, 1, kThreads, args, "llmx_group_sum");
     }
 
@@ -3122,6 +3124,10 @@ private:
     std::string failed_;
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.hip, llmx_group_sum)
     std::map<std::vector<int>, GroupPath> group_paths_;   // per group of device indices led by this backend
+    // The ROCm backends `members` names, this one first, with their device indices, refused as join refuses them.
+    std::vector<RocmBackend*> group_of(const std::vector<Backend*>& members, std::vector<int>& ids);
+    // This backend's path for the group of `ids`, probed and reported on stderr the first time the group is named.
+    GroupPath& group_path(const std::vector<RocmBackend*>& group, const std::vector<int>& ids);
 };
 
 RocmKVStorage::RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,

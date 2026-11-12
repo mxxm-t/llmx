@@ -177,7 +177,7 @@ What applies here:
 
 ```
 Group      an ordered set of devices of one backend kind and one device profile that run the same layers together; width 1 is a single device.
-Member     one device of a group; member 0 is the first listed.
+Member     one device of a group, in the member order placement gives it (section 4.1); member 0 is the first listed unless the group's backend times another order faster.
 Stage      a contiguous range of layers on one group; the embedding goes with the first stage and the head with the last.
 Partial    a member's share of a row-parallel product, summed over the group at the end of a part.
 ```
@@ -189,6 +189,9 @@ A layer split is stages of width-1 groups, a tensor split one stage of width W, 
 ### 4.1 One placement for all three splits
 
 - `Placement` gains its groups: the backends of each group in member order, every group of one width.
+- The member order is placement's, set once a group before the fit and the load (`order_members` in `model/place.hpp`): it asks the group's listed first backend once (`Backend::member_order`) and puts the group's backends and names in the order it gives, so member indices, shards, the plan's group names, `--layer-shares`, the drafter, the embedding and head slices and the first member that joins all follow it with no second path.
+  The default keeps the listed order. ROCm times orders on the group's cards at the pass's rows, each order costed as its fastest form, by swap descent from the listed order, taking a swap only where it sums at least 4% faster (`kOrderMargin`), and prints `rocm: tensor group of devices ... takes member order ...` with both times; the winner's forms are timed there into the group's path, so `join` times nothing twice (docs/src/backends-rocm.md, the collective).
+  Member k keeps shard k and every sum adds members in member order, so the bytes do not depend on the order; only which card holds member k moves.
   A role names a group, not a backend; with no groups given, each backend is a group of one, which is today's placement and keeps today's code path.
 - A stage is a run of layers on one group, so the pass API, passes in flight, the handoff buffers, admission over pools and the fit's balance by layer counts are unchanged in shape: the residual leaves a stage from member 0's handoff buffer (the residual is the same on every member) and the next stage writes it into every member's residual.
 - The scheduler keeps P passes in flight over S stages, P = S + 1 by default for a pipelined split; a single group is one stage and runs one pass at a time, as one device does.
@@ -241,7 +244,7 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
   qwen4exp injects a 2560-wide block into four residual streams with per-stream gates, so its members sum the block in place (`Collective::sum_in_place`) and each injects it (`Architecture::join`), a quarter of the bytes of summing four injected streams; a group's bits there are `x + w * (b0 + b1)` in place of `x + (w * b0 + w * b1)`.
   DeepSeek-V4.1 sums each sublayer's output of the embedding width the same way and each member expands it into its four streams (`hc_expand`), its post and comb computed on every member from the whole residual, so its bits are `x + post * (b0 + b1)` (docs/src/model-arch-deepseek4.md).
   On Qwen3.8-Flash-Next 2x2 the sums had been 29% of each card's prompt time, all of it the copies into the peer's inbox at 9.1 GB/s (docs/STATUS.md).
-- **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; a form chosen by message size is allowed only if it adds each element in the same order, so its bits are the one-shot's for every value but a NaN made of two NaN inputs, whose payload may follow either input: Vulkan sends large sums in two shots, and ROCm in two shots or a chain of neighbours in member order where its timing at join on the group's cards says so (docs/src/backends-rocm.md, the collective).
+- **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; a form chosen by message size is allowed only if it adds each element in the same order, so its bits are the one-shot's for every value but a NaN made of two NaN inputs, whose payload may follow either input: Vulkan sends large sums in two shots, and ROCm in two shots or a chain of neighbours in member order, its total back down or on around through member 0, where its timing on the group's cards says so (docs/src/backends-rocm.md, the collective).
 - **The collective is a backend concern** with two implementations from its first branch, which is the second use that justifies the seam:
   - **CPU:** the members are CPU backends in one process; the partials are host memory and the sum reads them in member order.
     It makes every group test runnable on the hosted runners.

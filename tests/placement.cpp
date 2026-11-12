@@ -1837,6 +1837,50 @@ void replay_over_stages() {
     checked += 2;
 }
 
+// A CPU backend that takes its group's members in reverse (Backend::member_order) and counts the orders it gives and the collectives it leads.
+struct Reversing final : backend::CpuBackend {
+    std::vector<size_t> member_order(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
+        (void)rows, (void)width;
+        ++asked;
+        std::vector<size_t> order(members.size());
+        for (size_t m = 0; m < order.size(); ++m) order[m] = order.size() - 1 - m;
+        return order;
+    }
+    std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
+        ++joins;
+        return CpuBackend::join(members, rows, width);
+    }
+    size_t asked = 0, joins = 0;
+};
+
+// Two tensor groups of two whose first backends reverse their members: placement asks each group's listed first once, the reversed first joins, the plan names the members in that order, and the bytes are the listed order's.
+void member_order_followed() {
+    const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 11u});
+    infer::PlacementRequest request;
+    request.names = {"a", "b", "c", "d"};
+    request.shares = {1, 1};
+    request.width = 2;
+    std::vector<backend::BackendPtr> plain;
+    for (int i = 0; i < 4; ++i) plain.push_back(std::make_shared<backend::CpuBackend>());
+    for (auto& b : plain) b->set_threads(1);
+    infer::PlacedModel listed = infer::place_model(infer::gguf_weights(weights), plain, request, infer::ModelOptions{});
+    std::vector<std::shared_ptr<Reversing>> rev;
+    std::vector<backend::BackendPtr> backends;
+    for (int i = 0; i < 4; ++i) {
+        rev.push_back(std::make_shared<Reversing>());
+        rev.back()->set_threads(1);
+        backends.push_back(rev.back());
+    }
+    infer::PlacedModel reordered = infer::place_model(infer::gguf_weights(weights), backends, request, infer::ModelOptions{});
+    const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8, 1, 8, 2, 8};
+    exact(listed.model->prefill(prompt), reordered.model->prefill(prompt), "a reordered group's prefill differs from its listed order's");
+    for (int t : {3, 14, 1}) exact(step_row(*listed.model, t), step_row(*reordered.model, t), "a reordered group's step differs from its listed order's");
+    require(rev[0]->asked == 1 && rev[2]->asked == 1 && !rev[1]->asked && !rev[3]->asked, "placement did not ask each group's listed first member once for its order");
+    require(rev[1]->joins && rev[3]->joins && !rev[0]->joins && !rev[2]->joins, "a reordered group was not joined by its first member in that order");
+    require(reordered.plan.find("b+a: ") != std::string::npos && reordered.plan.find("d+c: ") != std::string::npos, "the plan does not name each group's members in the order applied");
+    ++checked;
+}
+
 void bad_placements_refused() {
     const auto weights = fixture();
     auto a = std::make_shared<backend::CpuBackend>(), b = std::make_shared<backend::CpuBackend>();
@@ -2662,6 +2706,7 @@ int main() {
         pipelined_slicings_match();
         pipelined_cut_follows_stage_lines();
         replay_over_stages();
+        member_order_followed();
         passes_refused();
         passes_continue();
         passes_match_alone();

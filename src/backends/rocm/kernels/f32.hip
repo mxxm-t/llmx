@@ -417,9 +417,9 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
     }
 }
 
-// A chain (docs/src/backends-rocm.md, the collective): member m adds its partial to the running sum from m - 1 chunk by chunk and passes it on, and the last member's total flows back down.
+// A chain (docs/src/backends-rocm.md, the collective): member m adds its partial to the running sum from m - 1 chunk by chunk and passes it on, and the last member's total flows back down, or with `wrap` on around through 0 to W - 2.
 // Returns whether the block's waits met; one that failed leaves NaN in every chunk it writes into out.
-__device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, bool replace,
+__device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, bool replace, bool wrap,
                             unsigned long long deadline, unsigned long long tick, int* failed) {
     const unsigned long long units = (n + 3) / 4, chunks = (units + kChainUnits - 1) / kChainUnits;
     const unsigned F = gridDim.x / 2;
@@ -429,9 +429,13 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     const bool writes = ahead == last;   // the last member's ahead blocks and every other member's back blocks write out
     const bool aligned = ((unsigned long long)out & 15) == 0;
     const auto slot = [&](int m, int k) { return p->stage[m] + (unsigned long long)k * cap; };
-    const float* in = ahead ? slot(rank, rank) : slot(rank, (rank + 1) % members);
-    float* to = ahead ? (last ? slot(rank - 1, rank) : slot(rank + 1, rank + 1)) : (rank ? slot(rank - 1, rank) : nullptr);
-    unsigned* told = ahead ? (last ? &((GroupSignal*)p->signal[rank - 1])->back[b] : &((GroupSignal*)p->signal[rank + 1])->ahead[b]) : (rank ? &((GroupSignal*)p->signal[rank - 1])->back[b] : nullptr);
+    const auto back = [&](int m) { return &((GroupSignal*)p->signal[m])->back[b]; };
+    // The total's way back: member m's slot from its sender, and the member m passes it to, -1 for none.
+    const int from = wrap ? (rank + members - 1) % members : (rank + 1) % members;
+    const int next = last ? (wrap ? 0 : rank - 1) : wrap ? (rank + 1 < members - 1 ? rank + 1 : -1) : rank - 1;
+    const float* in = ahead ? slot(rank, rank) : slot(rank, from);
+    float* to = ahead && !last ? slot(rank + 1, rank + 1) : next >= 0 ? slot(next, rank) : nullptr;
+    unsigned* told = ahead && !last ? &((GroupSignal*)p->signal[rank + 1])->ahead[b] : next >= 0 ? back(next) : nullptr;
     const unsigned long long mine = b < chunks ? (chunks - b + F - 1) / F : 0;
     bool met = true;
     unsigned j = 0;
@@ -542,7 +546,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
     }
 }
 
-// The fast sum in two shots or a chain, kernels of their own so the one-shot keeps its registers; the arguments are llmx_group_sum's, flag 1 the same, and each ends at the one-shot's last meeting.
+// The fast sum in two shots or a chain, kernels of their own so the one-shot keeps its registers; the arguments are llmx_group_sum's, flag 1 the same, flag 8 the chain's wrap, and each ends at the one-shot's last meeting.
 template <bool CHAIN>
 __device__ void group_formed(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, int flags,
                              unsigned long long timeout, unsigned long long tick) {
@@ -553,7 +557,7 @@ __device__ void group_formed(const GroupPeers* p, const float* own, float* out, 
     if (!epoch) epoch = 1;
     if (!threadIdx.x) failed = 0;
     if (CHAIN) {
-        if (!group_chain(p, self, own, out, n, cap, members, rank, flags & 1, deadline, tick, &failed)) return group_failed(p, members, rank);
+        if (!group_chain(p, self, own, out, n, cap, members, rank, flags & 1, flags & 8, deadline, tick, &failed)) return group_failed(p, members, rank);
     } else {
         group_two_shots(p, self, own, out, n, cap, members, rank, flags & 1, epoch, deadline, tick, &failed);
         if (failed) return;

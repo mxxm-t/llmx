@@ -530,9 +530,11 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert lookup["row_bytes"] > 0 and lookup["bytes"] == lookup["rows"] * lookup["row_bytes"], lookup
             assert lookup["members"] == topology["layers"][lookup["layer"]]["mixer_members"], lookup
             assert all(member < len(topology["devices"]) for member in lookup["members"]), lookup
-        # The passes formed since start, those formed while replies and prompt work both waited by kind (docs/SERVER.md, The service rule), and the scheduler's holds and waits on the stages' threads.
+        # The passes formed since start, those formed while replies and prompt work both waited by kind (docs/SERVER.md, The service rule), the scheduler's holds and waits on the stages' threads, and the pacing of chunks' stages.
         since = health["passes"]["since_start"]
-        assert set(since) == {"prompt", "continued", "rule_replies", "rule_chunks", "rule_mixed", "rule_jobs", "holds", "stage_waits", "lookups_kept", "lookups_restarted", "lookups_late"}, health["passes"]
+        assert set(since) == {"prompt", "continued", "rule_replies", "rule_chunks", "rule_mixed", "rule_jobs", "holds", "stage_waits", "paces", "idle_paces", "queued_groups", "urgent_taken", "urgent_refused", "lookups_kept", "lookups_restarted", "lookups_late"}, health["passes"]
+        queued = since.pop("queued_groups")
+        assert set(queued) == {"mean", "max"} and isinstance(queued["max"], int) and 0 <= queued["mean"] <= queued["max"], queued
         assert all(isinstance(v, int) and v >= 0 for v in since.values()), health["passes"]
         info = health["server"]
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info

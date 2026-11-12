@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <functional>
@@ -276,6 +277,13 @@ struct Pass {
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
+    size_t scratch = 0;                                // the scratch set its parts run in: 0 the context's, 1 the replies' (ExecContext::replies), a replies' pass's so it records between another pass's groups
+    bool open = false;                                 // a stage partly recorded, in layer groups (record_pass_stage)
+    int layer = 0;                                     // the next layer of that stage
+    size_t cur = 0;                                    // the device its residual is on inside that stage
+    std::vector<std::vector<backend::Ticket>> queued;  // per group of that stage still queued ahead on its devices, the tickets of its submissions, oldest first (pace_pass_stage)
+    double group_ms = 0;                               // the device time of that stage's last group pace_pass_stage saw retire, 0 before one
+    std::vector<std::pair<backend::Ticket, backend::Ticket>> spans;   // per group of the last stage recorded, the sent device's last ticket before it and its submission, which busy_ms prices the stage by, interleaved passes left out
     size_t committed = 0;                              // the stages stage_commit has committed, on every path a pass runs
     // Per layer with an external lookup, the rows read for the pass from its formation (Model::start_lookups): its own scratch, so passes in flight never share one, and the ids it asked for.
     struct Lookup {
@@ -351,6 +359,8 @@ struct ExecContext {
         std::vector<LookupScratch> lookups;
     };
     std::vector<Scratch> scratch;              // per device
+    std::vector<Scratch> replies;              // per device, a second set for reply_rows rows, which a replies' pass takes (Pass::scratch) so its stage records between the groups of a chunk's in the first; empty where none was reserved
+    size_t reply_rows = 0;
     // On a tensor split, the logits rows in host memory every member of the head's group imports (logits_buf the first member's view of them, member_rows each member's), into which each copies its vocabulary slice of each row.
     // Declared before every buffer that wraps them, so the views go first: a device keeps imported memory for as long as its buffer lives.
     core::HostPages logits_host;
@@ -659,8 +669,9 @@ public:
             if (!stages_.empty() && stages_.back().device == a) { stages_.back().end = l + 1; continue; }
             for (const Stage& st : stages_)
                 if (st.device == a) throw std::runtime_error("inference: a device's attention layers must be consecutive");
-            stages_.push_back(Stage{a, l, l + 1, {}});
+            stages_.push_back(Stage{a, l, l + 1, {}, {}, 0});
         }
+        reply_host_ms_ = std::make_unique<std::atomic<double>[]>(stages_.size());
         // The drafter's KV is one more layer of the head's device's storage, which the last stage reserves and commits with its own, so the head sits there.
         if (plan_.drafter) {
             if ((size_t)place_.output_device != stages_.back().device)
@@ -948,7 +959,7 @@ public:
     bool pipelined() const { return pipelined_; }
     // Whether stage s runs on the host, whose backend computes as its work is recorded, so recording it holds the calling thread for the stage's whole time.
     bool stage_on_host(size_t s) const { return devices_[stages_.at(s).device]->b->is_cpu(); }
-    // Whether stage s is a tensor group's, whose recording waits at every sum, each a submission its members wait on each other for.
+    // Whether stage s is a tensor group's, whose members wait on each other at every sum on the devices, not on the host.
     bool stage_grouped(size_t s) const { return stages_.at(s).device < devices_.size() && width_ > 1; }
     // Whether recording stage s waits on its devices: a tensor group's stage, and a device's on a pipelined split that receives the stage before it through the host, not served on the devices (Device::served).
     // A caller that keeps passes in flight may record such a stage on a thread of that stage's (prepare_pass_stage, record_pass_stage, commit_pass_stage).
@@ -975,11 +986,22 @@ public:
     }
 
     // Defined in model/passes.hpp, the owner of a pass and its stages.
-    void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows);
-    void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base);
+    void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows, size_t reply_rows = 0);
+    void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool replies = false);
     void run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const std::function<void()>& before_undo = {});
     void prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s);
-    void record_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    bool record_pass_stage(ExecContext& ctx, size_t slot, size_t s, size_t layers = 0);
+    void pace_pass_stage(ExecContext& ctx, size_t slot, double wait_ms);
+    // The pacing waits since the model was made, those that found every queued group already retired, the stage's devices dry behind the host, and the groups each kept queued (docs/USAGE.md, passes.since_start).
+    struct Pacing {
+        size_t paces = 0, idle = 0, queued = 0, most_queued = 0;
+    };
+    Pacing pacing() const { return {paces_.load(), idle_paces_.load(), queued_.load(), most_queued_.load()}; }
+    // The host's own time recording a replies' stage s whole, the median of its last few, without its waits for the residual, lookup rows and sums; 0 before one (pace_pass_stage, docs/SERVER.md, The service rule).
+    double reply_host_ms(size_t s) const { return reply_host_ms_[s].load(std::memory_order_relaxed); }
+    bool pass_apart(ExecContext& ctx, size_t slot) const { return in_flight(ctx, slot).scratch != 0; }
+    bool pass_interleaves(ExecContext& ctx, size_t slot) const;
+    size_t stage_layers(size_t s) const { return (size_t)std::max(1, stages_.at(s).end - stages_.at(s).first); }
     // That submission, its device's backend and the device's last ticket before the stage, which a caller timing the stage reads (docs/SERVER.md, The price table).
     struct StageSent {
         backend::Backend* backend;
@@ -996,6 +1018,8 @@ public:
     LookupReads lookup_reads() const {
         return {lookups_kept_.load(std::memory_order_relaxed), lookups_restarted_.load(std::memory_order_relaxed), lookups_late_.load(std::memory_order_relaxed)};
     }
+    // The last stage recorded of that pass by group, each group's ticket before it and its submission on the sent device (Pass::spans).
+    const std::vector<std::pair<backend::Ticket, backend::Ticket>>& stage_spans(ExecContext& ctx, size_t slot) const { return in_flight(ctx, slot).spans; }
     // The last stage recorded of that pass: the milliseconds its recording waited for lookup rows and spent in tensor-group sums.
     std::pair<double, double> stage_host_waits(ExecContext& ctx, size_t slot) {
         const Pass& p = in_flight(ctx, slot);
@@ -1394,6 +1418,9 @@ private:
         size_t device;
         int first, end;
         std::vector<size_t> touches;
+        // The host's own time recording the last replies' stages here whole, which only the stage's recording thread writes and reads (reply_host_ms).
+        std::array<double, 8> reply_ms{};
+        size_t replies = 0;
     };
 
     Placement place_;
@@ -1438,6 +1465,8 @@ private:
         std::vector<StageTime> times;
     };
     std::unique_ptr<StageTrace> trace_;
+    std::atomic<size_t> paces_{0}, idle_paces_{0}, queued_{0}, most_queued_{0};   // pacing()
+    std::unique_ptr<std::atomic<double>[]> reply_host_ms_;   // per stage, reply_host_ms
     int ubatch_ = kDefaultUbatch;
     ModelOptions options_;
     std::shared_ptr<const Architecture> arch_;
@@ -1648,18 +1677,22 @@ private:
     void at_stage(const Pass& p, size_t s) const;
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void prepare_stage(Pass& p, size_t s);
-    void record_stage(ExecContext& ctx, Pass& p, size_t s);
+    void record_stage(ExecContext& ctx, Pass& p, size_t s, size_t layers = 0);
     std::vector<std::chrono::steady_clock::time_point> run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk,
                                                                   std::vector<std::vector<double>>& stage_ms);
     void single_prepare(Pass& p, size_t s);
     void start_lookups(ExecContext& ctx, Pass& p, size_t rows);
     void start_lookup(ExecContext& ctx, Pass& p, size_t group, int l);
     void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);
-    void single_record(ExecContext& ctx, Pass& p, size_t s);
+    void single_record(ExecContext& ctx, Pass& p, size_t s, size_t layers);
     void group_prepare(Pass& p, size_t s);
-    void group_record(ExecContext& ctx, Pass& p, size_t s);
+    void group_record(ExecContext& ctx, Pass& p, size_t s, size_t layers);
     template <class Weights>
-    void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w);
+    void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set = 0);
+    template <class Weights>
+    void group_sum(ExecContext& ctx, const Pass& p, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
+        group_sum(ctx, g, x, rows, runs, kind, w, p.scratch);
+    }
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(Pass& p, size_t s);
     void prepare_tokens(Pass& p, size_t s) const;
@@ -1668,15 +1701,19 @@ private:
     void finish(ExecContext& ctx, const Pass& p);
     void roll_back(Pass& p, const size_t* ends = nullptr) noexcept;
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
-    void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers);
+    void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t reply_rows = 0);
     bool argmax_buffers(ExecContext& ctx, size_t end);
-    void send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows);
-    std::pair<double, double> receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
-    void cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows);
+    void send(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, size_t base, size_t rows);
+    std::pair<double, double> receive(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
+    void cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows);
     std::vector<size_t> readers(size_t from) const;
     bool served(size_t from, size_t to) const;
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
-    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1) const;
+    // A part in scratch set `set` (Pass::scratch), the context's where no pass runs it: a saved history's rerun and the drafters' chain.
+    Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1, size_t set = 0) const;
+    Step part(ExecContext& ctx, const Pass& p, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer = -1) const {
+        return part(ctx, dev, w, kind, base, rows, runs, layer, p.scratch);
+    }
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
     std::vector<Sequence::Media> carried(const Sequence& s, size_t length) const;
@@ -1724,6 +1761,13 @@ private:
 
     static backend::Slice slot(const ExecContext& ctx, size_t device, size_t i) {
         const ExecContext::Scratch& sc = ctx.scratch[device];
+        return {sc.arena.get(), sc.offset[i] / sizeof(float)};
+    }
+    // A pass's scratch on a device, the set it chose (Pass::scratch), through which every part, crossing, save and lookup of the pass reads and writes.
+    static ExecContext::Scratch& scratch(ExecContext& ctx, size_t set, size_t device) { return (set ? ctx.replies : ctx.scratch)[device]; }
+    static ExecContext::Scratch& scratch(ExecContext& ctx, const Pass& p, size_t device) { return scratch(ctx, p.scratch, device); }
+    static backend::Slice slot(const ExecContext& ctx, const Pass& p, size_t device, size_t i) {
+        const ExecContext::Scratch& sc = (p.scratch ? ctx.replies : ctx.scratch)[device];
         return {sc.arena.get(), sc.offset[i] / sizeof(float)};
     }
 

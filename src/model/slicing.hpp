@@ -2,6 +2,7 @@
 // How a prompt is cut into slices on a pipelined split: each slice the first of the cut of what remains that the stages' measured cost lines finish first (docs/src/model-slicing.md).
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -15,6 +16,29 @@ namespace infer {
 
 // The depth band of rows read at history position `depth` (docs/SERVER.md, The price table): 0 below kBandTokens, then one band a doubling, so 4k to 8k tokens is band 1 and 128k to 256k band 6.
 inline constexpr size_t kBandTokens = 4096;
+// The fewest layer groups of a paced stage queued ahead on its devices (Model::pace_pass_stage): a replies' pass posted to the stage goes in behind at least that many, and the service rule caps a chunk's rows by them (pipeline_layout).
+inline constexpr size_t kQueuedGroups = 2;
+// The wait a reply's step within `gap_ms` leaves at each of `stages` stages past its `passes` replies' passes of `own_ms`: the device time a chunk's stage may hold queued ahead of a replies' pass there.
+// The service rule cuts a chunk's groups by it (pipeline_layout) and a paced stage caps its queue by it (Model::pace_pass_stage), so the two price one wait (docs/src/model-slicing.md).
+inline double stage_wait_ms(double gap_ms, size_t passes, double own_ms, size_t stages) {
+    return std::max(0.0, (gap_ms - (double)passes * own_ms) / (double)std::max<size_t>(1, stages));
+}
+// The groups a paced stage keeps queued at `group_ms` a group: device time to cover the host's recording of a replies' stage there, `reply_ms`, and one group more, at least kQueuedGroups.
+// Never more than `wait_ms` of device time, the stage's wait (stage_wait_ms), and never fewer than one group (docs/src/model-slicing.md).
+inline size_t queued_groups(double reply_ms, double group_ms, double wait_ms) {
+    if (!(group_ms > 0)) return kQueuedGroups;
+    size_t groups = kQueuedGroups;
+    if (reply_ms > 0) groups = std::max(groups, (size_t)std::min(1e6, std::ceil(reply_ms / group_ms) + 1));
+    if (wait_ms < std::numeric_limits<double>::infinity()) groups = std::min(groups, (size_t)std::max(1.0, std::min(1e6, std::floor(wait_ms / group_ms))));
+    return groups;
+}
+// The host's recording of a replies' stage a paced stage covers (Model::reply_host_ms): the median of the first `n` of the last recordings `ms`, so one recording held by a wait moves no queue.
+inline double recording_median(std::array<double, 8> ms, size_t n) {
+    n = std::min(n, ms.size());
+    if (!n) return 0;
+    std::nth_element(ms.begin(), ms.begin() + (std::ptrdiff_t)(n / 2), ms.begin() + (std::ptrdiff_t)n);
+    return ms[n / 2];
+}
 inline size_t depth_band(size_t depth) {
     size_t b = 0;
     for (size_t d = depth / kBandTokens; d; d >>= 1) ++b;

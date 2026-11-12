@@ -654,6 +654,126 @@ size_t check_index_tile(Pair& p, const Exact& exact) {
     return values;
 }
 
+// Each row of hc_coeffs, route_experts and sparse_attention_sink in a call of 1 to 16 rows has the bits of the row alone, on each backend, so a decode pass's width never changes a reply.
+size_t check_rows_alone(Pair& p) {
+    using backend::ModelFormat;
+    const size_t most = 16;
+    size_t values = 0;
+    // Runs `call(rows, first, on_device)` for each row alone into its own place, then holds the first n rows of each width 1 to `most` to them.
+    const auto hold = [&](const std::string& op, const std::vector<Pair::Out*>& outs, const std::vector<size_t>& per_row, const auto& call) {
+        for (bool dev : {false, true}) {
+            backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
+            const auto fetch = [&](size_t i, size_t first, size_t n) {
+                std::vector<float> got(n * per_row[i]);
+                b.read(dev ? *outs[i]->v : *outs[i]->c, first * per_row[i] * 4, got.data(), got.size() * 4);
+                return got;
+            };
+            std::vector<std::vector<float>> alone(outs.size());
+            for (size_t r = 0; r < most; ++r) {
+                call(size_t(1), r, dev);
+                for (size_t i = 0; i < outs.size(); ++i) {
+                    const std::vector<float> got = fetch(i, r, 1);
+                    alone[i].insert(alone[i].end(), got.begin(), got.end());
+                }
+            }
+            for (size_t n = 1; n <= most; ++n) {
+                call(n, size_t(0), dev);
+                for (size_t i = 0; i < outs.size(); ++i) {
+                    const std::vector<float> got = fetch(i, 0, n);
+                    values += same(std::vector<float>(alone[i].begin(), alone[i].begin() + (std::ptrdiff_t)got.size()), got,
+                                   op + (dev ? " on the device" : " on the CPU") + ": a call of " + std::to_string(n) + " rows differs from its rows alone");
+                }
+            }
+        }
+    };
+    const auto at = [](auto s, size_t floats) {
+        s.offset += floats;
+        return s;
+    };
+    for (const auto& shape : {std::pair<size_t, size_t>{4, 4096}, {16, 256}}) {
+        const size_t hc = shape.first, dim = shape.second, mix = (hc + 2) * hc;
+        Pair::In mi = held(p, uniform(most * mix, 81, -2.0f, 2.0f)), xi = held(p, uniform(most * hc * dim, 82, -1.5f, 1.5f));
+        Pair::In si = held(p, std::vector<float>{0.7f, 1.3f, 0.9f}), bi = held(p, uniform(mix, 83, -0.5f, 0.5f));
+        Pair::Out pre = p.out(most * hc), post = p.out(most * hc), comb = p.out(most * hc * hc);
+        hold("hc_coeffs at hc " + std::to_string(hc), {&pre, &post, &comb}, {hc, hc, hc * hc}, [&](size_t n, size_t r, bool dev) {
+            backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
+            b.hc_coeffs(at(dev ? pre.vs() : pre.cs(), r * hc), at(dev ? post.vs() : post.cs(), r * hc), at(dev ? comb.vs() : comb.cs(), r * hc * hc),
+                        at(dev ? mi.vs() : mi.cs(), r * mix), at(dev ? xi.vs() : xi.cs(), r * hc * dim), dev ? si.vs() : si.cs(), dev ? bi.vs() : bi.cs(), n, hc, dim, 1e-6f,
+                        1e-6f, 20);
+        });
+    }
+    for (const auto& shape : {std::pair<size_t, size_t>{256, 6}, {384, 8}}) {
+        const size_t n_expert = shape.first, k = shape.second;
+        std::vector<float> scores = uniform(most * n_expert, 84 + uint32_t(k), -8.0f, 24.0f);
+        for (size_t r = 1; r < most; r += 2)
+            for (size_t e = 0; e < n_expert; ++e) scores[r * n_expert + e] = std::round(scores[r * n_expert + e] * 4.0f) / 32.0f;
+        Pair::In sc = held(p, scores), bi = held(p, uniform(n_expert, 85, -0.05f, 0.05f));
+        Pair::Out ids = p.out(most * k), w = p.out(most * k);
+        hold("sqrt_softplus routing over " + std::to_string(n_expert) + " experts", {&ids, &w}, {k, k}, [&](size_t n, size_t r, bool dev) {
+            backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
+            const backend::RouteRule rule = backend::RouteRule::sqrt_softplus(dev ? bi.vs() : bi.cs(), 1.5f, true);
+            b.route_experts(at(dev ? sc.vs() : sc.cs(), r * n_expert), n, n_expert, k, rule, at(dev ? ids.vs() : ids.cs(), r * k), at(dev ? w.vs() : w.cs(), r * k));
+        });
+    }
+    if (!p.dev.implements(backend::Op::model_format_pack)) return values;
+    struct Case {
+        size_t heads, dim, k, entry_k;
+        ModelFormat kv_format, entry_format;
+    };
+    const size_t ratio = 4, length = 2048, kv_rows = 600, positions = length + most, groups = positions / ratio;
+    uint32_t seed = 201;
+    for (const Case& c : {Case{64, 512, 128, 512, ModelFormat::fp8_power, ModelFormat::fp4_e4m3}, Case{3, 160, 20, 24, ModelFormat::fp4_power, ModelFormat::f32}}) {
+        const size_t kw = backend::format_words(c.kv_format, c.dim), ew = backend::format_words(c.entry_format, c.dim), q = c.heads * c.dim;
+        const auto rows_of = [&](ModelFormat f, size_t n, size_t words) {
+            const std::vector<float> x = uniform(n * c.dim, seed++, -2.0f, 2.0f);
+            Pair::Out o = p.out(n * words);
+            if (f == ModelFormat::f32) {
+                p.cpu.write(*o.c, 0, x.data(), x.size() * 4);
+                p.dev.write(*o.v, 0, x.data(), x.size() * 4);
+            } else {
+                Pair::In xi = held(p, x);
+                p.cpu.model_format_pack(o.cs(), words, xi.cs(), n, c.dim, f);
+                p.dev.model_format_pack(o.vs(), words, xi.vs(), n, c.dim, f);
+            }
+            return o;
+        };
+        Pair::Out kv = rows_of(c.kv_format, kv_rows, kw), pooled = rows_of(c.entry_format, groups, ew);
+        auto cs = p.cpu.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, ew}});
+        auto vs = p.dev.kv_alloc(1, 0, 0, positions, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, ew}});
+        std::vector<int32_t> tables[2];
+        for (int dev = 0; dev < 2; ++dev) {
+            const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens;
+            for (size_t i = 0, nb = (positions + bt - 1) / bt; i < nb; ++i) tables[dev].push_back(int32_t(nb - 1 - i));
+        }
+        const auto view = [&](bool dev, size_t from, size_t nq) { return backend::KVView{dev ? vs.get() : cs.get(), tables[dev].data(), tables[dev].size(), from, nq}; };
+        const backend::KVView cw = view(false, 0, positions), vw = view(true, 0, positions);
+        p.cpu.pool_write(0, &cw, 1, pooled.cs());
+        p.dev.pool_write(0, &vw, 1, pooled.vs());
+        std::vector<uint32_t> ids(most * c.k, kNone), entries(most * c.entry_k, kNone);
+        uint32_t s = seed++;
+        const auto draw = [&] { return s = s * 1664525u + 1013904223u, s >> 8; };
+        for (size_t r = 0; r < most; ++r) {
+            for (size_t t = 0; t < c.k; ++t)
+                if (draw() % 5) ids[r * c.k + t] = draw() % kv_rows;
+            for (size_t t = 0; t < c.entry_k; ++t)
+                if (draw() % 5) entries[r * c.entry_k + t] = uint32_t(draw() % ((length + r + 1) / ratio));
+        }
+        Pair::In qi = held(p, uniform(most * q, seed++)), ii = held(p, as_floats(ids)), ei = held(p, as_floats(entries)), si = held(p, uniform(c.heads, seed++, -1.0f, 1.0f));
+        const float scale = 1.0f / std::sqrt(float(c.dim));
+        Pair::Out o = p.out(most * q);
+        for (bool with_views : {false, true})
+            hold("sparse_attention_sink at " + std::to_string(c.heads) + " heads of " + std::to_string(c.dim) + (with_views ? " with pooled rows" : ""), {&o}, {q},
+                 [&](size_t n, size_t r, bool dev) {
+                     backend::Backend& b = dev ? p.dev : static_cast<backend::Backend&>(p.cpu);
+                     const backend::KVView v = view(dev, length + r, n);
+                     b.sparse_attention_sink(at(dev ? o.vs() : o.cs(), r * q), at(dev ? qi.vs() : qi.cs(), r * q), dev ? kv.vs() : kv.cs(), at(dev ? ii.vs() : ii.cs(), r * c.k),
+                                             dev ? si.vs() : si.cs(), n, c.heads, c.dim, kv_rows, c.k, scale, 0, with_views ? &v : nullptr, with_views ? 1 : 0,
+                                             with_views ? at(dev ? ei.vs() : ei.cs(), r * c.entry_k) : backend::CSlice{}, with_views ? c.entry_k : 0, c.kv_format, c.entry_format);
+                 });
+    }
+    return values;
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
@@ -667,6 +787,7 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_pooled(p, exact);
     values += check_index_tile(p, exact);
     if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
+    values += check_rows_alone(p);
     return values;
 }
 } // namespace ds4

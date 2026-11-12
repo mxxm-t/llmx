@@ -646,7 +646,7 @@ std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
 }
 
 // The twin products of the K-quants, Q5_0, Q5_1, IQ4_NL and MXFP4 at Flash-Next's shapes in the F16 and int8 classes, extents on both sides of each crossover, each output against a double sum over the twin.
-// The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class; the cluster widths (cluster_shapes) take the generated rows alone.
+// The backend's launches name the build or tile that ran, and a row of a call is the row alone or in another call of its class, every generated column of up to 64; the cluster widths (cluster_shapes) take the generated rows alone.
 void twin_types(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
     const size_t cols[] = {1, 2, 3, 5, 8, 9, 16, 17, 33}, extents[] = {2, 33, 64, 65, 320};
@@ -707,8 +707,25 @@ void twin_types(Backend& g, Backend& c) {
                     require(run(n, 1, *yb, 0) == want, what + " runs its row builds alone");
                     const std::vector<float> all = read(g, *yb, nout * n);
                     check(all, n, what);
-                    run(1, 1, *y1, n - 1);
-                    require(std::memcmp(read(g, *y1, nout).data(), all.data() + (n - 1) * nout, nout * 4) == 0, what + ": its last column is the column alone, bit for bit");
+                }
+                // Every column of 1 to 64 generated rows, as one run and as one run a row as a decode pass of n sequences gives them, is the column alone, bit for bit.
+                {
+                    const size_t most = 64;
+                    std::vector<float> one(most * nout);
+                    for (size_t r = 0; r < most; ++r) {
+                        run(1, 1, *y1, r);
+                        g.read(*y1, 0, one.data() + r * nout, nout * 4);
+                    }
+                    bool alone = true;
+                    for (size_t n = 1; n <= most; ++n) {
+                        run(n, 1, *yb, 0);
+                        alone = alone && std::memcmp(read(g, *yb, nout * n).data(), one.data(), nout * n * 4) == 0;
+                        std::vector<RowRun> each(n);
+                        for (size_t r = 0; r < n; ++r) each[r] = {r + 1, 1};
+                        g.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, n, {each.data(), n}, dt);
+                        alone = alone && std::memcmp(read(g, *yb, nout * n).data(), one.data(), nout * n * 4) == 0;
+                    }
+                    require(alone, "a " + cls + " call of 1 to 64 generated rows: every column is the column alone, bit for bit, as one run and as one run a row");
                 }
                 // Prompt rows: the tile, and the first rows of a prompt the same bits in a call of fewer of its rows.
                 for (size_t e : extents) {

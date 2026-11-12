@@ -1,6 +1,7 @@
 // The scheduler's policy core (server/policy.hpp) by hand, then its round under a simulated executor in random schedules (docs/TESTS.md).
 // `llmx-server-passes-test N` runs N schedules, 2000 by default; `--replay FILE` or `--load NAME` replays loads under each share rule instead (docs/SERVER.md, Prompt shares).
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -143,14 +144,20 @@ struct Sim {
         bool busy = false, fails = false;
         size_t slot = 0;
         uint64_t until = 0;
+        double post = 0;   // the host's clock when the post was taken, which places an urgent post on the device (urgent_stage)
     };
     std::vector<Recording> recording;
+    std::vector<Recording> urgent;   // per stage, the replies' pass posted while its recorder records a chunk, recorded between two of its groups (Recorder::urgent)
+    size_t layers = 24;              // layers a stage, the groups a chunk's stage is recorded in
+    size_t urgent_taken[2] = {0, 0};   // replies' passes recorded between a chunk's groups, on a single device's stage and on a tensor group's
+    size_t urgent_first = 0, formed_beside = 0;   // of those, the ones at the first stage, and replies' passes formed while a chunk was recorded there
+    std::vector<size_t> urgent_at;   // per stage, the replies' passes recorded between a chunk's groups there
     size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, quick_rides = 0, jobs_passes = 0;
     bool quick_turn = true;   // whether the next replies' pass may take the quick prompt, every other one (Scheduler::form_round)
     bool last_ride = false;   // whether the last replies' pass carried one
     server::LogitRows rows;
     std::vector<double> device_free;
-    std::vector<uint64_t> device_last;       // per device, the formation order of the last pass it ran
+    std::vector<std::array<uint64_t, 2>> device_last;   // per device, the formation order of the last pass of each kind it ran: chunk passes, then replies' passes
     double clock = 0;
     uint64_t round_no = 0, formed = 0, next_id = 1, admissions = 0, donor_ids = 0, first_admitted = 0;
     uint64_t waiter = 0, waited = 0, waiting_from = 0;   // the oldest request while its plan waits on a request in flight, that request, and the round it first waited
@@ -164,8 +171,9 @@ struct Sim {
         host.assign(S, 0);
         threaded.assign(S, 0);
         recording.assign(S, Recording{});
+        urgent.assign(S, Recording{});
         device_free.assign(S, 0.0);
-        device_last.assign(S, 0);
+        device_last.assign(S, {0, 0});
         rows = server::logit_rows(P, max_seqs);
     }
     // A small random configuration, so schedules pause, stall and hold often.
@@ -189,6 +197,7 @@ struct Sim {
         if (rng() % 3 == 0) {
             threaded.assign(S, 1);
             grouped = rng() % 2;
+            layers = 1 + rng() % 48;
             // A layer split's first stage receives nothing and has no thread.
             if (!grouped) threaded[0] = 0;
             slow = rng() % 3;
@@ -204,6 +213,13 @@ struct Sim {
         for (const Pass& p : slots)
             if (p.live && p.ran == 0) return true;
         return false;
+    }
+    // Whether the first stage's recorder holds a chunk, with no urgent post, and no other pass waits there, so a replies' pass formed now goes between two of its groups (Scheduler::first_stage_paced).
+    bool first_stage_paced() const {
+        if (!threaded[0] || !recording[0].busy || urgent[0].busy || slots[recording[0].slot].replies) return false;
+        for (size_t k = 0; k < slots.size(); ++k)
+            if (slots[k].live && slots[k].ran == 0 && k != recording[0].slot) return false;
+        return true;
     }
 
     // The prompt work the first stage runs between two passes carrying replies: a replies' pass closes a step, a pass with prompt rows adds their part of its time.
@@ -235,25 +251,51 @@ struct Sim {
         v.met_ms_now = 0;
     }
 
-    // What a stage's device or thread does with the pass once it is recorded.
-    void recorded_stage(Pass& p, size_t s) {
+    // What a stage's device or thread does with the pass once it is recorded, from `at` where the caller places it on the device (urgent_stage); its start.
+    double recorded_stage(Pass& p, size_t s, double at = -1) {
         if (service) {
             const double ms = stage_ms(p);
-            const double start = std::max({clock, device_free[s], s ? p.ready : 0.0});
-            p.ready = device_free[s] = start + ms;
+            const double start = at >= 0 ? at : std::max({clock, device_free[s], s ? p.ready : 0.0});
+            p.ready = start + ms;
+            if (at < 0) device_free[s] = p.ready;
             service->tables[s].observe(work_of(p), ms);
             if (!s) meet(p, start, ms);
             clock = host[s] ? p.ready : clock + service->record_ms;
             ++p.ran;
-            return;
+            return start;
         }
         if (s) clock = std::max(clock, p.ready);
         size_t n = 0;
         for (size_t r : p.rows) n += r;
-        const double start = std::max(clock, device_free[s]);
-        p.ready = device_free[s] = start + (0.5 + (double)(rng() % 100) / 100.0) * (1.0 + 0.05 * (double)n);
+        const double start = at >= 0 ? at : std::max(clock, device_free[s]);
+        p.ready = start + (0.5 + (double)(rng() % 100) / 100.0) * (1.0 + 0.05 * (double)n);
+        if (at < 0) device_free[s] = p.ready;
         clock = host[s] ? p.ready : clock + 0.05;
         ++p.ran;
+        return start;
+    }
+
+    // A replies' pass taken between two groups of the chunk on stage s, which runs over [cs, ce) on its device in `layers` groups: it starts where the groups queued when the host took it at `post` end, kQueuedGroups past the device's group then.
+    // Its residual arriving later moves it to the next group's end, and past the chunk's end it goes after the chunk; the chunk's end shifts by it, and the wait is held to kQueuedGroups groups.
+    void urgent_stage(Pass& p, size_t s, double post, double cs, double ce, size_t chunk_slot) {
+        const double g = (ce - cs) / (double)layers, k = (double)infer::kQueuedGroups;
+        if (!(g > 0)) {
+            recorded_stage(p, s);
+            return;
+        }
+        const double base = std::max(post, cs), ready = s ? p.ready : 0.0;
+        double t = cs + (std::floor((base - cs) / g) + k) * g;
+        if (ready > cs) t = std::max(t, cs + std::ceil((ready - cs) / g) * g);
+        const bool between = t < ce;
+        if (!between) t = std::max(ce, ready);
+        const double start = recorded_stage(p, s, t), ms = p.ready - start;
+        require(start - std::max(base, ready) <= k * g + 1e-9, at + ": a replies' pass waited past " + std::to_string(infer::kQueuedGroups) + " groups of the chunk its stage records");
+        device_free[s] = between ? ce + ms : p.ready;
+        if (between) slots[chunk_slot].ready += ms;
+        ++urgent_taken[grouped ? 1 : 0];
+        urgent_first += s == 0;
+        if (urgent_at.size() < S) urgent_at.resize(S, 0);
+        ++urgent_at[s];
     }
 
     // A pass's work as the price table keys it, a prompt's class by its extent (Prices::row_class).
@@ -292,22 +334,31 @@ struct Sim {
     }
 
     // The recorders that are done, taken at the start of a round: a recorded stage counts, a failed one fails its pass alone.
+    // A stage's urgent post ends with the chunk's recording it went between and is placed inside the chunk's device time (urgent_stage), or recorded as any other where that recording was taken away.
     void collect() {
         at = "collection";
         for (size_t i = 0; i < recording.size(); ++i) {
             const size_t s = i % S;
-            Recording& rec = recording[i];
-            if (!rec.busy || rec.until > round_no) continue;
-            rec.busy = false;
-            Pass& p = slots[rec.slot];
-            require(p.live && p.recording && p.ran == s, at + ": a recorder held a pass that was not waiting on it");
-            p.recording = false;
-            if (rec.fails) {
-                fail(rec.slot);
-                ++record_failures;
-            } else {
-                recorded_stage(p, s);
-                ++recorded;
+            double chunk_start = -1, chunk_end = 0;
+            size_t chunk_slot = 0;
+            for (Recording* rec : {&recording[i], &urgent[i]}) {
+                if (!rec->busy || rec->until > round_no) continue;
+                rec->busy = false;
+                Pass& p = slots[rec->slot];
+                require(p.live && p.recording && p.ran == s, at + ": a recorder held a pass that was not waiting on it");
+                p.recording = false;
+                if (rec->fails) {
+                    fail(rec->slot);
+                    ++record_failures;
+                } else if (rec == &urgent[i] && chunk_start >= 0) {
+                    urgent_stage(p, s, rec->post, chunk_start, chunk_end, chunk_slot);
+                    ++recorded;
+                } else {
+                    chunk_start = recorded_stage(p, s);
+                    chunk_end = p.ready;
+                    chunk_slot = rec->slot;
+                    ++recorded;
+                }
             }
             check();
         }
@@ -403,11 +454,7 @@ struct Sim {
             for (size_t j = 0; j < slots.size(); ++j)
                 if (j != k && slots[j].live) require(slots[j].formed != p.formed, at + ": two passes formed as one");
             if (p.want) {
-                const server::LogitRows& own = rows;
-                require(p.base + p.want <= own.size, at + ": a pass's logits rows past the reservation");
-                bool held = false;
-                for (const auto& r : own.runs) held = held || (r.base == p.base && r.n == p.want && !r.back);
-                require(held, at + ": a pass in flight whose logits rows came back");
+                require(p.base == k * rows.per_pass && p.want <= rows.per_pass && p.base + p.want <= rows.size, at + ": a pass's logits rows are not its slot's region");
                 runs.push_back({p.base, p.want});
             }
         }
@@ -564,20 +611,22 @@ struct Sim {
         Pass& p = slots[k];
         require(p.live && p.ran == s, at + ": a stage recorded out of order");
         const size_t live = (size_t)std::count_if(slots.begin(), slots.end(), [](const Pass& q) { return q.live; });
-        // A device runs the passes in formation order.
+        // A device runs the passes of a kind in formation order; a replies' pass goes before the chunk passes waiting at its stage (round_steps).
         const size_t i = s;
         if (threaded[s] && server::recorded_apart(grouped, live)) {
-            // A stage records one pass of a kind at a time: a pass that finds its recorder taken waits for a later round.
-            if (recording[i].busy) return false;
+            // A stage records one pass at a time, but a replies' pass given a stage recording a chunk (round_steps) goes in as its one urgent post, between two of the chunk's groups; any other pass finding the recorder taken waits a round.
+            const bool between = recording[i].busy && p.replies && !slots[recording[i].slot].replies && !urgent[i].busy;
+            if (recording[i].busy && !between) return false;
             require(!p.recording, at + ": a pass handed to a recorder twice");
-            require(device_last[i] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
-            device_last[i] = p.formed;
+            require(device_last[i][p.replies] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
+            device_last[i][p.replies] = p.formed;
             p.recording = true;
-            recording[i] = Recording{true, rng() % 1000 < 10 * fail_per_mille, k, round_no + rng() % (slow + 1)};
+            // The urgent post's recording ends with the chunk's, its device time placed inside the chunk's (collect).
+            (between ? urgent : recording)[i] = Recording{true, rng() % 1000 < 10 * fail_per_mille, k, between ? recording[i].until : round_no + rng() % (slow + 1), clock};
             return true;
         }
-        require(device_last[i] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
-        device_last[i] = p.formed;
+        require(device_last[i][p.replies] < p.formed, at + ": device " + std::to_string(s) + " ran a pass before one of its kind formed earlier");
+        device_last[i][p.replies] = p.formed;
         if (rng() % 1000 < fail_per_mille) {
             fail(k);
             return false;
@@ -595,14 +644,13 @@ struct Sim {
         for (uint64_t id : ids)
             for (size_t j : active[find(id)].in) {
                 if (j == k) continue;
-                for (Recording& rec : recording)
-                    if (rec.busy && rec.slot == j) rec.busy = false;
-                server::give_rows(rows, slots[j].base, slots[j].want);
+                for (auto* recs : {&recording, &urgent})
+                    for (Recording& rec : *recs)
+                        if (rec.busy && rec.slot == j) rec.busy = false;
                 clear(slots[j]);
                 failed_now.push_back(j);
                 ++taken;
             }
-        server::give_rows(rows, slots[k].base, slots[k].want);
         clear(slots[k]);
         failed_now.push_back(k);
         for (uint64_t id : ids) {
@@ -643,7 +691,6 @@ struct Sim {
             }
             if (service && p.extent[e] != 1) r.rows_at = clock;
         }
-        server::give_rows(rows, p.base, p.want);
         clear(p);
     }
 
@@ -769,10 +816,11 @@ struct Sim {
     // A pass formed in slot k: its logits rows, its requests in flight, and its first stage recorded or left for the host.
     void launch(Pass& p, size_t k, std::vector<std::pair<size_t, size_t>>& deferred) {
         for (char w : p.wants) p.want += (size_t)w;
-        p.base = server::take_rows(rows, p.want);
-        require(p.base != rows.size, at + ": no logits rows for a pass though the passes in flight want at most half of them");
+        p.base = server::take_rows(rows, k, p.want);
+        require(p.base != rows.size, at + ": no logits rows for a pass though a pass wants at most its slot's");
         p.live = true;
         p.formed = ++formed;
+        p.replies = p.decoders > 0;
         slots[k] = p;
         for (uint64_t id : p.ids) active[find(id)].in.push_back(k);
         check();
@@ -823,11 +871,6 @@ struct Sim {
         const size_t limit = server::passes_in_flight(P, S, overlap, packed);
         const auto live = [&] { return (size_t)std::count_if(slots.begin(), slots.end(), [](const Pass& q) { return q.live; }); };
         for (size_t k = free_slot(); k != npos && live() < limit; k = free_slot()) {
-            // No pass is formed behind one that waits for the first stage's recorder.
-            if (first_stage_held()) {
-                ++held_formations;
-                return;
-            }
             std::vector<const Req*> ready_now;
             for (const Req& r : active)
                 if (r.decoding() && ready(r)) ready_now.push_back(&r);
@@ -868,6 +911,14 @@ struct Sim {
             const bool cold = overlap && v.tables.size() == S && !priced;
             const bool replies_pass = (overlap && P > 1 && !ready_now.empty() && (replying < packed || prompts.empty())) || (cold && P == 1 && !ready_now.empty());
             const bool chunk_pass = overlap && P > 1 && !replies_pass;
+            // No pass is formed behind one that waits for the first stage's recorder, but a replies' pass carrying no prompt is formed beside a chunk recorded there.
+            if (first_stage_held()) {
+                if (!replies_pass || (quick && quick_turn) || !first_stage_paced()) {
+                    ++held_formations;
+                    return;
+                }
+                ++formed_beside;
+            }
             Pass p;
             bool rode_quick = false;
             if (!chunk_pass) {
@@ -988,7 +1039,9 @@ struct Sim {
         check();
         collect();
         const server::Steps st = server::round_steps(std::vector<server::Flight>(slots.begin(), slots.end()), S);
-        for (const auto& a : st.advance) require(!slots[a.first].recording && !recording[a.second].busy, "the round gave a stage a pass while it records one of its kind, or a pass being recorded");
+        for (const auto& a : st.advance)
+            require(!slots[a.first].recording && (!recording[a.second].busy || (slots[a.first].replies && !slots[recording[a.second].slot].replies)),
+                    "the round gave a stage a pass while it records one of its kind, or a pass being recorded");
         for (size_t k : st.retire) require(!slots[k].recording, "the round retired a pass being recorded");
         std::vector<std::pair<size_t, size_t>> deferred;
         formed_before = formed;
@@ -1074,10 +1127,10 @@ struct Sim {
     void stop() {
         at = "the stop";
         recording.assign(recording.size(), Recording{});
+        urgent.assign(urgent.size(), Recording{});
         for (Pass& p : slots)
             if (p.live) {
                 for (uint64_t id : p.ids) active[find(id)].in.clear();
-                server::give_rows(rows, p.base, p.want);
                 clear(p);
             }
         for (const Req& r : active) sub(reserved, r.need);
@@ -1086,7 +1139,7 @@ struct Sim {
         paused.clear();
         queue.clear();
         while (!donors.empty()) drop(0);
-        require(reserved == std::vector<size_t>(pools.blocks.size(), 0) && rows.runs.empty(), "after a stop the ledger or the logits rows hold something");
+        require(reserved == std::vector<size_t>(pools.blocks.size(), 0), "after a stop the ledger holds something");
     }
 };
 
@@ -1216,7 +1269,7 @@ void growth_by_hand() {
             "a change of turn was not timed as the smaller of the last two: one slow change between quick ones moved the turn, or two in a row did not");
     require(g.yields(2, 2, true, true) && g.yields(3, 2, true, true) && !g.yields(1, 2, true, true) && !g.yields(2, 2, false, true) && !g.yields(2, 2, true, false), "a request gave the edge up before its turn, to nobody, or with nowhere to keep its history");
     const server::LogitRows one = server::logit_rows(1, 5), many = server::logit_rows(4, 5);
-    require(one.size == 5 && many.size == 10 && one.runs.empty(), "the logits rows were not one pass's alone, or twice that once passes overlap");
+    require(one.size == 5 && one.per_pass == 5 && many.size == 20, "the logits rows were not a region a pass slot");
     require(server::decode_share(0, 3, 3) == 0 && server::decode_share(7, 1, 1) == 7 && server::decode_share(7, 3, 2) == 3 && server::decode_share(6, 3, 3) == 2 && server::decode_share(1, 4, 2) == 1,
             "the decode share was not the decoding requests over passes that fill the stages, rounded up");
     require(server::decode_share(7, 2, 3) == 7, "passes that do not fill the stages held a decoding request back");
@@ -1239,6 +1292,18 @@ void rounds_by_hand() {
             "a stage took a pass while it recorded another, or the first stage did not take its oldest waiting pass");
     st = server::round_steps({{true, 1, 2, true}, {true, 2, 3, false}}, 3);
     require(st.advance.empty() && st.retire == std::vector<size_t>({1}), "a pass being recorded at its last stage advanced or retired");
+    // A replies' pass formed after two chunk passes waiting at the same stage goes first; the chunk passes keep their order, and a stage with chunk passes alone takes the oldest.
+    st = server::round_steps({{true, 3, 1, false, false}, {true, 4, 1, false, false}, {true, 5, 1, false, true}, {true, 6, 0, false, false}, {true, 7, 0, false, false}}, 2);
+    require(st.advance == std::vector<std::pair<size_t, size_t>>({{2, 1}, {3, 0}}) && st.retire.empty(), "a replies' pass waited behind a chunk pass formed before it");
+    st = server::round_steps({{true, 3, 1, false, true}, {true, 4, 1, false, true}, {true, 5, 1, false, false}}, 2);
+    require(st.advance == std::vector<std::pair<size_t, size_t>>({{0, 1}}), "two replies' passes did not go oldest first");
+    // A stage recording a chunk pass still takes a replies' pass waiting there, which its thread records between the chunk's groups; one recording a replies' pass takes none, and a chunk never cuts in.
+    st = server::round_steps({{true, 3, 1, true, false}, {true, 4, 1, false, true}, {true, 5, 1, false, false}}, 2);
+    require(st.advance == std::vector<std::pair<size_t, size_t>>({{1, 1}}), "a replies' pass did not cut in at a stage recording a chunk");
+    st = server::round_steps({{true, 3, 1, true, true}, {true, 4, 1, false, true}, {true, 5, 1, false, false}}, 2);
+    require(st.advance.empty(), "a pass cut in at a stage recording a replies' pass");
+    st = server::round_steps({{true, 3, 1, true, false}, {true, 4, 1, false, false}}, 2);
+    require(st.advance.empty(), "a chunk pass cut in at a stage recording a chunk");
 }
 
 // The logits rows by hand: runs follow the newest and wrap to row 0, come back oldest first, and a run given back early waits for the ones before it.
@@ -1263,22 +1328,17 @@ void waits_by_hand() {
 }
 
 void rows_by_hand() {
-    server::LogitRows rows;
-    rows.size = 8;
-    require(server::take_rows(rows, 0) == 0 && rows.runs.empty(), "no rows took a run");
-    require(server::take_rows(rows, 3) == 0 && server::take_rows(rows, 3) == 3, "runs did not follow the newest");
-    require(server::take_rows(rows, 3) == 8, "a run fit past the end or over a run in flight");
-    server::give_rows(rows, 0, 3);
-    require(server::take_rows(rows, 4) == 8, "a run wrapped to row 0 over the oldest run");
-    require(server::take_rows(rows, 2) == 6 && server::take_rows(rows, 3) == 0, "runs did not fill the end and then wrap to row 0");
-    require(server::take_rows(rows, 1) == 8, "a wrapped run fit over the oldest run");
-    server::give_rows(rows, 6, 2);
-    require(rows.runs.size() == 3 && server::take_rows(rows, 1) == 8, "a run given back early was reclaimed before the runs taken before it");
-    server::give_rows(rows, 3, 3);
-    require(rows.runs.size() == 1 && rows.runs.front().base == 0 && server::take_rows(rows, 5) == 3, "runs given back did not come back oldest first");
-    server::give_rows(rows, 0, 3);
-    server::give_rows(rows, 3, 5);
-    require(rows.runs.empty() && server::take_rows(rows, 8) == 0, "an empty ring did not start at row 0");
+    const server::LogitRows rows = server::logit_rows(3, 8);
+    require(rows.size == 24 && rows.per_pass == 8, "the logits rows were not a region a pass slot");
+    require(server::take_rows(rows, 0, 8) == 0 && server::take_rows(rows, 2, 1) == 16 && server::take_rows(rows, 1, 0) == 8, "a pass's rows were not its slot's region");
+    require(server::take_rows(rows, 1, 9) == rows.size && server::take_rows(rows, 3, 1) == rows.size, "a pass wanting more than a slot's rows, or a slot past the reservation, found rows");
+    // Replies' passes recorded between a chunk's groups retire before the chunk formed ahead of them, so their rows must not depend on that order.
+    const server::LogitRows three = server::logit_rows(3, 16);
+    const size_t chunk = server::take_rows(three, 0, 1);
+    for (size_t i = 0; i < 16; ++i) {
+        const size_t reply = server::take_rows(three, 1 + i % 2, 8);
+        require(reply != three.size && reply != chunk, "a replies' pass found no logits rows of its own behind a chunk pass still in flight");
+    }
 }
 
 // An uncapped request whose growth step falls due and a queued capped request that fits only in the room that step needs, in one round: the step takes the room and the newer request waits.
@@ -1307,9 +1367,65 @@ void due_step_first() {
             " queued, against 0 and 1");
 }
 
+// A chunk recorded in groups at the first stage of a tensor group while a reply waits: the replies' pass forms beside it and is recorded between two of its groups, within the groups queued, and every lap still holds.
+void replies_beside_chunk() {
+    Sim sim(5, 2, 3);
+    sim.threaded.assign(2, 1);
+    sim.grouped = true;
+    sim.layers = 12;
+    sim.slow = 6;
+    sim.lap = sim.lap * (sim.slow + 1) + sim.slow + 1;
+    sim.fail_per_mille = 0;
+    sim.ubatch = 16;
+    Sim::Req a;
+    a.id = 1, a.prompt = 3, a.max_tokens = 40, a.line = 1;
+    Sim::Req b;
+    b.id = 2, b.prompt = 300, b.max_tokens = 1, b.line = 2;
+    sim.queue = {a, b};
+    sim.next_id = 3, sim.admissions = 2;
+    for (int i = 0; i < 20000 && sim.ended < 2; ++i) sim.round();
+    require(sim.ended == 2, "the case's requests never ended");
+    require(sim.formed_beside > 0 && sim.urgent_first > 0, "a replies' pass waited for a chunk's recording at the first stage to end: " + std::to_string(sim.formed_beside) + " formed beside it, " +
+                                                             std::to_string(sim.urgent_first) + " recorded between its groups");
+}
+
+// A four-stage layer split whose hand-overs are served on the devices, the layout of a ROCm layer split: the stages past the first have threads, as every pipelined split's do (server::stage_threaded).
+// Two replies beside two 300-token prompts then go in between two of a chunk's groups at each of them over 16 seeds, its wait held to kQueuedGroups groups (Sim::urgent_stage), rather than behind the chunk's whole stage.
+void replies_beside_chunk_on_served_stages() {
+    for (const bool reads : {false, true}) {
+        std::vector<size_t> taken(4, 0);
+        for (uint32_t seed = 1; seed <= 16; ++seed) {
+            Sim sim(seed, 4, 5);
+            for (size_t s = 0; s < 4; ++s) sim.threaded[s] = server::stage_threaded(5, s, false, true, false, reads && s == 0);
+            require(sim.threaded == std::vector<char>({char(reads), 1, 1, 1}), "a pipelined split's device stages past the first have no thread of their own");
+            sim.grouped = false;
+            sim.layers = 12;
+            sim.slow = 6;
+            sim.lap = sim.lap * (sim.slow + 1) + sim.slow + 1;
+            sim.fail_per_mille = 0;
+            sim.ubatch = 16;
+            sim.queue.clear();
+            for (uint64_t id = 1; id <= 4; ++id) {
+                Sim::Req r;
+                r.id = id, r.prompt = id % 2 ? 3 : 300, r.max_tokens = id % 2 ? 40 : 1, r.line = id;
+                sim.queue.push_back(r);
+            }
+            sim.next_id = 5, sim.admissions = 4;
+            for (int i = 0; i < 40000 && sim.ended < 4; ++i) sim.round();
+            require(sim.ended == 4, "the case's requests never ended");
+            sim.urgent_at.resize(4, 0);
+            for (size_t s = 0; s < 4; ++s) taken[s] += sim.urgent_at[s];
+        }
+        std::printf("server-passes: served layer split%s, urgent takes by stage %zu %zu %zu %zu\n", reads ? " reading its rows at the first stage" : "", taken[0], taken[1], taken[2], taken[3]);
+        for (size_t s = 1; s < 4; ++s)
+            require(taken[s] > 0, "a reply waited behind a chunk's whole stage " + std::to_string(s) + " of a served layer split");
+    }
+    require(!server::stage_threaded(1, 2, false, true, false, false) && !server::stage_threaded(5, 2, false, true, true, false), "a lone pass or a host stage got a thread");
+}
+
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, jobs_passes = 0;
+    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, jobs_passes = 0, urgent_single = 0, urgent_group = 0, urgent_first = 0, formed_beside = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -1348,6 +1464,10 @@ void random_schedules(size_t n) {
         replies_passes += sim.replies_passes;
         chunk_passes += sim.chunk_passes;
         jobs_passes += sim.jobs_passes;
+        urgent_single += sim.urgent_taken[0];
+        urgent_group += sim.urgent_taken[1];
+        urgent_first += sim.urgent_first;
+        formed_beside += sim.formed_beside;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000) {
@@ -1355,6 +1475,8 @@ void random_schedules(size_t n) {
         require(continued_passes > 0, "the schedules met no prompt continued while its slice before was in flight");
         require(replies_passes > 0 && chunk_passes > 0, "the schedules formed no pass of replies alone or no prompt's chunk alone while both waited");
         require(jobs_passes > 0, "the schedules formed no pass of a job's rows");
+        require(urgent_single > 0 && urgent_group > 0, "the schedules recorded no replies' pass between a chunk's groups on a single device's stage, or none on a tensor group's");
+        require(formed_beside > 0 && urgent_first > 0, "the schedules formed no replies' pass beside a chunk recorded at the first stage, or recorded none between its groups there");
     }
     if (n >= 1000)
         for (size_t i = 1; i < 14; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound, reads that failed and turns at the pool's edge");
@@ -1362,6 +1484,50 @@ void random_schedules(size_t n) {
                 n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12], totals[13]);
     std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight, %zu passes of replies and %zu chunks while both waited, %zu job slices, none beside a reply or a client prompt\n",
                 recorded, record_failures, held_formations, continued_passes, replies_passes, chunk_passes, jobs_passes);
+    std::printf("server-passes: %zu replies' passes recorded between a chunk's groups on a single device's stage and %zu on a tensor group's, each within %zu groups\n", urgent_single, urgent_group,
+                infer::kQueuedGroups);
+    std::printf("server-passes: %zu replies' passes formed beside a chunk recorded at the first stage, %zu recorded between its groups there\n", formed_beside, urgent_first);
+}
+
+// The groups a paced stage keeps queued (infer::queued_groups): kQueuedGroups as a floor, past it enough device time to cover the host's replies' recording and the next group, and never past the stage's wait.
+// The recording it covers is the median of the last few (infer::recording_median), so one inflated sample moves no queue, and the layout cuts a chunk's groups so the covering queue fits the wait.
+void pacing_by_hand() {
+    const size_t k = infer::kQueuedGroups;
+    const double open = std::numeric_limits<double>::infinity();
+    require(infer::queued_groups(0, 0, open) == k && infer::queued_groups(20, 0, open) == k && infer::queued_groups(0, 5, open) == k, "a stage without a measured group or replies' recording did not keep kQueuedGroups");
+    require(infer::queued_groups(4, 7, open) == k && infer::queued_groups(7, 7, open) == k, "a group that outlasts the replies' recording kept more than kQueuedGroups");
+    // DSDEV91's layer-4 reading: one-layer groups of about 7 ms against about 14 ms or more of recording the urgent replies' stage.
+    require(infer::queued_groups(14.5, 7, open) == 4 && infer::queued_groups(30, 7, open) == 6, "a replies' recording longer than the queued groups was not covered with the next group");
+    for (double g = 0.5; g < 40; g *= 1.7)
+        for (double r = 0.3; r < 200; r *= 1.9) {
+            const size_t n = infer::queued_groups(r, g, open);
+            require(n >= k && (n - 1) * g >= r - 1e-9 && (n <= k || (n - 2) * g < r), "the queued groups did not cover a replies' recording with the fewest groups");
+            // The queue's device time never passes the stage's wait, one group alone excepted, and within it the covering queue is kept.
+            for (double w = 0.2; w < 400; w *= 1.6) {
+                const size_t m = infer::queued_groups(r, g, w);
+                require(m >= 1 && ((double)m * g <= w + 1e-9 || m == 1), "a paced stage queued past the layout's wait");
+                require(m == std::min(n, std::max<size_t>(1, (size_t)std::floor(w / g))), "a paced stage kept fewer groups than its wait allows");
+            }
+        }
+    // DSDEV94's 2x2 tail: a 125 ms gap less one replies' pass of 46 ms leaves 39.5 ms at each of two stages; an inflated 300 ms recording would ask 25 groups of 13 ms, and the wait holds three.
+    const double wait = infer::stage_wait_ms(125, 1, 46, 2);
+    require(std::abs(wait - 39.5) < 1e-9 && infer::stage_wait_ms(40, 2, 30, 2) == 0, "a reply's wait at a stage was read wrongly");
+    require(infer::queued_groups(300, 13, wait) == 3 && infer::queued_groups(300, 13, open) == 25, "an inflated replies' recording grew the queue past the wait");
+    // One recording held 300 ms by a lookup or an allocation among seven of about 9 ms leaves the median, and so the queue, within the seven.
+    const std::array<double, 8> ring{9, 9.5, 8.7, 300, 9.1, 8.9, 9.2, 9.3};
+    const double median = infer::recording_median(ring, 8);
+    require(median >= 8.7 && median <= 9.5, "one inflated replies' recording moved the median past the others");
+    require(infer::queued_groups(median, 7, open) == infer::queued_groups(9.5, 7, open) && infer::queued_groups(median, 7, open) < infer::queued_groups(300, 7, open), "one inflated replies' recording inflated the queue");
+    require(infer::recording_median(ring, 0) == 0 && infer::recording_median(ring, 1) == 9 && infer::recording_median(ring, 3) == 9, "the median of the first recordings was read wrongly");
+    // The layout cuts a chunk's groups by the host's recording, so the queue covering it fits the wait: one reply over two stages of 24 layers at 20 ms, gap 120, 40 ms a stage.
+    const auto flat = [](size_t) { return std::vector<double>(2, 20.0); };
+    const auto unpriced_slice = [](size_t) { return 0.0; };
+    for (double h : {0.0, 5.0, 15.0, 30.0, 39.0}) {
+        const server::Layout l = server::pipeline_layout(1, 3, 2, std::vector<size_t>(2, 24), 120, flat, unpriced_slice, 512, std::vector<double>(2, h));
+        const double g = l.budget_ms / 24.0;
+        require(std::abs(l.wait_ms - 40) < 1e-9 && l.budget_ms <= 24.0 * (40 - h) / (double)k + 1e-9, "the layout did not cut a chunk's groups by the host's recording");
+        require(g <= 0 || (double)infer::queued_groups(h, g, l.wait_ms) * g <= l.wait_ms + 1e-9, "the queue covering the host's recording passed the layout's wait");
+    }
 }
 
 // The service rule's policy by hand (docs/SERVER.md, The price table, The service rule, Prompt shares): depth bands, the price table's prices and its slice search, the gap and packing, and each share rule's choice.
@@ -1442,6 +1608,67 @@ void service_by_hand() {
     const server::ChunkPlan drafting = server::chunk_plan(16, 20, 2), edge = server::chunk_plan(4, 20, 2);
     require(drafting.capped && drafting.gap_ms == server::kMaxStepGapMs && drafting.budget_ms == 230 && !edge.capped && edge.gap_ms == 500 && edge.budget_ms == 230,
             "a drafting reply's gap was not held to the step gap's maximum");
+    // The lap (pipeline_layout): on one slot a chunk rides the replies' pass and takes chunk_budget; one reply over two stages at 20 ms a stage beside two chunk passes leaves chunk_budget too.
+    // `slices(fixed, ms)` prices a slice of n steps of kPieceStep rows at fixed + n * ms; the layout takes the smallest at its price where none fits the budget.
+    const auto flat = [](size_t S, double ms) { return [=](size_t) { return std::vector<double>(S, ms); }; };
+    const auto layers = [](size_t S) { return std::vector<size_t>(S, 24); };
+    const auto slices = [](double fixed, double ms) {
+        return [=](size_t rows) { return fixed + ms * (double)(rows / server::kPieceStep); };
+    };
+    const server::Layout riding = server::pipeline_layout(1, 1, 1, layers(1), 120, flat(1, 20), slices(0, 25), 1024), riding2 = server::pipeline_layout(3, 1, 2, layers(2), 120, flat(2, 20), slices(0, 10), 1024);
+    require(riding.passes == 1 && riding.chunks == 1 && riding.met && riding.budget_ms == server::chunk_budget(120, 20, 1) && riding.rows == 64 && riding2.budget_ms == server::chunk_budget(120, 20, 2),
+            "a chunk riding the replies' pass did not take the chunk budget");
+    // One reply over two stages and three slots: a chunk pass at every stage, recorded in groups the replies' pass goes between, within the 40 ms wait the gap leaves a stage, 24 * 40 / 2 = 480 ms.
+    // Slices of 20 ms and 5 ms a step: 352 rows at 130 ms score highest, the step 40 + 2 * 2 * 130 / 24 = 61.7 ms and the lap 130 / (1 - 20 / 61.7) = 192.3 ms, 2 * 352 / 192.3 / 61.7; the budget is that slice's time.
+    const server::Layout lone = server::pipeline_layout(1, 3, 2, layers(2), 120, flat(2, 20), slices(20, 5), 1024);
+    require(lone.passes == 1 && lone.chunks == 2 && lone.met && lone.budget_ms == 130 && lone.rows == 352, "one reply's layout over two stages was priced wrongly");
+    require(!server::pipeline_layout(0, 3, 2, layers(2), 120, flat(2, 20), slices(20, 5), 1024).passes, "a layout was formed without a reply");
+    // A slice without a fixed cost buys the prompts nothing a smaller one does not, so the smallest slice, 16 rows at 25 ms, wins: the replies' step is the shortest and the rows a millisecond the same.
+    const server::Layout smallest = server::pipeline_layout(1, 3, 2, layers(2), 120, flat(2, 20), slices(0, 25), 1024);
+    require(smallest.met && smallest.passes == 1 && smallest.chunks == 2 && smallest.rows == server::kPieceStep && smallest.budget_ms == 25, "a slice without a fixed cost was not cut to the smallest");
+    // The 2x2 tail: one reply at 8.6 ms a stage over two stages beside two chunk passes, slices of 32, 48 and 64 rows at 49, 57 and 65 ms, the 53.9 ms wait a stage allowing 646.8 ms.
+    // 64 rows score highest, 0.0487 against 0.0428 for 48, at a 28 ms step.
+    const auto measured = [](size_t rows) { return rows == 64 ? 65.0 : rows == 48 ? 57.0 : rows == 32 ? 49.0 : rows == 16 ? 32.0 : 0.0; };
+    const server::Layout tail = server::pipeline_layout(1, 3, 2, layers(2), 125, flat(2, 8.6), measured, 64);
+    require(tail.passes == 1 && tail.chunks == 2 && tail.met && tail.rows == 64 && tail.budget_ms == 65, "a reply's lap over two stages was priced past the objective's gap");
+    // The candidates are by the table's prices alone: a 32-row slice priced over the budget is skipped and 64 still wins, and with room above 64 the unpriced 128 is tried at the budget so its first pass measures it.
+    const auto stale = [&](size_t rows) { return rows == 32 ? 700.0 : measured(rows); };
+    const server::Layout skipped = server::pipeline_layout(1, 3, 2, layers(2), 125, flat(2, 8.6), stale, 64), untried = server::pipeline_layout(1, 3, 2, layers(2), 125, flat(2, 8.6), measured, 512);
+    require(skipped.met && skipped.rows == 64 && skipped.budget_ms == 65, "a slice priced over the budget capped the candidates below it");
+    require(untried.met && untried.rows == 128 && std::abs(untried.budget_ms - 646.8) < 1e-6, "a slice not yet priced within twice the largest priced was not tried at the budget");
+    // Sixteen replies over ten stages at 4.6 ms and 1.7 ms a row a stage, slices of 20 ms and 2.5 ms a step: at 100 ms the replies' passes alone pass the gap however packed, so the shortest lap, four passes of four beside seven smallest slices.
+    // At 500 ms one pass of sixteen leaves 19.9 ms of wait a stage, 238.8 ms of chunk, and ten chunk passes of 592 rows at 112.5 ms score highest.
+    const auto rising = [](size_t w) { return std::vector<double>(10, 4.6 + 1.7 * (double)(w - 1)); };
+    const server::Layout tight = server::pipeline_layout(16, 11, 10, layers(10), 100, rising, slices(20, 2.5), 1024), wide = server::pipeline_layout(16, 11, 10, layers(10), 500, rising, slices(20, 2.5), 1024);
+    require(!tight.met && tight.passes == 4 && tight.chunks == 7 && tight.rows == server::kPieceStep && wide.met && wide.passes == 1 && wide.chunks == 10 && wide.budget_ms == 112.5 && wide.rows == 592,
+            "the layout scoring the most rows a millisecond for each millisecond of the step was not chosen");
+    // Four replies over four stages and five slots at 10 ms a stage: one replies' pass beside four chunk passes within the 21.25 ms wait the gap leaves a stage, 255 ms, and 384 rows at 80 ms score highest.
+    const server::Layout quad = server::pipeline_layout(4, 5, 4, layers(4), 125, flat(4, 10), slices(20, 2.5), 1024);
+    require(quad.passes == 1 && quad.chunks == 4 && quad.met && quad.budget_ms == 80 && quad.rows == 384, "four stages and five slots were priced wrongly");
+    // Sixteen replies at 2 + w ms a stage over four stages: one pass of 16 is past a 60 ms gap, where chunk_plan finds the objective unmet, and two passes of 8 take 80 ms of a reply's step, so no layout meets it.
+    // The shortest lap is the two passes beside three chunk passes of the smallest slice, with no budget.
+    const auto rows_ms = [](size_t S) { return [=](size_t w) { return std::vector<double>(S, 2.0 + (double)w); }; };
+    const server::Layout split = server::pipeline_layout(16, 5, 4, layers(4), 60, rows_ms(4), slices(0, 5), 1024);
+    require(!server::chunk_plan(0.48, 18, 4).met && !split.met && split.passes == 2 && split.chunks == 3 && split.budget_ms == 0 && split.rows == server::kPieceStep,
+            "more than one replies' pass did not win where one is past the gap");
+    // Eight replies at w ms a stage over two stages and three slots: one pass of eight beside two chunks of 80 rows scores more than two passes of four beside one chunk of 80, and than two chunks of 32.
+    const auto piecewise = [](size_t rows) { return rows == 80 ? 18.0 : rows == 32 ? 10.0 : 0.0; };
+    const server::Layout rate = server::pipeline_layout(8, 3, 2, layers(2), 40, [](size_t w) { return std::vector<double>(2, (double)w); }, piecewise, 80);
+    require(rate.met && rate.passes == 1 && rate.chunks == 2 && rate.rows == 80 && rate.budget_ms == 18, "the layout with fewer rows a millisecond won");
+    // One device, one slot: where the smallest priced slice is over the budget a chunk still rides the replies' pass with the smallest slice, as chunk_plan keeps the objective met.
+    const server::Layout least = server::pipeline_layout(1, 1, 1, layers(1), 125, flat(1, 100), slices(0, 40), 1024);
+    require(server::chunk_plan(1, 100, 1).met && least.met && least.passes == 1 && least.chunks == 1 && least.rows == server::kPieceStep && least.budget_ms == 25,
+            "a chunk riding the replies' pass lost the smallest slice");
+    // The layout prices a slice by its own cell or the class's cost line, never by a larger measured slice, so a slice cut below the only measured ubatch is tried and measured.
+    server::PriceTable table;
+    server::PassWork whole, part;
+    whole.chunk(0, 512, 0);
+    table.observe(whole, 270);
+    require(table.layout_ms({0, 0, 112}) == 0 && table.layout_ms({0, 0, 512}) == 270, "a slice not yet measured took a larger slice's price");
+    part.chunk(0, 64, 0);
+    table.observe(part, 65);
+    const double line = table.layout_ms({0, 0, 112});
+    require(line > 65 && line < 270 && table.layout_ms({0, 0, 64}) == 65, "a slice between two measured ones was not priced by the cost line");
     // A reply's tokens a step count 1 until a window of steps is seen, then the window's mean, never below 1.
     server::StepTokens steps;
     for (size_t i = 0; i + 1 < server::StepTokens::kSteps; ++i) steps.add(4);
@@ -2350,7 +2577,7 @@ void replay_smoke() {
 }
 
 // A reply beside a long prompt on two stages (docs/SERVER.md, The service rule): one drafting reply, planned at two tokens a step, decodes while a 140k-token prompt reads, at production's prices.
-// From P = S + 1 a reply's step meets one chunk a stage, each within the budget, and the reply holds the objective.
+// At every P a reply's step meets one chunk a stage, each within the budget, and the reply holds the objective.
 void replay_long_prompt() {
     for (size_t passes : {2, 3, 4}) {
         Bench b;
@@ -2373,9 +2600,9 @@ void replay_long_prompt() {
             if (q.prompt == 140000) prompt = q.first_at - q.arrived;
         std::printf("server-passes: a reply beside a 140k prompt at P = %zu: prompt work a step %.0f ms in %zu passes against a budget of %.0f ms, the prompt's first token at %.1f s, the reply's median gap %.0f ms\n",
                     passes, ms[ms.size() / 2], n[n.size() / 2], o.budget_ms, prompt / 1000, gaps[gaps.size() / 2]);
-        // Every stage holds one chunk at a time, so a step meets one chunk pass a stage, each within the budget.
+        // A stage records the replies' pass before the chunk passes waiting there (round_steps), so a step meets the one chunk running at each stage, within the budget, however many chunk passes are in flight.
         // At P = S the slot beside the replies' pass leaves one chunk pass, a stage idle half the step: one prompt in flight continues only in passes holding it alone (Model::begin_pass), so no second chunk of it can ride the replies.
-        const size_t want = std::min(b.stages, passes - 1);
+        const size_t want = 1;
         const double step = 1000.0 * rule.step_tokens / rule.rate, work = ms[ms.size() / 2];
         const std::string at = "at P = " + std::to_string(passes) + " ";
         require(n[n.size() / 2] == want, at + "the first stage met " + std::to_string(n[n.size() / 2]) + " chunk passes between two of the reply's steps, against " + std::to_string(want));
@@ -2433,8 +2660,11 @@ int main(int argc, char** argv) {
         growth_by_hand();
         rounds_by_hand();
         rows_by_hand();
+        pacing_by_hand();
         waits_by_hand();
         due_step_first();
+        replies_beside_chunk();
+        replies_beside_chunk_on_served_stages();
         service_by_hand();
         replay_smoke();
         replay_unmet();

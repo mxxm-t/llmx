@@ -2,7 +2,8 @@
 
 `RestoreInto::Run` names a fixed backend buffer, a deferred K/V/auxiliary storage side, or a generic host destination. Its image order is owned by the history layer; host token-history storage is allocated once during construction and never resized while the model lives.
 
-`take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `record_stage`, which every stage's recording goes through, swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
+`take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `record_stage`, which every stage's recording goes through, whole or in layer groups (`Pass::open`, `layer`, `cur`, `queued` and `spans`; [passes](model-passes.md)), swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
+`ExecContext` holds a scratch set per device (`Scratch`: the arena, its slots' offsets, the run list and the lookup scratch) and, once `reserve_passes` reserved `reply_rows`, a second set (`replies`) a replies' pass runs in by `Pass::scratch`, so its stage records between the layer groups of a chunk's sharing nothing with it.
 
 `ModelOptions::dtype` is copied at construction and passed into every architecture `Step`, including split and streamed parts. It is independent of KV storage precision. A model never changes a shared backend dtype setting. Placement supplies resolution before construction, including `ModelOptions::device_dtypes` for per-device emulation or wider fallback. An empty vector applies `dtype` everywhere; a nonempty vector must cover every device before allocation. The existing `part` owner selects the device's policy for each step. Direct model construction can still select the scalar policy.
 
@@ -220,7 +221,7 @@ delegated to a `backend::Backend`.
     stage s of a chunk follows stage s-1 of it, and each device takes its
     chunks in order, which is what lets them share its arena. A stage whose
     recording waits on its devices (`stage_waits`: a tensor group's, which
-    waits at every sum, and past the first a device's, which waits for its
+    waits on the host for its lookup rows and an unserved member's residual, and past the first a device's, which waits for its
     rows) records on a thread of its own, its lane of `StageLanes` as the server's stages are, so its waits hold no other
     stage's recording, while the calling thread begins, prepares and
     commits every stage and records the rest. A slice leaves the last stage when that stage's devices retire its submissions, not when its recording returns, so one more lane, the completion lane, waits on them, reads every stage's busy time and stamps the time while the calling thread goes on. A CPU-only pipelined split therefore starts one extra thread per prompt. A stage takes chunk c once

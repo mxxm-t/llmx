@@ -375,7 +375,8 @@ public:
         for (;; --p) {
             logit_rows_ = logit_rows(p, logits_a_pass(max_seqs_, draft_max_));
             try {
-                model_.reserve_passes(ctx_, p, ubatch_ + max_seqs_ + drafts, logit_rows_.size);
+                // Above one pass in flight the replies' passes get a scratch set of their own, so a stage records one between the groups of a chunk's (docs/SERVER.md, The round).
+                model_.reserve_passes(ctx_, p, ubatch_ + max_seqs_ + drafts, logit_rows_.size, p > 1 ? max_seqs_ + drafts : 0);
                 break;
             } catch (const std::logic_error&) {
                 throw;
@@ -387,22 +388,23 @@ public:
         slots_.resize(p);
         // A chain on the head stage's thread and a mark's rerun on the state stages' threads take the model's context, and the chain the drafter's buffers, as taken now (Model::reserve_drafting).
         model_.reserve_drafting();
-        // A stage whose recording waits on its devices gets a thread of its own, so the round goes on to the other stages while it records (docs/SERVER.md, the round).
+        // A stage that passes share gets a thread of its own, so the round goes on to the other stages while it records and a reply waits there for a chunk's groups, not its whole stage (docs/SERVER.md, the round).
         recorders_.resize(model_.stage_count());
         plain_.resize(recorders_.size());
         for (size_t s = 0; s < recorders_.size(); ++s) {
-            plain_[s] = (p > 1 && model_.stage_waits(s)) || (!model_.stage_on_host(s) && model_.stage_reads(s));
+            plain_[s] = stage_threaded(p, s, model_.stage_grouped(s), model_.pipelined(), model_.stage_on_host(s), model_.stage_reads(s));
             if (!plain_[s]) continue;
             locks_.push_back(std::make_unique<std::mutex>());
             recorders_[s] = std::make_unique<Recorder>(*locks_.back(), lanes_.add(s, *locks_.back()));
             // The lane is given its record, not the place it is kept: a scheduler destroyed before the thread first runs is emptying that place.
             Recorder* rec = recorders_[s].get();
             infer::StageLanes::Policy policy;
-            policy.ready = [rec] { return rec->pass.posted || !rec->items.empty(); };
-            // Items go first: each was queued before any pass formed after it, and touches no pass formed before it.
+            policy.ready = [rec] { return rec->pass.posted || rec->urgent.posted || !rec->items.empty(); };
+            // Items go first: each was queued before any pass formed after it, and touches no pass formed before it; a replies' pass posted urgent to an idle thread records as any other.
             policy.step = [this, rec, s](std::unique_lock<std::mutex>& lk) {
                 if (!rec->items.empty()) run_item(*rec, lk);
-                else record(*rec, s, lk);
+                else if (rec->pass.posted) record(*rec, s, lk, false);
+                else record(*rec, s, lk, true);
             };
             lanes_.start(s, std::move(policy));
         }
@@ -593,6 +595,10 @@ public:
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         size_t holds = 0;                         // times the scheduler's thread stopped every stage's recorder to work on their devices itself (quiet, Held)
         size_t stage_waits = 0;                   // times the scheduler's thread waited for work it had queued on a stage's thread (Model::on_stage_wait)
+        size_t paces = 0, idle_paces = 0;         // a chunk's stage paced before its next layer group, and those that found its devices dry (Model::pacing)
+        double queued_mean = 0;                   // the groups those paces kept queued, on average, and the most (Model::pacing)
+        size_t queued_max = 0;
+        size_t urgent_taken = 0, urgent_refused = 0;   // replies' passes recorded between two groups of a paced chunk, and those a recording stage turned away for a later round
         size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
         size_t turns_without_memory = 0;          // turns at the pool's edge kept because the host had no memory for the copy the history would leave (host_room)
         uint64_t finished = 0, prompt_tokens = 0, generated_tokens = 0;   // since start, the clients' requests that were admitted and ended, and their prompt and generated tokens
@@ -632,6 +638,13 @@ public:
         s.draft_failures = draft_failures_.load();
         s.holds = holds_.load();
         s.stage_waits = stage_waits_.load();
+        const auto pacing = model_.pacing();
+        s.paces = pacing.paces;
+        s.idle_paces = pacing.idle;
+        s.queued_mean = pacing.paces ? (double)pacing.queued / (double)pacing.paces : 0.0;
+        s.queued_max = pacing.most_queued;
+        s.urgent_taken = urgent_taken_.load();
+        s.urgent_refused = urgent_refused_.load();
         s.yields = yields_.load();
         s.turns_without_memory = turns_without_memory_.load();
         s.host_limit = host_cap_;
@@ -886,6 +899,7 @@ private:
         std::vector<double> predicted;  // per stage, the stage time the prices predicted as it was formed, 0 where they did not price it
         size_t pieces = 0;              // an image's pieces queued on the first stage's thread ahead of it, which a replies' pass waits behind
         double pieces_host_ms = 0;      // this thread's time queuing them, the pieces' own time where the first stage records here
+        double wait_ms = std::numeric_limits<double>::infinity();   // a reply's wait at each stage by the plan it was formed in, which its chunk's paced stages keep queued within (Layout::wait_ms)
     };
 
     bool flying() const {
@@ -904,12 +918,15 @@ private:
     // Prompt work is the clients' prompts, and with none waiting and no reply decoding the jobs', which so take only what no request wants (docs/SERVER.md, The service rule).
     struct Plan {
         bool overlap = false, priced = false, met = true, capped = false;
+        bool reading = false;             // a layout fits a chunk (pipeline_layout), so prompts read every round, at the cap's gap where the objective's holds none
         std::shared_ptr<Request> quick;   // while the objective is unmet, the shortest prompt that rides the replies' pass (quick_prompt), whole once its cost is measured
         size_t quick_rows = 0;            // its rows: all it lacks, or the learning step while its price is not yet known
         double replies_ms = 0;
         size_t packed = 0, share = 0, limit = 0;
         size_t rotation = 1;   // the replies' passes in rotation, which a pass's price takes its stages' sum over (ServiceRecord::combine)
         double budget_ms = std::numeric_limits<double>::infinity(), gap_ms = 0;
+        double wait_ms = std::numeric_limits<double>::infinity();   // a reply's wait at each stage (Layout::wait_ms), where a layout reads
+        size_t rows = 0;                  // the layout's slice (Layout::rows), which a chunk formed where it reads takes
         std::vector<std::shared_ptr<Request>> order;
     };
     Plan plan(const std::vector<std::shared_ptr<Request>>& active) {
@@ -936,25 +953,32 @@ private:
         p.overlap = decoders && !prompts.empty();
         const size_t S = model_.stage_count();
         p.packed = packed_passes(decoders, model_.decode_columns(), slots_.size());
+        const size_t band = depth_band(deepest);
+        const auto slowest = [&](size_t rows) {
+            double ms = 0;
+            for (size_t s = 0; s < S; ++s) ms = std::max(ms, record_.decode_ms(s, band, rows));
+            return ms;
+        };
+        // The replies' pass packed, the slowest stage's; before it is measured no budget binds.
+        if (p.overlap && slowest(packed_share(decoders, p.packed)) > 0) {
+            // The lap is priced (pipeline_layout); where no slice fits the objective's gap prompts still read every round at the smallest slice.
+            const ChunkPlan c = chunk_plan(fewest, slowest(packed_share(decoders, p.packed)), S);
+            const Layout l = layout(*prompts.front(), decoders, band, c.gap_ms);
+            p.priced = true;
+            p.met = l.met;
+            p.reading = l.passes > 0;
+            if (p.reading) p.packed = l.passes;
+            p.capped = c.capped;
+            p.budget_ms = p.reading ? l.budget_ms : c.gap_ms / (double)std::max<size_t>(1, S);
+            if (p.reading) p.wait_ms = l.wait_ms;
+            if (p.reading) p.rows = l.rows;
+            p.gap_ms = c.gap_ms;
+        }
         p.limit = passes_in_flight(slots_.size(), S, p.overlap, p.packed);
         p.share = packed_share(decoders, p.packed);
+        if (p.priced) p.replies_ms = slowest(p.share);
         const size_t reply_share = p.overlap ? p.share : decode_share(decoders, p.limit, S);
         p.rotation = reply_share ? std::max<size_t>(1, (decoders + reply_share - 1) / reply_share) : 1;
-        if (p.overlap) {
-            // The replies' pass packed, the slowest stage's; before it is measured no budget binds.
-            const size_t band = depth_band(deepest);
-            double replies = 0;
-            for (size_t s = 0; s < S; ++s) replies = std::max(replies, record_.decode_ms(s, band, p.share));
-            if (replies > 0) {
-                const ChunkPlan c = chunk_plan(fewest, replies, S);
-                p.priced = true;
-                p.replies_ms = replies;
-                p.met = c.met;
-                p.capped = c.capped;
-                p.budget_ms = c.budget_ms;
-                p.gap_ms = c.gap_ms;
-            }
-        }
         // Least remaining priced work first, any prompt without rows for kPromptWaitMs first of all, the oldest of equals (docs/SERVER.md, Prompt shares).
         const Clock::time_point now = Clock::now();
         std::vector<ReadyPrompt> views;
@@ -992,7 +1016,7 @@ private:
                 p.quick = prompts[i];
                 p.quick_rows = steps[i];
             }
-            if (p.met || views[i].idle_ms >= kPromptWaitMs) {
+            if (p.met || p.reading || views[i].idle_ms >= kPromptWaitMs) {
                 p.order.push_back(prompts[i]);
             }
             prompts.erase(prompts.begin() + (std::ptrdiff_t)i);
@@ -1003,19 +1027,47 @@ private:
         if (p.quick) p.order.erase(std::remove(p.order.begin(), p.order.end(), p.quick), p.order.end());
         return p;
     }
+    // The round's layout for `decoders` replies at depth band `band` and r's next chunk within `gap_ms` (pipeline_layout), by each stage's prices.
+    Layout layout(const Request& r, size_t decoders, size_t band, double gap_ms) {
+        const size_t S = model_.stage_count(), at = r.seq_.length(), cls = class_id(class_at(r.classes_, at).extent), rows_band = depth_band(at);
+        std::vector<size_t> layers(S);
+        std::vector<double> host(S);
+        for (size_t s = 0; s < S; ++s) {
+            layers[s] = model_.stage_layers(s);
+            host[s] = model_.reply_host_ms(s);
+        }
+        const auto decode = [&](size_t w) {
+            std::vector<double> d(S);
+            for (size_t s = 0; s < S; ++s) d[s] = record_.decode_ms(s, band, w);
+            return d;
+        };
+        const auto price = [&](size_t rows) { return slice_price(cls, rows_band, rows); };
+        return pipeline_layout(decoders, slots_.size(), S, layers, gap_ms, decode, price, ubatch_, host);
+    }
     // A row class's index for the price table, numbered as first seen.
     size_t class_id(size_t extent) {
         const size_t id = class_ids_.emplace(model_.row_class(extent), class_ids_.size()).first->second;
         record_.class_extent(id, extent);
         return id;
     }
-    // The rows of r's next chunk within `budget_ms` of every stage's time, by each stage's prices (PriceTable::chunk_rows); a ubatch where no budget binds.
+    // The rows of r's next chunk within `budget_ms` of every stage's time where no layout reads, by each stage's prices (PriceTable::chunk_rows), cut by the smallest slice while its price is over the budget; a ubatch where no budget binds.
     size_t chunk_rows(const Request& r, double budget_ms) {
-        if (!(budget_ms < std::numeric_limits<double>::infinity())) return ubatch_;
-        const size_t at = r.seq_.length(), cls = class_id(class_at(r.classes_, at).extent), band = depth_band(at);
         size_t n = ubatch_;
-        for (size_t s = 0; s < model_.stage_count(); ++s) n = std::min(n, record_.chunk_rows(s, cls, band, budget_ms, ubatch_));
+        if (!(budget_ms < std::numeric_limits<double>::infinity())) return n;
+        const size_t at = r.seq_.length(), cls = class_id(class_at(r.classes_, at).extent), band = depth_band(at);
+        for (size_t s = 0; s < model_.stage_count(); ++s) n = std::min(n, record_.chunk_rows(s, cls, band, budget_ms, n));
+        while (n > kPieceStep && slice_price(cls, band, n) > budget_ms) n -= kPieceStep;
         return n;
+    }
+    // A slice's slowest stage price for the layout, 0 while some stage has none (PriceTable::layout_ms).
+    double slice_price(size_t cls, size_t band, size_t rows) const {
+        double ms = 0;
+        for (size_t s = 0; s < model_.stage_count(); ++s) {
+            const double at = record_.layout_ms(s, cls, band, rows);
+            if (!(at > 0)) return 0.0;
+            ms = std::max(ms, at);
+        }
+        return ms;
     }
     // A prompt's next slice on a split when it has `left` rows to read (next_slice): each stage's price line is its class's at a slice's band, its own slices in flight run through those lines and every other pass at its formation price.
     size_t slice_rows(Request& r, size_t left, bool alone, bool capped, bool others_ready) {
@@ -1062,7 +1114,9 @@ private:
         const Plan p = plan(active);
         size_t replying = 0;
         for (const Slot& s : slots_) replying += s.live && s.decoders;
-        for (size_t k = free_slot(); k < slots_.size() && flights_live() < p.limit && !first_stage_held(); k = free_slot()) {
+        // No pass forms behind one held at the first stage, but a replies' pass forms beside a chunk recorded there in groups, which takes it as the urgent post.
+        const auto held = [&](Rows r) { return first_stage_held() && !(r == Rows::generated && first_stage_paced()); };
+        for (size_t k = free_slot(); k < slots_.size() && flights_live() < p.limit; k = free_slot()) {
             Rows rows = Rows::all;
             if (p.overlap && slots_.size() > 1) rows = replying < p.packed && ready_decoders(active) ? Rows::generated : Rows::prompt;
             // Cold, on one pass in flight the replies go alone first, so their pass is measured before a chunk rides it.
@@ -1070,10 +1124,12 @@ private:
             // A replies' pass takes the quick prompt every other time.
             const auto riding = [&](Rows r) { return (r == Rows::generated || (r == Rows::all && p.overlap)) && p.quick && quick_turn_ && ready_decoders(active) ? Rows::quick : r; };
             rows = riding(rows);
+            if (held(rows)) return;
             bool formed = form(k, active, host, rows, p);
             // A slot no prompt can use goes to the replies.
-            if (!formed && rows == Rows::prompt) formed = form(k, active, host, rows = riding(Rows::generated), p);
+            if (!formed && rows == Rows::prompt && !held(riding(Rows::generated))) formed = form(k, active, host, rows = riding(Rows::generated), p);
             if (!formed) return;
+            slots_[k].wait_ms = p.wait_ms;
             if (slots_[k].decoders && p.quick) quick_turn_ = rows != Rows::quick;
             replying += slots_[k].decoders > 0;
             rule_jobs_ += std::all_of(slots_[k].members.begin(), slots_[k].members.end(), [](const std::shared_ptr<Request>& m) { return m->job_; });
@@ -1246,8 +1302,8 @@ private:
             const size_t left = history_tokens(*r) - r->seq_.length();
             const bool capped = slice_capped(admission_open, other_prompts(*r, true), left, ubatch_), others_ready = other_prompts(*r, false) != SIZE_MAX;
             const size_t most = plan.overlap ? ubatch_ : slice_rows(*r, left, alone, capped, others_ready);
-            // The quick prompt rides whole, or as the learning step while its price is not yet known.
-            const size_t chunk = rows == Rows::quick ? plan.quick_rows : plan.priced ? chunk_rows(*r, plan.budget_ms) : kPieceStep;
+            // The quick prompt rides whole, or as the learning step while its price is not yet known; a chunk is the layout's slice where one reads, else the search's within the budget.
+            const size_t chunk = rows == Rows::quick ? plan.quick_rows : !plan.priced ? kPieceStep : plan.reading && plan.rows ? plan.rows : chunk_rows(*r, plan.budget_ms);
             slice(r, std::min(budget, plan.overlap ? chunk : most));
             if (entries_.size() == before) continue;
             r->rows_at_ = Clock::now();
@@ -1256,14 +1312,9 @@ private:
         if (entries_.empty()) return false;
         if (plain && f.members.size() > f.decoders) throw std::logic_error("server: a pass formed as decode rows alone took prompt rows");
         const bool continuing = f.members.front()->seq_.in_flight();
-        f.base = take_rows(logit_rows_, f.want);
+        f.base = take_rows(logit_rows_, k, f.want);
         if (f.base == logit_rows_.size) throw std::logic_error("server: no logits rows for a new pass");
-        try {
-            model_.begin_pass(ctx_, k, entries_.data(), entries_.size(), f.base);
-        } catch (...) {
-            give_rows(logit_rows_, f.base, f.want);
-            throw;
-        }
+        model_.begin_pass(ctx_, k, entries_.data(), entries_.size(), f.base, f.decoders > 0 && f.members.size() == f.decoders);
         price(f);
         prompt_passes_ += f.members.size() > f.decoders;
         f.pieces = 0;
@@ -1279,6 +1330,7 @@ private:
         f.live = true;
         f.formed = ++formed_;
         f.ran = 0;
+        f.replies = f.decoders > 0;
         // Measured as the price table keys it, so a one-row prompt slice is not taken for a decode row.
         f.generated = f.work.chunks.empty() ? f.work.decode_rows : 0;
         f.decode_ms = f.generated ? record_.decode_price(f.work.decode_band, f.generated, plan.rotation) : 0;
@@ -1327,8 +1379,18 @@ private:
         // A stage with a thread records there what would overlap another pass: a stage that reads its rows always, a tensor group's always, a single device's while another pass is in flight.
         // A stage whose thread still holds items records there too, after them.
         if (Recorder* r = plain_[s] && (model_.stage_reads(s) || recorded_apart(model_.stage_grouped(s), flights_live()) || busy_items(s)) ? recorders_[s].get() : nullptr) {
-            // A stage records one pass at a time: a pass that finds its recorder taken waits for a later round, which gives the stage its oldest waiting pass.
-            if (recording(s)) return;
+            // A stage records one pass at a time, but a replies' pass in the replies' scratch goes to a thread recording a chunk in groups as its one urgent post, taken between two groups (record); any other waits for a later round.
+            bool urgent = false;
+            if (recording(s)) {
+                if (!slots_[k].replies) return;
+                std::lock_guard<std::mutex> lk(r->m);
+                const bool refused = !model_.pass_apart(ctx_, k) || !r->pass.posted || !r->pass.paced || r->urgent.posted;
+                if (refused) {
+                    ++urgent_refused_;
+                    return;
+                }
+                urgent = true;
+            }
             acted_ = true;
             // The stage's blocks are taken here, on the thread that owns the pools; a pass that cannot have them fails alone, as a stage recorded inline does.
             try {
@@ -1341,12 +1403,15 @@ private:
             slots_[k].recording = true;
             {
                 std::lock_guard<std::mutex> lk(r->m);
-                Recorder::Post& post = r->pass;
+                Recorder::Post& post = urgent ? r->urgent : r->pass;
                 post.slot = k;
                 post.job = slots_[k].job = ++jobs_posted_;
                 post.pass = slots_[k].formed;
                 post.work = slots_[k].work;
                 post.predicted_ms = slots_[k].predicted[s];
+                post.wait_ms = slots_[k].wait_ms;
+                // A chunk's stage is paced in layer groups while some request replies, so the replies' pass to come waits for a group and not the stage; a pass alone records whole.
+                post.paced = !urgent && !slots_[k].replies && replying(active);
                 post.posted = true;
             }
             r->cv.notify_all();
@@ -1541,10 +1606,9 @@ private:
         vacate(k);
     }
 
-    // Slot k is free again, and the logits rows its pass held come back.
+    // Slot k is free again.
     void vacate(size_t k) {
         Slot& f = slots_[k];
-        give_rows(logit_rows_, f.base, f.want);
         f.live = false;
         f.recording = false;
         f.members.clear();
@@ -1774,11 +1838,13 @@ private:
         Recorder(std::mutex& mutex, infer::StageLanes::Lane& lane) : m(mutex), cv(lane.cv) {}
         struct Post {
             bool posted = false;
+            bool paced = false;      // recorded in layer groups, infer::queued_groups queued ahead, the urgent post taken between two of them
             size_t slot = 0;
             uint64_t job = 0;        // the hand-over, which the recording's end names
             uint64_t pass = 0;       // the pass's formation order, work and predicted stage time, for the service record
             PassWork work;
             double predicted_ms = 0;
+            double wait_ms = std::numeric_limits<double>::infinity();   // the device time a paced stage keeps queued within (Model::pace_pass_stage)
         };
         struct End {
             size_t slot = 0;
@@ -1801,6 +1867,7 @@ private:
         std::mutex& m;                 // its lane's
         std::condition_variable& cv;   // its lane's wake (infer::StageLanes)
         Post pass;                     // under m
+        Post urgent;                   // under m: a replies' pass's stage, posted while `pass` records a chunk in groups and recorded between two of them, or whole once the thread is idle
         std::vector<End> ends;         // under m, the recordings ended since the round last collected
         std::deque<Item> items;        // under m, waiting
         bool item_running = false;     // under m
@@ -1956,23 +2023,35 @@ private:
         return !rec->items.empty() || rec->item_running;
     }
 
-    // One recording of the pass posted to stage s, on its lane's thread with the stage's lock held (infer::StageLanes).
-    void record(Recorder& r, size_t s, std::unique_lock<std::mutex>& lk) {
-        const Recorder::Post taken = r.pass;
+    // One recording of the pass posted to stage s (`urgent` the urgent post's), on its lane's thread under the stage's lock (infer::StageLanes): whole, or paced a layer group at a time with the urgent post taken between two groups.
+    // Before a group the thread waits beside the devices until fewer groups are queued than infer::queued_groups gives (Model::pace_pass_stage), and records the urgent post first where its input has arrived (Model::pass_interleaves).
+    void record(Recorder& r, size_t s, std::unique_lock<std::mutex>& lk, bool urgent) {
+        const Recorder::Post taken = urgent ? r.urgent : r.pass;
         lk.unlock();
         Recorder::End end{taken.slot, taken.job, false, {}};
         const Clock::time_point begun = Clock::now();
         try {
-            model_.record_pass_stage(ctx_, taken.slot, s);
+            for (bool done = false; !done;) {
+                if (taken.paced) {
+                    lk.lock();
+                    if (r.urgent.posted && model_.pass_interleaves(ctx_, r.urgent.slot)) {
+                        ++urgent_taken_;
+                        record(r, s, lk, true);
+                    }
+                    lk.unlock();
+                    model_.pace_pass_stage(ctx_, taken.slot, taken.wait_ms);
+                }
+                done = model_.record_pass_stage(ctx_, taken.slot, s, taken.paced ? 1 : 0);
+            }
             const auto sent = model_.stage_sent(ctx_, taken.slot);
             const auto waits = model_.stage_host_waits(ctx_, taken.slot);
-            record_.post({taken.pass, s, taken.work, taken.predicted_ms, begun, Clock::now(), waits.first, waits.second, sent.backend, sent.first, sent.sent});
+            record_.post({taken.pass, s, taken.work, taken.predicted_ms, begun, Clock::now(), waits.first, waits.second, sent.backend, sent.first, sent.sent, model_.stage_spans(ctx_, taken.slot)});
         } catch (const std::exception& e) {
             end.failed = true;
             end.error = e.what();
         }
         lk.lock();
-        r.pass.posted = false;
+        (urgent ? r.urgent : r.pass).posted = false;
         r.ends.push_back(std::move(end));
         r.cv.notify_all();
         lk.unlock();
@@ -2021,6 +2100,16 @@ private:
     // Whether a pass waits for the first stage's recorder or is being recorded there, so that no other is formed behind it.
     bool first_stage_held() const {
         return recorders_[0] && std::any_of(slots_.begin(), slots_.end(), [&](const Slot& k) { return k.live && k.ran == 0; });
+    }
+    // Whether every pass at the first stage is a chunk its thread records in layer groups with no urgent post yet, so a replies' pass formed now is taken between two groups.
+    bool first_stage_paced() const {
+        Recorder* r = recorders_[0].get();
+        if (!r) return false;
+        std::lock_guard<std::mutex> lk(r->m);
+        if (!r->pass.posted || !r->pass.paced || r->urgent.posted) return false;
+        for (size_t k = 0; k < slots_.size(); ++k)
+            if (slots_[k].live && slots_[k].ran == 0 && (k != r->pass.slot || !slots_[k].recording || slots_[k].replies)) return false;
+        return true;
     }
     bool recording() const {
         return std::any_of(slots_.begin(), slots_.end(), [](const Slot& k) { return k.live && k.recording; });
@@ -2079,7 +2168,7 @@ private:
         for (auto& rec : recorders_) {
             if (!rec) continue;
             std::unique_lock<std::mutex> lk(rec->m);
-            rec->cv.wait(lk, [&] { return !rec->pass.posted && rec->items.empty() && !rec->item_running; });
+            rec->cv.wait(lk, [&] { return !rec->pass.posted && !rec->urgent.posted && rec->items.empty() && !rec->item_running; });
         }
     }
 
@@ -2602,6 +2691,7 @@ private:
     std::atomic<size_t> draft_failures_{0};   // Stats::draft_failures
     std::atomic<size_t> holds_{0};            // Stats::holds
     std::atomic<size_t> stage_waits_{0};      // Stats::stage_waits
+    std::atomic<size_t> urgent_taken_{0}, urgent_refused_{0};   // Stats::urgent_taken, urgent_refused
     infer::spec::Record tally_;           // under the lock, every verify's drafts by position, a source apart
     Timing round_;                        // the scheduler thread's, published to timing_ each round
     Timing timing_;                       // under the lock
@@ -2671,7 +2761,7 @@ private:
     std::vector<std::unique_ptr<std::mutex>> locks_;   // the recorders' lanes' locks; before the recorders, which refer to them
     bool quick_turn_ = true;   // the scheduler thread's: whether the next replies' pass may take the quick prompt, every other one
     std::atomic<uint64_t> rule_replies_{0}, rule_chunks_{0}, rule_mixed_{0}, rule_jobs_{0};   // written by the scheduler thread, read by stats(): Stats::rule_*
-    std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; before the lanes, whose threads use them
+    std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where stage_threaded; before the lanes, whose threads use them
     infer::StageLanes lanes_;   // the recorders' threads (Recorder::cv, quit); last, so they end before anything they record on
 };
 

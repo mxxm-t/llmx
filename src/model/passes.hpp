@@ -1,6 +1,7 @@
 #pragma once
 #include "model/runtime.hpp"
 #include "model/stage_lanes.hpp"
+#include <climits>
 
 // A pass, the one owner of how it runs: its plan, its layers' stages over the devices, the residual's crossings, a streamed layer's split, the embedded drafter's rows and the storage of the context it runs in.
 // Members of infer::Model, declared in its class (model/runtime.hpp), which includes this file after it.
@@ -23,14 +24,14 @@ inline void Model::forward(ExecContext& ctx, const BatchEntry* entries, size_t n
     finish(ctx, p);
 }
 
-// Size a fresh context once, before any pass, for `slots` passes in flight (above one they need a pipelined placement) of up to `rows` rows each, with their handoff buffers and `logit_rows` rows of logits (begin_pass's logits_base).
+// Size a fresh context once, before any pass, for `slots` passes in flight (above one on a pipelined placement) of up to `rows` rows each, their handoff buffers, `logit_rows` logits rows and, past 0, the replies' set of `reply_rows` rows.
 // A failed reservation leaves the context fresh, and from then on it is frozen: begin_pass refuses a pass that needs more before any work, and forward refuses it too.
-inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows) {
+inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows, size_t reply_rows) {
     if (ctx.slots || !ctx.scratch.empty()) throw std::logic_error("inference: reserve_passes takes a fresh context, once");
     if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
     if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
     ExecContext reserved;
-    ensure(reserved, rows, logit_rows, handoffs(slots));
+    ensure(reserved, rows, logit_rows, handoffs(slots), reply_rows);
     reserved.passes.resize(slots);
     reserved.slots = slots;
     reserved.pass_rows = rows;
@@ -39,7 +40,7 @@ inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, s
 
 // Plan a pass in `slot` of a reserved context, its tokens copied and its wanting rows written from logits row `logits_base` on, its sequences in flight until end_pass or abort_pass; what it refuses changes nothing.
 // A sequence in flight continues its prompt only in a pass of its own, each of its passes in flight holding it alone, past its first stage and not wanting its logits (docs/MULTI-DEVICE.md, phase 4).
-inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base) {
+inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool replies) {
     if (!ctx.slots) throw std::logic_error("inference: begin_pass needs a context reserved for passes");
     if (slot >= ctx.slots) throw std::logic_error("inference: a pass slot beyond the reservation");
     Pass& p = ctx.passes[slot];
@@ -60,6 +61,8 @@ inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* e
         continues = true;
     }
     begin(ctx, p, entries, n_entries, logits_base, continues);
+    // A replies' pass that fits the replies' scratch runs there, between the layer groups of a chunk's; one past it, or none reserved, records as any other.
+    p.scratch = replies && p.rows <= ctx.reply_rows ? 1 : 0;
     for (size_t e = 0; e < n_entries; ++e) ++entries[e].seq->flights_;
     p.handoff = slot;
     p.in_flight = true;
@@ -82,7 +85,7 @@ inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const
     ++p.ran;
 }
 
-// A stage that waits on its devices (stage_waits: a tensor group's, and past the first a device's on a pipelined split that receives through the host) in three calls, for a caller that records it on the stage's own thread.
+// A stage in three calls, for a caller that records it on the stage's own thread (the server's stage_threaded, run_chunks' stage_waits).
 // prepare_pass_stage and commit_pass_stage run on the thread that owns the histories and pools, record_pass_stage on the stage's thread; a failure of the first two undoes nothing, so the caller abandons the pass with abort_pass.
 inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     Pass& p = in_flight(ctx, slot);
@@ -91,7 +94,48 @@ inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     prepare_stage(p, s);
 }
 
-inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s) { record_stage(ctx, in_flight(ctx, slot), s); }
+// Stage s of the pass in `slot` on the recording thread: whole, or `layers` layers of it a call, each group submitted (its tickets queued on the pass) and the last one the stage's; whether the stage is complete.
+inline bool Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s, size_t layers) {
+    Pass& p = in_flight(ctx, slot);
+    if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
+    record_stage(ctx, p, s, layers);
+    return !p.open;
+}
+
+// Before the next group of the stage open in `slot`: this thread waits beside the devices until fewer groups are queued ahead than queued_groups gives, on each device the stage touches through the oldest group's submission.
+// The queue covers the host's recording of a replies' stage here (reply_host_ms), which this thread may do between two groups, within `wait_ms` of device time, the wait the service rule gave the stage (infer::stage_wait_ms).
+inline void Model::pace_pass_stage(ExecContext& ctx, size_t slot, double wait_ms) {
+    Pass& p = in_flight(ctx, slot);
+    if (!p.open || p.queued.empty()) return;
+    const Stage& st = stages_[p.ran];
+    const auto retired = [&](const std::vector<backend::Ticket>& t) {
+        for (size_t d : st.touches)
+            for (size_t m = d; m < d + width_; ++m)
+                if (!devices_[m]->b->done(t[m])) return false;
+        return true;
+    };
+    ++paces_;
+    if (retired(p.queued.back())) ++idle_paces_;
+    const size_t keep = queued_groups(reply_host_ms(p.ran), p.group_ms, wait_ms);
+    queued_ += keep;
+    for (size_t most = most_queued_.load(); keep > most && !most_queued_.compare_exchange_weak(most, keep);) {}
+    while (p.queued.size() >= keep) {
+        for (size_t d : st.touches)
+            for (size_t m = d; m < d + width_; ++m) devices_[m]->b->wait(p.queued.front()[m]);
+        const auto [before, sent] = p.spans[p.spans.size() - p.queued.size()];
+        const double ms = before < sent ? devices_[p.sent_at]->b->busy_ms(before, sent) : -1.0;
+        if (ms > 0) p.group_ms = ms;
+        p.queued.erase(p.queued.begin());
+    }
+}
+
+// Whether the pass in `slot` may be recorded now between another pass's groups at its next stage: it runs in the replies' scratch and the residual that stage receives has arrived (Backend::done), so recording it holds no device.
+inline bool Model::pass_interleaves(ExecContext& ctx, size_t slot) const {
+    const Pass& p = in_flight(ctx, slot);
+    if (!p.scratch || p.ran >= stages_.size()) return false;
+    if (p.ran == 0 || p.at == stages_[p.ran].device) return true;
+    return devices_[p.at]->b->done(p.sent);
+}
 
 // What stage s of a pass takes of its histories and pool before any device work, on the thread that owns them.
 inline void Model::prepare_stage(Pass& p, size_t s) {
@@ -99,8 +143,9 @@ inline void Model::prepare_stage(Pass& p, size_t s) {
     else single_prepare(p, s);
 }
 
-// Stage s of a pass recorded and submitted on its devices, the thread's for as long as the stage's waits hold it; the matrix paths it takes stay with this model.
-inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s) {
+// Stage s of a pass recorded and submitted on its devices, whole or the next `layers` layers of it, the thread's for as long as the group's waits hold it; the matrix paths it takes stay with this model.
+// Each group has its own paths swap, tickets before it and trace entry, so nothing of a pass recorded between two groups is counted in this one.
+inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t layers) {
     const Stage& st = stages_[s];
     // The stage's evidence of the matrix paths it took stays with this model, as run_stage keeps it.
     struct Paths {
@@ -114,14 +159,24 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s) {
         ~Paths() { swap(); }
     } paths{devices_, st.touches, width_};
     paths.swap();
-    p.receive_ms = p.write_ms = 0;
+    if (!p.open) {
+        p.receive_ms = p.write_ms = 0;
+        p.group_ms = 0;
+    }
     p.before.resize(devices_.size(), 0);
     for (size_t d : st.touches)
         for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
     const bool direct = s > 0 && served(p.at, stages_[s].device);
     const auto start = std::chrono::steady_clock::now();
-    if (width_ > 1) group_record(ctx, p, s);
-    else single_record(ctx, p, s);
+    if (width_ > 1) group_record(ctx, p, s, layers);
+    else single_record(ctx, p, s, layers);
+    if (p.scratch && !layers) {
+        // A replies' stage recorded whole: the host's own time in it, without its waits for the residual, lookup rows and sums, which pacing a chunk's stage here covers.
+        Stage& rec = stages_[s];
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() - p.receive_ms - p.lookup_ms - p.sum_ms;
+        rec.reply_ms[rec.replies++ % rec.reply_ms.size()] = std::max(0.0, ms);
+        reply_host_ms_[s].store(recording_median(rec.reply_ms, rec.replies), std::memory_order_relaxed);
+    }
     if (trace_) {
         const auto ms = [&](std::chrono::steady_clock::time_point t) { return std::chrono::duration<double, std::milli>(t - trace_->t0).count(); };
         const StageTime t{s, p.rows, ms(start), p.receive_ms, p.write_ms, ms(std::chrono::steady_clock::now()), direct};
@@ -189,6 +244,8 @@ inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
 // A context reserved for passes is not grown: a pass that needs more rows or logits rows than it holds is refused here; a sequence in flight is refused unless begin_pass found it `continues`.
 inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool continues) {
     if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
+    // A stage left open by a failed recording closes here, so the slot's next pass starts afresh.
+    p.open = false;
     size_t rows = 0, want = 0;
     for (size_t e = 0; e < n_entries; ++e) {
         const BatchEntry& en = entries[e];
@@ -610,7 +667,7 @@ inline void Model::start_lookups(ExecContext& ctx, Pass& p, size_t rows) {
 inline void Model::start_lookup(ExecContext& ctx, Pass& p, size_t group, int l) {
     const auto& lookup = plan_.layers[size_t(l)].lookup;
     if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
-    ExecContext::Scratch& owner = ctx.scratch[group];
+    ExecContext::Scratch& owner = scratch(ctx, p, group);
     auto& prepared = owner.lookups[size_t(l)];
     prepared.view = {};
     Step step = mixer_part(ctx, p, group, l);
@@ -627,11 +684,11 @@ inline void Model::start_lookup(ExecContext& ctx, Pass& p, size_t group, int l) 
 }
 
 // Take a layer's rows read since start_lookup, just before the layer, and upload the packed rows to each member's own buffer.
-// The remapped IDs live in that first member's context scratch until the backends consume their gather calls.
+// The remapped IDs live in that first member's scratch of the pass's set until the backends consume their gather calls.
 inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l) {
     const auto& lookup = plan_.layers[size_t(l)].lookup;
     if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
-    ExecContext::Scratch& owner = ctx.scratch[group];
+    ExecContext::Scratch& owner = scratch(ctx, p, group);
     auto& prepared = owner.lookups[size_t(l)];
     const auto waited = std::chrono::steady_clock::now();
     const auto rows = home_[size_t(l)][lookup->role].row_source->finish(*p.lookups[size_t(l)].host);
@@ -640,7 +697,7 @@ inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, 
     const size_t bytes = backend::size_mul(rows.unique, rows.row_bytes);
     for (size_t m = 0; m < width; ++m) {
         const size_t dev = group + m;
-        ExecContext::Scratch& member = ctx.scratch[dev];
+        ExecContext::Scratch& member = scratch(ctx, p, dev);
         auto& target = member.lookups[size_t(l)];
         target.view = {};
         devices_[dev]->b->write(*target.data, 0, rows.data, bytes);
@@ -649,23 +706,31 @@ inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, 
 }
 
 // A stage of one device on its devices, through its submissions: it touches the pass, the devices the stage records on and their tickets, and no history or pool.
-inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
+inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t layers) {
     const Stage& st = stages_[s];
-    p.lookup_ms = p.sum_ms = 0;
-    size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
-    for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, st.device, l);
-    if (s == 0) {
-        cur = (size_t)place_.embed_device;
-        arch_->embed(part(ctx, cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
-        if (p.image_rows) write_media(ctx, p, cur);
-    } else if (p.at != cur) {
-        const auto [waited, wrote] = receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows);
-        p.receive_ms += waited;
-        p.write_ms += wrote;
+    if (!p.open) {
+        p.lookup_ms = p.sum_ms = 0;
+        p.cur = st.device;
+        p.layer = st.first;
+        p.queued.clear();
+        p.spans.clear();
+        for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, st.device, l);
+        if (s == 0) {
+            p.cur = (size_t)place_.embed_device;
+            arch_->embed(part(ctx, p, p.cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
+            if (p.image_rows) write_media(ctx, p, p.cur);
+        } else if (p.at != p.cur) {
+            const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, p.cur, 0, p.rows);
+            p.receive_ms += waited;
+            p.write_ms += wrote;
+        }
+        p.open = true;
     }
-    for (int l = st.first; l < st.end; l++) {
-        if (st.device != cur) { cross(ctx, cur, st.device, 0, p.rows); cur = st.device; }
+    size_t cur = p.cur;
+    const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;
+    for (int l = p.layer; l < end; l++) {
+        if (st.device != cur) { cross(ctx, p, cur, st.device, 0, p.rows); cur = st.device; }
         finish_lookup(ctx, p, cur, 1, l);
         arch_->mixer(mixer_part(ctx, p, cur, l));
         if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
@@ -674,20 +739,24 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s) {
             continue;
         }
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
-        if (f != cur) { cross(ctx, cur, f, 0, p.rows); cur = f; }
-        arch_->ffn(part(ctx, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));
+        if (f != cur) { cross(ctx, p, cur, f, 0, p.rows); cur = f; }
+        arch_->ffn(part(ctx, p, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));
     }
+    p.layer = end;
+    p.cur = cur;
+    if (end < st.end) return stage_submit(ctx, p, s, cur);
+    p.open = false;
     if (s + 1 < stages_.size()) {
         // A residual already where the next stage runs stays there.
-        if (cur != stages_[s + 1].device) send(ctx, cur, p.handoff, 0, p.rows);
+        if (cur != stages_[s + 1].device) send(ctx, p, cur, p.handoff, 0, p.rows);
         p.at = cur;
     } else {
         const size_t o = (size_t)place_.output_device;
-        if (o != cur) { cross(ctx, cur, o, 0, p.rows); cur = o; }
+        if (o != cur) { cross(ctx, p, cur, o, 0, p.rows); cur = o; }
         if (plan_.drafter) draft_context(ctx, p, s);
         if (p.want) {
             backend::Buffer* const rows = p.argmax ? ctx.argmax_logits.get() : ctx.logits_buf.get();
-            arch_->head(HeadStep{part(ctx, cur, pass_.data(), 0, 0, p.rows, all), p.pick.data(), p.want,
+            arch_->head(HeadStep{part(ctx, p, cur, pass_.data(), 0, 0, p.rows, all), p.pick.data(), p.want,
                                  backend::RowRuns{p.head_runs.data(), p.head_runs.size()},
                                  {rows, p.logits_base * plan_.vocab}});
             if (p.argmax)
@@ -737,7 +806,7 @@ inline void Model::group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Col
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     const size_t W = width_;
     if (!embedding_split(plan_)) {
-        for (size_t m = 0; m < W; ++m) arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
+        for (size_t m = 0; m < W; ++m) arch_->embed(part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all), p.ids.data());
         return;
     }
     const Role& role = embedding_role(plan_);
@@ -747,7 +816,7 @@ inline void Model::group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Col
         if (own.size() != 1) throw std::logic_error("inference: a split embedding's member holds one run of rows");
         const uint64_t first = own[0].begin, rows = own[0].count;
         for (size_t r = 0; r < p.rows; ++r) ids[r] = p.ids[r] >= first && p.ids[r] - first < rows ? uint32_t(p.ids[r] - first) : uint32_t(rows);
-        Step step = part(ctx, g + m, pass_row(m), 0, 0, p.rows, all);
+        Step step = part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all);
         step.x = sum.partial(m);
         arch_->embed(step, ids.data());
     }
@@ -762,9 +831,8 @@ inline void Model::group_embed(ExecContext& ctx, Pass& p, size_t g, backend::Col
 }
 
 // A group's stage on its devices, through its last submission: it touches the pass, the stage's devices and their tickets, and no history or pool.
-inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
+inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t layers) {
     const Stage& st = stages_[s];
-    p.lookup_ms = p.sum_ms = 0;
     const size_t g = st.device, W = width_;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     backend::Collective& sum = *ctx.collectives[g];
@@ -775,19 +843,27 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
         p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
     };
     std::vector<backend::Slice> x(W);
-    for (size_t m = 0; m < W; ++m) x[m] = slot(ctx, g + m, 0);
-    if (s == 0) group_embed(ctx, p, g, sum, x);
-    for (size_t m = 0; m < W; ++m) {
-        if (s == 0) {
-            if (p.image_rows) write_media(ctx, p, g + m);
-        } else {
-            const auto [waited, wrote] = receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows);
-            p.receive_ms += waited;
-            p.write_ms += wrote;
+    for (size_t m = 0; m < W; ++m) x[m] = slot(ctx, p, g + m, 0);
+    if (!p.open) {
+        p.lookup_ms = p.sum_ms = 0;
+        p.layer = st.first;
+        p.queued.clear();
+        p.spans.clear();
+        if (s == 0) group_embed(ctx, p, g, sum, x);
+        for (size_t m = 0; m < W; ++m) {
+            if (s == 0) {
+                if (p.image_rows) write_media(ctx, p, g + m);
+            } else {
+                const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, g + m, 0, p.rows);
+                p.receive_ms += waited;
+                p.write_ms += wrote;
+            }
         }
+        for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
+        p.open = true;
     }
-    for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
-    for (int l = st.first; l < st.end; l++) {
+    const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;
+    for (int l = p.layer; l < end; l++) {
         finish_lookup(ctx, p, g, W, l);
         for (size_t m = 0; m < W; ++m) {
             Step step = mixer_part(ctx, p, g + m, l);
@@ -797,25 +873,28 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
         const auto layer_row = [&](size_t m) { return home_row(m, (size_t)l); };
-        summed([&] { group_sum(ctx, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
+        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
         for (size_t m = 0; m < W; ++m) {
-            Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
+            Step step = part(ctx, p, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, l);
             step.width = W;
             step.partial = sum.partial(m);
             step.zero = ctx.zeros[g + m].get();
             arch_->ffn(step);
         }
-        summed([&] { group_sum(ctx, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
+        summed([&] { group_sum(ctx, p, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
     }
+    p.layer = end;
+    if (end < st.end) return stage_submit(ctx, p, s, g);
+    p.open = false;
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {
-        send(ctx, g, p.handoff, 0, p.rows);
+        send(ctx, p, g, p.handoff, 0, p.rows);
         p.at = g;
     } else if (p.want) {
         // Each member's vocabulary rows of every row that wants logits, each copied by its member into its slice of the rows in host memory the members import, behind no wait; the pass's logits wait for every member's submission.
         const size_t V = plan_.vocab;
         for (size_t m = 0, at = 0; m < W; ++m) {
-            HeadStep head{part(ctx, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
+            HeadStep head{part(ctx, p, g + m, pass_row(m), 0, 0, p.rows, all), p.pick.data(), p.want,
                           backend::RowRuns{p.head_runs.data(), p.head_runs.size()}, {ctx.member_logits[g + m].get(), 0}};
             arch_->head(head);
             const size_t n = head_rows(m);
@@ -830,12 +909,12 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
 
 // Group g's sum after a part: added to each member's residual x[m], or summed in place and joined into x[m] by each member (Architecture::join) where ModelPlan::partial says so.
 template <class Weights>
-inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
+inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w, size_t set) {
     backend::Collective& sum = *ctx.collectives[g];
     if (!plan_.partial) return sum.sum_into(x, rows, plan_.residual);
     sum.sum_in_place(rows, plan_.partial);
     for (size_t m = 0; m < width_; ++m) {
-        Step step = part(ctx, g + m, w(m), kind, 0, rows, runs);
+        Step step = part(ctx, g + m, w(m), kind, 0, rows, runs, -1, set);
         step.x = x[m];
         step.width = width_;
         step.partial = sum.partial(m);
@@ -843,7 +922,7 @@ inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backe
     }
 }
 
-// The stage's submissions, every device it recorded on and each member of a tensor group, the pass's ticket that of `cur`.
+// The group's submissions, every device the stage recorded on and each member of a tensor group, the pass's ticket that of `cur`; queued for the pacing and spanned for the pricing.
 inline void Model::stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur) {
     p.tickets.resize(devices_.size(), 0);
     for (size_t d : stages_[s].touches)
@@ -851,6 +930,8 @@ inline void Model::stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur)
     p.sent = p.tickets[cur];
     p.sent_at = cur;
     p.sent_members.assign(p.tickets.begin() + (std::ptrdiff_t)cur, p.tickets.begin() + (std::ptrdiff_t)(cur + width_));
+    p.queued.push_back(p.tickets);
+    p.spans.emplace_back(p.before[cur], p.sent);
 }
 
 // Each entry's history commits the stage, on the thread that owns the histories.
@@ -894,7 +975,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
             const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
             ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
         }
-        DraftRowsStep step{part(ctx, o, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
+        DraftRowsStep step{part(ctx, p, o, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
         step.width = width_;
         step.views = p.views[(size_t)d.storage_index * width_ + m].data();
         step.n_views = n;
@@ -902,7 +983,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
         step.pos = p.pos.data();
         if (p.image_rows) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
         arch_->draft_rows(step);
-        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
+        const backend::Slice hn = slot(ctx, p, o, plan_.draft_h);
         for (size_t e = 0; e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
             const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
@@ -975,8 +1056,8 @@ inline bool Model::argmax_buffers(ExecContext& ctx, size_t end) {
 }
 
 // Storage for a pass of `rows` rows with `want` logits rows, on every device the placement uses, with `buffers` handoff buffers on each device a crossing leaves (handoffs): grown when a pass needs more rows, never shrunk.
-// Each is allocated whole before it replaces what the context had.
-inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers) {
+// `reply_rows` above 0 grows the replies' set the same way, each device's own arena and lookup scratch; each is allocated whole before it replaces what the context had.
+inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t reply_rows) {
     auto mul = [](size_t a, size_t b) {
         if (b && a > (size_t)-1 / b)
             throw std::runtime_error("inference: activation arena size overflows");
@@ -1002,22 +1083,27 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
         }
         return result;
     };
-    for (size_t d = 0; d < devices_.size(); ++d) {
-        ExecContext::Scratch& sc = ctx.scratch[d];
-        if (!devices_[d]->used || (sc.arena && sc.rows >= rows)) continue;
+    const auto grow = [&](ExecContext::Scratch& sc, size_t d, size_t n) {
+        if (!devices_[d]->used || (sc.arena && sc.rows >= n)) return;
         std::vector<size_t> counts(plan_.slots.size()), offsets;
-        for (size_t i = 0; i < counts.size(); ++i) counts[i] = mul(rows, plan_.slots[i]);
+        for (size_t i = 0; i < counts.size(); ++i) counts[i] = mul(n, plan_.slots[i]);
         backend::BufferPtr arena = alloc_arena(*devices_[d]->b, counts, offsets);
-        std::vector<uint32_t> indices(mul(rows, plan_.index_width));
-        auto prepared = lookups(d, rows);
+        std::vector<uint32_t> indices(mul(n, plan_.index_width));
+        auto prepared = lookups(d, n);
         // A pass through this context may still run on the arena being replaced: nothing else waits for a pass that wanted no logits.
         if (sc.arena) devices_[d]->b->wait(ctx.tickets[d]);
         sc.arena = std::move(arena);
         sc.offset = std::move(offsets);
         sc.indices = std::move(indices);
         sc.lookups = std::move(prepared);
-        sc.rows = rows;
-        sc.entry_runs.reserve(rows);
+        sc.rows = n;
+        sc.entry_runs.reserve(n);
+    };
+    for (size_t d = 0; d < devices_.size(); ++d) grow(ctx.scratch[d], d, rows);
+    if (reply_rows) {
+        ctx.replies.resize(devices_.size());
+        for (size_t d = 0; d < devices_.size(); ++d) grow(ctx.replies[d], d, reply_rows);
+        ctx.reply_rows = reply_rows;
     }
     // The host-visible buffers a crossing leaves each sending device through.
     size_t used = 0;
@@ -1099,13 +1185,13 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
 
 // The residual stream and each carried slot move between devices through host memory, `rows` rows from `base`, in a buffer of one region of handoff_rows rows a slot.
 // `send` copies them into the source's host-visible handoff buffer in its own work, its submission saying when they are there; with a Handoff, the served readers' last copies out of it come first on the device.
-inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t base, size_t rows) {
+inline void Model::send(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, size_t base, size_t rows) {
     backend::Handoff* const link = ctx.links[from].empty() ? nullptr : ctx.links[from][handoff].get();
     if (link) link->begin();
     size_t region = 0;
     for (size_t i = 0; i <= plan_.carried.size(); ++i) {
         const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
-        const backend::Slice x = slot(ctx, from, k);
+        const backend::Slice x = slot(ctx, p, from, k);
         devices_[from]->b->copy(*ctx.handoff[from][handoff], (region + base * W) * sizeof(float), *x.buffer,
                                 (x.offset + base * W) * sizeof(float), rows * W * sizeof(float));
         region += ctx.handoff_rows * W;
@@ -1115,7 +1201,7 @@ inline void Model::send(ExecContext& ctx, size_t from, size_t handoff, size_t ba
 
 // `receive` writes the rows into the destination's residual, enqueued there: a served reader's queue waits for the copy on the devices and copies them itself, and otherwise the host waits for that submission and writes them.
 // It returns the host's milliseconds in the wait and in the write or the enqueued copies.
-inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+inline std::pair<double, double> Model::receive(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
     const std::vector<size_t>& readers = devices_[from]->readers;
@@ -1127,7 +1213,7 @@ inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t from, s
     size_t region = 0;
     for (size_t i = 0; i <= plan_.carried.size(); ++i) {
         const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
-        const backend::Slice x = slot(ctx, to, k);
+        const backend::Slice x = slot(ctx, p, to, k);
         const size_t at = (region + base * W) * sizeof(float), dst = (x.offset + base * W) * sizeof(float), bytes = rows * W * sizeof(float);
         if (link) link->take(r, *x.buffer, dst, in, at, bytes);
         else devices_[to]->b->write(*x.buffer, dst, (const uint8_t*)in.host_ptr() + at, bytes);
@@ -1168,9 +1254,9 @@ inline std::vector<size_t> Model::readers(size_t from) const {
 }
 
 // A crossing inside a stage, both halves at once, through buffer 0 serially: such a crossing makes a split unpipelined, since pipelining needs every feed-forward block beside its mixer.
-inline void Model::cross(ExecContext& ctx, size_t from, size_t to, size_t base, size_t rows) {
-    send(ctx, from, 0, base, rows);
-    receive(ctx, from, 0, devices_[from]->b->submit(), to, base, rows);
+inline void Model::cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows) {
+    send(ctx, p, from, 0, base, rows);
+    receive(ctx, p, from, 0, devices_[from]->b->submit(), to, base, rows);
 }
 
 // A streamed layer in a pass with long runs: consecutive alike entries form a group, the long ones run on the layer's streamed row with each window role's bytes written into its window once, the rest on the host through a crossing each way.
@@ -1198,19 +1284,19 @@ inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l)
                         b.write(*streamed[role.id].data, 0, home[role.id].data->host_ptr(), home[role.id].data->size());
                 copied = true;
             }
-            arch_->ffn(part(ctx, dev, streamed.data(), kind, base, end - base, runs, l));
+            arch_->ffn(part(ctx, p, dev, streamed.data(), kind, base, end - base, runs, l));
         } else {
-            cross(ctx, dev, host, base, end - base);
-            arch_->ffn(part(ctx, host, home.data(), kind, base, end - base, runs, l));
-            cross(ctx, host, dev, base, end - base);
+            cross(ctx, p, dev, host, base, end - base);
+            arch_->ffn(part(ctx, p, host, home.data(), kind, base, end - base, runs, l));
+            cross(ctx, p, host, dev, base, end - base);
         }
         base = end;
     }
 }
 
-// A call of a part on device `dev`: `rows` rows of the residual from row `base` with their runs, and the row of weights `w` by role id, the layer's kind and index with it.
-inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer) const {
-    ExecContext::Scratch& sc = ctx.scratch[dev];
+// A call of a part on device `dev` in scratch set `set`: `rows` rows of the residual from row `base` with their runs, and the row of weights `w` by role id, the layer's kind and index with it.
+inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, int layer, size_t set) const {
+    ExecContext::Scratch& sc = scratch(ctx, set, dev);
     const Device& d = *devices_[dev];
     Step step{*d.b, sc.arena.get(), sc.offset.data(), {sc.arena.get(), sc.offset[0] / sizeof(float) + base * plan_.residual},
                 rows, runs, w, kind, nullptr, 0, 0, nullptr, d.tables.data(), &sc.entry_runs, nullptr, 0, options_.device_dtypes.empty() ? options_.dtype : options_.device_dtypes[dev]};
@@ -1225,7 +1311,7 @@ inline Step Model::part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t k
 inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const {
     const Device& d = *devices_[dev];
     const LayerPlan& layer = plan_.layers[(size_t)l];
-    Step s = part(ctx, dev, home_row(d.member, (size_t)l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()}, l);
+    Step s = part(ctx, p, dev, home_row(d.member, (size_t)l), layer.kind, 0, p.rows, {p.runs.data(), p.runs.size()}, l);
     if (keeps_kv(layer) || layer.entry_source >= 0) {
         s.views = p.views[(size_t)d.storage_index * width_ + d.member].data();
         s.n_views = p.entries.size();
@@ -1242,7 +1328,7 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
     for (const auto& [c, gp] : p.group_pos)
         if (c == layer.kv_pool) s.group_pos = backend::GroupPositions{gp.data(), {3, plan_.image_streams.data()}};
     if (layer.lookup && home_[(size_t)l][layer.lookup->role].row_source) {
-        const ExecContext::Scratch& sc = ctx.scratch[dev];
+        const ExecContext::Scratch& sc = scratch(ctx, p, dev);
         s.lookup = &sc.lookups[size_t(l)].view;
     }
     if (layer.token_history) {
@@ -1257,7 +1343,7 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
 // An image's rows are uploaded there once, then copied for each entry's part of each image (docs/VISION.md, section 4).
 inline void Model::write_media(ExecContext& ctx, const Pass& p, size_t dev) {
     backend::Backend& b = *devices_[dev]->b;
-    const ExecContext::Scratch& sc = ctx.scratch[dev];
+    const ExecContext::Scratch& sc = scratch(ctx, p, dev);
     const size_t W = plan_.residual, x = sc.offset[0];
     for (size_t e = 0, r = 0; e < p.entries.size(); r += p.entries[e++].n) {
         Sequence& q = *p.entries[e].seq;

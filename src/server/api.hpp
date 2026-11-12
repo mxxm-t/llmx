@@ -454,7 +454,7 @@ private:
                   ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" + ",\"by_source\":[" + by_source + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"rule_replies\":" + n(s.rule_replies) + ",\"rule_chunks\":" + n(s.rule_chunks) + ",\"rule_mixed\":" + n(s.rule_mixed) + ",\"rule_jobs\":" + n(s.rule_jobs) + ",\"holds\":" + n(s.holds) + ",\"stage_waits\":" + n(s.stage_waits) + ",\"lookups_kept\":" + n(reads.kept) + ",\"lookups_restarted\":" + n(reads.restarted) +
-                  ",\"lookups_late\":" + n(reads.late) + "}}" +
+                  ",\"lookups_late\":" + n(reads.late) + ",\"paces\":" + n(s.paces) + ",\"idle_paces\":" + n(s.idle_paces) + ",\"queued_groups\":{\"mean\":" + jmini::number(s.queued_mean) + ",\"max\":" + n(s.queued_max) + "},\"urgent_taken\":" + n(s.urgent_taken) + ",\"urgent_refused\":" + n(s.urgent_refused) + "}}" +
                   ",\"service\":" + service_json(s.service) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }

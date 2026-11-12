@@ -1175,6 +1175,36 @@ void device_stage_end() {
     require(s1 >= 3.0 && s1 < 30.0, "the stage after it measured " + std::to_string(s1) + " ms from its upstream's poll");
 }
 
+// A device whose submissions read as retired at once, each ticket's work 10 ms by its timestamps.
+struct TimedDevice : backend::CpuBackend {
+    bool done(backend::Ticket) noexcept override { return true; }
+    double busy_ms(backend::Ticket a, backend::Ticket b) override { return 10.0 * (double)(b - a); }
+};
+
+// A replies' pass recorded between a chunk's groups retires inside the chunk's stage: the chunk is still measured at its groups' device time, not at what is left after that pass (ServiceRecord::measure).
+void stage_cut_in() {
+    using Clock = std::chrono::steady_clock;
+    TimedDevice d;
+    server::ServiceRecord record(1);
+    server::PassWork reply, chunk;
+    reply.decode(1, 0);
+    chunk.chunk(0, 64, 0);
+    const auto measured = [&](uint64_t n) {
+        for (int i = 0; i < 2000 && record.snapshot().stages[0].passes < n; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        return record.snapshot().stages[0].passes;
+    };
+    const Clock::time_point now = Clock::now();
+    // The chunk's recording began 40 ms ago and the reply's 10 ms ago; the reply, posted between the chunk's groups, is seen first.
+    record.post({2, 0, reply, 0.0, now - std::chrono::milliseconds(10), now, 0.0, 0.0, &d, 3, 4});
+    require(measured(1) == 1, "the reply's stage was not measured");
+    record.post({1, 0, chunk, 0.0, now - std::chrono::milliseconds(40), Clock::now(), 0.0, 0.0, &d, 2, 6, {{2, 3}, {4, 6}}});
+    require(measured(2) == 2, "the chunk's stage was not measured");
+    const auto snap = record.snapshot();
+    const double reply_ms = snap.stages[0].recent.front().measured_ms, chunk_ms = snap.stages[0].recent.back().measured_ms;
+    require(reply_ms >= 10.0 && reply_ms < 30.0, "the reply's stage measured " + std::to_string(reply_ms) + " ms, not its device's 10");
+    require(chunk_ms >= 30.0 && chunk_ms < 60.0, "a chunk's stage with a reply retired inside it measured " + std::to_string(chunk_ms) + " ms, not its groups' 30");
+}
+
 int main() {
     try {
         temperature_zero();
@@ -1206,6 +1236,7 @@ int main() {
         bucket_depths();
         seeded_bucket();
         device_stage_end();
+        stage_cut_in();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

@@ -2198,6 +2198,23 @@ void passes_refused() {
     const infer::BatchEntry ec{&c, ids.data(), 1, true};
     m.forward(used, &ec, 1);
     refused([&] { m.reserve_passes(used, 2, 4, 2); }, "a context a forward used reserved for passes");
+    // The replies' set (reserve_passes's reply rows): a replies' pass within them runs apart, in the second scratch set with its own arena and lookup scratch on every device, while a chunk's pass and a replies' pass past them run in the first.
+    infer::ExecContext apart;
+    m.reserve_passes(apart, 2, 4, 2, 1);
+    require(apart.reply_rows == 1 && apart.replies.size() == apart.scratch.size(), "the replies' set was not reserved on every device");
+    for (size_t d = 0; d < apart.scratch.size(); ++d)
+        require(apart.replies[d].arena.get() != apart.scratch[d].arena.get() && apart.replies[d].lookups.size() == apart.scratch[d].lookups.size(),
+                "the replies' set shared an arena with the context's set or lacked its lookup scratch");
+    infer::Sequence chunk = m.make_sequence(), reply = m.make_sequence(), wide = m.make_sequence();
+    const infer::BatchEntry e_chunk{&chunk, ids.data(), 3, true}, e_reply{&reply, ids.data(), 1, true}, e_wide{&wide, ids.data(), 2, true};
+    m.begin_pass(apart, 0, &e_chunk, 1, 0);
+    m.begin_pass(apart, 1, &e_reply, 1, 1, true);
+    require(apart.passes[0].scratch == 0 && !m.pass_apart(apart, 0) && apart.passes[1].scratch == 1 && m.pass_apart(apart, 1), "a replies' pass within the reply rows did not run apart, or a chunk's pass did");
+    m.abort_pass(apart, 1);
+    m.begin_pass(apart, 1, &e_wide, 1, 1, true);
+    require(apart.passes[1].scratch == 0 && !m.pass_apart(apart, 1), "a replies' pass past the reply rows ran apart");
+    m.abort_pass(apart, 1);
+    m.abort_pass(apart, 0);
     for (auto& t : tight) t->limit = size_t(1) << 20;
     bool short_memory = false;
     try { m.reserve_passes(ctx, 2, size_t(1) << 16, 2); } catch (const std::runtime_error&) { short_memory = true; }

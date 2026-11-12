@@ -186,7 +186,7 @@ The saved inputs cover the conv's raw rows and the recurrence's inputs of every 
 
 **The scheduler:** retract runs right after a pass's logits are read, in the same round, before `park`, `pause` or any fork, so no rule is needed for a pending restore.
 A mark takes a slot only from free ones; a request without one drafts nothing that round.
-Draft rows count in the pass's ubatch budget; the logits rows become 2 x (max_seqs + draft_rows), `draft_rows` being 64 or `--draft-max` a request where that is less (`Scheduler::draft_rows`), draft rows in flight capped at it; `Request::kRowsWaiting` becomes at least k_max + 1; a draft pass runs per drafter device, in that device's formation order, and is retired like a stage.
+Draft rows count in the pass's ubatch budget; the logits rows become max_seqs + draft_rows a pass slot, `draft_rows` being 64 or `--draft-max` a request where that is less (`Scheduler::draft_rows`), draft rows in flight capped at it; `Request::kRowsWaiting` becomes at least k_max + 1; a draft pass runs per drafter device, in that device's formation order, and is retired like a stage.
 A request is in at most one pass at a time, so with passes in flight its next draft waits for its verify.
 
 **What changed from the 2026-09-26 plan, and why:**

@@ -77,9 +77,11 @@ reads saved inputs and performs no table lookup.
   in three calls instead: `prepare_pass_stage` on its own thread, which
   takes the stage's blocks; `record_pass_stage` on the stage's thread,
   which records and submits and touches only that pass and the stage's
-  devices; and `commit_pass_stage` on its own thread again, which commits
+  devices, whole or `layers` layers a call, each group submitted with its tickets queued on the pass (`Pass::queued`, `Pass::spans`) and the last one the stage's, until it returns true (`Pass::open`, `Pass::layer` and `Pass::cur` keep the place);
+  `pace_pass_stage` before a group waits beside the devices until fewer groups are queued than `queued_groups` gives within the wait the scheduler posted with the stage (`wait_ms`) for the stage's host recording of a replies' stage (`reply_host_ms`, the median of `Stage::reply_ms`, which `record_stage` fills without the recording's waits for the residual, lookup rows and sums) against the device time of the pass's last retired group (`Pass::group_ms`, `Backend::busy_ms`), and counts the waits, those that found every queued group retired and the groups each kept (`pacing`), and `pass_interleaves` says whether a pass in the replies' set may be recorded now between another pass's groups at its next stage, its residual having arrived (`Backend::done`); and `commit_pass_stage` on its own thread again, which commits
   the histories and counts the stage. A failed `record_pass_stage` leaves
   the pass for the caller's `abort_pass`.
+  `reserve_passes` with `reply_rows` adds the replies' scratch set (`ExecContext::replies`, `ensure`), each device's own arena and lookup scratch; `begin_pass` with `replies` puts a pass that fits it there (`Pass::scratch`, `pass_apart`), and every part, crossing, save and lookup of a pass goes through `Model::scratch` and `Model::slot` by the pass's set, `part` and `group_sum` taking the set, the context's where no pass runs them: a saved history's rerun and the drafters' chain ([history](model-history.md)).
   A pass keeps each device's submission of its stage (`Pass::tickets`), which its histories take as their last, since the context's last submission may be another pass's.
   `pass_logits(ctx, slot, i)` waits on the pass's own head
   and returns its wanting row `i`, written from row `logits_base` on; it refuses an argmax pass, whose rows stay on the device.

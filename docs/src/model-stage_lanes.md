@@ -1,6 +1,6 @@
 # `src/model/stage_lanes.hpp` - a thread for each stage that waits on its devices
 
-`infer::StageLanes` is the one owner of the threads that record a stage whose recording waits on its devices (`Model::stage_waits`: a tensor group's, which waits at every sum, and past the first a device's on a pipelined split, which waits for its rows).
+`infer::StageLanes` is the one owner of the threads that record a stage whose recording waits on its devices (`Model::stage_waits`: a tensor group's, which waits on the host for its lookup rows and an unserved member's residual, and past the first a device's on a pipelined split, which waits for its rows; the server's scheduler gives a stage a thread by `server::stage_threaded`).
 `Model::run_chunks` uses it for a prompt's chunks (`Model::prefill`), and the server's scheduler for its rounds (`Scheduler::Recorder`), so the CLI, the bench and the server record such stages the same way.
 
 - `add(s, m)` makes stage s's lane under the caller's mutex `m` and returns it before its thread starts, so a caller can tie its own state to the lane's condition variable (`Lane::cv`) and stop flag (`Lane::stop`); `start(s, policy)` starts its thread.

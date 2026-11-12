@@ -20,12 +20,11 @@ is measured against the single-sequence path and the reference.
   prefill microbatch is one entry with many tokens, a decode step is many
   entries with one token each, and the two mix in one pass.
 - **One submitter per device.** A `Backend` is driven by one thread at a
-  time. The scheduler is that thread, but for a stage whose recording
-  waits on its devices while several passes are in flight (a tensor
-  group's, or past the first a device's on a pipelined split that receives
-  through the host rather than behind a device-side wait,
-  `Model::stage_waits`), which a thread of that stage records (The round,
-  below); connection threads only queue
+  time. The scheduler is that thread, but for a stage that passes share
+  while several are in flight (a tensor group's, or past the first a
+  device's on a pipelined split, whether its hand-over goes through the
+  host or behind a device-side wait, `server::stage_threaded`), which a
+  thread of that stage records (The round, below); connection threads only queue
   requests and drain token streams. This is a contract, not a lock.
 - **Streaming.** Tokens leave as they are sampled, over a plain HTTP/1.1
   response with chunked transfer or server-sent events, so a browser, curl
@@ -147,13 +146,16 @@ round:
   drop:    end the queued and paused requests whose client left,
            wherever they wait, and look again as admission reaches each
   advance: from the last stage down to stage 1, each stage records the
-           oldest pass waiting for it (run_pass_stage), so every device
-           runs its passes in formation order and a pass advances a stage
-           at most a round; a stage on the host, which computes as it is
+           oldest replies' pass waiting for it, else the oldest pass
+           waiting (run_pass_stage), chunk passes in formation order, and a
+           pass advances a stage at most a round; a stage on the host, which computes as it is
            recorded, waits for the end of the round
-           a tensor group's stage, whose every sum its members wait
-           on each other for, is handed to its stage thread and takes
-           no other pass until that one is collected
+           a stage with a thread of its own (stage_threaded) is handed
+           to it; while some request replies it records a chunk's stage
+           in layer groups, kQueuedGroups queued ahead, and takes a
+           replies' pass posted urgent to it between two groups, so a
+           reply waits at a stage at most the queued groups of the chunk
+           there; a lone pass records whole
   retire:  every pass whose last stage an earlier round recorded, oldest
            first: pass_logits waits on that pass's own ticket, the
            sampling threads and the scheduler thread draw its wanting
@@ -210,9 +212,13 @@ round:
            flight the replies and one prompt's chunk; a prompt in flight
            continues only in a pass of its own; the entry that ends a
            request's history wants logits, the others do not; the pass
-           takes a run of logits rows (take_rows), begin_pass puts its
+           takes its slot's logits rows (take_rows), begin_pass puts its
            sequences in flight, and its first stage is recorded, on the
-           host at the end of the round
+           host at the end of the round; no pass forms behind one waiting
+           for the first stage's thread or recorded there
+           (first_stage_held), but a replies' pass forms beside a chunk
+           that thread records in layer groups and goes in as its urgent
+           post (first_stage_paced)
   host:    the stages on the host the round advanced, last stage first,
            then the new passes' first stages
   repeat while a pass is in flight or any request is active or paused;
@@ -248,8 +254,9 @@ The timestamps and those readings slow serving, so throughput is read from a ser
 
 Every pass's every stage is timed as its devices ran it, at no cost to the round (`ServiceRecord` in `server/service_record.hpp`).
 The stage that records it posts the submission that ends it (`Model::stage_sent`) with when its recording began, and a thread of the record's own asks that submission whether it has retired, every millisecond while one waits and not at all otherwise (`Backend::done`).
-A stage's time runs from the latest of its recording's start, the end of the stage's previous pass and the end of the pass's previous stage, to its own end: the time a pass behind it waits for it.
-Its end is the time its device was held by the stage's own submissions (`Backend::busy_ms` from the device's last ticket before the stage, `Backend::last_ticket`, so a draft chain or an upload between stages is not counted) after that start, or its recording's end if later, and the poll's only where the device keeps no times; idle device time inside the stage after that start, a host-bound tail, is left out, which pricing does not need, since a ticket can read as retired well after its work ended (on Qwen3.8-Flash-Next 2x2, stage 0's only after the last stage, docs/STATUS.md, Draft price outliers); a pass's stage is measured only after its stage before, whose end it starts from.
+A stage's time is the time its device was held by the stage's own submissions (`Backend::busy_ms` from the device's last ticket before the stage, `Backend::last_ticket`, so a draft chain or an upload between stages is not counted, and over a stage recorded in groups the groups' own, so a replies' pass recorded between two of them is not counted either), or if longer its recording past its start, the latest of its recording's start, the end of the stage's previous pass and the end of the pass's previous stage: the time a pass behind it waits for it.
+Where the device keeps no times it is the poll's end from that start; idle device time inside the stage, a host-bound tail, is left out, which pricing does not need, since a ticket can read as retired well after its work ended (on Qwen3.8-Flash-Next 2x2, stage 0's only after the last stage, docs/STATUS.md, Draft price outliers); a pass's stage is measured only after its stage before, whose end it starts from.
+A replies' pass that retires inside a chunk's stage moves that start past the groups before it, so the device time is taken whole and not from the start: measured from the start it priced a 512-row chunk on Qwen3.8-Flash-Next 2x2 at 50 to 65 ms against its 270 ms alone, and a 16-row chunk on layer-4 at 8 to 13 ms against 20 (DSDEV116, 2026-11-11).
 On a stage on the host, which computes as it records, that is its recording.
 `Model::prefill` outside the server prices its own slices another way (`SlicePeriods`, `docs/src/model-slicing.md`): each stage by its devices' busy time a slice (`Backend::busy_ms`), from its first operation after its waits on other devices to its last, so a stage's line holds its own cost and the cut follows the stages' differences.
 The time is split into the host's recording of the stage, of it the waits for a lookup table's rows (`WeightRows::finish`) and in a tensor group's sums, which the model keeps for the pass's last stage recorded (`Model::stage_host_waits`), and the devices' time after the recording ended.
@@ -278,7 +285,7 @@ Who waits is one predicate (`slice_capped`): an arrival that would be admitted a
 A reply is not among them: while a reply and a prompt both wait the slice is the service rule's chunk below (`chunk_plan`), which owns the reply's bound.
 With every sequence held by prompts and the rest queued, and every newcomer at least as long as the slice, nobody waits, and the queued prompts' bound is the share rule's `kPromptWaitMs`: the slice is the prompt's own cut alone, and a ubatch beside other ready prompts, admitted prompts with rows left, whose slices fill the stages the prompt's own drain would leave idle, so a smaller cut would only pay a pass's fixed cost more often.
 Each slice is cut again, so once the others' rows are read the prompt's own cut returns for what it has left.
-While a prompt also waits, on a split the replies go in as few passes as the decode kernels' columns hold them, never every slot, each reply in one of them (`packed_passes`, `packed_share`), and each other free slot takes a chunk pass of one prompt, which continues in its own pass once its chunk before has run the first stage, up to one chunk pass a stage (`passes_in_flight`); a slot no prompt can use goes to the replies.
+While a prompt also waits, on a split the replies go in the passes of the round's layout (`pipeline_layout`, below), and until the replies' pass is priced in as few passes as the decode kernels' columns hold them, never every slot (`packed_passes`), each reply in one of them (`packed_share`), and each other free slot takes a chunk pass of one prompt, which continues in its own pass once its chunk before has run the first stage, up to one chunk pass a stage (`passes_in_flight`); a slot no prompt can use goes to the replies.
 On one pass in flight, one device or one tensor group, the chunk rides the replies' pass as a second class.
 Prompt work is the clients' prompts, and with none waiting the read-again jobs', which so take only what no prompt wants.
 A request at an image without rows spends its prompt turn on a piece of that image's encode (docs/VISION.md, section 10), and beside replies a replies' pass meets as many pieces as the chunk budget holds at a piece's measured time, one at least (`encode_pieces`); a piece's time is what a replies' pass that waited behind pieces took beyond its predicted time, or the scheduler's own time running them where the first stage records on its thread, whichever is longer, shared among them.
@@ -286,8 +293,18 @@ A request at an image without rows spends its prompt turn on a piece of that ima
 While prompt work waits, the rule aims to keep every reply at `kReplyTokensPerSecond`, 8 tokens a second, a product objective and not a guaranteed rate: about twice a reader's silent reading speed, the same on any model and placement, where only the stages' measured prices differ and the stage count is a parameter.
 The gap between a reply's steps is the largest that holds the objective: 1000 ms over 8 times the fewest tokens a step among the replies, each reply's tokens a step the mean of its last 8 steps (`StepTokens`), a verify's kept drafts and its pick, and 1 until it has 8, so one lucky verify does not widen the gap.
 The gap is at most `kMaxStepGapMs`, 500 ms, however many tokens a step brings, so a reply whose drafts keep many tokens a step is still delivered without long pauses; it is a reader's property too, not the hardware's.
-A reply's pass meets one chunk at every stage, so its gap is the stages times a chunk and its own pass: a chunk takes at most the gap over the stages less the replies' pass (`chunk_budget`, `chunk_plan`), and its rows are those the price table gives within that (`PriceTable::chunk_rows`, the slowest stage's).
-Where the replies' pass alone leaves nothing, the replies cannot reach the objective; the health counts the pass as unmet, and a prompt then takes a chunk of one stage's share of the gap only once it has gone `kPromptWaitMs` without rows, so it still reads at least a chunk each bound.
+On one pass in flight a reply's pass meets one chunk at every stage, so its gap is the stages times a chunk and its own pass: a chunk takes at most the gap over the stages less the replies' pass (`chunk_budget`, `chunk_plan`), and its rows are those the price table gives within that (`PriceTable::chunk_rows`, the slowest stage's).
+The plan prices the whole lap a reply takes (`pipeline_layout`, `Scheduler::layout`), on one pass in flight with the chunk riding as above.
+On a split each stage records a replies' pass waiting for it before a chunk pass waiting (`round_steps`), chunk passes in formation order among themselves, and a replies' pass posted to a stage recording a chunk goes in between two of the chunk's layer groups (`Recorder::urgent`, `Model::record_pass_stage`): while some request replies a chunk's stage is recorded a layer group at a time with at least `kQueuedGroups` groups queued ahead on its devices (`Model::pace_pass_stage`), and more where a group is shorter than the host's own recording of a replies' stage there, so the devices keep work while the host records that reply between two groups (`infer::queued_groups`: the recording over a group's measured device time, plus one), but never more device time than the reply's wait at the stage that the round's layout priced (`Layout::wait_ms`, `infer::stage_wait_ms`); the recording is the median of the stage's last eight, each without its waits for the residual, lookup rows and tensor-group sums (`Model::reply_host_ms`), so one recording held by a wait moves no queue; on a single device and a tensor group alike a reply waits at a stage at most those groups, about its own recording and one group, and never the chunk's whole stage; the replies' pass runs in a scratch set of its own (`ExecContext::replies`, `Pass::scratch`), so it shares no arena row or lookup slot with the chunk it goes between.
+At the first stage the same holds from formation: no pass forms while another waits for the first stage's thread or is recorded there, but a replies' pass carrying no prompt forms while every pass at the first stage is a chunk recorded in groups with no urgent post yet (`first_stage_paced`), so a reply waits there for a group and not for the chunk's whole first stage.
+A chunk pass's stage time is mostly fixed (on Qwen3.8-Flash-Next 2x2 about 33 ms and 0.44 ms a row), so prompt rows a second while replies wait grow with the rows a chunk carries, and the reply's step bounds them: its replies' passes at every stage and, at each, the queued groups of the chunk recording there.
+For each count of replies' passes R up to the slots less one, the decoders an even share of them and C = min(stages, slots - R) chunk passes beside, a chunk's stage is bounded by what the gap leaves a reply's wait at each stage past the R replies' passes, W = (gap - R * own) / S (`infer::stage_wait_ms`), less the host's recording of a replies' stage there, L_s * (W - h_s) / k, so the queue that covers that recording and one group more fits W; the reply's step is R times the replies' pass and at each stage the groups `infer::queued_groups` keeps queued, the same rule and the same W the paced stage keeps them by, and the lap S / C of the chunk's stage stretched by the reply steps that cut in; a replies' pass whose stages add up past the gap is out, and so is a chunk that no priced slice fits, a slice not yet priced fitting so it is measured; a chunk riding the replies' pass takes the smallest slice wherever `chunk_budget` leaves a budget, as `PriceTable::chunk_rows` gives it, and the pass counts as met, as `chunk_plan` counts it, though a slice priced past the budget still stretches the gap.
+Every slice within that bound by the table's prices (`PriceTable::layout_ms`, a slice's own cell or its class's cost line) is a candidate, the largest first and each next a step of `kPieceStep` smaller, and the layout scoring the most chunk rows a millisecond of the lap for each millisecond of the reply's step is the round's, the shorter lap among equals, each width priced by its decode cell or the nearest measured width, so a wider pass is tried at a narrower width's price and measured once; a slice not yet priced, up to twice the largest within, is tried instead so its first pass measures it, and where no slice is within the smallest is the candidate at its price.
+The score is what the prompts get times what a reply gets, so a wider slice is taken only while it buys the prompts more than it costs the replies in proportion: a chunk's fixed stage cost is what a wider slice amortizes, and a slice without one is the smallest; the chunks formed under the layout are its slice (`Plan::rows`), and its budget, that slice's stage time, is what an image's pieces beside replies take (`encode_pieces`).
+The candidates and the chunk once came from the table's search by last measures (`PriceTable::chunk_rows`, now the round's without a layout) at the chosen slice's mean price, and the round trip did not come back: a slice measured once below its cost won the score and its price as a target gave the smallest slice, which then measured every chunk, so one server read 16-row chunks for its whole life and the next, whose first measures fell otherwise, 64-row ones (DSDEV116, 2026-11-11).
+The bound alone starved layer-4 (DSDEV105, 2026-11-10): the group cap L_s * d_s / k the rule had before was about the fixed cost of a chunk's stage on Qwen3.8-Flash-Next over four MI50s, so every chunk was the smallest slice, and without it the gap's bound read 150 ms chunks and every reply stepped at the gap, 94 ms against main's 71 on ROCm.
+Where no layout fits within the objective's gap the replies cannot reach the objective and the health counts the pass as unmet; the layout is then priced within `kMaxStepGapMs`, the gap's existing maximum, and prompts read every round, so prompts are not starved while every reply step stays within it (the pass counted as capped).
+Where even that fits nothing, as where the replies' pass alone leaves nothing, a prompt takes a chunk of one stage's share of the gap only once it has gone `kPromptWaitMs` without rows, so it still reads at least a chunk each bound.
 A reply that could not grow sits the pass out (a stall) and is not among the replies, so a prompt beside it reads as though no reply waited, and a round never forms nothing because its only reply is stalled while prompts wait for replies.
 While the objective is unmet, the shortest prompt whose remaining rows fit one pass and whose whole remaining cost and the replies' pass fit within the step gap's cap by the measured prices is quick (`quick_prompt`): it runs whole in a pass shared with the replies, every other replies' pass at most, so a newcomer's short prompt never waits for the bound and every second replies' pass stays the replies' alone; while its price is not yet known it rides as the 16-row learning step, and prices come from `PriceTable::slice_ms`, a line through the measured slices rather than a scaling that inflates a slice's fixed cost.
 Until the replies' pass has a measured price, a chunk is one small step (`kPieceStep` rows), and on one pass in flight the replies' pass goes alone first, so it is measured before a chunk rides it; a class's first slice in a new band starts small (The price table, above).

@@ -419,7 +419,7 @@ void stall_holds_room(const Make& make, const bpe::Tokenizer& tok, uint32_t voca
 }
 
 // A request that cannot grow beside an older one still reading its prompt leaves the pass to that prompt, rather than the round forming nothing.
-// Capped X and uncapped Y fill 7 blocks, so Y's step waits for X's end, and the last stage sleeps until the first stall so prompts wait for replies (docs/TESTS.md, Native tests).
+// Capped X and uncapped Y fill 7 blocks, so Y's step waits for X's end, and until the first stall the last stage sleeps past a reply's step gap, so prompts wait for replies (docs/TESTS.md, Native tests).
 void stalled_beside_prompt(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
     const std::string what = "a request that cannot grow beside a prompt still read";
     const size_t pool = 7 * kBlock;
@@ -435,10 +435,12 @@ void stalled_beside_prompt(const gguf::GGUFModel& weights, const bpe::Tokenizer&
     {
         server::Scheduler sched(*model, tok, 2, 64, 1);
         std::atomic<bool> slow{true};
+        // A fifth over the gap one reply token a step allows (chunk_plan), so the replies' pass alone is over it (pipeline_layout).
+        const auto pause_ms = std::chrono::milliseconds((long)(1.2 * 1000.0 / server::kReplyTokensPerSecond));
         devices.back()->hook = [&] {
             if (!slow.load()) return;
             if (sched.stats().stalls) slow.store(false);
-            else std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            else std::this_thread::sleep_for(pause_ms);
         };
         // Both submitted before the scheduler starts, so X is admitted first.
         std::vector<std::shared_ptr<server::Request>> h;

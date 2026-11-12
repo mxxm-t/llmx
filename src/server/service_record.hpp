@@ -60,6 +60,7 @@ struct StageRun {
     double lookup_ms = 0, sum_ms = 0;
     backend::Backend* backend = nullptr;
     backend::Ticket first = 0, ticket = 0;   // the device's last ticket before the stage, and the stage's last submission there
+    std::vector<std::pair<backend::Ticket, backend::Ticket>> spans;   // a stage recorded in layer groups: each group's ticket before it and its submission, whose busy times sum to the stage's with the passes recorded between its groups left out
 };
 
 // What a stage's passes measured since start: passes, those predicted and the predictions' total and absolute error, those over their prediction, those fed in pieces, the longest stage time, the last kRecentPasses passes and the prices.
@@ -162,6 +163,11 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return stages_[s].prices.slice_ms({cls, band, rows}, step);
     }
+    // Stage s's price of a slice of `rows` rows for the service rule's layout, 0 while not yet priced (PriceTable::layout_ms).
+    double layout_ms(size_t s, size_t cls, size_t band, size_t rows) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return stages_[s].prices.layout_ms({cls, band, rows});
+    }
     // Stage s's cost line of class `cls` at band `band` (PriceTable::chunk_line).
     std::optional<infer::StageLine> chunk_line(size_t s, size_t cls, size_t band) const {
         std::lock_guard<std::mutex> lk(m_);
@@ -225,7 +231,7 @@ public:
 
 private:
     // Each stage's oldest submission seen retired, by polling every millisecond while any waits, oldest stage first, so a pass's stage before is measured before it.
-    // A stage's time runs from the latest of its recording's start, its previous pass's end and its pass's previous stage's end to that start plus its own submissions' device time, or its recording's end if later.
+    // A stage's time is its own submissions' device time or, if longer, its recording past the latest of its recording's start, its previous pass's end and its pass's previous stage's end; the poll's end where the device keeps no times.
     void loop() {
         std::unique_lock<std::mutex> lk(m_);
         while (!stop_) {
@@ -257,14 +263,20 @@ private:
         Clock::time_point from = std::max(r.begun, last_done_[r.stage]);
         const auto up = upstream_.find(r.pass);
         if (r.stage && up != upstream_.end() && up->second.first + 1 == r.stage) from = std::max(from, up->second.second);
-        const double busy = r.backend && r.first < r.ticket ? r.backend->busy_ms(r.first, r.ticket) : -1.0;
+        double busy = r.backend && r.first < r.ticket ? r.backend->busy_ms(r.first, r.ticket) : -1.0;
+        if (r.backend && r.spans.size() > 1) {
+            busy = 0;
+            for (const auto& [a, b] : r.spans) busy += a < b ? r.backend->busy_ms(a, b) : 0.0;
+        }
         if (busy >= 0) end = std::min(end, std::max(r.recorded, from + std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double, std::milli>(busy))));
         last_done_[r.stage] = end;
         if (r.stage + 1 < stages_.size()) upstream_[r.pass] = {r.stage, end};
         else if (up != upstream_.end()) upstream_.erase(up);
         // A pass abandoned before its last stage leaves its entry, which goes once passes far newer retire.
         while (!upstream_.empty() && upstream_.begin()->first + 4 * StageRecord::kRecentPasses < r.pass) upstream_.erase(upstream_.begin());
-        const double ms = std::max(0.0, std::chrono::duration<double, std::milli>(end - from).count());
+        // A pass recorded between the stage's groups retires inside it and moves that start past them, so the time is the device time of its own submissions where the device keeps times, or its recording past the start if longer.
+        const double host = std::max(0.0, std::chrono::duration<double, std::milli>(r.recorded - from).count());
+        const double ms = busy >= 0 ? std::max(busy, host) : std::max(0.0, std::chrono::duration<double, std::milli>(end - from).count());
         StageRecord& st = stages_[r.stage];
         ++st.passes;
         st.measured_ms += ms;

@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <limits>
 #include <map>
@@ -301,12 +300,13 @@ inline std::string turns_line(size_t cap, size_t need, size_t tokens, bool keeps
     return cap && cap >= need ? std::string() : short_tier_line(cap, need, tokens);
 }
 
-// A pass slot as the round sees it: whether a pass is in flight in it, that pass's place in formation order, the stages recorded, and whether its next stage is being recorded now, on a thread of that stage's (the scheduler's recorders).
+// A pass slot as the round sees it: whether a pass is in flight in it, its place in formation order, the stages recorded, whether its next stage is being recorded now on its stage's thread, and whether it carries replies.
 struct Flight {
     bool live = false;
     uint64_t formed = 0;
     size_t ran = 0;
     bool recording = false;
+    bool replies = false;
 };
 
 // What a round records and retires, by slot, before it makes room and forms passes.
@@ -315,19 +315,22 @@ struct Steps {
     std::vector<size_t> retire;                       // oldest first
 };
 
-// From the last stage down to the first, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
+// From the last stage down, each stage records the oldest replies' pass waiting for it, else the oldest pass waiting, chunk passes keeping formation order, and each pass whose last stage an earlier round recorded retires, oldest first.
+// A stage recording a chunk pass still takes a replies' pass, which its thread records between the chunk's layer groups, so a reply waits at most the groups queued ahead at each stage (docs/SERVER.md, The round).
 inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     Steps st;
     const size_t none = slots.size();
     for (size_t s = stages; s-- > 0;) {
         size_t pick = none;
-        bool busy = false;
+        bool busy = false, replies_busy = false;
         for (size_t k = 0; k < slots.size(); ++k) {
             if (!slots[k].live || slots[k].ran != s) continue;
-            if (slots[k].recording) busy = true;
-            else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
+            if (slots[k].recording) {
+                busy = true;
+                replies_busy = replies_busy || slots[k].replies;
+            } else if (pick == none || (slots[k].replies != slots[pick].replies ? slots[k].replies : slots[k].formed < slots[pick].formed)) pick = k;
         }
-        if (pick != none && !busy) st.advance.push_back({pick, s});
+        if (pick != none && (!busy || (!replies_busy && slots[pick].replies))) st.advance.push_back({pick, s});
     }
     for (size_t k = 0; k < slots.size(); ++k)
         if (slots[k].live && slots[k].ran == stages) st.retire.push_back(k);
@@ -339,8 +342,14 @@ inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
 // Only passes that fill the stages share, since then a pass retires every round and a request held back joins the next; with fewer, a request held back could wait for most of a pass, and every ready one goes.
 inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { return passes < stages ? decoders : (decoders + passes - 1) / passes; }
 
-// Whether a stage whose recording waits on its devices goes to that stage's thread, with `live` passes in flight, the stage's own among them.
-// A tensor group's does, since its recording waits at every sum; a single device's only while another pass is in flight, since a pass alone has nothing to overlap with and the hand-over would only add to its time.
+// Whether stage s has a Recorder thread with `passes` in flight: a tensor group's, a device stage past the first of a pipelined split whatever carries its hand-over, and a device stage that reads its rows.
+// Chunks and replies share such a stage, and recorded inline a chunk's stage is whole and unpaced, so a reply behind it waits for all of it, not kQueuedGroups groups (docs/SERVER.md, The round).
+inline bool stage_threaded(size_t passes, size_t s, bool grouped, bool pipelined, bool on_host, bool reads) {
+    return (passes > 1 && (grouped || (pipelined && s > 0 && !on_host))) || (!on_host && reads);
+}
+
+// Whether a stage with a thread of its own goes to that thread, with `live` passes in flight, the stage's own among them.
+// A tensor group's does, since its recording waits on the host for its lookup rows and an unserved member's residual; a single device's only while another pass is in flight, since a pass alone has nothing to overlap with.
 inline bool recorded_apart(bool grouped, size_t live) { return grouped || live > 1; }
 
 // Whether a request counts as a prompt for the service rule: before its first token, and while its cache lacks more than its last token, as after a pause.
@@ -507,6 +516,13 @@ struct PriceTable {
         const double slope = std::max(0.0, (hi->second.ms - lo->second.ms) / (r2 - r1));
         return hi->second.ms + slope * ((double)rows - r2);
     }
+    // A slice's price for the service rule's layout (pipeline_layout): its own cell, else the class's cost line at its band (chunk_line), else 0 while not yet priced; never a larger slice's price.
+    double layout_ms(const PassWork::Chunk& c) const {
+        const auto it = chunks.find({c.cls, c.band, step_of(c.rows)});
+        if (it != chunks.end()) return it->second.ms;
+        const auto line = chunk_line(c.cls, c.band);
+        return line ? std::max(0.0, line->at(c.rows)) : 0.0;
+    }
     double chunk_ms(const PassWork::Chunk& c) const {
         const size_t rows = step_of(c.rows);
         const auto same = [&](const auto& key) { return std::get<0>(key) == c.cls && std::get<1>(key) == c.band; };
@@ -670,6 +686,77 @@ inline size_t packed_passes(size_t decoders, size_t columns, size_t slots) {
 // The replies each of those passes takes.
 inline size_t packed_share(size_t decoders, size_t passes) { return passes ? (decoders + passes - 1) / passes : decoders; }
 
+// The passes of a round while replies and prompt work both wait (docs/SERVER.md, The service rule): the replies' passes, the chunk passes beside them, a chunk's stage time and its rows, and whether its lap is within the gap.
+struct Layout {
+    size_t passes = 0, chunks = 0, rows = 0;
+    double budget_ms = 0;
+    double wait_ms = 0;   // a reply's wait at each stage, which a paced chunk's stage keeps queued within (infer::stage_wait_ms)
+    bool met = false;
+};
+// The layout of `slots` passes on `stages` stages of `layers` layers each: of the slices whose reply step is within `gap_ms`, the one scoring the most chunk rows a millisecond of lap a millisecond of step, else the shortest lap.
+// `decode(w)` gives each stage's price of w decode rows, `price(n)` a slice of n rows' slowest stage price, 0 while some stage has none, `most` the largest slice, `host` each stage's replies' recording.
+template <class Decode, class Price>
+Layout pipeline_layout(size_t decoders, size_t slots, size_t stages, const std::vector<size_t>& layers, double gap_ms, Decode decode, Price price, size_t most, const std::vector<double>& host = {}) {
+    Layout best;
+    double best_score = 0, best_lap = 0;
+    const size_t S = std::max<size_t>(1, stages);
+    const bool riding = slots < 2;
+    const double k = (double)infer::kQueuedGroups;
+    for (size_t r = 1; r <= std::min(decoders, riding ? size_t(1) : slots - 1); ++r) {
+        const size_t c = riding ? 1 : std::min(S, slots - r);
+        const std::vector<double> d = decode((decoders + r - 1) / r);
+        double own = 0, slowest = 0, budget = std::numeric_limits<double>::infinity();
+        size_t fewest = SIZE_MAX;
+        for (size_t s = 0; s < d.size(); ++s) {
+            own += d[s];
+            slowest = std::max(slowest, d[s]);
+            fewest = std::min(fewest, s < layers.size() ? std::max<size_t>(1, layers[s]) : size_t(1));
+        }
+        if (own > gap_ms) continue;
+        const double allowed = infer::stage_wait_ms(gap_ms, r, own, S);
+        for (size_t s = 0; s < d.size(); ++s) {
+            const size_t L = s < layers.size() ? std::max<size_t>(1, layers[s]) : 1;
+            // The gap bounds the chunk: a group within a kth of the stage's wait past the host's recording of a replies' stage, so the queue that covers that recording and a group more fits the wait (infer::queued_groups).
+            const double h = s < host.size() ? host[s] : 0.0;
+            budget = std::min(budget, std::max(0.0, allowed - h) * std::max(1.0, (double)L / k));
+        }
+        // Riding, c is 1 and the pass itself crosses S stages, so the chunk's budget is the gap's share less the replies' pass at every stage: chunk_budget.
+        if (riding) budget = std::max(0.0, gap_ms / (double)S - (double)r * slowest);
+        // The candidates are the priced slices within the budget by the table's prices alone, so no single measure caps them: the largest first and each next a step smaller, and the smallest at its price where none is within.
+        // A slice not yet priced up to twice the largest within is tried instead, so its first pass measures it; riding, the first candidate alone.
+        size_t top = 0;
+        for (size_t n = kPieceStep; n <= most; n += kPieceStep)
+            if (const double p = price(n); p > 0 && p <= budget) top = n;
+        const size_t learn = std::min(most, std::max(2 * top, kPieceStep));
+        const bool learning = !(price(learn) > 0);
+        for (size_t rows = learning ? learn : std::max(top, kPieceStep); rows; rows = rows > kPieceStep ? rows - kPieceStep : 0) {
+            const double p = price(rows);
+            if (!learning && top && !(p > 0 && p <= budget)) continue;
+            const double ms = p > 0 ? p : budget;
+            // The reply's step is its replies' passes and the chunk's groups queued at each stage (infer::queued_groups); a chunk's stage is its own time and the reply steps that cut in, a lap S of those over c chunk passes.
+            const double group = ms / (double)std::max<size_t>(1, fewest);
+            double queued = 0;
+            for (size_t s = 0; s < S && !riding; ++s) queued += std::min(ms, (double)infer::queued_groups(s < host.size() ? host[s] : 0.0, group, allowed) * group);
+            const double step = (double)r * own + queued;
+            const double stage = riding ? ms + (double)r * slowest : ms / std::max(1e-9, 1.0 - (double)r * slowest / std::max(step, (double)r * slowest + 1e-9));
+            const double lap = (double)S * stage / (double)c;
+            // Riding, a pass is met wherever the replies' pass leaves a budget, as chunk_plan counts it.
+            const bool met = budget > 0 && (riding || step <= gap_ms);
+            // Chunk rows a millisecond of the lap for each millisecond of the reply's step: what the prompts get times what a reply gets, so a wider slice wins only while it buys the prompts more than it costs the replies, in proportion.
+            const double score = (double)(c * rows) / lap / step;
+            const bool better = met != best.met ? met : met ? score > best_score || (score == best_score && lap < best_lap) : !best.passes || lap < best_lap;
+            if (better) {
+                // A met layout's budget is its slice's stage time, so the chunks formed by it are cut to that slice (Scheduler::chunk_rows); unmet or riding, the bound itself.
+                best = {r, c, rows, riding || !met ? budget : ms, allowed, met};
+                best_score = score;
+                best_lap = lap;
+            }
+            if (riding || learning || !top) break;
+        }
+    }
+    return best;
+}
+
 // A prompt with rows left to read as the share rule sees it, the rule taking them in arrival order: its rows left and their price, how long it has been ready without rows and the stage time it has had.
 struct ReadyPrompt {
     double remaining_ms = 0, idle_ms = 0, attained_ms = 0;
@@ -750,52 +837,17 @@ inline void charge_share(const Share& s, const std::vector<ReadyPrompt>& p, std:
     credit[served] -= ms;
 }
 
-// The logits rows of a context reserved for passes, which each pass takes a run of as it is formed: after the newest run, or from row 0 when that does not fit.
-// Runs come back oldest first, a run given back early, an aborted pass's, once every run taken before it has, so a run always fits while it and the runs held want at most half the rows, and when no run is held all of them.
+// The logits rows of a context reserved for passes, a region of `per_pass` rows a pass slot, so a pass's rows are its slot's however the passes in flight retire.
 struct LogitRows {
-    struct Run {
-        size_t base, n;
-        bool back;
-    };
-    size_t size = 0;
-    std::deque<Run> runs;   // oldest first
+    size_t size = 0, per_pass = 0;
 };
 
-// The logits rows of a context for `slots` passes in flight that each want `per_pass` rows at most: twice that once passes overlap, so a run always fits, and one pass's alone.
-inline LogitRows logit_rows(size_t slots, size_t per_pass) {
-    LogitRows rows;
-    rows.size = std::min<size_t>(slots, 2) * per_pass;
-    return rows;
-}
+// The logits rows of a context for `slots` passes in flight that each want `per_pass` rows at most.
+inline LogitRows logit_rows(size_t slots, size_t per_pass) { return {slots * per_pass, per_pass}; }
 
-// The first row of a run of `n` rows, or `rows.size` when none fits; no rows take nothing and start at row 0.
-inline size_t take_rows(LogitRows& rows, size_t n) {
-    if (!n) return 0;
-    size_t base = rows.size;
-    if (rows.runs.empty()) {
-        if (n <= rows.size) base = 0;
-    } else {
-        const size_t tail = rows.runs.front().base, head = rows.runs.back().base + rows.runs.back().n;
-        if (tail < head) {
-            if (n <= rows.size - head) base = head;
-            else if (n <= tail) base = 0;
-        } else if (n <= tail - head) {
-            base = head;
-        }
-    }
-    if (base != rows.size) rows.runs.push_back({base, n, false});
-    return base;
-}
-
-// The run starting at `base` comes back; no rows give nothing back.
-inline void give_rows(LogitRows& rows, size_t base, size_t n) {
-    if (!n) return;
-    for (auto& r : rows.runs)
-        if (r.base == base && !r.back) {
-            r.back = true;
-            break;
-        }
-    while (!rows.runs.empty() && rows.runs.front().back) rows.runs.pop_front();
+// The first row of the pass in `slot` wanting `n` rows, or `rows.size` when its slot's region does not hold them.
+inline size_t take_rows(const LogitRows& rows, size_t slot, size_t n) {
+    return n <= rows.per_pass && slot * rows.per_pass + n <= rows.size ? slot * rows.per_pass : rows.size;
 }
 
 // The order waiting requests are admitted in, one line: those paused for another's growth first (`line` 0), then yielders and queued requests merged by `line`, until one does not fit.

@@ -1610,21 +1610,15 @@ public:
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
         const float* up = at(up_s);
-        // The clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both.
         if (limit > 0.0f) {
             for (const CSlice& s : {CSlice(dst_s), gate_s, up_s}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
             chunk(n, [&](size_t begin, size_t end) {
-                for (size_t i = begin; i < end; i++) {
-                    const float u = up[i] < -limit ? -limit : up[i] > limit ? limit : up[i];
-                    const float g = gate[i] > limit ? limit : gate[i];
-                    dst[i] = silu_of(g) * u;
-                }
+                for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], limit);
             });
             return;
         }
         chunk(n, [&](size_t begin, size_t end) {
-            for (size_t i = begin; i < end; i++)
-                dst[i] = silu_of(gate[i]) * up[i];
+            for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], 0.0f);
         });
     }
 
@@ -2765,7 +2759,158 @@ public:
         });
     }
 
+    // A step whose rows are all generated tokens' in three pool dispatches instead of the base's six: each output takes the dot and the order the base's ops give it, so it keeps their bits (docs/src/backends-cpu.md, moe_step).
+    void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        if (!decode_step(m, nin, rows, runs, dtype)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
+        const MoeShared* s = m.shared;
+        for (float limit : {m.limit, s ? s->limit : 0.0f})
+            if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
+        const size_t E = m.router.rows, k = m.k, ff = m.gate.rows, entries = size_mul(rows, k), sff = s ? s->gate.rows : 0;
+        const bool gated = s && s->row_gate.weight.data.buffer;
+        validate_float_slice(h, size_mul(rows, nin));
+        validate_float_slice(y, size_mul(rows, nin));
+        validate_float_slice(m.router.out, size_mul(rows, E));
+        for (CSlice o : {CSlice(m.gate.out), CSlice(m.up.out), CSlice(m.act)}) validate_float_slice(o, size_mul(entries, ff));
+        if (s) for (CSlice o : {CSlice(s->gate.out), CSlice(s->up.out), CSlice(s->act)}) validate_float_slice(o, size_mul(rows, sff));
+        if (gated) validate_float_slice(s->row_gate.out, rows);
+        if (m.zero) repeat_row(y, *m.zero, rows, nin);
+        const float* X = at(h);
+        float* Y = at(y);
+        xq8_.reset(X, rows, nin);
+        prepare_x();
+        record_matrix_path(MatrixPath::f32);
+        record_matrix_path(MatrixPath::block_int16);
+        const Mat router = mat(m.router.weight, nin, E, 1), sgate = s ? mat(s->gate.weight, nin, sff, 1) : Mat{}, sup = s ? mat(s->up.weight, nin, sff, 1) : Mat{};
+        const Mat rgate = gated ? mat(s->row_gate.weight, nin, 1, 1) : Mat{};
+        // (1) the router's rows and the shared expert's gate, up and row gate.
+        const size_t RR = 8, SR = 32, router_tasks = (E + RR - 1) / RR, shared_tasks = s ? (2 * sff + SR - 1) / SR : 0;
+        float* scores = at(m.router.out);
+        float *sg = s ? at(s->gate.out) : nullptr, *su = s ? at(s->up.out) : nullptr, *rg = gated ? at(s->row_gate.out) : nullptr;
+        tasks(router_tasks + shared_tasks + (gated ? 1 : 0), [&](size_t t) {
+            if (t < router_tasks) {
+                for (size_t o = t * RR; o < std::min(E, t * RR + RR); ++o)
+                    for (size_t c = 0; c < rows; ++c) scores[c * E + o] = row_dot(router.type, router.data + o * router.row_bytes, X + c * nin, nin);
+            } else if (t < router_tasks + shared_tasks) {
+                const size_t a = (t - router_tasks) * SR;
+                for (size_t r = a; r < std::min(2 * sff, a + SR); ++r) {
+                    const Mat& w = r < sff ? sgate : sup;
+                    const size_t o = r < sff ? r : r - sff;
+                    float* out = r < sff ? sg : su;
+                    for (size_t c = 0; c < rows; ++c) out[c * sff + o] = q8::dot(w.type, w.data + o * w.row_bytes, xq8_, c);
+                }
+            } else {
+                for (size_t c = 0; c < rows; ++c) rg[c] = row_dot(rgate.type, rgate.data, X + c * nin, nin);
+            }
+        });
+        route_experts(m.router.out, rows, E, k, m.rule, m.ids, m.weights);
+        std::vector<uint32_t> ids(entries);
+        std::memcpy(ids.data(), at(m.ids), entries * sizeof(uint32_t));
+        const float* wts = at(m.weights);
+        step_entries_.clear();
+        for (size_t i = 0; i < entries; ++i) {
+            if (ids[i] == kNoExpert) continue;
+            if (ids[i] >= E) throw std::runtime_error("backend: routed expert out of range");
+            step_entries_.push_back((uint32_t)i);
+        }
+        // (2) the routed gate and up rows of every entry with their SiLU, and the shared expert's SiLU under its row gate.
+        const Mat gate = mat(m.gate.weight, nin, ff, E), up = mat(m.up.weight, nin, ff, E), down = mat(m.down, ff, nin, E);
+        float *gout = at(m.gate.out), *uout = at(m.up.out), *act = at(m.act), *sact = s ? at(s->act) : nullptr;
+        const size_t GR = 32, per_entry = (ff + GR - 1) / GR, gate_tasks = step_entries_.size() * per_entry;
+        tasks(gate_tasks + (s ? rows : 0), [&](size_t t) {
+            if (t < gate_tasks) {
+                const size_t i = step_entries_[t / per_entry], e = ids[i], o0 = (t % per_entry) * GR;
+                for (size_t o = o0; o < std::min(ff, o0 + GR); ++o) {
+                    const size_t at_o = i * ff + o;
+                    gout[at_o] = q8::dot(gate.type, gate.data + e * gate.stride + o * gate.row_bytes, xq8_, i / k);
+                    uout[at_o] = q8::dot(up.type, up.data + e * up.stride + o * up.row_bytes, xq8_, i / k);
+                    act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit);
+                }
+                return;
+            }
+            const size_t c = t - gate_tasks;
+            for (size_t o = 0; o < sff; ++o) {
+                const size_t at_o = c * sff + o;
+                sact[at_o] = swiglu(sg[at_o], su[at_o], s->limit);
+                if (gated) sact[at_o] = sact[at_o] * sigmoid_of(rg[c]);
+            }
+        });
+        act_q8_.reset(act, entries, ff);
+        prepare_q8(act_q8_);
+        const Mat sdown = s ? mat(s->down, sff, nin, 1) : Mat{};
+        if (s) {
+            shared_q8_.reset(sact, rows, sff);
+            prepare_q8(shared_q8_);
+        }
+        // (3) each output's routed down rows summed in slot order and added, then the shared expert's down row added.
+        const size_t DR = 16;
+        tasks((nin + DR - 1) / DR, [&](size_t t) {
+            for (size_t o = t * DR; o < std::min(nin, t * DR + DR); ++o)
+                for (size_t r = 0; r < rows; ++r) {
+                    float sum = 0.0f;
+                    for (size_t j = 0; j < k; ++j) {
+                        const size_t i = r * k + j;
+                        if (ids[i] == kNoExpert) continue;
+                        const float p = q8::dot(down.type, down.data + ids[i] * down.stride + o * down.row_bytes, act_q8_, i);
+                        sum += wts[i] * p;
+                    }
+                    Y[r * nin + o] += sum;
+                    if (s) {
+                        const float p = q8::dot(sdown.type, sdown.data + o * sdown.row_bytes, shared_q8_, r);
+                        Y[r * nin + o] += p;
+                    }
+                }
+        });
+    }
+
 private:
+    // One expert stack's storage: `count` matrices of `rows` rows of `nin` values.
+    struct Mat {
+        uint32_t type = 0;
+        const uint8_t* data = nullptr;
+        size_t row_bytes = 0, stride = 0;
+    };
+    static Mat mat(const WeightView& w, size_t nin, size_t rows, size_t count) {
+        Mat m{w.type, nullptr, quant::row_bytes(w.type, nin), 0};
+        m.stride = size_mul(rows, m.row_bytes);
+        span(*w.data.buffer, w.data.offset * sizeof(float), size_mul(count, m.stride));
+        m.data = (const uint8_t*)bytes_at(w.data);
+        return m;
+    }
+
+    // Whether moe_step takes the three dispatches: generated tokens' rows alone, an F32 router and row gate, and every other product on the decode dots.
+    bool decode_step(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const {
+        if (dtype != Dtype::f16 || !rows || !m.k) return false;
+        bool decode = true;
+        each_run(rows, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
+        const auto f32 = [](const WeightView& w) { return w.data.buffer && !w.scales.buffer && w.type == quant::GGML_TYPE_F32; };
+        const auto dots = [&](const WeightView& w, size_t width) { return w.data.buffer && !w.scales.buffer && quantized_dots(w.type, width, dtype); };
+        if (!decode || !f32(m.router.weight) || m.up.rows != m.gate.rows) return false;
+        if (!dots(m.gate.weight, nin) || !dots(m.up.weight, nin) || !dots(m.down, m.gate.rows)) return false;
+        const MoeShared* s = m.shared;
+        if (!s) return true;
+        if (s->row_gate.weight.data.buffer && (!f32(s->row_gate.weight) || s->row_gate.rows != 1)) return false;
+        return s->up.rows == s->gate.rows && dots(s->gate.weight, nin) && dots(s->up.weight, nin) && dots(s->down, s->gate.rows);
+    }
+
+    // SwiGLU of one element, the clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both; silu_mul and moe_step take it.
+    static float swiglu(float g, float u, float limit) {
+        if (limit > 0.0f) {
+            u = u < -limit ? -limit : u > limit ? limit : u;
+            g = g > limit ? limit : g;
+        }
+        return silu_of(g) * u;
+    }
+
+    // fn(0..n-1) over the pool, each task taken by the next free participant.
+    template <typename Fn>
+    void tasks(size_t n, const Fn& fn) {
+        if (!n) return;
+        std::atomic<size_t> next{0};
+        run_parallel([&](int) {
+            for (size_t t = next.fetch_add(1); t < n; t = next.fetch_add(1)) fn(t);
+        });
+    }
+
     // Validate the companion span and shape before any output is written.
     static const float* weight_scales(WeightView weight, size_t experts = 1) {
         if (!weight.scales.buffer) {
@@ -2836,11 +2981,12 @@ private:
     bool quantized_dots(uint32_t type, size_t nin, Dtype dtype) const { return dtype == Dtype::f16 && q8::has_dot(type) && nin % 32 == 0; }
 
     // The quantized activations for a type, the rows split across the pool when there are enough of them.
-    void prepare_x() {
-        xq8_.prepare([this](size_t rows, const auto& fn) {
+    void prepare_x() { prepare_q8(xq8_); }
+    void prepare_q8(q8::Activations& a) {
+        a.prepare([this, &a](size_t rows, const auto& fn) {
             const size_t nt = (size_t)std::max(threads_, 1);
             held();
-            if (nt <= 1 || rows * xq8_.nin < nt * 16384) { fn(size_t(0), rows); return; }
+            if (nt <= 1 || rows * a.nin < nt * 16384) { fn(size_t(0), rows); return; }
             const size_t chunk = (rows + nt - 1) / nt;
             run_parallel([&](int w) {
                 const size_t r0 = std::min(rows, (size_t)w * chunk), r1 = std::min(rows, r0 + chunk);
@@ -2982,6 +3128,8 @@ private:
     std::vector<float*> prompt_outs_;   // where each prompt column's products go
     q8::PromptPairs prompt_pairs_;
     q8::Activations xq8_;      // the quantized activations of the last decode call
+    q8::Activations act_q8_, shared_q8_;   // moe_step's routed and shared SiLU outputs
+    std::vector<uint32_t> step_entries_;   // moe_step's entries with an expert
     // Resolve a slice once per op so the kernels receive plain float arrays.
     static float* at(Slice s) {
         if (!s.buffer) throw std::runtime_error("backend: operand without storage");

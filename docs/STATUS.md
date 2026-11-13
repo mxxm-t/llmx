@@ -1,5 +1,40 @@
 # llmx - Development Status
 
+## CPU decode MoE step in three pool dispatches (2026-11-14, MOEOFF2 and MOEOFF3, branch moe/cpu-decode-step on main 845b270c1)
+
+**Goal:** experts kept on the CPU beside a device (`--n-cpu-moe`, `--cpu-moe`) cost less per generated token: the base `Backend::moe_step` waits on the CPU worker pool about six times a layer (router, routed gate, routed up, routed down, shared gate and up, shared down), each wait for the slowest worker, and on Qwen3.6-35B-A3B Q4_K_M the CPU experts are most of a CPU layer's decode time.
+
+**Done:**
+- `CpuBackend::moe_step` overrides the existing virtual, no new seam: a step whose rows are all generated tokens', with an F32 router and row gate and every other product on the decode dots under the default activations (`decode_step`), runs in three dispatches; anything else takes the base.
+  (1) the router's rows, the shared expert's gate, up and row gate; routing on the caller; (2) the routed gate and up rows with their SiLU, and the shared SiLU under its row gate; both SiLU outputs quantized on the caller; (3) each output's routed down products summed in slot order and added, then the shared down product added.
+  Each product takes the dot the base's ops give it (`row_dot` for F32, `q8::dot` otherwise) in the same order, so the outputs keep main's bits; tasks go to workers as they free up.
+- Microbenchmark (`CpuBackend::moe_step` at the model's shapes, random weights, `--threads 8`, 400 iterations a run, runs interleaved, host load average 23 to 39 on 16 CPUs): checksums equal to main's at rows 1 and 4.
+
+| rows | main median of run medians | branch | branch/main, paired median | branch faster |
+|---|---:|---:|---:|---:|
+| 1 (24 pairs) | 3.088 ms | 2.140 ms | 0.753 | 22/24 |
+| 4 (12 pairs) | 13.610 ms | 12.260 ms | 0.859 | 9/12 |
+
+- Model cell, Qwen3.6-35B-A3B Q4_K_M, one MI50 (renderD136), Vulkan, `llmx bench --threads 8 --p 512 --n 64 --r 3 --n-cpu-moe 20`, ABAB in two bookings, both binaries built the same way from clean trees (main 845b270c1, branch ebcb4c7e4); every run had 7.6 to 13.1 s of host run-queue wait (contended, kept), the main runs the more (9.9 and 13.1 s against 8.1 and 7.6):
+
+| tok/s | main | branch | change |
+|---|---:|---:|---:|
+| tg64 | 23.40, 20.45 | 28.06, 27.69 | +27% |
+| pp512 | 132.66, 132.98 | 131.83, 130.12 | -1.4% (prompt rows do not take the override) |
+
+- Identity against main on the same card and binaries: `logits --per-token` over a 32-token prompt (every position through decode steps, top 20) SAME, sha256 c958d4cee52f4224; `generate --temp 0 -n 64` text SAME, sha256 4872ddc3976aa673 (tg 26.15 tok/s against 19.21 there).
+- CTest on the CPU build: 81 of 81 pass; the suite's `moe`, `docs` and `dead-code` components pass (`moe`'s fixtures are F32 and Q8_0, which take the base step).
+- `backend-group` holds the decode step to the base step's bits (docs/TESTS.md, backend-group): Q4_K and Q6_K, MXFP4 and mixed experts, with and without a shared expert and its row gate, a SwiGLU limit, DeepSeek's sqrt_softplus routing with a bias, 1 to 4 decode rows on 1 and 4 threads, and the steps it leaves to the base (prompt, mixed and unmarked runs, f32, a quantized router or row gate, F32 or Q8_0 experts, a Q8_0 shared expert), with a count of `matmul_experts` calls telling which path each took; its existing `check_moe_step` already reached the decode step on the k35b shape.
+  A mutant that halves the row gate's product or drops the gate clamp fails it.
+  That target is built with `-ffp-contract=off` on GNU and Clang, so on Linux it holds the decode step at a contraction the product does not use; the MSVC CTest of the hosted run and the model identity hold the product's flags.
+- `silu_mul` takes its value from `swiglu`, so the clamp has one owner.
+
+**Left:** landing gates at the head that lands: byte identity against main with `--device cpu` alone on a MoE model and on a device, one identity on a model with an ungated shared expert and a limit (DeepSeek-V4.1-Flash MXFP4 with `--n-cpu-moe`), the suite on a device and the hosted run (its Windows CTest is the MSVC contraction arm); the timing round is the one above.
+Q8_0 experts and Q8_0 shared experts take the base step, since Q8_0 has no packed dot here.
+Then D1 (double-buffered prompt streaming) and D2 of the MoE offload design.
+
+**Gotchas:** the microbenchmark's checksum depends on its iteration count (main gives 215429551991 at rows 1 and 211559770591 at rows 4 with 400 iterations, 112121101823 at rows 4 with 200); the host was heavily shared, so only interleaved, paired figures mean anything.
+
 ## bench sizes its KV pool by its run's histories (2026-11-13 to 2026-11-14, DSDEV167 then DSDEV168, branch dsdev167/bench-kv on main ad437ef47; lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Goal:** `bench --model` with a drafter places where the same model serves, since its pool is what its sequences take rather than the model's context.

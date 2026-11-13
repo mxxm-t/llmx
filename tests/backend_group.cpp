@@ -472,7 +472,7 @@ static size_t check_row_classes(backend::CpuBackend& cpu) {
                               });
 }
 
-// The routed step's base op (Backend::moe_step), which the CPU runs, against the calls the three architectures made before it, written out in the test: each type combination, decode rows and a prompt, every output bit for bit.
+// The CPU's routed step (moe_step, its decode step or the base op) against the calls the three architectures made before it, written out in the test: each type combination, decode rows and a prompt, every output bit for bit.
 static size_t check_moe_step(backend::CpuBackend& cpu, const moe::Matrix& matrix) {
     const moe::Shape shapes[] = {{256, 16, 4, 64, moe::kFlash, true}, {256, 16, 4, 256, moe::k35b, false}, {256, 16, 4, 64, moe::k30b, false}};
     size_t values = 0;
@@ -488,6 +488,65 @@ static size_t check_moe_step(backend::CpuBackend& cpu, const moe::Matrix& matrix
                     require(n != 0, ("the routed step's " + what + " differ from the calls it replaced").c_str());
                     values += n;
                 }
+        }
+    }
+    return values;
+}
+
+// The CPU backend counting its routed products through matmul_experts, which the base step calls and CpuBackend's decode step does not.
+struct StepWitness : backend::CpuBackend {
+    size_t routed = 0;
+    void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin, size_t rows, const Routing& routing,
+                        backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
+        ++routed;
+        backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
+    }
+};
+
+// CpuBackend::moe_step's decode step against the base step (Backend::moe_step), every output bit for bit, on 1 and 4 threads and 1 to 4 rows.
+// Steps of decode rows on the decode dots must take it and every other step the base, which the witness's routed products tell apart.
+static size_t check_moe_decode_step(const moe::Matrix& matrix) {
+    const uint32_t f32 = quant::GGML_TYPE_F32, q4k = quant::GGML_TYPE_Q4_K, q6k = quant::GGML_TYPE_Q6_K, q8 = quant::GGML_TYPE_Q8_0, mx = quant::GGML_TYPE_MXFP4;
+    struct Case { moe::Shape s; bool decode; const char* what; };
+    const Case cases[] = {
+        {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false}, true, "Q4_K and Q6_K with a gated shared expert"},
+        {{256, 16, 4, 256, {q4k, q6k, 0, 0}, true}, true, "Q4_K and Q6_K without a shared expert"},
+        {{256, 16, 4, 64, {mx, mx, mx, mx}, false}, true, "MXFP4 with a gated shared expert"},
+        {{256, 16, 4, 256, {q6k, q4k, q4k, mx}, true, 7.0f}, true, "mixed types under a SwiGLU limit"},
+        {{256, 16, 4, 256, {q4k, q6k, q6k, q4k}, false, 0.0f, f32, f32, false}, true, "a shared expert without a row gate"},
+        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, true}, true, "DeepSeek's step: MXFP4, an ungated shared expert, a limit and sqrt_softplus routing with a bias"},
+        {{256, 16, 4, 64, {mx, mx, 0, 0}, false, 0.0f, q8}, false, "a quantized router"},
+        {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false, 0.0f, f32, q8}, false, "a quantized row gate"},
+        {{256, 16, 4, 64, {f32, f32, f32, f32}, false}, false, "F32 experts"},
+        {{256, 16, 4, 64, {q8, q8, 0, 0}, true}, false, "Q8_0 experts, which have no packed dot"},
+        {{256, 16, 4, 256, {q4k, q6k, q8, q8}, false}, false, "a Q8_0 shared expert"},
+    };
+    StepWitness cpu;
+    size_t values = 0;
+    for (const Case& c : cases) {
+        const moe::Weights w = moe::weights(cpu, c.s, matrix, 91);
+        for (int threads : {1, 4}) {
+            cpu.set_threads(threads);
+            for (size_t rows = 1; rows <= 4; ++rows) {
+                const std::vector<float> h = moe::inputs(rows, c.s.E, 92), y0 = moe::residual(rows, c.s.E, 93);
+                const std::vector<backend::RowRun> none, prompt = {{rows, 512}}, mixed = {{1, 1}, {rows, 512}};
+                std::vector<std::pair<const std::vector<backend::RowRun>*, bool>> runs = {{&prompt, false}};
+                runs.push_back({&none, rows == 1});
+                const std::vector<backend::RowRun> decode = moe::decode_runs(rows);
+                runs.push_back({&decode, true});
+                if (rows > 1) runs.push_back({&mixed, false});
+                for (const auto& [r, decode_rows] : runs)
+                    for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16}) {
+                        cpu.routed = 0;
+                        const moe::Out op = moe::run(cpu, w, h, y0, rows, *r, dtype, moe::How::op);
+                        const bool took = cpu.routed == 0, want = c.decode && decode_rows && dtype == backend::Dtype::f16;
+                        require(took == want, (std::string("the CPU's routed step on ") + c.what + (want ? " left decode rows to the base" : " took the decode step")).c_str());
+                        std::string what;
+                        const size_t n = moe::same(op, moe::run(cpu, w, h, y0, rows, *r, dtype, moe::How::base), what);
+                        require(n != 0, (std::string("the CPU's routed step on ") + c.what + " gave other " + what + " than the base step").c_str());
+                        values += n;
+                    }
+            }
         }
     }
     return values;
@@ -624,6 +683,7 @@ int main() {
             return std::vector<uint8_t>(m.data(), m.data() + m.bytes());
         };
         const size_t steps = check_moe_step(cpu, matrix), step_classes = moe::check_row_classes(cpu, matrix);
+        const size_t decode_steps = check_moe_decode_step(matrix);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -670,7 +730,7 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << busy << " busy times; "
-                  << steps << " routed step outputs equal to the calls it replaced; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
+                  << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

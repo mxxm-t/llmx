@@ -1,5 +1,65 @@
 # llmx - Development Status
 
+## ROCm one-shot sum signalled by its data (2026-11-12 to 2026-11-13, QDEV10, QDEV15 and QDEV18, then QDEV25, branch qdev10/lamport on main c847fa762, rebased onto main e2615307b by QDEV25; QDEV7's proposal of 15:25 with F2DEV's reviews of 17:31 and 20:58, and of 2026-11-13 07:00 for the rebase; lands by fast-forward on main e2615307b)
+
+**Goal:** a ROCm tensor group's fast one-shot sum waits on its peers' values themselves rather than a flag, a fence and two meetings, so a decode-sized sum costs the bytes on the link and one latency; every element keeps `((p0 + p1) + ...) + p(W-1)` and then `r + t`, main's bits; Qwen3.8-27B Q8_0 1x4 and 2x2 decode toward 100 tok/s.
+
+**Done:**
+- `llmx_group_sum`'s fast path (`kernels/f32.hip`): each member writes its partial rows, a value of the bits 0x7f800001 sent as its quiet twin 0x7fc00001, into its slot of every peer's staging, then takes each peer's unit of four floats from its own slots once no float of it holds 0x7f800001 (a float at a time in a tail), adds `((p0 + p1) + ...) + p(W-1)` and then `r + t`, and arms the unit again; no flag, fence or meeting, the abort, cancel and probe-deadline checks every 64 spins of a thread or once another thread of its block gave up, a sum that gave up leaving NaN as before.
+- Two parity halves of the staging, armed at join by `llmx_group_arm` on each member's stream before the members sync; the host flips the half at each fast one-shot and passes it as flag 4, so a member writes a half only once every peer has finished the sum before last, and two sums may be in flight.
+  Two shots and the chain take the half the next one-shot takes and arm again the one-shot's slots they read before their last meeting, with a system fence before it (`group_formed`); the conservative path pulls into the first half, and a member that gave up leaves its slots unarmed, the group conservative for good.
+- `group_probe` first runs `RocmCollective::add_check` on every member: `llmx_group_add_check` adds QDEV7's 13 patterns (both signs of signalling and quiet NaNs with payloads, the armed bits and their twin, both infinities, both zeros, a denormal, a normal), all 2197 triples as a + b, (a + b) + c and c + (a + b), raw and sanitized; a device whose sums differ sends the group by pulls, the counts named on stderr.
+- `collective_bytes_per_row` counts `2 W + 1` rows of the width (the partial and two halves of W slots), so the fit and the scratch reserve see the doubled staging: Qwen3.8-27B 1x4's 512 rows of 5120 take 84 MB a card in place of 42.
+- Tests: `backend-rocm`'s `sentinel_sums` holds a fast collective whose forms follow one another by size (`rocm_collective` with a forms map) to a conservative one on the same cards over 1800 sums, two thirds of the values the armed bits, their twin, NaN payloads, infinities, zeros and a denormal, at tails, unaligned residuals and two sums in flight, about 1100 of them one-shots, every bit but a NaN's payload (F2DEV's ruling of 18:27); `backend-rocm collective` runs only the collective's checks; `backend-rocm-sixteen` arms the areas and flips the half; the epochs' wrap is checked in two shots, whose meetings still count epochs.
+- Focused results at 0d69af597 (base e43d5f390): `backend-rocm-sixteen` passes on one MI50 (16 ranks, the one-shot at 47 VGPRs, 18 before), `backend-rocm` on renderD128-131 (all but the chain's NaN payloads, since ruled no contract), `backend-rocm collective` on renderD136-137; docs and dead-code pass; Qwen3.8-27B Q8_0 1x4 int8 logits of 1000 positions and 64 greedy ids SAME as qdev4/rs-ag on renderD128-131.
+  The join's timing there picks the one-shot from 40960 floats down (0.167 ms against 0.192 for two shots), where qdev4/rs-ag's did from 5120 (0.105 against 0.123); at the reserved 2621440 floats the one-shot takes 5.6 against 4.5 ms, which the chain's 2.7 replaces.
+
+- Landing gates at 210d19de7 (binary b109603d3, base c847fa762 which is main), Qwen3.8-27B Q8_0 int8 unless named, on X = renderD128-131 and Y = renderD134-137 of the MI50 rig:
+  - Identity against main (224fb760e): logits of 1000 positions and 64 greedy ids SAME at 1x4 and 2x2 on X and on Y; DeepSeek-V4.1-Flash-1017 MXFP4 5x2 on ten cards, 1400 positions and 64 greedy ids SAME; the 16k check (`tools/long_context_check.py`, 1x4, 512 generated tokens) gives sha256 ba712619141243e7 on the branch and on main, repeatable, top choice 509/512 on its own tokens.
+  - CTest passes on two MI50s and docs and dead-code pass; the suite on rocm:0,1 at width 2 passes every component it runs there, in four runs (the first two timed out and their unrun components were rerun), and the baseline fixtures, not on disk, skip.
+  - tg32 and pp512, `llmx bench --p 512 --n 32 --r 3`, tok/s, ABAB, main / qdev4/rs-ag / branch; rounds with more than 20 s of host run-queue wait are marked c and kept:
+
+| Cell | main | rs-ag | branch |
+|---|---|---|---|
+| X 1x4 tg32, rounds 1 2 | 57.2 56.8 | 57.9 58.3 | 60.2 59.8 |
+| X 1x4 tg32, rounds 3 4 (c) | 37.6 52.2 | 47.7 48.8 | 42.1 45.4 |
+| X 1x4 pp512 | 557 | 720 | 723 |
+| X 2x2 tg32, rounds 1 2 | 38.3 38.3 | 38.9 38.9 | 38.6 38.8 |
+| Y 1x4 tg32, rounds 1 2 (round 2 c) | 53.0 53.0 | 51.7 47.8 | 52.7 46.5 |
+| Y 1x4 tg32, rounds 3 4 | 52.8 53.2 | 53.7 53.9 | 58.4 58.4 |
+| Y 1x4 pp512 | 299 | 484 | 478 |
+| Y 2x2 tg32, rounds 1 2 (c) | 35.0 34.4 | 35.2 36.7 | 34.8 37.2 |
+
+  - The clean 1x4 rounds give the branch +3.4% on X and +8.6% on Y over rs-ag, +5.4% and +10% over main; 2x2 and prompts stay within noise.
+  - One sum of 5120 floats (scratch bench, last member's kernel under rocprofv3, us, rs-ag / branch): X W4 14.6 / 12.2, Y W4 22.1 / 16.3, X W2 11.0 / 6.9, Y W2 12.3 / 8.2; two shots unchanged.
+    Launched from the host and piped 16 a time: X W4 28.0 / 19.4 us, Y W4 33.4 / 21.8, X W2 13.6 / 11.2, Y W2 14.4 / 11.9; the single-sum figures include the host's serial launch of W kernels.
+  - Memory: 84 MB a card of staging at 512 rows in place of 42.
+- Rebase onto main e2615307b (member order 29a8d056e, exact scratch c4acc44d9, the replies' arena e2615307b), as F2DEV's review of 2026-11-13 07:00 asks: the wrap takes the parity half like the chain, and its back blocks arm again `in`, member rank - 1's slot, which the one-shot reads too; the launch flags are replace 1, fast 2, the half at 4 and the wrap 8; `sixteen_ranks` runs the four forms and flips the half after the one-shot alone; `sentinel_sums` takes the wrap from 512 floats; backends-rocm.md names `memory_kept` for the signal block.
+- Gates at the rebased head (binary 0.1.0+g2d636b641608, main 0.1.0+ge2615307b204, Qwen3.8-27B Q8_0 int8, Y = renderD134-137):
+  - `backend-rocm collective` on two cards and `backend-rocm-sixteen` pass, 1119 of the 1800 sums one-shots; `backend-rocm` on four cards passes; docs and dead-code pass.
+  - Identity against main e2615307b at 1x4: logits of 1000 positions and 64 greedy ids SAME.
+  - `llmx bench --p 2048 --n 32 --r 3`, tok/s, two rounds main then branch and two branch then main under one card lock; the hostwait window covers the timed section after the load, 0 ms in every cell, none contended:
+
+| Cell | main e2615307b | branch | change |
+|---|---|---|---|
+| Y 1x4 tg32, rounds 1 to 4 | 55.6 55.2 52.3 55.0 | 58.0 57.8 57.4 57.3 | +5.6% |
+| Y 1x4 pp2048 | 640.7 | 642.4 | +0.3% |
+| Y 2x2 tg32, rounds 1 to 4 | 37.8 38.0 38.0 38.1 | 38.6 38.1 38.3 38.3 | +0.9% |
+| Y 2x2 pp2048 | 833.5 | 827.9 | -0.7% |
+
+  - The join picks the one-shot for a decode row on the branch (it wins from 10240 floats down at 1x4) where main takes two shots at 5120; at 2x2 the branch's one-shot wins up to 163840 floats against main's 81920, and its prompt sums in that band cost the 0.7% of pp2048, taken for the decode gain.
+
+**Left:**
+- The form picker takes the one-shot at 2x2 up to 163840 floats, where Qwen3.8-27B Q8_0 2x2 pp2048 pays 0.7% (833.5 to 827.9 tok/s) for the decode gain; timing the forms at the pass's shape rather than on idle in-place sums is the follow-up (F2DEV's review of 2026-11-13 14:25).
+- The Radeon VII Windows check and the CPU identity do not apply: `rocm/` builds only with `LLMX_HAS_BACKEND_ROCM` on Linux, and no file the Windows or CPU build compiles changed.
+- A two-shot form that signals with its data is its own step (TENSOR-SPLIT.md, 4.10 Out of scope); the larger sums keep the in-kernel meetings.
+- Open: the scratch bench on renderD128-131 aborted once with hipErrorIllegalAddress on main's and the branch's builds alike, right after the previous holder left the cards; its rerun passed and the cause is unknown.
+
+**Gotchas:**
+- Two shots and the chain write real values into slots the one-shot reads as signals, so each re-arms the slots it read before its last meeting, and takes the parity half the next one-shot will take, which every peer has finished reading.
+- The parity is the host's count of fast one-shot sums on the collective, the same for every member and block, since sums of different block counts would otherwise give one unit two parities.
+- The probe's add check is stricter than the sums' contract: a device that picks another NaN of two NaN inputs would send its group by pulls, although the tests hold sums to NaN-ness alone; gfx906 passes it, and a device that fails it should relax the check to NaN-ness rather than lose the fast path.
+
 ## The fit counts a server's replies' arena (2026-11-13, DSDEV162, branch dsdev162/reply-arena-fit)
 
 - **Goal:** a server that places runs its passes, so no device allocation fails after the fit accepted the placement.
@@ -131,7 +191,7 @@ The renderD128-131 16384 cells and the Flash-Next load ran under hostwait of 14 
   Before it the timing began at 513 rows, every timed size sat above one row's sum and a one-row sum always took the one-shot form; two shots decode about 3.5% faster in the model than the one-shot (renderD134-137 tg32: one-shot 54.2 on the unfixed branch, two shots 56.1 on the fix, the larger figure being the better), and the order itself costs decode nothing (unfixed branch 54.2 against 53.1 in the listed order, both one-shot).
 
 **Left:**
-- Merge: the hosted run, and the Lamport rule of F2DEV's 20:58 note (`half_at` everywhere, flip nothing, re-arm slots before the done meeting, a forced wrap in `sentinel_sums`) if this lands after qdev10/lamport.
+- Merge: the hosted run.
 - qdev4/rs-ag follow-up: its own one-row form pick has the same gap, about 3.5% of tg32 on 27B 1x4.
 - Follow-up, not here (F2DEV item 6): which cards form which group in a staged split, a question over the user's listed grouping.
 

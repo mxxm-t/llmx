@@ -3055,6 +3055,98 @@ void handoffs() {
     std::cout << "backend-rocm: a handoff from device 0 reaches " << d.size() - 1 << " readers behind device-side waits, " << d.size() << " ROCm backends alive\n";
 }
 
+// The fast collective against the conservative one on the same cards, over partials of the armed bits, their quiet twin, NaN payloads, infinities, zeros and a denormal, every bit but a NaN's payload (docs/TESTS.md, backend-rocm).
+// The forms follow one another by size, at tails and an unaligned residual, two sums in flight, and 1800 sums arm each parity half again hundreds of times.
+void sentinel_sums() {
+    HipFn& f = hip();
+    std::vector<BackendPtr> d = rocm_devices(4);
+    if (d.size() < 2) return;
+    static const uint32_t bits[] = {0x7f800001u, 0x7fc00001u, 0xff800001u, 0xffc00001u, 0x7fc00000u, 0x7f812345u, 0x7fd12345u, 0x7f800000u, 0xff800000u, 0x80000000u, 0x0u, 0x00000001u};
+    const size_t cap = 8 * 1031, sizes[] = {1, 3, 5, 63, 64, 97, 255, 256, 1023, 1024, 1027, cap};
+    const std::map<size_t, RocmSumForm> forms = {{64, RocmSumForm::two_shots}, {256, RocmSumForm::chain}, {512, RocmSumForm::wrap}, {1024, RocmSumForm::one_shot}};
+    for (size_t W = 2; W <= d.size(); ++W) {
+        const std::vector<Backend*> group = raw(d, W);
+        std::unique_ptr<Collective> fast = rocm_collective(group, cap, 1, forms);
+        std::vector<BackendPtr> e = rocm_devices(W);
+        const auto can = f.hipDeviceCanAccessPeer;
+        f.hipDeviceCanAccessPeer = no_peer;
+        std::unique_ptr<Collective> slow = e[0]->join(raw(e, W), cap, 1);
+        f.hipDeviceCanAccessPeer = can;
+        sum_calls(*slow, W, false);
+        const std::vector<Backend*> sides[2] = {group, raw(e, W)};
+        Collective* arms[2] = {fast.get(), slow.get()};
+        std::vector<BufferPtr> x[2][2];   // per arm, per sum in flight, per member
+        for (size_t a = 0; a < 2; ++a)
+            for (size_t s = 0; s < 2; ++s)
+                for (size_t m = 0; m < W; ++m) x[a][s].push_back(sides[a][m]->alloc((cap + 7) * sizeof(float)));
+        uint32_t seed = 7001 + (uint32_t)W;
+        auto value = [&] {
+            seed = seed * 1664525u + 1013904223u;
+            const uint32_t r = seed >> 8;
+            float v;
+            if (r % 3) {
+                std::memcpy(&v, &bits[r % (sizeof(bits) / sizeof(bits[0]))], sizeof(v));
+            } else {
+                v = float(int(r % 4001) - 2000) / 16.0f;
+            }
+            return v;
+        };
+        size_t one_shots = 0;
+        for (size_t it = 0; it < 1800; ++it) {
+            const size_t n = sizes[(it * 7 + it / 12) % (sizeof(sizes) / sizeof(sizes[0]))], offset = it % 2 ? 7 : 0;
+            const bool in_place = it % 3 == 0, twice = !in_place && it % 10 == 1;
+            auto it_form = forms.upper_bound(n);
+            one_shots += (it_form == forms.begin() || std::prev(it_form)->second == RocmSumForm::one_shot) ? (twice ? 2 : 1) : 0;
+            std::vector<std::vector<float>> partial[2];
+            std::vector<float> start(n);
+            for (size_t s = 0; s < (twice ? 2u : 1u); ++s) {
+                partial[s].assign(W, std::vector<float>(n));
+                for (size_t m = 0; m < W; ++m)
+                    for (size_t i = 0; i < n; ++i) partial[s][m][i] = value();
+            }
+            for (size_t i = 0; i < n; ++i) start[i] = value();
+            for (size_t a = 0; a < 2; ++a) {
+                Collective& c = *arms[a];
+                const std::vector<Backend*>& g = sides[a];
+                for (size_t s = 0; s < (twice ? 2u : 1u); ++s) {
+                    std::vector<Slice> xs;
+                    for (size_t m = 0; m < W; ++m) {
+                        const Slice p = c.partial(m);
+                        g[m]->write(*p.buffer, p.offset * sizeof(float), partial[s][m].data(), n * sizeof(float));
+                        if (!in_place) g[m]->write(*x[a][s][m], offset * sizeof(float), start.data(), n * sizeof(float));
+                        xs.push_back({x[a][s][m].get(), offset});
+                    }
+                    if (in_place) c.sum_in_place(n, 1);
+                    else c.sum_into(xs, n, 1);
+                }
+            }
+            for (size_t s = 0; s < (twice ? 2u : 1u); ++s)
+                for (size_t m = 0; m < W; ++m) {
+                    std::vector<float> got[2];
+                    for (size_t a = 0; a < 2; ++a) {
+                        sides[a][m]->submit();
+                        got[a] = in_place ? read(*sides[a][m], *arms[a]->partial(m).buffer, n) : read(*sides[a][m], *x[a][s][m], n, offset);
+                    }
+                    size_t bad = n;
+                    for (size_t i = 0; i < n && bad == n; ++i) {
+                        uint32_t u[2];
+                        std::memcpy(&u[0], &got[0][i], 4);
+                        std::memcpy(&u[1], &got[1][i], 4);
+                        if (u[0] != u[1] && !(std::isnan(got[0][i]) && std::isnan(got[1][i]))) {
+                            bad = i;
+                            std::fprintf(stderr, "  float %zu of %zu: fast %08x, conservative %08x\n", i, n, u[0], u[1]);
+                        }
+                    }
+                    require(bad == n, "sum " + std::to_string(it) + " of " + std::to_string(n) + " floats over " + std::to_string(W) + " devices: member " + std::to_string(m) +
+                                          "'s fast sum is not the conservative path's");
+                }
+        }
+        sum_calls(*fast, W, true);
+        sums_in_flight(group, *fast, 1, seed);
+        std::cout << "backend-rocm: " << W << " devices, 1800 sums of armed bits, NaN payloads, infinities and zeros, " << one_shots << " in the one-shot, give the conservative path's bits\n";
+    }
+}
+
 // The collective over 2 up to kMaxTensorWidth devices where they open, fast and conservative, a sum that gives up and the epochs' wrap (docs/TESTS.md, backend-rocm).
 void collective() {
     HipFn& f = hip();
@@ -3147,7 +3239,7 @@ void collective() {
         // A launch that fails while join times the forms: join does not throw, the group is conservative from then on and its sums are exact.
         std::vector<BackendPtr> e = rocm_devices(2);
         group_calls.launches = 0;
-        group_calls.fail = 3;   // the probe's two launches come first
+        group_calls.fail = 9;   // the probe's add checks, armings and sum, then the collective's armings, two launches each, come first
         f.hipModuleLaunchKernel = counted_launch;
         std::unique_ptr<Collective> c;
         require(!throws([&] { c = e[0]->join(raw(e, 2), 64, 97); }), "a launch that failed while join timed the forms threw out of join");
@@ -3186,11 +3278,11 @@ void collective() {
         std::cout << "backend-rocm: a group sum whose peer launched 2.5 s late stays fast and exact\n";
     }
     {
-        // Epochs seeded below the 32-bit wrap: twelve sums cross it, skipping 0, each exact.
+        // Epochs seeded below the 32-bit wrap: twelve sums in two shots, whose meetings count them, cross it, skipping 0, each exact.
         std::vector<BackendPtr> e = rocm_devices(2);
         group_calls.areas.clear();
         f.hipExtMallocWithFlags = kept_uncached;
-        std::unique_ptr<Collective> c = e[0]->join(raw(e, 2), 64, 97);
+        std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, RocmSumForm::two_shots);
         f.hipExtMallocWithFlags = real_uncached;
         require(group_calls.areas.size() >= 2, "a fast collective made no uncached areas");
         if (group_calls.areas.size() < 2) return;
@@ -4173,10 +4265,11 @@ void sixteen_ranks() {
     const size_t W = kMaxTensorWidth, n = 3 * 4 * 4096 + 5, cap = (n + 3) / 4 * 4, signal = 8192, units = (n + 3) / 4;
     hip_check(f.hipSetDevice(0), "hipSetDevice");
     hipModule_t module = nullptr;
-    hipFunction_t sums[3] = {};   // the wrap is the chain's kernel with flag 8
+    hipFunction_t sums[3] = {}, arm = nullptr;   // the wrap is the chain's kernel with flag 8
     hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
     const char* const kernels[] = {"llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain"};
     for (int k = 0; k < 3; ++k) hip_check(f.hipModuleGetFunction(&sums[k], module, kernels[k]), "hipModuleGetFunction");
+    hip_check(f.hipModuleGetFunction(&arm, module, "llmx_group_arm"), "hipModuleGetFunction");
     int khz = 0;
     hip_check(f.hipDeviceGetAttribute(&khz, hipDeviceAttributeWallClockRate, 0), "hipDeviceGetAttribute");
     unsigned long long timeout = (unsigned long long)khz * 1000, tick = (unsigned long long)khz;
@@ -4190,11 +4283,16 @@ void sixteen_ranks() {
     *fault = 0;
     *cancel = 0;
     for (size_t k = 0; k < W; ++k) {
-        hip_check(f.hipExtMallocWithFlags(&area[k], signal + W * cap * sizeof(float), hipDeviceMallocUncached), "hipExtMallocWithFlags");
+        // Two parity halves of slots, armed, as the collective makes them at join.
+        hip_check(f.hipExtMallocWithFlags(&area[k], signal + 2 * W * cap * sizeof(float), hipDeviceMallocUncached), "hipExtMallocWithFlags");
         hip_check(f.hipMalloc(&own[k], n * sizeof(float)), "hipMalloc");
         hip_check(f.hipMalloc(&out[k], n * sizeof(float)), "hipMalloc");
         hip_check(f.hipStreamCreateWithFlags(&streams[k], 1), "hipStreamCreateWithFlags");
         hip_check(f.hipMemsetAsync(area[k], 0, signal, streams[k]), "hipMemsetAsync");
+        void* slots = (uint8_t*)area[k] + signal;
+        unsigned long long words = 2 * W * cap;
+        void* arm_args[] = {&slots, &words};
+        hip_check(f.hipModuleLaunchKernel(arm, 256, 1, 1, 256, 1, 1, 0, streams[k], arm_args, nullptr), "hipModuleLaunchKernel");
     }
     for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
     SixteenPeers peers{};
@@ -4213,6 +4311,7 @@ void sixteen_ranks() {
     uint32_t seed = 1601;
     // Each form's blocks as the collective launches them (rocm_collective.hpp): the one-shot's 16, two shots a block a 256 units of a share, the chain two a chunk of 4096 units.
     const unsigned blocks[] = {16, (unsigned)(((units + W - 1) / W + 255) / 256), (unsigned)(2 * ((units + 4095) / 4096)), (unsigned)(2 * ((units + 4095) / 4096))};
+    int half = 0;   // the parity half, flipped by each one-shot as the collective flips it
     for (int form = 0; form < 4; ++form)
     for (const bool replace : {false, true}) {
         const group_sums::Case c = group_sums::make(W, n, seed++);
@@ -4225,10 +4324,11 @@ void sixteen_ranks() {
             const float* o = (const float*)own[k];
             float* x = (float*)(replace ? own[k] : out[k]);
             unsigned long long nn = n, cc = cap;
-            int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0) | (form == 3 ? 8 : 0);
+            int members = (int)W, rank = (int)k, flags = 2 | (replace ? 1 : 0) | half << 2 | (form == 3 ? 8 : 0);
             void* args[] = {&table, &o, &x, &nn, &cc, &members, &rank, &flags, &timeout, &tick};
             hip_check(f.hipModuleLaunchKernel(sums[form < 3 ? form : 2], blocks[form], 1, 1, 256, 1, 1, 0, streams[k], args, nullptr), "hipModuleLaunchKernel");
         }
+        if (!form) half ^= 1;
         for (hipStream_t s : streams) hip_check(f.hipStreamSynchronize(s), "hipStreamSynchronize");
         bool met = !*fault;
         for (size_t k = 0; k < W; ++k) met = met && !status[k];
@@ -4329,6 +4429,13 @@ int main(int argc, char** argv) {
             handoffs();
             busy_times();
             std::cout << (failures ? "backend-rocm handoffs: FAIL\n" : "backend-rocm handoffs: PASS\n");
+            return failures ? 1 : 0;
+        }
+        // `collective` runs only the tensor group's collective checks over every visible device.
+        if (argc > 1 && std::string(argv[1]) == "collective") {
+            collective();
+            sentinel_sums();
+            std::cout << (failures ? "backend-rocm collective: FAIL\n" : "backend-rocm collective: PASS\n");
             return failures ? 1 : 0;
         }
         // `qwen35` runs only the qwen35 layers' ops against the CPU and the device's bit-for-bit rules for them (qwen35_checks.hpp).
@@ -4438,6 +4545,7 @@ int main(int argc, char** argv) {
         records();
         failure();
         collective();
+        sentinel_sums();
         handoffs();
         busy_times();
         qwen35(*g);

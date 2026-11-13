@@ -26,6 +26,8 @@ enum class RocmSumForm { one_shot, two_shots, chain, wrap };
 
 // A collective over `members` whose fast sums all take `form`, the members possibly backends of one device, never probed: the tests' witness of each form.
 std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, RocmSumForm form);
+// The same with each fast sum's form by its size, `forms` from each size up as the join's timing keeps them, the one-shot below them all: the tests' witness of the forms following one another.
+std::unique_ptr<Collective> rocm_collective(const std::vector<Backend*>& members, size_t rows, size_t width, const std::map<size_t, RocmSumForm>& forms);
 
 // The profile a ROCm backend shapes its kernels by, which kv-selection reads for the crossovers it checks and changes to run each selection form at one size.
 DeviceProfile& rocm_profile(Backend& backend);

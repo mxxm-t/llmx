@@ -231,7 +231,7 @@ extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long 
 constexpr int kGroupBlocks = 32, kGroupMembers = 16, kChainBlocks = 16;
 constexpr unsigned long long kChainUnits = 4096;   // float4 units a chain's chunk
 struct GroupSignal {
-    unsigned epoch[kGroupBlocks];   // the last fast sum's epoch, per block, first in the area
+    unsigned epoch[kGroupBlocks];   // the last sum's epoch in two shots or a chain, per block, first in the area
     unsigned abort;                 // set by a member whose wait ran out, read by every member's waits
     unsigned start[kGroupBlocks][kGroupMembers], mid[kGroupBlocks][kGroupMembers], done[kGroupBlocks][kGroupMembers];   // [block][sender]: the epoch a sender's block reached
     unsigned ahead[kChainBlocks], back[kChainBlocks];     // the chunks a chain's predecessor and successor passed this member so far, per chain block
@@ -246,6 +246,23 @@ struct GroupPeers {
     unsigned* cancel;                 // host memory, set by the host where a peer's sum will never launch
 };
 static_assert(sizeof(GroupPeers) == 280, "the host's GroupPeers");  // in device memory, written once at join, so the launch does not grow with kGroupMembers
+
+// A fast one-shot's staging slot holds the signalling NaN kGroupArmed until its sender's value lands; a sender's value of those bits goes as the quiet kGroupQuiet, which any add makes of it (group_probe checks that on each device).
+constexpr unsigned kGroupArmed = 0x7f800001u, kGroupQuiet = 0x7fc00001u;
+constexpr unsigned kGroupSpinChecks = 64;   // spins of a slot between two looks at the stop words
+typedef unsigned GroupWord4 __attribute__((ext_vector_type(4)));
+__device__ inline unsigned group_sane(float v) {
+    const unsigned x = __float_as_uint(v);
+    return x == kGroupArmed ? kGroupQuiet : x;
+}
+// Floats [i, i + count) of a slot armed again, count at most 4.
+__device__ inline void group_arm_unit(float* slot, unsigned long long i, unsigned long long n) {
+    if (i + 4 <= n) {
+        *(GroupWord4*)(slot + i) = GroupWord4{kGroupArmed, kGroupArmed, kGroupArmed, kGroupArmed};
+        return;
+    }
+    for (unsigned long long k = i; k < n; ++k) ((unsigned*)slot)[k] = kGroupArmed;
+}
 
 // The members' values at i added in member order, as sum_rows.comp adds them: member `rank`'s from its own rows, the others' from its staging.
 __device__ inline float4 group_values(const float* own, const float* stage, unsigned long long cap, int members, int rank, unsigned long long i) {
@@ -369,16 +386,17 @@ __device__ void group_failed(const GroupPeers* p, int members, int rank) {
 }
 
 // Two shots: share k of the units, whole float4s, goes from every member into member k's staging, member k adds the share in member order into its out and into every peer's own slot, and each member adds the shares it gathered.
-__device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, bool replace, unsigned epoch,
-                                unsigned long long deadline, unsigned long long tick, int* failed) {
+// The staging is the parity half at `half_at`, and member k arms the peers' slots of its share again once read, since the one-shot reads them as signals.
+__device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
+                                bool replace, unsigned epoch, unsigned long long deadline, unsigned long long tick, int* failed) {
     const unsigned long long units = (n + 3) / 4, share = (units + members - 1) / members, step = (unsigned long long)gridDim.x * kThreads;
     const unsigned long long first = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
-    const float* stage = p->stage[rank];
+    float* stage = p->stage[rank] + half_at;
     const bool aligned = ((unsigned long long)out & 15) == 0;
     auto lo = [&](int k) { return share * k < units ? share * k : units; };
     for (int k = 0; k < members; ++k) {
         if (k == rank) continue;
-        for (unsigned long long u = lo(k) + first; u < lo(k + 1); u += step) group_store(p->stage[k] + rank * cap, u * 4, n, group_load(own, u * 4, n));
+        for (unsigned long long u = lo(k) + first; u < lo(k + 1); u += step) group_store(p->stage[k] + half_at + rank * cap, u * 4, n, group_load(own, u * 4, n));
     }
     __threadfence_system();
     __syncthreads();
@@ -399,7 +417,9 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
             t = make_float4(v[0], v[1], v[2], v[3]);
         }
         for (int j = 0; j < members; ++j)
-            if (j != rank) group_store(p->stage[j] + j * cap, i, n, t);
+            if (j != rank) group_arm_unit(stage + j * cap, i, n);
+        for (int j = 0; j < members; ++j)
+            if (j != rank) group_store(p->stage[j] + half_at + j * cap, i, n, t);
         group_out(out, i, n, t, replace, aligned);
     }
     __threadfence_system();
@@ -418,9 +438,9 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
 }
 
 // A chain (docs/src/backends-rocm.md, the collective): member m adds its partial to the running sum from m - 1 chunk by chunk and passes it on, and the last member's total flows back down, or with `wrap` on around through 0 to W - 2.
-// Returns whether the block's waits met; one that failed leaves NaN in every chunk it writes into out.
-__device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, bool replace, bool wrap,
-                            unsigned long long deadline, unsigned long long tick, int* failed) {
+// Returns whether the block's waits met, one that failed leaving NaN in every chunk it writes into out; a back block arms the slot it read again for the one-shot, in the parity half at `half_at`.
+__device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
+                            bool replace, bool wrap, unsigned long long deadline, unsigned long long tick, int* failed) {
     const unsigned long long units = (n + 3) / 4, chunks = (units + kChainUnits - 1) / kChainUnits;
     const unsigned F = gridDim.x / 2;
     const bool ahead = blockIdx.x < F, last = rank == members - 1;
@@ -428,12 +448,12 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     const unsigned base = self->passed[ahead ? 0 : 1][b];
     const bool writes = ahead == last;   // the last member's ahead blocks and every other member's back blocks write out
     const bool aligned = ((unsigned long long)out & 15) == 0;
-    const auto slot = [&](int m, int k) { return p->stage[m] + (unsigned long long)k * cap; };
+    const auto slot = [&](int m, int k) { return p->stage[m] + half_at + (unsigned long long)k * cap; };
     const auto back = [&](int m) { return &((GroupSignal*)p->signal[m])->back[b]; };
     // The total's way back: member m's slot from its sender, and the member m passes it to, -1 for none.
     const int from = wrap ? (rank + members - 1) % members : (rank + 1) % members;
     const int next = last ? (wrap ? 0 : rank - 1) : wrap ? (rank + 1 < members - 1 ? rank + 1 : -1) : rank - 1;
-    const float* in = ahead ? slot(rank, rank) : slot(rank, from);
+    float* in = ahead ? slot(rank, rank) : slot(rank, from);
     float* to = ahead && !last ? slot(rank + 1, rank + 1) : next >= 0 ? slot(next, rank) : nullptr;
     unsigned* told = ahead && !last ? &((GroupSignal*)p->signal[rank + 1])->ahead[b] : next >= 0 ? back(next) : nullptr;
     const unsigned long long mine = b < chunks ? (chunks - b + F - 1) / F : 0;
@@ -460,6 +480,7 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
                 }
             } else {
                 s = group_load(in, i, n);
+                group_arm_unit(in, i, n);
             }
             if (to) group_store(to, i, n, s);
             if (writes) group_out(out, i, n, s, replace, aligned);
@@ -476,77 +497,99 @@ __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float*
     return true;
 }
 
+// Waits until no float below n of unit i of a peer's slot is armed, giving up as group_stop says or once a thread of the block has, then takes the unit and arms it again.
+__device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float* slot, unsigned long long i, unsigned long long n, unsigned long long deadline, unsigned long long tick,
+                                  unsigned long long* next, int* failed, float4* got) {
+    GroupWord4 w;
+    for (unsigned s = 1;; ++s) {
+        if (i + 4 <= n) {
+            w = *(const volatile GroupWord4*)(slot + i);
+        } else {
+            unsigned v[4] = {0u, 0u, 0u, 0u};
+            for (unsigned long long k = i; k < n; ++k) v[k - i] = ((const volatile unsigned*)slot)[k];
+            w = GroupWord4{v[0], v[1], v[2], v[3]};
+        }
+        if (w.x != kGroupArmed && w.y != kGroupArmed && w.z != kGroupArmed && w.w != kGroupArmed) break;
+        if (s % kGroupSpinChecks == 0 && (__hip_atomic_load(failed, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP) || group_stop(p, self, deadline, tick, next, failed))) return false;
+    }
+    *got = make_float4(__uint_as_float(w.x), __uint_as_float(w.y), __uint_as_float(w.z), __uint_as_float(w.w));
+    group_arm_unit(slot, i, n);
+    return true;
+}
+
 // Member `rank`'s part of a group sum of n floats: out = the members' rows added in member order (flag 1), or out += them.
-// Fast (flag 2): push its own rows into every peer's staging, meet, sum, and meet again; a failed meeting leaves NaN in out.
+// Fast (flag 2), it writes its rows into every peer's parity half (flag 4) and takes each peer's as they land, a sum that gave up leaving NaN; else the host pulled them (docs/src/backends-rocm.md).
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
                                                                       int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
     __shared__ int failed;
     const bool replace = flags & 1, fast = flags & 2;
-    GroupSignal* self = (GroupSignal*)p->signal[rank];
-    const float* stage = p->stage[rank];
     const unsigned long long units = (n + 3) / 4, step = (unsigned long long)gridDim.x * kThreads;
     const unsigned long long first = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
-    unsigned epoch = 0;
-    unsigned long long deadline = 0;
-    if (fast) {
-        deadline = timeout ? (unsigned long long)wall_clock64() + timeout : ~0ull;
-        // Epoch 0 is what fresh signals hold, so a wrap skips it.
-        epoch = self->epoch[blockIdx.x] + 1;
-        if (!epoch) epoch = 1;
-        if (!threadIdx.x) failed = 0;
+    const bool aligned = ((unsigned long long)out & 15) == 0;
+    if (!fast) {
+        const float* stage = p->stage[rank];
         for (unsigned long long u = first; u < units; u += step) {
             const unsigned long long i = u * 4;
-            if (i + 4 <= n) {
-                const float4 v = *(const float4*)(own + i);
-                for (int j = 0; j < members; ++j)
-                    if (j != rank) *(float4*)(p->stage[j] + rank * cap + i) = v;
+            if (i + 4 <= n && aligned) {
+                group_out(out, i, n, group_values(own, stage, cap, members, rank, i), replace, true);
             } else {
-                for (unsigned long long k = i; k < n; ++k)
-                    for (int j = 0; j < members; ++j)
-                        if (j != rank) p->stage[j][rank * cap + k] = own[k];
+                for (unsigned long long k = i; k < n && k < i + 4; ++k) {
+                    const float t = group_value(own, stage, cap, members, rank, k);
+                    if (replace) out[k] = t;
+                    else out[k] += t;
+                }
             }
         }
-        __threadfence_system();
-        __syncthreads();
-        if (!group_meet(p, self, members, rank, epoch, 0, deadline, tick, &failed)) {
-            group_failed(p, members, rank);
-            for (unsigned long long u = first; u < units; u += step)
-                for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
-            return;
-        }
+        return;
     }
-    const bool aligned = ((unsigned long long)out & 15) == 0;
+    GroupSignal* self = (GroupSignal*)p->signal[rank];
+    const unsigned long long half_at = (unsigned long long)(flags >> 2 & 1) * members * cap;
+    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock64() + timeout : ~0ull;
+    if (!threadIdx.x) failed = 0;
     for (unsigned long long u = first; u < units; u += step) {
         const unsigned long long i = u * 4;
-        if (i + 4 <= n && aligned) {
-            const float4 t = group_values(own, stage, cap, members, rank, i);
-            float4* o = (float4*)(out + i);
-            if (replace) {
-                *o = t;
-            } else {
-                float4 r = *o;
-                r.x += t.x;
-                r.y += t.y;
-                r.z += t.z;
-                r.w += t.w;
-                *o = r;
-            }
+        if (i + 4 <= n) {
+            const float4 v = *(const float4*)(own + i);
+            const GroupWord4 w{group_sane(v.x), group_sane(v.y), group_sane(v.z), group_sane(v.w)};
+            for (int j = 0; j < members; ++j)
+                if (j != rank) *(GroupWord4*)(p->stage[j] + half_at + rank * cap + i) = w;
         } else {
-            for (unsigned long long k = i; k < n && k < i + 4; ++k) {
-                const float t = group_value(own, stage, cap, members, rank, k);
-                if (replace) out[k] = t;
-                else out[k] += t;
-            }
+            for (unsigned long long k = i; k < n; ++k)
+                for (int j = 0; j < members; ++j)
+                    if (j != rank) ((unsigned*)(p->stage[j] + half_at + rank * cap))[k] = group_sane(own[k]);
         }
     }
-    if (fast) {
-        __syncthreads();
-        if (!group_meet(p, self, members, rank, epoch, 2, deadline, tick, &failed)) return group_failed(p, members, rank);
-        if (!threadIdx.x) self->epoch[blockIdx.x] = epoch;
+    __syncthreads();
+    float* mine = p->stage[rank] + half_at;
+    unsigned long long next = (unsigned long long)wall_clock64() + tick;
+    bool met = true;
+    for (unsigned long long u = first; u < units && met; u += step) {
+        const unsigned long long i = u * 4;
+        float4 t = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        for (int j = 0; j < members && met; ++j) {
+            float4 v;
+            if (j == rank) v = group_load(own, i, n);
+            else met = group_take(p, self, mine + j * cap, i, n, deadline, tick, &next, &failed, &v);
+            if (!j) {
+                t = v;
+            } else {
+                t.x += v.x;
+                t.y += v.y;
+                t.z += v.z;
+                t.w += v.w;
+            }
+        }
+        if (met) group_out(out, i, n, t, replace, aligned);
     }
+    if (!met) __hip_atomic_store(&failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
+    __syncthreads();
+    if (!failed) return;
+    for (unsigned long long u = first; u < units; u += step)
+        for (unsigned long long k = u * 4; k < n && k < u * 4 + 4; ++k) out[k] = __builtin_nanf("");
+    group_failed(p, members, rank);
 }
 
-// The fast sum in two shots or a chain, kernels of their own so the one-shot keeps its registers; the arguments are llmx_group_sum's, flag 1 the same, flag 8 the chain's wrap, and each ends at the one-shot's last meeting.
+// The fast sum in two shots or a chain, kernels of their own so the one-shot keeps its registers; the arguments are llmx_group_sum's, flags 1 and 4 the same, flag 8 the chain's wrap, and each ends at a meeting.
 template <bool CHAIN>
 __device__ void group_formed(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap, int members, int rank, int flags,
                              unsigned long long timeout, unsigned long long tick) {
@@ -556,12 +599,15 @@ __device__ void group_formed(const GroupPeers* p, const float* own, float* out, 
     unsigned epoch = self->epoch[blockIdx.x] + 1;
     if (!epoch) epoch = 1;
     if (!threadIdx.x) failed = 0;
+    const unsigned long long half_at = (unsigned long long)(flags >> 2 & 1) * members * cap;
     if (CHAIN) {
-        if (!group_chain(p, self, own, out, n, cap, members, rank, flags & 1, flags & 8, deadline, tick, &failed)) return group_failed(p, members, rank);
+        if (!group_chain(p, self, own, out, n, cap, half_at, members, rank, flags & 1, flags & 8, deadline, tick, &failed)) return group_failed(p, members, rank);
     } else {
-        group_two_shots(p, self, own, out, n, cap, members, rank, flags & 1, epoch, deadline, tick, &failed);
+        group_two_shots(p, self, own, out, n, cap, half_at, members, rank, flags & 1, epoch, deadline, tick, &failed);
         if (failed) return;
     }
+    // The slots armed again land before the peers learn this member is done, after which a peer's one-shot may write them.
+    __threadfence_system();
     __syncthreads();
     if (!group_meet(p, self, members, rank, epoch, 2, deadline, tick, &failed)) return group_failed(p, members, rank);
     if (!threadIdx.x) self->epoch[blockIdx.x] = epoch;
@@ -573,6 +619,26 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_two_shots(cons
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_chain(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
                                                                         int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
     group_formed<true>(p, own, out, n, cap, members, rank, flags, timeout, tick);
+}
+
+// Every word of a member's staging armed, at join, before any peer may write it.
+extern "C" __global__ void llmx_group_arm(unsigned* stage, unsigned long long words) {
+    for (unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x; i < words; i += (unsigned long long)gridDim.x * kThreads) stage[i] = kGroupArmed;
+}
+
+// Whether this device's add tells a value from its sanitized twin: thread a * np + b adds patterns a, b and each c as a + b, (a + b) + c and c + (a + b), raw and through group_sane, and counts each kind whose bits differ.
+// The patterns come from memory the host wrote, read as volatile, so the compiler folds none of the adds.
+extern "C" __global__ void llmx_group_add_check(const unsigned* patterns, int np, unsigned* differ) {
+    const int a = (int)threadIdx.x / np, b = (int)threadIdx.x % np;
+    if (a >= np) return;
+    const volatile unsigned* q = patterns;
+    for (int c = 0; c < np; ++c) {
+        const float x = __uint_as_float(q[a]), y = __uint_as_float(q[b]), z = __uint_as_float(q[c]);
+        const float xs = __uint_as_float(group_sane(x)), ys = __uint_as_float(group_sane(y)), zs = __uint_as_float(group_sane(z));
+        if (__float_as_uint(x + y) != __float_as_uint(xs + ys)) atomicAdd(differ, 1u);
+        if (__float_as_uint((x + y) + z) != __float_as_uint((xs + ys) + zs)) atomicAdd(differ + 1, 1u);
+        if (__float_as_uint(z + (x + y)) != __float_as_uint(zs + (xs + ys))) atomicAdd(differ + 2, 1u);
+    }
 }
 
 // dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32.

@@ -54,11 +54,13 @@ public:
                 RocmBackend& b = *members[m];
                 partial_.push_back(b.alloc(size_mul(size_mul(rows, width), sizeof(float)), Memory::device));
                 hip_check(f.hipSetDevice(b.dev_.index), "hipSetDevice");
-                const size_t bytes = size_add(kGroupSignalBytes, size_mul(size_mul(W, cap_), sizeof(float)));
+                // A fast collective keeps two parity halves of the slots, which the one-shot reads as signals (kernels/f32.hip, llmx_group_sum).
+                const size_t bytes = size_add(kGroupSignalBytes, size_mul(size_mul(fast ? 2 * W : W, cap_), sizeof(float)));
                 // Peers' stores reach uncached memory without the fine-grain setting, which ordinary allocations do not (docs/ROCM.md, Collective design and proof).
                 if (fast) hip_check(f.hipExtMallocWithFlags(&area_[m], bytes, hipDeviceMallocUncached), "hipExtMallocWithFlags");
                 else hip_check(f.hipMalloc(&area_[m], bytes), "hipMalloc");
                 b.hold_fill(area_[m], kGroupSignalBytes);
+                if (fast) b.group_arm(stage(m), size_mul(2 * W, cap_));
                 hip_check(f.hipEventCreateWithFlags(&ready_[m], hipEventDisableTiming), "hipEventCreateWithFlags");
                 hip_check(f.hipEventCreateWithFlags(&pulled_[m], hipEventDisableTiming), "hipEventCreateWithFlags");
                 int khz = 0;
@@ -79,7 +81,7 @@ public:
                 members[m]->write(*peers_.back(), 0, &p, sizeof(GroupPeers));
                 peer_table_.push_back(as_rocm(*peers_.back()).data());
             }
-            // Every member's signals are zero before any peer may signal into them, which a zero fill still queued on its own stream would overwrite.
+            // Every member's signals are zero and its slots armed before any peer may write them, which a fill still queued on its own stream would overwrite.
             for (RocmBackend* b : members) b->sync();
         } catch (...) {
             release();
@@ -164,6 +166,30 @@ public:
         return report;
     }
 
+    // Why some member's add tells a value from the twin the one-shot sends for the armed bits, empty where none does: the sanitized operands' sums must give the raw ones' bits.
+    static std::string add_check(const std::vector<RocmBackend*>& group, const std::vector<int>& ids) {
+        static const uint32_t patterns[] = {0x7f800001u, 0x7fc00001u, 0xff800001u, 0xffc00001u, 0x7fc00000u, 0x7f812345u, 0x7fd12345u, 0x3fc00000u, 0x80000000u, 0x0u, 0x7f800000u, 0xff800000u, 0x00000001u};
+        constexpr int np = sizeof(patterns) / sizeof(patterns[0]);
+        try {
+            for (size_t m = 0; m < group.size(); ++m) {
+                RocmBackend& b = *group[m];
+                const BufferPtr pat = b.alloc(sizeof(patterns), Memory::device), differ = b.alloc(3 * sizeof(uint32_t), Memory::device);
+                const uint32_t zero[3] = {0, 0, 0};
+                b.write(*pat, 0, patterns, sizeof(patterns));
+                b.write(*differ, 0, zero, sizeof(zero));
+                b.group_add_check(*pat, np, *differ);
+                uint32_t got[3];
+                b.read(*differ, 0, got, sizeof(got));
+                if (got[0] || got[1] || got[2])
+                    return "device " + std::to_string(ids[m]) + "'s add tells a sent value from its sanitized twin (a + b " + std::to_string(got[0]) + ", (a + b) + c " + std::to_string(got[1]) + ", c + (a + b) " +
+                           std::to_string(got[2]) + " of " + std::to_string(np * np * np) + ")";
+            }
+        } catch (const std::exception& e) {
+            return std::string("an add check failed: ") + e.what();
+        }
+        return {};
+    }
+
 private:
     void summed(const std::vector<Slice>& residual, size_t n, bool replace) {
         const size_t W = members_.size();
@@ -210,14 +236,16 @@ private:
         size_t blocks = std::min<size_t>(kOneShotBlocks, (units + kThreads - 1) / kThreads);
         if (form == RocmSumForm::two_shots) blocks = std::min<size_t>(kGroupBlocks, ((units + W - 1) / W + kThreads - 1) / kThreads);
         else if (form == RocmSumForm::chain || form == RocmSumForm::wrap) blocks = 2 * std::min<size_t>(kChainBlocks, (units + kChainUnits - 1) / kChainUnits);
-        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 : 0) | (form == RocmSumForm::wrap ? 8 : 0);
+        int members = (int)W, rank = (int)m, flags = (replace ? 1 : 0) | (fast ? 2 | (int)half_ << 2 : 0) | (form == RocmSumForm::wrap ? 8 : 0);
         const Args args(peer_table_[m], own, o, nn, cap, members, rank, flags, timeout, tick);
         b.group_launch(form, (unsigned)blocks, args);
     }
 
+    // Every fast sum takes the half the next one-shot takes, which every peer finished reading at the one-shot before the last (docs/src/backends-rocm.md, the collective).
     void pushed(const std::vector<Slice>& residual, size_t n, bool replace) {
         const RocmSumForm f = form_of(n);
         for (size_t m = 0; m < members_.size(); ++m) launch(m, residual[m], n, replace, true, f);
+        if (f == RocmSumForm::one_shot) half_ ^= 1u;
     }
 
     // Each member records that its rows are ready, pulls every peer's once theirs are, records that it has read them, and sums once every peer has read its rows, which a later write of them must follow.
@@ -282,9 +310,10 @@ private:
     size_t rows_, width_, cap_;   // cap_: a staging slot's floats, the reserved rows rounded up to whole units of four
     bool fast_;
     std::optional<RocmSumForm> force_;   // the form every fast sum takes, else by size from forms_
+    unsigned half_ = 0;   // the parity half of the staging the next fast sum takes, flipped by each one-shot
     std::map<size_t, RocmSumForm> forms_;
     std::vector<BufferPtr> partial_;
-    std::vector<void*> area_;   // per member: its signal block, then a staging slot per member
+    std::vector<void*> area_;   // per member: its signal block, then a staging slot per member, twice on the fast path
     std::vector<hipEvent_t> ready_, pulled_;   // the conservative path's events, per member
     std::vector<unsigned long long> timeout_, tick_;   // per member in its wall-clock ticks: a probe's kProbeTimeoutMs, else 0 for none, and a millisecond
     std::vector<BufferPtr> peers_;   // per member, its GroupPeers in its device memory
@@ -293,7 +322,7 @@ private:
     std::vector<Ticket> last_, before_;   // per member, the ticket holding the last sum and the sum before it
 };
 
-// Every directed pair reaches the other's memory, peer access enabled, and one fast sum of known rows gives their member-order sum; otherwise why not.
+// Every directed pair reaches the other's memory, peer access enabled, every member's add leaves the one-shot's sanitized values invisible, and one fast sum of known rows gives their member-order sum; otherwise why not.
 std::string group_probe(const std::vector<RocmBackend*>& group, const std::vector<int>& ids) {
     const HipFn& f = hip();
     for (int a : ids)
@@ -307,6 +336,8 @@ std::string group_probe(const std::vector<RocmBackend*>& group, const std::vecto
             if (e != hipSuccess && e != hipErrorPeerAccessAlreadyEnabled)
                 return "peer access from device " + std::to_string(a) + " to device " + std::to_string(b) + " failed with " + f.hipGetErrorName(e);
         }
+    const std::string adds = RocmCollective::add_check(group, ids);
+    if (!adds.empty()) return adds;
     try {
         const size_t n = 1027;   // a tail past whole units, over one block
         RocmCollective c(group, 1, n, true, true);

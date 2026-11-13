@@ -3543,8 +3543,8 @@ void qwen35(Backend& g) {
 // DeepSeek-V4.1's ops against the CPU (deepseek4_checks.hpp), those whose kernels form each value in the CPU's order held to its bits.
 void deepseek4(Backend& g) {
     q35::Pair p(g);
-    const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms"});
-    std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores and rope forms bit for bit\n";
+    const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms", "mix_rows"});
+    std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit\n";
 }
 
 const unsigned char kF32Module[] = {

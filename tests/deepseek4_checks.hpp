@@ -774,6 +774,26 @@ size_t check_rows_alone(Pair& p) {
     return values;
 }
 
+// DSpark's tap (dspark.hpp): each row's streams added a quarter each into a row of its plane by mix_rows, the row's columns past a block of 256.
+size_t check_taps(Pair& p, const Exact& exact) {
+    if (!p.dev.implements(backend::Op::mix_rows)) {
+        std::printf("deepseek4: taps skipped: the device does not implement mix_rows\n");
+        return 0;
+    }
+    const size_t rows = 7, hc = 4, dim = 416;
+    const std::vector<float> x = uniform(rows * hc * dim, 61, -3.0f, 3.0f), start = uniform(rows * dim, 62, -1.0f, 1.0f), w(rows * hc, 0.25f);
+    std::vector<uint32_t> idx(rows * hc);
+    for (size_t i = 0; i < idx.size(); ++i) idx[i] = uint32_t(i);
+    Pair::In xi = held(p, x);
+    Pair::Out o = p.out(rows * dim);
+    p.cpu.write(*o.c, 0, start.data(), start.size() * sizeof(float));
+    p.dev.write(*o.v, 0, start.data(), start.size() * sizeof(float));
+    p.cpu.mix_rows(o.cs(), xi.cs(), dim, rows * hc, idx.data(), w.data(), rows, hc);
+    p.dev.mix_rows(o.vs(), xi.vs(), dim, rows * hc, idx.data(), w.data(), rows, hc);
+    const auto r = p.results(o);
+    return meet(exact, "mix_rows", r.first, r.second, 1e-6, "mix_rows of the DSpark tap differs beyond 1e-6");
+}
+
 // Every DeepSeek-V4.1 op against the CPU, the ops named in `exact` bit for bit; a device whose backend does not implement the format op is reported and passed over.
 size_t check_ops(Pair& p, const Exact& exact = {}) {
     size_t values = check_mhc(p, exact);
@@ -788,6 +808,7 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_index_tile(p, exact);
     if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
     values += check_rows_alone(p);
+    values += check_taps(p, exact);
     return values;
 }
 } // namespace ds4

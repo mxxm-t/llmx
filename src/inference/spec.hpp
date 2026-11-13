@@ -79,6 +79,8 @@ public:
     virtual bool after_lookup() const { return false; }
     // Whether its drafts run on the model's devices, as they may unless it says not: on the head stage's alone, which a server records on that stage's thread, or on others too, for which it holds every stage.
     virtual bool on_device() const { return true; }
+    // The most drafts one chain gives, as the drafter defines it, beside the pass's bound on a chain's rows.
+    virtual size_t block() const { return SIZE_MAX; }
     virtual bool on_head() const { return false; }
     // For a proposer on the head's devices, the asks' chain begun for a caller that records it on the head stage's thread behind the work queued there and ends it (Model::Chain); null where no ask drafts.
     virtual std::unique_ptr<Model::Chain> begin_all(Ask*, size_t) { throw std::logic_error("inference: a proposer without a chain on the head's devices"); }
@@ -168,6 +170,7 @@ public:
     bool after_lookup() const override { return after_lookup_; }
     bool on_device() const override { return true; }
     bool on_head() const override { return true; }
+    size_t block() const override { return model_.draft_block(); }
 
 private:
     void batch(Ask* asks, size_t n) {
@@ -338,10 +341,10 @@ private:
 };
 
 // How many drafts a request verifies next, the one rule for every caller: at most `draft_max`, one fewer than the tokens it may still generate and than the positions its context has left, and none while it rests (Acceptance).
-// It is also at most `columns`, the rows the pass's decode kernels read each weight once for, past which a draft row costs a weight read of its own (docs/SPECULATIVE.md, section 3).
-inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const Acceptance& acceptance) {
+// It is also at most `columns`, the rows the pass's decode kernels read each weight once for, and `block`, the most drafts one chain of its source gives (docs/src/inference-spec.md).
+inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, size_t block, const Acceptance& acceptance) {
     if (acceptance.resting() || !tokens_left || !context_left) return 0;
-    return std::min({draft_max, tokens_left - 1, context_left - 1, columns});
+    return std::min({draft_max, tokens_left - 1, context_left - 1, columns, block});
 }
 
 // A request's draft ahead of its proposer (docs/SPECULATIVE.md, section 8): the convincing continuation of its own `history` (Lookup::convincing), up to the drafts draft_length allows the acceptance of its match's bucket, in `out`.
@@ -352,7 +355,7 @@ inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size
     r.drafted = Source::proposer;
     if (r.lookup_resting()) return 0;
     static const Acceptance fresh;
-    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, fresh);
+    const size_t k = draft_length(draft_max, tokens_left, context_left, columns, SIZE_MAX, fresh);
     const size_t match = k ? Lookup::convincing(history, k, out, images) : 0;
     if (out.empty()) return 0;
     r.seed(match_bucket(match));

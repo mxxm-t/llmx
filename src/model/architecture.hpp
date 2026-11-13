@@ -141,6 +141,8 @@ struct LayerPlan {
     size_t token_history = 0;
     uint32_t token_padding = 0;
     std::optional<Lookup> lookup;
+    // An embedded drafter's stages, each a range [first, end) of its role ids, which a split places on any device beside the layers (Footprint::drafter_stages); its other roles run with the head.
+    std::vector<std::pair<uint16_t, uint16_t>> stages;
 };
 
 // Whether a layer holds a state slot for each sequence, as a state layer and an entries layer do.
@@ -163,8 +165,13 @@ struct ModelPlan {
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
     // Arena slots whose row holds a float for every `per` positions the tables cover, as {slot, per}; `slots` gives their width at the whole context until the model narrows them (cover_positions).
     std::vector<std::pair<size_t, size_t>> position_slots;
-    // Arena slots past 0, ascending, whose rows go wherever the residual goes, through every handoff and crossing, as a layer's rows that a later device's layers read (docs/DEEPSEEK4.md, section 4.3).
-    std::vector<size_t> carried;
+    // Arena slots past 0, ascending, whose rows go wherever the residual goes, as a layer's rows that a later device's layers read (docs/DEEPSEEK4.md, section 4.3).
+    // A slot crosses at every handoff and crossing at or past the start of layer `from`, the first before which its rows are written, so one written late crosses only after it.
+    struct Carried {
+        size_t slot = 0;
+        int from = 0;
+    };
+    std::vector<Carried> carried;
     size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
@@ -176,13 +183,30 @@ struct ModelPlan {
     std::vector<uint8_t> image_streams;
     // How many copies of an embedding row a residual row holds, side by side, as a model of several residual streams embeds a token into each.
     size_t embed_copies = 1;
-    // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV in the head's device's storage beside the layers' (docs/SPECULATIVE.md, section 7).
-    // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves, and a draft step's residual rows are in arena slot `draft_x`, which a tensor group sums its members' partial rows into.
+    // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV or a state slot on the head's device (docs/src/model-architecture.md).
+    // `draft_h` is the arena slot its context rows leave the target's final-normed rows in, 0 where they read none (carries_row), and `draft_x` that of a draft step's residual rows, which a tensor group sums into.
     std::optional<LayerPlan> drafter;
     size_t draft_h = 0, draft_x = 0;
+    // The most drafts one chain of the drafter gives, as the drafter defines it (spec::Proposer::block), 0 for none beyond the pass's mark rows.
+    size_t draft_block = 0;
+    // On a tensor group or with stages apart from the head, the sublayer sums of a draft call before its picks, each a call of its own (DraftStep), the same number a stage (LayerPlan::stages).
+    size_t draft_sums = 2;
+    // With stages apart from the head (Placement::draft_device): the slots past the residual a draft call's rows carry between devices, as `carried` names the pass's.
+    // Then also the slot a draft call's input ids sit in on a stage's device, and the slot a context call's first part leaves the rows its stages read in.
+    std::vector<Carried> draft_carried;
+    size_t draft_ids = 0, draft_rows_x = 0;
     // Whether the layers' declared native widths are in effect (LayerPlan::native, settle_cache).
     bool native = false;
 };
+
+// Whether an embedded drafter carries the target's last normed row of each sequence from one pass to the next, which its next context row reads (ModelPlan::draft_h).
+inline bool carries_row(const ModelPlan& plan) { return plan.drafter && plan.draft_h; }
+
+// The calls of an embedded drafter that give k drafts, each giving up to ModelPlan::draft_block, or one where it is 0.
+inline size_t draft_calls(const ModelPlan& plan, size_t k) {
+    const size_t b = std::max<size_t>(plan.draft_block, 1);
+    return (k + b - 1) / b;
+}
 
 // The positions a model's tables and position slots cover under a KV budget of `budget` tokens: no more than a sequence may reach, which is the context and the pool's tokens.
 inline size_t covered_positions(const ModelPlan& plan, size_t budget) { return std::min(plan.context_length, budget); }
@@ -223,7 +247,7 @@ inline size_t sum_width(const ModelPlan& plan) { return embedding_split(plan) ||
 // Floats in a row a handoff carries: the residual's and each carried slot's.
 inline size_t handoff_width(const ModelPlan& plan) {
     size_t n = plan.residual;
-    for (size_t slot : plan.carried) n = backend::size_add(n, plan.slots.at(slot));
+    for (const ModelPlan::Carried& c : plan.carried) n = backend::size_add(n, plan.slots.at(c.slot));
     return n;
 }
 
@@ -306,20 +330,21 @@ struct HeadStep : Step {
     backend::Slice logits;
 };
 
-// An embedded drafter's call over every row of a pass, after its last stage (Architecture::draft_rows): the rows' token ids, and per entry the row its first row reads as the target's row before it, the sequence's carried row or a zero row.
-// The cache views are the drafter's KV layer's.
+// An embedded drafter's call over every row of a pass, after its last stage (Architecture::draft_rows): the rows' token ids, and where it carries a row each entry's carried row or a zero row for its first row.
+// The cache views are the drafter's KV layer's or state layer's; with stages apart from the head it runs in parts (Step::phase), 0 on the head's device and 1 + st on stage st's.
 struct DraftRowsStep : Step {
     const uint32_t* ids;
     const backend::CSlice* carry;
 };
 
-// One step of an embedded drafter's chains (Architecture::draft), a draft row for each of `rows` sequences, one cache view each, reading each token's row from `id` and the target's row before it at `prev` (row prev_rows[i] with `prev_rows`).
-// It writes the drafted ids to `next`, the output rows after the final norm to `out` as the next step's `prev`, and the head's logits to `logits`, in three calls on a tensor group (Step::phase 0 to 2, -1 for all of it).
+// One call of an embedded drafter's chains (Architecture::draft): `ids` drafts for each of `rows` sequences, one cache view each, reading token rows from `id` and, where it carries a row, the rows before them at `prev`.
+// Draft j of sequence i goes to row j * stride + i of `next` and `logits`, its normed output rows to `out`; on a tensor group a call runs in parts (Step::phase, -1 for all of it), as docs/src/model-architecture.md describes.
 struct DraftStep : Step {
     backend::CSlice id, prev;
     const uint32_t* prev_rows = nullptr;
     backend::Slice next, out, logits;
     size_t member = 0, first = 0;   // on a tensor group, the member and the first id of its vocabulary rows (blocks::draft_head)
+    size_t ids = 1, stride = 0;
 };
 
 // An architecture: its configuration, read from a file, the plan of that file's tensors, the values of its position tables, and the math of each part as backend ops.

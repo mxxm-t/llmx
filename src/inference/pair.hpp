@@ -59,8 +59,8 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
         if (!detail::same(t, d)) throw differs(key, t, d);
     }
     const ArchEntry& entry = architecture_of(target);
-    if (entry.normalize_drafter && detail::architecture(drafter) == entry.name)
-        entry.normalize_drafter(target, drafter);
+    // The target's hook sees every drafter file, so a sidecar of another layout is rewritten into the target's blocks by the module that reads it; a file it does not recognise it leaves as it is.
+    if (entry.normalize_drafter) entry.normalize_drafter(target, drafter);
     const std::string prefix = std::string(entry.name) + ".";
     const int blocks = metadata::integer(target, prefix + "block_count");
     const int nextn = metadata::count(target, prefix + "nextn_predict_layers", 0);
@@ -82,9 +82,11 @@ inline DrafterKind pair(const gguf::GGUFModel& target, const std::string& target
                          std::to_string(extra) + " MTP block make " + std::to_string(blocks + extra));
         for (const auto& t : drafter.tensors)
             if (*gguf::block_of(t.name) >= size_t(total)) throw refuse("tensor " + t.name + " is past its " + std::to_string(total) + " blocks");
-        // Every key under the prefix the same in both, but the counts and the per-block arrays the MTP blocks extend.
+        // Every key under the prefix the same in both, but the counts, the per-block arrays the MTP blocks extend and the drafter's own keys under `nextn.`.
         const auto check = [&](const std::string& key) {
-            if (key.compare(0, prefix.size(), prefix) || key == prefix + "block_count" || key == prefix + "nextn_predict_layers") return;
+            if (key.compare(0, prefix.size(), prefix) || key == prefix + "block_count" || key == prefix + "nextn_predict_layers" ||
+                !key.compare(0, prefix.size() + 6, prefix + "nextn."))
+                return;
             const auto *t = target.find(key), *d = drafter.find(key);
             if (detail::same(t, d)) return;
             if (t && d && t->vtype == gguf::V_ARRAY && d->vtype == gguf::V_ARRAY && t->arr.size() == size_t(blocks) && d->arr.size() == size_t(total)) {

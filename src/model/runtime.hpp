@@ -66,6 +66,8 @@ class Model;
 struct Placement {
     std::vector<int> mixer_device, ffn_device;
     int embed_device = 0, output_device = 0;
+    // Each stage of an embedded drafter's (LayerPlan::stages), on the device a split put it; empty where they run with the head.
+    std::vector<int> draft_device;
     // A routed layer with its feed-forward block on a host and its mixer on a device runs a prompt of at least this many tokens on the device, its experts copied there for each pass.
     // It counts a prompt's whole length (BatchEntry::extent), so a prompt takes one path however it is sliced (row_class); zero keeps every run on the host, and 1 streams what 2 does, since an extent of 1 never streams.
     size_t stream_from = 0;
@@ -276,6 +278,7 @@ struct Pass {
     std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     std::vector<backend::Ticket> tickets;              // per device, its stage's submission there, which its histories take as their last
+    std::vector<backend::Ticket> draft_tickets;        // per device, a drafter's stages apart's context rows' submission there, which the last stage's commit gives its histories
     size_t ran = 0;                                    // the stages run_pass_stage has recorded
     size_t scratch = 0;                                // the scratch set its parts run in: 0 the context's, 1 the replies' (ExecContext::replies), a replies' pass's so it records between another pass's groups
     bool open = false;                                 // a stage partly recorded, in layer groups (record_pass_stage)
@@ -374,6 +377,7 @@ struct ExecContext {
     std::vector<backend::RowRun> part_runs;    // a streamed layer's group of entries, rebased
     std::vector<backend::Ticket> tickets;      // per device
     std::vector<backend::CSlice> carry;        // per entry, the row an embedded drafter's first context row reads (DraftRowsStep::carry)
+    std::vector<backend::StateView> draft_states;   // per entry, a drafter's stage apart's views over its device's storage (Model::draft_context)
     // On a tensor split (Placement::width): per device, a group's collective on its first member, for the rows the arenas hold, and each member of the head's group its slice of the logits rows, which the first member gathers into logits_buf.
     std::vector<std::unique_ptr<backend::Collective>> collectives;
     size_t collective_rows = 0;
@@ -418,11 +422,14 @@ inline void settle_cache(ModelPlan& plan, ModelOptions& options) {
         throw std::runtime_error(std::string("--cache-type-k and --cache-type-v: this model keeps one cache type for both sides, not ") +
                                  backend::kv_type_name(options.kv_k) + " and " + backend::kv_type_name(options.kv_v));
     if ((options.kv_k == KVType::native) == plan.native) return;
-    for (LayerPlan& layer : plan.layers)
-        if (layer.native) {
-            std::swap(layer.kv_pool_width, layer.native->pool_width);
-            std::swap(layer.state_tail, layer.native->state_tail);
-        }
+    // An embedded drafter that declares a format keeps its cache in the plan's type, as the layers do.
+    const auto swap = [](LayerPlan& layer) {
+        if (!layer.native) return;
+        std::swap(layer.kv_pool_width, layer.native->pool_width);
+        std::swap(layer.state_tail, layer.native->state_tail);
+    };
+    for (LayerPlan& layer : plan.layers) swap(layer);
+    if (plan.drafter) swap(*plan.drafter);
     plan.native = !plan.native;
 }
 
@@ -508,7 +515,8 @@ public:
         }
         if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux_floats(), sizeof(float)));
         for (size_t i = 0; i < plan_.carried.size(); ++i)
-            if (!plan_.carried[i] || plan_.carried[i] >= plan_.slots.size() || (i && plan_.carried[i] <= plan_.carried[i - 1]))
+            if (!plan_.carried[i].slot || plan_.carried[i].slot >= plan_.slots.size() || (i && plan_.carried[i].slot <= plan_.carried[i - 1].slot) ||
+                plan_.carried[i].from < 0 || plan_.carried[i].from > (int)plan_.layers.size())
                 throw std::logic_error("inference: carried slots must be ascending arena slots past the residual");
         // One storage gives every layer of a device the same heads, so entries, which keep none, and K and V do not share a model.
         if (entries_ && std::any_of(plan_.layers.begin(), plan_.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::kv; }))
@@ -585,13 +593,21 @@ public:
                 throw std::runtime_error(std::string("inference: the ") + (u.part == Part::embed ? "embedding" : "head") +
                                          " needs " + backend::op_name(u.op) + ", which the backend of its device does not implement");
         }
-        // An embedded drafter runs beside the head, every role and op of it on the head's device.
+        // An embedded drafter runs beside the head but for its stages, each on the device the split put it (Placement::draft_device), and every op of it on each device it runs on.
         if (plan_.drafter) {
-            for (const Role& role : plan_.drafter->roles) require_type(role, device_of(Part::draft, 0), "embedded drafter");
+            if (!place_.draft_device.empty() && place_.draft_device.size() != plan_.drafter->stages.size())
+                throw std::runtime_error("inference: placement does not place every stage of the embedded drafter");
+            for (int d : place_.draft_device) device_index(d);
+            for (size_t st = 0; st < std::max<size_t>(1, draft_route_size()); ++st)
+                if (std::find(draft_devices_.begin(), draft_devices_.end(), draft_route(st)) == draft_devices_.end()) draft_devices_.push_back(draft_route(st));
+            draft_apart_ = draft_devices_.size() > 1 || draft_devices_[0] != (size_t)place_.output_device;
+            for (const Role& role : plan_.drafter->roles) require_type(role, drafter_device(role), "embedded drafter");
             for (const OpUse& u : plan_.drafter->ops)
-                if (!backends[device_of(Part::draft, 0)]->implements(u.op))
-                    throw std::runtime_error(std::string("inference: the embedded drafter needs ") + backend::op_name(u.op) +
-                                             ", which the backend of its device does not implement");
+                for (size_t d : draft_devices_)
+                    for (size_t at : {d, (size_t)place_.output_device})
+                        if (!backends[at]->implements(u.op))
+                            throw std::runtime_error(std::string("inference: the embedded drafter needs ") + backend::op_name(u.op) +
+                                                     ", which the backend of its device does not implement");
         }
         // Home weights must run on their assigned device before anything is adopted; a stream destination that lacks a weight type leaves the whole layer at home.
         stream_device_.assign(n_layer, -1);
@@ -672,14 +688,34 @@ public:
             stages_.push_back(Stage{a, l, l + 1, {}, {}, 0});
         }
         reply_host_ms_ = std::make_unique<std::atomic<double>[]>(stages_.size());
-        // The drafter's KV is one more layer of the head's device's storage, which the last stage reserves and commits with its own, so the head sits there.
+        // The drafter's cache is one more layer of the head's device's storage, KV the last stage reserves and commits with its own, or a state layer of each device holding a stage; the head sits on the last stage's device.
         if (plan_.drafter) {
             if ((size_t)place_.output_device != stages_.back().device)
                 throw std::runtime_error("inference: an embedded drafter runs on the last stage's device, where the head must be");
-            if (!state_layers_) throw std::logic_error("inference: an embedded drafter carries its row in a state slot, which this model has none of");
-            Device& o = *devices_[(size_t)place_.output_device];
-            drafter_kv_ = (size_t)o.kv_layers++;
-            ++kv_layers_;
+            if (plan_.drafter->cache != Cache::kv && plan_.drafter->cache != Cache::entries)
+                throw std::logic_error("inference: an embedded drafter keeps KV or entries");
+            if (carries_row(plan_) && !state_layers_ && !keeps_slot(*plan_.drafter))
+                throw std::logic_error("inference: an embedded drafter carries its row in a state slot, which this model has none of");
+            if (draft_apart_) {
+                // Stages apart keep their state where they run, a layer of every device that holds one, and a draft's rows cross through the handoff buffers (docs/SPECULATIVE.md, section 9).
+                size_t carried = plan_.residual;
+                for (const ModelPlan::Carried& c : plan_.draft_carried) carried = backend::size_add(carried, plan_.slots.at(c.slot));
+                if (keeps_kv(*plan_.drafter) || carries_row(plan_) || plan_.draft_sums % draft_route_size() || !plan_.draft_ids || !plan_.draft_rows_x ||
+                    carried > handoff_width(plan_) || plan_.slots.at(plan_.draft_rows_x) > handoff_width(plan_) || plan_.slots.at(plan_.draft_ids) > handoff_width(plan_))
+                    throw std::logic_error("inference: a drafter whose stages run apart keeps a state slot, as many parts a stage and rows a handoff holds");
+                for (size_t d : draft_devices_)
+                    if (!devices_[d]->mixer_layers) throw std::runtime_error("inference: an embedded drafter's stage runs on a device that holds no layers");
+            }
+            if (keeps_kv(*plan_.drafter)) {
+                drafter_kv_ = (size_t)devices_[(size_t)place_.output_device]->kv_layers++;
+                ++kv_layers_;
+            }
+            drafter_state_.assign(devices_.size(), SIZE_MAX);
+            for (size_t d : draft_devices_) {
+                if (!keeps_slot(*plan_.drafter)) break;
+                drafter_state_[d] = (size_t)devices_[d]->state_layers++;
+                ++state_layers_;
+            }
         }
         for (size_t s = 0; s < stages_.size(); ++s) {
             Stage& st = stages_[s];
@@ -698,6 +734,14 @@ public:
             for (int l = stages_[s].first; l < stages_[s].end; ++l)
                 pipelined_ = pipelined_ && place_.ffn_device[(size_t)l] == (int)stages_[s].device;
         }
+        // A stage's thread then records on its own device alone, which the drafter's parts there wait for (Recording).
+        if (draft_apart_ && !pipelined_) throw std::runtime_error("inference: an embedded drafter's stages run apart from the head on a layer split whose stages each run on one device");
+        if (draft_apart_) {
+            draft_step_slots_ = {{0, 0}};
+            draft_step_slots_.insert(draft_step_slots_.end(), plan_.draft_carried.begin(), plan_.draft_carried.end());
+            draft_id_slots_ = {{plan_.draft_ids, 0}};
+            draft_rows_slots_ = {{plan_.draft_rows_x, 0}};
+        }
         // The residual leaves a device wherever the next role on its path (the embedding, each layer's mixer and feed-forward block, the head) sits on another.
         // A feed-forward block away from its mixer sends too, since a streamed layer's host rows cross back from it to the mixer's device.
         size_t at = (size_t)place_.embed_device;
@@ -708,6 +752,9 @@ public:
             at = f;
         }
         if ((size_t)place_.output_device != at) devices_[at]->sends = true;
+        // A drafter whose stages run apart sends from the head to each stage's device and along its route back to the head (Model::readers).
+        for (size_t i = 0; draft_apart_ && i < draft_route_size(); ++i)
+            if (draft_route(i) != draft_route(i + 1)) devices_[draft_route(i)]->sends = devices_[(size_t)place_.output_device]->sends = true;
         // Which of each sender's readers its backend orders on the devices, asked once; every pass's Handoffs answer the same.
         for (size_t d = 0; d < devices_.size(); ++d) {
             Device& dev = *devices_[d];
@@ -762,7 +809,7 @@ public:
                         auxiliary[(size_t)d.kv_local[l]] = plan_.layers[l].kv_aux;
                         pools[(size_t)d.kv_local[l]] = {plan_.layers[l].kv_pool, plan_.layers[l].kv_pool_width};
                     }
-                if (plan_.drafter && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
+                if (plan_.drafter && keeps_kv(*plan_.drafter) && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
                     auxiliary[drafter_kv_] = plan_.drafter->kv_aux;
                     pools[drafter_kv_] = {plan_.drafter->kv_pool, plan_.drafter->kv_pool_width};
                 }
@@ -796,6 +843,7 @@ public:
                     for (size_t l = 0; l < n_layer; ++l)
                         if (place_.mixer_device[l] == (int)(di - d.member) && keeps_slot(plan_.layers[l]))
                             tails[(size_t)d.state_local[l]] = plan_.layers[l].state_tail;
+                    if (plan_.drafter && keeps_slot(*plan_.drafter) && drafter_state_[di - d.member] != SIZE_MAX) tails[drafter_state_[di - d.member]] = plan_.drafter->state_tail;
                     d.states = d.b->state_alloc((size_t)d.state_layers, slots, shard::state(plan_, width_), tails);
                     // Each mark's room for the recurrent inputs of its rows, per state layer of the device.
                     if (!options_.mark_slots) continue;
@@ -821,7 +869,7 @@ public:
             }
             // The drafter's carried row, one a state slot on the head's device, a zero row a history of length 0 reads, and each mark's room for the normed rows of the pass after it.
             // Each member of the head's tensor group holds them, the rows being the same on every member.
-            for (size_t m = 0; plan_.drafter && m < width_; ++m) {
+            for (size_t m = 0; carries_row(plan_) && m < width_; ++m) {
                 Device& o = *devices_[(size_t)place_.output_device + m];
                 const size_t slots = backend::size_add(backend::size_add(options_.state_slots, options_.checkpoint_slots), options_.mark_slots);
                 const size_t row = backend::size_mul(plan_.residual, sizeof(float));
@@ -1059,6 +1107,8 @@ public:
     size_t retract(Sequence& s, size_t length, const Defer& defer);
     bool mark(Sequence& s);
     bool can_draft(const Sequence& s) const;
+    // The most drafts one chain of the embedded drafter gives (ModelPlan::draft_block), SIZE_MAX where only the pass bounds it.
+    size_t draft_block() const { return plan_.draft_block ? plan_.draft_block : SIZE_MAX; }
     bool keep(Sequence& s);
     std::optional<size_t> checkpoint(const Sequence& s) const;
     size_t host_bytes(size_t length, bool blocks = true, size_t first = 0, bool state = true) const;
@@ -1123,11 +1173,12 @@ public:
     struct Chain {
         std::vector<DraftAsk> asks;
         std::vector<size_t> order;             // the asks that draft, longest chain first
-        size_t steps = 0;
+        size_t steps = 0, block = 1;           // the drafter's calls, each giving up to `block` drafts a sequence
         std::vector<uint32_t> last, carried;   // each row's last pick and the slot of the row its history carries
         std::vector<size_t> rows;              // each step's rows
-        std::vector<uint32_t> pos;             // step m's positions from m * R
-        std::vector<backend::KVView> views;    // step m's views on member g from (m * W + g) * R
+        std::vector<uint32_t> pos;             // step m's positions from m * R * block, a sequence's block of rows together
+        std::vector<backend::KVView> views;    // step m's views on member g from (m * W + g) * R, a KV drafter's
+        std::vector<backend::StateView> states; // the same, a state drafter's
         std::vector<KVSequence*> kv;
         size_t prepared = 0;                   // the KV sequences whose drafted rows are taken
         std::vector<backend::Ticket> sent;
@@ -1139,6 +1190,8 @@ public:
     void draft_end(Chain& c);
     // Room for every mark's rerun and for a chain of every mark's sequence at the most drafts a mark holds, taken now, so neither allocates while a stage's thread records (Scheduler).
     void reserve_drafting();
+    // The draft rows a chain of k drafts takes, k rounded up to whole calls of the drafter's block (ModelPlan::draft_block).
+    size_t draft_span(size_t k) const { return draft_calls(plan_, k) * std::max<size_t>(plan_.draft_block, 1); }
     void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {
         DraftAsk a{&s, last, k, &out};
         draft(&a, 1);
@@ -1410,6 +1463,7 @@ private:
         size_t rerun_base = 0;                   // where the rerun's rooms start in `saved`, in floats
         size_t rerun_floats = 0;                 // a row of one state layer's room (recur_floats)
         backend::BufferPtr carry, zero, saved_h; // on the head's device with an embedded drafter: its carried row a state slot, a zero row, and per mark and row the normed rows of the pass after it
+        std::mutex recording;                    // held while recording on it where a drafter's stages sit apart from the head (Model::Recording)
         std::vector<backend::BufferPtr> tables;  // the position tables, on a device that runs a mixer
     };
 
@@ -1482,8 +1536,11 @@ private:
     std::vector<int> stream_device_;
     std::vector<std::vector<Weight>> stream_;
     std::vector<std::vector<backend::BufferPtr>> windows_;   // per device, a buffer per window role in role order, sized to the largest streamed layer's
-    std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, on the head's device
+    std::vector<Weight> drafter_;                // an embedded drafter's roles by role id, each on its device (drafter_device)
     size_t drafter_kv_ = 0;                      // its KV layer in the head's device's storage
+    std::vector<size_t> drafter_state_;          // per group's first device, its state layer in that device's storage, SIZE_MAX where it holds none
+    std::vector<size_t> draft_devices_;          // the devices its stages run on in stage order, each once, the head's where they run with it
+    bool draft_apart_ = false;                   // some stage runs on a device other than the head's
     // The last draft's ids per member of the head's group, the last picks first, host visible, and each member's logits of its own vocabulary rows for every row of every step, on its device.
     std::vector<backend::BufferPtr> draft_ids_, draft_logits_;
     size_t draft_id_rows_ = 0, draft_rows_ = 0;   // the ids and the logits rows they hold
@@ -1514,9 +1571,51 @@ private:
         throw std::logic_error("inference: a plan without a head");
     }
 
+    // Stage st of the embedded drafter's device (Placement::draft_device), the head's where they run with it.
+    size_t draft_stage_device(size_t st) const { return place_.draft_device.empty() ? (size_t)place_.output_device : (size_t)place_.draft_device.at(st); }
+    // A draft step's route: its stages' devices in order, then the head's at draft_route_size().
+    size_t draft_route_size() const { return plan_.drafter->stages.size(); }
+    size_t draft_route(size_t i) const { return i < draft_route_size() ? draft_stage_device(i) : (size_t)place_.output_device; }
+    // The device a drafter role runs on: a stage's on its stage's, the gather of the pass's embedding table with stage 0, which reads it first, and every other with the head.
+    size_t drafter_device(const Role& role) const {
+        const auto& stages = plan_.drafter->stages;
+        for (size_t st = 0; st < stages.size(); ++st)
+            if (role.id >= stages[st].first && role.id < stages[st].second) return draft_stage_device(st);
+        if (!stages.empty() && role.kind == RoleKind::gather && role.tensor == embedding_role(plan_).tensor) return draft_stage_device(0);
+        return (size_t)place_.output_device;
+    }
+    // The device part `phase` of a draft step runs on (DraftStep): a stage's sublayers on its stage's, the head's part and the picks on the head's.
+    size_t draft_part_device(size_t phase) const {
+        return phase < plan_.draft_sums ? draft_stage_device(phase / (plan_.draft_sums / draft_route_size())) : (size_t)place_.output_device;
+    }
+    // While stages sit apart from the head, the recording locks of `n` devices from `first`, in device order: a stage's thread and a drafter's parts on another stage's devices record there one at a time.
+    // Taken after context_m_ where both are, around a span that records and submits, and held across no wait for another thread.
+    class Recording {
+    public:
+        Recording(const Model& m, size_t first, size_t n) : m_(m), first_(first), n_(m.draft_apart_ ? n : 0) {
+            for (size_t d = first_; d < first_ + n_; ++d) m_.devices_[d]->recording.lock();
+        }
+        ~Recording() {
+            for (size_t d = first_ + n_; d-- > first_;) m_.devices_[d]->recording.unlock();
+        }
+        Recording(const Recording&) = delete;
+        Recording& operator=(const Recording&) = delete;
+    private:
+        const Model& m_;
+        size_t first_, n_;
+    };
+    // A stage item that records on device `d` takes its lock there (Recording).
+    void locked(StageItem& item, size_t d) const {
+        if (!draft_apart_) return;
+        item.run = [this, d, run = std::move(item.run)] {
+            Recording held(*this, d, 1);
+            run();
+        };
+    }
+
     size_t device_of(Part part, size_t l) const {
         if (part == Part::embed) return (size_t)place_.embed_device;
-        if (part == Part::head || part == Part::draft) return (size_t)place_.output_device;
+        if (part == Part::head) return (size_t)place_.output_device;
         return (size_t)(part == Part::mixer ? place_.mixer_device[l] : place_.ffn_device[l]);
     }
 
@@ -1582,7 +1681,7 @@ private:
         for (const Role& role : plan_.pass) pass_[role.id] = resolve(role, device_of(role.part, 0));
         if (plan_.drafter) {
             drafter_.assign(plan_.role_ids, Weight{});
-            for (const Role& role : plan_.drafter->roles) drafter_[role.id] = resolve(role, device_of(role.part, 0));
+            for (const Role& role : plan_.drafter->roles) drafter_[role.id] = resolve(role, drafter_device(role));
         }
         const size_t n_layer = plan_.layers.size();
         home_.assign(n_layer, {});
@@ -1605,7 +1704,7 @@ private:
         for (size_t m = 1; m < width_; ++m) {
             for (const Role& role : plan_.pass) member_pass_[m - 1][role.id] = resolve(role, device_of(role.part, 0), m);
             for (size_t k = 0; plan_.drafter && k < plan_.drafter->roles.size(); ++k)
-                member_drafter_[m - 1][plan_.drafter->roles[k].id] = resolve(plan_.drafter->roles[k], device_of(Part::draft, 0), m);
+                member_drafter_[m - 1][plan_.drafter->roles[k].id] = resolve(plan_.drafter->roles[k], drafter_device(plan_.drafter->roles[k]), m);
             for (size_t l = 0; l < n_layer; ++l)
                 for (const Role& role : plan_.layers[l].roles) member_home_[m - 1][l][role.id] = resolve(role, device_of(role.part, l), m);
         }
@@ -1704,9 +1803,25 @@ private:
     backend::BufferPtr alloc_arena(backend::Backend& b, const std::vector<size_t>& counts, std::vector<size_t>& offsets) const;
     void ensure(ExecContext& ctx, size_t rows, size_t want, size_t buffers, size_t reply_rows = 0);
     bool argmax_buffers(ExecContext& ctx, size_t end);
-    void send(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, size_t base, size_t rows);
-    std::pair<double, double> receive(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows);
-    void cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows);
+    void send(ExecContext& ctx, size_t set, size_t from, size_t handoff, size_t base, size_t rows, int before, const std::vector<ModelPlan::Carried>* slots = nullptr);
+    std::pair<double, double> receive(ExecContext& ctx, size_t set, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, int before,
+                                      const std::vector<ModelPlan::Carried>* slots = nullptr);
+    // The slots a crossing carries: `slots` where given, else the residual and the pass's carried slots (ModelPlan::carried).
+    size_t crossed(const std::vector<ModelPlan::Carried>* slots) const { return slots ? slots->size() : plan_.carried.size() + 1; }
+    ModelPlan::Carried crossed(const std::vector<ModelPlan::Carried>* slots, size_t i) const {
+        return slots ? (*slots)[i] : i ? plan_.carried[i - 1] : ModelPlan::Carried{0, 0};
+    }
+    // With a drafter's stages apart, what its crossings carry: a draft step's rows (the residual and ModelPlan::draft_carried), its input ids, and a context call's rows.
+    std::vector<ModelPlan::Carried> draft_step_slots_, draft_id_slots_, draft_rows_slots_;
+    void cross(ExecContext& ctx, size_t set, size_t from, size_t to, size_t base, size_t rows, int before);
+    void send(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, size_t base, size_t rows, int before, const std::vector<ModelPlan::Carried>* slots = nullptr) {
+        send(ctx, p.scratch, from, handoff, base, rows, before, slots);
+    }
+    std::pair<double, double> receive(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, int before,
+                                      const std::vector<ModelPlan::Carried>* slots = nullptr) {
+        return receive(ctx, p.scratch, from, handoff, sent, to, base, rows, before, slots);
+    }
+    void cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows, int before) { cross(ctx, p.scratch, from, to, base, rows, before); }
     std::vector<size_t> readers(size_t from) const;
     bool served(size_t from, size_t to) const;
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
@@ -1767,10 +1882,11 @@ private:
     // A pass's scratch on a device, the set it chose (Pass::scratch), through which every part, crossing, save and lookup of the pass reads and writes.
     static ExecContext::Scratch& scratch(ExecContext& ctx, size_t set, size_t device) { return (set ? ctx.replies : ctx.scratch)[device]; }
     static ExecContext::Scratch& scratch(ExecContext& ctx, const Pass& p, size_t device) { return scratch(ctx, p.scratch, device); }
-    static backend::Slice slot(const ExecContext& ctx, const Pass& p, size_t device, size_t i) {
-        const ExecContext::Scratch& sc = (p.scratch ? ctx.replies : ctx.scratch)[device];
+    static backend::Slice slot(const ExecContext& ctx, size_t set, size_t device, size_t i) {
+        const ExecContext::Scratch& sc = (set ? ctx.replies : ctx.scratch)[device];
         return {sc.arena.get(), sc.offset[i] / sizeof(float)};
     }
+    static backend::Slice slot(const ExecContext& ctx, const Pass& p, size_t device, size_t i) { return slot(ctx, p.scratch, device, i); }
 
     static std::vector<float> row(ExecContext& ctx, size_t i) {
         const float* p = ctx.logits(i);

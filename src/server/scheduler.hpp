@@ -1679,7 +1679,7 @@ private:
                 asks_[askers_.size()].images = model_.image_rows(r->seq_);
                 k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_, asks_[askers_.size()].images);
             }
-            if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record.proposer);
+            if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, proposer_->block(), record.proposer);
             if (!k) continue;
             // The server's record of a history bucket starts from a shorter one's as the request's does (spec::Record::seed).
             if (record.drafted == Source::lookup) {

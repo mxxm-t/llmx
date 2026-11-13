@@ -44,6 +44,11 @@ TINY_ARGS = {
     "engram_n_heads": 2, "engram_head_dim": 32, "engram_pad_id": 2, "engram_compressed_vocab_size": 99092,
 }
 
+# The tiny DSpark drafter (docs/DEEPSEEK4.md, section 4.7): three window-only stages with wider experts of their own, taps on a ratio-2 Engram layer and either side of it, a block of 5 and a Markov head of rank 16.
+DSPARK_ARGS = dict(TINY_ARGS, n_mtp_layers=3, compress_ratios=TINY_ARGS["compress_ratios"] + [0, 0, 0], dspark_block_size=5,
+                   dspark_noise_token_id=127, dspark_target_layer_ids=[3, 4, 6], dspark_markov_rank=16, dspark_n_routed_experts=6,
+                   dspark_n_activated_experts=3)
+
 # E2M1 magnitudes by code; code c | 8 is the negative of code c.
 E2M1 = (0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0)
 
@@ -100,9 +105,11 @@ def parameter_shapes(args, engram_rows):
     e, inter, ih, ihd = args["n_routed_experts"], args["moe_inter_dim"], args["index_n_heads"], args["index_head_dim"]
     mix = (2 + hc) * hc
     shapes = {"embed.weight": (args["vocab_size"], d), "norm.weight": (d,), "head.weight": (args["vocab_size"], d)}
-    for layer in range(args["n_layers"]):
+    stages = args.get("n_mtp_layers", 0) if args.get("dspark_block_size") else 0
+    for layer in range(args["n_layers"] + stages):
         roles = layer_roles(args, layer)
-        p = "layers.%d." % layer
+        p = "layers.%d." % layer if layer < args["n_layers"] else "mtp.%d." % (layer - args["n_layers"])
+        e = args["n_routed_experts"] if layer < args["n_layers"] else args["dspark_n_routed_experts"]
         shapes.update({
             p + "attn.attn_sink": (h,), p + "attn.wq_a.weight": (q, d), p + "attn.q_norm.weight": (q,),
             p + "attn.wq_b.weight": (h * hd, q), p + "attn.wkv.weight": (hd, d), p + "attn.kv_norm.weight": (hd,),
@@ -135,6 +142,15 @@ def parameter_shapes(args, engram_rows):
             shapes[p + "engram.wkv.weight"] = (d * (hc + 1), cols)
             shapes[p + "engram.q_weight"] = (hc, d)
             shapes[p + "engram.k_weight"] = (hc, d)
+    if stages:
+        # The stages share the trunk's embedding and head, which DeepSeek's state lists under every stage too.
+        rank, last = args["dspark_markov_rank"], "mtp.%d." % (stages - 1)
+        for stage in range(stages):
+            shapes["mtp.%d.embed.weight" % stage] = shapes["embed.weight"]
+            shapes["mtp.%d.head.weight" % stage] = shapes["head.weight"]
+        shapes.update({"mtp.0.main_proj.weight": (d, d * len(args["dspark_target_layer_ids"])), "mtp.0.main_norm.weight": (d,),
+                       last + "norm.weight": (d,), last + "markov_head.embed.weight": (args["vocab_size"], rank),
+                       last + "markov_head.head.weight": (args["vocab_size"], rank), last + "confidence_head.proj.weight": (1, d + rank)})
     return shapes
 
 
@@ -154,11 +170,14 @@ def _engram_table(seed, name, rows, width, zero_rows):
     return values, scales
 
 
-def make_state(args, engram_rows, seed, zero_rows):
-    """The tiny state: name to (shape, values); an Engram table's weight holds E2M1 values and its scale the block scales, as model.py's FP8 table and E8M0 scale do."""
+def make_state(args, engram_rows, seed, zero_rows, drafter_seed=None):
+    """The tiny state: name to (shape, values); an Engram table's weight holds E2M1 values and its scale the block scales, as model.py's FP8 table and E8M0 scale do.
+    With `drafter_seed` the drafter's own parameters (mtp.*) are drawn from it, so a search over it leaves the trunk as it is."""
     state = {}
+    trunk_seed = seed
     for name, shape in parameter_shapes(args, engram_rows).items():
         count = math.prod(shape)
+        seed = drafter_seed if drafter_seed is not None and name.startswith("mtp.") else trunk_seed
         if name.endswith("engram.embed.weight"):
             layer = int(name.split(".")[1])
             values, scales = _engram_table(seed, name, shape[0], shape[1], zero_rows.get(layer, ()))
@@ -168,6 +187,8 @@ def make_state(args, engram_rows, seed, zero_rows):
             continue
         elif name.endswith(("engram.q_weight", "engram.k_weight")):
             state[name] = (shape, _bf16_near_one(seed, name, count))
+        elif name.startswith("mtp.") and name.split(".", 2)[2] in ("embed.weight", "head.weight"):
+            continue
         elif name.endswith("norm.weight"):
             state[name] = (shape, _uniform(seed, name, count, 2.0 ** -3, 1.0))
         elif name.endswith(("hc_attn_scale", "hc_ffn_scale")):
@@ -182,6 +203,9 @@ def make_state(args, engram_rows, seed, zero_rows):
             state[name] = (shape, _uniform(seed, name, count, 2.0 ** -3))
         else:
             state[name] = (shape, _uniform(seed, name, count, _linear_amp(shape[-1])))
+    for name in parameter_shapes(args, engram_rows):
+        if name.startswith("mtp.") and name.split(".", 2)[2] in ("embed.weight", "head.weight"):
+            state[name] = state[name.split(".", 2)[2]]
     return state
 
 
@@ -409,6 +433,70 @@ def write_deepseek41(path, args, state, engram, layout):
     return path
 
 
+# The sidecar's keys, the trunk's that a stage shares with it and its own (docs/DEEPSEEK4.md, section 4.7).
+_DFLASH_SHARED = ("context_length", "embedding_length", "attention.head_count", "attention.head_count_kv", "rope.scaling.type", "rope.scaling.factor",
+                  "rope.scaling.original_context_length", "rope.scaling.yarn_beta_fast", "rope.scaling.yarn_beta_slow", "rope.freq_base",
+                  "attention.layer_norm_rms_epsilon", "expert_gating_func", "attention.key_length", "attention.value_length", "rope.dimension_count",
+                  "attention.q_lora_rank", "attention.sliding_window", "expert_feed_forward_length", "expert_shared_count", "expert_weights_scale",
+                  "expert_weights_norm", "attention.indexer.head_count", "attention.indexer.key_length", "attention.indexer.top_k",
+                  "attention.output_group_count", "attention.output_lora_rank", "attention.compress_rope_freq_base", "hyper_connection.count",
+                  "hyper_connection.sinkhorn_iterations", "hyper_connection.epsilon", "hash_layer_count")
+_DFLASH_GLOBALS = {"mtp.0.main_proj.weight": "fc.weight", "mtp.0.main_norm.weight": "enc.output_norm.weight", "norm.weight": "output_norm.weight",
+                   "markov_head.embed.weight": "markov_w1.weight", "markov_head.head.weight": "markov_w2.weight",
+                   "confidence_head.proj.weight": "conf_proj.weight"}
+
+
+def map_dflash(args, state, engram):
+    """Return `(metadata, tensors)` of the tiny `dflash` sidecar, as the converter writes DeepSeek-V4.1-Flash-DSpark: its stages as blocks 0 to 2 and its globals by their own names."""
+    trunk = _metadata(args, engram, "fork")
+    stages, n = args["n_mtp_layers"], args["n_layers"]
+    meta = {key: value for key, value in trunk.items() if key.startswith("tokenizer.")}
+    meta.update({"dflash." + key: trunk["deepseek41." + key] for key in _DFLASH_SHARED})
+    meta.update({
+        "general.architecture": (STRING, "dflash"),
+        "dflash.block_count": (GGUF_UINT32, stages),
+        "dflash.expert_count": (GGUF_UINT32, args["dspark_n_routed_experts"]),
+        "dflash.expert_used_count": (GGUF_UINT32, args["dspark_n_activated_experts"]),
+        "dflash.swiglu_clamp_exp": (ARRAY, (GGUF_FLOAT32, [args["swiglu_limit"]] * stages)),
+        "dflash.swiglu_clamp_shexp": (ARRAY, (GGUF_FLOAT32, [args["swiglu_limit"]] * stages)),
+        "dflash.attention.compress_ratios": (ARRAY, (GGUF_INT32, list(args["compress_ratios"][n:]))),
+        "dflash.block_size": (GGUF_UINT32, args["dspark_block_size"]),
+        "dflash.target_layers": (ARRAY, (GGUF_INT32, list(args["dspark_target_layer_ids"]))),
+        "tokenizer.ggml.mask_token_id": (GGUF_UINT32, args["dspark_noise_token_id"]),
+    })
+    tensors = []
+    last = "mtp.%d." % (stages - 1)
+    for name in sorted(state):
+        if not name.startswith("mtp."):
+            continue
+        stage, rest = name.split(".", 2)[1:]
+        if rest in ("embed.weight", "head.weight") or ".experts." in rest:
+            continue
+        if name in _DFLASH_GLOBALS:
+            tensors.append(_f32_tensor(_DFLASH_GLOBALS[name], *state[name]))
+        elif name.startswith(last) and rest in _DFLASH_GLOBALS:
+            tensors.append(_f32_tensor(_DFLASH_GLOBALS[rest], *state[name]))
+        else:
+            tensors.append(_f32_tensor("blk.%s.%s" % (stage, _LAYER[rest]), *state[name]))
+    for stage in range(stages):
+        for proj, target in _EXPERTS.items():
+            names = ["mtp.%d.ffn.experts.%d.%s.weight" % (stage, e, proj) for e in range(args["dspark_n_routed_experts"])]
+            values = [v for name in names for v in state[name][1]]
+            tensors.append(_f32_tensor("blk.%d.%s" % (stage, target), (len(names),) + tuple(state[names[0]][0]), values))
+    return meta, tensors
+
+
+def write_dflash(path, args, state, engram):
+    """Write the tiny sidecar, replacing `path` only once it is complete."""
+    metadata, tensors = map_dflash(args, state, engram)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    staged = path.with_name(path.name + ".tmp")
+    write_gguf(staged, metadata, tensors)
+    os.replace(staged, path)
+    return path
+
+
 def fixture_from_document(document, **overrides):
     """The args, state and Engram constants a committed golden names, rebuilt from its seed; `overrides` replace args, as the group-legal shape's four output groups do."""
     args = dict(document["args"], **overrides)
@@ -416,3 +504,84 @@ def fixture_from_document(document, **overrides):
     zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
     state = make_state(args, [sum(row) for row in engram["primes"]], document["seed"], zero_rows)
     return args, state, engram
+
+
+def dspark_fixture(document):
+    """The trunk's args, the DSpark args and their state, as the DSpark golden (document["dspark"]) names them, rebuilt from the trunk's seed and the drafter's."""
+    args, _, engram = fixture_from_document(document)
+    dspark = document["dspark"]["args"]
+    zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
+    state = make_state(dspark, [sum(row) for row in engram["primes"]], document["seed"], zero_rows, document["dspark"]["seed"])
+    return args, dspark, state, engram
+
+
+# The model formats' rounding points (docs/DEEPSEEK4.md, section 4.5): E4M3 values under a power-of-two scale per block, and E2M1 values.
+E2M1_VALUES = (0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0)
+
+
+def e4m3_margin(y):
+    """How far a scaled value lies from E4M3's nearest rounding midpoint, in units of the code spacing there; a value on a code is 0.5 away."""
+    a = abs(y)
+    if a == 0:
+        return 0.5
+    spacing = 2.0 ** (max(math.floor(math.log2(a)), -6) - 3)
+    f = a / spacing
+    return abs(f - math.floor(f) - 0.5)
+
+
+def e2m1_margin(y):
+    """How far a scaled value lies from E2M1's nearest rounding midpoint, in units of the spacing of the two codes around it."""
+    a = abs(y)
+    for lo, hi in zip(E2M1_VALUES, E2M1_VALUES[1:]):
+        if a <= hi:
+            return abs(a - (lo + hi) / 2) / (hi - lo)
+    return 0.5
+
+
+def power_margin(t, codes_per_octave):
+    """How far amax over the format's largest value, `t`, lies from the power of two where the block's scale doubles, in code spacings of the block's largest value."""
+    return codes_per_octave * abs(t / 2.0 ** round(math.log2(t)) - 1)
+
+
+def fp8_margins(blocks):
+    """The least value margin and the least scale margin over blocks of F32 values coded to FP8 E4M3 with s = 2^ceil(log2(max(amax, 1e-4) / 448))."""
+    value, scale = 0.5, math.inf
+    for block in blocks:
+        t = _f32(max(max(abs(v) for v in block), 1e-4) * _f32(1.0 / 448.0))
+        s = 2.0 ** math.ceil(math.log2(t))
+        value = min(value, min(e4m3_margin(v / s) for v in block))
+        scale = min(scale, power_margin(t, 14.0))
+    return value, scale
+
+
+def fp4_margins(blocks, e4m3_scale):
+    """The least value margin and the least scale margin over blocks coded to FP4 E2M1, under an E4M3 scale of amax / 6 or an E8M0 one of 2^ceil(log2(amax / 6))."""
+    value, scale = 0.5, math.inf
+    for block in blocks:
+        amax = max(abs(v) for v in block)
+        if e4m3_scale:
+            t = _f32(max(amax, 6 * 2.0 ** -9) / 6.0)
+            scale = min(scale, e4m3_margin(t))
+            s = _e4m3(t)
+        else:
+            t = _f32(max(amax, 6 * 2.0 ** -126) * _f32(1.0 / 6.0))
+            scale = min(scale, power_margin(t, 3.0))
+            s = 2.0 ** math.ceil(math.log2(t))
+        value = min(value, min(e2m1_margin(min(max(v / s, -6.0), 6.0)) for v in block))
+    return value, scale
+
+
+def _f32(x):
+    return struct.unpack("<f", struct.pack("<f", x))[0]
+
+
+def _e4m3(x):
+    """x rounded to E4M3, ties to even, for a positive normal x up to 448."""
+    spacing = 2.0 ** (max(math.floor(math.log2(x)), -6) - 3)
+    return round(x / spacing) * spacing
+
+
+def search_drafter_seed(measure, seeds):
+    """The drafter seed with the largest least margin over its window and block rows, the lower seed on a tie, and each seed's margins; measure(seed) gives {"window": ..., "block": ...}."""
+    results = {seed: measure(seed) for seed in seeds}
+    return max(seeds, key=lambda seed: (min(results[seed]["window"], results[seed]["block"]), -seed)), results

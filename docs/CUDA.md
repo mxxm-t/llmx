@@ -119,6 +119,8 @@ Steps 1 to 5 may share a branch; steps 6 and 8 are branches of their own.
 | 7 | First landing's final gates on one card | below | the card each model needs |
 | 8 | MXFP4 and the deepseek4 operations, the NCCL option, Q5_0, Q5_1 and IQ4_NL, graphs if measured | per-family witnesses, the DeepSeek fixture | per item |
 
+In step 8 `backend-cuda` runs `ds4::check_ops({"mix_rows"})`: `mix_rows`, which the DeepSeek-V4.1 DSpark drafter takes, is claimed on CUDA through the shared core and untested there until then.
+
 Every card session is one scripted batch with a deadline; the first runs step 1 as a smoke tier and continues to step 2 only if it passes.
 The checks that need no card run on every change: nvcc builds of every kernel for every target, SASS witnesses (the integer dot and tensor-core instructions present where declared, no local-memory spills), host-core tests against a fake `Api`, and a host model of each `port.h` mapping.
 The shared kernels keep running on ROCm, so most kernel logic is exercised on every ROCm change.

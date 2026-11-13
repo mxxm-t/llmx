@@ -413,7 +413,9 @@ inline void Model::free_slabs(std::vector<std::vector<backend::BufferPtr>> slabs
     for (size_t i = 0; i < slabs.size(); ++i) {
         if (slabs[i].empty()) continue;
         auto held = std::make_shared<std::vector<backend::BufferPtr>>(std::move(slabs[i]));
-        defer(StageItem{stage_of_device(i), [held] { held->clear(); }});
+        StageItem item{stage_of_device(i), [held] { held->clear(); }};
+        locked(item, i);
+        defer(std::move(item));
     }
 }
 
@@ -458,6 +460,7 @@ inline void Model::copy_out(HostHistory& h, const std::vector<size_t>& fresh, st
             if (!error.empty() && p->error.empty()) p->error = error;
             if (!--p->left) p->cv.notify_all();
         }});
+        locked(items.back(), i);
     }
     p->left = items.size();
     h.pending = p;
@@ -731,6 +734,7 @@ inline void Model::copy_in(HostHistory& h, Sequence& s, std::vector<std::vector<
             }
             if (!error.empty()) throw std::runtime_error(error);
         }, q});
+        locked(items.back(), i);
     }
     p->left = q->left = items.size();
     h.pending = p;
@@ -861,7 +865,11 @@ inline RestoreInto Model::restore_into(size_t length, const Defer& defer) {
             const int32_t* blocks = kv.view(nullptr).blocks;
             if (n) {
                 const size_t most = (size_t)*std::max_element(blocks, blocks + n);
-                if (defer) defer(StageItem{stage_of_device(i), [st, most] { st->ensure(most); }});
+                if (defer) {
+                    StageItem item{stage_of_device(i), [st, most] { st->ensure(most); }};
+                    locked(item, i);
+                    defer(std::move(item));
+                }
                 else st->ensure(most);
             }
             detail::block_runs(*st, blocks, n, [&](size_t l, unsigned side, size_t off, size_t bytes) {
@@ -1143,7 +1151,7 @@ inline size_t Model::rewind(Sequence& s, size_t length, const Defer* defer) noex
 
 // A failed pass's `rows` from `length` undone by lengths alone, its state and the token tail it found (`tail`) kept, where docs/DEEPSEEK4.md, section 4.3 allows it; false leaves the history to rewind.
 inline bool Model::rewind_by_length(Sequence& s, size_t length, size_t rows, const uint32_t* tail) noexcept {
-    if (!entries_headroom_ || rows > entries_headroom_ || !length || plan_.drafter || s.mark_.held() || !s.state_.held() ||
+    if (!entries_headroom_ || rows > entries_headroom_ || !length || carries_row(plan_) || s.mark_.held() || !s.state_.held() ||
         std::any_of(s.from_.begin(), s.from_.end(), [](size_t f) { return f != Sequence::kLive; }))
         return false;
     if (tail) std::copy_n(tail, token_width_, token_tails_.data() + s.state_.slot() * token_width_);
@@ -1230,12 +1238,14 @@ inline void Model::rerun(Sequence& s, size_t rows, const Defer& defer) {
                 Device& d = *devices_[dev];
                 std::string error;
                 try {
+                    backend::Ticket t = 0;
                     {
-                        // Parts on different stages' threads share the context's scratch run list.
+                        // Parts on different stages' threads share the context's scratch run list, and a drafter's chain may record on this device (Recording).
                         std::lock_guard<std::mutex> lk(context_m_);
+                        const Recording held(*this, dev, 1);
                         rerun_on(dev, a);
+                        t = d.b->submit();
                     }
-                    const backend::Ticket t = d.b->submit();
                     std::lock_guard<std::mutex> lk(p->m);
                     p->last[dev] = t;
                 } catch (const std::exception& e) {
@@ -1258,10 +1268,10 @@ inline void Model::rerun(Sequence& s, size_t rows, const Defer& defer) {
     }
 }
 
-// Whether a retract's rerun records on device dev: one holding state layers, or the output device of a model with an embedded drafter, whose carried row it restores.
+// Whether a retract's rerun records on device dev: one holding state layers, or the output device of a model whose embedded drafter carries a row, which it restores.
 inline bool Model::reruns_on(size_t dev) const {
     const Device& d = *devices_[dev];
-    return d.states || (plan_.drafter && dev - d.member == (size_t)place_.output_device);
+    return d.states || (carries_row(plan_) && dev - d.member == (size_t)place_.output_device);
 }
 
 // The stage whose passes record on device dev.
@@ -1314,7 +1324,7 @@ inline void Model::rerun_on(size_t dev, const Rerun& a) {
         }
         d.b->unordered(false);
     }
-    if (plan_.drafter && dev - d.member == (size_t)place_.output_device) {
+    if (carries_row(plan_) && dev - d.member == (size_t)place_.output_device) {
         const size_t E = plan_.residual;
         d.b->copy(*d.carry, a.live * E * sizeof(float), *d.saved_h, (a.buffer * options_.mark_rows + a.rows - 1) * E * sizeof(float), E * sizeof(float));
     }
@@ -1341,7 +1351,7 @@ inline void Model::drop_mark(Sequence& s) noexcept {
     s.mark_.ran = false;
 }
 
-// Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked: one submission on the head's device of a step a draft.
+// Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked, a step a draft (draft_record).
 // Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it, and a chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft(DraftAsk* asks, size_t n) {
     std::unique_ptr<Chain> c = draft_begin(asks, n);
@@ -1375,11 +1385,11 @@ inline void Model::draft_buffers(size_t seqs, size_t steps) {
 // The fit counts both (Footprint::context_rows, Footprint::drafter_cache).
 inline void Model::reserve_drafting() {
     if (!options_.mark_slots) return;
-    const size_t rows = std::max(state_layers_ ? options_.mark_rows : 0, plan_.drafter ? options_.mark_slots : 0);
+    const size_t rows = std::max(state_layers_ ? options_.mark_rows : 0, plan_.drafter ? options_.mark_slots * std::max<size_t>(plan_.draft_block, 1) : 0);
     if (!rows) return;
     std::lock_guard<std::mutex> context(context_m_);
     ensure(ctx_, rows, 0, handoffs(1));
-    if (plan_.drafter && options_.mark_rows > 1) draft_buffers(options_.mark_slots, options_.mark_rows - 1);
+    if (plan_.drafter && options_.mark_rows > 1) draft_buffers(options_.mark_slots, draft_span(options_.mark_rows - 1));
 }
 
 // The chain's part on the thread that owns the histories: each history settled, the KV rows its drafts take, every step's rows, positions and views, and its sequences in flight; null where no ask drafts.
@@ -1397,19 +1407,22 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         if (a.seq->flights_) throw std::logic_error("inference: a draft of a sequence in flight");
         const size_t L = history(*a.seq);
         if (!L || !a.seq->state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
-        if (a.k > positions_ - std::min(positions_, L))
+        if (draft_span(a.k) > positions_ - std::min(positions_, L))
             throw std::runtime_error("inference: context length exceeded (" + std::to_string(positions_) + " tokens)");
         c->order.push_back(i);
         c->steps = std::max(c->steps, a.k);
     }
     if (c->order.empty()) return nullptr;
+    c->block = std::max<size_t>(plan_.draft_block, 1);
+    c->steps = draft_calls(plan_, c->steps);
     std::stable_sort(c->order.begin(), c->order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
-    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps;
+    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps, B = c->block;
+    const bool kv = keeps_kv(*plan_.drafter);
     Device& d = *devices_[o];
     {
         std::lock_guard<std::mutex> context(context_m_);
-        ensure(ctx_, R, 0, handoffs(1));
-        draft_buffers(R, steps);
+        ensure(ctx_, R * B, 0, handoffs(1));
+        draft_buffers(R, steps * B);
     }
     c->last.resize(R);
     c->carried.resize(R);
@@ -1420,26 +1433,34 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
         c->last[p] = asks[c->order[p]].last;
         length[p] = history(s);
         c->carried[p] = (uint32_t)(s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1]);
-        c->kv[p] = &s.kv_[(size_t)d.storage_index];
+        if (kv) c->kv[p] = &s.kv_[(size_t)d.storage_index];
     }
     try {
-        for (; c->prepared < R; ++c->prepared) c->kv[c->prepared]->prepare(asks[c->order[c->prepared]].k);
+        for (; kv && c->prepared < R; ++c->prepared) c->kv[c->prepared]->prepare(draft_span(asks[c->order[c->prepared]].k));
         c->rows.resize(steps);
-        c->pos.assign(backend::size_mul(steps, R), 0);
-        c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
+        c->pos.assign(backend::size_mul(backend::size_mul(steps, R), B), 0);
+        const size_t K = draft_devices_.size();
+        if (kv) c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
+        else c->states.resize(backend::size_mul(backend::size_mul(backend::size_mul(K, steps), W), R));
         for (size_t m = 0, rows = R; m < steps; ++m) {
-            while (asks[c->order[rows - 1]].k <= m) --rows;
+            while (asks[c->order[rows - 1]].k <= m * B) --rows;
             c->rows[m] = rows;
             for (size_t p = 0; p < rows; ++p) {
-                for (size_t g = 0; g < W; ++g) {
+                const Sequence& s = *asks[c->order[p]].seq;
+                for (size_t g = 0; g < W && kv; ++g) {
                     backend::KVView& v = c->views[(m * W + g) * R + p];
                     v = c->kv[p]->view(devices_[o + g]->storage.get());
-                    v.length = length[p] + m;
-                    v.nq = 1;
-                    v.extent = 1;
+                    v.length = length[p] + m * B;
+                    v.nq = B;
+                    v.extent = B;
                 }
+                // A state drafter's step reads the slot the history's last stage left and writes its rows past the history into the live slot, which a verify writes again.
+                for (size_t k = 0; k < K && !kv; ++k)
+                    for (size_t g = 0; g < W; ++g)
+                        c->states[((k * steps + m) * W + g) * R + p] =
+                            backend::StateView{devices_[draft_devices_[k] + g]->states.get(), c->carried[p], s.state_.slot(), length[p] + m * B, B};
                 // A drafted token is text, at its index less what the history's images saved.
-                positions(*asks[c->order[p]].seq, length[p] + m, 1, false, &c->pos[m * R + p]);
+                positions(s, length[p] + m * B, B, false, &c->pos[(m * R + p) * B]);
             }
         }
     } catch (...) {
@@ -1450,65 +1471,132 @@ inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, si
     return c;
 }
 
-// The chain on the head's devices, on the head stage's thread in a server: one submission a member of a step a draft, waited for, and the drafted ids read back.
+// The chain on the head stage's thread in a server: a step a draft on the head's devices, or with stages apart its parts on each stage's devices, submitted, the head's waited for and the drafted ids read back.
 // Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it.
 inline void Model::draft_record(Chain& c) {
-    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, steps = c.steps;
+    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, steps = c.steps, B = c.block;
+    const bool carries = carries_row(plan_);
     // A server records the chain beside a deferred rerun's parts on other stages, which share the context.
     std::lock_guard<std::mutex> context(context_m_);
+    c.sent.assign(devices_.size(), 0);
     try {
-        std::vector<backend::Slice> x(W);
-        for (size_t g = 0; g < W; ++g) {
-            devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
-            x[g] = slot(ctx_, o + g, plan_.draft_x);
-        }
-        for (size_t m = 0; m < steps; ++m) {
+        const auto rows_of = [&](size_t d) {
+            std::vector<backend::Slice> x(W);
+            for (size_t g = 0; g < W; ++g) x[g] = slot(ctx_, d + g, plan_.draft_x);
+            return x;
+        };
+        // Part `phase` of step m on member g of the group at device d, over that device's drafter layer, its input ids the head's or, on a device apart from it, those crossed into its arena.
+        const auto call = [&](size_t d, size_t g, size_t m, int phase) {
             const size_t rows = c.rows[m];
             const backend::RowRun run{rows, 1};
-            // One device runs a step whole; a group runs it in three calls a member with a sum after each of the first two (DraftStep).
-            for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? 3 : 0); ++phase) {
-                for (size_t g = 0; g < W; ++g) {
-                    const backend::Slice hn = slot(ctx_, o + g, plan_.draft_h);
-                    DraftStep step{part(ctx_, o + g, drafter_row(g), plan_.drafter->kind, 0, rows, {&run, 1}),
-                                   {draft_ids_[g].get(), m * R},
-                                   m ? backend::CSlice{hn} : backend::CSlice{devices_[o + g]->carry.get(), 0},
-                                   m ? nullptr : c.carried.data(),
-                                   {draft_ids_[g].get(), (m + 1) * R},
-                                   hn,
-                                   {draft_logits_[g].get(), m * R * draft_head_rows(g)}};
-                    step.views = &c.views[(m * W + g) * R];
-                    step.n_views = rows;
-                    step.kv_layer = drafter_kv_;
-                    step.pos = &c.pos[m * R];
-                    step.phase = phase;
-                    if (W > 1) {
-                        step.width = W;
-                        step.partial = ctx_.collectives[o]->partial(g);
-                        step.zero = ctx_.zeros[o + g].get();
-                        step.member = g;
-                        for (size_t k = 0; k < g; ++k) step.first += draft_head_rows(k);
-                    }
-                    arch_->draft(step);
-                }
-                if (phase == 0 || phase == 1) group_sum(ctx_, o, x, rows, {&run, 1}, plan_.drafter->kind, [&](size_t g) { return drafter_row(g); });
-                // Each member's candidate from its vocabulary rows, summed into every member's slots, gives every member the id one device's argmax gives.
-                if (phase == 2) {
-                    ctx_.collectives[o]->sum_in_place(rows, 3 * W);
-                    for (size_t g = 0; g < W; ++g)
-                        devices_[o + g]->b->argmax_pick({draft_ids_[g].get(), (m + 1) * R}, ctx_.collectives[o]->partial(g), rows, W, V, {draft_ids_[g].get(), m * R});
-                }
+            const backend::Slice hn = slot(ctx_, o + g, plan_.draft_h);
+            DraftStep step{part(ctx_, d + g, drafter_row(g), plan_.drafter->kind, 0, rows, {&run, 1}),
+                           d == o ? backend::CSlice{draft_ids_[g].get(), m * B * R} : backend::CSlice{slot(ctx_, d + g, plan_.draft_ids)},
+                           !carries ? backend::CSlice{} : m ? backend::CSlice{hn} : backend::CSlice{devices_[o + g]->carry.get(), 0},
+                           m || !carries ? nullptr : c.carried.data(),
+                           {draft_ids_[g].get(), (m * B + 1) * R},
+                           hn,
+                           {draft_logits_[g].get(), m * B * R * draft_head_rows(g)}};
+            step.n_views = rows;
+            if (c.views.empty()) {
+                const size_t k = (size_t)(std::find(draft_devices_.begin(), draft_devices_.end(), d) - draft_devices_.begin());
+                if (k < draft_devices_.size()) step.states = &c.states[((k * steps + m) * W + g) * R];
+                step.state_layer = drafter_state_[d];
+            } else {
+                step.views = &c.views[(m * W + g) * R];
+                step.kv_layer = drafter_kv_;
             }
+            step.pos = &c.pos[m * R * B];
+            step.ids = B;
+            step.stride = R;
+            step.phase = phase;
+            if (W > 1) {
+                step.width = W;
+                step.partial = ctx_.collectives[d]->partial(g);
+                step.zero = ctx_.zeros[d + g].get();
+                step.member = g;
+                for (size_t k = 0; k < g; ++k) step.first += draft_head_rows(k);
+            }
+            arch_->draft(step);
+        };
+        // After a part on a group: the members' partial rows summed after each of the first draft_sums, and a draft picked after each later one.
+        // Each member's candidate from its vocabulary rows, summed into every member's slots, gives every member the id one device's argmax gives.
+        const auto after = [&](size_t d, size_t m, int phase) {
+            if (W == 1) return;
+            const size_t rows = c.rows[m];
+            const backend::RowRun block{rows * B, 1};
+            if (size_t(phase) < plan_.draft_sums) return group_sum(ctx_, d, rows_of(d), rows * B, {&block, 1}, plan_.drafter->kind, [&](size_t g) { return drafter_row(g); });
+            const size_t j = m * B + size_t(phase) - plan_.draft_sums;
+            ctx_.collectives[o]->sum_in_place(rows, 3 * W);
+            for (size_t g = 0; g < W; ++g)
+                devices_[o + g]->b->argmax_pick({draft_ids_[g].get(), (j + 1) * R}, ctx_.collectives[o]->partial(g), rows, W, V, {draft_ids_[g].get(), j * R});
+        };
+        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
+        const int P = int(plan_.draft_sums + B), L = int(plan_.layers.size());
+        if (!draft_apart_) {
+            // One device runs a call whole; a group runs it in parts (DraftStep).
+            for (size_t m = 0; m < steps; ++m)
+                for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? P : 0); ++phase) {
+                    for (size_t g = 0; g < W; ++g) call(o, g, m, phase);
+                    after(o, m, phase);
+                }
+        } else {
+            // Each step runs its parts in spans, a span the parts on one device, each span's rows crossing to the next; the head's picks of a step cross as the next step's ids to stage 0's device, and the first step's are written there.
+            size_t from = SIZE_MAX, moved = 0;
+            backend::Ticket sent = 0;
+            const std::vector<ModelPlan::Carried>* crossing = nullptr;
+            for (size_t m = 0; m < steps; ++m)
+                for (int phase = 0; phase < P;) {
+                    const size_t d = draft_part_device(size_t(phase));
+                    int end = phase;
+                    while (end < P && draft_part_device(size_t(end)) == d) ++end;
+                    const Recording held(*this, d, W);
+                    for (size_t g = 0; from != SIZE_MAX && g < W; ++g) receive(ctx_, 0, from, 0, sent, d + g, 0, moved, L, crossing);
+                    from = SIZE_MAX;
+                    if (!m && !phase && d != o)
+                        for (size_t g = 0; g < W; ++g) {
+                            const backend::Slice ids = slot(ctx_, d + g, plan_.draft_ids);
+                            devices_[d + g]->b->write(*ids.buffer, ids.offset * sizeof(float), c.last.data(), R * sizeof(uint32_t));
+                        }
+                    for (int ph = phase; ph < end; ++ph) {
+                        for (size_t g = 0; g < W; ++g) call(d, g, m, ph);
+                        after(d, m, ph);
+                    }
+                    const size_t next = end < P ? draft_part_device(size_t(end)) : m + 1 < steps ? draft_route(0) : d;
+                    phase = end;
+                    if (next == d) continue;
+                    if (end < P) {
+                        send(ctx_, 0, d, 0, 0, c.rows[m] * B, L, &draft_step_slots_);
+                        crossing = &draft_step_slots_;
+                        moved = c.rows[m] * B;
+                    } else {
+                        const backend::Slice ids = slot(ctx_, o, plan_.draft_ids);
+                        devices_[o]->b->copy(*ids.buffer, ids.offset * sizeof(float), *draft_ids_[0], (m + 1) * B * R * sizeof(uint32_t), R * sizeof(uint32_t));
+                        send(ctx_, 0, o, 0, 0, R, L, &draft_id_slots_);
+                        crossing = &draft_id_slots_;
+                        moved = R;
+                    }
+                    for (size_t g = 0; g < W; ++g) c.sent[d + g] = devices_[d + g]->b->submit();
+                    sent = c.sent[d];
+                    from = d;
+                }
         }
-        c.sent.assign(W, 0);
-        for (size_t g = 0; g < W; ++g) c.sent[g] = devices_[o + g]->b->submit();
-        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[g]);
+        for (size_t g = 0; g < W; ++g) {
+            const Recording held(*this, o + g, 1);
+            c.sent[o + g] = devices_[o + g]->b->submit();
+        }
+        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[o + g]);
         // The ids buffers serve the next chain, which a server may record before this one ends.
-        const size_t per = R * (steps + 1);
+        const size_t per = R * (steps * B + 1);
         c.ids.resize(per * W);
         for (size_t g = 0; g < W; ++g) std::memcpy(c.ids.data() + g * per, draft_ids_[g]->host_ptr(), per * sizeof(uint32_t));
     } catch (...) {
-        // Only the head's devices recorded the chain, and another stage's thread may be recording on the rest.
-        for (size_t g = 0; g < W; ++g) try { devices_[o + g]->b->sync(); } catch (...) {}
+        // Only the drafter's devices recorded the chain, and another stage's thread may be recording on the rest.
+        for (size_t d = 0; d < devices_.size(); ++d) {
+            if (d - devices_[d]->member != o && std::find(draft_devices_.begin(), draft_devices_.end(), d - devices_[d]->member) == draft_devices_.end()) continue;
+            const Recording held(*this, d, 1);
+            try { devices_[d]->b->sync(); } catch (...) {}
+        }
         throw;
     }
     c.recorded = true;
@@ -1517,7 +1605,7 @@ inline void Model::draft_record(Chain& c) {
 // The chain's end on the thread that owns the histories: the drafted rows given back, the sequences out of flight and, once recorded, each history's drafts.
 // A chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft_end(Chain& c) {
-    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, per = R * (c.steps + 1);
+    const size_t R = c.order.size(), W = width_, V = plan_.vocab, per = R * (c.steps * c.block + 1);
     for (size_t p = 0; p < c.prepared; ++p) c.kv[p]->abort();
     c.prepared = 0;
     for (size_t p = 0; p < R; ++p) --c.asks[c.order[p]].seq->flights_;
@@ -1529,7 +1617,8 @@ inline void Model::draft_end(Chain& c) {
     for (size_t p = 0; p < R; ++p) {
         draft_order_[c.order[p]] = p;
         draft_k_[c.order[p]] = c.asks[c.order[p]].k;
-        for (size_t g = 0; g < W; ++g) c.asks[c.order[p]].seq->last_[o + g] = c.sent[g];
+        for (size_t d = 0; d < c.sent.size(); ++d)
+            if (c.sent[d]) c.asks[c.order[p]].seq->last_[d] = c.sent[d];
     }
     const uint32_t* ids = c.ids.data();
     const auto agreed = [&](size_t i) {

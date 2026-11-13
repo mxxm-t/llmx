@@ -54,7 +54,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   for one, its roles all `Part::draft`, which run on the head's device, and
   `draft_x`, the arena slot of a draft step's residual rows, which a tensor group sums into, and
   `draft_h`, the arena slot its context rows leave the target's
-  final-normed rows in).
+  final-normed rows in, 0 for a drafter whose context rows read no row of the target before each row, and `draft_block`, the most drafts one of its calls gives, 0 for one).
+  `carries_row(plan)` holds where the drafter carries each sequence's last normed row from one pass to the next (`draft_h` nonzero), which decides the runtime's carried row, zero row, saved rows and the fit's count of them; `draft_calls(plan, k)` gives the calls that make k drafts.
+  The drafter's cache is KV, or a state slot where its `LayerPlan` keeps entries.
   - A `RoleKind` says how a role's tensor is checked and whether the fit
     counts it as a product: `norm` is F32 `[in]`, `matrix` is `[in, out]`
     read by a product, `gather` is checked as a matrix and gathered by the
@@ -100,12 +102,13 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   must not retain it. It is empty when the plan's width is zero. On a tensor
   group `width` is the group's and `partial` where the part's last projection writes the member's partial rows (`blocks::join`), which a routed part clears from `zero`, a row of zeros on the member; a member's weights are its shards, `Weight::nin` and `nout` its share, and a module runs its share of the heads, the plan's divided by the width, a KV head replicated where the width is a multiple of them. `HeadStep` adds the
   rows that want logits, their runs and the slice their logits go to.
-  `DraftRowsStep` adds the rows' token ids and, per entry, the row its first
+  `DraftRowsStep` adds the rows' token ids and, where the drafter carries a row, per entry the row its first
   row reads as the target's row before it (the sequence's carried row, or
   a zero row for an empty history); `DraftStep` the device slices of a
-  draft step's token ids, the rows before them (gathered by `prev_rows`
+  draft step's token ids, the rows before them where it carries a row (gathered by `prev_rows`
   where they are rows of the carried rows), the drafted ids, its output
-  rows after the drafter's final norm and its logits, a row a sequence.
+  rows after the drafter's final norm and its logits, `ids` drafts a sequence (`draft_block`, 1 for none), draft j of sequence i at position `pos[i * ids + j]` in row j * `stride` + i, the output rows being the next call's `prev`.
+  The cache views of both are the drafter's KV layer's or state layer's.
   An external table lookup adds `lookup`, a borrowed `PreparedLookup`: packed
   unique rows in `data`, their count in `rows`, and ordered request IDs remapped
   into that table in `ids`. The runtime prepares it before recording the graph;
@@ -143,10 +146,12 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     embedded drafter a file carries (`docs/SPECULATIVE.md`, section 7):
     its plan, added to the model's when a caller asks for one and refused
     by default; its rows of the drafter's cache for every row of a pass,
-    after the last stage; and one draft row through the whole drafter and
-    the head into the next drafted id. None by default.
+    after the last stage; and one call through the whole drafter and
+    the head into the next drafted ids, one a sequence or a block of `draft_block`. None by default.
 
 On a tensor group each member of an embedded drafter's step computes the logits of its vocabulary rows of the head and their candidate at its slot (`DraftStep::member`, `DraftStep::first`, `blocks::draft_head`), and `Model::draft_record` sums the candidates and picks the id on every member.
 
-A step of an embedded drafter on a tensor group is three calls (`Step::phase`): 0 runs the block's mixer, 1 its feed-forward block and 2 the final norm, the head and the argmax, the group summing the members' partial rows into the residual after the first two; -1 runs all of it, as one device does.
+A call of an embedded drafter on a tensor group runs in parts (`Step::phase`): the first `ModelPlan::draft_sums` each run a sublayer and end in the members' partial rows, which the group sums into the residual over the call's rows (`draft_block` rows a sequence), and each later part ends in each member's candidate of one draft, from which the group picks it; -1 runs all of it, as one device does.
+With stages apart from the head a call runs in the same parts on any width, `draft_sums` an equal number a stage (`LayerPlan::stages`), each stage's parts on its device, and a context call (`DraftRowsStep`) in parts too, 0 the head's and 1 + st stage st's; the plan names what crosses between them (`ModelPlan::draft_carried`, `draft_ids`, `draft_rows_x`, docs/SPECULATIVE.md, section 9).
+Qwen's MTP block takes two sum parts, its mixer and its feed-forward block, then one part for the final norm, the head and the argmax; DeepSeek-V4.1's DSpark takes two a stage, then a part a draft of its block, the first with the final norm and the head's logits, each with its Markov bias from the pick before it.
 `ModelPlan::partial` is the width of a member's partial rows, 0 for the residual's (`sum_width`, the residual's where `embedding_split` finds the embedding role split, whose members' rows the group sums as the pass begins), which the group's sum adds to the residual; an architecture that sets it narrower (qwen4exp, whose parts end in a block injected into several streams) has the group sum the partial rows in place, and `join(step)` then runs on each member with `Step::partial` holding the sum and adds it into `Step::x` as one device's part ends (`sum_width` gives the width summed, which sizes the collective and the fit's count of it).

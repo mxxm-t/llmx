@@ -176,8 +176,12 @@ inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, size_t laye
         for (size_t m = d; m < d + width_; ++m) p.before[m] = devices_[m]->b->last_ticket();
     const bool direct = s > 0 && served(p.at, stages_[s].device);
     const auto start = std::chrono::steady_clock::now();
-    if (width_ > 1) group_record(ctx, p, s, layers);
-    else single_record(ctx, p, s, layers);
+    {
+        // Where a drafter's stages sit apart, its parts on this stage's devices record beside the stage's, one at a time (Recording); a pipelined split's stage touches its own device alone.
+        const Recording held(*this, st.device, width_);
+        if (width_ > 1) group_record(ctx, p, s, layers);
+        else single_record(ctx, p, s, layers);
+    }
     if (p.scratch && !layers) {
         // A replies' stage recorded whole: the host's own time in it, without its waits for the residual, lookup rows and sums, which pacing a chunk's stage here covers.
         Stage& rec = stages_[s];
@@ -729,7 +733,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             arch_->embed(part(ctx, p, p.cur, pass_.data(), 0, 0, p.rows, all), p.ids.data());
             if (p.image_rows) write_media(ctx, p, p.cur);
         } else if (p.at != p.cur) {
-            const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, p.cur, 0, p.rows);
+            const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, p.cur, 0, p.rows, st.first);
             p.receive_ms += waited;
             p.write_ms += wrote;
         }
@@ -738,7 +742,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
     size_t cur = p.cur;
     const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;
     for (int l = p.layer; l < end; l++) {
-        if (st.device != cur) { cross(ctx, p, cur, st.device, 0, p.rows); cur = st.device; }
+        if (st.device != cur) { cross(ctx, p, cur, st.device, 0, p.rows, l); cur = st.device; }
         finish_lookup(ctx, p, cur, 1, l);
         arch_->mixer(mixer_part(ctx, p, cur, l));
         if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, cur, l);
@@ -747,7 +751,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             continue;
         }
         const size_t f = (size_t)place_.ffn_device[(size_t)l];
-        if (f != cur) { cross(ctx, p, cur, f, 0, p.rows); cur = f; }
+        if (f != cur) { cross(ctx, p, cur, f, 0, p.rows, l + 1); cur = f; }
         arch_->ffn(part(ctx, p, cur, home_[(size_t)l].data(), plan_.layers[(size_t)l].kind, 0, p.rows, all, l));
     }
     p.layer = end;
@@ -756,11 +760,11 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
     p.open = false;
     if (s + 1 < stages_.size()) {
         // A residual already where the next stage runs stays there.
-        if (cur != stages_[s + 1].device) send(ctx, p, cur, p.handoff, 0, p.rows);
+        if (cur != stages_[s + 1].device) send(ctx, p, cur, p.handoff, 0, p.rows, stages_[s + 1].first);
         p.at = cur;
     } else {
         const size_t o = (size_t)place_.output_device;
-        if (o != cur) { cross(ctx, p, cur, o, 0, p.rows); cur = o; }
+        if (o != cur) { cross(ctx, p, cur, o, 0, p.rows, (int)plan_.layers.size()); cur = o; }
         if (plan_.drafter) draft_context(ctx, p, s);
         if (p.want) {
             backend::Buffer* const rows = p.argmax ? ctx.argmax_logits.get() : ctx.logits_buf.get();
@@ -862,7 +866,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
             if (s == 0) {
                 if (p.image_rows) write_media(ctx, p, g + m);
             } else {
-                const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, g + m, 0, p.rows);
+                const auto [waited, wrote] = receive(ctx, p, p.at, p.handoff, p.sent, g + m, 0, p.rows, st.first);
                 p.receive_ms += waited;
                 p.write_ms += wrote;
             }
@@ -896,7 +900,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
     p.open = false;
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {
-        send(ctx, p, g, p.handoff, 0, p.rows);
+        send(ctx, p, g, p.handoff, 0, p.rows, stages_[s + 1].first);
         p.at = g;
     } else if (p.want) {
         // Each member's vocabulary rows of every row that wants logits, each copied by its member into its slice of the rows in host memory the members import, behind no wait; the pass's logits wait for every member's submission.
@@ -959,6 +963,7 @@ inline void Model::stage_commit(Pass& p, size_t s) {
         else q.length_[s] += p.entries[e].n;
         for (size_t d : st.touches)
             for (size_t m = d; m < d + width_; ++m) q.last_[m] = p.tickets[m];
+        for (size_t m = 0; s + 1 == stages_.size() && m < p.draft_tickets.size(); ++m) q.last_[m] = std::max(q.last_[m], p.draft_tickets[m]);
         if (!state_layers_) continue;
         q.from_[s] = p.kept[e].held() ? p.kept[e].slot() : Sequence::kLive;
         // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
@@ -969,36 +974,77 @@ inline void Model::stage_commit(Pass& p, size_t s) {
         for (size_t e = 0; e < p.entries.size(); ++e) release_media(*p.entries[e].seq);
 }
 
-// An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, or a zero row for an empty history.
-// Then each entry's last normed row is carried into the slot its state is written to, a marked entry's rows are saved for its retract (save_h), and on a tensor group every member of the head's group does so over its own KV heads.
+// An embedded drafter's context rows of the pass after the last stage (Architecture::draft_rows), on a tensor group each member over its own heads, in parts on their devices where stages sit apart (docs/SPECULATIVE.md, section 9).
+// Where it carries a row (carries_row), each entry's first row reads its sequence's carried row or a zero row, its last normed row is carried into the slot its state is written to, and a marked entry's rows are saved (save_h).
 inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
-    const size_t E = plan_.residual, n = p.entries.size();
+    const size_t E = plan_.residual, n = p.entries.size(), o = (size_t)place_.output_device;
+    const bool carries = carries_row(plan_);
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     ctx.carry.resize(n);
+    // Part `phase` on member m of the group at device d.
+    const auto call = [&](size_t d, size_t m, int phase) {
+        Device& dev = *devices_[d + m];
+        DraftRowsStep step{part(ctx, p, d + m, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), carries ? ctx.carry.data() : nullptr};
+        step.width = width_;
+        step.n_views = n;
+        step.phase = phase;
+        if (keeps_kv(*plan_.drafter)) {
+            step.views = p.views[(size_t)dev.storage_index * width_ + m].data();
+            step.kv_layer = drafter_kv_;
+        }
+        if (keeps_slot(*plan_.drafter) && drafter_state_[d] != SIZE_MAX) {
+            step.states = p.states[o + m].data();
+            if (d != o) {
+                ctx.draft_states.assign(p.states[o + m].begin(), p.states[o + m].end());
+                for (backend::StateView& v : ctx.draft_states) v.storage = dev.states.get();
+                step.states = ctx.draft_states.data();
+            }
+            step.state_layer = drafter_state_[d];
+        }
+        step.pos = p.pos.data();
+        if (p.image_rows) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
+        arch_->draft_rows(step);
+    };
+    if (draft_apart_) {
+        const int all_layers = (int)plan_.layers.size();
+        for (size_t m = 0; m < width_; ++m) call(o, m, 0);
+        send(ctx, p, o, p.handoff, 0, p.rows, all_layers, &draft_rows_slots_);
+        backend::Ticket sent = 0;
+        for (size_t m = 0; m < width_; ++m) {
+            const backend::Ticket t = devices_[o + m]->b->submit();
+            if (!m) sent = t;
+        }
+        p.draft_tickets.assign(devices_.size(), 0);
+        for (size_t d : draft_devices_) {
+            const Recording held(*this, d, d == o ? 0 : width_);
+            for (size_t m = 0; d != o && m < width_; ++m) receive(ctx, p, o, p.handoff, sent, d + m, 0, p.rows, all_layers, &draft_rows_slots_);
+            for (size_t st = 0; st < draft_route_size(); ++st)
+                if (draft_stage_device(st) == d)
+                    for (size_t m = 0; m < width_; ++m) call(d, m, int(1 + st));
+            for (size_t m = 0; d != o && m < width_; ++m) {
+                p.draft_tickets[d + m] = devices_[d + m]->b->submit();
+                ctx.tickets[d + m] = std::max(ctx.tickets[d + m], p.draft_tickets[d + m]);
+            }
+        }
+        return;
+    }
     for (size_t m = 0; m < width_; ++m) {
-        const size_t o = (size_t)place_.output_device + m;
-        Device& d = *devices_[o];
-        for (size_t e = 0; e < n; ++e) {
+        Device& d = *devices_[o + m];
+        for (size_t e = 0; carries && e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
             const size_t src = q.from_[s] == Sequence::kLive ? q.state_.slot() : q.from_[s];
             ctx.carry[e] = q.stage_length(s) ? backend::CSlice{d.carry.get(), src * E} : backend::CSlice{d.zero.get(), 0};
         }
-        DraftRowsStep step{part(ctx, p, o, drafter_row(m), plan_.drafter->kind, 0, p.rows, all), p.ids.data(), ctx.carry.data()};
-        step.width = width_;
-        step.views = p.views[(size_t)d.storage_index * width_ + m].data();
-        step.n_views = n;
-        step.kv_layer = drafter_kv_;
-        step.pos = p.pos.data();
-        if (p.image_rows) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
-        arch_->draft_rows(step);
-        const backend::Slice hn = slot(ctx, p, o, plan_.draft_h);
+        call(o, m, -1);
+        if (!carries) continue;
+        const backend::Slice hn = slot(ctx, p, o + m, plan_.draft_h);
         for (size_t e = 0; e < n; ++e) {
             const Sequence& q = *p.entries[e].seq;
             const size_t dst = p.kept[e].held() ? p.kept[e].slot() : q.state_.slot();
             d.b->copy(*d.carry, dst * E * sizeof(float), *hn.buffer, (hn.offset + (p.runs[e].end - 1) * E) * sizeof(float), E * sizeof(float));
         }
     }
-    save_h(ctx, p);
+    if (carries) save_h(ctx, p);
 }
 
 // After the last stage: where the logits are and the ticket that says they are ready, the pass's own head's.
@@ -1191,15 +1237,20 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
     }
 }
 
-// The residual stream and each carried slot move between devices through host memory, `rows` rows from `base`, in a buffer of one region of handoff_rows rows a slot.
-// `send` copies them into the source's host-visible handoff buffer in its own work, its submission saying when they are there; with a Handoff, the served readers' last copies out of it come first on the device.
-inline void Model::send(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, size_t base, size_t rows) {
+// The residual and each carried slot move between devices through host memory, `rows` rows from `base`, a region of handoff_rows rows a slot, a slot written only past layer `before` staying (docs/src/model-passes.md).
+// `send` copies them into the source's host-visible handoff buffer in its own work, with a Handoff after the served readers' last copies out of it, its submission saying when they are there.
+inline void Model::send(ExecContext& ctx, size_t set, size_t from, size_t handoff, size_t base, size_t rows, int before, const std::vector<ModelPlan::Carried>* slots) {
     backend::Handoff* const link = ctx.links[from].empty() ? nullptr : ctx.links[from][handoff].get();
     if (link) link->begin();
     size_t region = 0;
-    for (size_t i = 0; i <= plan_.carried.size(); ++i) {
-        const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
-        const backend::Slice x = slot(ctx, p, from, k);
+    for (size_t i = 0; i < crossed(slots); ++i) {
+        const ModelPlan::Carried c = crossed(slots, i);
+        const size_t k = c.slot, W = plan_.slots[k];
+        if (k && c.from > before) {
+            region += ctx.handoff_rows * W;
+            continue;
+        }
+        const backend::Slice x = slot(ctx, set, from, k);
         devices_[from]->b->copy(*ctx.handoff[from][handoff], (region + base * W) * sizeof(float), *x.buffer,
                                 (x.offset + base * W) * sizeof(float), rows * W * sizeof(float));
         region += ctx.handoff_rows * W;
@@ -1209,7 +1260,8 @@ inline void Model::send(ExecContext& ctx, const Pass& p, size_t from, size_t han
 
 // `receive` writes the rows into the destination's residual, enqueued there: a served reader's queue waits for the copy on the devices and copies them itself, and otherwise the host waits for that submission and writes them.
 // It returns the host's milliseconds in the wait and in the write or the enqueued copies.
-inline std::pair<double, double> Model::receive(ExecContext& ctx, const Pass& p, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows) {
+inline std::pair<double, double> Model::receive(ExecContext& ctx, size_t set, size_t from, size_t handoff, backend::Ticket sent, size_t to, size_t base, size_t rows, int before,
+                                                const std::vector<ModelPlan::Carried>* slots) {
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
     const std::vector<size_t>& readers = devices_[from]->readers;
@@ -1219,9 +1271,14 @@ inline std::pair<double, double> Model::receive(ExecContext& ctx, const Pass& p,
     const auto t1 = clock::now();
     const backend::Buffer& in = *ctx.handoff[from][handoff];
     size_t region = 0;
-    for (size_t i = 0; i <= plan_.carried.size(); ++i) {
-        const size_t k = i ? plan_.carried[i - 1] : 0, W = plan_.slots[k];
-        const backend::Slice x = slot(ctx, p, to, k);
+    for (size_t i = 0; i < crossed(slots); ++i) {
+        const ModelPlan::Carried c = crossed(slots, i);
+        const size_t k = c.slot, W = plan_.slots[k];
+        if (k && c.from > before) {
+            region += ctx.handoff_rows * W;
+            continue;
+        }
+        const backend::Slice x = slot(ctx, set, to, k);
         const size_t at = (region + base * W) * sizeof(float), dst = (x.offset + base * W) * sizeof(float), bytes = rows * W * sizeof(float);
         if (link) link->take(r, *x.buffer, dst, in, at, bytes);
         else devices_[to]->b->write(*x.buffer, dst, (const uint8_t*)in.host_ptr() + at, bytes);
@@ -1258,13 +1315,18 @@ inline std::vector<size_t> Model::readers(size_t from) const {
             if (stream_device_[(size_t)l] == (int)st.device) go(f, st.device), at.push_back(st.device);
         }
     for (size_t a : at) go(a, (size_t)place_.output_device);
+    // A drafter's stages apart: the head to each stage's device, and each device of a draft's route to the next.
+    for (size_t i = 0; draft_apart_ && i < draft_route_size(); ++i) {
+        go((size_t)place_.output_device, draft_route(i));
+        go(draft_route(i), draft_route(i + 1));
+    }
     return out;
 }
 
 // A crossing inside a stage, both halves at once, through buffer 0 serially: such a crossing makes a split unpipelined, since pipelining needs every feed-forward block beside its mixer.
-inline void Model::cross(ExecContext& ctx, const Pass& p, size_t from, size_t to, size_t base, size_t rows) {
-    send(ctx, p, from, 0, base, rows);
-    receive(ctx, p, from, 0, devices_[from]->b->submit(), to, base, rows);
+inline void Model::cross(ExecContext& ctx, size_t set, size_t from, size_t to, size_t base, size_t rows, int before) {
+    send(ctx, set, from, 0, base, rows, before);
+    receive(ctx, set, from, 0, devices_[from]->b->submit(), to, base, rows, before);
 }
 
 // A streamed layer in a pass with long runs: consecutive alike entries form a group, the long ones run on the layer's streamed row with each window role's bytes written into its window once, the rest on the host through a crossing each way.
@@ -1294,9 +1356,9 @@ inline void Model::ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l)
             }
             arch_->ffn(part(ctx, p, dev, streamed.data(), kind, base, end - base, runs, l));
         } else {
-            cross(ctx, p, dev, host, base, end - base);
+            cross(ctx, p, dev, host, base, end - base, l + 1);
             arch_->ffn(part(ctx, p, host, home.data(), kind, base, end - base, runs, l));
-            cross(ctx, p, host, dev, base, end - base);
+            cross(ctx, p, host, dev, base, end - base, l + 1);
         }
         base = end;
     }

@@ -423,15 +423,15 @@ void entries_kept() {
     checked += 11;
 }
 
-// Qwen3 with one arena slot more, the residual's width, which layer 0's mixer fills with its residual rows and layer 1's mixer adds to its residual, carried when `carry` (ModelPlan::carried).
+// Qwen3 with one arena slot more, the residual's width, which layer 0's mixer fills with its residual rows and layer 1's mixer adds to its residual, carried from layer `from` unless it is negative (ModelPlan::carried).
 struct Carrying final : infer::Architecture {
-    Carrying(std::shared_ptr<const infer::Architecture> base, bool carry) : base(std::move(base)), carry(carry) {}
+    Carrying(std::shared_ptr<const infer::Architecture> base, int from) : base(std::move(base)), from(from) {}
     infer::ModelPlan plan(const infer::TensorIndex& t) const override {
         infer::ModelPlan p = base->plan(t);
         slot = p.slots.size();
         p.slots.push_back(p.residual);
         residual = p.residual;
-        if (carry) p.carried = {slot};
+        if (from >= 0) p.carried = {{slot, from}};
         p.layers.at(1).kind |= 0x80;
         return p;
     }
@@ -452,19 +452,20 @@ struct Carrying final : infer::Architecture {
     }
     void head(const infer::HeadStep& s) const override { base->head(s); }
     std::shared_ptr<const infer::Architecture> base;
-    bool carry;
+    int from;
     mutable size_t slot = 0, residual = 0;
 };
 
-// Two layers on two CPU stages, layer 1 reading the slot layer 0 filled: carried, the split gives one CPU's bytes and its handoff rows hold the slot's rows beside the residual's; not carried, the second stage reads its own arena and differs.
-// A carried slot that is the residual's or past the arena is refused.
+// Two layers on two CPU stages, layer 1 reading the slot layer 0 filled: carried from layer 0 or 1, the split gives one CPU's bytes and its handoff rows hold the slot's rows beside the residual's.
+// Not carried, or carried from layer 2, past the crossing before layer 1, the second stage reads its own arena and differs, and a carried slot that is the residual's or past the arena is refused.
 void carried_rows() {
     const gguf::GGUFModel file = fixture();
-    for (bool carry : {true, false}) {
+    for (int from : {0, 1, 2, -1}) {
+        const bool carry = from >= 0 && from <= 1;
         infer::ModelWeights w = infer::gguf_weights(file);
-        w.arch = std::make_shared<const Carrying>(w.arch, carry);
+        w.arch = std::make_shared<const Carrying>(w.arch, from);
         const infer::ModelPlan plan = infer::plan_model(w);
-        require(infer::footprint(w, plan, infer::ModelOptions{}).handoff_per_row == (carry ? 2 : 1) * plan.residual * sizeof(float),
+        require(infer::footprint(w, plan, infer::ModelOptions{}).handoff_per_row == (from >= 0 ? 2 : 1) * plan.residual * sizeof(float),
                 "a handoff row is not the residual's and the carried slot's");
         backend::BackendPtr one = backend::make_cpu_backend(), a = backend::make_cpu_backend(), b = backend::make_cpu_backend();
         for (auto* c : {&one, &a, &b}) (*c)->set_threads(1);
@@ -483,16 +484,16 @@ void carried_rows() {
             exact(x, y, "a split with a carried slot differs from one device");
             for (int t : {9, 2, 6}) exact(step_row(single, t), step_row(split, t), "a split's step with a carried slot differs from one device");
         } else {
-            require(x != y, "a slot that is not carried reached the second stage");
+            require(x != y, "a slot that is not carried before layer 1 reached the second stage");
         }
         checked += 2;
     }
     infer::ModelWeights w = infer::gguf_weights(file);
-    w.arch = std::make_shared<const Carrying>(w.arch, true);
+    w.arch = std::make_shared<const Carrying>(w.arch, 0);
     for (bool past : {false, true}) {
         infer::ModelPlan plan = infer::plan_model(w);
         const size_t bad = past ? plan.slots.size() : 0;
-        plan.carried = {bad};
+        plan.carried = {{bad}};
         require(refusal([&] { infer::Model model(w, plan, {backend::make_cpu_backend()}, infer::Placement{}); }) ==
                     "inference: carried slots must be ascending arena slots past the residual",
                 ("a carried slot " + std::to_string(bad) + " accepted").c_str());
@@ -676,6 +677,98 @@ void external_lookup_fits() {
     } catch (const std::runtime_error&) { replies_short = true; }
     require(replies_short, "a device one byte short of a server's replies' arena was accepted");
     checked += 8;
+}
+
+// An embedded drafter's stages placed by the split on numbers alone, a unit of 1 MiB a layer and a stage: whole beside the head where it fits, else on as few other devices as the fit needs, after the busiest device's layer count.
+// Layers move to make room, shares fix the layers and leave the stages to the split, a byte short is refused, the drafter's embedding goes with stage 0, and an MTP block is the one-stage case.
+void drafter_stages_fit() {
+    const size_t MiB = size_t(1) << 20;
+    auto model = [&](size_t layers, size_t stages, size_t stage) {
+        infer::Footprint fp;
+        for (size_t l = 0; l < layers; ++l) fp.layers.push_back({infer::Matrix{0, 1, 1, MiB, true}});
+        fp.embedding = fp.output = infer::Matrix{0, 1, 1, MiB / 4, true};
+        fp.drafter = {infer::Matrix{0, 1, 1, MiB / 8, true}};
+        fp.drafter_embedding = infer::Matrix{0, 1, 1, MiB / 16, false};
+        fp.drafter_stages.assign(stages, {infer::Matrix{0, 1, 1, stage, true}});
+        fp.drafter_stage_cache = MiB / 32;
+        return fp;
+    };
+    auto device = [](const char* name, size_t bytes) {
+        infer::DeviceBudget d;
+        d.name = name;
+        d.bytes = bytes;
+        return d;
+    };
+    // Room for `units` layers or stages beside the ends a device holds: the first the embedding, the last the head, its drafter part and the stages' cache.
+    auto room = [&](double units, bool first, bool last) {
+        return size_t(units * double(MiB)) + (first ? MiB / 4 : 0) + (last ? MiB / 4 + MiB / 8 : 0) + MiB / 32;
+    };
+    auto apart = [](const infer::LayerSplit& s) {
+        std::vector<int> d = s.draft_device;
+        d.erase(std::unique(d.begin(), d.end()), d.end());
+        return size_t(std::count_if(d.begin(), d.end(), [&](int x) { return x != s.output_device; }));
+    };
+    auto counts = [](const infer::LayerSplit& s) {
+        std::vector<int> c;
+        for (const auto& st : s.stages) c.push_back(st.count);
+        return c;
+    };
+    const infer::Footprint three = model(4, 3, MiB);
+    // Whole beside the head: the head's device holds 2 layers and all 3 stages.
+    auto whole = infer::split_layers(three, {device("a", room(2, true, false)), device("b", room(5, false, true) + MiB / 16)}, 1);
+    require(counts(whole) == std::vector<int>{2, 2} && whole.draft_device == std::vector<int>{1, 1, 1} && apart(whole) == 0, "a drafter that fits beside the head is not placed there whole");
+    require(whole.describe({device("a", 0), device("b", 0)}).find("layers 2-3 and drafter stages 0,1,2") != std::string::npos, "describe does not name the head's drafter stages");
+    // The head holds one stage beside its two layers: the other two go to the first device, whose table the drafter's embedding reads.
+    auto spread = infer::split_layers(three, {device("a", room(4, true, false)), device("b", room(3, false, true))}, 1);
+    require(counts(spread) == std::vector<int>{2, 2} && spread.draft_device == std::vector<int>{0, 0, 1}, "stages that do not fit beside the head are not spread in device order");
+    require(spread.stages[0].weights == 4 * MiB + MiB / 4 && spread.stages[1].weights == 3 * MiB + MiB / 4 + MiB / 8, "the stages' weights are not counted where they sit");
+    require(spread.stages[0].cache == MiB / 32 && spread.stages[1].cache == MiB / 32, "each device holding a stage does not keep the drafter's cache once");
+    // A tensor group that splits the embedding keeps a member's rows of it, so stage 0 beside the first layers keeps the drafter's whole table too.
+    infer::Footprint rows_split = three;
+    rows_split.drafter_embedding_held = false;
+    auto split_table = infer::split_layers(rows_split, {device("a", room(4, true, false) + MiB / 16), device("b", room(3, false, true))}, 1);
+    require(split_table.draft_device == std::vector<int>{0, 0, 1} && split_table.stages[0].weights == 4 * MiB + MiB / 4 + MiB / 16,
+            "stage 0 beside a split embedding does not keep the drafter's whole table");
+    bool table_short = false;
+    try {
+        const auto short_split = infer::split_layers(rows_split, {device("a", room(4, true, false) + MiB / 16 - 1), device("b", room(3, false, true))}, 1);
+        table_short = short_split.draft_device != std::vector<int>{0, 0, 1};
+    } catch (const std::runtime_error&) { table_short = true; }
+    require(table_short, "a device a byte short of the drafter's whole table took stage 0 beside a split embedding");
+    // Six layers over three devices, the head holding no stage beside its two: the fit takes one device apart, not two, and the first device keeps the drafter's embedding nowhere.
+    const infer::Footprint six = model(6, 3, MiB);
+    auto fewest = infer::split_layers(six, {device("a", room(5, true, false)), device("b", room(5, false, false)), device("c", room(2, false, true))}, 1);
+    require(counts(fewest) == std::vector<int>{2, 2, 2} && apart(fewest) == 1 && fewest.draft_device.front() == fewest.draft_device.back(), "the fit takes more devices apart from the head than it needs");
+    // Stage 0 on a device that does not hold the table keeps the drafter's embedding.
+    auto middle = infer::split_layers(six, {device("a", room(2, true, false)), device("b", room(5, false, false) + MiB / 16), device("c", room(2, false, true))}, 1);
+    require(middle.draft_device == std::vector<int>{1, 1, 1} && middle.stages[1].weights == 5 * MiB + MiB / 16, "the drafter's embedding does not go with stage 0");
+    // One device holds the model and the drafter to the byte, which reads the table it holds, and refuses one byte less naming the stages.
+    const infer::Footprint two = model(2, 3, MiB);
+    require(infer::split_layers(two, {device("a", room(5, true, true))}, 1).draft_device == std::vector<int>{0, 0, 0}, "one device does not hold the drafter to the byte");
+    bool short_byte = false;
+    try { infer::split_layers(two, {device("a", room(5, true, true) - 1)}, 1); }
+    catch (const std::runtime_error& e) { short_byte = std::string(e.what()).find("3 drafter stages") != std::string::npos; }
+    require(short_byte, "a placement a byte short of the stages is not refused naming them");
+    // The busiest device's layers come before the devices apart: 2 and 2 with a stage apart, not 3 and 1 with every stage beside the head, and the least bytes on the busiest device among those.
+    auto paced = infer::split_layers(three, {device("a", room(5, true, false)), device("b", room(4, false, true) + MiB / 16)}, 1);
+    require(counts(paced) == std::vector<int>{2, 2} && paced.draft_device == std::vector<int>{0, 0, 1}, "the fit puts the head's pace behind keeping the drafter whole");
+    // Layers move to make room: with stages of 1.5 layers the first device takes 3 so the head keeps 1 beside every stage.
+    const infer::Footprint wide = model(4, 3, 3 * MiB / 2);
+    auto moved = infer::split_layers(wide, {device("a", room(3, true, false)), device("b", room(5.5, false, true) + MiB / 16)}, 1);
+    require(counts(moved) == std::vector<int>{3, 1} && moved.draft_device == std::vector<int>{1, 1, 1}, "layers do not move to make room for the drafter");
+    // Shares fix the layers and the split places the stages.
+    auto shared = infer::split_layers(three, {device("a", room(5, true, false)), device("b", room(5, false, true) + MiB / 16)}, 1, {1, 1});
+    require(counts(shared) == std::vector<int>{2, 2} && shared.draft_device == std::vector<int>{1, 1, 1}, "shares move the drafter's stages");
+    auto shared_apart = infer::split_layers(three, {device("a", room(5, true, false)), device("b", room(2, false, true))}, 1, {1, 1});
+    require(shared_apart.draft_device == std::vector<int>{0, 0, 0}, "shares keep the stages beside a head with no room for them");
+    // An MTP block is one stage: beside the head where it fits, else apart.
+    const infer::Footprint mtp = model(2, 1, MiB);
+    auto mtp_head = infer::split_layers(mtp, {device("a", room(1, true, false)), device("b", room(2, false, true) + MiB / 16)}, 1);
+    auto mtp_apart = infer::split_layers(mtp, {device("a", room(2, true, false)), device("b", room(1, false, true))}, 1);
+    require(mtp_head.draft_device == std::vector<int>{1} && mtp_apart.draft_device == std::vector<int>{0}, "a one-stage drafter is not placed as the others");
+    // A group's stage devices are its first members'.
+    require(infer::placement_for(spread, 2).draft_device == std::vector<int>{0, 0, 2}, "a group's drafter stages are not its first members'");
+    checked += 15;
 }
 
 // The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host given only what the others cannot hold, tied weights counted once, and the fit exact against one device.
@@ -2896,6 +2989,7 @@ int main() {
         host_budget_shared();
         two_tables_share();
         split_matches_single();
+        drafter_stages_fit();
         histories_fit_the_pool();
         bad_placements_refused();
         for (bool devices : {false, true}) {

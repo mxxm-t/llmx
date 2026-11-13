@@ -68,6 +68,16 @@ SUBLAYERS = ("attn", "ffn")
 MARGIN_FLOOR = 2e-5
 EQUAL_BOUND = 1e-5
 OUTPUT_NAME = "deepseek41_reference.json"
+DSPARK_NAME = "deepseek41_dspark.json"
+DFLASH_NAME = "dflash-tiny.gguf"
+# The DSpark cases: the prompt read at 1 and at 130 tokens, past the window, then token by token with a block of drafts after each; the drafts' logits are kept at these positions.
+DSPARK_FROM = (1, 130)
+# The drafter's own seed, the one of 208 searched between 1 and 340 (--search) whose window and block rows sit farthest from a rounding point at their least (docs/ASSETS.md); no floor holds them.
+DSPARK_SEED = 46
+# The FP8 and FP4 codings the reference runs, by caller and line of model.py at e5decd76: the drafter's window rows and block rows, and the trunk's.
+FORMAT_SITES = {("Attention._window_kv", 708): "trunk_window", ("DSparkAttention.forward", 1044): "window", ("DSparkAttention.forward", 1064): "block",
+                ("Indexer.forward", 546): "trunk_index_keys", ("Indexer.forward", 553): "trunk_index_queries", ("Attention._compress_kv", 761): "trunk_compressed"}
+DSPARK_LOGITS_AT = (1, 2, 3, 64, 126, 127, 128, 129, 130, 131, 199)
 GGUF_NAMES = {layout: "deepseek41-tiny-%s.gguf" % layout for layout in fixture.LAYOUTS}
 
 
@@ -153,9 +163,9 @@ def check_imports(loaded_modules, dist_initialized):
         raise RuntimeError("deepseek4 reference refuses an initialized process group")
 
 
-def publish_staged(stage, output_dir):
-    """Replace the outputs only once every staged file exists."""
-    names = (OUTPUT_NAME,) + tuple(GGUF_NAMES[layout] for layout in fixture.LAYOUTS)
+def publish_staged(stage, output_dir, names=None):
+    """Replace the outputs, the golden and both tiny files unless `names` gives others, only once every staged file exists."""
+    names = names or (OUTPUT_NAME,) + tuple(GGUF_NAMES[layout] for layout in fixture.LAYOUTS)
     staged = [Path(stage) / name for name in names]
     missing = [path.name for path in staged if not path.is_file()]
     if missing:
@@ -213,6 +223,9 @@ class _Trace:
         self.clamped = 0
         self.bf16_casts = 0
         self.skipped_activation_qdq = 0
+        self.formats = {}
+        self.stages = {}
+        self.window_codes = {}
         trace = self
 
         class Mode(TorchFunctionMode):
@@ -334,6 +347,24 @@ class _Trace:
             return mask
         self.model_module.select_candidate_blocks = select
 
+    def coding(self, frame, x, block_size, fp4, e4m3_scale=False):
+        """Each coding's least value and scale margins by site, and the drafter's window rows' codes by stage and position, before the port codes `x`."""
+        site = FORMAT_SITES[(frame.f_code.co_qualname, frame.f_lineno)]
+        torch = self.torch
+        rows = x.detach().float().reshape(-1, x.size(-1))
+        blocks = rows.reshape(-1, block_size).tolist()
+        value, scale = fixture.fp4_margins(blocks, e4m3_scale) if fp4 else fixture.fp8_margins(blocks)
+        old = self.formats.get(site, (0.5, math.inf))
+        self.formats[site] = (min(old[0], value), min(old[1], scale))
+        if site == "window":
+            stage = self.stages.setdefault(id(frame.f_locals["self"]), len(self.stages))
+            xb = rows.reshape(rows.size(0), -1, block_size)
+            s = self.port.round_scale(torch.maximum(xb.abs().amax(-1, keepdim=True), torch.tensor(1e-4)), torch.tensor(1.0 / 448.0))
+            codes = torch.clamp(xb / s, -448, 448).to(torch.float8_e4m3fn).view(torch.uint8).reshape(rows.size(0), -1).tolist()
+            exponents = (torch.log2(s).reshape(rows.size(0), -1).to(torch.int64) + 127).tolist()
+            for i in range(rows.size(0)):
+                self.window_codes[(stage, frame.f_locals["start_pos"] + i)] = bytes(exponents[i] + codes[i]).hex()
+
     def sinkhorn(self, *args, **kwargs):
         pre, post, comb = self.port.hc_split_sinkhorn(*args, **kwargs)
         self.add(("sinkhorn", self.block), (pre[0].tolist(), post[0].tolist(), comb[0].tolist()))
@@ -354,7 +385,11 @@ _CURRENT = {"trace": None}
 def _kernel_module(port):
     """The `kernel` module DeepSeek's code imports: the F32 port, with the attention output's FP8 activation quantization (model.py:787) left out, as docs/DEEPSEEK4.md section 4.5 has it."""
     module = types.ModuleType("kernel")
-    module.fp4_act_quant = port.fp4_act_quant
+    def fp4_act_quant(x, block_size=32, inplace=False, scale_dtype=port.torch.float8_e8m0fnu):
+        _CURRENT["trace"].coding(sys._getframe(1), x, block_size, True, scale_dtype == port.torch.float8_e4m3fn)
+        return port.fp4_act_quant(x, block_size, inplace, scale_dtype)
+
+    module.fp4_act_quant = fp4_act_quant
     module.fp4_gemm = port.fp4_gemm
     module.fp8_gemm = port.fp8_gemm
     module.sparse_attn = port.sparse_attn
@@ -362,10 +397,15 @@ def _kernel_module(port):
     def act_quant(x, *args, **kwargs):
         caller = sys._getframe(1).f_code.co_qualname
         if caller == "Attention._window_kv":
+            _CURRENT["trace"].coding(sys._getframe(1), x, args[0], False)
             return port.act_quant(x, *args, **kwargs)
-        if caller == "Attention.forward":
+        if caller == "Attention.forward" or (caller == "DSparkAttention.forward" and sys._getframe(1).f_lineno == 1073):
             _CURRENT["trace"].skipped_activation_qdq += 1
             return x
+        # DSpark's context and block rows go into its window as the trunk's do (model.py:1044 and 1064 at e5decd76).
+        if caller == "DSparkAttention.forward" and sys._getframe(1).f_lineno in (1044, 1064):
+            _CURRENT["trace"].coding(sys._getframe(1), x, args[0], False)
+            return port.act_quant(x, *args, **kwargs)
         raise RuntimeError("deepseek4 act_quant reached from %s" % caller)
 
     module.act_quant = act_quant
@@ -402,11 +442,12 @@ def _load_deepseek(stage_source, torch):
     return model, engram, port
 
 
-def _model_args(model_module):
-    args = dict(fixture.TINY_ARGS)
+def _model_args(model_module, base=None):
+    args = dict(base or fixture.TINY_ARGS)
     args["compress_ratios"] = tuple(args["compress_ratios"])
-    for key in ("kv_source_layers", "index_source_layers", "engram_layer_ids"):
-        args[key] = tuple(args[key])
+    for key in ("kv_source_layers", "index_source_layers", "engram_layer_ids", "dspark_target_layer_ids"):
+        if key in args:
+            args[key] = tuple(args[key])
     return model_module.ModelArgs(**args)
 
 
@@ -649,6 +690,116 @@ def generate(output_dir, checkpoint):
     return out / OUTPUT_NAME
 
 
+def _dspark_source(stage, checkpoint, torch, golden):
+    """DeepSeek's code from the checked copy in `stage`, the trunk golden, its state and Engram constants, and the DSpark model's arguments."""
+    document = json.loads(Path(golden).read_text(encoding="utf-8"))
+    source = stage / "source"
+    for relative in SOURCE:
+        (source / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(checkpoint) / relative, source / relative)
+    check_sources(source)
+    model_module, _, port = _load_deepseek(source, torch)
+    _, trunk_state, engram = fixture.fixture_from_document(document)
+    model_args = _model_args(model_module, fixture.DSPARK_ARGS)
+    model_args.engram_num_embeddings = tuple(engram["num_embeddings"])
+    return document, trunk_state, engram, model_module, port, model_args, _Adapter(source / "tokenizer.json")
+
+
+def _dspark_cases(loaded, drafter_seed, torch):
+    """The DSpark cases with the drafter drawn from `drafter_seed`: the drafts after every decoded token, their logit margins, each coding site's least margin and the window rows' codes."""
+    document, trunk_state, engram, model_module, port, model_args, tokenizer = loaded
+    zero_rows = {int(layer): rows for layer, rows in engram["zero_rows"].items()}
+    state = fixture.make_state(fixture.DSPARK_ARGS, engram["num_embeddings"], document["seed"], zero_rows, drafter_seed)
+    if any(state[name] != value for name, value in trunk_state.items()):
+        raise RuntimeError("the DSpark state's trunk is not the golden's")
+    ids = document["sequence"]
+    cases, margins, formats, codes = [], [], {}, None
+    for prefill in DSPARK_FROM:
+        model = _build(model_module, model_args, tokenizer, state, torch)
+        if sorted(model.state_dict()) != sorted(state):
+            raise RuntimeError("the DSpark fixture's parameters are not the model's")
+        trace = _Trace(torch, model_module, port)
+        _CURRENT["trace"] = trace
+        trace.attach(model)
+        drafts = []
+        try:
+            with trace.mode:
+                picked, _, hidden = model(torch.tensor([ids[:prefill]]), 0)
+                model.forward_spec(picked[:, -1], hidden, 0)
+                for position in range(prefill, len(ids)):
+                    picked, _, hidden = model(torch.tensor([ids[position:position + 1]]), position)
+                    block, logits, _ = model.forward_spec(picked[:, -1], hidden, position)
+                    rows = logits[0].tolist()
+                    top = [sorted(row, reverse=True)[:2] for row in rows]
+                    margins.extend(a - b for a, b in top)
+                    record = {"position": position, "last": int(picked[0, -1]), "drafts": block[0, 1:].tolist(), "margins": [a - b for a, b in top]}
+                    if position in DSPARK_LOGITS_AT:
+                        record["logits"] = [[_short(v) for v in row] for row in rows]
+                    drafts.append(record)
+        finally:
+            trace.close()
+        check_margins(trace.margins)
+        for site, (value, scale) in trace.formats.items():
+            formats[site] = min(formats.get(site, 0.5), value, scale)
+        rows = [[trace.window_codes[(stage, p)] for p in range(len(ids))] for stage in range(fixture.DSPARK_ARGS["n_mtp_layers"])]
+        if codes is not None and rows != codes:
+            # A row read whole and token by token coded apart sits on a rounding point, which no floor clears.
+            formats["window"] = 0.0
+        codes = rows
+        cases.append({"prefill": prefill, "drafts": drafts})
+    return state, cases, margins, formats, codes
+
+
+def search_dspark(checkpoint, golden, first, last):
+    """The drafter seed of first..last with the largest least margin over its window and block rows (fixture.search_drafter_seed), each seed's margins printed."""
+    torch = pinned_environment()
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    with tempfile.TemporaryDirectory(prefix="deepseek4_search_") as temporary:
+        loaded = _dspark_source(Path(temporary), checkpoint, torch, golden)
+
+        def measure(seed):
+            formats = _dspark_cases(loaded, seed, torch)[3]
+            print("drafter seed %d: window %.3g, block %.3g" % (seed, formats["window"], formats["block"]), flush=True)
+            return formats
+        seed, results = fixture.search_drafter_seed(measure, list(range(first, last + 1)))
+    print("drafter seed %d: window %.3g, block %.3g, the largest least margin over window and block of %d seeds"
+          % (seed, results[seed]["window"], results[seed]["block"], len(results)))
+    return seed
+
+
+def generate_dspark(output_dir, checkpoint, golden):
+    """The tiny DSpark reference: the trunk of the golden `golden` with fixture.DSPARK_ARGS' stages and the drafter drawn from DSPARK_SEED, its drafts after every decoded token through DeepSeek's forward_spec, and the tiny `dflash` sidecar."""
+    torch = pinned_environment()
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    dspark = dict(fixture.DSPARK_ARGS)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="deepseek4_dspark_", dir=out) as temporary:
+        stage = Path(temporary)
+        loaded = _dspark_source(stage, checkpoint, torch, golden)
+        document, engram = loaded[0], loaded[2]
+        state, cases, margins, formats, codes = _dspark_cases(loaded, DSPARK_SEED, torch)
+        sidecar = stage / DFLASH_NAME
+        fixture.write_dflash(sidecar, dspark, state, engram)
+        doc = {
+            "_comment": "Generated by tools/deepseek4_reference.py --dspark: DeepSeek's forward_spec at the pinned revision on the F32 kernel port after each decoded token of the deepseek41 golden's prompt.",
+            "repo": REPO, "revision": REVISION, "port_sha256": text_sha256(TOOLS / "deepseek4_kernel.py"),
+            "seed": document["seed"], "args": document["args"], "engram": engram, "sequence": document["sequence"],
+            "dspark": {"args": dspark, "seed": DSPARK_SEED, "state_sha256": fixture.state_sha256(state),
+                       "file": {"file": DFLASH_NAME, "sha256": hashlib.sha256(sidecar.read_bytes()).hexdigest()},
+                       "least_draft_margin": min(margins),
+                       "format_margins": dict(sorted(formats.items())),
+                       "window_codes": codes, "cases": cases},
+        }
+        (stage / DSPARK_NAME).write_text(json.dumps(doc, separators=(",", ":")) + "\n", encoding="utf-8")
+        publish_staged(stage, out, (DSPARK_NAME, DFLASH_NAME))
+    print("wrote %s: %d drafts, least draft margin %.3g, codings %s" % (out / DSPARK_NAME, sum(len(c["drafts"]) for c in cases), min(margins),
+                                                                         ", ".join("%s %.3g" % kv for kv in sorted(formats.items()))))
+    return out / DSPARK_NAME
+
+
 def _compare(kind, length, logits, whole, selections, reference, outputs, reference_outputs):
     """A path's rows held to the whole prompt's: logits and every sublayer output within EQUAL_BOUND and every selection the same."""
     largest = max(abs(a - b) for row, ref in zip(logits, whole) for a, b in zip(row, ref))
@@ -775,6 +926,8 @@ def main(argv=None):
     parser.add_argument("--checkpoint", help="the directory holding DeepSeek's files at the pinned revision")
     parser.add_argument("--self-test", action="store_true", help="check the port's codecs against the pure decoders and its Sinkhorn against float64")
     parser.add_argument("--codecs", metavar="FILE", help="write the port's codec outputs on seeded blocks, which deepseek4-ops reads")
+    parser.add_argument("--dspark", metavar="GOLDEN", help="write the tiny DSpark reference and sidecar on the trunk of this deepseek41 golden")
+    parser.add_argument("--search", nargs=2, type=int, metavar=("FIRST", "LAST"), help="with --dspark and --checkpoint, print the drafter seed of FIRST..LAST whose codings clear the floors best")
     args = parser.parse_args(argv)
     if args.codecs:
         codecs(args.codecs)
@@ -782,8 +935,14 @@ def main(argv=None):
     if args.self_test:
         self_test()
         return 0
+    if args.dspark and args.search and args.checkpoint:
+        search_dspark(args.checkpoint, args.dspark, *args.search)
+        return 0
     if not args.output_dir or not args.checkpoint:
         parser.error("needs --output-dir and --checkpoint")
+    if args.dspark:
+        generate_dspark(args.output_dir, args.checkpoint, args.dspark)
+        return 0
     generate(args.output_dir, args.checkpoint)
     return 0
 

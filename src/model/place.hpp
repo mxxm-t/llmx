@@ -49,6 +49,9 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             for (size_t i = 0; i < fp.head_aux.size(); ++i) larger(fp.head_aux[i], o.head_aux[i]);
             larger(fp.drafter_embedding, o.drafter_embedding);
             for (size_t i = 0; i < fp.drafter.size(); ++i) larger(fp.drafter[i], o.drafter[i]);
+            for (size_t t = 0; t < fp.drafter_stages.size(); ++t)
+                for (size_t i = 0; i < fp.drafter_stages[t].size(); ++i) larger(fp.drafter_stages[t][i], o.drafter_stages[t][i]);
+            fp.drafter_stage_cache = std::max(fp.drafter_stage_cache, o.drafter_stage_cache);
             for (size_t l = 0; l < fp.cache.size(); ++l) fp.cache[l] = std::max(fp.cache[l], o.cache[l]);
             fp.drafter_cache = std::max(fp.drafter_cache, o.drafter_cache);
             fp.head_slice_per_row = std::max(fp.head_slice_per_row, o.head_slice_per_row);
@@ -139,42 +142,57 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         heads.state = shard::state(plan, width);
     }
     const ModelPlan& kept = width > 1 ? heads : plan;
-    // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer, carried rows and the rows a mark saves.
+    // An embedded drafter's weights but those the head holds already, its embedding apart, and its KV layer or state slots, and where it carries a row (carries_row) the carried rows and the rows a mark saves.
     // A member holds its shards of the drafter's block and head (blocks::draft_head), each a buffer of its own beside the pass's, so the head's matrix counts here once more, or where it is tied with the embedding table.
     if (plan.drafter) {
         std::vector<size_t> held;
         for (const Role& role : plan.pass)
             if (role.part == Part::head && role.tensor && (width == 1 || role.shard.axis == Axis::none)) held.push_back(*role.tensor);
+        // The drafter's gather of the target's embedding table is its embedding, counted where its first part runs even when the head holds the table tied (end_weights).
         std::optional<size_t> table;
-        for (const Role& role : plan.drafter->roles)
-            if (role.kind == RoleKind::gather) table = role.tensor;
+        for (const Role& role : plan.pass)
+            if (role.part == Part::embed && role.kind == RoleKind::gather) table = role.tensor;
         std::vector<std::pair<std::pair<size_t, bool>, const Role*>> taken;
         for (const Role& role : plan.drafter->roles) {
-            if (!role.tensor || std::find(held.begin(), held.end(), *role.tensor) != held.end()) continue;
-            if (role.kind == RoleKind::gather) {
+            if (!role.tensor) continue;
+            if (role.kind == RoleKind::gather && role.tensor == table) {
                 fp.drafter_embedding = matrix(*role.tensor, false);
+                // A group that splits the embedding keeps a member's rows of it, so the drafter's whole table is a buffer of its own there too (Model::group_embed).
+                fp.drafter_embedding_held = width == 1 || !embedding_split(plan);
                 continue;
             }
-            if (role.tensor == table) continue;
+            if (role.tensor == table || std::find(held.begin(), held.end(), *role.tensor) != held.end()) continue;
             taken.push_back({{*role.tensor, role.kind == RoleKind::matrix}, &role});
         }
         std::sort(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
         taken.erase(std::unique(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first == b.first; }), taken.end());
-        for (const auto& t : taken) fp.drafter.push_back(matrix(t.first.first, t.first.second, t.second));
+        const LayerPlan& dl = *plan.drafter;
+        fp.drafter_stages.resize(dl.stages.size());
+        for (const auto& t : taken) {
+            const auto stage = std::find_if(dl.stages.begin(), dl.stages.end(), [&](const auto& r) { return t.second->id >= r.first && t.second->id < r.second; });
+            (stage == dl.stages.end() ? fp.drafter : fp.drafter_stages[size_t(stage - dl.stages.begin())]).push_back(matrix(t.first.first, t.first.second, t.second));
+        }
         const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux_floats())),
-                                             backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
+        // A drafter with stages keeps its KV or state on each device that holds a stage, every one the whole layer's shape; without stages, on the head's device.
+        size_t& held_cache = dl.stages.empty() ? fp.drafter_cache : fp.drafter_stage_cache;
+        fp.drafter_cache = 0;
+        if (keeps_kv(dl)) held_cache = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, dl.kv_aux_floats()));
+        if (keeps_slot(dl))
+            held_cache = backend::size_add(held_cache, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), dl.state_tail)), sizeof(float)));
+        if (carries_row(plan))
+            fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
         // A chain's ids and a member's logits of its vocabulary rows for a mark's sequences at the most drafts a mark holds (Model::reserve_drafting).
         if (options.mark_slots && options.mark_rows > 1) {
-            const size_t ids = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), sizeof(uint32_t));
+            const size_t drafts = backend::size_mul(draft_calls(plan, options.mark_rows - 1), std::max<size_t>(plan.draft_block, 1));
+            const size_t ids = backend::size_mul(backend::size_mul(options.mark_slots, drafts + 1), sizeof(uint32_t));
             const size_t vocab = width > 1 ? fp.output.rows : plan.vocab;
-            const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows - 1), backend::size_mul(vocab, sizeof(float)));
+            const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, drafts), backend::size_mul(vocab, sizeof(float)));
             fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_add(ids, logits));
         }
     }
     {
         const bool states = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
-        fp.context_rows = std::max(states && options.mark_slots ? options.mark_rows : 0, plan.drafter && options.mark_slots ? options.mark_slots : 0);
+        fp.context_rows = std::max(states && options.mark_slots ? options.mark_rows : 0, plan.drafter && options.mark_slots ? options.mark_slots * std::max<size_t>(plan.draft_block, 1) : 0);
     }
     // Runtime gives every state layer on one device the largest saved and rerun row of that device. Before placement, charge the model-wide maxima for each state layer.
     size_t saved_max = 0, rerun_max = 0;
@@ -234,6 +252,7 @@ inline Placement placement_for(const LayerSplit& split, size_t width = 1) {
         }
     p.embed_device = split.embed_device * (int)width;
     p.output_device = split.output_device * (int)width;
+    for (int d : split.draft_device) p.draft_device.push_back(d * (int)width);
     p.width = width;
     return p;
 }
@@ -537,7 +556,7 @@ inline size_t kv_search_bound(size_t context, std::optional<size_t> free, size_t
 }
 
 // The options with the KV budget fitted, as every placement fits it: the most whole blocks of the largest size, at most the options' budget, at which the fit of model/layer_split.hpp places the model, refused when not one block fits.
-// Drafting never lowers it: the drafter, the marks (fit_marks) and then the checkpoint slots (fit_checkpoints, `given_up`, `read`) are fitted beside that budget as docs/SPECULATIVE.md, sections 2 and 3 give.
+// Drafting never lowers a budget the devices hold whole: the drafter, the marks (fit_marks) and the checkpoint slots (fit_checkpoints, `given_up`, `read`) go beside it, and a cut budget is cut with them (docs/SPECULATIVE.md, section 3).
 inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan, const std::vector<backend::BackendPtr>& backends,
                               const PlacementRequest& request, ModelOptions options, size_t* given_up = nullptr,
                               std::vector<DeviceBudget>* read = nullptr, std::string* kept_context = nullptr,
@@ -642,7 +661,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             o.kv_tokens = tokens;
             o.checkpoint_slots = kept;
             const Footprint fp = footprint(weights, *fitting, o, request.width);
-            size_t bytes = fp.drafter_cache;
+            size_t bytes = backend::size_add(fp.drafter_cache, backend::size_mul(fp.drafter_stages.size(), fp.drafter_stage_cache));
             for (size_t c : fp.cache) bytes = backend::size_add(bytes, c);
             return bytes;
         };
@@ -651,6 +670,10 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
         const size_t per_token = (kv_bytes(2 * block) - kv_bytes(block) + block - 1) / block;
         want = kv_search_bound(plan.context_length, free, per_token, block);
         if (kept_context && !per_token) *kept_context = "the model keeps no KV that grows with the pool";
+    } else if ((drafter || most_marks) && !fits(want)) {
+        // A budget the devices do not hold whole even without drafting is cut to their memory, so it is cut with the drafter and its first mark in the fit, as the automatic budget is; one they hold whole keeps the rule above.
+        fitting = &held;
+        options.mark_slots = marks ? 1 : most_marks;
     }
     size_t tokens = most();
     // Where not one block fits beside the hot rows of tables read from their files, those tables hold none and read every row from the file, as the lookup choice in place_model would leave them.
@@ -689,9 +712,14 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             }
             kept = lo;
         }
-        if (!fits(tokens))
+        if (!fits(tokens)) {
+            // Where drafting does not fit beside even one block, no budget leaves it room, and the refusal says so rather than asking for a smaller one.
+            if (!fits(block))
+                throw std::runtime_error("placement: drafting does not fit beside the model and " + std::to_string(kept) + " state checkpoints even at one KV block of " +
+                                         std::to_string(block) + " tokens (" + why + ")");
             throw std::runtime_error("placement: drafting needs room beyond the KV budget of " + std::to_string(tokens) + " tokens and " + std::to_string(kept) +
                                      " state checkpoints, which leave none for it (" + why + "); a smaller budget or fewer checkpoints leaves the room");
+        }
     }
     // Then the marks past the first, by bisection, the most at which the budget and the checkpoint slots still fit.
     if (marks && tokens) {
@@ -706,6 +734,13 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     if (given_up) *given_up = bare - tokens;
     if (read) *read = budgets;
     if (!tokens) {
+        // A fit that failed with the drafter in it says so where the model alone fits.
+        if (fitting == &held && drafter && !fits(1)) {
+            const std::string drafted = why;
+            fitting = &bare_plan;
+            options.mark_slots = 0;
+            if (fits(1)) throw std::runtime_error("placement: drafting does not fit beside the model even at one KV token (" + drafted + ")");
+        }
         if (!fits(1))
             throw std::runtime_error("placement: the model does not fit the devices' free memory even without its KV, which stayed level for five seconds (" + why + ")");
         fits(block);
@@ -1046,6 +1081,9 @@ inline std::vector<size_t> kv_block_bytes(const ModelWeights& weights, const Pla
     const std::vector<int>& mixers = planned.placement.mixer_device;
     for (size_t l = 0; l < a.cache.size() && l < b.cache.size(); ++l) add(l < mixers.size() ? mixers[l] : 0, b.cache[l] - a.cache[l]);
     add(planned.placement.output_device, b.drafter_cache - a.drafter_cache);
+    std::vector<int> stage_devices = planned.placement.draft_device;
+    stage_devices.erase(std::unique(stage_devices.begin(), stage_devices.end()), stage_devices.end());
+    for (int d : stage_devices) add(d, b.drafter_stage_cache - a.drafter_stage_cache);
     return bytes;
 }
 

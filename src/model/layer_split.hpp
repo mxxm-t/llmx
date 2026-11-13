@@ -48,10 +48,14 @@ struct Footprint {
     size_t head_slice_per_row = 0;             // on a tensor group, a member's slice of a logits row, which each member of the head's group keeps beside its layers
     size_t argmax_per_row = 0, argmax_rows = 0;   // off a tensor group, a logits row and its id kept on the head's device for argmax passes, and how many (Model::argmax_buffers)
     size_t handoff_per_row = 0;                // one row of the stream handed from one device to the next through host memory, in each of the handoff buffers every used device but the last keeps
-    // An embedded drafter, which runs where the head does (docs/SPECULATIVE.md, section 7): its own weights, the embedding table it reads there (kept only where nothing else holds it), and its KV, carried rows and the rows a mark saves.
+    // An embedded drafter's head part, which runs where the head does (docs/SPECULATIVE.md, section 7): its weights, the embedding table its first part reads, and its carried rows, chain ids, logits and, without stages, KV or state.
     std::vector<Matrix> drafter;
     Matrix drafter_embedding;
+    bool drafter_embedding_held = true;   // the first device's embedding buffer is the whole table the drafter gathers, not a member's rows of it
     size_t drafter_cache = 0;
+    // Its stages (LayerPlan::stages) in order, which the split places on any device beside its layers, and the KV or state each device holding one keeps.
+    std::vector<std::vector<Matrix>> drafter_stages;
+    size_t drafter_stage_cache = 0;
     size_t host_state = 0;                     // model-owned host state, counted once rather than per device
     size_t context_rows = 0;                   // the model's own context beside a server's passes, which a mark's rerun and a drafter's chain take (Model::reserve_drafting)
     size_t host_scratch_per_row = 0;           // host lookup indices for each used stage's execution arena
@@ -110,6 +114,7 @@ struct LayerSplit {
     };
     std::vector<Stage> stages;
     int embed_device = 0, output_device = 0;
+    std::vector<int> draft_device;   // each drafter stage's device
     size_t host = 0;   // what the host holds besides mapped weights: logits rows, position tables, the handoff between devices and the used backends' own host memory
 
     std::string describe(const std::vector<DeviceBudget>& devices) const {
@@ -120,11 +125,14 @@ struct LayerSplit {
             const Stage& st = stages[d];
             char free[48] = "free memory unknown";
             if (devices[d].bytes) std::snprintf(free, sizeof free, "%.2f GiB free", *devices[d].bytes / gib);
+            std::string drafts;
+            for (size_t k = 0; k < draft_device.size(); ++k)
+                if (draft_device[k] == (int)d) drafts += (drafts.empty() ? " and drafter stages " : ",") + std::to_string(k);
             if (!st.count)
                 std::snprintf(line, sizeof line, "%s: no layers\n", devices[d].name.c_str());
             else
-                std::snprintf(line, sizeof line, "%s: layers %d-%d, weights %.2f GiB, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
-                              devices[d].name.c_str(), st.first, st.first + st.count - 1, st.weights / gib, st.cache / gib, st.other / gib, free);
+                std::snprintf(line, sizeof line, "%s: layers %d-%d%s, weights %.2f GiB, cache %.2f GiB, activations and scratch %.2f GiB, %s\n",
+                              devices[d].name.c_str(), st.first, st.first + st.count - 1, drafts.c_str(), st.weights / gib, st.cache / gib, st.other / gib, free);
             s += line;
         }
         std::snprintf(line, sizeof line, "host: logits, tables and staging %.2f GiB\n", host / gib);
@@ -210,6 +218,11 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             for (const Matrix& m : fp.layers[l]) b += resident(d, m);
             prefix[d][l + 1] = backend::size_add(prefix[d][l], b);
         }
+    // The drafter's embedding goes with its first part, the head's without stages and stage 0's with them, unless the device holds the table already.
+    const size_t S = fp.drafter_stages.size();
+    auto drafted_embedding = [&](size_t d, bool first, bool last) {
+        return (first && fp.drafter_embedding_held) || (last && fp.tied) ? size_t(0) : resident(d, fp.drafter_embedding);
+    };
     // The embedding and head weights a device keeps, given whether it runs the first and the last layers.
     // A tied pair on one device is one buffer, kept as the head keeps it, since the head reads it through a product.
     auto end_weights = [&](size_t d, bool first, bool last) -> size_t {
@@ -218,7 +231,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         if (last) {
             for (const Matrix& m : fp.head_aux) head_aux = backend::size_add(head_aux, resident(d, m));
             for (const Matrix& m : fp.drafter) drafter += resident(d, m);
-            if (!first && !fp.tied) drafter += resident(d, fp.drafter_embedding);
+            if (!S) drafter += drafted_embedding(d, first, last);
         }
         if (first && last && fp.tied) return resident(d, fp.output) + resident(d, fp.output_norm) + head_aux + drafter;
         return (first ? resident(d, fp.embedding) : 0) + (last ? resident(d, fp.output) + resident(d, fp.output_norm) + head_aux : 0) + drafter;
@@ -230,8 +243,9 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     auto host_for = [&](const std::vector<size_t>& used) {
         Host h;
-        // A layer split is pipelined, and every stage but the last sends its residual on.
-        h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
+        // A layer split is pipelined, and every stage but the last sends its residual on; a drafter with stages may send from the head too, to stages the program puts apart from it, so its buffers are counted beside them.
+        const size_t senders = used.size() > 1 ? used.size() - (fp.drafter_stages.empty() ? 1 : 0) : 0;
+        h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + handoff_buffers(slots, true) * senders * rows * fp.handoff_per_row;
         h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(arena_rows, fp.host_scratch_per_row)));
         // A pipelined prompt keeps a pass in flight a stage, a server its slots.
         const size_t in_flight = std::max(slots, used.size());
@@ -260,7 +274,21 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
 
+    // The drafter's stages a device holds, [t, t + n): their weights as it keeps them, the drafter's embedding with stage 0, and the drafter's KV or state once where it holds any.
+    std::vector<std::vector<size_t>> staged(N, std::vector<size_t>(S + 1, 0));
+    for (size_t d = 0; d < N; ++d)
+        for (size_t t = 0; t < S; ++t) {
+            size_t b = 0;
+            for (const Matrix& m : fp.drafter_stages[t]) b = backend::size_add(b, resident(d, m));
+            staged[d][t + 1] = backend::size_add(staged[d][t], b);
+        }
+    auto stage_weights = [&](size_t d, size_t t, size_t n, bool first, bool last) {
+        return n ? backend::size_add(staged[d][t + n] - staged[d][t], t ? size_t(0) : drafted_embedding(d, first, last)) : size_t(0);
+    };
+    auto stage_bytes = [&](size_t d, size_t t, size_t n, bool first, bool last) { return n ? backend::size_add(stage_weights(d, t, n, first, last), fp.drafter_stage_cache) : size_t(0); };
+
     std::vector<int> count(N, 0);
+    std::vector<int> drafts(N, 0);
     if (!shares.empty()) {
         // Shares are proportions: each device's layers are its share of the total, rounded so the counts add to the model's layers, the remainders going to the largest fractions first.
         size_t sum = 0;
@@ -274,58 +302,94 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         }
         std::stable_sort(fraction.begin(), fraction.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
         for (size_t i = 0; given < L; ++i, ++given) ++count[fraction[i].second];
-    } else {
-        // A plan is better with fewer layers on devices that read in place, then fewer on its busiest device, whose stage sets a pipeline's pace (a layer count standing for time while the layers are alike), then fewer bytes there.
-        // A device's load is (layers, bytes), compared in that order; the busiest is the largest, a single maximum the program keeps exact.
+    }
+    {
+        // A plan ranks by its layers on devices that read in place, its busiest device's layers (a pipeline's pace), its devices holding drafter stages apart from the head, then the busiest device's bytes (docs/src/model-layer_split.md).
+        // The devices apart are a dimension of the program, each count keeping its best, and the stages go to the devices in order, any number on one, shares fixing the layers alone.
         using Load = std::pair<size_t, size_t>;
         using Score = std::pair<size_t, Load>;
+        using Rank = std::pair<std::pair<size_t, size_t>, std::pair<size_t, size_t>>;   // host layers, busiest layers, devices apart, busiest bytes
         const Score none{SIZE_MAX, Load{SIZE_MAX, SIZE_MAX}};
         bool found = false;
-        Score best = none;
+        Rank best{};
+        std::vector<int> fixed = count;
         for (size_t mask = 1; mask < ((size_t)1 << N); ++mask) {
             std::vector<size_t> used;
-            for (size_t d = 0; d < N; ++d)
+            bool ok = true;
+            for (size_t d = 0; d < N; ++d) {
                 if (mask >> d & 1) used.push_back(d);
+                if (!shares.empty() && (fixed[d] > 0) != bool(mask >> d & 1)) ok = false;
+            }
             const size_t J = used.size();
-            if (J > L) continue;
+            if (!ok || J > L) continue;
             const Host h = host_for(used);
             if (!host_fits(h)) continue;
-            // score[j][i]: the set's first j devices running layers [0, i), one at least each; from[j][i]: how many the last of them took.
-            std::vector<std::vector<Score>> score(J + 1, std::vector<Score>(L + 1, none));
-            std::vector<std::vector<size_t>> from(J + 1, std::vector<size_t>(L + 1, 0));
-            score[0][0] = Score{0, Load{0, 0}};
+            // score at (j, i, t, c): the set's first j devices running layers [0, i), one at least each, and stages [0, t), c of those devices holding stages but not the head; from: the layers and stages the last of them took.
+            const size_t C = S + 1, per = (L + 1) * (S + 1) * C;
+            const auto cell = [&](size_t j, size_t i, size_t t, size_t c) { return j * per + (i * (S + 1) + t) * C + c; };
+            std::vector<Score> score((J + 1) * per, none);
+            std::vector<std::pair<size_t, size_t>> from((J + 1) * per);
+            score[cell(0, 0, 0, 0)] = Score{0, Load{0, 0}};
             for (size_t j = 0; j < J; ++j) {
                 const size_t d = used[j];
                 const bool first = j == 0, last = j + 1 == J;
-                for (size_t i = 0; i < L; ++i) {
-                    if (score[j][i] == none) continue;
-                    // The last device runs the rest.
-                    for (size_t k = last ? L - i : 1; i + k <= L; ++k) {
-                        const size_t bytes = need(d, i, k, first, last, h);
-                        if (!fits(d, bytes)) break;
-                        Score next = score[j][i];
-                        if (devices[d].host) next.first += k;
-                        else next.second = std::max(next.second, Load{k, bytes});
-                        if (next < score[j + 1][i + k]) {
-                            score[j + 1][i + k] = next;
-                            from[j + 1][i + k] = k;
+                for (size_t i = 0; i < L; ++i)
+                    for (size_t t = 0; t <= S; ++t)
+                        for (size_t c = 0; c <= t; ++c) {
+                            const Score now = score[cell(j, i, t, c)];
+                            if (now == none) continue;
+                            // The last device runs the rest of the layers and the stages.
+                            const size_t k0 = !shares.empty() ? (size_t)fixed[d] : last ? L - i : 1, k1 = !shares.empty() ? (size_t)fixed[d] : L - i;
+                            for (size_t k = k0; k >= 1 && k <= k1 && i + k <= L; ++k) {
+                                if (last && i + k != L) break;
+                                const size_t base = need(d, i, k, first, last, h);
+                                if (!fits(d, base)) break;
+                                for (size_t n = last ? S - t : 0; t + n <= S; ++n) {
+                                    const size_t bytes = backend::size_add(base, stage_bytes(d, t, n, first, last));
+                                    if (!fits(d, bytes)) break;
+                                    Score next = now;
+                                    if (devices[d].host) next.first += k;
+                                    else next.second = std::max(next.second, Load{k, bytes});
+                                    const size_t to = cell(j + 1, i + k, t + n, c + (n && !last ? 1 : 0));
+                                    if (next < score[to]) {
+                                        score[to] = next;
+                                        from[to] = {k, n};
+                                    }
+                                }
+                            }
                         }
-                        if (last) break;
-                    }
+            }
+            for (size_t c = 0; c <= S; ++c) {
+                const Score& s = score[cell(J, L, S, c)];
+                if (s == none) continue;
+                const Rank rank{{s.first, s.second.first}, {c, s.second.second}};
+                if (found && !(rank < best)) continue;
+                found = true;
+                best = rank;
+                std::fill(count.begin(), count.end(), 0);
+                std::fill(drafts.begin(), drafts.end(), 0);
+                for (size_t j = J, i = L, t = S, e = c; j > 0; --j) {
+                    const auto [k, n] = from[cell(j, i, t, e)];
+                    count[used[j - 1]] = (int)k;
+                    drafts[used[j - 1]] = (int)n;
+                    i -= k;
+                    t -= n;
+                    if (n && j != J) --e;
                 }
             }
-            if (score[J][L] == none || (found && !(score[J][L] < best))) continue;
-            found = true;
-            best = score[J][L];
-            std::fill(count.begin(), count.end(), 0);
-            for (size_t j = J, i = L; j > 0; --j) {
-                count[used[j - 1]] = (int)from[j][i];
-                i -= from[j][i];
-            }
         }
-        if (!found)
-            throw std::runtime_error("split: the model does not fit: no placement of its " + std::to_string(L) +
-                                     " layers fits the devices' free memory and the host's (a smaller cache budget or more devices leave more room)");
+        if (!found && !shares.empty()) {
+            // Shares the devices do not hold are refused below, by the device that is short, with the stages on the last device.
+            count = fixed;
+            for (size_t d = N; d-- > 0;)
+                if (count[d]) {
+                    drafts[d] = (int)S;
+                    break;
+                }
+        } else if (!found) {
+            throw std::runtime_error("split: the model does not fit: no placement of its " + std::to_string(L) + " layers" + (S ? " and " + std::to_string(S) + " drafter stages" : std::string()) +
+                                     " fits the devices' free memory and the host's (a smaller cache budget or more devices leave more room)");
+        }
     }
 
     LayerSplit out;
@@ -341,11 +405,17 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     if (used.empty()) throw std::runtime_error("split: no device runs a layer");
     out.embed_device = (int)used.front();
     out.output_device = (int)used.back();
+    for (size_t d = 0, t = 0; d < N; ++d)
+        for (int n = 0; n < drafts[d]; ++n, ++t) out.draft_device.push_back((int)d);
     const Host h = host_for(used);
     for (size_t d : used) {
         LayerSplit::Stage& st = out.stages[d];
-        st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back());
-        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0);
+        size_t before = 0;
+        for (size_t e = 0; e < d; ++e) before += (size_t)drafts[e];
+        st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back()) +
+                     stage_weights(d, before, (size_t)drafts[d], d == used.front(), d == used.back());
+        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0) +
+                   (drafts[d] ? fp.drafter_stage_cache : 0);
         st.other = backend::size_add(overhead(d, h, d == used.back()), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
         const size_t held = st.weights + st.cache + st.other;
         if (!fits(d, held)) {

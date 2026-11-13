@@ -1,298 +1,21 @@
 #pragma once
 #include <algorithm>
-#include <cstring>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include "core/bf16.hpp"
 #include "format/gguf.hpp"
 #include "model/arch/blocks.hpp"
-#include "model/arch/metadata.hpp"
+#include "model/arch/deepseek4/config.hpp"
 
-// DeepSeek-V4.1: the configuration, its refusals, the plan of the fork layout's tensors and caches, and the math on the CPU (docs/DEEPSEEK4.md).
+// DeepSeek-V4.1: the plan of the fork layout's tensors and caches, and the math on the CPU (docs/DEEPSEEK4.md).
 namespace infer::deepseek4 {
-
-// One block's place among the shared caches, as model.py at 1bae0e10 builds it, its ratio 0 for the window alone.
-// It may compress the KV others read, run an indexer, own the index keys, pick or read the candidates and run Engram, and `source` is the KV source it reads, -1 for none.
-struct Layer {
-    int ratio = 0;
-    bool kv_source = false, index_source = false, owns_keys = false;
-    bool candidate_source = false, uses_candidates = false, engram = false;
-    int source = -1;
-};
-
-struct Config {
-    std::string name;
-    uint32_t vocab = 0;
-    int n_layer = 0, context_length = 0, n_embd = 0, n_head = 0, head_dim = 0, rope_dim = 0;
-    int q_lora_rank = 0, window = 0, out_groups = 0, out_rank = 0;
-    float rope_theta = 0, compress_rope_theta = 0, rope_factor = 0, beta_fast = 0, beta_slow = 0, rms_eps = 0;
-    int original_context = 0;
-    int n_expert = 0, n_expert_used = 0, n_ff_exp = 0;
-    float expert_scale = 0;
-    std::vector<float> swiglu_exp, swiglu_shexp;  // each block's clamp, 0 for none
-    int index_heads = 0, index_head_dim = 0, index_top_k = 0;
-    int hc_count = 0, hc_iterations = 0;
-    float hc_eps = 0;
-    std::vector<int> compress_ratios, kv_sources, index_sources;
-    int candidate_source = -1, candidate_block = 0, candidate_top_k = 0;
-    std::vector<int> engram_layers;
-    int engram_heads = 0, engram_head_dim = 0, engram_ngram = 0, engram_pad = 0, engram_compressed = 0;
-    std::vector<uint64_t> engram_rows, engram_primes, engram_offsets, engram_multipliers;
-    std::vector<uint32_t> token_map;
-};
-
-// Ascending distinct block ids, each below the block count.
-inline bool layer_ids(const std::vector<int>& ids, int n_layer) {
-    for (size_t i = 0; i < ids.size(); ++i)
-        if (ids[i] < 0 || ids[i] >= n_layer || (i && ids[i] <= ids[i - 1])) return false;
-    return true;
-}
-
-inline bool listed(const std::vector<int>& ids, int layer) { return std::find(ids.begin(), ids.end(), layer) != ids.end(); }
-
-// The rules a configuration keeps whatever file it came from: the source layers model.py reads its caches through, the candidate blocks, Engram's arrays against its geometry, and sizes that fit an allocation.
-inline void check_config(const Config& c) {
-    if (c.n_layer <= 0) throw std::runtime_error("inference: a model without decoder layers");
-    if (c.n_embd <= 0 || c.n_head <= 0 || c.head_dim <= 0 || c.q_lora_rank <= 0 || c.window <= 0 || c.out_groups <= 0 ||
-        c.out_rank <= 0 || c.n_expert <= 0 || c.n_expert_used <= 0 || c.n_ff_exp <= 0 || c.index_heads <= 0 ||
-        c.index_head_dim <= 0 || c.index_top_k <= 0 || c.hc_count <= 0 || c.hc_iterations <= 0 || c.context_length <= 0 ||
-        c.original_context <= 0 || !c.vocab)
-        throw std::runtime_error("inference: invalid DeepSeek-V4.1 dimensions");
-    for (float f : {c.rope_theta, c.compress_rope_theta, c.rope_factor, c.beta_fast, c.beta_slow, c.rms_eps, c.hc_eps, c.expert_scale})
-        if (!std::isfinite(f) || f <= 0) throw std::runtime_error("inference: invalid DeepSeek-V4.1 floating-point configuration");
-    if (c.n_expert_used > c.n_expert) throw std::runtime_error("inference: more experts per token than the layer has");
-    if (c.rope_dim <= 0 || c.rope_dim % 2 || c.rope_dim > c.head_dim || c.rope_dim > c.index_head_dim)
-        throw std::runtime_error("inference: invalid rotary width, which must be even and at most the head and indexer head widths");
-    if ((uint64_t(c.n_head) * uint64_t(c.head_dim)) % uint64_t(c.out_groups))
-        throw std::runtime_error("inference: the output groups do not divide the attention heads' width");
-    if (c.compress_ratios.size() != size_t(c.n_layer) || c.swiglu_exp.size() != size_t(c.n_layer) || c.swiglu_shexp.size() != size_t(c.n_layer))
-        throw std::runtime_error("inference: invalid DeepSeek-V4.1 layer metadata length");
-    for (size_t l = 0; l < size_t(c.n_layer); ++l)
-        if (c.compress_ratios[l] < 0 || !std::isfinite(c.swiglu_exp[l]) || c.swiglu_exp[l] < 0 ||
-            !std::isfinite(c.swiglu_shexp[l]) || c.swiglu_shexp[l] < 0)
-            throw std::runtime_error("inference: invalid compression ratio or SwiGLU clamp of layer " + std::to_string(l));
-
-    if (!layer_ids(c.kv_sources, c.n_layer)) throw std::runtime_error("inference: the KV source layers must be ascending distinct layers of the model");
-    if (!layer_ids(c.index_sources, c.n_layer)) throw std::runtime_error("inference: the index source layers must be ascending distinct layers of the model");
-    if (!layer_ids(c.engram_layers, c.n_layer)) throw std::runtime_error("inference: the Engram layers must be ascending distinct layers of the model");
-    int source = -1;
-    for (int l = 0; l < c.n_layer; ++l) {
-        const int ratio = c.compress_ratios[size_t(l)];
-        const bool kv = listed(c.kv_sources, l), index = listed(c.index_sources, l);
-        if (kv) source = l;
-        if ((kv || index) && !ratio) throw std::runtime_error("inference: source layer " + std::to_string(l) + " has no compression ratio");
-        // A reader takes the compressed cache of the latest KV source at its own ratio (model.py:740-747 at e5decd76), and the index keys exist only on KV sources (model.py:500 at e5decd76).
-        if (ratio && (source < 0 || c.compress_ratios[size_t(source)] != ratio))
-            throw std::runtime_error("inference: compressed layer " + std::to_string(l) + " has no KV source of its ratio at or before it");
-        if (kv && !index) throw std::runtime_error("inference: KV source layer " + std::to_string(l) + " is not an index source");
-    }
-    if (c.candidate_source >= 0) {
-        if (c.candidate_source >= c.n_layer || !listed(c.index_sources, c.candidate_source))
-            throw std::runtime_error("inference: the candidate source layer is not an index source");
-        if (c.candidate_block <= 0 || c.candidate_top_k <= 0)
-            throw std::runtime_error("inference: candidate blocks need a positive block size and count");
-        // Every later index source masks its scores with the source's candidates over the source's compressed length (model.py:570-576 at e5decd76).
-        for (int l : c.index_sources)
-            if (l > c.candidate_source && c.compress_ratios[size_t(l)] != c.compress_ratios[size_t(c.candidate_source)])
-                throw std::runtime_error("inference: index source layer " + std::to_string(l) + " reads candidates of another ratio");
-    } else if (c.candidate_block || c.candidate_top_k) {
-        throw std::runtime_error("inference: candidate blocks without a candidate source layer");
-    }
-
-    const size_t layers = c.engram_layers.size();
-    if (layers) {
-        if (c.engram_ngram < 2 || c.engram_heads <= 0 || c.engram_head_dim <= 0 || c.engram_compressed <= 0)
-            throw std::runtime_error("inference: invalid Engram dimensions");
-        if (c.engram_pad < 0 || uint32_t(c.engram_pad) >= c.vocab) throw std::runtime_error("inference: the Engram pad id is outside the vocabulary");
-    }
-    const uint64_t heads = layers ? uint64_t(c.engram_ngram - 1) * uint64_t(c.engram_heads) : 0;
-    if (heads > uint64_t(std::numeric_limits<int>::max()) || heads * uint64_t(c.engram_head_dim) > uint64_t(std::numeric_limits<int>::max()))
-        throw std::runtime_error("inference: Engram dimensions exceed the supported range");
-    if (c.engram_rows.size() != layers || c.engram_multipliers.size() != layers * size_t(std::max(c.engram_ngram, 0)) ||
-        c.engram_primes.size() != layers * heads || c.engram_offsets.size() != layers * heads)
-        throw std::runtime_error("inference: Engram array lengths do not match its layers and heads");
-    for (size_t l = 0; l < layers; ++l) {
-        if (!c.engram_rows[l] || c.engram_rows[l] > uint64_t(std::numeric_limits<int32_t>::max()))
-            throw std::runtime_error("inference: invalid Engram table rows");
-        if (c.engram_offsets[l * heads]) throw std::runtime_error("inference: an Engram layer's offsets do not start at 0");
-        for (size_t h = l * heads; h < (l + 1) * heads; ++h)
-            if (!c.engram_primes[h] || c.engram_offsets[h] > c.engram_rows[l] || c.engram_primes[h] > c.engram_rows[l] - c.engram_offsets[h])
-                throw std::runtime_error("inference: an Engram head's rows lie outside its table");
-    }
-    if (layers && c.token_map.size() != c.vocab) throw std::runtime_error("inference: the Engram token map does not cover the vocabulary");
-    for (uint32_t id : c.token_map)
-        if (id >= uint32_t(c.engram_compressed)) throw std::runtime_error("inference: an Engram token map id is outside the compressed vocabulary");
-
-    const uint64_t max_floats = std::vector<float>().max_size(), residual = uint64_t(c.hc_count) * uint64_t(c.n_embd);
-    if (residual > uint64_t(std::numeric_limits<int>::max()) || uint64_t(c.context_length) > max_floats / uint64_t(c.rope_dim))
-        throw std::runtime_error("inference: DeepSeek-V4.1 dimensions or context exceed allocation limit");
-}
-
-// Each block's place, from the source lists and ratios check_config has held to model.py's rules.
-inline std::vector<Layer> layer_table(const Config& c) {
-    std::vector<Layer> out(size_t(c.n_layer));
-    int source = -1;
-    for (int l = 0; l < c.n_layer; ++l) {
-        Layer& t = out[size_t(l)];
-        t.ratio = c.compress_ratios[size_t(l)];
-        t.kv_source = listed(c.kv_sources, l);
-        t.index_source = listed(c.index_sources, l);
-        t.owns_keys = t.kv_source && t.index_source;
-        t.candidate_source = l == c.candidate_source;
-        t.uses_candidates = t.index_source && c.candidate_source >= 0 && c.candidate_source < l;
-        t.engram = listed(c.engram_layers, l);
-        if (t.kv_source) source = l;
-        t.source = t.ratio ? source : -1;
-    }
-    return out;
-}
-
-// Engram layer `i`'s hash: its multipliers, offsets and primes, the token map into the compressed ids, and the pad id filling before the start, which cuts nothing in text (docs/DEEPSEEK4.md, section 4.4).
-inline blocks::NgramHash engram_hash(const Config& c, size_t i) {
-    const size_t n = size_t(c.engram_ngram), heads = (n - 1) * size_t(c.engram_heads);
-    blocks::NgramHash h;
-    h.ngram_size = c.engram_ngram;
-    h.heads_per_ngram = c.engram_heads;
-    h.fill_id = c.engram_pad;
-    h.multipliers.assign(c.engram_multipliers.begin() + std::ptrdiff_t(i * n), c.engram_multipliers.begin() + std::ptrdiff_t((i + 1) * n));
-    h.head_offsets.assign(c.engram_offsets.begin() + std::ptrdiff_t(i * heads), c.engram_offsets.begin() + std::ptrdiff_t((i + 1) * heads));
-    h.head_vocab_sizes.assign(c.engram_primes.begin() + std::ptrdiff_t(i * heads), c.engram_primes.begin() + std::ptrdiff_t((i + 1) * heads));
-    h.token_map = c.token_map;
-    h.mapped_vocab = uint32_t(c.engram_compressed);
-    h.fill_cuts = false;
-    return h;
-}
-
-// An array key the reader requires, present before metadata.hpp reads its entries.
-inline const gguf::MetaValue& required(const gguf::GGUFModel& m, const std::string& k) {
-    const gguf::MetaValue* v = m.find(k);
-    if (!v) throw std::runtime_error("inference: missing metadata " + k);
-    return *v;
-}
-
-inline void supported(bool ok, const std::string& k) {
-    if (!ok) throw std::runtime_error("inference: unsupported metadata " + k);
-}
-
-// The fork layout's keys under `p`; the upstream layout, which names its Engram keys `ple.*`, is refused by its key until it is read (docs/DEEPSEEK4.md, step 16).
-inline Config read_config(const gguf::GGUFModel& m, const std::string& p, uint32_t vocab) {
-    using metadata::integer;
-    using metadata::real;
-    const bool fork = m.find(p + "engram.layer_ids"), upstream = m.find(p + "ple.layers");
-    if (fork && upstream) throw std::runtime_error("inference: unsupported metadata " + p + "ple.layers beside " + p + "engram.layer_ids");
-    supported(!upstream, p + "ple.layers");
-    Config c;
-    c.name = p.substr(0, p.size() - 1);
-    c.vocab = vocab;
-    c.n_layer = integer(m, p + "block_count");
-    c.context_length = integer(m, p + "context_length");
-    c.n_embd = integer(m, p + "embedding_length");
-    c.n_head = integer(m, p + "attention.head_count");
-    supported(integer(m, p + "attention.head_count_kv") == 1, p + "attention.head_count_kv");
-    c.head_dim = integer(m, p + "attention.key_length");
-    supported(integer(m, p + "attention.value_length", c.head_dim) == c.head_dim, p + "attention.value_length");
-    c.rope_dim = integer(m, p + "rope.dimension_count");
-    c.q_lora_rank = integer(m, p + "attention.q_lora_rank");
-    c.window = integer(m, p + "attention.sliding_window");
-    c.out_groups = integer(m, p + "attention.output_group_count");
-    c.out_rank = integer(m, p + "attention.output_lora_rank");
-
-    required(m, p + "rope.scaling.type");
-    metadata::option(m, p + "rope.scaling.type", "yarn");
-    const auto real_key = [&](const std::string& k) {
-        required(m, p + k);
-        return float(real(m, p + k, 1));
-    };
-    c.rope_theta = real_key("rope.freq_base");
-    c.compress_rope_theta = real_key("attention.compress_rope_freq_base");
-    c.rope_factor = real_key("rope.scaling.factor");
-    c.original_context = integer(m, p + "rope.scaling.original_context_length");
-    c.beta_fast = real_key("rope.scaling.yarn_beta_fast");
-    c.beta_slow = real_key("rope.scaling.yarn_beta_slow");
-    c.rms_eps = real_key("attention.layer_norm_rms_epsilon");
-
-    c.n_expert = integer(m, p + "expert_count");
-    c.n_expert_used = integer(m, p + "expert_used_count");
-    c.n_ff_exp = integer(m, p + "expert_feed_forward_length");
-    supported(integer(m, p + "expert_shared_count") == 1, p + "expert_shared_count");
-    required(m, p + "expert_gating_func");
-    metadata::choice(m, p + "expert_gating_func", 4, "inference: unsupported metadata " + p + "expert_gating_func");
-    c.expert_scale = real_key("expert_weights_scale");
-    required(m, p + "expert_weights_norm");
-    supported(metadata::boolean(m, p + "expert_weights_norm", true), p + "expert_weights_norm");
-    supported(metadata::count(m, p + "hash_layer_count", 0) == 0, p + "hash_layer_count");
-    for (auto [key, out] : {std::pair{"swiglu_clamp_exp", &c.swiglu_exp}, std::pair{"swiglu_clamp_shexp", &c.swiglu_shexp}}) {
-        required(m, p + key);
-        for (double v : metadata::reals(m, p + key)) out->push_back(float(v));
-        supported(out->size() == size_t(c.n_layer), p + key);
-    }
-
-    c.index_heads = integer(m, p + "attention.indexer.head_count");
-    c.index_head_dim = integer(m, p + "attention.indexer.key_length");
-    c.index_top_k = integer(m, p + "attention.indexer.top_k");
-    // The ratios may go on past the blocks with the drafter's stages, which the 1017 file's 74 keys do not count, so a tail of zeros of any length is taken.
-    required(m, p + "attention.compress_ratios");
-    c.compress_ratios = metadata::counts(m, p + "attention.compress_ratios");
-    supported(c.compress_ratios.size() >= size_t(c.n_layer) &&
-                  std::all_of(c.compress_ratios.begin() + c.n_layer, c.compress_ratios.end(), [](int r) { return r == 0; }),
-              p + "attention.compress_ratios");
-    c.compress_ratios.resize(size_t(c.n_layer));
-    required(m, p + "attention.kv_source_layer_ids");
-    c.kv_sources = metadata::counts(m, p + "attention.kv_source_layer_ids");
-    required(m, p + "attention.index_source_layer_ids");
-    c.index_sources = metadata::counts(m, p + "attention.index_source_layer_ids");
-    if (m.find(p + "attention.candidate_source_layer_id")) {
-        c.candidate_source = metadata::count(m, p + "attention.candidate_source_layer_id", 0);
-        c.candidate_block = integer(m, p + "attention.candidate_block_size");
-        c.candidate_top_k = integer(m, p + "attention.candidate_topk_blocks");
-    } else if (m.find(p + "attention.candidate_block_size") || m.find(p + "attention.candidate_topk_blocks")) {
-        throw std::runtime_error("inference: candidate metadata without " + p + "attention.candidate_source_layer_id");
-    }
-
-    c.hc_count = integer(m, p + "hyper_connection.count");
-    c.hc_iterations = integer(m, p + "hyper_connection.sinkhorn_iterations");
-    c.hc_eps = real_key("hyper_connection.epsilon");
-
-    required(m, p + "engram.layer_ids");
-    c.engram_layers = metadata::counts(m, p + "engram.layer_ids");
-    c.engram_head_dim = integer(m, p + "engram.head_dim");
-    c.engram_heads = integer(m, p + "engram.n_heads");
-    c.engram_ngram = integer(m, p + "engram.max_ngram_size");
-    required(m, p + "engram.pad_token_id");
-    c.engram_pad = metadata::count(m, p + "engram.pad_token_id", 0);
-    c.engram_compressed = integer(m, p + "engram.compressed_vocab_size");
-    c.engram_rows = metadata::uint64s(m, p + "engram.num_embeddings");
-    c.engram_primes = metadata::uint64s(m, p + "engram.primes");
-    c.engram_offsets = metadata::uint64s(m, p + "engram.offsets");
-    c.engram_multipliers = metadata::uint64s(m, p + "engram.multipliers");
-    required(m, p + "engram.token_map");
-    for (int id : metadata::counts(m, p + "engram.token_map")) c.token_map.push_back(uint32_t(id));
-    check_config(c);
-    return c;
-}
-
-// Engram's stream norm weight, engram_q times engram_k from BF16 or BF16-valued F32 views, exact in F32 (docs/DEEPSEEK4.md, section 4.4).
-inline void engram_norm_weight(const TensorView& q, const TensorView& k, float* out, size_t n) {
-    const auto value = [](const TensorView& t, size_t i) {
-        if (t.type == quant::GGML_TYPE_BF16) return bf16_to_f32(reinterpret_cast<const uint16_t*>(t.data)[i]);
-        float v;
-        std::memcpy(&v, t.data + i * sizeof(float), sizeof(float));
-        return v;
-    };
-    for (const TensorView* t : {&q, &k}) {
-        const size_t width = t->type == quant::GGML_TYPE_BF16 ? sizeof(uint16_t) : t->type == quant::GGML_TYPE_F32 ? sizeof(float) : 0;
-        if (!width || t->bytes != n * width || !t->data)
-            throw std::runtime_error("inference: unsupported tensor type " + t->name + ", which the Engram norm reads as BF16 or F32");
-    }
-    for (size_t i = 0; i < n; ++i) out[i] = value(q, i) * value(k, i);
-}
 
 // Role ids are local to this architecture.
 enum Role : uint16_t {
@@ -308,7 +31,8 @@ enum Role : uint16_t {
 
 // A layer's kind, the flags of its Layer.
 enum Kind : uint8_t {
-    reads_compressed = 1, compresses_kv = 2, runs_indexer = 4, owns_index_keys = 8, picks_candidates = 16, reads_candidates = 32, runs_engram = 64
+    reads_compressed = 1, compresses_kv = 2, runs_indexer = 4, owns_index_keys = 8, picks_candidates = 16, reads_candidates = 32, runs_engram = 64,
+    writes_tap = 128
 };
 
 // The position tables, the window rope's and the compressed YaRN rope's (model.py:681-697 at e5decd76), then the ones, the first block's one-hot pre, the group ids and the zero row the FFN's sums start from.
@@ -347,21 +71,6 @@ inline void hc_mix(backend::Backend& b, const Config& c, const Weight& fn, const
     const size_t HC = size_t(c.hc_count), E = size_t(c.n_embd);
     b.matmul(fn.operand(), x, mixes, fn.nin, fn.nout, rows, runs, backend::Dtype::f32);
     b.hc_coeffs(pre, post, comb, mixes, x, scale.slice(), base.slice(), rows, HC, E, c.rms_eps, c.hc_eps, size_t(c.hc_iterations));
-}
-
-// The rotary angle of each adjacent pair at position 1, in double: 1 / base^(2i / dim), and with original_context above 0 YaRN's ramp between the dims that turn beta_fast and beta_slow times over it (model.py:369-389).
-inline std::vector<double> rope_frequencies(int dim, double base, int original_context, double factor, double beta_fast, double beta_slow) {
-    std::vector<double> f(size_t(dim / 2));
-    for (size_t i = 0; i < f.size(); ++i) f[i] = 1.0 / std::pow(base, double(2 * i) / double(dim));
-    if (original_context <= 0) return f;
-    const double pi = 3.14159265358979323846;
-    const auto corrected = [&](double turns) { return double(dim) * std::log(double(original_context) / (turns * 2 * pi)) / (2 * std::log(base)); };
-    const double low = std::max(std::floor(corrected(beta_fast)), 0.0), high = std::min(std::ceil(corrected(beta_slow)), double(dim - 1));
-    for (size_t i = 0; i < f.size(); ++i) {
-        const double ramp = std::clamp((double(i) - low) / std::max(high - low, 1e-3), 0.0, 1.0), smooth = 1 - ramp;
-        f[i] = f[i] / factor * (1 - smooth) + f[i] * smooth;
-    }
-    return f;
 }
 
 class DeepSeek41 final : public Architecture {
@@ -509,14 +218,7 @@ public:
             ops(Part::ffn, {Op::hc_coeffs, Op::hc_collapse_norm, Op::hc_expand, Op::sqrt_softplus_routing});
             if (c.swiglu_exp[size_t(l)] != 0.0f || c.swiglu_shexp[size_t(l)] != 0.0f) ops(Part::ffn, {Op::silu_mul_clamp});
             blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
-            // A tensor group splits the query and the sinks by head, the output's low-rank stage by output group and the experts by rows of each; the shared vector, the indexer, Engram and the router stay whole (docs/DEEPSEEK4.md, section 7).
-            const ShardSection heads{uint64_t(c.n_head), D, 1, "heads"}, out_groups{G, uint64_t(c.out_rank), 1, "output groups"};
-            blocks::shard(layer.roles, attn_q_b, Axis::rows, {heads});
-            blocks::shard(layer.roles, attn_sinks, Axis::columns, {{uint64_t(c.n_head), 1, 1, "heads"}});
-            blocks::shard(layer.roles, attn_output_a, Axis::rows, {out_groups});
-            blocks::shard(layer.roles, attn_output_b, Axis::columns, {out_groups});
-            blocks::shard_experts(layer.roles, tensors, ffn_gate_exps, ffn_up_exps, ffn_down_exps, F, X);
-            blocks::shard_experts(layer.roles, tensors, ffn_gate_shexp, ffn_up_shexp, ffn_down_shexp, F, 1);
+            shard_block(layer.roles, tensors, 0, X);
         }
         p.context_length = size_t(c.context_length);
         p.residual = size_t(R);
@@ -548,10 +250,10 @@ public:
             readers = readers || (t.ratio && !t.kv_source);
             reuses = reuses || (t.ratio && !t.index_source);
         }
-        p.carried = {pre_attn, pre_ffn};
-        if (readers) p.carried.push_back(pooled);
-        if (reuses) p.carried.push_back(index_picks);
-        if (c.candidate_source >= 0) p.carried.push_back(candidate_ids);
+        p.carried = {{pre_attn}, {pre_ffn}};
+        if (readers) p.carried.push_back({pooled});
+        if (reuses) p.carried.push_back({index_picks});
+        if (c.candidate_source >= 0) p.carried.push_back({candidate_ids});
         p.index_width = std::max({size_t(HC), size_t(lookups), size_t(W)});
         p.tables.assign(engram_norms + c.engram_layers.size(), 0);
         p.table_steps.assign(compressed_sin + 1, size_t(c.rope_dim / 2));
@@ -615,40 +317,29 @@ public:
     }
 
     // The attention's coefficients from the streams, its input collapsed with the pre the block before left, and its output expanded back (model.py:982-986 at e5decd76).
-    // An Engram layer first adds its gated value to the streams (model.py:1265-1266).
+    // An Engram layer first adds its gated value to the streams (model.py:1265-1266), and a layer a planned DSpark drafter reads then writes its tap (dspark.hpp).
     void mixer(const Step& s) const override {
-        const Weight* w = s.w;
         if (s.kind & runs_engram) engram(s);
-        hc_mix(s.b, cfg_, w[hc_attn_fn], w[hc_attn_scale], w[hc_attn_base], s.x, s.slot(mixes), s.slot(pre_attn), s.slot(post), s.slot(comb), s.rows, s.runs);
-        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_ffn), w[attn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
+        if (s.kind & writes_tap) tap(s);
         // The first reader on a device after its source's device stores the carried pooled rows into its replica, as the source stored them (LayerPlan::entry_source).
         if (s.appends) s.b.pool_write(s.kv_layer, s.views, s.n_views, s.slot(pooled));
-        window_attention(s);
-        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+        attend(s, s.w, {});
     }
 
-    // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back; its pre is the next block's (model.py:988-993 at e5decd76).
-    // The MoE between them (model.py:794-899): k experts picked by sqrt(softplus) score plus bias and weighted by the score, each SwiGLU clamped by the block's limit, and the shared expert, summed into block_out from zero.
+    // The FFN of the layer's own expert count and clamps (ffn_body).
     void ffn(const Step& s) const override {
-        const Weight* w = s.w;
-        hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.rows, s.runs);
-        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_attn), w[ffn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
         if (s.layer < 0 || size_t(s.layer) >= cfg_.swiglu_exp.size()) throw std::logic_error("inference: a DeepSeek-V4.1 FFN without its layer");
-        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, cfg_.swiglu_shexp[size_t(s.layer)]};
-        // The routed and shared products accumulate from zero into the output, a member's partial rows on a group.
-        Step out = s;
-        out.x = s.width > 1 ? s.partial : s.slot(block_out);
-        out.width = 1;
-        blocks::moe_step(out, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used),
-                         backend::RouteRule::sqrt_softplus(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(collapsed), s.slot(gates), s.slot(ups),
-                         s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), cfg_.swiglu_exp[size_t(s.layer)]);
-        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+        ffn_body(s, s.w, size_t(cfg_.n_expert_used), cfg_.swiglu_exp[size_t(s.layer)], cfg_.swiglu_shexp[size_t(s.layer)]);
     }
 
     // On a group, the summed output of the sublayer just run, expanded into the streams with the post and comb that sublayer left.
     void join(const Step& s) const override {
         s.b.hc_expand(s.x, s.partial, s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
+
+    void plan_drafter(const TensorIndex& tensors, ModelPlan& p) const override;
+    void draft_rows(const DraftRowsStep& s) const override;
+    void draft(const DraftStep& s) const override;
 
     // The wanted rows' streams collapsed with the last block's pre, normed, then the logits (model.py:1271-1272 at e5decd76).
     void head(const HeadStep& s) const override {
@@ -661,6 +352,53 @@ public:
     }
 
 private:
+    // A tensor group splits a block's query and sinks by head, its output's low-rank stage by output group and its experts by rows of each, the roles' ids from `base` (docs/DEEPSEEK4.md, section 7).
+    void shard_block(std::vector<infer::Role>& roles, const TensorIndex& tensors, uint16_t base, uint64_t experts) const {
+        const Config& c = cfg_;
+        const uint64_t D = uint64_t(c.head_dim), F = uint64_t(c.n_ff_exp);
+        const ShardSection heads{uint64_t(c.n_head), D, 1, "heads"}, out_groups{uint64_t(c.out_groups), uint64_t(c.out_rank), 1, "output groups"};
+        const auto id = [&](uint16_t role) { return uint16_t(base + role); };
+        blocks::shard(roles, id(attn_q_b), Axis::rows, {heads});
+        blocks::shard(roles, id(attn_sinks), Axis::columns, {{uint64_t(c.n_head), 1, 1, "heads"}});
+        blocks::shard(roles, id(attn_output_a), Axis::rows, {out_groups});
+        blocks::shard(roles, id(attn_output_b), Axis::columns, {out_groups});
+        blocks::shard_experts(roles, tensors, id(ffn_gate_exps), id(ffn_up_exps), id(ffn_down_exps), F, experts);
+        blocks::shard_experts(roles, tensors, id(ffn_gate_shexp), id(ffn_up_shexp), id(ffn_down_shexp), F, 1);
+    }
+
+    // Where a window's rows sit in a slot and what each row reads: the ring's place among the slot's rings, and for a block of rows that each read every row of their entry (DSpark's draft) the block's rows, else 0 for a causal window.
+    // A drafter stage's window is its ring of the slot alone (`alone`), which it moves itself wherever it runs.
+    struct Window {
+        size_t ring = 0, block = 0;
+        bool alone = false;
+    };
+
+    // The attention sublayer between its coefficients and its expansion back into the streams (model.py:982-986 at e5decd76).
+    void attend(const Step& s, const Weight* w, Window at) const {
+        hc_mix(s.b, cfg_, w[hc_attn_fn], w[hc_attn_scale], w[hc_attn_base], s.x, s.slot(mixes), s.slot(pre_attn), s.slot(post), s.slot(comb), s.rows, s.runs);
+        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_ffn), w[attn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
+        window_attention(s, w, at);
+        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+    }
+
+    void tap(const Step& s) const;
+
+    // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back around the MoE, its pre the next block's (model.py:794-899 and 988-993 at e5decd76).
+    // The roles are read from `w`, so a drafter's stage runs the body with its own roles, `used` experts and clamps (docs/src/model-arch-deepseek4.md).
+    void ffn_body(const Step& s, const Weight* w, size_t used, float clamp_exp, float clamp_shexp) const {
+        hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.rows, s.runs);
+        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_attn), w[ffn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, clamp_shexp};
+        // The routed and shared products accumulate from zero into the output, a member's partial rows on a group.
+        Step out = s;
+        out.x = s.width > 1 ? s.partial : s.slot(block_out);
+        out.width = 1;
+        blocks::moe_step(out, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], used,
+                         backend::RouteRule::sqrt_softplus(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(collapsed), s.slot(gates), s.slot(ups),
+                         s.slot(acts), s.slot(scores), s.slot(picks), s.slot(pick_weights), &shared, {}, s.tables[zeros].get(), clamp_exp);
+        if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
+    }
+
     size_t engram_index(const Step& s) const {
         const auto at = std::find(cfg_.engram_layers.begin(), cfg_.engram_layers.end(), s.layer);
         if (at == cfg_.engram_layers.end()) throw std::logic_error("inference: a DeepSeek-V4.1 Engram step without its layer");
@@ -689,16 +427,70 @@ private:
         s.b.add(s.x, s.slot(engram_gated), backend::size_mul(s.rows, R));
     }
 
-    // A layer's attention from the collapsed row to block_out (model.py:766-791 at e5decd76), a compressed layer's picked entries after the window's rows under one softmax.
-    // An entry's rows go into its ring of 2 x window slots a window at a time before they attend, so no row overwrites a position a later row still reads.
-    void window_attention(const Step& s) const {
+    // The rope tables a layer's rows turn with: the compressed layers' YaRN, else the window's.
+    std::pair<backend::CSlice, backend::CSlice> rope(const Step& s) const {
+        const bool squeezed = s.kind & reads_compressed;
+        return {{s.tables[squeezed ? compressed_cos : rope_cos].get(), 0}, {s.tables[squeezed ? compressed_sin : rope_sin].get(), 0}};
+    }
+
+    // A window's kv rows from their projection of the collapsed rows (window_kv): normed and turned at each row's position, then rounded to the window's FP8 as F32, or under native left for store_rows to pack (Step::native).
+    void window_rows(const Step& s, const Weight* w) const {
         const Config& c = cfg_;
-        const Weight* w = s.w;
+        const size_t D = size_t(c.head_dim), rd = size_t(c.rope_dim);
+        const auto [cos, sin] = rope(s);
+        s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), s.rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos,
+                              backend::RopeForm{true, D - rd, false});
+        if (!s.native) s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(s.rows, D), backend::ModelFormat::fp8_power);
+    }
+
+    // A layer's window rings: its state buffer, the floats of a slot and those before its rings, and a ring row's words; a slot's rings each start on a row.
+    struct Rings {
+        backend::Buffer* kv;
+        size_t slot_floats, prefix, row;
+    };
+    Rings rings(const Step& s) const {
+        if (!s.states || !s.n_views) throw std::logic_error("inference: a DeepSeek-V4.1 window without state views");
+        backend::StateStorage& store = *s.states[0].storage;
+        const size_t row = s.native ? window_words(size_t(cfg_.head_dim)) : size_t(cfg_.head_dim);
+        const Rings r{&store.layer(s.state_layer), store.slot_floats(s.state_layer), store.shape().slot_floats(), row};
+        if (r.slot_floats % row || r.prefix % row) throw std::logic_error("inference: a DeepSeek-V4.1 window ring that starts inside a row");
+        return r;
+    }
+
+    // An entry whose slot moves takes its rings and the rest of its slot from where they were (backend::StateView) before ring 0 is written, or ring `ring` alone before it is written where `alone`.
+    void move_rings(const Step& s, const Rings& r, size_t ring, bool alone = false) const {
+        if (ring && !alone) return;
+        const size_t from = alone ? r.prefix + ring * 2 * size_t(cfg_.window) * r.row : r.prefix, n = alone ? 2 * size_t(cfg_.window) * r.row : r.slot_floats - r.prefix;
+        for (size_t e = 0; e < s.n_views; ++e) {
+            const backend::StateView& v = s.states[e];
+            if (v.length && v.src != v.dst)
+                s.b.copy(*r.kv, (v.dst * r.slot_floats + from) * sizeof(float), *r.kv, (v.src * r.slot_floats + from) * sizeof(float), n * sizeof(float));
+        }
+    }
+
+    // Rows `from` to `from + n` of entry view `v`, window_rows' rows, into ring `ring` of its slot at their positions modulo the ring; under native the pack writes them straight into the ring.
+    void store_rows(const Step& s, const Rings& r, const backend::StateView& v, size_t ring, size_t from, size_t n) const {
+        const size_t W2 = 2 * size_t(cfg_.window), D = size_t(cfg_.head_dim), start = v.dst * r.slot_floats + r.prefix + ring * W2 * r.row;
+        const backend::Slice rows = s.slot(window_kv);
+        for (size_t i = 0; i < n;) {
+            const size_t at = size_t(s.pos[from + i] % W2), run = std::min(n - i, W2 - at), to = start + at * r.row;
+            if (s.native)
+                s.b.model_format_pack({r.kv, to}, r.row, {rows.buffer, rows.offset + (from + i) * D}, run, D, backend::ModelFormat::fp8_power);
+            else
+                s.b.copy(*r.kv, to * sizeof(float), *rows.buffer, rows.offset * sizeof(float) + (from + i) * D * sizeof(float), run * D * sizeof(float));
+            i += run;
+        }
+    }
+
+    // A layer's attention from the collapsed row to block_out (model.py:766-791 at e5decd76), a compressed layer's picked entries after the window's rows under one softmax.
+    // Rows go into their ring of 2 x window slots a window at a time before they attend, so none overwrites a position a later row reads, and a block's rows each read the window before it and the whole block (model.py:1023-1077 at e5decd76).
+    void window_attention(const Step& s, const Weight* w, Window at) const {
+        const Config& c = cfg_;
         // A group member's heads and output groups are its shares of the query's and the output's (Step::width).
         const size_t D = size_t(c.head_dim), H = w[attn_q_b].nout / D, HD = H * D, Q = size_t(c.q_lora_rank), rd = size_t(c.rope_dim), W = size_t(c.window);
-        const size_t ring = 2 * W, G = w[attn_output_a].nout / size_t(c.out_rank), rows = s.rows;
+        const size_t ring = 2 * W, G = w[attn_output_a].nout / size_t(c.out_rank), rows = s.rows, reads = W + at.block;
         const bool squeezed = s.kind & reads_compressed;
-        const backend::CSlice cos{s.tables[squeezed ? compressed_cos : rope_cos].get(), 0}, sin{s.tables[squeezed ? compressed_sin : rope_sin].get(), 0};
+        const auto [cos, sin] = rope(s);
         const backend::RopeForm turn{true, D - rd, false}, back{true, D - rd, true};
         // On generated rows the query's low-rank row and the window's kv row read the collapsed row in one call, each row the product two calls give it.
         // A prompt's tile splits its sums by the call's outputs, so prompt rows keep two calls and their bits.
@@ -714,43 +506,35 @@ private:
         s.b.rms_norm_rows(s.slot(q_lora), s.slot(q_lora), w[attn_q_a_norm].slice(), rows, Q, Q, c.rms_eps, s.runs);
         s.b.matmul(w[attn_q_b].operand(), s.slot(q_lora), s.slot(query), w[attn_q_b].nin, w[attn_q_b].nout, rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(query), s.slot(query), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, turn);
-        s.b.norm_rope_partial(s.slot(window_kv), s.slot(window_kv), rows, D, D, 1, D, rd, w[attn_kv_a_norm].slice(), c.rms_eps, cos, sin, s.pos, turn);
-        // A ring row is the row's values rounded to the window's FP8 as F32, or under native its packed blocks (Step::native), which the pack writes straight into the ring.
-        const size_t RW = s.native ? window_words(D) : D;
-        if (!s.native) s.b.model_format_qdq(s.slot(window_kv), backend::size_mul(rows, D), backend::ModelFormat::fp8_power);
+        window_rows(s, w);
 
-        // The kv rows are the layer's whole state buffer, a slot's ring starting on a row; each row reads its window's positions oldest first, none before 0.
-        if (!s.states || !s.n_views) throw std::logic_error("inference: a DeepSeek-V4.1 window without state views");
-        backend::StateStorage& store = *s.states[0].storage;
-        const size_t slot_floats = store.slot_floats(s.state_layer), prefix = store.shape().slot_floats();
-        if (slot_floats % RW || prefix % RW) throw std::logic_error("inference: a DeepSeek-V4.1 window ring that starts inside a row");
-        backend::Buffer& kv = store.layer(s.state_layer);
-        const size_t kv_rows = backend::size_mul(store.slots(), slot_floats / RW);
-        if (!s.indices || s.indices_size < backend::size_mul(rows, W)) throw std::runtime_error("inference: the DeepSeek-V4.1 window's index scratch is too small");
+        // Each row reads its window's positions oldest first, none before 0, from the layer's whole state buffer.
+        const Rings r = rings(s);
+        const size_t kv_rows = backend::size_mul(s.states[0].storage->slots(), r.slot_floats / r.row);
+        if (!s.indices || s.indices_size < backend::size_mul(rows, reads)) throw std::runtime_error("inference: the DeepSeek-V4.1 window's index scratch is too small");
         size_t most = 0;
         for (size_t e = 0, row = 0; e < s.n_views; row += s.states[e].nq, ++e) {
             const backend::StateView& v = s.states[e];
             most = std::max(most, v.nq);
-            const size_t base = (v.dst * slot_floats + prefix) / RW;
+            const size_t base = (v.dst * r.slot_floats + r.prefix) / r.row + at.ring * ring;
             for (size_t i = 0; i < v.nq; ++i) {
-                const uint64_t q = s.pos[row + i];
-                for (size_t t = 0; t < W; ++t) {
-                    const uint64_t behind = W - 1 - t;
-                    s.indices[(row + i) * W + t] = q < behind ? UINT32_MAX : uint32_t(base + (q - behind) % ring);
+                const uint64_t q = s.pos[row + (at.block ? v.nq - 1 : i)];
+                for (size_t t = 0; t < reads; ++t) {
+                    const uint64_t behind = reads - 1 - t;
+                    s.indices[(row + i) * reads + t] = q < behind ? UINT32_MAX : uint32_t(base + (q - behind) % ring);
                 }
             }
-            if (v.length && v.src != v.dst)
-                s.b.copy(kv, (v.dst * slot_floats + prefix) * sizeof(float), kv, (v.src * slot_floats + prefix) * sizeof(float), (slot_floats - prefix) * sizeof(float));
         }
-        s.b.write(*s.arena, s.offsets[window_ids], s.indices, backend::size_mul(rows, W) * sizeof(uint32_t));
+        move_rings(s, r, at.ring, at.alone);
+        s.b.write(*s.arena, s.offsets[window_ids], s.indices, backend::size_mul(rows, reads) * sizeof(uint32_t));
         const size_t picked = squeezed ? compressed(s, cos, sin) : 0;
         const float scale = float(1.0 / std::sqrt(double(D)));
         std::vector<backend::KVView> run;
-        const auto attend = [&](size_t first, size_t end) {
+        const auto attend_rows = [&](size_t first, size_t end) {
             if (first == end) return;
             const backend::Slice out = s.slot(attn), qs = s.slot(query), ids = s.slot(window_ids), entries = s.slot(index_picks);
-            s.b.sparse_attention_sink({out.buffer, out.offset + first * HD}, {qs.buffer, qs.offset + first * HD}, {&kv, 0}, {ids.buffer, ids.offset + first * W},
-                                      w[attn_sinks].slice(), end - first, H, D, kv_rows, W, scale, s.kv_layer, squeezed ? run.data() : nullptr,
+            s.b.sparse_attention_sink({out.buffer, out.offset + first * HD}, {qs.buffer, qs.offset + first * HD}, {r.kv, 0}, {ids.buffer, ids.offset + first * reads},
+                                      w[attn_sinks].slice(), end - first, H, D, kv_rows, reads, scale, s.kv_layer, squeezed ? run.data() : nullptr,
                                       squeezed ? run.size() : 0, picked ? backend::CSlice{entries.buffer, entries.offset + first * picked} : backend::CSlice{}, picked,
                                       s.native ? backend::ModelFormat::fp8_power : backend::ModelFormat::f32,
                                       s.native ? backend::ModelFormat::fp4_e4m3 : backend::ModelFormat::f32);
@@ -763,16 +547,9 @@ private:
                 const backend::StateView& v = s.states[e];
                 if (chunk >= v.nq) continue;
                 const size_t n = std::min(W, v.nq - chunk), from = row + chunk;
-                for (size_t i = 0; i < n;) {
-                    const size_t at = size_t(s.pos[from + i] % ring), run = std::min(n - i, ring - at), to = v.dst * slot_floats + prefix + at * RW;
-                    if (s.native)
-                        s.b.model_format_pack({&kv, to}, RW, {s.slot(window_kv).buffer, s.slot(window_kv).offset + (from + i) * D}, run, D, backend::ModelFormat::fp8_power);
-                    else
-                        s.b.copy(kv, to * sizeof(float), *s.arena, s.offsets[window_kv] + (from + i) * D * sizeof(float), run * D * sizeof(float));
-                    i += run;
-                }
+                store_rows(s, r, v, at.ring, from, n);
                 if (from != end) {
-                    attend(first, end);
+                    attend_rows(first, end);
                     first = from;
                 }
                 end = from + n;
@@ -783,7 +560,7 @@ private:
                     run.push_back(part);
                 }
             }
-            attend(first, end);
+            attend_rows(first, end);
         }
         s.b.norm_rope_partial(s.slot(attn), s.slot(attn), rows, HD, D, H, D, rd, {}, c.rms_eps, cos, sin, s.pos, back);
         std::fill(s.indices, s.indices + rows, 0u);
@@ -910,3 +687,5 @@ inline std::shared_ptr<const Architecture> open_v41(const gguf::GGUFModel& m, co
 }
 
 } // namespace infer::deepseek4
+
+#include "model/arch/deepseek4/dspark.hpp"

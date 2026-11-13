@@ -10,6 +10,7 @@ Its cache is kept as native, the model's packed formats and its default, or f32:
 `serve` gives the CLI's ids alone, together, after a prefix split, from a kept checkpoint and through a pause (check_serve), `generate --drafter lookup` gives the ids it gives with drafts off (`common.check_drafts`), and `info` lists the fork file's keys and tensors, and llmx-arch-deepseek4-test, found beside the executable, holds the file to the one its own C++ list builds.
 On one ROCm or Vulkan device the backend's test beside the executable runs its scratch check on the served file (check_scratch): its passes grow the device by no more than the fit priced and the backend keeps.
 """
+import hashlib
 import json
 import math
 import os
@@ -21,6 +22,7 @@ import common
 import fixture_deepseek4
 
 GOLDEN = os.path.join(common.ROOT, "tests", "data", "deepseek41_reference.json")
+DSPARK = os.path.join(common.ROOT, "tests", "data", "deepseek41_dspark.json")
 UPSTREAM = "inference: unsupported metadata deepseek41.ple.layers"
 DEVICE = "which the backend of its device does not implement"
 F32 = ["--cache-type-k", "f32", "--cache-type-v", "f32"]
@@ -134,11 +136,12 @@ def greedy(text, n=24, logprobs=False):
     return dict(body, logprobs=True, top_logprobs=5) if logprobs else body
 
 
-def check_serve(model, cache, whole):
+def check_serve(model, cache, whole, extra=()):
     """Section 5.6 of docs/DEEPSEEK4.md on the fork file with a context of 1024, both cache sides `cache`: greedy ids equal the CLI's, and a forked request's log-probabilities a fresh server's.
-    Without `whole` only the 129 donor, the 128-token shared prefix, the follow-up turn through the host tier and the pause without checkpoints run; with it also four prompts alone and together, donors of 1, 3, 127 and 128 tokens and pauses with checkpoints."""
+    Without `whole` only the 129 donor, the 128-token shared prefix, the follow-up turn through the host tier and the pause without checkpoints run; with it also four prompts alone and together, donors of 1, 3, 127 and 128 tokens and pauses with checkpoints.
+    `extra` flags go to every server, such as a drafter, whose drafts must leave the CLI's ids as they are."""
     import server
-    flags = ["--cache-type-k", cache, "--cache-type-v", cache]
+    flags = ["--cache-type-k", cache, "--cache-type-v", cache, *extra]
     cpu = all(d == "cpu" for d in os.environ.get("LLMX_DEVICE", "cpu").split(","))
     # The fixture's vocabulary is single characters without a space.
     prompts = ["helloworld", "abc", "thequickbrownfox", "0123456789"]
@@ -204,6 +207,71 @@ def check_serve(model, cache, whole):
     print("deepseek4: %s: four uncapped requests on a pool of 1024 tokens pause and resume with the text each gives alone, %s" % (cache, "with and without checkpoints" if whole else "without checkpoints"))
 
 
+def dspark(fork, directory, args, state, engram):
+    """The tiny DSpark sidecar written from its golden: the digest the reference recorded, drafts that leave generate's output as it is at --draft-max 1, 4, 8 and 16, and the refusals of a sidecar whose experts are the trunk's, whose taps pass the trunk or whose shared metadata differs."""
+    with open(DSPARK, encoding="utf-8") as f:
+        document = json.load(f)
+    _, dargs, dstate, _ = fixture_deepseek4.dspark_fixture(document)
+    d = document["dspark"]
+    coded = d["format_margins"]
+    assert sorted(coded) == ["block", "trunk_compressed", "trunk_index_keys", "trunk_index_queries", "trunk_window", "window"], "deepseek4: the DSpark golden's coding sites are %s" % sorted(coded)
+    for site, margin in coded.items():
+        assert 0 < margin <= 0.5, "deepseek4: the DSpark golden's %s codings sit %.3g code spacings from a rounding point, outside (0, 0.5]" % (site, margin)
+    assert len(d["window_codes"]) == dargs["n_mtp_layers"] and all(len(rows) == len(document["sequence"]) for rows in d["window_codes"]), "deepseek4: the DSpark golden's window codes are not a row a stage and position"
+    sidecar = str(fixture_deepseek4.write_dflash(os.path.join(directory, "dflash.gguf"), dargs, dstate, engram))
+    with open(sidecar, "rb") as f:
+        assert hashlib.sha256(f.read()).hexdigest() == document["dspark"]["file"]["sha256"], "deepseek4: the dflash writer's file is not the reference's"
+    common.check_drafts("deepseek4", fork, n=40, drafter=sidecar)
+    print("deepseek4: generate with the DSpark sidecar at --draft-max 1, 4, 8 and 16, greedy and seeded, gives the ids it gives with drafts off")
+    print("deepseek4: the DSpark golden's window rows sit %.3g and its block rows %.3g from a rounding point, the trunk's codings %.3g"
+          % (coded["window"], coded["block"], min(v for k, v in coded.items() if k.startswith("trunk_"))))
+    trunk_experts = dict(dstate)
+    for e in range(args["n_routed_experts"]):
+        for w in ("w1", "w2", "w3"):
+            trunk_experts["mtp.0.ffn.experts.%d.%s.weight" % (e, w)] = state["layers.0.ffn.experts.%d.%s.weight" % (e, w)]
+    meta, tensors = fixture_deepseek4.map_dflash(dargs, dstate, engram)
+    window = dict(meta, **{"dflash.attention.sliding_window": (fixture_deepseek4.GGUF_UINT32, args["window_size"] // 2)})
+    cases = [(fixture_deepseek4.map_dflash(dargs, trunk_experts, engram), "experts blk.0.ffn_gate_exps.weight are the target's blk.0.ffn_gate_exps.weight"),
+             (fixture_deepseek4.map_dflash(dict(dargs, dspark_target_layer_ids=[3, 4, args["n_layers"]]), dstate, engram),
+              "the DSpark taps must be ascending distinct layers of the model"),
+             ((window, tensors), "metadata dflash.attention.sliding_window differs from the target's")]
+    for i, ((m, t), text) in enumerate(cases):
+        bad = os.path.join(directory, "bad%d.gguf" % i)
+        fixture_deepseek4.write_gguf(bad, m, t)
+        p = common.run_process(["generate", fork, "ab", "-n", "1", "--drafter", bad], text=True)
+        assert p.returncode != 0 and text in p.stderr, "deepseek4: the sidecar %d was not refused with %r: %s" % (i, text, p.stderr)
+    print("deepseek4: a sidecar whose experts are the trunk's, whose taps pass the trunk or whose window differs is refused")
+    return sidecar, dargs, dstate
+
+
+def dspark_serve(model, side):
+    """Section 5.6 with DSpark beside the server: a prompt's first token and its log-probabilities are the plain server's, and replies greedy and seeded, alone and four at once, at --draft-max 1, 3 and 5, give the plain server's ids."""
+    import server
+    texts = ["helloworld", "abcabcabcabcabc", "thequickbrownfox", "0123456789"]
+    bodies = [{"prompt": text, "temperature": temp, "seed": 5, "max_tokens": 40, "ignore_eos": True} for text in texts for temp in (0, 0.8)]
+    first = [dict(greedy(text, 1, logprobs=True)) for text in texts]
+    plain = server.Server(model, "--max-seqs", "4", *F32)
+    try:
+        want = [server.post_ok(plain, "/v1/generate", body)["ids"] for body in bodies]
+        want_first = [server.post_ok(plain, "/v1/generate", body) for body in first]
+    finally:
+        plain.close()
+    for k in ("1", "3", "5"):
+        srv = server.Server(model, "--max-seqs", "4", "--drafter", side, "--draft-max", k, *F32)
+        try:
+            for body, reply in zip(first, want_first):
+                got = server.post_ok(srv, "/v1/generate", body)
+                assert [got[x] for x in ("ids", "logprobs", "top_logprobs")] == [reply[x] for x in ("ids", "logprobs", "top_logprobs")], (k, body["prompt"], got, reply)
+            server.alone_and_together(srv, bodies)
+            for body, ids in zip(bodies, want):
+                assert server.post_ok(srv, "/v1/generate", body)["ids"] == ids, (k, body)
+            health = srv.get("/v1/health")["drafting"]
+            assert health["since_start"]["drafted"] > 0 and health["since_start"]["failed"] == 0, health
+        finally:
+            srv.close()
+    print("deepseek4: a server with the DSpark sidecar gives the plain server's first-token log-probabilities, and its ids greedy and seeded, alone and four at once, at --draft-max 1, 3 and 5")
+
+
 def run(require=False):
     # The golden's two output groups split at width 2 alone; the group-legal file below holds widths 2 and 4.
     if os.environ.get("LLMX_TENSOR_WIDTH", "1") not in ("1", "2") and common.tensor_width_skip("deepseek4"):
@@ -234,6 +302,11 @@ def run(require=False):
         check_scratch(served, require)
         common.check_drafts("deepseek4", fork)
         print("deepseek4: generate with --drafter lookup at 1, 4, 8 and 16 drafts, greedy and seeded, gives the ids it gives with drafts off")
+        sidecar, dspark_args, dspark_state = dspark(fork, directory, args, state, engram)
+        served_side = str(fixture_deepseek4.write_dflash(os.path.join(directory, "serve-dflash.gguf"), dict(dspark_args, max_seq_len=1024), dspark_state, engram))
+        dspark_serve(served, served_side)
+        check_serve(served, "f32", False, ["--drafter", served_side, "--draft-max", "5"])
+        print("deepseek4: with the DSpark sidecar, forks of donors and of a checkpoint brought back from the host and pauses give the CLI's ids without drafts")
         metadata, tensors = fixture_deepseek4.map_deepseek41(args, state, engram, "fork")
         p = common.run_process(["info", fork], text=True)
         assert p.returncode == 0, "deepseek4: info failed: %s" % p.stderr
@@ -250,6 +323,9 @@ def run(require=False):
         p = subprocess.run([tool, GOLDEN, "--gguf", fork], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
         assert p.returncode == 0, "deepseek4: the writer's fork file is not the test's: %s%s" % (p.stdout, p.stderr)
         print("deepseek4: the writer's fork file holds the arch-deepseek4 test's keys and tensors")
+        q = subprocess.run([tool, DSPARK, "--dspark", fork, sidecar], capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+        assert q.returncode == 0, "deepseek4: DSpark's drafts are not the reference's: %s%s" % (q.stdout, q.stderr)
+        print("\n".join("deepseek4: " + line.split(": ", 1)[1] for line in q.stdout.splitlines() if line.startswith("arch-deepseek4: DSpark")))
         # Four output groups make every split role divide at widths 2 and 4 (docs/DEEPSEEK4.md, section 7).
         gargs, gstate, gengram = fixture_deepseek4.fixture_from_document(document, o_groups=4)
         grouped = str(fixture_deepseek4.write_deepseek41(os.path.join(directory, "groups.gguf"), gargs, gstate, gengram, "fork"))

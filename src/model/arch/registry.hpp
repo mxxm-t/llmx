@@ -11,7 +11,7 @@
 #include "model/arch/qwen3.hpp"
 #include "model/arch/qwen35.hpp"
 #include "model/arch/qwen4exp.hpp"
-#include "model/arch/deepseek4.hpp"
+#include "model/arch/deepseek4/model.hpp"
 #include "model/arch/qwen3vl_vision.hpp"
 #include "model/encoder.hpp"
 
@@ -24,7 +24,7 @@ struct ArchEntry {
     const char* name;
     std::shared_ptr<const Architecture> (*read)(const gguf::GGUFModel&, const std::string& prefix);
     backend::Dtype dtype;
-    // A same-architecture sidecar's header adaptation, called by the pairing owner after tokenizer equality; null preserves the ordinary contract.
+    // A drafter file's header adaptation into the target's blocks, called by the pairing owner after tokenizer equality for every drafter file; a file the hook does not recognise is left as it is, and null preserves the ordinary contract.
     void (*normalize_drafter)(const gguf::GGUFModel& target, gguf::GGUFModel& side) = nullptr;
 };
 
@@ -35,7 +35,7 @@ inline const ArchEntry kArchitectures[] = {
     {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
     {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
     {"qwen4exp", qwen4exp::open, backend::Dtype::bf16, qwen4exp::normalize_drafter},
-    {"deepseek41", deepseek4::open_v41, backend::Dtype::bf16},
+    {"deepseek41", deepseek4::open_v41, backend::Dtype::bf16, deepseek4::normalize_drafter},
 };
 
 // The entry a file's general.architecture names; a file without the key is read as qwen3, since the tests' fixtures write none.

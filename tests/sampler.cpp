@@ -496,15 +496,15 @@ void acceptance_rest() {
     infer::spec::Acceptance a;
     for (int i = 0; i < 10; ++i) {
         a.verified(0, 3);
-        require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
+        require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, SIZE_MAX, a) == 3, "the acceptance rested after " + std::to_string(i + 1) + " empty verifies");
     }
     a.verified(0, 3);
-    require(a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 0, "eleven empty verifies did not rest the request");
+    require(a.resting() && infer::spec::draft_length(3, 100, 100, 3, SIZE_MAX, a) == 0, "eleven empty verifies did not rest the request");
     for (int i = 0; i < 15; ++i) a.stepped();
     require(a.resting(), "the rest ended before 16 tokens");
     a.stepped();
-    require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, a) == 3, "16 tokens did not end the rest");
-    require(infer::spec::draft_length(3, 100, 100, 2, a) == 2 && infer::spec::draft_length(3, 100, 100, 0, a) == 0, "a draft past the decode columns its pass leaves");
+    require(!a.resting() && infer::spec::draft_length(3, 100, 100, 3, SIZE_MAX, a) == 3, "16 tokens did not end the rest");
+    require(infer::spec::draft_length(3, 100, 100, 2, SIZE_MAX, a) == 2 && infer::spec::draft_length(3, 100, 100, 0, SIZE_MAX, a) == 0 && infer::spec::draft_length(3, 100, 100, 3, 1, a) == 1, "a draft past the decode columns its pass leaves or the block its drafter gives");
     a.verified(3, 3);
     require(!a.resting(), "a verify keeping three left the average below the break-even");
     a.verified(0, 1);

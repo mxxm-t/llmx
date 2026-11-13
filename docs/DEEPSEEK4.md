@@ -182,7 +182,7 @@ No: a V4 file is refused until V4 is built, but V4 is a variant of the same modu
 
 **Shared:** the tokenizer and pretokenizer, YaRN, the 512-wide single-vector attention with a sink, the grouped output projection, the mHC coefficient and mix ops (with an order flag), sqrt-softplus routing with bias, the clamp, the FP4-E8M0 index keys, top-k, the compressor's pooling, the sidecar drafter, and every runtime addition of section 4.3.
 
-**One module, two registry entries,** as qwen3/qwen3moe and qwen35/qwen35moe are: `deepseek41` and `deepseek4` reach `src/model/arch/deepseek4.hpp` with a variant the registry entry names, read once into the configuration; nothing is inferred from which tensors a file holds.
+**One module, two registry entries,** as qwen3/qwen3moe and qwen35/qwen35moe are: `deepseek41` and `deepseek4` reach `src/model/arch/deepseek4/` with a variant the registry entry names, read once into the configuration; nothing is inferred from which tensors a file holds.
 
 **What V4 costs on top of V4.1** (estimates): the ratio-4 overlapping compressor with `ape` and its carried half-groups, the ratio-128 compressor, the Hadamard, hash routing with its I32 table, the two-pass mHC and `hc_head`, the query norm and the FP8 entry format: about a quarter to a third of V4.1's model work, CPU and Vulkan, with no runtime additions of its own.
 Its gates are cheaper than V4.1's: V4 fits six MI50s beside production (V4.1 needs all ten), it has an independent HF implementation for the layered reference, and its lossless UD-Q8_K_XL file is on the backup share.
@@ -193,7 +193,7 @@ Its gates are cheaper than V4.1's: V4 fits six MI50s beside production (V4.1 nee
 
 | Concern | Owner |
 |---|---|
-| keys, refusals, tensor roles, layer kinds, the variant, both `deepseek41` layouts, the math | the module `src/model/arch/deepseek4.hpp` (a directory once past about 1,000 lines) |
+| keys, refusals, tensor roles, layer kinds, the variant, both `deepseek41` layouts, the math | the module `src/model/arch/deepseek4/`, a directory since it passed about 1,000 lines |
 | which file runs it | `src/model/arch/registry.hpp`: `deepseek41` and `deepseek4`, declared dtype BF16, `dflash` drafters paired through `normalize_drafter` |
 | the YaRN tables | the module's `fill_tables` (CACHE-PLAN.md section 10 (b)); the rope owner of the shared graph pieces once a second architecture declares YaRN |
 | the model's FP8 and FP4 encoders and scale rules | one C++ owner under `src/quant/` and its GLSL twin (XDEV's area) |
@@ -325,8 +325,13 @@ The rest of the table's handling is the cache plan's, unchanged:
 ### 4.7 DSpark
 
 - A sidecar `dflash` file (or, in the upstream layout, DSpark keys beside the trunk, no file of it read yet) is paired by `normalize_drafter` after tokenizer equality; its taps are refused outside the target (the earlier `dsv41-broken-hold` file).
+  As built (step 13): its stages become blocks after the target's layers and its own keys `nextn.` keys of the target's, the noise id is its `tokenizer.ggml.mask_token_id`, every other `dflash.` key must equal the target's, a target that already carries stages is refused, and `conf_proj` is kept as `blk.L.nextn.confidence.weight` of the last stage, which no role reads, so no device holds it.
+- A tap is the mean of the streams entering its layer, taken after that layer's Engram as model.py takes it, so a tap may sit on an Engram layer (the tiny fixture taps 3, 4 and 6, Engram on 4); the taps' slot crosses a layer split with the residual from the layer after the first tap (`ModelPlan::Carried`).
+- It gives a block of drafts a call (`ModelPlan::draft_block`, SPECULATIVE.md section 9), its window rings a state slot on each device holding a stage, the head's where the fit keeps them whole beside it, and no carried row.
+  Its stages run where the split puts them (SPECULATIVE.md section 9): a draft's rows carry the residual's streams and `pre_ffn` between devices, its ids cross from the head to stage 0's device, and the context rows' collapsed rows cross once to each device holding a stage.
+  On a tensor group its stages split as the trunk's blocks do (`DeepSeek41::shard_block`), the head and the Markov bias by vocabulary rows, and a draft call runs as six sum parts, a stage's two sublayers each, then a pick part a draft (`ModelPlan::draft_sums`, docs/src/model-architecture.md); `token_embd`, `main_proj`, the norms and the Markov table stay whole on each member.
 - It drafts through the proposer-independent verify (SPECULATIVE.md): one entry of k+1 rows, exact acceptance, the ring and tails restored by length, the Engram history following the kept tokens; output with it on equals output with it off.
-- Its experts are checked against the trunk's at load for byte equality, and a sidecar whose experts equal the trunk's is refused (F14, F21).
+- Its experts are checked against the trunk's at load, the first 64 KiB of each stack against the same block's of the same type, and a sidecar whose experts equal the trunk's is refused (F14, F21).
 
 ### 4.8 Placement and memory
 
@@ -399,7 +404,7 @@ Revised 2026-11-04: steps 4a, 4b and 9 are new, and every later step is renumber
 | 10 | V4.1 on ten MI50s, Engram from the file, on Vulkan and on ROCm, after 9a and 9b | section 5.3 to 5.5; the speed cells measured and recorded |
 | 11 | Serving: checkpoints, pause, reuse; until it lands, `serve` refuses the model by name as the scheduler is made (`ModelPlan::unserved`, set in step 7); as built (2026-11-09): an entries layer keeps a state slot, so the server's checkpoints, parking and tiers serve it unchanged and the refusal and its field are gone | section 5.6; the server cells measured and recorded |
 | 12 | The exact prefill skip | logits, states and forks bit-identical on and off; speed recorded |
-| 13 | DSpark, its drafter ops on ROCm from RDEV's Flash-Next step 6 | section 5.6's drafting cases; acceptance recorded |
+| 13 | DSpark, its drafter ops on ROCm from RDEV's Flash-Next step 6; as built (2026-11-10): the `dflash` sidecar paired by `normalize_drafter`, the stages planned as window-only blocks with their own experts and clamps, the taps written through `mix_rows` (a new ROCm kernel, `llmx_mix_rows`; the CPU and Vulkan had the op), block drafts a call through `ModelPlan::draft_block`, `Proposer::block` and `spec::draft_length`'s block bound, and the drafter's cache a state slot (`src/model/arch/deepseek4/dspark.hpp`) | section 5.6's drafting cases; acceptance recorded; as built: the tiny sidecar's drafts and draft logits against `tools/deepseek4_reference.py --dspark`'s golden, two CPU stages bit for bit with one, and drafting identity in `generate` and `serve` (docs/TESTS.md) |
 | 14 | Tensor groups for these models, through Vulkan's and ROCm's collectives | section 5.5 on groups; cells recorded |
 | 15 | V4 (question 1) | section 5 for V4, on six MI50s |
 | 16 | The upstream layout and MXFP8 (question 2) | the tiny models in that layout; the layered reference on its file |

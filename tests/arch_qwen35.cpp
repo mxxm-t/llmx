@@ -1618,7 +1618,7 @@ gguf::GGUFModel tiny_mtp(const std::function<void(gguf::GGUFModel&)>& edit = {})
     });
 }
 
-// Drafting never lowers the budget the fit gives without it (docs/SPECULATIVE.md, section 3): the embedded drafter and a mark are refused by their text where the budget holds nothing more, and taken where it holds them beside the 512 tokens.
+// Drafting never lowers a budget the devices hold whole (docs/SPECULATIVE.md, section 3): the embedded drafter and a mark are refused by their text where the budget holds nothing more, and taken where it holds them beside the 512 tokens.
 // An automatic checkpoint slot gives way to the drafter and a mark a byte short of the budget, and a checkpoint asked for by number does not, so that placement is refused; over two devices roomy ones give the fit without drafts.
 void drafting_fit() {
     const gguf::GGUFModel m = tiny_mtp();
@@ -1658,7 +1658,7 @@ void drafting_fit() {
         return h;
     };
     const size_t bare = least(false, 0);
-    refuses("the drafter beside a budget that fills the device", "drafting needs room beyond the KV budget of 512 tokens and 0 state checkpoints",
+    refuses("the drafter beside a budget that fills the device", "drafting does not fit beside the model and 0 state checkpoints even at one KV block of 128 tokens",
             [&] { infer::place_model(w, alone(bare), request, options); });
     infer::PlacementRequest lookup = request;
     lookup.drafter = false;
@@ -1738,6 +1738,33 @@ void drafting_fit() {
     infer::ModelOptions explicit_new = options;
     explicit_new.kv_tokens = new_budget;
     require(infer::place_model(w, device_alone(wide), request, explicit_new).model->kv_tokens_total() == new_budget, "the automatic budget with the drafter, passed explicitly, did not load");
+
+    // A budget two devices do not hold whole even without drafts is cut with the drafter and its first mark in the fit, not refused beside the cut the fit gives without them.
+    // The drafter runs on the head's device, so the split moves a layer off it and the budget is smaller than without drafts.
+    const auto pair = [&](size_t room) {
+        auto a = std::make_shared<Room>(), b = std::make_shared<Room>();
+        a->room = b->room = room;
+        return std::vector<backend::BackendPtr>{a, b};
+    };
+    const auto head_layers = [](const std::string& plan) {
+        const size_t at = plan.find("device 1: layers ");
+        int first = 0, last = -1;
+        if (at != std::string::npos) std::sscanf(plan.c_str() + at + 17, "%d-%d", &first, &last);
+        return last - first + 1;
+    };
+    infer::PlacementRequest two = request, two_plain = lookup;
+    two.names = two_plain.names = {"device 0", "device 1"};
+    two_plain.fit_marks = false;
+    infer::ModelOptions cut = options, cut_plain = no_marks;
+    cut.kv_tokens = cut_plain.kv_tokens = size_t(1) << 20;
+    const size_t room = least(true, 1);
+    const infer::PlacedModel cut_without = infer::place_model(w, pair(room), two_plain, cut_plain);
+    const infer::PlacedModel cut_with = infer::place_model(w, pair(room), two, cut);
+    require(cut_with.model->kv_tokens_total() < cut_without.model->kv_tokens_total() && cut_with.model->mark_slots() >= 1 &&
+                head_layers(cut_with.plan) < head_layers(cut_without.plan),
+            "a budget cut to two devices with the drafter took " + std::to_string(cut_with.model->kv_tokens_total()) + " tokens and the head device " +
+                std::to_string(head_layers(cut_with.plan)) + " layers, against " + std::to_string(cut_without.model->kv_tokens_total()) + " and " +
+                std::to_string(head_layers(cut_without.plan)) + " without drafts");
 }
 
 // A draft's ids and every draft row's logits.

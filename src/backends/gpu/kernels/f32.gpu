@@ -794,6 +794,15 @@ extern "C" __global__ void llmx_gather(float* dst, const float* table, const uns
     if (j < width) dst[i * width + j] = id < nrows ? table[(unsigned long long)id * width + j] : 0.0f;
 }
 
+// dst row i += the sum over k of weight[i * taps + k] times table row idx[i * taps + k], fused multiply-adds in tap order as the CPU's mix_rows.
+extern "C" __global__ void llmx_mix_rows(float* dst, const float* table, const unsigned* idx, const float* weight, unsigned long long width, unsigned taps) {
+    const unsigned long long i = blockIdx.y, j = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    if (j >= width) return;
+    float acc = 0.0f;
+    for (unsigned k = 0; k < taps; ++k) acc = fmaf(weight[i * taps + k], table[(unsigned long long)idx[i * taps + k] * width + j], acc);
+    dst[i * width + j] += acc;
+}
+
 // A block a (row, head) of K and V rows into their KV blocks: row r lands in block blocks[r] at token slot slots[r], [kv_head][token][head_dim] in the side's type (1 for f16).
 extern "C" __global__ void llmx_kv_write(void* kc, void* vc, const float* k, const float* v, const int* blocks, const int* slots,
                                          int heads, int dim, int bt, int k_half, int v_half) {

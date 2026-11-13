@@ -1,4 +1,4 @@
-// The deepseek41 module (model/arch/deepseek4.hpp) on the tiny fork-layout file built in memory from the step 2 golden's arguments and Engram constants.
+// The deepseek41 module (model/arch/deepseek4/) on the tiny fork-layout file built in memory from the step 2 golden's arguments and Engram constants.
 // Every refused key and tensor with its text, the per-layer table, the plan, the footprint, the Engram norm product, and the refusal of the architecture by name.
 #include <algorithm>
 #include <cmath>
@@ -9,6 +9,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -20,21 +21,16 @@
 #include "core/bf16.hpp"
 #include "core/json.hpp"
 #include "format/gguf.hpp"
-#include "model/arch/deepseek4.hpp"
+#include "inference/load.hpp"
+#include "model/arch/deepseek4/model.hpp"
 #include "model/arch/registry.hpp"
 #include "model/layer_split.hpp"
 #include "model/place.hpp"
 #include "model/runtime.hpp"
 #include "loading_backend.hpp"
+#include "server_harness.hpp"
 
 namespace {
-
-int checked = 0;
-
-void require(bool ok, const std::string& what) {
-    if (!ok) throw std::runtime_error(what);
-    ++checked;
-}
 
 void refuses(const std::string& what, const std::string& text, const std::function<void()>& run) {
     try {
@@ -970,7 +966,9 @@ void split_cuts(const std::string& path) {
     gguf::GGUFModel m = gguf::read_gguf(path);
     gguf::map_payload(m);
     const infer::ModelWeights w = infer::gguf_weights(m);
-    require(infer::plan_model(w).carried == std::vector<size_t>{infer::deepseek4::pre_attn, infer::deepseek4::pre_ffn, infer::deepseek4::pooled, infer::deepseek4::index_picks, infer::deepseek4::candidate_ids}, "the carried slots");
+    std::vector<size_t> carried;
+    for (const infer::ModelPlan::Carried& c : infer::plan_model(w).carried) carried.push_back(c.from ? SIZE_MAX : c.slot);
+    require(carried == std::vector<size_t>{infer::deepseek4::pre_attn, infer::deepseek4::pre_ffn, infer::deepseek4::pooled, infer::deepseek4::index_picks, infer::deepseek4::candidate_ids}, "the carried slots");
     std::vector<uint32_t> ids;
     for (uint32_t i = 0; i < 40; ++i) ids.push_back((i * 37 + 5) % 128);
     const auto logits = [&](const std::vector<int>& devices) {
@@ -1635,12 +1633,278 @@ void same_file(const std::string& path) {
 
 } // namespace
 
+// A stage placement forced on the joined trunk and sidecar (Placement::draft_device): `devices` CPUs in groups of `width`, the layers cut at `cuts`, the head on the last group, each drafter stage on the device `stages` names.
+struct Forced {
+    std::string name;
+    size_t devices, width;
+    std::vector<int> mixers, stages;
+};
+
+// A CPU that says it is no CPU, so the scheduler records each stage of a split on its own thread as it does a device's, with 16 decode columns to spare for drafts.
+struct ThreadedCpu : backend::CpuBackend {
+    ThreadedCpu() { set_threads(1); }
+    bool is_cpu() const override { return false; }
+    size_t decode_columns() const override { return 16; }
+};
+
+// With `threaded` the CPUs are ThreadedCpus, and `options` gives the pool and slots a scheduler needs.
+std::unique_ptr<infer::Model> forced_model(const infer::ModelWeights& w, const Forced& f, infer::ModelOptions options = {}, bool threaded = false) {
+    std::vector<backend::BackendPtr> devices;
+    for (size_t i = 0; i < f.devices; ++i) {
+        if (threaded) {
+            devices.push_back(std::make_shared<ThreadedCpu>());
+            continue;
+        }
+        devices.push_back(backend::make_cpu_backend());
+        devices.back()->set_threads(1);
+    }
+    infer::Placement placement;
+    placement.mixer_device = placement.ffn_device = f.mixers;
+    placement.output_device = f.mixers.back();
+    placement.draft_device = f.stages;
+    placement.width = f.width;
+    options.dtype = backend::Dtype::f32;
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    return std::make_unique<infer::Model>(w, infer::plan_model(w, true), std::move(devices), placement, options);
+}
+
+// `reqs` submitted at once to a scheduler over `model` with `passes` in flight, past the end token, and each one's reply in full: one reply's tokens alone, or all of them beside each other.
+std::vector<Reply> replies(infer::Model& model, const bpe::Tokenizer& tok, const std::vector<Req>& reqs, size_t passes, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0,
+                           server::Scheduler::Stats* stats = nullptr) {
+    server::Scheduler sched(model, tok, reqs.size(), 64, passes, false, 0, proposer, draft_max, false);
+    std::thread runner([&] { sched.run(); });
+    std::vector<Reply> out;
+    try {
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (const Req& r : reqs) {
+            server::SampleParams p = params_of(r);
+            p.ignore_eos = true;
+            handles.push_back(sched.submit(r.prompt, p));
+        }
+        for (auto& h : handles) {
+            out.push_back(collect(*h));
+            require(h->finish() == "length" && out.back().size() == size_t(reqs[out.size() - 1].cap), "a served request ended with " + h->finish() + " " + h->error());
+        }
+        if (stats) *stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    return out;
+}
+
+// The scheduler drafting with DSpark over stages forced apart on ThreadedCpus, a pass a stage in flight, gives each request's ids and log-probabilities alone on one CPU without drafts, bit for bit.
+// Four requests run the recording locks under the stages' threads, and a chunked prompt beside two drafting ones records their replies between its groups, required on the two-CPU cut (docs/TESTS.md, arch-deepseek4).
+void dspark_served(const std::string& trunk, const gguf::GGUFModel& joined, const infer::ModelWeights& jw) {
+    constexpr size_t draft_max = 3, seqs = 4;
+    const bpe::Tokenizer tok(joined);
+    const uint32_t V = uint32_t(golden["vocab_size"]);
+    struct Case { const char* name; std::vector<Req> reqs; int ubatch; };
+    const std::vector<Case> cases{
+        {"four requests at once", {{prompt_of(2, 20, V), 24}, {prompt_of(3, 12, V), 24, "", 0.8f, 5}, {prompt_of(4, 30, V), 24}, {prompt_of(5, 17, V), 24, "", 0.8f, 7}}, 0},
+        {"a 150-token prompt chunked at 16 rows beside two drafting requests", {{prompt_of(2, 20, V), 40}, {prompt_of(3, 12, V), 40, "", 0.8f, 5}, {prompt_of(6, 150, V), 8}}, 16}};
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    options.kv_k = options.kv_v = backend::KVType::f32;
+    options.kv_tokens = 1024;
+    options.state_slots = seqs;
+    std::vector<std::vector<Reply>> alone;
+    for (const Case& c : cases) {
+        alone.emplace_back();
+        for (const Req& r : c.reqs) {
+            std::vector<backend::BackendPtr> one{backend::make_cpu_backend()};
+            one.back()->set_threads(1);
+            infer::PlacementRequest request;
+            request.dtype = backend::Dtype::f32;
+            auto plain = infer::load_model(trunk, std::move(one), request, options, {}, infer::LoadMode::mapped);
+            alone.back().push_back(replies(*plain->model, tok, {r}, 1).back());
+        }
+    }
+    options.mark_slots = server::draft_marks(seqs, 16);
+    options.mark_rows = draft_max + 1;
+    const std::vector<Forced> apart{{"stages 0-1 on the first of two CPUs", 2, 1, {0, 0, 1, 1, 1, 1, 1, 1}, {0, 0, 1}},
+                                    {"a stage on each of three CPUs", 3, 1, {0, 0, 0, 1, 1, 1, 2, 2}, {0, 1, 2}}};
+    for (const Forced& f : apart) {
+        for (size_t k = 0; k < cases.size(); ++k) {
+            const Case& c = cases[k];
+            auto model = forced_model(jw, f, options, true);
+            if (c.ubatch) model->set_ubatch(c.ubatch);
+            infer::spec::Embedded proposer(*model);
+            server::Scheduler::Stats stats;
+            const std::vector<Reply> together = replies(*model, tok, c.reqs, f.devices, &proposer, draft_max, &stats);
+            for (size_t i = 0; i < c.reqs.size(); ++i) same(alone[k][i], together[i], "served with " + f.name + ", " + c.name + ", request " + std::to_string(i));
+            const size_t fed = std::accumulate(stats.drafted.begin(), stats.drafted.end(), size_t(0)), kept = std::accumulate(stats.kept.begin(), stats.kept.end(), size_t(0));
+            require(fed > 0 && kept > 0, "served with " + f.name + ", " + c.name + ": " + std::to_string(fed) + " drafts fed and " + std::to_string(kept) + " kept");
+            if (c.ubatch && f.devices == 2) require(stats.urgent_taken > 0, "served with " + f.name + ", " + c.name + ": no reply recorded between the chunk's groups in " + std::to_string(stats.paces) + " paces");
+            std::cout << "arch-deepseek4: DSpark served with " << f.name << " at " << f.devices << " passes, " << c.name << ", gave each request's ids and log-probabilities alone without drafts, "
+                      << kept << " of " << fed << " drafts kept" << std::endl;
+        }
+    }
+}
+
+// DSpark on the tiny trunk and sidecar against DeepSeek's forward_spec, a block of drafts after each token, ids to a row whose top two logits lie within twice the bound and logits within 2e-5 (docs/TESTS.md, arch-deepseek4).
+// Two layer cuts, a tensor group and stages forced apart from the head give the one CPU's or the group's drafts and draft logits bit for bit, the group the reference's by the same rule.
+void dspark(const std::string& trunk, const std::string& sidecar) {
+    const jmini::Value& d = field(golden.root, "dspark");
+    const size_t V = golden["vocab_size"], B = size_t(field(field(d, "args"), "dspark_block_size").num);
+    const std::vector<uint64_t> wide = wholes(field(golden.root, "sequence"));
+    const std::vector<uint32_t> sequence(wide.begin(), wide.end());
+    double most = 0, group_most = 0;
+    size_t drafts = 0, rows = 0, ties = 0, split_rows = 0, group_drafts = 0;
+    std::string where, group_where;
+    const auto widest = [](double& top, std::string& at, const float* got, const jmini::Value& row, size_t n, size_t prefill, size_t position, size_t j) {
+        for (size_t v = 0; v < n; ++v) {
+            const double e = std::fabs(double(got[v]) - row.asArray()[v].num);
+            if (e > top) top = e, at = "draft " + std::to_string(j) + " after position " + std::to_string(position) + " of the " + std::to_string(prefill) + "-token prefill";
+        }
+    };
+    const std::vector<std::vector<int>> cuts{{}, {2, 6}, {5, 3}};
+    const std::vector<std::string> firsts{"", "layers 0-1,", "layers 0-4,"};
+    std::vector<std::string> plans(cuts.size());
+    gguf::GGUFModel joined = gguf::read_gguf(trunk);
+    {
+        gguf::GGUFModel side = gguf::read_gguf(sidecar);
+        require(infer::spec::pair(joined, trunk, side, sidecar) == infer::spec::DrafterKind::mtp, "the dflash sidecar pairs as the trunk's drafter stages");
+        infer::spec::join_blocks(joined, std::move(side));
+    }
+    gguf::map_payload(joined);
+    const infer::ModelWeights jw = infer::gguf_weights(joined);
+    const std::vector<Forced> forced{{"stages 0-1 on the first of two CPUs", 2, 1, {0, 0, 1, 1, 1, 1, 1, 1}, {0, 0, 1}},
+                                     {"every stage on the first of two CPUs", 2, 1, {0, 0, 0, 0, 1, 1, 1, 1}, {0, 0, 0}},
+                                     {"a stage on each of three CPUs", 3, 1, {0, 0, 0, 1, 1, 1, 2, 2}, {0, 1, 2}},
+                                     {"stages back and forth over three CPUs", 3, 1, {0, 0, 1, 1, 1, 2, 2, 2}, {1, 0, 1}},
+                                     {"every stage on the first of two groups of two", 4, 2, {0, 0, 0, 0, 2, 2, 2, 2}, {0, 0, 0}},
+                                     {"stage 1 on the first of two groups of two", 4, 2, {0, 0, 0, 2, 2, 2, 2, 2}, {2, 0, 2}}};
+    size_t forced_rows = 0;
+    for (const jmini::Value& c : field(d, "cases").asArray()) {
+        const size_t prefill = whole(field(c, "prefill"));
+        std::vector<std::unique_ptr<infer::LoadedModel>> loaded;
+        for (size_t k = 0; k < cuts.size(); ++k) {
+            infer::PlacementRequest request;
+            request.dtype = backend::Dtype::f32;
+            request.shares = cuts[k];
+            if (!cuts[k].empty()) request.names = {"cpu", "cpu"};
+            infer::ModelOptions options;
+            options.dtype = backend::Dtype::f32;
+            options.kv_k = options.kv_v = backend::KVType::f32;
+            std::vector<backend::BackendPtr> devices;
+            for (size_t i = 0; i < std::max<size_t>(1, cuts[k].size()); ++i) {
+                devices.push_back(backend::make_cpu_backend());
+                devices.back()->set_threads(1);
+            }
+            loaded.push_back(infer::load_model(trunk, std::move(devices), request, options, {}, infer::LoadMode::mapped, sidecar));
+            require(loaded.back()->drafter == infer::spec::DrafterKind::mtp, "the dflash sidecar pairs as the trunk's drafter stages");
+            plans[k] = loaded.back()->plan;
+            require(plans[k].find(firsts[k]) != std::string::npos, "the cut gives the first CPU " + firsts[k]);
+            loaded.back()->model->set_ubatch(int(prefill));
+            loaded.back()->model->prefill(std::vector<uint32_t>(sequence.begin(), sequence.begin() + std::ptrdiff_t(prefill)));
+        }
+        std::unique_ptr<infer::LoadedModel> grouped;
+        {
+            infer::PlacementRequest request;
+            request.dtype = backend::Dtype::f32;
+            request.names = {"cpu", "cpu"};
+            request.width = 2;
+            infer::ModelOptions options;
+            options.dtype = backend::Dtype::f32;
+            options.kv_k = options.kv_v = backend::KVType::f32;
+            std::vector<backend::BackendPtr> devices;
+            for (size_t i = 0; i < 2; ++i) {
+                devices.push_back(backend::make_cpu_backend());
+                devices.back()->set_threads(1);
+            }
+            grouped = infer::load_model(trunk, std::move(devices), request, options, {}, infer::LoadMode::mapped, sidecar);
+            grouped->model->set_ubatch(int(prefill));
+            grouped->model->prefill(std::vector<uint32_t>(sequence.begin(), sequence.begin() + std::ptrdiff_t(prefill)));
+        }
+        std::vector<std::unique_ptr<infer::Model>> apart;
+        for (const Forced& f : forced) {
+            apart.push_back(forced_model(jw, f));
+            apart.back()->set_ubatch(int(prefill));
+            apart.back()->prefill(std::vector<uint32_t>(sequence.begin(), sequence.begin() + std::ptrdiff_t(prefill)));
+        }
+        infer::Model& model = *loaded[0]->model;
+        for (const jmini::Value& r : field(c, "drafts").asArray()) {
+            const size_t position = whole(field(r, "position"));
+            model.step(&sequence[position], 1);
+            std::vector<uint32_t> out;
+            model.draft(uint32_t(whole(field(r, "last"))), B, out);
+            for (size_t k = 1; k < loaded.size(); ++k) {
+                infer::Model& split = *loaded[k]->model;
+                split.step(&sequence[position], 1);
+                std::vector<uint32_t> got;
+                split.draft(uint32_t(whole(field(r, "last"))), B, got);
+                require(got == out, "two CPUs (" + firsts[k] + ") draft the one CPU's ids at position " + std::to_string(position));
+                for (size_t j = 0; j < B; ++j)
+                    require(std::memcmp(split.draft_logits(j), model.draft_logits(j), V * sizeof(float)) == 0, "two CPUs (" + firsts[k] + ") give the one CPU's draft logits");
+                split_rows += B;
+            }
+            const std::vector<uint64_t> want = wholes(field(r, "drafts"));
+            const auto& margins = field(r, "margins").asArray();
+            const jmini::Value* logits = r.get("logits");
+            std::vector<uint32_t> group_out;
+            grouped->model->step(&sequence[position], 1);
+            grouped->model->draft(uint32_t(whole(field(r, "last"))), B, group_out);
+            for (size_t k = 0; k < forced.size(); ++k) {
+                infer::Model& to = forced[k].width > 1 ? *grouped->model : model;
+                const std::vector<uint32_t>& expect = forced[k].width > 1 ? group_out : out;
+                apart[k]->step(&sequence[position], 1);
+                std::vector<uint32_t> got;
+                apart[k]->draft(uint32_t(whole(field(r, "last"))), B, got);
+                const std::string on = forced[k].name + " (" + (forced[k].width > 1 ? "a group's" : "one CPU's") + ")";
+                require(got == expect, on + " drafts the same ids at position " + std::to_string(position));
+                for (size_t j = 0; j < expect.size(); ++j)
+                    require(std::memcmp(apart[k]->draft_logits(j), to.draft_logits(j), V * sizeof(float)) == 0, on + " gives the same draft logits at position " + std::to_string(position));
+                forced_rows += expect.size();
+            }
+            for (size_t j = 0; j < B && margins[j].num >= 4e-5; ++j) {
+                require(j < group_out.size() && group_out[j] == want[j], "a group of two CPUs drafts the reference's draft " + std::to_string(j) + " at position " + std::to_string(position));
+                if (logits) {
+                    widest(group_most, group_where, grouped->model->draft_logits(j), logits->asArray()[j], V, prefill, position, j);
+                }
+                ++group_drafts;
+            }
+            require(out.size() == B, "a block of " + std::to_string(B) + " drafts at position " + std::to_string(position));
+            for (size_t j = 0; j < B; ++j) {
+                if (logits) {
+                    widest(most, where, model.draft_logits(j), logits->asArray()[j], V, prefill, position, j);
+                    ++rows;
+                }
+                if (margins[j].num < 4e-5) {
+                    ++ties;
+                    break;
+                }
+                require(out[j] == want[j], "draft " + std::to_string(j) + " at position " + std::to_string(position) + " is the reference's");
+                ++drafts;
+            }
+        }
+    }
+    std::cout << "arch-deepseek4: DSpark gave the reference's " << drafts << " drafts (" << ties << " blocks cut at a tie under 4e-5), " << rows
+              << " draft rows' logits within " << most << " (bound 2e-5)\n";
+    std::cout << "arch-deepseek4: DSpark on two CPUs cut after layer 1 and after layer 4 gave the one CPU's drafts and " << split_rows << " draft rows' logits bit for bit\n";
+    std::cout << "arch-deepseek4: DSpark on a group of two CPUs gave the reference's " << group_drafts << " drafts, draft logits within " << group_most << " (bound 2e-5)\n";
+    std::cout << "arch-deepseek4: DSpark with stages apart from the head over two and three CPUs and two groups of two gave the head's drafts and " << forced_rows
+              << " draft rows' logits bit for bit\n";
+    // A miss names its draft row and the least margins of the drafter's window and block codings in the reference (tests/data/deepseek41_dspark.json).
+    const jmini::Value& margins = field(d, "format_margins");
+    const std::string coded = "; the reference's window rows sit at least " + std::to_string(field(margins, "window").num) + " and its block rows " +
+                              std::to_string(field(margins, "block").num) + " code spacings from a rounding point";
+    require(most <= 2e-5, "the DSpark draft logits within 2e-5 of the reference's, " + std::to_string(most) + " at " + where + coded);
+    require(group_most <= 2e-5, "a group's DSpark draft logits within 2e-5 of the reference's, " + std::to_string(group_most) + " at " + group_where + coded);
+    dspark_served(trunk, joined, jw);
+}
+
 int main(int argc, char** argv) {
     try {
-        if (argc != 2 && !(argc == 4 && (std::string(argv[2]) == "--gguf" || std::string(argv[2]) == "--groups")))
-            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE | --groups FILE]");
+        if (argc != 2 && !(argc == 4 && (std::string(argv[2]) == "--gguf" || std::string(argv[2]) == "--groups")) && !(argc == 5 && std::string(argv[2]) == "--dspark"))
+            throw std::runtime_error("usage: llmx-arch-deepseek4-test tests/data/deepseek41_reference.json [--gguf FILE | --groups FILE], or DSPARK.json --dspark TRUNK SIDECAR");
         read_golden(argv[1]);
-        if (argc == 4 && std::string(argv[2]) == "--groups") {
+        if (argc == 5) {
+            dspark(argv[3], argv[4]);
+        } else if (argc == 4 && std::string(argv[2]) == "--groups") {
             groups(argv[3], 2);
             groups(argv[3], 4);
         } else if (argc == 4) {
@@ -1672,6 +1936,6 @@ int main(int argc, char** argv) {
         std::cerr << "FAIL: " << e.what() << std::endl;
         return 1;
     }
-    std::cout << "arch-deepseek4: " << checked << " checks passed" << std::endl;
+    std::cout << "arch-deepseek4: " << checks << " checks passed" << std::endl;
     return 0;
 }

@@ -1,5 +1,24 @@
 # llmx - Development Status
 
+## bench sizes its KV pool by its run's histories (2026-11-13 to 2026-11-14, DSDEV167 then DSDEV168, branch dsdev167/bench-kv on main ad437ef47; lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** `bench --model` with a drafter places where the same model serves, since its pool is what its sequences take rather than the model's context.
+- **Fixed:** `plan_placement` grew the KV budget to the request's histories only where the context's blocks could not hold them, so bench kept a pool of the model's context, 1048576 tokens on DeepSeek-V4.1-Flash-1017, and every DSpark drafter bench cell on ten MI50s at width 2 was refused.
+  The histories now set the budget where none is given, in whole blocks of each storage up to the context, and still grow a given budget that falls short; `serve`'s automatic budget and `--kv-tokens` are unchanged.
+  `histories_fit_the_pool` in `llmx-placement-test`, which lands first and fails on main, places one history of 100 tokens on a fixture whose context is two CPU blocks and wants one block.
+- **Done:** `llmx-placement-test` (1187 checks), dead-code and docs pass on the CPU build of this head.
+  DeepSeek-V4.1-Flash-1017 MXFP4 with the DSpark MXFP4 sidecar, ten MI50s, ROCm int8, `bench --tensor-width 2 --ubatch 256 --lookup-storage file`, binary of dsdev157/dspark with this fix, three runs a cell, host run-queue wait 0 to 11 ms a cell; `tg` decodes without drafts, so the drafter-on arm is the tax of a loaded drafter whose context rows run on every pass:
+
+| rows | prompt | pp on / off (tok/s) | tg on / off (tok/s) | pass on / off (ms) |
+|---|---|---|---|---|
+| 1 | 512, tg64 | 740.71 / 774.06 (-4.3%) | 31.91 / 31.91 | 31.34 / 31.34 |
+| 16 | 256, tg32 | 526.57 / 534.80 (-1.5%) | 100.09 +- 0.00 / 91.74 +- 14.79 | 159.9 / 174.4 |
+| 64 | 128, tg32 | 333.10 / 333.65 (-0.2%) | 141.87 / 142.42 | 451.1 / 449.4 |
+
+  The 16-row drafts-off arm's spread is one slow run of three (its mean and deviation fit two runs at about 100.3 and one at about 74.6 tok/s), kept; its other runs match the drafter-on arm.
+  A draft at one row, width 2: a step 33.34 ms; drafts of 1, 2 and 3 a chain of 7.53, 7.39 and 7.41 ms and a verify of 43.76, 51.99 and 60.11 ms, 10.42, 18.65 and 26.77 ms over a step.
+- **Left:** the landing gates of a host/runtime change (CTest, the CPU suite, Qwen3-0.6B byte identity against main, the hosted run), and F2DEV's review.
+
 ## CUDA backend step 3: the F16 class, Q8_0, Q4_K, Q5_K and Q6_K rows and tiles on cuda:N (2026-11-13, CUDA11 and CUDA12, branch cuda/step3, stacked on step 2)
 
 **Goal.** Step 3 of docs/CUDA.md, Order of work: the block-int16 rows and tiles of Q8_0, Q4_K, Q5_K and Q6_K on `cuda:N`, held by the checks `backend-rocm` has for them.

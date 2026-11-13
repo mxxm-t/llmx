@@ -28,7 +28,7 @@ backends its caller made. It reads the plan
   (the backends' names, layer shares, experts on the CPU and their stream
   point, the ubatch, the decode rows, pass slots and logits rows a split is
   fitted for,
-  and the histories the budget must hold, `kv_auto`, a server's budget
+  and the histories that set the budget where none is given, `kv_auto`, a server's budget
   of every block the devices hold, and `fit_checkpoints`, its checkpoint slots
   fitted too, `fit_marks`, its mark slots past the first fitted after both,
   and `drafter`, the file's embedded drafter planned and loaded

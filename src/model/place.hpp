@@ -807,7 +807,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     if (request.cpu_moe && std::none_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.routed; }))
         throw std::runtime_error(experts_flag + ": the model has no expert layers");
     // A storage has the blocks the budget fills at its backend's block size and each history takes whole ones, so the request's histories are counted in each backend's blocks.
-    // Where any storage would fall short the budget becomes what they take in the largest blocks, and no history counts beyond the model's context.
+    // The budget becomes what they take in the largest blocks where none is given or any storage would fall short of it, and no history counts beyond the model's context.
     if (request.histories) {
         const size_t budget = kv_tokens(plan, options), tokens = std::min(request.history_tokens, plan.context_length);
         size_t held = 0;
@@ -819,7 +819,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             short_of = short_of || blocks > backend::blocks_for(budget, bt);
             held = std::max(held, backend::size_mul(blocks, bt));
         }
-        if (short_of) options.kv_tokens = held;
+        if (short_of || !options.kv_tokens) options.kv_tokens = held;
     }
     PlannedModel placed;
     placed.architecture = plan;

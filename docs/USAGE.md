@@ -1167,7 +1167,7 @@ The ids are drawn from a fixed seed over the whole vocabulary, as a text's sprea
 `--seqs N` measures decode the way a server runs it: `N` sequences each
 prefilled with the `--p` prompt, then `--n` passes of one token from every
 sequence, reported as `xN tg` in tokens per second over all of them.
-The KV pool is the model context, as for `generate`, or what the `N` sequences' prompts and tokens take at once, each in whole KV blocks, where that is more; as for every command it is fitted to what the devices hold and backed whole at load.
+The KV pool is what the run's sequences take at once, each in whole KV blocks up to the model context: the `N` sequences' prompts and tokens, or the one sequence's depth, prompt or decode and the drafter's verify rows; it is fitted to what the devices hold and backed whole at load.
 
 `--depth N` measures a long context: before every repeat, and outside the
 timer, the history is filled with `N` tokens, and `pp` and `tg` then run on

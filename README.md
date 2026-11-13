@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml/badge.svg)](https://github.com/mxxm-t/llmx/actions/workflows/ci.yml)
 
-llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs, Vulkan devices and, on Linux, AMD GPUs through ROCm.
-Run it from the command line or as an OpenAI-compatible server, and split one model across devices in one machine.
+llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs, Vulkan devices (AMD and NVIDIA GPUs) and, on Linux, AMD GPUs through ROCm and NVIDIA GPUs through CUDA (in development).
+Run it from the command line or as an OpenAI-compatible server, read images with a vision encoder file, and split one model across devices in one machine.
 
 The tables summarize current model, weight-format and backend support. **Supported** means the path is implemented and has applicable checks. **In development** means the implementation exists but qualification remains open. **Planned** means roadmap work not available in this tree; see the [ROADMAP](docs/ROADMAP.md).
 
@@ -16,12 +16,26 @@ The tables summarize current model, weight-format and backend support. **Support
 | `qwen35` (hybrid linear and full attention) | Qwen3.5-0.8B, 4B, 9B, Qwen3.6-27B, Qwen3.8-27B | Supported | Supported | Supported | Supported, prefix reuse for follow-up turns |
 | `qwen35moe` (Qwen 3.5 mixture of experts) | Qwen3.6-35B-A3B | Supported | Supported | In development | Supported, prefix reuse for follow-up turns |
 | `qwen4exp` (hybrid with per-layer n-gram embeddings, [details](docs/QWEN38-FLASH.md)) | Qwen3.8-Flash-Next Q8_0 (released-file HF) and UD-Q4_K_XL (bounded serving smoke with Q8_0 MTP sidecar) | Released-file CPU qualification pending | Supported | Supported | Supported, prefix reuse for follow-up turns |
-| Llama, Mistral, Gemma, Phi, DeepSeek V4 | | Planned | Planned | Planned | Planned |
+| `deepseek41` (hybrid compressed sparse attention, mixture of experts, lookup-table memory, [details](docs/DEEPSEEK4.md)) | DeepSeek-V4.1-Flash-1017 MXFP4 | Supported | Supported | Supported | Supported |
+| Llama, Mistral, Gemma, Phi, DeepSeek-V4-Flash | | Planned | Planned | Planned | Planned |
 
-On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M and `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL; `qwen3moe` and `qwen35moe`: their tiny HF fixtures pass on rocm:0 (STATUS, ROCm step 3) and no real model of theirs has been checked there.
+On ROCm, `qwen3` is checked with Qwen3-0.6B and 8B Q8_0, `qwen35` with Qwen3.5-0.8B Q4_K_M and `qwen4exp` with Qwen3.8-Flash-Next UD-Q4_K_XL; `deepseek41` with DeepSeek-V4.1-Flash-1017 MXFP4 over ten devices; `qwen3moe` and `qwen35moe`: their tiny HF fixtures pass on rocm:0 and no real model of theirs has been checked there.
+On CUDA, which is in development, only dense `qwen3` models run, checked on an RTX 3060: Qwen3-0.6B Q8_0 passes the Hugging Face checks at `--dtype f16`, including 16k-token sequences, and the synthetic dense models pass at `--dtype f32`.
+No other architecture, no `int8` activations and no multi-device mode has run on CUDA yet; see [CUDA](docs/CUDA.md).
 A model runs on ROCm only when every weight format it holds is one the ROCm backend reads (below), and image input (`--mmproj`) is not available there.
 
 Selected outputs are checked against Hugging Face references; [ASSETS](docs/ASSETS.md) lists the models and checks covered.
+
+## Image input
+
+| What | Status |
+|---|---|
+| Models | `qwen35`, `qwen35moe` and `qwen4exp` files, with the `mmproj` vision encoder file that ships beside them |
+| Commands | `generate --chat` and `chat`, with `--mmproj FILE --image A,B` and `--image-max-tokens N`; PNG and JPEG |
+| Server | `llmx serve --mmproj FILE`; `/v1/chat` and `/v1/chat/completions` read `image_url` parts as `data:` URLs |
+| Devices | The encoder runs on the CPU or a Vulkan device; `--mmproj` is refused on ROCm |
+
+See [VISION](docs/VISION.md) and [USAGE](docs/USAGE.md).
 
 ## Quantization types
 
@@ -75,7 +89,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 ```
 
-Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend, and on Linux `-DLLMX_HAS_BACKEND_ROCM=ON` for the ROCm backend, which needs the ROCm SDK to build and the HIP runtime to run on a device.
+Add `-DLLMX_HAS_BACKEND_VULKAN=ON` to the first command for the Vulkan backend, and on Linux `-DLLMX_HAS_BACKEND_ROCM=ON` for the ROCm backend, which needs the ROCm SDK to build and the HIP runtime to run on a device, or `-DLLMX_HAS_BACKEND_CUDA=ON` for the CUDA backend, which needs the CUDA toolkit to build and the NVIDIA driver to run on a device.
 The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on Windows, `build.bat` builds a CPU-only `llmx.exe` without CMake.
 [BUILD](docs/BUILD.md) lists the compilers and packages for each platform and a Docker image.
 
@@ -97,22 +111,23 @@ model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 | Backend | Hardware | Systems | Status |
 |---|---|---|---|
 | CPU | x86-64 with AVX2, FMA and F16C | Windows, Linux, Intel macOS | Supported |
-| Vulkan | Vulkan 1.2 GPUs; tested on AMD Radeon VII and AMD MI50 | Windows, Linux | Supported |
+| Vulkan | Vulkan 1.2 GPUs; tested on AMD Radeon VII, AMD MI50 and NVIDIA GeForce RTX 3060 | Windows, Linux | Supported |
 | ROCm (HIP) | AMD GPUs; tested on AMD MI50 (gfx906) | Linux | Supported |
-| CUDA | NVIDIA GPUs | | Planned |
+| CUDA | NVIDIA GPUs; tested on NVIDIA GeForce RTX 3060 | Linux | In development: dense `qwen3` with `F32` and `F16` activations, one device; see [CUDA](docs/CUDA.md) |
 | SYCL | Intel GPUs | | Planned |
 
-ARM CPUs, Apple Silicon included, are not supported; the Vulkan kernels are tuned for 64-wide subgroups, and other GPUs are untested.
+ARM CPUs, Apple Silicon included, are not supported.
+The Vulkan kernels are tuned for AMD GPUs' 64-wide subgroups; they run on NVIDIA GPUs, tested on the one card named above, and other GPUs are untested.
 The ROCm kernels are built for gfx906 and gfx1151 (Strix Halo), and only gfx906 has run them.
-Pick a device with `--device cpu` (the default), `--device vulkan:N` or `--device rocm:N`; see [USAGE](docs/USAGE.md#device-selection---device).
+Pick a device with `--device cpu` (the default), `--device vulkan:N`, `--device rocm:N` or, in a CUDA build, `--device cuda:N`; see [USAGE](docs/USAGE.md#device-selection---device).
 
 ## Multi-device modes
 
 | Mode | What it does | Flags | Status |
 |---|---|---|---|
 | Layer split | Consecutive layers on different devices, GPUs and the CPU mixed, fitted to free memory, for every supported model in every command and `llmx serve` | `--device A,B,...`, `--layer-shares` | Supported |
-| Expert offload | A mixture-of-experts model's experts run on the CPU beside one GPU | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
-| Tensor split | Every layer on a group of 2 to 16 devices at once; dense `qwen3`, hybrid `qwen35` and `qwen4exp` and mixture-of-experts `qwen3moe` and `qwen35moe` models, with their embedded drafter, on Vulkan and ROCm devices on Linux; groups wider than 4 are not yet measured on devices | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
+| Expert offload | A mixture-of-experts model's experts are held in host memory and run on the CPU beside one GPU or a layer split over several GPUs; a faster CPU path for prompts and decode steps | `--n-cpu-moe N`, `--cpu-moe`, `--moe-stream-from N` | Supported |
+| Tensor split | Every layer on a group of 2 to 16 devices at once, with ROCm devices paired into groups by timing; dense `qwen3`, hybrid `qwen35` and `qwen4exp`, mixture-of-experts `qwen3moe` and `qwen35moe` and `deepseek41` models, with their embedded drafter, on Vulkan and ROCm devices on Linux; groups wider than 4 are not yet measured on devices | `--tensor-width N` | Supported; ahead of or below the layer split by width, precision and user count ([USAGE](docs/USAGE.md#tensor-split---tensor-width-n)) |
 | Staged tensor split | A layer split whose stages are tensor groups | `--tensor-width N` with several groups listed in `--device`; `--layer-shares` gives each group its share | Supported, as above |
 | Replicas | Several copies of a model behind one scheduler | | Planned |
 | Multi-node | One model over several machines | | Planned |
@@ -126,7 +141,8 @@ Pick a device with `--device cpu` (the default), `--device vulkan:N` or `--devic
 | `/v1/chat/completions`, `/v1/completions`, `/v1/models` | OpenAI-compatible, whole or streamed, with log-probabilities; a reasoning model's thinking comes in `reasoning_content` apart from the answer, and `chat_template_kwargs` sets template options such as `enable_thinking` |
 | `/v1/generate`, `/v1/chat`, `/v1/tokenize`, `/v1/detokenize`, `/v1/health` | Native, with token ids |
 
-Tool calls, embeddings and more than one choice per request are not supported.
+Chat requests take `tools` and `tool_choice` and return `tool_calls`, and `/v1/live` answers while a server starts.
+Embeddings and more than one choice per request are not supported.
 There is no TLS or authentication, so put a reverse proxy in front of a server that faces a network.
 Finished conversations are kept for prefix reuse in device memory, then host memory (`--host-cache-bytes`) and optionally on disk (`--disk-cache-bytes`, `--disk-cache-dir`, `--disk-cache-keep`, `--disk-cache-max-age`; [DISK-TIER](docs/DISK-TIER.md)).
 [USAGE](docs/USAGE.md) lists the request fields and server flags, [OPERATING](docs/OPERATING.md) covers running a server (setups, reading `/v1/health`, troubleshooting) and [SERVER](docs/SERVER.md) the scheduler's design.
@@ -135,7 +151,8 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 
 | Option | What it does |
 |---|---|
-| `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`) or from a drafter file, sources tried in the order listed (`lookup,embedded`), a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
+| `--drafter lookup\|embedded\|PATH`, `--draft-max N` | Speculative decoding in `generate`, `chat` and `serve`: drafts from the prompt and reply (`lookup`), from the MTP block a `qwen35` file carries (`embedded`), from a DeepSeek-V4.1 DSpark sidecar file or from a drafter file, sources tried in the order listed (`lookup,embedded`), a file of its MTP blocks or in `generate` and `chat` a draft model; the text is identical with it on or off ([SPECULATIVE](docs/SPECULATIVE.md)) |
+| `--dtype auto\|f16\|bf16\|f32\|int8` | Activation precision, independent of weight storage; see Quantization types above |
 | `--cache-type-k`, `--cache-type-v` | KV cache storage, `f16` (default) or `f32` |
 | `--load-mode auto\|mapped\|direct` | How the weights are read from disk |
 

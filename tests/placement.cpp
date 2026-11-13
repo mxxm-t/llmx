@@ -1,6 +1,7 @@
 // Placement across backends (docs/EXECUTION.md step 6): a model split over two, three or four CPU backends must produce the bytes of the same model on one, because per-role arithmetic is unchanged and only the residual stream crosses.
 // Crossings are counted so they happen exactly where the placement changes and nowhere on a single device; bad placements are refused at load.
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -9,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -41,7 +43,9 @@ gguf::GGUFModel fixture() { return tiny_qwen(2, 2 * 128, true); }
 
 // A lookup table's source over `bytes` written to a file of its own, which main removes once every source and its reader are gone.
 std::vector<std::filesystem::path> table_files;
+std::mutex table_files_lock;
 std::shared_ptr<const infer::WeightRows> table_source(uint32_t type, size_t columns, size_t rows, const uint8_t* bytes, size_t size) {
+    std::unique_lock<std::mutex> lock(table_files_lock);
     const auto path = std::filesystem::temp_directory_path() /
         ("llmx-placement-table-" + std::to_string(std::random_device{}()) + "-" + std::to_string(table_files.size()) + ".bin");
     {
@@ -81,7 +85,7 @@ void exact(const std::vector<float>& a, const std::vector<float>& b, const char*
     for (float v : a) require(std::isfinite(v), "nonfinite logits");
 }
 
-size_t checked = 0;
+std::atomic<size_t> checked{0};
 
 // Embedding and layer 0's attention on A, layer 0's feed-forward and layer 1's attention on B, layer 1's feed-forward and the head on A: two crossings per pass, both inside a layer, none at the layer boundary.
 void split_matches_single() {
@@ -962,13 +966,13 @@ void layer_split_fits() {
     single.reset();
     exact(single.prefill(prompt), placed_split.model->prefill(prompt), "place_model split prefill differs from one device");
     require(placed_split.model->prefill_batch() == 3 && !placed_split.plan.empty(), "place_model did not apply the ubatch or describe the split");
-    // Experts on the CPU are a placement of one device, so a routed model refuses them beside several, by the name of the flag given.
+    // The experts go to a CPU placed beside the devices, so a routed model refuses them where the CPU is listed among several, by the name of the flag given.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);
     for (const int cpu_moe : {1, -1}) {
         request.cpu_moe = cpu_moe;
         const std::string flag = cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
-        require(refusal(moe, cpus(), request).rfind(flag + ": not with several devices", 0) == 0,
-                "experts on the CPU accepted beside several devices, or refused by another flag's name");
+        require(refusal(moe, cpus(), request).rfind(flag + ": not with the CPU as a device of a split", 0) == 0,
+                "experts on the CPU accepted with the CPU among several devices, or refused by another flag's name");
     }
     // The request's pass slots reach the fit: two CPUs reporting 1 GiB free hold two slots' handoff buffers and not 2^30 slots'.
     struct SmallCpu : backend::CpuBackend {
@@ -1578,11 +1582,9 @@ void host_budget_shared() {
     checked += 2;
 }
 
-// The KV budget every placement fits (fitted_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
+// A model placed on one SizedDevice of `room` bytes free with a KV budget of `budget` tokens, as fitted_kv fits it.
 // Beside experts on the CPU the device is not charged for those layers' feed-forward weights.
-void kv_fitted() {
-    const auto weights = fixture();
-    auto place = [&](size_t room, size_t budget, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
+std::unique_ptr<infer::Model> place_sized(size_t room, size_t budget, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
         auto device = std::make_shared<SizedDevice>();
         device->room = room;
         device->copying = copying;
@@ -1594,17 +1596,20 @@ void kv_fitted() {
         infer::ModelOptions options;
         options.kv_tokens = budget;
         return infer::place_model(infer::gguf_weights(m), {device}, request, options).model;
-    };
+}
+
+void kv_fitted() {
+    const auto weights = fixture();
     const size_t roomy = size_t(1) << 30;
-    auto kept = place(roomy, 0, weights);
+    auto kept = place_sized(roomy, 0, weights);
     const size_t backed = kept->kv_allocated_bytes();
     kept->prefill(std::vector<uint32_t>(256, 3));
     require(kept->kv_tokens_total() == 256 && backed > 0 && kept->kv_allocated_bytes() == backed,
             "a fitted budget that fits was cut, or not backed whole as the model was made");
     // A budget of 2^20 tokens on a device with 8 MiB free is cut to whole blocks, which fit, and one more block does not.
-    const size_t cut = place(8 << 20, size_t(1) << 20, weights)->kv_tokens_total();
+    const size_t cut = place_sized(8 << 20, size_t(1) << 20, weights)->kv_tokens_total();
     require(cut > 0 && cut < (size_t(1) << 20) && cut % 128 == 0, "a budget past the device's memory was not cut to whole blocks");
-    require(place(8 << 20, cut, weights)->kv_tokens_total() == cut && place(8 << 20, cut + 128, weights)->kv_tokens_total() == cut,
+    require(place_sized(8 << 20, cut, weights)->kv_tokens_total() == cut && place_sized(8 << 20, cut + 128, weights)->kv_tokens_total() == cut,
             "the cut budget is not the most whole blocks that fit");
     // A request naming only its device, as every command's is, gets the same cut budget, backed whole before a pass.
     {
@@ -1617,14 +1622,14 @@ void kv_fitted() {
         options.kv_tokens = size_t(1) << 20;
         auto model = infer::place_model(infer::gguf_weights(weights), {device}, request, options).model;
         require(model->kv_tokens_total() == cut && model->kv_allocated_bytes() > 0 &&
-                    model->kv_allocated_bytes() == place(8 << 20, cut, weights)->kv_allocated_bytes(),
+                    model->kv_allocated_bytes() == place_sized(8 << 20, cut, weights)->kv_allocated_bytes(),
                 "a command's budget past the device was not fitted to whole blocks and backed whole as a server's is");
         ++checked;
     }
     // Free memory that rises while the fit reads it, as a device reclaims an ended process's memory, is read again until it settles, so the load takes what the device holds once it has.
-    require(place(8 << 20, cut, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
+    require(place_sized(8 << 20, cut, weights, 0, false, 2)->kv_tokens_total() == cut, "a fit did not wait for a device's free memory to settle");
     // A device may hold an ended process's memory for a while between frees: free memory that stays level for four seconds and then rises is waited for too.
-    require(place(8 << 20, cut, weights, 0, false, 16)->kv_tokens_total() == cut, "a fit gave up before a device began to give memory back");
+    require(place_sized(8 << 20, cut, weights, 0, false, 16)->kv_tokens_total() == cut, "a fit gave up before a device began to give memory back");
     // A split's placement, which every command fits, waits for it the same way: two devices reporting a byte free for two reads each are placed once their memory has come back.
     {
         std::vector<backend::BackendPtr> two;
@@ -1641,10 +1646,16 @@ void kv_fitted() {
         require(infer::place_model(infer::gguf_weights(weights), two, request, infer::ModelOptions{}).model->stage_count() == 2,
                 "a split did not wait for its devices' free memory to settle");
     }
+    checked += 3;
+}
+
+// A load that cannot hold the model, or one KV block beside it, is refused as such, and experts on the CPU leave their bytes off the device.
+void kv_refused() {
+    const auto weights = fixture();
     // A budget the device holds is taken at once, while one it cuts waits for its free memory to settle, so a load meant to succeed asks only for what it holds.
     const auto refusal_of = [&](size_t room, size_t budget = 0) {
         try {
-            place(room, budget, weights);
+            place_sized(room, budget, weights);
         } catch (const std::runtime_error& e) {
             return std::string(e.what());
         }
@@ -1675,11 +1686,14 @@ void kv_fitted() {
     require(refusal_of(lo).find("no room for one KV block") != std::string::npos, "a device with no room for one KV block was not refused as such");
     // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);
-    const size_t with_experts = place(8 << 20, size_t(1) << 20, moe, 0, true)->kv_tokens_total();
-    const size_t without = place(8 << 20, size_t(1) << 20, moe, -1, true)->kv_tokens_total();
+    const size_t with_experts = place_sized(8 << 20, size_t(1) << 20, moe, 0, true)->kv_tokens_total();
+    const size_t without = place_sized(8 << 20, size_t(1) << 20, moe, -1, true)->kv_tokens_total();
     require(without > with_experts, "a device beside experts on the CPU was charged for their weights");
-    checked += 6;
+    checked += 3;
+}
 
+void kv_auto_fitted() {
+    const auto weights = fixture();
     // The automatic budget (PlacementRequest::kv_auto): every whole block the device's free memory holds, past the context of 256, the blocks an explicit budget past it is cut to.
     // The model has no embedded drafter, so nothing is reserved for one; a device of unknown free memory keeps the context.
     const auto automatic = [&](size_t room, bool unknown) {
@@ -1692,69 +1706,9 @@ void kv_fitted() {
         request.kv_auto = true;
         return infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{}).model->kv_tokens_total();
     };
-    const size_t filled = automatic(8 << 20, false);
+    const size_t cut = place_sized(8 << 20, size_t(1) << 20, weights)->kv_tokens_total(), filled = automatic(8 << 20, false);
     require(filled == cut && filled > 256, ("the automatic budget on 8 MiB took " + std::to_string(filled) + " tokens, against the " + std::to_string(cut) + " an explicit budget past the device is cut to").c_str());
     require(automatic(8 << 20, true) == 256, "the automatic budget on a device of unknown free memory was not the model's context");
-    {
-        // A device whose reading overstates its room by `drop` until the bytes it holds reach its real ceiling, then states that ceiling, as a driver whose budget hides other processes' memory does (docs/src/backends-vulkan.md, memory_available).
-        // With `fails` an allocation past the ceiling throws; without, it succeeds and the device is left below its kernels' reserve.
-        struct Overstating : SizedDevice {
-            size_t drop = 0;
-            bool fails = true;
-            mutable bool dropped = false;
-            std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
-            size_t held() const {
-                size_t n = 0;
-                for (const auto& [buffer, bytes] : live) n += buffer.expired() ? 0 : bytes;
-                return n;
-            }
-            std::optional<size_t> memory_available() const override {
-                const size_t ceiling = dropped ? room - drop : room, h = held();
-                return ceiling > h ? ceiling - h : 0;
-            }
-            size_t memory_kept(size_t) const override { return size_t(64) << 10; }
-            backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
-                if (held() + bytes > room - drop) {
-                    dropped = true;
-                    if (fails) throw std::bad_alloc();
-                }
-                backend::BufferPtr b = SizedDevice::alloc(bytes, where);
-                live.emplace_back(b, bytes);
-                return b;
-            }
-        };
-        // Weights of 3 MiB, as many bytes as the reading overstates, so a reading taken while they are still held cuts the budget by twice the overstatement.
-        const auto heavy = tiny_qwen_shaped(2, 2 * 128, true, 2, 1, 16384, 16);
-        for (const bool fails : {true, false}) {
-            auto device = std::make_shared<Overstating>();
-            device->room = 16 << 20;
-            device->drop = 3 << 20;
-            device->fails = fails;
-            device->copying = true;
-            device->set_threads(1);
-            infer::PlacementRequest request;
-            request.names = {"device"};
-            request.kv_auto = true;
-            request.ubatch = 8;
-            // The adopt hook gives each weight its own storage and keeps it until `fitted` drops it, as the streamed load modes' records do (inference/load.hpp, planning_adopt).
-            std::vector<backend::BufferPtr> uploads;
-            const infer::ModelWeights model = infer::gguf_weights(heavy);
-            const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
-                return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
-            };
-            infer::PlacedModel placed;
-            try {
-                placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); });
-            } catch (const std::bad_alloc&) {
-                require(false, "an automatic budget over a device whose reading overstated its room failed to build rather than fitting again");
-            }
-            const size_t tokens = placed.model ? placed.model->kv_tokens_total() : 0, left = device->memory_available().value_or(0);
-            require(tokens > 256 && left >= device->memory_kept(left) && left < device->drop,
-                    ("an automatic budget over a device whose reading overstated its room by 3 MiB took " + std::to_string(tokens) + " tokens and left " +
-                     std::to_string(left) + " bytes, not cut to the stated room beside its kernels' reserve and by no more than the overstatement").c_str());
-        }
-        checked += 2;
-    }
     {
         // The CPU's free memory is the host's (Backend::memory_is_host), shared with the host tier and the rest of the host, so on the CPU, and on a split with a CPU stage, the automatic budget keeps the context and says why.
         auto cpu = std::make_shared<backend::CpuBackend>();
@@ -1797,6 +1751,67 @@ void kv_fitted() {
     require(edge % 128 == 0 && edge <= SIZE_MAX / per && edge + 128 > SIZE_MAX / per, "the search bound at the edge of a size_t was not the most whole blocks whose bytes it states");
     require(infer::kv_search_bound(256, SIZE_MAX, 1, 128) == size_t(std::numeric_limits<int32_t>::max()) * 128, "the search bound passed the blocks an int32 block id names");
     checked += 3;
+}
+
+void kv_auto_overstated() {
+    // A device whose reading overstates its room by `drop` until the bytes it holds reach its real ceiling, then states that ceiling, as a driver whose budget hides other processes' memory does (docs/src/backends-vulkan.md, memory_available).
+    // With `fails` an allocation past the ceiling throws; without, it succeeds and the device is left below its kernels' reserve.
+    struct Overstating : SizedDevice {
+        size_t drop = 0;
+        bool fails = true;
+        mutable bool dropped = false;
+        std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
+        size_t held() const {
+            size_t n = 0;
+            for (const auto& [buffer, bytes] : live) n += buffer.expired() ? 0 : bytes;
+            return n;
+        }
+        std::optional<size_t> memory_available() const override {
+            const size_t ceiling = dropped ? room - drop : room, h = held();
+            return ceiling > h ? ceiling - h : 0;
+        }
+        size_t memory_kept(size_t) const override { return size_t(64) << 10; }
+        backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+            if (held() + bytes > room - drop) {
+                dropped = true;
+                if (fails) throw std::bad_alloc();
+            }
+            backend::BufferPtr b = SizedDevice::alloc(bytes, where);
+            live.emplace_back(b, bytes);
+            return b;
+        }
+    };
+    // Weights of 3 MiB, as many bytes as the reading overstates, so a reading taken while they are still held cuts the budget by twice the overstatement.
+    const auto heavy = tiny_qwen_shaped(2, 2 * 128, true, 2, 1, 16384, 16);
+    for (const bool fails : {true, false}) {
+        auto device = std::make_shared<Overstating>();
+        device->room = 16 << 20;
+        device->drop = 3 << 20;
+        device->fails = fails;
+        device->copying = true;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.kv_auto = true;
+        request.ubatch = 8;
+        // The adopt hook gives each weight its own storage and keeps it until `fitted` drops it, as the streamed load modes' records do (inference/load.hpp, planning_adopt).
+        std::vector<backend::BufferPtr> uploads;
+        const infer::ModelWeights model = infer::gguf_weights(heavy);
+        const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
+            return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
+        };
+        infer::PlacedModel placed;
+        try {
+            placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); });
+        } catch (const std::bad_alloc&) {
+            require(false, "an automatic budget over a device whose reading overstated its room failed to build rather than fitting again");
+        }
+        const size_t tokens = placed.model ? placed.model->kv_tokens_total() : 0, left = device->memory_available().value_or(0);
+        require(tokens > 256 && left >= device->memory_kept(left) && left < device->drop,
+                ("an automatic budget over a device whose reading overstated its room by 3 MiB took " + std::to_string(tokens) + " tokens and left " +
+                 std::to_string(left) + " bytes, not cut to the stated room beside its kernels' reserve and by no more than the overstatement").c_str());
+    }
+    checked += 2;
 }
 
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.
@@ -2753,8 +2768,120 @@ void replies_arena_fitted() {
     ++checked;
 }
 
+// Experts on the CPU beside a layer split: the first N routed layers' feed-forward blocks run on a CPU added before the devices, with the logits of the model on one CPU, and the fit leaves their bytes off the devices.
+void experts_beside_split() {
+    const auto moe = tiny_qwen_moe(4, 2 * 128, true);
+    const infer::ModelOptions options;
+    const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8};
+    auto plain = std::make_shared<backend::CpuBackend>();
+    plain->set_threads(1);
+    infer::Model single(infer::gguf_weights(moe), plain);
+    const std::vector<float> want = single.prefill(prompt);
+    const int tokens[] = {3, 14, 1};
+    std::vector<std::vector<float>> steps;
+    for (int t : tokens) steps.push_back(step_row(single, t));
+    for (const int cpu_moe : {1, 3, -1}) {
+        auto devices = [] {
+            std::vector<backend::BackendPtr> v{std::make_shared<HostMemoryDevice>(), std::make_shared<HostMemoryDevice>()};
+            for (auto& d : v) d->set_threads(1);
+            return v;
+        };
+        infer::PlacementRequest request;
+        request.names = {"a", "b"};
+        request.shares = {1, 1};
+        request.cpu_moe = cpu_moe;
+        const infer::PlannedModel planned = infer::plan_placement(infer::gguf_weights(moe), devices(), request, options);
+        const infer::Placement& pl = planned.placement;
+        require(planned.backends.size() == 3 && planned.backends[0]->is_cpu(), "experts on the CPU beside a split added no CPU before the devices");
+        bool second = false;
+        for (size_t l = 0; l < pl.ffn_device.size(); ++l) {
+            const bool host = cpu_moe < 0 || l < (size_t)cpu_moe;
+            require(pl.mixer_device[l] == 1 || pl.mixer_device[l] == 2, "a mixer of a split beside the CPU's experts placed off the devices");
+            require(pl.ffn_device[l] == (host ? 0 : pl.mixer_device[l]), "the first N routed layers' experts not on the CPU beside a split, or another layer's away from its mixer");
+            second = second || pl.mixer_device[l] == 2;
+        }
+        require(second && pl.embed_device == 1 && pl.output_device == 2 && pl.width == 1, "experts on the CPU beside a split did not split the layers over both devices");
+        std::vector<backend::BackendPtr> held = devices();
+        auto* a = static_cast<HostMemoryDevice*>(held[0].get());
+        infer::PlacedModel placed = infer::place_model(infer::gguf_weights(moe), held, request, options);
+        exact(want, placed.model->prefill(prompt), "experts on the CPU beside a split differ from the model on one CPU");
+        for (size_t i = 0; i < steps.size(); ++i)
+            exact(steps[i], step_row(*placed.model, tokens[i]), "a step with experts on the CPU beside a split differs from one CPU");
+        require(a->copies > 0 && a->writes > 0, "experts on the CPU beside a split did not cross from the first device");
+        ++checked;
+    }
+    // The fit leaves the experts on the CPU off devices that copy their weights: a room just short of the least that holds the KV budget with every expert on the devices holds it with them on the CPU.
+    // A fit short of room waits seconds for free memory to settle, as every fit without shares does, so the room is found given shares, in steps of half a layer's experts, and the fit setting stage boundaries by free memory is held to it.
+    size_t step = 0, room = size_t(1) << 18;
+    for (const auto& t : infer::gguf_weights(moe).tensors)
+        if (t.name.rfind("blk.0.", 0) == 0 && t.name.find("_exps") != std::string::npos) step += t.bytes / 2;
+    for (const bool shares : {true, false}) {
+        auto place = [&](size_t room, int cpu_moe) -> std::optional<infer::Placement> {
+            std::vector<backend::BackendPtr> v{std::make_shared<SizedDevice>(), std::make_shared<SizedDevice>()};
+            for (auto& d : v) {
+                static_cast<SizedDevice*>(d.get())->room = room;
+                static_cast<SizedDevice*>(d.get())->copying = true;
+                d->set_threads(1);
+            }
+            infer::PlacementRequest request;
+            request.names = {"a", "b"};
+            if (shares) request.shares = {1, 1};
+            request.cpu_moe = cpu_moe;
+            infer::ModelOptions o;
+            o.kv_tokens = 128;
+            try {
+                const infer::PlannedModel planned = infer::plan_placement(infer::gguf_weights(moe), v, request, o);
+                if (planned.options.kv_tokens == 128) return planned.placement;
+            } catch (const std::runtime_error&) {}
+            return std::nullopt;
+        };
+        if (shares) {
+            require(step > 0 && place(room, -1) && place(room, 0), "a roomy split refused");
+            while (place(room - step, 0)) room -= step;
+            room -= step;
+        } else {
+            require(!place(room, 0), "a split fitted to free memory held every expert on the devices in less room than given shares");
+        }
+        const std::optional<infer::Placement> fitted = place(room, -1);
+        require(fitted.has_value(), "the fit of a split counted the experts on the CPU against the devices");
+        const infer::Placement& pl = *fitted;
+        bool first = false, second = false;
+        for (size_t l = 0; l < pl.ffn_device.size(); ++l) {
+            require(pl.ffn_device[l] == 0, "a routed layer's experts off the CPU under --cpu-moe beside a fitted split");
+            first = first || pl.mixer_device[l] == 1;
+            second = second || pl.mixer_device[l] == 2;
+        }
+        require(first && second && pl.embed_device == 1 && pl.output_device == 2, "the least room for a split with every expert on the CPU left a device without layers");
+        ++checked;
+    }
+    // A tensor group and a CPU listed among several devices are refused by the flag's name, the device reporting no free memory so the fit does not wait for it to settle.
+    auto silent = std::make_shared<SizedDevice>();
+    silent->unknown = true;
+    for (const int cpu_moe : {1, -1}) {
+        const std::string flag = cpu_moe < 0 ? "--cpu-moe" : "--n-cpu-moe";
+        infer::PlacementRequest request;
+        request.cpu_moe = cpu_moe;
+        request.names = {"a", "b"};
+        request.width = 2;
+        std::string why;
+        try { infer::plan_placement(infer::gguf_weights(moe), {std::make_shared<HostMemoryDevice>(), std::make_shared<HostMemoryDevice>()}, request, options); }
+        catch (const std::runtime_error& e) { why = e.what(); }
+        require(why == flag + ": not with a tensor split", "experts on the CPU accepted beside a tensor group, or refused by another flag's name");
+        request.width = 1;
+        why.clear();
+        try { infer::plan_placement(infer::gguf_weights(moe), {std::make_shared<backend::CpuBackend>(), silent}, request, options); }
+        catch (const std::runtime_error& e) { why = e.what(); }
+        require(why.rfind(flag + ": not with the CPU as a device of a split", 0) == 0, "experts on the CPU accepted with the CPU listed among several devices");
+        ++checked;
+    }
+}
+
 int main() {
     try {
+        // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
+        std::vector<std::future<void>> waiting;
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits})
+            waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         group_fits();
         context_keeps_logits_pages();
@@ -2767,14 +2894,10 @@ int main() {
         carried_rows();
         entry_replicas();
         external_lookup_fits();
-        replies_arena_fitted();
-        lookup_storage_planned();
         host_budget_shared();
         two_tables_share();
         split_matches_single();
-        layer_split_fits();
         histories_fit_the_pool();
-        kv_fitted();
         bad_placements_refused();
         for (bool devices : {false, true}) {
             pipelined_matches_single(devices);
@@ -2787,6 +2910,7 @@ int main() {
         passes_refused();
         passes_continue();
         passes_match_alone();
+        for (auto& settling : waiting) settling.get();
         std::cout << "placement: " << checked << " checks across two, three and four CPU backends\n";
         for (const auto& path : table_files) std::filesystem::remove(path);
         return 0;

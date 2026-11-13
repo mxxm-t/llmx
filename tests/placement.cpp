@@ -2677,6 +2677,71 @@ void group_fits() {
     ++checked;
 }
 
+// A server's replies' arena (Model::reserve_passes above one pass in flight) is fitted beside the KV budget, and a reservation that fails gives back what it took.
+// Two devices with a budget each, whose allocations past `cap` throw, stand for devices the automatic KV budget fills.
+void replies_arena_fitted() {
+    struct RoomCpu : SizedDevice {
+        size_t cap = SIZE_MAX;
+        std::shared_ptr<size_t> live = std::make_shared<size_t>(0);
+        int syncs = 0;
+        backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+            if (*live + bytes > cap) throw std::runtime_error("test: allocation past the device's cap");
+            backend::BufferPtr b = SizedDevice::alloc(bytes, where);
+            *live += bytes;
+            auto held = live;
+            return backend::BufferPtr(b.get(), [b, held, bytes](backend::Buffer*) mutable { *held -= bytes; b.reset(); });
+        }
+        void sync() noexcept override { ++syncs; }
+    };
+    const auto weights = fixture();
+    const size_t decode = 512;
+    auto place = [&](size_t slots, size_t decode_rows, std::vector<std::shared_ptr<RoomCpu>>* kept = nullptr) {
+        std::vector<backend::BackendPtr> two;
+        for (int d = 0; d < 2; ++d) {
+            auto c = std::make_shared<RoomCpu>();
+            c->room = size_t(16) << 20;
+            c->set_threads(1);
+            if (kept) kept->push_back(c);
+            two.push_back(c);
+        }
+        infer::PlacementRequest request;
+        request.names = {"a", "b"};
+        request.shares = {1, 1};
+        request.ubatch = 4;
+        request.slots = slots;
+        request.decode_rows = decode_rows;
+        request.kv_auto = true;
+        return infer::place_model(infer::gguf_weights(weights), two, request, infer::ModelOptions()).model;
+    };
+    // One slot and two keep the same handoff buffers, so only the replies' arena tells their budgets apart.
+    std::vector<std::shared_ptr<RoomCpu>> devs;
+    auto model = place(2, decode, &devs);
+    require(model->kv_tokens_total() < place(1, decode)->kv_tokens_total(), "the KV budget filled the devices with no room for a server's replies' arena");
+    ++checked;
+    const size_t rows = model->prefill_batch() + decode;
+    std::vector<size_t> base, took;
+    for (auto& d : devs) base.push_back(*d->live);
+    {
+        infer::ExecContext ok;
+        model->reserve_passes(ok, 2, rows, rows, decode);
+        for (size_t d = 0; d < devs.size(); ++d) took.push_back(*devs[d]->live - base[d]);
+    }
+    for (size_t d = 0; d < devs.size(); ++d) {
+        require(took[d] > 0 && *devs[d]->live == base[d], "a reservation of passes took nothing on a device, or kept it past its context");
+        devs[d]->cap = base[d] + took[d] / 2;
+        devs[d]->syncs = 0;
+    }
+    bool refused = false;
+    try {
+        infer::ExecContext ctx;
+        model->reserve_passes(ctx, 2, rows, rows, decode);
+    } catch (const std::runtime_error&) { refused = true; }
+    require(refused, "a reservation of passes past the devices' memory did not fail");
+    for (size_t d = 0; d < devs.size(); ++d)
+        require(devs[d]->syncs > 0 && *devs[d]->live == base[d], "a failed reservation of passes kept memory or did not sync a device it used");
+    ++checked;
+}
+
 int main() {
     try {
         tensor_widths();
@@ -2691,6 +2756,7 @@ int main() {
         carried_rows();
         entry_replicas();
         external_lookup_fits();
+        replies_arena_fitted();
         lookup_storage_planned();
         host_budget_shared();
         two_tables_share();

@@ -31,7 +31,15 @@ inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, s
     if (!slots || !rows) throw std::logic_error("inference: reserve_passes needs a slot and a row");
     if (slots > 1 && !pipelined_) throw std::logic_error("inference: passes in flight need a pipelined placement");
     ExecContext reserved;
-    ensure(reserved, rows, logit_rows, handoffs(slots), reply_rows);
+    try {
+        ensure(reserved, rows, logit_rows, handoffs(slots), reply_rows);
+    } catch (...) {
+        // What the attempt took goes back to its devices before a caller tries fewer passes, as a dropped buffer waits for its device's next ticket.
+        reserved = ExecContext();
+        for (auto& d : devices_)
+            if (d->used) d->b->sync();
+        throw;
+    }
     reserved.passes.resize(slots);
     reserved.slots = slots;
     reserved.pass_rows = rows;

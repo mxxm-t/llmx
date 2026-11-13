@@ -149,8 +149,10 @@ inline void check_split(size_t devices, const std::vector<int>& shares) {
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
-                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt) {
+                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt, size_t reply_rows = 0) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
+    // Every arena a device keeps at once: a pass's, the model's own context's and a server's replies' (Model::reserve_passes), each with its activations, lookup rows and host indices.
+    const size_t arena_rows = backend::size_add(backend::size_add(rows, fp.context_rows), reply_rows);
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
     check_split(N, shares);
@@ -166,7 +168,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         const LookupMemory& lookup = fp.lookups[l];
         if (!lookup.rows_per_token) continue;
         const size_t rows_per_pass = backend::size_mul(lookup.rows_per_token, lookup.row_bytes);
-        lookup_device[l] = backend::size_mul(rows, rows_per_pass);
+        lookup_device[l] = backend::size_mul(arena_rows, rows_per_pass);
         auto host_capacity = [&](size_t nrows) {
             if (!nrows) return size_t(0);
             const size_t count = backend::size_mul(nrows, lookup.rows_per_token);
@@ -230,7 +232,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         Host h;
         // A layer split is pipelined, and every stage but the last sends its residual on.
         h.need = logit_rows.value_or(rows) * fp.logits_per_row + fp.tables + fp.host_state + (used.size() > 1 ? handoff_buffers(slots, true) * (used.size() - 1) * rows * fp.handoff_per_row : 0);
-        h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(rows, fp.host_scratch_per_row)));
+        h.need = backend::size_add(h.need, backend::size_mul(used.size(), backend::size_mul(arena_rows, fp.host_scratch_per_row)));
         // A pipelined prompt keeps a pass in flight a stage, a server its slots.
         const size_t in_flight = std::max(slots, used.size());
         for (size_t l = 0; l < L; ++l) h.need = backend::size_add(h.need, backend::size_add(lookup_host[l], backend::size_mul(in_flight, lookup_pass[l])));
@@ -249,7 +251,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     auto overhead = [&](size_t d, const Host& h, bool last) {
         const size_t copies = devices[d].host ? 0 : fp.tables;
         const size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
-        return (rows + fp.context_rows) * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
+        return arena_rows * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {

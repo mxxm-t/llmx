@@ -454,6 +454,9 @@ inline size_t fitted_rows(const PlacementRequest& request) {
     return (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.draft_rows;
 }
 
+// The rows of the replies' arena a server keeps beside its passes' above one pass in flight: its generated tokens' and a verify's drafts (Scheduler, Model::reserve_passes).
+inline size_t reply_rows(const PlacementRequest& request) { return request.slots > 1 ? request.decode_rows + request.draft_rows : 0; }
+
 
 // Each tensor group's backends and names put in the order its first backend gives (Backend::member_order), so every member index, shard and name after it follows the devices (docs/TENSOR-SPLIT.md, section 4.1).
 inline void order_members(std::vector<backend::BackendPtr>& backends, PlacementRequest& request, size_t summed) {
@@ -575,7 +578,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
                 Footprint fp = footprint(source, *fitting, o, request.width);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
                 split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(),
-                             std::max<size_t>(1, request.slots), logits);
+                             std::max<size_t>(1, request.slots), logits, reply_rows(request));
                 return true;
             } catch (const std::runtime_error& e) {
                 why = e.what();
@@ -883,7 +886,8 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         const auto fits = [&] {
             try {
                 selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, sum_width(plan)), fitted_rows(request), request.shares,
-                                        host_room, std::max<size_t>(1, request.slots), request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
+                                        host_room, std::max<size_t>(1, request.slots), request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt,
+                                        reply_rows(request));
                 return true;
             } catch (const std::runtime_error& e) {
                 selected.reset();
@@ -947,7 +951,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         auto fit = [&] {
             try {
                 split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(), request.slots,
-                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
+                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt, reply_rows(request));
                 return true;
             } catch (const std::runtime_error&) {
                 refused = std::current_exception();

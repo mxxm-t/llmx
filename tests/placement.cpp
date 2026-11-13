@@ -660,7 +660,18 @@ void external_lookup_fits() {
                             host_capacity_total - 1, 1, size_t(0));
     } catch (const std::runtime_error&) { host_short = true; }
     require(host_short, "host lookup pages and index vectors were not fitted exactly");
-    checked += 6;
+    // A server's replies' arena (Model::reserve_passes) keeps its own activations and lookup rows beside a pass's arena on every device.
+    infer::Footprint replied = fit;
+    replied.activations_per_row = 16;
+    const size_t replies = rows - normal_rows, held = device_capacity + rows * 16;
+    const auto with_replies = infer::split_layers(replied, {device(held), device(size_t(1) << 20)}, normal_rows, {1, 1}, size_t(1) << 30, 2, size_t(0), replies);
+    require(with_replies.stages[0].other == held, "a server's replies' arena was not charged beside its passes' rows");
+    bool replies_short = false;
+    try {
+        infer::split_layers(replied, {device(held - 1), device(size_t(1) << 20)}, normal_rows, {1, 1}, size_t(1) << 30, 2, size_t(0), replies);
+    } catch (const std::runtime_error&) { replies_short = true; }
+    require(replies_short, "a device one byte short of a server's replies' arena was accepted");
+    checked += 8;
 }
 
 // The layer split fitted to device budgets (model/layer_split.hpp): even shares where room allows, a device without room left out, a host given only what the others cannot hold, tied weights counted once, and the fit exact against one device.

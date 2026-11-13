@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## The fit counts a server's replies' arena (2026-11-13, DSDEV162, branch dsdev162/reply-arena-fit)
+
+- **Goal:** a server that places runs its passes, so no device allocation fails after the fit accepted the placement.
+- **Fixed:** above one pass in flight `Model::reserve_passes` keeps a second arena on every device for the replies' passes, `max_seqs` and the drafts' rows with their lookup rows, and `split_layers` did not count it.
+  With the KV budget filling every card (`kv_auto`), DeepSeek-V4.1-Flash-1017 MXFP4 on ten MI50s, ROCm int8, `serve --ubatch 256` placed and then failed `hipMalloc` at every pass count from 11 down to 1, with the drafter and without it.
+  A debug build showed the failures: the 70.4 MiB replies' arena (64 rows) on rocm:4 at 11 passes, then the 352 MiB pass arena (320 rows) on rocm:4 and later rocm:0 at each lower count.
+  The lower counts failed too because the attempts' dropped buffers wait in the ROCm backend for the device's next ticket, which nothing records at load.
+  `split_layers` now takes `reply_rows` (`infer::reply_rows`, the request's sequences and drafts above one slot) and charges every arena's rows, a pass's, the context's and the replies', with activations, lookup rows and host indices; `reserve_passes` drops a failed attempt's buffers and syncs each used device before it throws.
+  `llmx-placement-test` holds the replies' arena to the byte, and its `replies_arena_fitted`, which lands first and fails on main, places two CPUs with two pass slots and the automatic KV budget and fails a reservation of passes midway.
+- **Done:** on the fixed binary the same serve without the drafter places and serves at the layer split, 2423040 KV tokens, 1 user 16.6 tok/s (ITL p50 44.68 ms) and 16 users 23.1 tok/s, and at width 2 with DSpark on its branch (dsdev157/dspark) 369152 KV tokens with no allocation failure.
+  Focused checks on this head: `llmx-placement-test` (1185 checks) and `llmx-server-passes-test` on the CPU build, and the suite's `server` component on one MI50 with `--device vulkan:0` and `--device rocm:0`, all passing.
+- **Left:** the landing gates of a host/runtime change (CTest, the CPU suite, Qwen3-0.6B byte identity against main, the hosted run), and F2DEV's review.
+
 ## Replies first on a split, and a chunk's stage yields to them between layer groups (2026-11-09 to 2026-11-10, DSDEV75 and DSDEV83 then DSDEV88 to DSDEV99, branches perf/serve-pipeline-plan and dsdev88/layer-yield, rebased onto main a5684cab3 by LAND23, then DSDEV107 and DSDEV116 on dsdev107/layer-yield-gap, merged onto main 224fb760e as one commit by DSDEV153 under F2DEV's ruling of 2026-11-12 18:22; F2DEV's reviews, the last of 2026-11-10 10:30; lands by fast-forward)
 
 - **Goal:** while replies and prompts both wait on a split, the plan prices the lap a reply takes through every stage, and a reply waits at a stage at most a few layer groups of the chunk recording there, never the chunk's whole stage, on a single device and a tensor group alike, the greedy ids unchanged.

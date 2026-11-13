@@ -196,7 +196,7 @@ The HIP runtime opens `/dev/kfd` and the card's render node, which on Debian and
 
 ### The CUDA backend on Linux
 
-The CUDA backend ([CUDA](CUDA.md)) is in development: it builds and its device-free checks pass, step 1's device checks and the F32 matmul ran on an RTX 3060, and no model has run on CUDA yet ([STATUS](STATUS.md)).
+The CUDA backend ([CUDA](CUDA.md)) is in development: it builds and its device-free checks pass, the suite's synthetic dense qwen3 models ran on an RTX 3060 at `--dtype f32` within the HF bounds, and no released model, other dtype or qwen35 model has run on CUDA yet ([STATUS](STATUS.md)).
 Install the CUDA toolkit 12.8 or newer, the first with sm_120, under `/usr/local/cuda`, or set `CUDA_PATH` to its root.
 Then:
 

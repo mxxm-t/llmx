@@ -25,6 +25,7 @@ SPILL_ALLOWED = {
     "llmx_q5_0_": "step 8, Q5_0",
     "llmx_q5_1_": "step 8, Q5_1",
     "llmx_iq4_nl_": "step 8, IQ4_NL",
+    "llmx_matmul_rows_iq4_nl": "step 8, IQ4_NL",
 }
 
 

@@ -391,7 +391,7 @@ the ROCm runtime numbers them, in a Linux build configured with
 machine without the ROCm runtime or the device, says so the same way.
 `--device cuda:N` runs it on CUDA device `N`, the driver's ordinal, in a Linux
 build configured with `-DLLMX_HAS_BACKEND_CUDA=ON` (`docs/CUDA.md`), which is in
-development: step 1's device checks and the F32 matmul ran on an RTX 3060, and no model has run on CUDA yet. The
+development: the suite's synthetic dense qwen3 models ran on an RTX 3060 at `--dtype f32` within the HF bounds, and no released model, other dtype or qwen35 model has run on CUDA yet. The
 ROCm backend reads F32, BF16, Q8_0, Q4_K, Q5_K, Q6_K, Q5_0, Q5_1, IQ4_NL and MXFP4 weights, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
 device's backend lacks is refused as it loads, naming the op; every op the

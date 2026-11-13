@@ -1,4 +1,4 @@
-// gpu-port: the arithmetic port.h's CUDA mappings share with the host (port_prmt, port_dot2_i16), checked against models of the AMD instructions the kernels were written for and of the NVIDIA ones that replace them.
+// gpu-port: the arithmetic port.h's CUDA mappings share with the host (port_prmt, port_dot2_i16, port_segment_mask), checked against models of the AMD instructions the kernels were written for and of the NVIDIA ones that replace them.
 #define LLMX_PORT_HOST_MODEL
 #include "backends/gpu/kernels/port.h"
 
@@ -104,5 +104,17 @@ int main() {
         if (amd_sdot2(a, b, s) != port_dot2_i16(a, b, s)) dot = false;
     }
     require(dot, "dot2_i16: two signed 16-bit products wrap mod 2^32 as the AMD instruction without clamp");
+
+    // A shuffle of width w and xor m < w reads lane l ^ m, which must lie in l's segment, the lanes l / w * w to l / w * w + w - 1, and every lane of a segment names the same mask.
+    bool seg = true;
+    for (int w : {1, 2, 4, 8, 16, 32, 64})
+        for (unsigned l = 0; l < 32; ++l) {
+            const unsigned first = w >= 32 ? 0u : l / (unsigned)w * (unsigned)w, count = w >= 32 ? 32u : (unsigned)w;
+            const unsigned want = count == 32 ? 0xffffffffu : ((1u << count) - 1u) << first, got = port_segment_mask(w, l);
+            if (got != want || !(got >> l & 1u) || got != port_segment_mask(w, first)) seg = false;
+            for (int m = 1; m < w && m < 32; m *= 2)
+                if (!(got >> (l ^ (unsigned)m) & 1u)) seg = false;
+        }
+    require(seg, "segment_lanes: each lane's mask is its own segment of the width, holding every partner of an xor below it");
     return failures ? 1 : 0;
 }

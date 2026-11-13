@@ -1,7 +1,7 @@
 # CUDA backend: design and qualification
 
 The CUDA backend is the second vendor backend over the shared GPU core in `src/backends/gpu/` ([backends-gpu](src/backends-gpu.md)), after ROCm ([ROCM](ROCM.md)).
-This page is its design and plan; step 1 of the order of work below is built, and its device checks and the F32 matmul ran on an RTX 3060, while no model has run on CUDA yet.
+This page is its design and plan; steps 1 and 2 of the order of work below are built, and the suite's synthetic dense qwen3 models ran on an RTX 3060 at `--dtype f32` within the HF bounds, while no released model, other dtype or qwen35 model has run on CUDA yet.
 The design was reviewed and approved on 2026-11-13.
 [STATUS](STATUS.md) records each step as it lands, and a result on a card nobody has run stays marked untested ([ROADMAP](ROADMAP.md), 4b).
 
@@ -49,7 +49,7 @@ Wave width is already a per-target constant and every block reduction is a tree 
 
 | AMD construct | CUDA form | Bits |
 | --- | --- | --- |
-| lane shuffles, swizzle, DPP moves | `__shfl_xor_sync` and `__shfl_down_sync` over the full mask | same pairs, same bits |
+| lane shuffles, swizzle, DPP moves | `__shfl_xor_sync` and `__shfl_down_sync` over the lanes of the exchange's width | same pairs, same bits |
 | first-lane read | `__shfl_sync` from lane 0 | same |
 | byte and bit align | funnel shift | same |
 | byte permute | `__byte_perm`, the selector translated per call, since the AMD form has zero and sign-replicate selectors | checked per call |

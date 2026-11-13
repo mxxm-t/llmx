@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## CUDA backend step 2: dense qwen3 at F32 on cuda:N (2026-11-13, CUDA8, branch cuda/backend, stacked on step 1)
+
+**Goal.** Step 2 of docs/CUDA.md, Order of work: dense qwen3 at `--dtype f32` on `cuda:N`, attention, f32 and f16 caches, norms, rope, sampling and server passes, held by the tiny HF fixtures and the suite's synthetic components on `cuda:0`.
+
+**Done.**
+- `port.h`: a shuffle of a width below the warp names that width's lanes alone (`segment_lanes`), since `attention_vec` runs two streams a warp whose loops end apart, which a full-warp mask leaves undefined.
+- The core gave a map-free build such as `llmx_rms_norm_16` the map its `_major` build takes, which HIP ignores and the driver refused as `CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES` on every qwen3 layer; step 0 now packs the map for the `_major` build alone (F2DEV's review of 22:21), so `CudaApi::launch` passes the core's bytes as they are.
+- `gpu-port` holds `port_segment_mask`, the mask `segment_lanes` gives each width and lane.
+- `cuda-sass` lists `llmx_matmul_rows_iq4_nl`, which spills on sm_120 after the shuffle change, under IQ4_NL at step 8.
+- Results (2026-11-13), RTX 3060 Laptop 12 GB (sm_86, driver 595.99.02), the rig's binaries built in the CUDA 12.9.1 image, suite with `--device cuda:0 --dtype f32 --no-perf-floor`, each component alone: `f32` (HF max logit error 6.2e-7 against 2e-5, NLL 4e-8 against 1e-5), `shards` (6.2e-7), `perplexity`, `chat`, `decode-probe` and `server` (its MXFP4 HF logprobs 1.25e-6 against the witnessed 4e-5; the real-model pass skips without its file) pass, and `cli` passes. `half-weights` skips at `--dtype f32` by design, `baseline` skips without its real-model files, and `version` fails there only because the copy carries no `build.bat`, which it reads from the tree. `backend-cuda` passes on the same card. With `--cache-type f16` `chat` (against HF), `perplexity` and `decode-probe` pass and the components that check exact f32 arithmetic skip, as `f32_cache_skip` gives. On the rig `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass.
+- Recheck after the map change (2026-11-14, CUDA10), the step 2 head restacked on step 0 at main ad437ef47, built in the CUDA 12.9.1 image: on an RTX 3060 12 GB `backend-cuda` passes, and with `--device cuda:0 --dtype f32` `f32` (HF max logit error 6.2e-7 against 2e-5, NLL 4e-8 against 1e-5) and `chat` pass. On the rig `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass, the ROCm code objects disassemble identically to step 0's, and `gpu-core`, `backend-rocm`, `backend-rocm-sixteen` and `backend-rocm-scratch` pass on four MI50s.
+
+**Left.** F2DEV's review. Step 8: `shuffle_xor(v, m, 64)` at `f32.gpu` (`rm_xlane` in the MoE routing and the indexer's lut dots peak) passes width 64 to a sync shuffle bounded by the 32-lane warp under CUDA; step 8 ports those two as trees of 2 x 32. `drafters` hangs on CUDA in its tiny qwen35 fixtures (`llmx logits` at 100% GPU, killed), qwen35 being step 5: `lanes8` in `gated_delta_rule` and the other full-warp exchanges of the qwen35 kernels are the first suspects.
+
 ## CUDA backend step 1: build option, driver table, device, buffers and the F32 kernels (2026-11-13, CUDA5, branch cuda/backend stacked on cuda/gpu-core, step 0, which lands first and alone; plan docs/CUDA.md approved by F2DEV on 2026-11-13)
 
 **Goal.** Step 1 of docs/CUDA.md, Order of work: `LLMX_HAS_BACKEND_CUDA`, the fatbin, the driver call table, device facts, `cuda:N`, buffers, tickets, errors, the F32 kernels and the F32 matmul, over the shared GPU core.
@@ -14,7 +28,7 @@
   `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass. ROCm on one MI50 32 GB: `backend-rocm`, `backend-rocm-sixteen` and `backend-rocm-scratch` pass, and the five code objects (f32 and int16 for gfx906 and gfx1151, int16dot for gfx906) disassemble identical to step 0's.
   RTX 3060 12 GB (sm_86, driver 595.91.07, CUDA 13.2), the rig's binaries: `backend-cuda` passes, the warp, SM version, units, memory and identity as the driver reports them, a 16 MiB round trip, an allocation past the device refused as `CUDA_ERROR_OUT_OF_MEMORY` with the backend's name, and the F32 matmul against the CPU backend at 1024->3072 over 1, 4 and 64 rows, 3072->1024 over 512 rows and 1000->77 over 3 rows, worst error below 0.001 of the bound, through `llmx_matmul_f32x1`, `llmx_matmul_cols4_f32x1` and `llmx_matmul_rows_f32x1`; `cuda-driver` against the installed driver, `gpu-core` and `gpu-port` pass there too, on two instances. The suite's `dead-code` and `docs` components pass, which now count a Python script a CTest runs (`cuda-sass`).
 
-**Left.** Step 2, from a fresh brief. The hosted compile job (docs/CI.md) with the toolkit and no GPU. Step 6: `cuda_device.hpp` reads no stream memory operations attribute, which the handoff row needs before `wait_word` is used (F2DEV).
+**Left.** The hosted compile job (docs/CI.md) with the toolkit and no GPU. Step 6: `cuda_device.hpp` reads no stream memory operations attribute, which the handoff row needs before `wait_word` is used (F2DEV).
 
 **Gotchas.**
 - nvcc reads no host `constexpr` array in device code, so a table the kernels read goes through `GPU_TABLE`, a device copy made at compile time; it also needs `--expt-relaxed-constexpr` for the quant layout functions.

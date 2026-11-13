@@ -120,19 +120,28 @@ LLMX_PORT_MODEL int port_dot2_i16(int a, int b, int s) {
     const unsigned lo = (unsigned)((int)(short)a * (int)(short)b), hi = (unsigned)((int)(short)(a >> 16) * (int)(short)(b >> 16));
     return (int)((unsigned)s + lo + hi);
 }
+// The lanes of a 32-lane warp in lane's segment of `width` lanes, width a power of two, the whole warp from 32 up.
+LLMX_PORT_MODEL unsigned port_segment_mask(int width, unsigned lane) {
+    return width >= 32 ? 0xffffffffu : ((1u << width) - 1u) << (lane & ~(unsigned)(width - 1));
+}
 
 #endif
 
 #if defined(__CUDACC__)
 
-// Under CUDA a wave is a warp of 32 lanes, and every exchange names the full warp, since the kernels call them with all lanes active.
+// Under CUDA a wave is a warp of 32 lanes; an exchange of a width names that width's lanes alone, since a kernel may run a loop whose trip count differs between the segments of one warp.
 #define GPU_WAVE 32
 
 #define LLMX_FULL_WARP 0xffffffffu
+__device__ __forceinline__ unsigned segment_lanes(int width) {
+    unsigned lane;
+    asm("mov.u32 %0, %%laneid;" : "=r"(lane));
+    return port_segment_mask(width, lane);
+}
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor_sync(LLMX_FULL_WARP, v, m); }
-template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m, int width) { return __shfl_xor_sync(LLMX_FULL_WARP, v, m, width); }
+template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m, int width) { return __shfl_xor_sync(segment_lanes(width), v, m, width); }
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d) { return __shfl_down_sync(LLMX_FULL_WARP, v, d); }
-template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down_sync(LLMX_FULL_WARP, v, d, width); }
+template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down_sync(segment_lanes(width), v, d, width); }
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) {
     static_assert(M == 1 || M == 2, "quad_perm exchanges cover xor 1 and 2");
     return __shfl_xor_sync(LLMX_FULL_WARP, v, M);

@@ -1,5 +1,27 @@
 # llmx - Development Status
 
+## CUDA backend step 1: build option, driver table, device, buffers and the F32 kernels (2026-11-13, CUDA5, branch cuda/backend stacked on cuda/gpu-core, step 0, which lands first and alone; plan docs/CUDA.md approved by F2DEV on 2026-11-13)
+
+**Goal.** Step 1 of docs/CUDA.md, Order of work: `LLMX_HAS_BACKEND_CUDA`, the fatbin, the driver call table, device facts, `cuda:N`, buffers, tickets, errors, the F32 kernels and the F32 matmul, over the shared GPU core.
+
+**Depends on** cuda/gpu-core (step 0, the shared core and `port.h`), not yet on main; this branch rebases onto its squashed commit when it lands.
+
+**Done.**
+- `port.h` has its CUDA branch; `f32.gpu` and `int16.gpu` compile under nvcc 12.9 for sm_80, 86, 89, 90 and 120 plus compute_80 PTX. The two acquire fences and the host tables the kernels read moved behind `port.h` (`fence_acquire_system`, `GPU_TABLE`), which under HIP expand to what the kernels called before.
+- `src/backends/cuda/`: the driver table (`libcuda.so.1` by `dlopen`), `cuda_device`, `CudaApi` over the shared core, `--device cuda:N`; CMake, `cmake/llmx-config.hpp.in` and `src/config.hpp` carry the option, off by default.
+- Tests: `gpu-port` and `gpu-core` (always built), `cuda-driver`, `cuda-sass` and `backend-cuda` (CUDA builds).
+- Results (2026-11-13). Build in the CUDA 12.9.1 toolkit image with the option on: every target builds, and of CTest's 86 tests `backend-cuda` skips for want of a card, `server-spec` failed once under `-j8` and passed three times alone (this branch touches no server code), and the rest pass.
+  `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass. ROCm on one MI50 32 GB: `backend-rocm`, `backend-rocm-sixteen` and `backend-rocm-scratch` pass, and the five code objects (f32 and int16 for gfx906 and gfx1151, int16dot for gfx906) disassemble identical to step 0's.
+  RTX 3060 12 GB (sm_86, driver 595.91.07, CUDA 13.2), the rig's binaries: `backend-cuda` passes, the warp, SM version, units, memory and identity as the driver reports them, a 16 MiB round trip, an allocation past the device refused as `CUDA_ERROR_OUT_OF_MEMORY` with the backend's name, and the F32 matmul against the CPU backend at 1024->3072 over 1, 4 and 64 rows, 3072->1024 over 512 rows and 1000->77 over 3 rows, worst error below 0.001 of the bound, through `llmx_matmul_f32x1`, `llmx_matmul_cols4_f32x1` and `llmx_matmul_rows_f32x1`; `cuda-driver` against the installed driver, `gpu-core` and `gpu-port` pass there too, on two instances. The suite's `dead-code` and `docs` components pass, which now count a Python script a CTest runs (`cuda-sass`).
+
+**Left.** Step 2, from a fresh brief. The hosted compile job (docs/CI.md) with the toolkit and no GPU. Step 6: `cuda_device.hpp` reads no stream memory operations attribute, which the handoff row needs before `wait_word` is used (F2DEV).
+
+**Gotchas.**
+- nvcc reads no host `constexpr` array in device code, so a table the kernels read goes through `GPU_TABLE`, a device copy made at compile time; it also needs `--expt-relaxed-constexpr` for the quant layout functions.
+- `int16_dot_module` is null on CUDA until the F16 class's dot builds come (step 3); the core then runs the plain int16 module and skips the fused MoE steps.
+- Spills today are listed in `tests/cuda_sass.py` by kernel family with the step that removes them (Q4_K, Q5_K, Q6_K and Q8_0 at step 3, the group sums at step 6, MXFP4, Q5_0, Q5_1, IQ4_NL, MoE routing and the deepseek4 kernels at step 8), since which kernels of a family spill moves between targets.
+- The SASS of kernels that divide or take a square root holds FTZ forms from ptxas's IEEE `div.rn` and `sqrt.rn` expansions behind a slow path, and the math library's `expf`, `exp2f` and `ldexpf` use `ex2.approx.ftz` on a range-reduced argument; `cuda-sass` holds the PTX to no other `.ftz` and the F32 matmul SASS to none.
+
 ## CUDA plan step 0: the shared GPU core (2026-11-13, CUDA2, CUDA3 then CUDA4, rebased by CUDA9 and proved by CUDA10, branch cuda/gpu-core, built and proved on main ad437ef47; lands by fast-forward after F2DEV's review)
 
 - **Goal:** the ROCm backend's host code and kernels move into `src/backends/gpu/` as a core a second vendor backend instantiates, with no change of behaviour, so the CUDA backend reuses them rather than copying them.

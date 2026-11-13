@@ -14,8 +14,11 @@
 #if LLMX_HAS_BACKEND_ROCM
 #include "backends/rocm/rocm_backend.hpp"
 #endif
+#if LLMX_HAS_BACKEND_CUDA
+#include "backends/cuda/cuda_backend.hpp"
+#endif
 
-// The backends a device spec names: `cpu`, `vulkan:N` or `rocm:N` (`vulkan` alone is `vulkan:0`, `rocm` alone `rocm:0`), one or a comma-separated list, and the backend each names.
+// The backends a device spec names: `cpu`, `vulkan:N`, `rocm:N` or `cuda:N` (a name alone is device 0), one or a comma-separated list, and the backend each names.
 namespace backend {
 
 // A device spec in its one spelling, so `vulkan`, `vulkan:0` and `vulkan:00` are the same device.
@@ -23,7 +26,7 @@ inline std::string canonical_device(const std::string& spec) {
     if (spec == "cpu") return spec;
     const size_t colon = spec.find(':');
     const std::string name = spec.substr(0, colon);
-    if (name != "vulkan" && name != "rocm") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N, rocm:N)");
+    if (name != "vulkan" && name != "rocm" && name != "cuda") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N, rocm:N, cuda:N)");
     unsigned long index = 0;
     if (colon != std::string::npos) {
         const std::string rest = spec.substr(colon + 1);
@@ -59,6 +62,13 @@ inline BackendPtr make_backend(const std::string& spec, bool diagnostics = false
         return make_rocm_backend(index);
 #else
         throw std::runtime_error("--device rocm: this build has no ROCm backend (LLMX_HAS_BACKEND_ROCM)");
+#endif
+    }
+    if (device.compare(0, 5, "cuda:") == 0) {
+#if LLMX_HAS_BACKEND_CUDA
+        return make_cuda_backend(index);
+#else
+        throw std::runtime_error("--device cuda: this build has no CUDA backend (LLMX_HAS_BACKEND_CUDA)");
 #endif
     }
 #if LLMX_HAS_BACKEND_VULKAN

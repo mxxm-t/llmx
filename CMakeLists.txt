@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 3.16)
 project(llmx VERSION 0.1.0 LANGUAGES CXX)
 
 # llmx: a dependency-free GGUF runtime, built on Windows, Linux and macOS.
-# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, and the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux, with the ROCm SDK.
+# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux, with the ROCm SDK, and the CUDA backend through LLMX_HAS_BACKEND_CUDA, on Linux, with the CUDA toolkit.
 # Split mode and node count are runtime parameters, not build options.
 
 option(LLMX_HAS_BACKEND_VULKAN "Build the Vulkan backend" OFF)
 option(LLMX_HAS_BACKEND_ROCM "Build the ROCm backend (Linux)" OFF)
+option(LLMX_HAS_BACKEND_CUDA "Build the CUDA backend (Linux)" OFF)
 
 add_executable(llmx
     src/cli/main.cpp
@@ -25,6 +26,11 @@ if(LLMX_HAS_BACKEND_ROCM)
     set(LLMX_BACKEND_ROCM_FLAG 1)
 else()
     set(LLMX_BACKEND_ROCM_FLAG 0)
+endif()
+if(LLMX_HAS_BACKEND_CUDA)
+    set(LLMX_BACKEND_CUDA_FLAG 1)
+else()
+    set(LLMX_BACKEND_CUDA_FLAG 0)
 endif()
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/llmx-config.hpp.in
@@ -362,6 +368,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_link_libraries(llmx PRIVATE llmx-vulkan)
 endif()
 
+# The shared GPU kernels (docs/src/backends-gpu.md), compiled by each GPU backend's own compiler.
+set(LLMX_GPU_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gpu/kernels)
+
 # The ROCm backend (docs/ROCM.md): the SDK supplies the headers and the compiler at build time and the HIP runtime is opened at run time, so nothing links against libamdhip64.
 if(LLMX_HAS_BACKEND_ROCM)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -375,7 +384,6 @@ if(LLMX_HAS_BACKEND_ROCM)
     # Kernels are HIP in the tree, compiled to a code object for each target and embedded as byte arrays, as the Vulkan SPIR-V is; gfx1151 is compile coverage until hardware qualifies it.
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
-    set(LLMX_ROCM_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gpu/kernels)
     set(LLMX_ROCM_KERNELS f32 int16)
     set(LLMX_ROCM_OBJECTS)
     # Every kernel compiles without contraction, so a build of a body cannot fuse a product another build of it keeps apart; a fused multiply-add is written as fmaf (docs/src/backends-gpu.md).
@@ -386,9 +394,9 @@ if(LLMX_HAS_BACKEND_ROCM)
         add_custom_command(OUTPUT ${inc}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
             COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx1151
-                    -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_ROCM_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
+                    -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
             COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-            DEPENDS ${LLMX_ROCM_KERNEL_DIR}/${kernel}.gpu ${LLMX_ROCM_KERNEL_DIR}/quant.h ${LLMX_ROCM_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
             COMMENT "hip ${kernel}"
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${inc})
@@ -399,9 +407,9 @@ if(LLMX_HAS_BACKEND_ROCM)
     add_custom_command(OUTPUT ${inc}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
         COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
-                -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_ROCM_KERNEL_DIR}/int16.gpu -o ${bundle}
+                -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
         COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-        DEPENDS ${LLMX_ROCM_KERNEL_DIR}/int16.gpu ${LLMX_ROCM_KERNEL_DIR}/quant.h ${LLMX_ROCM_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
         COMMENT "hip int16dot"
         VERBATIM)
     list(APPEND LLMX_ROCM_OBJECTS ${inc})
@@ -417,6 +425,44 @@ if(LLMX_HAS_BACKEND_ROCM)
     target_link_libraries(llmx PRIVATE llmx-rocm)
 endif()
 
+# The CUDA backend (docs/CUDA.md): the toolkit supplies cuda.h and nvcc at build time and the driver is opened at run time, so nothing links against libcuda or the CUDA runtime.
+if(LLMX_HAS_BACKEND_CUDA)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_CUDA is Linux only")
+    endif()
+    find_program(LLMX_NVCC nvcc HINTS $ENV{CUDA_PATH}/bin /usr/local/cuda/bin)
+    find_path(LLMX_CUDA_INCLUDE_DIR cuda.h HINTS $ENV{CUDA_PATH}/include /usr/local/cuda/include)
+    if(NOT LLMX_NVCC OR NOT LLMX_CUDA_INCLUDE_DIR)
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_CUDA needs nvcc and cuda.h: install the CUDA toolkit 12.8 or newer, or set CUDA_PATH")
+    endif()
+    # SASS for every target the backend claims and PTX for later ones; 12.8 is the first toolkit with sm_120.
+    set(LLMX_CUDA_ARCHS 80 86 89 90 120)
+    set(LLMX_CUDA_OBJECTS)
+    foreach(kernel f32 int16)
+        set(fatbin ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.fatbin)
+        set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.inc)
+        add_custom_command(OUTPUT ${inc} ${fatbin} ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda
+            COMMAND ${CMAKE_COMMAND} -DNVCC=${LLMX_NVCC} -DSRC=${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -DOUT=${fatbin}
+                    -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas -DINCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/src
+                    "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=80 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
+            COMMAND ${CMAKE_COMMAND} -DIN=${fatbin} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+                    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            COMMENT "nvcc ${kernel}"
+            VERBATIM)
+        list(APPEND LLMX_CUDA_OBJECTS ${inc})
+    endforeach()
+    add_custom_target(llmx-cuda-kernels DEPENDS ${LLMX_CUDA_OBJECTS})
+    add_library(llmx-cuda STATIC src/backends/cuda/cuda_backend.cpp)
+    add_dependencies(llmx-cuda llmx-cuda-kernels)
+    target_include_directories(llmx-cuda
+        PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
+        PRIVATE ${LLMX_CUDA_INCLUDE_DIR})
+    target_link_libraries(llmx-cuda PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(llmx PRIVATE llmx-cuda)
+endif()
+
 include(CTest)
 set(LLMX_TARGETS llmx)
 if(LLMX_HAS_BACKEND_VULKAN)
@@ -424,6 +470,9 @@ if(LLMX_HAS_BACKEND_VULKAN)
 endif()
 if(LLMX_HAS_BACKEND_ROCM)
     list(APPEND LLMX_TARGETS llmx-rocm)
+endif()
+if(LLMX_HAS_BACKEND_CUDA)
+    list(APPEND LLMX_TARGETS llmx-cuda)
 endif()
 if(BUILD_TESTING)
     include(cmake/tests.cmake)

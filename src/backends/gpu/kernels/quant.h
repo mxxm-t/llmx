@@ -88,7 +88,7 @@ struct IQ4_NL {
     static constexpr unsigned values = quant::IQ4_NL_BLOCK, bytes = quant::IQ4_NL_TYPESIZE;
     __device__ static float value(const unsigned char* b, int j) {
         const int q = j < 16 ? b[2 + j] & 0xF : b[2 + j - 16] >> 4;
-        return half_at(b) * (float)quant::IQ4_NL_VALUES[q];
+        return half_at(b) * (float)GPU_TABLE(quant::IQ4_NL_VALUES)[q];
     }
 };
 
@@ -99,7 +99,7 @@ struct MXFP4 {
     static constexpr unsigned values = quant::MXFP4_BLOCK, bytes = quant::MXFP4_TYPESIZE;
     __device__ static float value(const unsigned char* b, int j) {
         const int q = j < 16 ? b[1 + j] & 0xF : b[1 + j - 16] >> 4;
-        return e8m0_half(b[0]) * (float)quant::FP4_VALUES[q];
+        return e8m0_half(b[0]) * (float)GPU_TABLE(quant::FP4_VALUES)[q];
     }
 };
 

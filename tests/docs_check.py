@@ -159,7 +159,7 @@ class Tree:
             if p.endswith(".py") and p.startswith(("tests/", "tools/")):
                 self.members[os.path.splitext(p.rsplit("/", 1)[-1])[0]] |= set(ID.findall(bare[p]))
         cmake = texts["CMakeLists.txt"] + "\n" + texts.get("cmake/tests.cmake", "")
-        self.ctests = dict(re.findall(r"add_test\(NAME ([\w-]+) COMMAND ([\w-]+)", cmake))
+        self.ctests = dict(re.findall(r"add_test\(NAME ([\w-]+) COMMAND (?:\$\{Python3_EXECUTABLE\} \S*/)?([\w.-]+)", cmake))
         self.targets = dict(re.findall(r"add_executable\(([\w-]+)\s+([\w/.]+)", cmake))
         runner = texts["tests/run_tests.py"]
         self.components = dict(re.findall(r'\("([\w-]+)",\s*(?:lambda:\s*)?(\w+)\.run', runner))

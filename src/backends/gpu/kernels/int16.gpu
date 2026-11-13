@@ -884,7 +884,7 @@ template <> struct KRaw<rq::IQ4_NL> {
             const unsigned l = lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16);
             v[i] = 0;
 #pragma unroll
-            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)quant::IQ4_NL_VALUES[(l >> (8 * j + sh)) & 0xF] & 0xffu) << (8 * j);
+            for (int j = 0; j < 4; ++j) v[i] |= ((unsigned)GPU_TABLE(quant::IQ4_NL_VALUES)[(l >> (8 * j + sh)) & 0xF] & 0xffu) << (8 * j);
         }
         ds = __half2float(__ushort_as_half(d));
         dmin = 0.0f;

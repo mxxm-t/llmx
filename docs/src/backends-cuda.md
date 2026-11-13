@@ -1,0 +1,10 @@
+# `src/backends/cuda/` - the CUDA backend
+
+The CUDA backend over the NVIDIA driver ([CUDA](../CUDA.md)), built only with `LLMX_HAS_BACKEND_CUDA` on Linux: the shared GPU core and kernels ([backends-gpu](backends-gpu.md)) over the driver API, its kernels compiled by nvcc to a fatbin and embedded.
+
+- `cuda_runtime.hpp`: the driver opened at run time with `dlopen("libcuda.so.1")`, its calls in one table (`cu()`) loaded by the symbol `cuda.h` maps each name to (`cuMemAlloc` to `cuMemAlloc_v2`) with the header's own types; `LLMX_CU_SYMBOL` gives each call's symbol and `cu_load` fills the table from a library handle. A missing library, call or device throws `CudaUnavailable`, which the caller reports as a missing device, and `cu_check` turns a failed call into a runtime error naming the call and the driver's reason.
+- `cuda_device.hpp`: a device as the driver reports it (`cuda_device(index)`, `index` the driver's ordinal): its warp width, multiprocessors, a block's static shared memory, name and driver version in `DeviceCaps`, and beside them its SM version, memory, threads a multiprocessor holds and PCI address and root complex.
+- `cuda_backend.hpp`: `make_cuda_backend(index)`, the one entry the device factory ([devices](backends-devices.md)) reaches for `--device cuda:N`, and `cuda_take_launches`, the witness of which kernels ran.
+- `cuda_backend.cpp`: the backend, a translation unit of its own: the embedded fatbins of `gpu/kernels` (`f32` and `int16`; no integer-dot module yet, so the core runs the plain one), `CudaApi`, the core's calls over the driver table, each through `cu()` at the call, with each device's primary context made current as `set_device`, and the core instantiated over it.
+
+The fatbins hold SASS for sm_80, sm_86, sm_89, sm_90 and sm_120 and PTX for compute_80, compiled by `cmake/nvcc.cmake` without contraction, flush to zero or approximate division and square root, which also keeps ptxas's report beside each fatbin for `cuda-sass`. `cuda-driver`, `cuda-sass` and `backend-cuda` are its CTests (docs/TESTS.md).

@@ -194,6 +194,21 @@ The ROCm and Vulkan backends can be built into one binary, both options given.
 **Access to the card.**
 The HIP runtime opens `/dev/kfd` and the card's render node, which on Debian and Ubuntu belong to the `render` group (on some distributions `video`), so add your user to it as for Vulkan.
 
+### The CUDA backend on Linux
+
+The CUDA backend ([CUDA](CUDA.md)) is in development: it builds and its device-free checks pass, step 1's device checks and the F32 matmul ran on an RTX 3060, and no model has run on CUDA yet ([STATUS](STATUS.md)).
+Install the CUDA toolkit 12.8 or newer, the first with sm_120, under `/usr/local/cuda`, or set `CUDA_PATH` to its root.
+Then:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_CUDA=ON
+cmake --build build --config Release --parallel
+```
+
+Without `nvcc` or `cuda.h`, configuring stops with `LLMX_HAS_BACKEND_CUDA needs nvcc and cuda.h`, and on another system with `LLMX_HAS_BACKEND_CUDA is Linux only`.
+The kernels are compiled at build time to a fatbin with SASS for sm_80, sm_86, sm_89, sm_90 and sm_120 and PTX for compute_80, and embedded in the binary.
+Nothing links against the driver, the CUDA runtime or a vendor library: llmx opens `libcuda.so.1` when a CUDA device is first asked for, so a CUDA build still runs on the CPU on a machine without the driver, and `--device cuda:N` there says the device is missing.
+
 ### Docker, with nothing installed on the host
 
 `docker/Dockerfile` builds a Debian trixie image with everything the Vulkan backend needs: the compiler, CMake, git, `glslc`, the headers, the loader, Mesa's drivers, Python and curl.
@@ -256,9 +271,10 @@ Other generators that hold several configurations, such as Ninja Multi-Config or
 |---|---|---|
 | `LLMX_HAS_BACKEND_VULKAN` | `OFF` | Builds the Vulkan backend into `llmx`, with every shader compiled by `glslc` at build time and embedded in the binary, so there are no shader files to ship |
 | `LLMX_HAS_BACKEND_ROCM` | `OFF` | Builds the ROCm backend into `llmx`, Linux only, with every HIP kernel compiled by the ROCm `clang++` at build time and embedded in the binary |
-| `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan or ROCm build, the backend libraries it links |
+| `LLMX_HAS_BACKEND_CUDA` | `OFF` | Builds the CUDA backend into `llmx`, Linux only, with every kernel compiled by `nvcc` at build time and embedded in the binary |
+| `BUILD_TESTING` | `ON` | Builds the native tests and tools and registers the tests with CTest; `OFF` builds only `llmx` and, in a Vulkan, ROCm or CUDA build, the backend libraries it links |
 
-With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan and ROCm devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
+With `BUILD_TESTING` on, every build has `llmx`, the `llmx-*-test` programs behind the CTests and the tools `llmx-split-check`, `llmx-decode-probe` and `llmx-model-logits`, which are not tests and take Vulkan, ROCm and CUDA devices when the build has them; `llmx-prefill-placement-test` is built on Windows only.
 The split tool accepts an optional dtype (`auto`, `f16`, `bf16`, `f32` or `int8`) after its cache type and an optional tensor width after the dtype, applying the dtype to both placements and reporting their completed matrix paths.
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 

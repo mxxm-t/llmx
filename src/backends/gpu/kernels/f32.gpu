@@ -349,7 +349,7 @@ __device__ bool group_meet(const GroupPeers* p, GroupSignal* self, int members, 
     }
     __syncthreads();
     // Every thread reads peers' staging after the barrier, so each takes the acquire itself.
-    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    fence_acquire_system();
     return !*failed;
 }
 
@@ -361,7 +361,7 @@ __device__ bool group_wait(const GroupPeers* p, GroupSignal* self, unsigned* slo
             if (group_stop(p, self, deadline, tick, &next, failed)) break;
     }
     __syncthreads();
-    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    fence_acquire_system();
     return !*failed;
 }
 // The block's stores reach the peer before thread 0 tells it the count `value` at `slot`.

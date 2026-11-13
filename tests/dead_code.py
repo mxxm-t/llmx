@@ -830,7 +830,7 @@ parse_python = functools.lru_cache(maxsize=None)(ast.parse)
 
 
 def python_findings(texts):
-    """`python`: a function, class, method or module constant in tests/ or tools/ that nothing reaches, an argparse option that neither its module nor a module its parsed namespace goes to reads, and a test module no suite import, workflow step or live doc's command line runs."""
+    """`python`: a function, class, method or module constant in tests/ or tools/ that nothing reaches, an argparse option that neither its module nor a module its parsed namespace goes to reads, and a test module no suite import, CTest, workflow step or live doc's command line runs."""
     modules = {}
     for p in sorted(texts):
         if p.endswith(".py") and p.count("/") == 1 and p.split("/")[0] in ("tests", "tools"):
@@ -1041,7 +1041,7 @@ def python_findings(texts):
     commands = script_commands(texts)
     for (top, name), (p, _) in sorted(modules.items()):
         if top == "tests" and (top, name) not in run and p not in commands:
-            found[("python", p, "module")] = ["%s: no suite import, workflow step or live doc's command line runs it" % p]
+            found[("python", p, "module")] = ["%s: no suite import, CTest, workflow step or live doc's command line runs it" % p]
     return found
 
 
@@ -1061,17 +1061,18 @@ def callee(imports, f):
     return None
 
 
+CTEST_SCRIPT = re.compile(r"add_test\(NAME [\w-]+ COMMAND \$\{Python3_EXECUTABLE\} \$\{CMAKE_CURRENT_SOURCE_DIR\}/((?:tests|tools)/\w+\.py)")
 SCRIPT_RUN = re.compile(r"\bpy(?:thon3?)?(?:\s+-[A-Za-z]+(?:\s+utf8)?)*\s+((?:tests|tools)/\w+\.py)\b")
 
 
 def script_commands(texts):
-    """The scripts of tests/ and tools/ that a workflow step, or a command line in a live section of a doc, runs with Python; a record or a plan naming one runs nothing."""
+    """The scripts of tests/ and tools/ that a CTest, a workflow step, or a command line in a live section of a doc, runs with Python; a record or a plan naming one runs nothing."""
     lines = [line for p, t in texts.items() if p.startswith(".github/") for line in t.split("\n")]
     for doc in docs_check.doc_files(texts):
         for _, line, region, fence in docs_check.doc_lines(doc, texts[doc]):
             if region == "live":
                 lines += [line] if fence else [m.group(2) for m in docs_check.SPAN.finditer(line)]
-    return {m.group(1) for line in lines for m in SCRIPT_RUN.finditer(line)}
+    return {m.group(1) for line in lines for m in SCRIPT_RUN.finditer(line)} | set(CTEST_SCRIPT.findall(cmake_text(texts)))
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1166,6 +1167,10 @@ def strip_templates(s):
 def parse_signature(sig):
     """(qualified name parts, parameter list text, trailing qualifiers) of a demangled function signature without template arguments, or None."""
     s = strip_templates(sig.replace("(anonymous namespace)::", "").replace("[abi:cxx11]", ""))
+    # A function returning a reference or pointer to an array or a function wraps its name in the return type's declarator, as `char const (&std::forward(...)) [11]`.
+    m = re.match(r"[^(]*\([&*]+\s*(.*)\)\s*(?:\[\d*\]|\(.*\))$", s)
+    if m:
+        s = m.group(1)
     depth, open_at = 0, None
     for i, c in enumerate(s):
         if c == "(":

@@ -1,18 +1,12 @@
-// The dense F32 kernels and the activation twins of the ROCm backend: every sum is F32 in a fixed order that depends on the row alone (docs/src/backends-rocm.md, Kernel notes).
+// The dense F32 kernels and the activation twins of the GPU backends: every sum is F32 in a fixed order that depends on the row alone (docs/src/backends-gpu.md, Kernel notes).
 // A block reduction folds lane partials in one tree whatever the wave width, so a row gives the same bits in any call.
-#include <hip/hip_runtime.h>
-#include <hip/hip_fp16.h>
-
-#include "backends/rocm/kernels/quant.h"
+#include "backends/gpu/kernels/port.h"
+#include "backends/gpu/kernels/quant.h"
 
 namespace {
 
 constexpr int kThreads = 256;
-#if defined(__GFX9__)
-constexpr int kWave = 64;
-#else
-constexpr int kWave = 32;
-#endif
+constexpr int kWave = GPU_WAVE;
 
 // The sum of each thread's value over the block, the same tree for every block and wave width: levels across waves in shared memory, the rest by shuffles in wave 0, each adding the pair the shared-memory level would.
 __device__ float block_sum(float v, float* lds) {
@@ -25,7 +19,7 @@ __device__ float block_sum(float v, float* lds) {
     }
     if ((int)threadIdx.x < warpSize) {
         float t = lds[threadIdx.x];
-        for (; s > 0; s >>= 1) t += __shfl_down(t, s);
+        for (; s > 0; s >>= 1) t += shuffle_down(t, s);
         if (threadIdx.x == 0) lds[0] = t;
     }
     __syncthreads();
@@ -45,7 +39,7 @@ __device__ void rms_norm_row(float* dst, const float* src, const float* w, int n
 // The largest magnitude of the 32 lanes of a twin block, a value a lane.
 __device__ inline float block_amax(float v) {
     float a = fabsf(v);
-    for (int o = 16; o > 0; o >>= 1) a = fmaxf(a, __shfl_xor(a, o, 32));
+    for (int o = 16; o > 0; o >>= 1) a = fmaxf(a, shuffle_xor(a, o, 32));
     return a;
 }
 
@@ -68,7 +62,7 @@ __device__ inline void twin_value(float v, float amax, QT* q, float* d, int lane
     if (lane == 0) *d = ldexpf(an / (float)L, -s);
 }
 
-// Where a twin's blocks lie (the host's TwinMap, rocm_backend.cpp): its rows in regions, region g from row first[g] and its blocks from base[g], row after row where pad[g] is 0, else block k of the region's rows together, pad[g] rows a block.
+// Where a twin's blocks lie (the host's TwinMap, backend_core.hpp): its rows in regions, region g from row first[g] and its blocks from base[g], row after row where pad[g] is 0, else block k of the region's rows together, pad[g] rows a block.
 struct TwinMap {
     unsigned regions, blocks, shift, magic_lo, magic_hi;   // fb / blocks = fb * magic >> shift for every fb below 2^31
     unsigned first[8], base[8], pad[8];
@@ -113,7 +107,7 @@ __device__ inline void twin_at(float v, unsigned long long i, void* q, float* d,
 template <typename QT, int L>
 __device__ inline void twin_four(const float4 o, unsigned long long i, unsigned long long b, QT* q, float* d) {
     float a = fmaxf(fmaxf(fabsf(o.x), fabsf(o.y)), fmaxf(fabsf(o.z), fabsf(o.w)));
-    for (int s = 4; s > 0; s >>= 1) a = fmaxf(a, __shfl_xor(a, s, 8));
+    for (int s = 4; s > 0; s >>= 1) a = fmaxf(a, shuffle_xor(a, s, 8));
     const int lane = (int)(i % 32);
     QT c[4];
     twin_value<QT, L>(o.x, a, &c[0], d + b, lane);
@@ -173,7 +167,7 @@ __device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__
     }
     if (t < warpSize) {
         float u = lds[t];
-        for (; h > 0; h >>= 1) u += __shfl_down(u, h);
+        for (; h > 0; h >>= 1) u += shuffle_down(u, h);
         if (t == 0) lds[0] = u;
     }
     __syncthreads();
@@ -226,8 +220,8 @@ extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long 
     if (i < n) dst[i] += src[i];
 }
 
-// A tensor group's sum (RocmCollective, docs/src/backends-rocm.md): each member's area holds this block of signals, then a staging slot for each member's partial rows.
-// kGroupMembers is the host's backend::kMaxTensorWidth, kGroupBlocks, kChainBlocks and kChainUnits the host's of the same names (rocm_collective.hpp).
+// A tensor group's sum (GpuCollective, docs/src/backends-gpu.md): each member's area holds this block of signals, then a staging slot for each member's partial rows.
+// kGroupMembers is the host's backend::kMaxTensorWidth, kGroupBlocks, kChainBlocks and kChainUnits the host's of the same names (collective_core.hpp).
 constexpr int kGroupBlocks = 32, kGroupMembers = 16, kChainBlocks = 16;
 constexpr unsigned long long kChainUnits = 4096;   // float4 units a chain's chunk
 struct GroupSignal {
@@ -250,7 +244,7 @@ static_assert(sizeof(GroupPeers) == 280, "the host's GroupPeers");  // in device
 // A fast one-shot's staging slot holds the signalling NaN kGroupArmed until its sender's value lands; a sender's value of those bits goes as the quiet kGroupQuiet, which any add makes of it (group_probe checks that on each device).
 constexpr unsigned kGroupArmed = 0x7f800001u, kGroupQuiet = 0x7fc00001u;
 constexpr unsigned kGroupSpinChecks = 64;   // spins of a slot between two looks at the stop words
-typedef unsigned GroupWord4 __attribute__((ext_vector_type(4)));
+typedef gpu_vector<4> GroupWord4;
 __device__ inline unsigned group_sane(float v) {
     const unsigned x = __float_as_uint(v);
     return x == kGroupArmed ? kGroupQuiet : x;
@@ -326,16 +320,16 @@ __device__ inline void group_poison(float* out, unsigned long long lo, unsigned 
 
 // Whether a wait gives up: a member set abort, or, read once a tick, the host set cancel or a probe's deadline passed.
 __device__ inline bool group_stop(const GroupPeers* p, GroupSignal* self, unsigned long long deadline, unsigned long long tick, unsigned long long* next, int* failed) {
-    if (__hip_atomic_load(&self->abort, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM)) {
-        __hip_atomic_store(failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
+    if (atomic_load_relaxed_system(&self->abort)) {
+        atomic_store_relaxed_block(failed, 1);
         return true;
     }
     // The host's cancel word is read once a tick, so a long wait does not stream reads of host memory.
-    const unsigned long long now = (unsigned long long)wall_clock64();
+    const unsigned long long now = (unsigned long long)wall_clock();
     if (now < *next) return false;
     *next = now + tick;
-    if (now > deadline || __hip_atomic_load(p->cancel, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM)) {
-        __hip_atomic_store(failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
+    if (now > deadline || atomic_load_relaxed_system(p->cancel)) {
+        atomic_store_relaxed_block(failed, 1);
         return true;
     }
     return false;
@@ -348,9 +342,9 @@ __device__ bool group_meet(const GroupPeers* p, GroupSignal* self, int members, 
         GroupSignal* peer = (GroupSignal*)p->signal[j];
         unsigned(*to)[kGroupMembers] = which == 0 ? peer->start : which == 1 ? peer->mid : peer->done;
         unsigned(*from)[kGroupMembers] = which == 0 ? self->start : which == 1 ? self->mid : self->done;
-        __hip_atomic_store(&to[b][rank], epoch, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
-        unsigned long long next = (unsigned long long)wall_clock64() + tick;
-        while (__hip_atomic_load(&from[b][j], __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_SYSTEM) != epoch)
+        atomic_store_release_system(&to[b][rank], epoch);
+        unsigned long long next = (unsigned long long)wall_clock() + tick;
+        while (atomic_load_acquire_system(&from[b][j]) != epoch)
             if (group_stop(p, self, deadline, tick, &next, failed)) break;
     }
     __syncthreads();
@@ -362,8 +356,8 @@ __device__ bool group_meet(const GroupPeers* p, GroupSignal* self, int members, 
 // Thread 0 waits until a chain's count at `slot` reaches `want`, a later count passing too, giving up as group_stop says; every thread then reads after the barrier.
 __device__ bool group_wait(const GroupPeers* p, GroupSignal* self, unsigned* slot, unsigned want, unsigned long long deadline, unsigned long long tick, int* failed) {
     if (!threadIdx.x) {
-        unsigned long long next = (unsigned long long)wall_clock64() + tick;
-        while ((int)(__hip_atomic_load(slot, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_SYSTEM) - want) < 0)
+        unsigned long long next = (unsigned long long)wall_clock() + tick;
+        while ((int)(atomic_load_acquire_system(slot) - want) < 0)
             if (group_stop(p, self, deadline, tick, &next, failed)) break;
     }
     __syncthreads();
@@ -374,15 +368,15 @@ __device__ bool group_wait(const GroupPeers* p, GroupSignal* self, unsigned* slo
 __device__ void group_pass(unsigned* slot, unsigned value) {
     __threadfence_system();
     __syncthreads();
-    if (!threadIdx.x) __hip_atomic_store(slot, value, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
+    if (!threadIdx.x) atomic_store_release_system(slot, value);
 }
 
 // A failed wait: every member stops waiting, and the host learns it from the status and fault words.
 __device__ void group_failed(const GroupPeers* p, int members, int rank) {
     if (threadIdx.x) return;
-    for (int k = 0; k < members; ++k) __hip_atomic_store(&((GroupSignal*)p->signal[k])->abort, 1u, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM);
-    __hip_atomic_store(&p->status[rank], 1u, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM);
-    __hip_atomic_store(p->fault, 1u, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM);
+    for (int k = 0; k < members; ++k) atomic_store_relaxed_system(&((GroupSignal*)p->signal[k])->abort, 1u);
+    atomic_store_relaxed_system(&p->status[rank], 1u);
+    atomic_store_relaxed_system(p->fault, 1u);
 }
 
 // Two shots: share k of the units, whole float4s, goes from every member into member k's staging, member k adds the share in member order into its out and into every peer's own slot, and each member adds the shares it gathered.
@@ -437,7 +431,7 @@ __device__ void group_two_shots(const GroupPeers* p, GroupSignal* self, const fl
     }
 }
 
-// A chain (docs/src/backends-rocm.md, the collective): member m adds its partial to the running sum from m - 1 chunk by chunk and passes it on, and the last member's total flows back down, or with `wrap` on around through 0 to W - 2.
+// A chain (docs/src/backends-gpu.md, the collective): member m adds its partial to the running sum from m - 1 chunk by chunk and passes it on, and the last member's total flows back down, or with `wrap` on around through 0 to W - 2.
 // Returns whether the block's waits met, one that failed leaving NaN in every chunk it writes into out; a back block arms the slot it read again for the one-shot, in the parity half at `half_at`.
 __device__ bool group_chain(const GroupPeers* p, GroupSignal* self, const float* own, float* out, unsigned long long n, unsigned long long cap, unsigned long long half_at, int members, int rank,
                             bool replace, bool wrap, unsigned long long deadline, unsigned long long tick, int* failed) {
@@ -503,14 +497,14 @@ __device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float*
     GroupWord4 w;
     for (unsigned s = 1;; ++s) {
         if (i + 4 <= n) {
-            w = *(const volatile GroupWord4*)(slot + i);
+            w = load_volatile((const GroupWord4*)(slot + i));
         } else {
             unsigned v[4] = {0u, 0u, 0u, 0u};
             for (unsigned long long k = i; k < n; ++k) v[k - i] = ((const volatile unsigned*)slot)[k];
             w = GroupWord4{v[0], v[1], v[2], v[3]};
         }
         if (w.x != kGroupArmed && w.y != kGroupArmed && w.z != kGroupArmed && w.w != kGroupArmed) break;
-        if (s % kGroupSpinChecks == 0 && (__hip_atomic_load(failed, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP) || group_stop(p, self, deadline, tick, next, failed))) return false;
+        if (s % kGroupSpinChecks == 0 && (atomic_load_relaxed_block(failed) || group_stop(p, self, deadline, tick, next, failed))) return false;
     }
     *got = make_float4(__uint_as_float(w.x), __uint_as_float(w.y), __uint_as_float(w.z), __uint_as_float(w.w));
     group_arm_unit(slot, i, n);
@@ -518,7 +512,7 @@ __device__ inline bool group_take(const GroupPeers* p, GroupSignal* self, float*
 }
 
 // Member `rank`'s part of a group sum of n floats: out = the members' rows added in member order (flag 1), or out += them.
-// Fast (flag 2), it writes its rows into every peer's parity half (flag 4) and takes each peer's as they land, a sum that gave up leaving NaN; else the host pulled them (docs/src/backends-rocm.md).
+// Fast (flag 2), it writes its rows into every peer's parity half (flag 4) and takes each peer's as they land, a sum that gave up leaving NaN; else the host pulled them (docs/src/backends-gpu.md).
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const GroupPeers* p, const float* own, float* out, unsigned long long n, unsigned long long cap,
                                                                       int members, int rank, int flags, unsigned long long timeout, unsigned long long tick) {
     __shared__ int failed;
@@ -544,7 +538,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
     }
     GroupSignal* self = (GroupSignal*)p->signal[rank];
     const unsigned long long half_at = (unsigned long long)(flags >> 2 & 1) * members * cap;
-    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock64() + timeout : ~0ull;
+    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
     if (!threadIdx.x) failed = 0;
     for (unsigned long long u = first; u < units; u += step) {
         const unsigned long long i = u * 4;
@@ -561,7 +555,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
     }
     __syncthreads();
     float* mine = p->stage[rank] + half_at;
-    unsigned long long next = (unsigned long long)wall_clock64() + tick;
+    unsigned long long next = (unsigned long long)wall_clock() + tick;
     bool met = true;
     for (unsigned long long u = first; u < units && met; u += step) {
         const unsigned long long i = u * 4;
@@ -581,7 +575,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_group_sum(const Grou
         }
         if (met) group_out(out, i, n, t, replace, aligned);
     }
-    if (!met) __hip_atomic_store(&failed, 1, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_WORKGROUP);
+    if (!met) atomic_store_relaxed_block(&failed, 1);
     __syncthreads();
     if (!failed) return;
     for (unsigned long long u = first; u < units; u += step)
@@ -595,7 +589,7 @@ __device__ void group_formed(const GroupPeers* p, const float* own, float* out, 
                              unsigned long long timeout, unsigned long long tick) {
     __shared__ int failed;
     GroupSignal* self = (GroupSignal*)p->signal[rank];
-    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock64() + timeout : ~0ull;
+    const unsigned long long deadline = timeout ? (unsigned long long)wall_clock() + timeout : ~0ull;
     unsigned epoch = self->epoch[blockIdx.x] + 1;
     if (!epoch) epoch = 1;
     if (!threadIdx.x) failed = 0;
@@ -896,7 +890,7 @@ template <class D, int J, int U> __device__ inline void vector_steps(const unsig
     for (int q = 0; q < U; ++q)
 #pragma unroll
         for (int k = 0; k < J / 4; ++k) a[q][k] = D::load4(row, u + 4 * k + q * kThreads), b[q][k] = ((const float4*)X)[(u + 4 * k + q * kThreads) / 4];
-    __builtin_amdgcn_sched_barrier(0);
+    schedule_barrier();
 #pragma unroll
     for (int q = 0; q < U; ++q)
 #pragma unroll
@@ -941,7 +935,7 @@ __device__ inline float exact_sum(const unsigned char* W, const float* X, unsign
 #pragma unroll
     for (int h = kThreads / 2; h >= J; h >>= 1)
 #pragma unroll
-        for (int j = 0; j < J; ++j) s[j] += __shfl_down(s[j], h / J, kWave);
+        for (int j = 0; j < J; ++j) s[j] += shuffle_down(s[j], h / J, kWave);
 #pragma unroll
     for (int h = J / 2; h > 0; h >>= 1)
 #pragma unroll
@@ -966,7 +960,7 @@ __device__ inline void vector_steps_cols(const unsigned char* row, const float* 
 #pragma unroll
             for (int c = 0; c < C; ++c) b[c][q][k] = ((const float4*)X[c])[(u + 4 * k + q * kThreads) / 4];
         }
-    __builtin_amdgcn_sched_barrier(0);
+    schedule_barrier();
 #pragma unroll
     for (int c = 0; c < C; ++c)
 #pragma unroll
@@ -1028,7 +1022,7 @@ __device__ void exact_cols(const unsigned char* W, const float* X, float* Y, uns
 #pragma unroll
         for (int h = kThreads / 2; h >= J; h >>= 1)
 #pragma unroll
-            for (int j = 0; j < J; ++j) s[c][j] += __shfl_down(s[c][j], h / J, kWave);
+            for (int j = 0; j < J; ++j) s[c][j] += shuffle_down(s[c][j], h / J, kWave);
 #pragma unroll
         for (int h = J / 2; h > 0; h >>= 1)
 #pragma unroll
@@ -1076,7 +1070,7 @@ __device__ void exact_rows(const unsigned char* W, const float* X, float* Y, uns
         }
         float a = (q[0] + q[2]) + (q[1] + q[3]);
 #pragma unroll
-        for (int h = 8; h > 0; h >>= 1) a += __shfl_down(a, h, 16);
+        for (int h = 8; h > 0; h >>= 1) a += shuffle_down(a, h, 16);
         if (j == 0) {
             const unsigned long long o = o0 + (c0 + v) / kRowsIn, b = b0 + (c0 + v) % kRowsIn;
             if (o < nout && b < nrows) {
@@ -1188,8 +1182,8 @@ __device__ inline void attention_chunk(const float* Q, float* part, const void* 
                 s = fmaf(q[d], kd, s);
             }
         }
-        s += __shfl_xor(s, 1, 4);
-        s += __shfl_xor(s, 2, 4);
+        s += shuffle_xor(s, 1, 4);
+        s += shuffle_xor(s, 2, 4);
         if (quarter == 0) sc[p] = valid ? s * scale : -INFINITY;
         __syncthreads();
         // The tile's maximum and then its sum, each one tree over the 64 scores, which every thread reads.
@@ -1327,15 +1321,15 @@ extern "C" __global__ void llmx_attention_tile(const float* Q, float* O, const v
                 const bool upper = (lane & half) != 0;
                 for (int j = 0; j < half; ++j) {
                     const float lo = part[j], hi = part[j + half];
-                    part[j] = (upper ? hi : lo) + __shfl_xor(upper ? lo : hi, half, 8);
+                    part[j] = (upper ? hi : lo) + shuffle_xor(upper ? lo : hi, half, 8);
                 }
             }
             sc[g] = t0 + 8 * g + lane < my_end ? part[0] : -INFINITY;
             mt = fmaxf(mt, sc[g]);
         }
-        mt = fmaxf(mt, __shfl_xor(mt, 1, 8));
-        mt = fmaxf(mt, __shfl_xor(mt, 2, 8));
-        mt = fmaxf(mt, __shfl_xor(mt, 4, 8));
+        mt = fmaxf(mt, shuffle_xor(mt, 1, 8));
+        mt = fmaxf(mt, shuffle_xor(mt, 2, 8));
+        mt = fmaxf(mt, shuffle_xor(mt, 4, 8));
         const float mn = fmaxf(m, mt);
         // A row with nothing unmasked yet keeps m at -inf; its weights are zero rather than the NaN of inf - inf.
         const float corr = mn == -INFINITY ? 1.0f : expf(m - mn);
@@ -1345,9 +1339,9 @@ extern "C" __global__ void llmx_attention_tile(const float* Q, float* O, const v
             ps[r * TK + 8 * g + lane] = w;
             sum += w;
         }
-        sum += __shfl_xor(sum, 1, 8);
-        sum += __shfl_xor(sum, 2, 8);
-        sum += __shfl_xor(sum, 4, 8);
+        sum += shuffle_xor(sum, 1, 8);
+        sum += shuffle_xor(sum, 2, 8);
+        sum += shuffle_xor(sum, 4, 8);
         l = fmaf(l, corr, sum);
         m = mn;
         for (int k = 0; k < RUNS; ++k) acc[k] = make_float4(acc[k].x * corr, acc[k].y * corr, acc[k].z * corr, acc[k].w * corr);
@@ -1405,7 +1399,7 @@ __device__ inline void attention_vec(const float* Q, float* O, const void* kc, c
         load8(vc, at, v_half, v8);
         float part = 0.0f;
         for (int e = 0; e < 8; ++e) part = fmaf(qv[e], k8[e], part);
-        for (int o = LANES / 2; o > 0; o /= 2) part += __shfl_xor(part, o, LANES);
+        for (int o = LANES / 2; o > 0; o /= 2) part += shuffle_xor(part, o, LANES);
         const float sc = part * scale, mn = fmaxf(m, sc);
         const float corr = expf(m - mn), w = expf(sc - mn);
         // The fused products are written out, so where this is inlined cannot choose which product the compiler fuses.
@@ -1515,7 +1509,7 @@ __device__ inline void sparse_vec_grouped(const float* Q, float* O, const void* 
         for (int g = 0; g < G; ++g) {
             float part = 0.0f;
             for (int e = 0; e < 8; ++e) part = fmaf(qv[g][e], k8[e], part);
-            for (int o = LANES / 2; o > 0; o /= 2) part += __shfl_xor(part, o, LANES);
+            for (int o = LANES / 2; o > 0; o /= 2) part += shuffle_xor(part, o, LANES);
             const float sc = part * scale, mn = fmaxf(m[g], sc);
             const float corr = expf(m[g] - mn), w = expf(sc - mn);
             l[g] = fmaf(l[g], corr, w);
@@ -1697,7 +1691,7 @@ extern "C" __global__ void llmx_norm_rope_streams(float* dst, const float* src, 
 }
 
 // The linear attention's causal conv of four taps, then SiLU (backend.hpp, causal_conv_silu), a thread a channel, as the CPU's products in tap order, so a row is the same however its view is cut.
-// The layout of `tab` is in docs/src/backends-rocm.md, Kernel notes.
+// The layout of `tab` is in docs/src/backends-gpu.md, Kernel notes.
 extern "C" __global__ void llmx_causal_conv_silu(float* o, const float* x, const float* w, float* st, const unsigned* tab, unsigned C,
                                                  unsigned long long slot, unsigned long long carried, unsigned chunk) {
     const unsigned c = blockIdx.x * kThreads + threadIdx.x;
@@ -1728,8 +1722,8 @@ extern "C" __global__ void llmx_causal_conv_silu(float* o, const float* x, const
 
 // The sum over the eight lanes of a column or of a row, each step adding the same two partials, so every lane gets the same bits.
 __device__ float lanes8(float x) {
-    const float a = x + __shfl_xor(x, 1), b = a + __shfl_xor(a, 2);
-    return b + __shfl_xor(b, 4);
+    const float a = x + shuffle_xor(x, 1), b = a + shuffle_xor(a, 2);
+    return b + shuffle_xor(b, 4);
 }
 // log(1 + y) without the cancellation of 1 + y for a small y.
 __device__ float log1p_of(float y) {
@@ -1738,7 +1732,7 @@ __device__ float log1p_of(float y) {
 }
 
 // The gated delta rule (backend.hpp, gated_delta_rule) in the Vulkan shader's order: a block a (view, V head, 32 V columns), every sum a lane's fused multiply-adds then lanes8.
-// A sequence gives the same bits alone, batched or cut into passes, and with kTb tokens staged a barrier in either build (docs/src/backends-rocm.md); a decay below 2^-126 is 0.
+// A sequence gives the same bits alone, batched or cut into passes, and with kTb tokens staged a barrier in either build (docs/src/backends-gpu.md); a decay below 2^-126 is 0.
 template <unsigned kTb>
 __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st,
                                  const unsigned* tab, unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim,
@@ -1848,7 +1842,7 @@ __device__ void gated_delta_rule(float* o, const float* u, const float* alpha, c
     }
 }
 // The decode build stages 4 tokens, for calls whose every view holds at most 8 rows, as Vulkan's short build does; the prompt build stages 16.
-// Both are bounded to 256 threads and two waves a SIMD, so a lane keeps its state rows in registers rather than scratch (docs/src/backends-rocm.md).
+// Both are bounded to 256 threads and two waves a SIMD, so a lane keeps its state rows in registers rather than scratch (docs/src/backends-gpu.md).
 #define LLMX_DELTA_RULE(name, tb)                                                                                                                                       \
     extern "C" __global__ void __launch_bounds__(kThreads, 2) name(float* o, const float* u, const float* alpha, const float* bb, const float* a, const float* dt_bias, float* st, const unsigned* tab, \
                                     unsigned C, unsigned k_heads, unsigned v_heads, unsigned k_dim, unsigned v_dim, unsigned long long slot, unsigned blocks,            \
@@ -1981,7 +1975,7 @@ extern "C" __global__ void llmx_dilated_conv_silu_add(float* o, const float* x, 
 }
 
 // Expert routing (backend.hpp route_experts), a row a block of kRouteThreads: the softmax over the row's experts, then k picks of the largest probability, ties to the lower id, in Vulkan's order (moe_route.glsl).
-// Each reduction is the 64-pair tree, lane t adding lane t + s at level s, so a row's picks and weights do not depend on the wave size (docs/src/backends-rocm.md).
+// Each reduction is the 64-pair tree, lane t adding lane t + s at level s, so a row's picks and weights do not depend on the wave size (docs/src/backends-gpu.md).
 constexpr unsigned kRouteThreads = 64, kRouteExperts = 1024, kNoExpert = 0xffffffffu;
 template <typename T, typename Op>
 __device__ inline T route_tree(T v, T* red, Op op) {
@@ -1993,7 +1987,7 @@ __device__ inline T route_tree(T v, T* red, Op op) {
             v = op(v, red[t ^ s]);
             __syncthreads();
         } else {
-            v = op(v, __shfl_xor(v, (int)s, warpSize));
+            v = op(v, shuffle_xor(v, (int)s, warpSize));
         }
     }
     return v;
@@ -2070,7 +2064,7 @@ extern "C" __global__ void llmx_moe_combine(float* y, const float* part, const f
     y[i] = y[i] + s;
 }
 
-// A grouped routed call's groups in the Vulkan grouping, a block an expert, the layout of `tab` in docs/src/backends-rocm.md, Kernel notes.
+// A grouped routed call's groups in the Vulkan grouping, a block an expert, the layout of `tab` in docs/src/backends-gpu.md, Kernel notes.
 // The grouping orders the work only: an entry's outputs are its one-column product in any group.
 extern "C" __global__ void llmx_moe_group(const unsigned* ids, unsigned* tab, unsigned entries, unsigned n_expert, unsigned max_groups, unsigned chunk) {
     __shared__ unsigned hist[1024], sa[kThreads], sb[kThreads];
@@ -2190,7 +2184,7 @@ extern "C" __global__ void llmx_kv_index_scores(const float* q, const float* aux
 #pragma unroll
         for (unsigned c = 0; c < 8u; ++c)
             if (lane + 32u * c < dim) s = fmaf(qr[h * dim + lane + 32u * c], k[c], s);
-        for (int o = 16; o > 0; o >>= 1) s += __shfl_xor(s, o, 32);
+        for (int o = 16; o > 0; o >>= 1) s += shuffle_xor(s, o, 32);
         score += s < 0.0f ? 0.0f : s;
     }
     if (lane == 0u) scores[(unsigned long long)r * stride + g] = score * scale;
@@ -2494,19 +2488,19 @@ extern "C" __global__ void llmx_argmax_pick(const float* cands, unsigned* ids, u
     ids[r] = argmax_id(v, id, bad, n, after, r);
 }
 
-// The fused decode moe_step's first launch (rocm_backend.cpp moe_step): the router's and row gate's F32 rows and the int8 twin of h, then the last block out routes as llmx_moe_route does on a 64-lane wave.
+// The fused decode moe_step's first launch (backend_core.hpp moe_step): the router's and row gate's F32 rows and the int8 twin of h, then the last block out routes as llmx_moe_route does on a 64-lane wave.
 #include <cstddef>
 
 namespace {
 
 // v of lane (this lane xor m) of a 64-lane wave: DPP for 1 and 2, swizzles up to 16; the partner route_tree takes, so its sums keep their bits.
 __device__ inline unsigned rm_xlane(unsigned v, int m) {
-    if (m == 1) return __builtin_amdgcn_mov_dpp(v, 0xB1, 0xF, 0xF, false);
-    if (m == 2) return __builtin_amdgcn_mov_dpp(v, 0x4E, 0xF, 0xF, false);
-    if (m == 4) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (4 << 10));
-    if (m == 8) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (8 << 10));
-    if (m == 16) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (16 << 10));
-    return __shfl_xor(v, m, 64);
+    if (m == 1) return lane_xor_quad<1>(v);
+    if (m == 2) return lane_xor_quad<2>(v);
+    if (m == 4) return lane_xor_swizzle<4>(v);
+    if (m == 8) return lane_xor_swizzle<8>(v);
+    if (m == 16) return lane_xor_swizzle<16>(v);
+    return shuffle_xor(v, m, 64);
 }
 template <typename Op>
 __device__ inline float rm_tree(float v, Op op) {
@@ -2515,7 +2509,7 @@ __device__ inline float rm_tree(float v, Op op) {
     return v;
 }
 
-// The most experts mf_route takes, J = n_expert / 64 of them a lane (rocm_backend.cpp kStepExperts).
+// The most experts mf_route takes, J = n_expert / 64 of them a lane (backend_core.hpp kStepExperts).
 constexpr unsigned kStepExperts = 512;
 
 // llmx_moe_route's picks and weights for one row of 64 J experts and k picks on one wave, a pick the largest key of probability bits over the id's complement; the scores are read past this compute unit's cache.
@@ -2525,7 +2519,7 @@ __device__ inline void mf_route(const float* s, unsigned* ids, float* weights, u
     float p[J];
     float top = -INFINITY;
 #pragma unroll
-    for (unsigned j = 0; j < J; ++j) p[j] = __hip_atomic_load(s + t + j * 64, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
+    for (unsigned j = 0; j < J; ++j) p[j] = atomic_load_relaxed_device(s + t + j * 64);
 #pragma unroll
     for (unsigned j = 0; j < J; ++j) top = fmaxf(top, p[j]);
     top = rm_tree(top, [](float a, float b) { return fmaxf(a, b); });
@@ -2866,7 +2860,7 @@ extern "C" __global__ void llmx_model_format_qdq(float* x, float* packed, unsign
     float* b = x + (live ? blk : 0ull) * n;
     const float v = live ? b[i] : 0.0f;
     float amax = fabsf(v);
-    for (unsigned o = n / 2u; o > 0u; o >>= 1) amax = fmaxf(amax, __shfl_xor(amax, o, n));
+    for (unsigned o = n / 2u; o > 0u; o >>= 1) amax = fmaxf(amax, shuffle_xor(amax, o, n));
     if (!live) return;
     const unsigned scale = format == 0u ? __float_as_uint(format_pow2(format_ceil_log2(fmaxf(amax, 1e-4f) * inv_fp8))) >> 23
                          : format == 1u ? __float_as_uint(format_pow2(format_ceil_log2(fmaxf(amax, 6.0f * 0x1p-126f) * inv_fp4))) >> 23
@@ -2883,7 +2877,7 @@ extern "C" __global__ void llmx_model_format_qdq(float* x, float* packed, unsign
         if (format == 0u) {
             o[1u + i] = (unsigned char)code;
         } else {
-            const unsigned high = __shfl_down(code, n / 2u, n);
+            const unsigned high = shuffle_down(code, n / 2u, n);
             if (i < n / 2u) o[1u + i] = (unsigned char)(code | high << 4);
         }
         return;
@@ -2908,7 +2902,7 @@ __device__ inline float select_score(const float* row, unsigned i, unsigned mode
 constexpr unsigned kWaves = kThreads / kWave;
 // v's exclusive rank over the block's threads by wave ballots, and the block's total.
 __device__ unsigned block_rank(bool v, unsigned& total, unsigned* counts) {
-    const unsigned long long b = __ballot(v);
+    const unsigned long long b = wave_ballot(v);
     const unsigned lane = threadIdx.x % kWave, wave = threadIdx.x / kWave;
     if (lane == 0) counts[wave] = (unsigned)__popcll(b);
     __syncthreads();
@@ -3418,7 +3412,7 @@ extern "C" __global__ void llmx_sparse_softmax_g(float* pt, float* den, const fl
     }
 #pragma unroll
     for (unsigned g = 0; g < G; ++g) {
-        for (unsigned o = 32u; o > 0; o >>= 1) peak[g] = fmaxf(peak[g], __shfl_xor(peak[g], o, 64));
+        for (unsigned o = 32u; o > 0; o >>= 1) peak[g] = fmaxf(peak[g], shuffle_xor(peak[g], o, 64));
         if (tid % 64u == 0) red[g][tid / 64u] = peak[g];
     }
     __syncthreads();
@@ -3539,7 +3533,7 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softpl
 #pragma unroll
         for (unsigned i = 0; i < kRouteHeld; ++i)
             if (!isinf(b_of[i]) && (be == n_expert || b_of[i] > bb)) be = t + i * kRouteLanes, bb = b_of[i];
-        for (unsigned o = kWave / 2u; o > 0u; o >>= 1) route_best(be, bb, __shfl_xor(be, o, kWave), __shfl_xor(bb, o, kWave), n_expert);
+        for (unsigned o = kWave / 2u; o > 0u; o >>= 1) route_best(be, bb, shuffle_xor(be, o, kWave), shuffle_xor(bb, o, kWave), n_expert);
         if constexpr (kRouteLanes > (unsigned)kWave) {
             if (t % kWave == 0) wave_e[t / kWave] = be, wave_b[t / kWave] = bb;
             __syncthreads();
@@ -3600,7 +3594,7 @@ extern "C" __global__ void llmx_norm_rope_form(float* dst, const float* src, uns
         if (i < offset || i >= offset + 2u * half) head[i] = rest[m++];
 }
 
-// The linear-attention decode step (rocm_backend.cpp delta_step), field for field with the host's DeltaStepArgs.
+// The linear-attention decode step (backend_core.hpp delta_step), field for field with the host's DeltaStepArgs.
 struct DeltaStepArgs {
     float* o;                 // the delta rule's rows, then their gated norm in place, rows x v_heads x vd
     const float* x;           // the qkv product's rows, the conv's input, rows x C
@@ -3613,7 +3607,7 @@ struct DeltaStepArgs {
     const float* a;
     const float* dt_bias;
     float* st;                // the layer's state slots
-    const unsigned* tab;      // rocm_backend.cpp state_table
+    const unsigned* tab;      // backend_core.hpp state_table
     const float* z;           // the gate product's rows, rows x v_heads x vd
     const float* nw;          // the norm's weight, vd
     unsigned* counter;        // a counter a (view, K head), zero between launches
@@ -3641,7 +3635,7 @@ extern "C" __global__ void __launch_bounds__(kThreads, 1) llmx_delta_step(DeltaS
     const bool col = c < vd;
     const unsigned qk = k_heads * kd, kh = j % k_heads;
     // The table through the constant address space, so its reads are scalar loads.
-    const __attribute__((address_space(4))) unsigned* tab = (const __attribute__((address_space(4))) unsigned*)A.tab;
+    const GPU_CONSTANT_SPACE unsigned* tab = (const GPU_CONSTANT_SPACE unsigned*)A.tab;
     const unsigned row0 = tab[1 + 5 * v], nq = tab[2 + 5 * v], len = tab[3 + 5 * v];
     const bool fresh = len == 0u;
     const unsigned long long matrix = (unsigned long long)j * kd * vd + c;

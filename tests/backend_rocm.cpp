@@ -636,7 +636,7 @@ bool quarter_form(uint32_t type, size_t nin) {
     return 4 * blocks * span(blocks) > blocks * span(4 * blocks);
 }
 
-// Widths whose rows take every lane cluster a type's rule gives (kernels/int16.hip, k_rows): lane units below the wave, at the Q4_K and Q5_K cap, above it and not a multiple of the cluster.
+// Widths whose rows take every lane cluster a type's rule gives (kernels/int16.gpu, k_rows): lane units below the wave, at the Q4_K and Q5_K cap, above it and not a multiple of the cluster.
 // Q5_0's and Q5_1's also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 37 outputs, which no block's rows divide.
 std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
     const bool k = quant::storage_type(type)->block_size == 256;
@@ -1591,7 +1591,7 @@ void twin_products(Backend& g, Dtype dt) {
         edge = edge && std::memcmp(read(g, *ysn, so * sn).data(), y.data(), so * sn * 4) == 0;
         require(edge, form + ": a prompt row of a matrix whose last block ends inside a word gives the bits of that row alone and of the matrix with room after it");
     }
-    // The tall build gives the 64-output build's bits, a whole matrix against slices of the same inner split (docs/src/backends-rocm.md).
+    // The tall build gives the 64-output build's bits, a whole matrix against slices of the same inner split (docs/src/backends-gpu.md).
     for (const size_t tw : {size_t(512), size_t(4096), size_t(4128)}) {
         const size_t tr = tw == 512 ? 70 : 520, tn = tw == 512 ? 3940 : 5860, slice = tw == 512 ? 100 : 3840;
         const std::vector<uint8_t> mt = q8_matrix(tw, tn, 91);
@@ -1985,7 +1985,7 @@ void delta_step_bits(Backend& g) {
 }
 
 // moe_step of several generated rows in the int8 class against the base's ops (Backend::moe_step) bit for bit, with the launches that show which ran.
-// The fused step takes the rows while the base's routed products would not group their entries, rows * k below the gate type's int8 break-even of 1.25 entries an expert (rocm_backend.cpp, kQ4KTwins and kQ5KTwins).
+// The fused step takes the rows while the base's routed products would not group their entries, rows * k below the gate type's int8 break-even of 1.25 entries an expert (backend_core.hpp, kQ4KTwins and kQ5KTwins).
 void moe_rows_bits(Backend& g) {
     const size_t nin = 2560, few = 24;
     const double grouped_from = 1.25;
@@ -2385,7 +2385,7 @@ void vec_bits(Backend& g) {
     }
 }
 
-// The scratch a fit prices holds every pass of its widths (Backend::reserve_scratch, docs/src/backends-rocm.md, Scratch), on a synthetic Qwen3 and on a GGUF `file` when given.
+// The scratch a fit prices holds every pass of its widths (Backend::reserve_scratch, docs/src/backends-gpu.md, Scratch), on a synthetic Qwen3 and on a GGUF `file` when given.
 // HIP's free memory, polled through a server's passes, falls below its reading by no more than the device keeps; a model whose scratch was made for one row must show the growth.
 void scratch_reserved(const std::string& file, int index) {
     const auto used = [index] {
@@ -3063,7 +3063,7 @@ void sentinel_sums() {
     if (d.size() < 2) return;
     static const uint32_t bits[] = {0x7f800001u, 0x7fc00001u, 0xff800001u, 0xffc00001u, 0x7fc00000u, 0x7f812345u, 0x7fd12345u, 0x7f800000u, 0xff800000u, 0x80000000u, 0x0u, 0x00000001u};
     const size_t cap = 8 * 1031, sizes[] = {1, 3, 5, 63, 64, 97, 255, 256, 1023, 1024, 1027, cap};
-    const std::map<size_t, RocmSumForm> forms = {{64, RocmSumForm::two_shots}, {256, RocmSumForm::chain}, {512, RocmSumForm::wrap}, {1024, RocmSumForm::one_shot}};
+    const std::map<size_t, GpuSumForm> forms = {{64, GpuSumForm::two_shots}, {256, GpuSumForm::chain}, {512, GpuSumForm::wrap}, {1024, GpuSumForm::one_shot}};
     for (size_t W = 2; W <= d.size(); ++W) {
         const std::vector<Backend*> group = raw(d, W);
         std::unique_ptr<Collective> fast = rocm_collective(group, cap, 1, forms);
@@ -3096,7 +3096,7 @@ void sentinel_sums() {
             const size_t n = sizes[(it * 7 + it / 12) % (sizeof(sizes) / sizeof(sizes[0]))], offset = it % 2 ? 7 : 0;
             const bool in_place = it % 3 == 0, twice = !in_place && it % 10 == 1;
             auto it_form = forms.upper_bound(n);
-            one_shots += (it_form == forms.begin() || std::prev(it_form)->second == RocmSumForm::one_shot) ? (twice ? 2 : 1) : 0;
+            one_shots += (it_form == forms.begin() || std::prev(it_form)->second == GpuSumForm::one_shot) ? (twice ? 2 : 1) : 0;
             std::vector<std::vector<float>> partial[2];
             std::vector<float> start(n);
             for (size_t s = 0; s < (twice ? 2u : 1u); ++s) {
@@ -3175,7 +3175,7 @@ void collective() {
         group_sums::check(group, *small, 97, {1, 2}, seed, print);
         seed += 100;
         // Each form forced across the devices, about a chain's chunk and at 17 chunks, peer access on from the join above.
-        for (const RocmSumForm form : {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain, RocmSumForm::wrap}) {
+        for (const GpuSumForm form : {GpuSumForm::one_shot, GpuSumForm::two_shots, GpuSumForm::chain, GpuSumForm::wrap}) {
             const size_t cap = 17 * 4 * 4096 + 5;
             std::unique_ptr<Collective> forced = rocm_collective(group, cap, 1, form);
             group_sums::check(group, *forced, 1, {1, 4 * W + 1, 4 * 4096 + 1, cap}, seed, print);
@@ -3282,7 +3282,7 @@ void collective() {
         std::vector<BackendPtr> e = rocm_devices(2);
         group_calls.areas.clear();
         f.hipExtMallocWithFlags = kept_uncached;
-        std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, RocmSumForm::two_shots);
+        std::unique_ptr<Collective> c = rocm_collective(raw(e, 2), 64, 97, GpuSumForm::two_shots);
         f.hipExtMallocWithFlags = real_uncached;
         require(group_calls.areas.size() >= 2, "a fast collective made no uncached areas");
         if (group_calls.areas.size() < 2) return;
@@ -3340,7 +3340,7 @@ void collective() {
 
 // The qwen35 layers' ops every device takes (q35::check_ops).
 
-// Routing on the host in the kernel's order (kernels/f32.hip, llmx_moe_route): lane t of 64 takes experts t, t + 64, ..., the softmax's sum by the 64-pair tree, then k picks, ties to the lowest id.
+// Routing on the host in the kernel's order (kernels/f32.gpu, llmx_moe_route): lane t of 64 takes experts t, t + 64, ..., the softmax's sum by the 64-pair tree, then k picks, ties to the lowest id.
 // Its expf is the host's, so its weights may differ from the device's in the last bits.
 void route_host(const float* s, size_t n_expert, size_t k, bool normalize, uint32_t* ids, float* weights) {
     constexpr size_t L = 64;
@@ -3407,7 +3407,7 @@ void routing(Backend& g, Backend& c) {
             }
 }
 
-// Whether a twin class's routed call groups its entries by expert, from each build's break-even (rocm_backend.cpp, TwinKernels::group_from).
+// Whether a twin class's routed call groups its entries by expert, from each build's break-even (backend_core.hpp, TwinKernels::group_from).
 bool groups_at(uint32_t type, Dtype dt, size_t entries, size_t n_expert, size_t nin) {
     const bool i8 = dt == Dtype::int8, quarter = quarter_form(type, nin);
     const double from = type == quant::GGML_TYPE_Q8_0 ? (i8 ? 0 : 1.25) : type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K ? (i8 ? 1.25 : 2.5)
@@ -3424,7 +3424,7 @@ size_t tile_from_at(uint32_t type, Dtype dt, bool down) {
     return down || dt == Dtype::int8 || type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4 ? 32 : 128;
 }
 
-// Routed products at Flash-Next's expert shapes, every type and class, each entry its expert's one-column product bit for bit (docs/src/backends-rocm.md).
+// Routed products at Flash-Next's expert shapes, every type and class, each entry its expert's one-column product bit for bit (docs/src/backends-gpu.md).
 void experts(Backend& g, Backend& c) {
     const uint32_t kinds[] = {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K,
                               quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_BF16, quant::GGML_TYPE_IQ4_NL, quant::GGML_TYPE_MXFP4};
@@ -3465,7 +3465,7 @@ void experts(Backend& g, Backend& c) {
                         auto ga = g.adopt(fill.data(), fill.size() * 4), gb = g.adopt(fill.data(), fill.size() * 4);
                         rocm_take_launches(g);
                         g.matmul_experts({Projection{{type, {wa.get(), 0}}, {ga.get(), 0}, ff}, Projection{{type, {wb.get(), 0}}, {gb.get(), 0}, ff}}, {xb.get(), 0}, nin, rows, routing, runs, dt);
-                        // The kernels each class's routed call runs, and nothing else (docs/src/backends-rocm.md).
+                        // The kernels each class's routed call runs, and nothing else (docs/src/backends-gpu.md).
                         const bool tiled = twins && dt != Dtype::f32 && runs.n == 1 && rows >= tile_from_at(type, dt, false);
                         const bool grouped = twins && dt != Dtype::f32 && groups_at(type, dt, rows * k, n_expert, nin);
                         std::string ran;
@@ -3522,7 +3522,7 @@ void experts(Backend& g, Backend& c) {
     }
 }
 
-// The grouping's own branches, 300 experts 8 a token over 80 rows and skewed ids, every entry its expert's one-column product bit for bit (docs/src/backends-rocm.md).
+// The grouping's own branches, 300 experts 8 a token over 80 rows and skewed ids, every entry its expert's one-column product bit for bit (docs/src/backends-gpu.md).
 // Every twin type takes its grouped builds and its one-column build here, each entry against the same one-column product, so the builds give the same bits whichever the break-evens choose.
 void experts_grouped(Backend& g) {
     struct Case { size_t n_expert, k, rows; bool skew; };
@@ -3595,7 +3595,7 @@ void experts_grouped(Backend& g) {
 }
 
 // Routed products at Flash-Next's expert shapes for every twin type: the one-column build against the build the call takes, medians of five interleaved.
-// Each build's break-even, the figure TwinKernels::group_from holds, follows (docs/src/backends-rocm.md).
+// Each build's break-even, the figure TwinKernels::group_from holds, follows (docs/src/backends-gpu.md).
 void routed_rates(Backend& g) {
     const size_t n_expert = 512, past = 1025, k = 10, kCounts = 8;
     const size_t counts[kCounts] = {1, 2, 4, 8, 16, 32, 64, 128};
@@ -3726,7 +3726,7 @@ bool tile_groups_cover(const std::vector<uint32_t>& ids, size_t H, size_t k, siz
     return both(whole) && both(half) && sizes;
 }
 
-// The routed prompt tile from its build's tile extent T for the call's role, every type, gate and up and the down, held to the same bits at 2T, T and beside generated rows (docs/src/backends-rocm.md).
+// The routed prompt tile from its build's tile extent T for the call's role, every type, gate and up and the down, held to the same bits at 2T, T and beside generated rows (docs/src/backends-gpu.md).
 // T - 1 rows take the row builds, and the two extents are different row classes.
 void experts_tile(Backend& g, Backend& c) {
     const size_t n_expert = 16, k = 4, ff[2] = {256, 200}, most = 2 * 128;   // twice the widest tile extent of tile_from_at
@@ -4200,9 +4200,9 @@ void sum_forms() {
     HipFn& f = hip();
     real_launch = f.hipModuleLaunchKernel;
     real_copy = f.hipMemcpyAsync;
-    const RocmSumForm forms[] = {RocmSumForm::one_shot, RocmSumForm::two_shots, RocmSumForm::chain, RocmSumForm::wrap};
+    const GpuSumForm forms[] = {GpuSumForm::one_shot, GpuSumForm::two_shots, GpuSumForm::chain, GpuSumForm::wrap};
     const char* const names[] = {"one-shot", "two shots", "chain", "wrap"};
-    const size_t chunk = 4 * 4096;   // a chain's chunk in floats (rocm_collective.hpp, kChainUnits)
+    const size_t chunk = 4 * 4096;   // a chain's chunk in floats (collective_core.hpp, kChainUnits)
     auto print = [](bool ok, const std::string& what) { require(ok, what); };
     uint32_t seed = 1601;
     for (const size_t W : {2, 3, 4, 5, 8, 12}) {
@@ -4258,7 +4258,7 @@ struct SixteenPeers {
     unsigned* fault;
     unsigned* cancel;
 };
-static_assert(sizeof(SixteenPeers) == 280 && offsetof(SixteenPeers, status) == 256 && offsetof(SixteenPeers, cancel) == 272, "kernels/f32.hip, GroupPeers");
+static_assert(sizeof(SixteenPeers) == 280 && offsetof(SixteenPeers, status) == 256 && offsetof(SixteenPeers, cancel) == 272, "kernels/f32.gpu, GroupPeers");
 
 void sixteen_ranks() {
     HipFn& f = hip();
@@ -4309,7 +4309,7 @@ void sixteen_ranks() {
     hip_check(f.hipMemcpyAsync(table, &peers, sizeof(SixteenPeers), hipMemcpyHostToDevice, streams[0]), "hipMemcpyAsync");
     hip_check(f.hipStreamSynchronize(streams[0]), "hipStreamSynchronize");
     uint32_t seed = 1601;
-    // Each form's blocks as the collective launches them (rocm_collective.hpp): the one-shot's 16, two shots a block a 256 units of a share, the chain two a chunk of 4096 units.
+    // Each form's blocks as the collective launches them (collective_core.hpp): the one-shot's 16, two shots a block a 256 units of a share, the chain two a chunk of 4096 units.
     const unsigned blocks[] = {16, (unsigned)(((units + W - 1) / W + 255) / 256), (unsigned)(2 * ((units + 4095) / 4096)), (unsigned)(2 * ((units + 4095) / 4096))};
     int half = 0;   // the parity half, flipped by each one-shot as the collective flips it
     for (int form = 0; form < 4; ++form)

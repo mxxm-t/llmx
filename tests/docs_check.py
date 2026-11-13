@@ -98,7 +98,7 @@ def slugs(text):
 
 ID = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 CODE_TOPS = ("src/", "tests/", "tools/", "cmake/", "docker/", ".github/")
-CPP_SOURCES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".in", ".hip")
+CPP_SOURCES = (".hpp", ".cpp", ".h", ".comp", ".glsl", ".in", ".gpu")
 PY_TEXT = (tokenize.STRING,) + tuple(getattr(tokenize, t) for t in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END") if hasattr(tokenize, t))
 
 
@@ -139,7 +139,7 @@ class Tree:
                 with open(os.path.join(common.ROOT, p), encoding="utf-8") as f:
                     self.keys(json.load(f))
         self.members, self.bases = collections.defaultdict(set), collections.defaultdict(set)
-        head = re.compile(r"\b(?:struct|class|union|enum\s+class|enum|namespace)\s+(?:alignas\s*\([^)]*\)\s*)?([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)*)([^;{()]*)\{")
+        head = re.compile(r"(?<![<,])(?<![<,]\s)\b(?:struct|class|union|enum\s+class|enum|namespace)\s+(?:alignas\s*\([^)]*\)\s*)?([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)*)([^;{()]*)\{")
         for p, c in bare.items():
             if not p.endswith((".hpp", ".cpp", ".h")):
                 continue

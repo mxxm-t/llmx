@@ -1,9 +1,7 @@
 // The quantized products of the F16 and int8 classes (docs/PRECISION.md, rule 4 and section 5): activations as a block-int16 or block-int8 twin, Q8_0 rows decoded exactly, integer block dots and F32 sums.
 // A row's result depends on that row alone: the row kernel for generated rows and the tile for prompt rows each fix their order, whatever the call holds.
-#include <hip/hip_runtime.h>
-#include <hip/hip_fp16.h>
-
-#include "backends/rocm/kernels/quant.h"
+#include "backends/gpu/kernels/port.h"
+#include "backends/gpu/kernels/quant.h"
 
 namespace {
 
@@ -11,21 +9,17 @@ constexpr int kThreads = 256;
 constexpr unsigned kQ8 = rq::Q8_0::bytes;   // a Q8_0 block's bytes, whose layout the word loads below take: the f16 scale, then 32 int8 values
 static_assert(kQ8 == 34 && rq::Q8_0::values == 32, "the Q8_0 word loads assume 34-byte blocks of 32 values");
 
-#ifdef LLMX_DOT16
-typedef short short2v __attribute__((ext_vector_type(2)));
-#endif
-
 // The dot of two packed words, two 16-bit values each or four 8-bit values each, added to s.
 __device__ inline int word_dot(int a, int b, int s, short) {
 #ifdef LLMX_DOT16
-    return __builtin_amdgcn_sdot2(__builtin_bit_cast(short2v, a), __builtin_bit_cast(short2v, b), s, false);
+    return dot2_i16(a, b, s);
 #else
     return s + (int)(short)(a & 0xffff) * (int)(short)(b & 0xffff) + (a >> 16) * (b >> 16);
 #endif
 }
 __device__ inline int word_dot(int a, int b, int s, signed char) {
 #ifdef LLMX_DOT16
-    return __builtin_amdgcn_sdot4(a, b, s, false);
+    return dot4_i8(a, b, s);
 #else
     for (int i = 0; i < 4; ++i) s += (int)(signed char)((a >> (8 * i)) & 0xff) * (int)(signed char)((b >> (8 * i)) & 0xff);
     return s;
@@ -35,12 +29,12 @@ __device__ inline int word_dot(int a, int b, int s, signed char) {
 
 // v of lane (this lane xor m) across the whole wave, m a power of two: DPP for 1 and 2 and swizzles up to 16, which wait on no LDS queue as a permute does; the same partner, so a sum over them keeps its bits.
 __device__ inline int lane_xor(int v, int m) {
-    if (m == 1) return __builtin_amdgcn_mov_dpp(v, 0xB1, 0xF, 0xF, false);
-    if (m == 2) return __builtin_amdgcn_mov_dpp(v, 0x4E, 0xF, 0xF, false);
-    if (m == 4) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (4 << 10));
-    if (m == 8) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (8 << 10));
-    if (m == 16) return __builtin_amdgcn_ds_swizzle(v, 0x1F | (16 << 10));
-    return __shfl_xor(v, m, warpSize);
+    if (m == 1) return lane_xor_quad<1>(v);
+    if (m == 2) return lane_xor_quad<2>(v);
+    if (m == 4) return lane_xor_swizzle<4>(v);
+    if (m == 8) return lane_xor_swizzle<8>(v);
+    if (m == 16) return lane_xor_swizzle<16>(v);
+    return shuffle_xor(v, m, warpSize);
 }
 __device__ inline float lane_xor(float v, int m) { return __int_as_float(lane_xor(__float_as_int(v), m)); }
 // The sum of v over the wave by the xor tree, m from `from` down to 1, each level a lane's own value plus its partner's.
@@ -49,11 +43,7 @@ __device__ inline float wave_sum(float v, int from = warpSize / 2) {
     for (int m = from; m > 0; m /= 2) v += lane_xor(v, m);
     return v;
 }
-#if defined(__GFX9__)
-constexpr bool kWave64 = true;
-#else
-constexpr bool kWave64 = false;
-#endif
+constexpr bool kWave64 = GPU_WAVE == 64;
 // The wave sums of a lane's NV values by the same xor tree, transposed: each level halves the values a lane holds, keeping the half its bit m selects plus its partner's copy, as wave_sum adds.
 // Every sum so has wave_sum's bits; once one value is left the levels below are wave_sum's, and lane l holds sum k = l / (warpSize / NV).
 template <int H, int NV>
@@ -169,7 +159,7 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
     for (unsigned long long o = R * ((unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes); o < rc.total; o += R * waves) {
         Row r[R];
 #pragma unroll
-        for (int j = 0; j < R; ++j) r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
+        for (int j = 0; j < R; ++j) r[j] = row_of(rc, first_lane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
         float acc[R][C];
 #pragma unroll
         for (int j = 0; j < R; ++j)
@@ -233,7 +223,7 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
             // In a build of one group the weights' and the group's loads issue together before anything waits on them; a wider build unpacks its weights first, which measured faster for it.
             if constexpr (C <= G) {
                 load(0);
-                __builtin_amdgcn_sched_barrier(0);
+                schedule_barrier();
                 unpack();
             } else {
                 unpack();
@@ -253,7 +243,7 @@ __device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsig
                         acc[j][g + c] = fmaf(dw[j] * xd[c], (float)isum, acc[j][g + c]);
                     }
                 // A group's loads wait for the group before it, which holds a wide build's registers to one group's twin.
-                if constexpr (C > G) __builtin_amdgcn_sched_barrier(0);
+                if constexpr (C > G) schedule_barrier();
             }
         }
         store_sums<R, C>(acc, r, lane, o, rc.total, ncols, add, m);
@@ -275,7 +265,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
         const unsigned* w[R];
 #pragma unroll
         for (int j = 0; j < R; ++j) {
-            r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
+            r[j] = row_of(rc, first_lane((unsigned)(o + j < rc.total ? o + j : o)), blocks * kQ8);
             // An even block count puts every row on a word boundary.
             w[j] = (const unsigned*)r[j].w;
         }
@@ -310,10 +300,10 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 const unsigned t0 = w[j][wi], t1 = w[j][wi + 1], t2 = w[j][wi + 2], t3 = w[j][wi + 3], t4 = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
                 const bool next = s0 == 4;
                 const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-                wq[j][0] = __builtin_amdgcn_alignbyte(u1, u0, n);
-                wq[j][1] = __builtin_amdgcn_alignbyte(u2, u1, n);
-                wq[j][2] = __builtin_amdgcn_alignbyte(u3, u2, n);
-                wq[j][3] = __builtin_amdgcn_alignbyte(t4, u3, n);
+                wq[j][0] = byte_align(u1, u0, n);
+                wq[j][1] = byte_align(u2, u1, n);
+                wq[j][2] = byte_align(u3, u2, n);
+                wq[j][3] = byte_align(t4, u3, n);
                 const int own = (int)(t0 >> (8 * sh)) & 0xffff;
                 const int partner = lane_xor(own, 1);
                 dw[j] = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
@@ -376,7 +366,7 @@ __device__ inline void half_steps(const unsigned* const (&w)[R], const signed ch
             t[d][j][4] = w[j][wi + 3 + (hl == 0 || sh ? 1 : 0)];
         }
     }
-    __builtin_amdgcn_sched_barrier(0);
+    schedule_barrier();
 #pragma unroll
     for (int d = 0; d < NS; ++d) {
         const unsigned bd = b + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
@@ -387,8 +377,8 @@ __device__ inline void half_steps(const unsigned* const (&w)[R], const signed ch
         for (int j = 0; j < R; ++j) {
             const unsigned t0 = t[d][j][0], t1 = t[d][j][1], t2 = t[d][j][2], t3 = t[d][j][3], t4 = t[d][j][4];
             const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-            const unsigned wq[4] = {__builtin_amdgcn_alignbyte(u1, u0, n), __builtin_amdgcn_alignbyte(u2, u1, n), __builtin_amdgcn_alignbyte(u3, u2, n),
-                                    __builtin_amdgcn_alignbyte(t4, u3, n)};
+            const unsigned wq[4] = {byte_align(u1, u0, n), byte_align(u2, u1, n), byte_align(u3, u2, n),
+                                    byte_align(t4, u3, n)};
             int s = word_dot((int)wq[0], xq[d].x, 0, (signed char)0);
             s = word_dot((int)wq[1], xq[d].y, s, (signed char)0);
             s = word_dot((int)wq[2], xq[d].z, s, (signed char)0);
@@ -413,7 +403,7 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
         const unsigned* w[R];
 #pragma unroll
         for (int j = 0; j < R; ++j) {
-            r[j] = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)(base + j < rc.total ? base + j : base)), blocks * kQ8);
+            r[j] = row_of(rc, first_lane((unsigned)(base + j < rc.total ? base + j : base)), blocks * kQ8);
             w[j] = (const unsigned*)r[j].w;
         }
         float acc[R];
@@ -449,10 +439,10 @@ __device__ void q8_0_half_pair(const RowCall& rc, const signed char* q, const fl
             const unsigned t0 = w[wi], t1 = w[wi + 1], t2 = w[wi + 2], t3 = w[wi + 3], t4 = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
             const bool next = s0 == 4;
             const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-            int s = word_dot((int)__builtin_amdgcn_alignbyte(u1, u0, n), xq.x, 0, (signed char)0);
-            s = word_dot((int)__builtin_amdgcn_alignbyte(u2, u1, n), xq.y, s, (signed char)0);
-            s = word_dot((int)__builtin_amdgcn_alignbyte(u3, u2, n), xq.z, s, (signed char)0);
-            s = word_dot((int)__builtin_amdgcn_alignbyte(t4, u3, n), xq.w, s, (signed char)0);
+            int s = word_dot((int)byte_align(u1, u0, n), xq.x, 0, (signed char)0);
+            s = word_dot((int)byte_align(u2, u1, n), xq.y, s, (signed char)0);
+            s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
+            s = word_dot((int)byte_align(t4, u3, n), xq.w, s, (signed char)0);
             const int own = (int)(t0 >> (8 * sh)) & 0xffff;
             const int partner = lane_xor(own, 1);
             const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
@@ -479,9 +469,9 @@ struct TileCall {
     int add;
     unsigned kper, parts;
     float* partials;
-    unsigned xrow, xblock;   // the twin's blocks from one row to the next and from one block to the next (TwinMap, kernels/f32.hip)
+    unsigned xrow, xblock;   // the twin's blocks from one row to the next and from one block to the next (TwinMap, kernels/f32.gpu)
 };
-// A routed tile call's groups (kernels/f32.hip, llmx_moe_group): group first + blockIdx.y a tile of its expert's rows, its columns its entries.
+// A routed tile call's groups (kernels/f32.gpu, llmx_moe_group): group first + blockIdx.y a tile of its expert's rows, its columns its entries.
 // The call never splits, so an entry's sums do not depend on the entries beside it.
 struct TileGroups {
     const unsigned* tab;
@@ -489,10 +479,10 @@ struct TileGroups {
     unsigned long long stride[3];
 };
 // Blocks of 32 staged a barrier as the Vulkan tile stages them, four for the 8-bit twin and two for the 16-bit one, a step loading while the previous one computes but in the tall 16-bit build.
-// Each value sits at a 32-bit byte offset from a uniform base, which the host bounds (`rocm_backend.cpp`, the tile launch).
+// Each value sits at a 32-bit byte offset from a uniform base, which the host bounds (`backend_core.hpp`, the tile launch).
 template <typename T> __device__ inline T at(const void* base, unsigned off) { return *(const T*)((const unsigned char*)base + off); }
 // WQ quant words as one load: their words are 4-byte aligned, which a global vector load takes.
-template <int WQ> using QWords = unsigned __attribute__((ext_vector_type(WQ), aligned(4)));
+template <int WQ> using QWords = gpu_words<WQ>;
 template <typename QT, int RO> struct TileStep { static constexpr int n = sizeof(QT) == 1 && RO == 4 ? 4 : 2; static constexpr bool ahead = RO == 4 || sizeof(QT) == 1; };
 
 // The prompt tile in the Vulkan tile's design: a block of 256 threads 64 outputs by 64 rows, each thread 4 by 4, the steps staged k-major in shared memory.
@@ -575,7 +565,7 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
 #pragma unroll
             for (int i = 0; i < WQ; ++i) {
                 const unsigned next = i + 1 < WQ ? wv[s][i + 1] : last;
-                const unsigned qw = wok[s] ? (al[s] ? wv[s][i] : __builtin_amdgcn_alignbit(next, wv[s][i], 16)) : 0;
+                const unsigned qw = wok[s] ? (al[s] ? wv[s][i] : bit_align(next, wv[s][i], 16)) : 0;
                 if constexpr (sizeof(QT) == 2) {
 #pragma unroll
                     for (int h = 0; h < 2; ++h) {
@@ -901,7 +891,7 @@ template <> struct KRaw<rq::IQ4_NL> {
     }
 };
 // MXFP4's row lane: two lanes a block, lane t the nibbles of half t of all 16 bytes, so values 16t to 16t + 15, the quarters 2t and 2t + 1, from one scale and one five-word gather.
-// Its two chains keep each quarter's terms in an accumulator of their own, and the host gives the row half the lanes the four quarters would take (rocm_backend.cpp, row_cluster), so every sum has the four-lane order's bits.
+// Its two chains keep each quarter's terms in an accumulator of their own, and the host gives the row half the lanes the four quarters would take (backend_core.hpp, row_cluster), so every sum has the four-lane order's bits.
 struct MXFP4Lane {
     static constexpr int lanes = 2, segments = 1, values = 16, chains = 2;
     unsigned q[5], off;
@@ -918,9 +908,9 @@ struct MXFP4Lane {
 #pragma unroll
         for (int i = 0; i < 4; ++i) {
             // Bytes 4i to 4i + 3 of the 16 from byte s of the words; the sign mask repeats each nibble's bit 3 over its byte by a byte select.
-            const unsigned lo = __builtin_amdgcn_alignbyte(a ? (i + 2 < 5 ? q[i + 2] : q[4]) : q[i + 1], a ? q[i + 1] : q[i], r);
-            const unsigned x = (lo >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, y = x << 4, neg = __builtin_amdgcn_perm(y, y << 8, 0x0B090A08u);
-            const unsigned pos = __builtin_amdgcn_perm(0x0C080604u, 0x03020100u, idx), minus = __builtin_amdgcn_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
+            const unsigned lo = byte_align(a ? (i + 2 < 5 ? q[i + 2] : q[4]) : q[i + 1], a ? q[i + 1] : q[i], r);
+            const unsigned x = (lo >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, y = x << 4, neg = byte_perm(y, y << 8, 0x0B090A08u);
+            const unsigned pos = byte_perm(0x0C080604u, 0x03020100u, idx), minus = byte_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
             v[i] = (pos & ~neg) | (minus & neg);
         }
         ds = rq::e8m0_half((unsigned char)((q[0] >> (8u * off)) & 0xffu));
@@ -938,15 +928,15 @@ template <> struct KRaw<rq::MXFP4> {
         const unsigned* q = (const unsigned*)(b - off);
         e = (q[0] >> (8u * off)) & 0xffu;
         const unsigned w0 = q[s / 4u], w1 = q[s / 4u + 1u], w2 = q[(s + 7u) / 4u];
-        lo[0] = __builtin_amdgcn_alignbyte(w1, w0, s & 3u);
-        lo[1] = __builtin_amdgcn_alignbyte(w2, w1, s & 3u);
+        lo[0] = byte_align(w1, w0, s & 3u);
+        lo[1] = byte_align(w2, w1, s & 3u);
     }
     __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
         const unsigned sh = 4 * (part >> 1);
 #pragma unroll
         for (int i = 0; i < 2; ++i) {
             const unsigned x = (lo[i] >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, neg = ((x >> 3) & 0x01010101u) * 0xffu;
-            const unsigned pos = __builtin_amdgcn_perm(0x0C080604u, 0x03020100u, idx), minus = __builtin_amdgcn_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
+            const unsigned pos = byte_perm(0x0C080604u, 0x03020100u, idx), minus = byte_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
             v[i] = (pos & ~neg) | (minus & neg);
         }
         ds = rq::e8m0_half((unsigned char)e);
@@ -954,7 +944,7 @@ template <> struct KRaw<rq::MXFP4> {
     }
 };
 // The quarter form: four lanes a 32-value block, lane t its values 8t to 8t + 7 through the type's KRaw, the tile's loads and arithmetic.
-// IQ4_NL's rows take it alone; a Q5_0 or Q5_1 row takes it or one lane a block by row_form (rocm_backend.cpp), whichever its lane units fill the cluster's steps fuller with.
+// IQ4_NL's rows take it alone; a Q5_0 or Q5_1 row takes it or one lane a block by row_form (backend_core.hpp), whichever its lane units fill the cluster's steps fuller with.
 template <typename KT> struct QuarterLane {
     static constexpr int lanes = 4, segments = 1, values = 8;
     KRaw<KT> raw;
@@ -984,8 +974,8 @@ __device__ inline void widen(const unsigned (&v)[2], int (&w)[KWords<QT>::n]) {
         for (int i = 0; i < 2; ++i) {
             // Each byte and its sign as a 16-bit value: perm selectors 8 to 11 repeat the sign of the pool's bytes 1, 3, 5 and 7, which v << 8 puts bytes 0 and 2 at.
             const unsigned h = v[i] << 8;
-            w[2 * i] = (int)__builtin_amdgcn_perm(h, v[i], 0x08010a00u);
-            w[2 * i + 1] = (int)__builtin_amdgcn_perm(h, v[i], 0x09030b02u);
+            w[2 * i] = (int)byte_perm(h, v[i], 0x08010a00u);
+            w[2 * i + 1] = (int)byte_perm(h, v[i], 0x09030b02u);
         }
     } else if constexpr (sizeof(QT) == 2 && KSigned<KT>::value) {
 #pragma unroll
@@ -997,8 +987,8 @@ __device__ inline void widen(const unsigned (&v)[2], int (&w)[KWords<QT>::n]) {
     } else if constexpr (sizeof(QT) == 2) {
 #pragma unroll
         for (int i = 0; i < 2; ++i) {
-            w[2 * i] = (int)__builtin_amdgcn_perm(0u, v[i], 0x0c010c00u);
-            w[2 * i + 1] = (int)__builtin_amdgcn_perm(0u, v[i], 0x0c030c02u);
+            w[2 * i] = (int)byte_perm(0u, v[i], 0x0c010c00u);
+            w[2 * i + 1] = (int)byte_perm(0u, v[i], 0x0c030c02u);
         }
     } else {
         w[0] = (int)v[0], w[1] = (int)v[1];
@@ -1068,7 +1058,7 @@ __device__ inline void store_cluster_pairs(float (&a)[R][C], float (&b)[R][C], c
 }
 
 // A cluster of rc.cluster lanes computes R output rows for up to C generated rows; each lane adds its runs' terms into F32 in block order, and the cluster folds them by one xor tree.
-// The cluster and the lane follow the row's width and type alone (rocm_backend.cpp, row_cluster and row_form), so a row and a column keep their bits in every build.
+// The cluster and the lane follow the row's width and type alone (backend_core.hpp, row_cluster and row_form), so a row and a column keep their bits in every build.
 template <typename KT, int C, typename QT, int R, int G, typename M = Cols, typename L = typename KRaw<KT>::Lane>
 __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
     constexpr int NV = L::values / 4, NW = sizeof(QT) == 2 ? 2 * NV : NV;
@@ -1340,7 +1330,7 @@ template <typename KT, int NB> struct StreamWords {
         raw[n] = 0;
         if (!aligned && s + bytes > 4u * n) raw[n] = *(const unsigned*)(base + 4 * n);
 #pragma unroll
-        for (int i = 0; i < n; ++i) w[i] = aligned ? raw[i] : s ? __builtin_amdgcn_alignbyte(raw[i + 1], raw[i], s) : raw[i];
+        for (int i = 0; i < n; ++i) w[i] = aligned ? raw[i] : s ? byte_align(raw[i + 1], raw[i], s) : raw[i];
     }
 };
 
@@ -1385,14 +1375,14 @@ template <> struct StreamDecode<rq::Q8_0> {
         const unsigned b = i * kQ8, wi = (b + 2) / 4;
         const bool al = (b + 2) % 4 == 0;
 #pragma unroll
-        for (int k = 0; k < 8; ++k) v[k] = (int)(al ? c.w[wi + k] : __builtin_amdgcn_alignbit(c.w[wi + k + 1], c.w[wi + k], 16));
+        for (int k = 0; k < 8; ++k) v[k] = (int)(al ? c.w[wi + k] : bit_align(c.w[wi + k + 1], c.w[wi + k], 16));
         ds[0] = __half2float(__ushort_as_half((unsigned short)(b % 4 == 0 ? c.w[b / 4] & 0xffff : c.w[b / 4] >> 16)));
         dm[0] = 0.0f;
     }
 };
 
 // Whether a type's stream reads the entries' twin blocks by uniform scalar loads, a batch of a lane load's decoded blocks then each entry over it, rather than staging them in shared memory.
-// Measured per type on one MI50 (docs/src/backends-rocm.md): the scalar loads win at every entry count for MXFP4, Q5_0 and Q5_1 and lose at some for the others.
+// Measured per type on one MI50 (docs/src/backends-gpu.md): the scalar loads win at every entry count for MXFP4, Q5_0 and Q5_1 and lose at some for the others.
 template <typename KT> struct StreamScalar { static constexpr bool value = false; };
 template <> struct StreamScalar<rq::MXFP4> { static constexpr bool value = true; };
 template <> struct StreamScalar<rq::Q5_0> { static constexpr bool value = true; };
@@ -1614,8 +1604,8 @@ __device__ void k_thin(const TileCall& c, const short* q, const float* dx, const
                 for (int part = 0; part < 4; ++part) {
                     const int off = 17 * b, s0 = off + 1 + 8 * (part & 1);
                     raw[part].e = (d[off / 4] >> (8 * (off % 4))) & 0xffu;
-                    raw[part].lo[0] = __builtin_amdgcn_alignbyte(d[s0 / 4 + 1], d[s0 / 4], s0 & 3);
-                    raw[part].lo[1] = __builtin_amdgcn_alignbyte(d[s0 / 4 + 2], d[s0 / 4 + 1], s0 & 3);
+                    raw[part].lo[0] = byte_align(d[s0 / 4 + 1], d[s0 / 4], s0 & 3);
+                    raw[part].lo[1] = byte_align(d[s0 / 4 + 2], d[s0 / 4 + 1], s0 & 3);
                 }
                 block(k + b, raw);
             }
@@ -1669,7 +1659,7 @@ __device__ inline bool routed_entry(const RoutedCall& rc, RowCall& c, unsigned l
     col = e / rc.per;
     return true;
 }
-// Group first + blockIdx.y of a grouped call (kernels/f32.hip, llmx_moe_group): its expert's call over the expert's rows, its entries from word order0 of tab, and their count, 0 for an unused group.
+// Group first + blockIdx.y of a grouped call (kernels/f32.gpu, llmx_moe_group): its expert's call over the expert's rows, its entries from word order0 of tab, and their count, 0 for an unused group.
 __device__ inline int group_entries(const RoutedCall& rc, const unsigned* tab, unsigned long long order0, RowCall& c, const unsigned*& entries) {
     const unsigned long long g = rc.first + blockIdx.y;
     const int n = (int)tab[4 * g + 2];
@@ -1684,7 +1674,7 @@ __device__ inline int group_entries(const RoutedCall& rc, const unsigned* tab, u
 
 
 // Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler, since its default of 1024 threads spilled the tile's prefetch to scratch.
-// The row kernel's builds: R output rows a wave and G columns whose loads issue together, the host choosing by the call's columns and rows (rocm_backend.cpp, row_build).
+// The row kernel's builds: R output rows a wave and G columns whose loads issue together, the host choosing by the call's columns and rows (backend_core.hpp, row_build).
 #define LLMX_ROWS(name, C, QT, R, G)                                                                                                                   \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
         q8_0_rows<C, QT, R, G>(c, q, dx, nin, ncols, add);                                                                                             \
@@ -1718,7 +1708,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1p(RowCal
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, 2>(c, q, dx, nin, add);
 }
-// The one-column builds by row width: kNarrowSteps under two spans of blocks, kSteps at two rows a wave from the profile's q8_decode_four_steps_from (rocm_backend.cpp, product_twin).
+// The one-column builds by row width: kNarrowSteps under two spans of blocks, kSteps at two rows a wave from the profile's q8_decode_four_steps_from (backend_core.hpp, product_twin).
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1s1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<1, kNarrowSteps>(c, q, dx, nin, add);
 }
@@ -1772,7 +1762,7 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_routed_narrow8(
     extern "C" __global__ void __launch_bounds__(kStreamLanes) name(TileCall c, TileGroups g, const signed char* q, const float* dx) { routed_stream<KT>(c, g, q, dx); }
 LLMX_STREAM(llmx_q8_0_routed_stream8, rq::Q8_0)
 
-// The twin types' row builds and tiles but Q8_0's, a type's set named by its type: the builds the host takes by a call's columns (rocm_backend.cpp, TwinKernels), two rows a wave.
+// The twin types' row builds and tiles but Q8_0's, a type's set named by its type: the builds the host takes by a call's columns (backend_core.hpp, TwinKernels), two rows a wave.
 #define LLMX_KROWS(name, KT, C, QT, G, L)                                                                                                               \
     extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
         k_rows<KT, C, QT, 2, G, Cols, L>(c, q, dx, nin, ncols, add);                                                                                     \
@@ -1858,7 +1848,7 @@ LLMX_KTYPE(q5_1, rq::Q5_1)
 LLMX_KTYPE(iq4_nl, rq::IQ4_NL)
 LLMX_KTYPE(mxfp4, rq::MXFP4)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_mxfp4_routed_thin16(TileCall c, TileGroups g, const short* q, const float* dx) { k_thin(c, q, dx, g); }
-// The quarter form's row, routed and grouped builds of Q5_0 and Q5_1, in the order LLMX_KTYPE gives those builds (rocm_backend.cpp, quarter_twins).
+// The quarter form's row, routed and grouped builds of Q5_0 and Q5_1, in the order LLMX_KTYPE gives those builds (backend_core.hpp, quarter_twins).
 #define LLMX_KQUARTER(t, KT)                                                                                                       \
     LLMX_KROWS(llmx_##t##_quarter_rows16_1, KT, 1, short, 1, QuarterLane<KT>)                                                      \
     LLMX_KROWS(llmx_##t##_quarter_rows16_2, KT, 2, short, 2, QuarterLane<KT>)                                                      \
@@ -1896,7 +1886,7 @@ __device__ float hc_block_sum(float v, float* lds) {
     }
     if ((int)threadIdx.x < warpSize) {
         float t = lds[threadIdx.x];
-        for (; s > 0; s >>= 1) t += __shfl_down(t, s);
+        for (; s > 0; s >>= 1) t += shuffle_down(t, s);
         if (threadIdx.x == 0) lds[0] = t;
     }
     __syncthreads();
@@ -1904,10 +1894,10 @@ __device__ float hc_block_sum(float v, float* lds) {
     __syncthreads();
     return r;
 }
-// The 8-bit twin of v in its block of 32 lanes, by the producers' rule (kernels/f32.hip, twin_at).
+// The 8-bit twin of v in its block of 32 lanes, by the producers' rule (kernels/f32.gpu, twin_at).
 __device__ inline void hc_twin8(float v, signed char* q, float* d, int lane) {
     float amax = fabsf(v);
-    for (int o = 16; o > 0; o >>= 1) amax = fmaxf(amax, __shfl_xor(amax, o, 32));
+    for (int o = 16; o > 0; o >>= 1) amax = fmaxf(amax, shuffle_xor(amax, o, 32));
     if (amax == 0.0f) {
         *q = 0;
         if (lane == 0) *d = 0.0f;
@@ -1959,10 +1949,10 @@ struct HalfLoads {
             for (int j = 0; j < R; ++j) {
                 const unsigned t0 = t4[d][j].x, t1 = t4[d][j].y, t2 = t4[d][j].z, t3 = t4[d][j].w, tv = t5[d][j];
                 const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? tv : t3, n = s0 & 3;
-                int s = word_dot((int)__builtin_amdgcn_alignbyte(u1, u0, n), xq[d].x, 0, (signed char)0);
-                s = word_dot((int)__builtin_amdgcn_alignbyte(u2, u1, n), xq[d].y, s, (signed char)0);
-                s = word_dot((int)__builtin_amdgcn_alignbyte(u3, u2, n), xq[d].z, s, (signed char)0);
-                s = word_dot((int)__builtin_amdgcn_alignbyte(tv, u3, n), xq[d].w, s, (signed char)0);
+                int s = word_dot((int)byte_align(u1, u0, n), xq[d].x, 0, (signed char)0);
+                s = word_dot((int)byte_align(u2, u1, n), xq[d].y, s, (signed char)0);
+                s = word_dot((int)byte_align(u3, u2, n), xq[d].z, s, (signed char)0);
+                s = word_dot((int)byte_align(tv, u3, n), xq[d].w, s, (signed char)0);
                 const int own = (int)(t0 >> (8 * sh)) & 0xffff;
                 const int partner = lane_xor(own, 1);
                 const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
@@ -2013,17 +2003,17 @@ __device__ inline void hc_bar(unsigned* bar, unsigned target) {
     __syncthreads();
     if (threadIdx.x == 0) {
         atomicAdd(bar, 1u);
-        while (__hip_atomic_load(bar, __ATOMIC_ACQUIRE, __HIP_MEMORY_SCOPE_AGENT) < target) __builtin_amdgcn_s_sleep(1);
+        while (atomic_load_acquire_device(bar) < target) spin_pause();
     }
     __syncthreads();
-    __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
+    fence_acquire_device();
 }
 
-// Up to C columns' mixes, each with the one-column launch's bits (rocm_backend.cpp, hyper_mix): every phase repeats per column on the weights it already loaded, and C = 1 keeps the one-row index math.
+// Up to C columns' mixes, each with the one-column launch's bits (backend_core.hpp, hyper_mix): every phase repeats per column on the weights it already loaded, and C = 1 keeps the one-row index math.
 // The host launches it only where every block is resident at once (hipModuleOccupancyMaxActiveBlocksPerMultiprocessor), with ceil(low / 4) down blocks then a block an inject output of a column.
 template <unsigned C>
 __device__ inline void hc_mix(const HcMix& a) {
-#if defined(__GFX9__)
+#if GPU_WAVE == 64
     __shared__ float lds[kThreads];
     __shared__ __attribute__((aligned(16))) signed char lq[C][kHcMaxLow];
     __shared__ float ld[C][kHcMaxLow / 32];
@@ -2163,10 +2153,10 @@ extern "C" __global__ void __launch_bounds__(kThreads, 2) llmx_hc_mix8(HcMix a) 
 
 namespace {
 
-typedef unsigned __attribute__((ext_vector_type(4), aligned(4))) U4;
-typedef unsigned __attribute__((ext_vector_type(2), aligned(4))) U2;
-typedef const __attribute__((address_space(1))) U4* G4;
-typedef const __attribute__((address_space(1))) U2* G2;
+typedef gpu_words<4> U4;
+typedef gpu_words<2> U2;
+typedef const GPU_GLOBAL_SPACE U4* G4;
+typedef const GPU_GLOBAL_SPACE U2* G2;
 
 // The 16-lane Q4_K unit math and loads, and the same for Q5_K with its fifth bits.
 template <bool Q5>
@@ -2180,14 +2170,14 @@ __device__ inline void q4k_math(const K45Lane<Q5>& raw, unsigned b, unsigned t, 
         const int4 x = lq[xb * 2 + (t & 1)];
         const float xd = ld[xb];
         int xsum = 0, isum = 0;
-        xsum = __builtin_amdgcn_sdot4(0x01010101, x.x, xsum, false);
-        xsum = __builtin_amdgcn_sdot4(0x01010101, x.y, xsum, false);
-        xsum = __builtin_amdgcn_sdot4(0x01010101, x.z, xsum, false);
-        xsum = __builtin_amdgcn_sdot4(0x01010101, x.w, xsum, false);
-        isum = __builtin_amdgcn_sdot4((int)v[0], x.x, isum, false);
-        isum = __builtin_amdgcn_sdot4((int)v[1], x.y, isum, false);
-        isum = __builtin_amdgcn_sdot4((int)v[2], x.z, isum, false);
-        isum = __builtin_amdgcn_sdot4((int)v[3], x.w, isum, false);
+        xsum = dot4_i8(0x01010101, x.x, xsum);
+        xsum = dot4_i8(0x01010101, x.y, xsum);
+        xsum = dot4_i8(0x01010101, x.z, xsum);
+        xsum = dot4_i8(0x01010101, x.w, xsum);
+        isum = dot4_i8((int)v[0], x.x, isum);
+        isum = dot4_i8((int)v[1], x.y, isum);
+        isum = dot4_i8((int)v[2], x.z, isum);
+        isum = dot4_i8((int)v[3], x.w, isum);
         acc = fmaf(xd, k_term<typename std::conditional<Q5, rq::Q5_K, rq::Q4_K>::type>(ds, dm, isum, xsum), acc);
     }
 }
@@ -2202,7 +2192,7 @@ __device__ inline void q4k_load(K45Lane<Q5>& raw, const unsigned char* row, unsi
         raw.h[0] = hw.x, raw.h[1] = hw.y, raw.h[2] = hw.z, raw.h[3] = hw.w;
     }
 }
-// One Q4_K or Q5_K row on 16 lanes, p the lane of the 16, with the bits k_rows gives it at the 32-lane cluster fused_step requires (rocm_backend.cpp); every lane of the 16 returns the sum.
+// One Q4_K or Q5_K row on 16 lanes, p the lane of the 16, with the bits k_rows gives it at the 32-lane cluster fused_step requires (backend_core.hpp); every lane of the 16 returns the sum.
 template <bool Q5>
 __device__ inline float q4k_row(const unsigned char* w, unsigned units, unsigned p, const int4* lq, const float* ld) {
     const unsigned t = p & 7;
@@ -2235,9 +2225,9 @@ __device__ inline void q51_math(const Q51Lane& raw, unsigned b, const int4* lq, 
     const int xw[8] = {x0.x, x0.y, x0.z, x0.w, x1.x, x1.y, x1.z, x1.w};
     int xsum = 0, isum = 0;
 #pragma unroll
-    for (int i = 0; i < 8; ++i) xsum = __builtin_amdgcn_sdot4(0x01010101, xw[i], xsum, false);
+    for (int i = 0; i < 8; ++i) xsum = dot4_i8(0x01010101, xw[i], xsum);
 #pragma unroll
-    for (int i = 0; i < 8; ++i) isum = __builtin_amdgcn_sdot4((int)v[i], xw[i], isum, false);
+    for (int i = 0; i < 8; ++i) isum = dot4_i8((int)v[i], xw[i], isum);
     acc = fmaf(xd, k_term<rq::Q5_1>(ds, dm, isum, xsum), acc);
 }
 
@@ -2250,10 +2240,10 @@ __device__ inline float q8_half_lane(const unsigned* w, const int4* lq, const fl
     const unsigned t0 = w[wi], t1 = w[wi + 1], t2 = w[wi + 2], t3 = w[wi + 3], t4 = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
     const bool next = s0 == 4;
     const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
-    int s = word_dot((int)__builtin_amdgcn_alignbyte(u1, u0, n), xq.x, 0, (signed char)0);
-    s = word_dot((int)__builtin_amdgcn_alignbyte(u2, u1, n), xq.y, s, (signed char)0);
-    s = word_dot((int)__builtin_amdgcn_alignbyte(u3, u2, n), xq.z, s, (signed char)0);
-    s = word_dot((int)__builtin_amdgcn_alignbyte(t4, u3, n), xq.w, s, (signed char)0);
+    int s = word_dot((int)byte_align(u1, u0, n), xq.x, 0, (signed char)0);
+    s = word_dot((int)byte_align(u2, u1, n), xq.y, s, (signed char)0);
+    s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
+    s = word_dot((int)byte_align(t4, u3, n), xq.w, s, (signed char)0);
     const int own = (int)(t0 >> (8 * sh)) & 0xffff;
     const int partner = lane_xor(own, 1);
     const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
@@ -2314,7 +2304,7 @@ __device__ inline void shared_gate_up(const MfShared& a) {
 #pragma unroll
             for (int j = 0; j < R; ++j) {
                 const unsigned lr = rr + j, o = lr < 32 ? c0 + lr : sff + c0 + lr - 32;
-                r[j] = row_of(a.sc, __builtin_amdgcn_readfirstlane(o), sb * kQ8);
+                r[j] = row_of(a.sc, first_lane(o), sb * kQ8);
                 w[j] = (const unsigned*)r[j].w;
             }
             float acc[R] = {};
@@ -2343,7 +2333,7 @@ __device__ inline void shared_gate_up(const MfShared& a) {
     }
 }
 
-// The widest h gate_up stages in shared memory (rocm_backend.cpp kStepIn).
+// The widest h gate_up stages in shared memory (backend_core.hpp kStepIn).
 constexpr unsigned kStepIn = 2560;
 
 template <bool Q5>
@@ -2410,7 +2400,7 @@ static_assert(offsetof(MfDown, aq) == 168 && offsetof(MfDown, weights) == 192 &&
 
 template <bool Q8>
 __device__ inline void down(const MfDown& a) {
-    // KM and FFM are rocm_backend.cpp's kStepPicks and kStepFf, k entries of ff values staged in shared memory.
+    // KM and FFM are backend_core.hpp's kStepPicks and kStepFf, k entries of ff values staged in shared memory.
     constexpr unsigned KM = 10, FFM = 640, RB = 8;
     __shared__ int4 lq[KM * FFM / 16];
     __shared__ float ld[KM * FFM / 32];
@@ -2503,8 +2493,8 @@ __device__ inline void down(const MfDown& a) {
 
 } // namespace
 
-// The fused decode moe_step (rocm_backend.cpp moe_step): gate+up of every routed entry with the shared expert as the last block row, then the down with the combine and the shared down.
-// The _w builds take the shared rows two a wave and four steps a load: fewer serial loads a wave and more registers, for a grid resident at their occupancy (rocm_backend.cpp step_up_kernel).
+// The fused decode moe_step (backend_core.hpp moe_step): gate+up of every routed entry with the shared expert as the last block row, then the down with the combine and the shared down.
+// The _w builds take the shared rows two a wave and four steps a load: fewer serial loads a wave and more registers, for a grid resident at their occupancy (backend_core.hpp step_up_kernel).
 extern "C" __global__ void __launch_bounds__(256) llmx_moe_step_up_q4_k(MfGateUpS a) {
     if (blockIdx.y < a.s.rows) shared_gate_up<2, 1>(a.s);
     else gate_up<false>(a.g);

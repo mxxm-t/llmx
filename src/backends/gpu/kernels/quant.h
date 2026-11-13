@@ -1,9 +1,8 @@
-// The ROCm backend's one reader of weight block layouts (docs/src/backends-rocm.md): each type's values per block and bytes per block come from src/quant, and `value` decodes one value exactly as the CPU's dequantizer does.
+// The GPU kernels' one reader of weight block layouts (docs/src/backends-gpu.md): each type's values per block and bytes per block come from src/quant, and `value` decodes one value exactly as the CPU's dequantizer does.
 // The K-quants' and Q5_1's products and sums are written as the CPU's dequantizer rounds them, each product rounded before its sum, the kernels compiling without contraction (CMakeLists.txt, LLMX_HIP_FLAGS).
 #pragma once
 
-#include <hip/hip_runtime.h>
-#include <hip/hip_fp16.h>
+#include "backends/gpu/kernels/port.h"
 
 #include "quant/fp4.hpp"
 #include "quant/types.hpp"

@@ -44,7 +44,7 @@ def cpp_files(texts, tops=("src", "tests", "tools")):
 def rocm_kernels(texts):
     """The ROCm kernel sources CMake compiles, named by their stems in LLMX_ROCM_KERNELS."""
     m = re.search(r"set\(LLMX_ROCM_KERNELS ([^)]*)\)", cmake_text(texts))
-    paths = ["src/backends/rocm/kernels/%s.hip" % k for k in (m.group(1).split() if m else [])]
+    paths = ["src/backends/gpu/kernels/%s.gpu" % k for k in (m.group(1).split() if m else [])]
     return sorted(p for p in paths if p in texts)
 
 

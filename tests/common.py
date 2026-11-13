@@ -674,7 +674,7 @@ def check_hf_fixture(name, model, cases, perplexity, text, ubatches, placements=
 # The directories the dead-code and docs checks read, beside the files at the root; build trees and other untracked output at the root are left out.
 TREE_DIRS = ("src", "tests", "tools", "docs", "cmake", "docker", ".github")
 # Files read as text; any other file is only known to exist.
-TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".hip", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
+TEXT_SUFFIXES = (".hpp", ".cpp", ".h", ".gpu", ".comp", ".glsl", ".py", ".md", ".txt", ".yml", ".yaml", ".cmake", ".in", ".bat")
 
 
 def tree_files():

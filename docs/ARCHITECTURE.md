@@ -1,7 +1,7 @@
 # llmx - Architecture
 
 **llmx** is a ground-up, dependency-free LLM inference runtime. It reads and
-writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C, on a Vulkan device or, on Linux, on a ROCm device. MXFP4 inference requires the device's float preservation and double arithmetic. The CPU and Vulkan backends support read-only F16/BF16 weight matrices, and the ROCm backend BF16 and the subset of quantized types its descriptor table lists (`src/backends/rocm/rocm_backend.cpp`, `kTypes`); their published qualification and remaining workload limits are recorded in STATUS. It
+writes GGUF v3 and runs Qwen transformers with F32, F16/BF16 and supported quantized weights on x86 CPU with AVX2/FMA/F16C, on a Vulkan device or, on Linux, on a ROCm device. MXFP4 inference requires the device's float preservation and double arithmetic. The CPU and Vulkan backends support read-only F16/BF16 weight matrices, and the ROCm backend BF16 and the subset of quantized types its descriptor table lists (`src/backends/gpu/backend_core.hpp`, `kTypes`); their published qualification and remaining workload limits are recorded in STATUS. It
 is structured so more formats, quantizations, backends, and even multi-device /
 multi-node serving can be added without touching the core.
 

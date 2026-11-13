@@ -5467,6 +5467,35 @@ size_t check_busy(backend::Backend& b) {
     return 4;
 }
 
+// A matrix input bound at any float offset gives the products it gives at offset zero, bit for bit, on the row and tile kernels and every request.
+// A device's storage offset alignment can exceed a float (16 bytes on NVIDIA), so the backend must not bind such an input in place.
+size_t check_input_offsets(backend::Backend& b) {
+    size_t values = 0;
+    const size_t nin = 256, rows = 8;
+    for (const uint32_t type : {uint32_t(quant::GGML_TYPE_F32), uint32_t(quant::GGML_TYPE_F16), uint32_t(quant::GGML_TYPE_Q8_0), uint32_t(quant::GGML_TYPE_Q4_0)})
+    for (const size_t cols : {size_t(1), size_t(3), size_t(96)})
+    for (const backend::Dtype dtype : b.native_dtypes()) {
+        const auto w = b.adopt(matrix(type, nin, rows, 7).data(), quant::row_bytes(type, nin) * rows);
+        const auto x = uniform(cols * nin + 3, 11);
+        const auto xb = b.adopt(x.data(), x.size() * sizeof(float));
+        const auto yb = b.alloc(cols * rows * sizeof(float));
+        const backend::RowRun run{cols, cols};
+        std::vector<float> first;
+        for (size_t offset = 0; offset < 4; ++offset) {
+            // The same values at each offset: the input is shifted in place.
+            std::vector<float> placed(x.size(), 0.0f);
+            std::copy(x.begin(), x.begin() + cols * nin, placed.begin() + offset);
+            b.write(*xb, 0, placed.data(), placed.size() * sizeof(float));
+            b.matmul({type, {w.get(), 0}}, {xb.get(), offset}, {yb.get(), 0}, nin, rows, cols, {&run, 1}, dtype);
+            std::vector<float> y(cols * rows);
+            b.read(*yb, 0, y.data(), y.size() * sizeof(float));
+            if (!offset) first = y;
+            else values += exact(first, y, "a matrix input at a float offset differs from the same input at offset zero");
+        }
+    }
+    return values;
+}
+
 int main(int argc, char** argv) {
     // --isa DIR runs every check and writes the kernels' representations; --decode-columns [TYPES] and --decode-rates [TYPES] run only those cells, --routed only the routed tile's report and narrow checks, --deepseek4 only DeepSeek-V4.1's ops.
     const std::string mode = argc >= 2 ? argv[1] : "", arg = argc >= 3 ? argv[2] : "";
@@ -5513,6 +5542,7 @@ int main(int argc, char** argv) {
         }
         check_float_ops();
         check_decode_contraction();
+        std::cout << "backend-vulkan: " << check_input_offsets(*b) << " matrix outputs of inputs at float offsets equal to offset zero\n";
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
         size_t checks = check_collective(b);
         checks += check_route_edges(*b);

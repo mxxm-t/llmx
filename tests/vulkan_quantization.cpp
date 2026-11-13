@@ -10,6 +10,8 @@
 #include <iostream>
 #include <limits>
 #include "matrix_precision.hpp"
+// The test reads LLMX_HAS_BACKEND_VULKAN through matrix_precision.hpp, so it must see the build's config.hpp and not the fallback.
+static_assert(LLMX_HAS_BACKEND_VULKAN, "vulkan-quantization reads the checked-in config.hpp");
 
 namespace backend {
 namespace {

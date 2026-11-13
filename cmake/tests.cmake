@@ -856,7 +856,7 @@ if(LLMX_HAS_BACKEND_CUDA)
     find_program(LLMX_CUOBJDUMP cuobjdump HINTS $ENV{CUDA_PATH}/bin /usr/local/cuda/bin)
     add_test(NAME cuda-sass COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/cuda_sass.py ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda ${LLMX_CUOBJDUMP})
     set_tests_properties(cuda-sass PROPERTIES TIMEOUT 120)
-    # Device facts, buffers, a refused allocation and the F32 matmul against the CPU backend on cuda:0; it exits 77 without a driver or device.
+    # Device facts, buffers, a refused allocation, the F32 matmul and the F16 class's twin products against the CPU backend on cuda:0; it exits 77 without a driver or device.
     add_executable(llmx-backend-cuda-test tests/backend_cuda.cpp)
     target_include_directories(llmx-backend-cuda-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src ${LLMX_CUDA_INCLUDE_DIR})
     target_link_libraries(llmx-backend-cuda-test PRIVATE llmx-cuda)

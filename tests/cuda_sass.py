@@ -12,11 +12,13 @@ ARCHS = ["sm_80", "sm_86", "sm_89", "sm_90", "sm_120"]
 
 # Kernel families that spill today on some target, each with the step of docs/CUDA.md (Order of work) whose port is held to remove the spills; which kernels of a family spill moves between targets and toolkits.
 SPILL_ALLOWED = {
-    "llmx_q4_k_": "step 3, the F16 class",
-    "llmx_q5_k_": "step 3, the F16 class",
-    "llmx_q6_k_": "step 3, the F16 class",
-    "llmx_q8_0_": "step 3, the F16 class",
-    "llmx_matmul_rows_q8_0": "step 3, the F16 class",
+    "llmx_q4_k_rows16_": "step 4, first tuning on real shapes, the Q4_K 16-row build",
+    "llmx_matmul_rows_q8_0": "step 4, first tuning on real shapes, the Q8_0 row build",
+    "llmx_q5_k_rows8_": "step 4, the int8 class",
+    "llmx_q4_k_routed": "step 8, the routed MoE operations",
+    "llmx_q5_k_routed": "step 8, the routed MoE operations",
+    "llmx_q6_k_routed": "step 8, the routed MoE operations",
+    "llmx_q8_0_routed": "step 8, the routed MoE operations",
     "llmx_group_": "step 6, tensor groups",
     "llmx_mxfp4_": "step 8, MXFP4",
     "llmx_hc_": "step 8, the deepseek4 operations",

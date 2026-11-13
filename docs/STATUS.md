@@ -1,5 +1,21 @@
 # llmx - Development Status
 
+## CUDA backend step 3: the F16 class, Q8_0, Q4_K, Q5_K and Q6_K rows and tiles on cuda:N (2026-11-13, CUDA11 and CUDA12, branch cuda/step3, stacked on step 2)
+
+**Goal.** Step 3 of docs/CUDA.md, Order of work: the block-int16 rows and tiles of Q8_0, Q4_K, Q5_K and Q6_K on `cuda:N`, held by the checks `backend-rocm` has for them.
+
+**Done.**
+- The F16 class's checks move from `tests/backend_rocm.cpp` to `tests/twin_checks.hpp`, which `backend-rocm` and `backend-cuda` both run; `backend-cuda types` runs only them, with F32 among `exact_rows`' types so the cols2 and cols4 builds meet the row-alone check.
+- The tall tile's check compared a whole matrix with slices whose inner split the device's units choose; on 28 SMs the 512-wide whole did not split and its 100-output slice did, so its bits differed with no kernel at fault. It now compares only shapes of one split on the device, from the backend's own `split_blocks` and `tile_rows_for`, and fails unless one sets the tall tile against the 64-output one; a 3000-output shape gives an RTX 3060 that pair.
+- `typed_matrix` left Q8_0's scale as random bytes, so a block could hold an infinite or NaN f16 scale, which made `row_classes::check` throw; Q8_0's scale is now set finite as the helper says. `row_classes::check` takes the dtypes and whether to run the routed products, and `backend-cuda` asks for F32 and F16 without them until steps 4 and 8.
+- `cuda-sass` lists `llmx_q4_k_rows16_` (sm_80) and `llmx_matmul_rows_q8_0`, which step 3 lands still spilling, under step 4's first tuning on real shapes, beside `llmx_q5_k_rows8_` (sm_120) under step 4's int8 class and the Q4_K, Q5_K, Q6_K and Q8_0 routed builds under step 8.
+- Results (2026-11-13), RTX 3060 12 GB (sm_86), the rig's binaries built in the CUDA 12.9.1 image: `backend-cuda` and `backend-cuda types` pass; Qwen3-0.6B Q8_0 HF short at `--dtype f16` on `cuda:0` passes, top-1 6/6, top-5 6/6, NLL deltas 0.0011 to 0.0124 against 0.01/0.02 bounds. On the rig `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass.
+- 16k against file-exact HF (2026-11-14), RTX 3060 Laptop 12 GB (sm_86, driver 595.99.02), Qwen3-0.6B Q8_0 (`/zpool1/models/llmx-fixtures/Qwen3-0.6B-Q8_0.gguf`, sha256 9465e63a...) at f16 with f16 caches on `cuda:0`, each matrix on the block-int16 path: raw 512 exact, 0 accepted ties, 0 misses of 512; chat 512 exact, 0 ties, 0 misses; no row is off the HF top-1, so no gap is consumed, and the largest top-1 logit difference from HF is 0.0258 raw and 0.0243 chat.
+  Inputs `/zpool1/llmx-xdev-quant-20261020/depth-{raw,chat}.json` (16384 prompt and 511 forced ids); reference `/zpool1/llmx-ldev-scratch/ddev/rocm/q8ref/f16/{raw,chat}.{json,npy}` and `report.json` (DDEV, 2026-10-30, file-exact f16 policy); capture DDEV's `/zpool1/llmx-ldev-scratch/ddev/rocm/probe8h/probe.cpp` built against this tree's `libllmx-cuda.a`; scoring a copy of `/zpool1/llmx-ldev-scratch/ddev/rocm/depth-rdt1-094ed1b10-1736/cmp.py`, `hf_depth_top1` at margin 0.1.
+- `backend-cuda` and `backend-cuda types` pass again on that card with F32 in `exact_rows`, the one- to four-row products taking `llmx_matmul_cols2_f32` and `llmx_matmul_cols4_f32`; `backend-rocm` with the moved checks passes on an MI50 32 GB.
+
+**Left.** Rebase onto CUDA10's final heads of steps 0 to 2 when they are pushed.
+
 ## CUDA backend step 2: dense qwen3 at F32 on cuda:N (2026-11-13, CUDA8, branch cuda/backend, stacked on step 1)
 
 **Goal.** Step 2 of docs/CUDA.md, Order of work: dense qwen3 at `--dtype f32` on `cuda:N`, attention, f32 and f16 caches, norms, rope, sampling and server passes, held by the tiny HF fixtures and the suite's synthetic components on `cuda:0`.

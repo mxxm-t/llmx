@@ -787,7 +787,7 @@ void check_row_classes(backend::Backend& device, const Format& f) {
             const backend::RowRun run{rows, extent};
             device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y.get(), 0},
                           width, rows, rows, {&run, 1}, dtype);
-            outputs.push_back(row_classes::read(device, *y, rows * rows));
+            outputs.push_back(row_classes::read(device, *y, rows * rows, std::string(backend::dtype_name(dtype)) + " " + f.name + " low-bit matmul"));
         }
         row_classes::same_within_classes(device, outputs,
             std::string(backend::dtype_name(dtype)) + " " + f.name + " low-bit matmul");

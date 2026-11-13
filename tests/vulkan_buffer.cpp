@@ -2,6 +2,8 @@
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "model/kv_cache.hpp"
 #include "scratch_growth.hpp"
+#include "core/cpus.hpp"
+#include "core/job_threads.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -296,36 +298,47 @@ int scratch_checks(const std::string& file, int index) {
     // Every pipeline a pass can make lazily, the first of each kernel and its other builds, grows the heap together by no more than the backend keeps.
     {
         backend::VulkanBackend b(index);
-        const size_t before = used();
-        size_t made = 0, extra = 0;
+        const auto start = std::chrono::steady_clock::now();
+        // A driver that compiles on the host takes most of the test here, so the builds run on every usable CPU; each fills only its own kernel slot.
+        core::JobThreads pool(size_t(core::automatic_threads() - 1));
+        const auto make_all = [&](const std::vector<std::pair<int, int>>& builds) {
+            std::atomic<size_t> made{0};
+            pool.run(builds.size(), [&](size_t i) {
+                try { backend::VulkanLifetimeTest::make_kernel(b, builds[i].first, builds[i].second); ++made; } catch (const std::exception&) {}
+            });
+            return made.load();
+        };
+        std::vector<std::pair<int, int>> firsts, others_builds;
         for (int id = 0; id < backend::K_COUNT; ++id) {
-            try { backend::VulkanLifetimeTest::make_kernel(b, id, 0); ++made; } catch (const std::exception&) {}
-        }
-        const size_t mid = used();
-        const size_t roster = mid - std::min(mid, before);
-        for (int id = 0; id < backend::K_COUNT; ++id) {
+            firsts.push_back({id, 0});
             const int builds = backend::is_vec_kernel(backend::KernelId(id)) ? backend::kVariants
                 : backend::row_kernel_builds_two_rows(backend::KernelId(id)) ? int(std::size(backend::kRowBuilds)) : 3;
-            for (int v = 1; v < builds; ++v) {
-                if (backend::build_cols(backend::KernelId(id), v) == 0 || backend::build_rows(backend::KernelId(id), v) == 0) continue;
-                try { backend::VulkanLifetimeTest::make_kernel(b, id, v); ++extra; } catch (const std::exception&) {}
-            }
+            for (int v = 1; v < builds; ++v)
+                if (backend::build_cols(backend::KernelId(id), v) != 0 && backend::build_rows(backend::KernelId(id), v) != 0) others_builds.push_back({id, v});
         }
+        const size_t before = used();
+        const size_t made = make_all(firsts);
+        const size_t mid = used();
+        const size_t roster = mid - std::min(mid, before);
+        const size_t extra = make_all(others_builds);
         const size_t end = used();
         const size_t others = end - std::min(end, mid);
         const size_t kept = b.memory_kept(0);
-        std::cout << "scratch: " << made << " first pipelines grew " << roster << " bytes, " << extra << " other builds " << others << " bytes, kept " << kept << "\n";
+        std::cout << "scratch: " << made << " first pipelines grew " << roster << " bytes, " << extra << " other builds " << others << " bytes, kept " << kept
+                  << ", made in " << std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() << " s on " << pool.threads() + 1 << " threads\n";
         if (roster + others > kept) {
             std::cout << "scratch: the pipelines grew the heap past what the backend keeps FAIL\n";
             ++failures;
         }
     }
     const std::string name = "vulkan:" + std::to_string(index);
+    const auto passes = std::chrono::steady_clock::now();
     const gguf::GGUFModel qwen3 = infer::synthetic_model({2, 1024, 1024, 8, 2, 128, 8192, 20261111u});
     if (!scratch_growth::held(infer::gguf_weights(qwen3), make, name, used, true, why)) {
         std::cout << "scratch: Qwen3: " << why << " FAIL\n";
         ++failures;
     }
+    std::cout << "scratch: Qwen3 passes in " << std::chrono::duration<double>(std::chrono::steady_clock::now() - passes).count() << " s\n";
     if (!file.empty()) {
         gguf::GGUFModel m = gguf::read_gguf(file);
         gguf::map_payload(m);

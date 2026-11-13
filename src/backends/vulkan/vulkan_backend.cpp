@@ -547,6 +547,8 @@ public:
     const std::string& name() const { return dev_->caps.device; }
     std::string identity() const override { return dev_->identity; }
     const DeviceProfile& profile() const { return dev_->profile; }
+    bool preserves_float32() const { return dev_->preserve_float32; }
+    bool row_reads_float(uint32_t type, Dtype dtype) const;
     bool prefer_integer_dot() {
         if (!dev_->caps.integer_dot) return false;
         dev_->profile.prefer_integer_dot = true;
@@ -2035,6 +2037,7 @@ private:
 
     VkDescriptorBufferInfo bind(CSlice s);
     VkDescriptorBufferInfo bind(Slice s);
+    CSlice bindable(CSlice s, size_t n);
     static void check_weight_scales(WeightView weight, size_t experts = 1);
     VkDescriptorBufferInfo weight_floats(WeightView weight, VkDescriptorBufferInfo otherwise);
     VkDescriptorBufferInfo lookup_grid(uint32_t type, VkDescriptorBufferInfo otherwise);
@@ -2158,6 +2161,7 @@ private:
     void stamp_before(VkCommandBuffer cmd);
     void stamp_after(VkCommandBuffer cmd, int kind);
     std::shared_ptr<VulkanBuffer> mx_copy_; // copies of one call, reused in queue order
+    std::shared_ptr<VulkanBuffer> bindable_; // a matrix input off the storage offset alignment, copied to its start (bindable)
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
@@ -2224,6 +2228,16 @@ std::string vulkan_device_name(const Backend& backend) {
 DeviceProfile vulkan_device_profile(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->profile() : DeviceProfile{};
+}
+
+bool vulkan_may_flush_float32(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v && !v->preserves_float32();
+}
+
+bool vulkan_row_reads_float(const Backend& backend, uint32_t type, Dtype dtype) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v && v->row_reads_float(type, dtype);
 }
 
 bool vulkan_prefer_integer_dot(Backend& backend) {

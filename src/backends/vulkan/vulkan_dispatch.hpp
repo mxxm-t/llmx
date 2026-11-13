@@ -22,12 +22,23 @@ inline VkDescriptorBufferInfo VulkanBackend::bind(CSlice s) {
 
 inline VkDescriptorBufferInfo VulkanBackend::bind(Slice s) { return bind(CSlice(s)); }
 
+// A matrix input whose offset is off the device's storage offset alignment is read from a copy at the start of a buffer, since kernels read it as vectors and a buffer copy takes any offset.
+// Passes place their activations at 64-byte offsets (Model::alloc_arena), so they take this copy only on a device whose alignment is coarser.
+inline CSlice VulkanBackend::bindable(CSlice s, size_t n) {
+    const VkDeviceSize at = VkDeviceSize(s.offset) * sizeof(float);
+    if (!s.buffer || !n || at % dev_->props.limits.minStorageBufferOffsetAlignment == 0) return s;
+    const size_t bytes = size_mul(n, sizeof(float));
+    if (!bindable_ || bindable_->size() < bytes) grow(bindable_, bytes);
+    copy(*bindable_, 0, *s.buffer, size_t(at), bytes);
+    return CSlice(bindable_.get(), 0);
+}
+
 // The buffers the backend keeps across calls: twins, partial sums, groupings and split states.
 inline bool VulkanBackend::is_scratch(VkBuffer h) const {
     auto is = [h](const std::shared_ptr<VulkanBuffer>& b) { return b && b->handle() == h; };
     for (const Twin& t : twins_)
         if (is(t.buffer)) return true;
-    return is(parts_) || is(scratch_) || is(moe_out_) || is(moe_tab_) || is(moe_count_) || is(argmax_parts_) || is(select_state_) || is(mx_copy_);
+    return is(parts_) || is(scratch_) || is(moe_out_) || is(moe_tab_) || is(moe_count_) || is(argmax_parts_) || is(select_state_) || is(mx_copy_) || is(bindable_);
 }
 
 // While unordered, a barrier before a step that follows another of its op call, or that uses scratch written, or writes scratch used, since the last barrier; a caller's buffers across calls are its own promise (Backend::unordered).

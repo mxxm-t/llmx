@@ -232,7 +232,8 @@ void ranges(backend::Backend& b) {
                                                    + 2 * std::numeric_limits<float>::epsilon() * std::fabs(double(x[lane])) : 0;
                 const double bound = 2 * std::numeric_limits<float>::epsilon() * std::fabs(want) + width * double(std::numeric_limits<float>::denorm_min())
                                    + std::fabs(double(value(h, 31, lane))) * input_error;
-                require(got.front() == sentinel && got.back() == sentinel && std::isfinite(got[1]) && std::fabs(double(got[1]) - want) <= bound,
+                require(got.front() == sentinel && got.back() == sentinel && std::isfinite(got[1]) && (std::fabs(double(got[1]) - want) <= bound || testq::flushed(b, got[1], want)
+                                    || testq::flushed_product(b, got[1], value(h, 31, lane), rounded(x[lane], dtype), bound)),
                         "Q3_K finite one-hot product differs"); ++checked;
             }
         }

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -24,6 +25,55 @@ inline bool k23_integer(backend::Backend& b, backend::Dtype dtype) {
 #else
     (void)b; (void)dtype;
 #endif
+    return false;
+}
+
+// A zero where the exact result is a nonzero below the smallest normal float, on a Vulkan device that may flush F32 subnormals; no bound widens (docs/TESTS.md).
+inline bool may_flush(backend::Backend& b) {
+#if LLMX_HAS_BACKEND_VULKAN
+    return backend::vulkan_may_flush_float32(b);
+#else
+    (void)b;
+    return false;
+#endif
+}
+
+inline bool flushed(backend::Backend& b, double got, double want) {
+#if LLMX_HAS_BACKEND_VULKAN
+    return got == 0 && want != 0 && std::fabs(want) < double(std::numeric_limits<float>::min()) && backend::vulkan_may_flush_float32(b);
+#else
+    (void)b; (void)got; (void)want;
+    return false;
+#endif
+}
+
+// The F32 value a device that flushes subnormals reads or writes in place of v, its sign kept.
+inline double ftz(double v) { return std::fabs(v) < double(std::numeric_limits<float>::min()) ? std::copysign(0.0, v) : v; }
+
+// A fused multiply-add on such a device: subnormal operands read as zero and a subnormal result written as zero.
+inline float ftz_fma(float a, float x, float acc) { return float(ftz(std::fma(float(ftz(a)), float(ftz(x)), float(ftz(acc))))); }
+
+// On a device that may flush F32 subnormals, each of `values` products or partial sums below the smallest normal float may be written as zero, in whatever order its driver sums.
+// Each such flush moves the result by less than that float times the largest factor `later` applied after it, the underflow unit of arithmetic that flushes (docs/TESTS.md).
+inline double flush_slack(backend::Backend& b, size_t values, double later) {
+    return may_flush(b) ? double(values) * double(std::numeric_limits<float>::min()) * std::max(1.0, later) : 0.0;
+}
+
+// A one-hot product on such a device may read a subnormal weight or input as zero; the flushed product is held to the same bound.
+inline bool flushed_product(backend::Backend& b, double got, double weight, double x, double bound) {
+    return may_flush(b) && std::fabs(got - ftz(ftz(weight) * ftz(x))) <= bound;
+}
+
+// The input such a device reads back from a one-hot 16-bit twin: zero once the block's scale |x| / levels is subnormal, since the twin's float(q) * scale flushes it.
+inline double twin_read(double x, double levels) { return ftz(std::fabs(x) / levels) == 0 ? std::copysign(0.0, x) : x; }
+
+// A one-hot range product weight * x within its bound, or a flushed one (flushed, flushed_product) within the same bound; a failure prints its case, got and expected.
+inline bool range_product(backend::Backend& b, const char* name, unsigned half, double x, backend::Dtype dtype, size_t extent, bool integer,
+                          double got, double weight, double bound) {
+    const double want = weight * x;
+    if (std::fabs(got - want) <= bound || flushed(b, got, want) || flushed_product(b, got, weight, integer ? twin_read(x, 32767) : x, bound)) return true;
+    std::fprintf(stderr, "%s range: half 0x%04x input %.9g dtype %d extent %zu %s got %.9g expected %.9g bound %.3g\n",
+                 name, half, x, int(dtype), extent, integer ? "integer" : "float", got, want, bound);
     return false;
 }
 

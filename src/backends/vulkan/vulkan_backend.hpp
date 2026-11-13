@@ -35,6 +35,12 @@ DeviceProfile vulkan_device_profile(const Backend& backend);
 // It is called before the backend's first matmul, so the test reaches on any such device the kernels an integer-dot profile picks.
 bool vulkan_prefer_integer_dot(Backend& backend);
 
+// Whether the device may flush a subnormal F32 result of a matrix module to zero, having no guaranteed 32-bit denormal preservation; false for another backend.
+bool vulkan_may_flush_float32(const Backend& backend);
+
+// Whether the row kernel the backend picks for `type` at `dtype` reads the activations as F32 rather than their rounded twin, so a test feeds its reference what that row reads.
+bool vulkan_row_reads_float(const Backend& backend, uint32_t type, Dtype dtype);
+
 // The driver's statistics for every kernel the backend has compiled, one line each (registers, scratch, occupancy on AMD), for the test's report.
 // Empty when the device does not report them.
 std::string vulkan_kernel_statistics(const Backend& backend);

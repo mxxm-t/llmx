@@ -469,13 +469,14 @@ if(LLMX_HAS_BACKEND_VULKAN)
     add_test(NAME vulkan-lifetime COMMAND llmx-vulkan-lifetime-test --queue)
     add_test(NAME vulkan-scratch COMMAND llmx-vulkan-lifetime-test --scratch)
     set_tests_properties(vulkan-buffer vulkan-lifetime PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
-    # Making every pipeline with a cold driver shader cache took 130 s on the Radeon VII's Windows driver.
+    # Its cost is the driver compiling every pipeline, which it does on every usable CPU: serially that took 130 s on the Radeon VII's Windows driver and past 300 s on a two-core RTX 3060 host.
     set_tests_properties(vulkan-scratch PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
     # Reads the private packed activation buffers, before consumer float arithmetic can flush them.
     add_executable(llmx-vulkan-quantization-test tests/vulkan_quantization.cpp)
     add_dependencies(llmx-vulkan-quantization-test llmx-vulkan-shaders)
-    target_include_directories(llmx-vulkan-quantization-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
+    # The generated directory comes first, so the test reads the build's config.hpp and not the checked-in fallback.
+    target_include_directories(llmx-vulkan-quantization-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated
+        ${CMAKE_CURRENT_SOURCE_DIR}/src ${LLMX_VULKAN_INCLUDE_DIR})
     target_link_libraries(llmx-vulkan-quantization-test PRIVATE ${CMAKE_DL_LIBS})
     if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         # The host's run of the twin writer's arithmetic must round each multiply and add alone, as the shader's precise ones do.

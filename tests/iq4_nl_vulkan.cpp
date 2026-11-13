@@ -91,13 +91,16 @@ size_t ranges(backend::Backend& b, uint32_t type = 20) {
         for (int exponent : {-140, -120, -100, 80, 100, 120, 127}) {
             std::vector<float> x(bs, layout ? std::ldexp(1.0f, exponent) : 0); x[0] = std::ldexp(1.0f, exponent);
             const auto xb = b.adopt(x.data(), x.size() * 4);
-            double want = 0, magnitude = 0;
+            // The terms share a sign, so on a device that may flush subnormals any flushed subset of terms or partial sums lies between the exact and all-flushed sums (docs/TESTS.md).
+            double want = 0, magnitude = 0, flushed_want = 0;
             std::vector<float> weights(bs);
             for (size_t k = 0; k < bs; ++k) {
                 weights[k] = test_weight(type, packed.data(), k);
-                const double term = double(weights[k]) * x[k];
+                const double term = double(weights[k]) * x[k], flushed_term = testq::ftz(double(float(testq::ftz(weights[k]) * testq::ftz(x[k]))));
                 want += term; magnitude += std::fabs(term);
+                flushed_want += flushed_term;
             }
+            const bool may_flush = testq::may_flush(b);
             for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16, backend::Dtype::int8}) {
               // These powers of two are exact BF16 values except below its minimum subnormal, which rounds to zero.
               const double expected = dtype == backend::Dtype::bf16 && exponent < -133 ? 0 : want;
@@ -107,17 +110,27 @@ size_t ranges(backend::Backend& b, uint32_t type = 20) {
                 const float got = read(b, *y, 1)[0];
                 // XS sums 256 signed terms; gamma_n bounds FMA rounding against their absolute sum, including cancellation.
                 const double nu = double(bs) * 0x1p-24;
-                const double bound = type == 23
-                    ? nu / (1 - nu) * magnitude + double(bs) * std::numeric_limits<float>::denorm_min()
-                    : std::max(1e-44, std::fabs(expected) * 2e-7);
-                const bool ok = std::isfinite(got) && std::fabs(got - expected) <= bound;
+                auto within = [&](double target, double sum) {
+                    const double bound = type == 23
+                        ? nu / (1 - nu) * sum + double(bs) * std::numeric_limits<float>::denorm_min()
+                        : std::max(1e-44, std::fabs(target) * 2e-7);
+                    return std::fabs(got - target) <= bound;
+                };
+                const double flushed_expected = dtype == backend::Dtype::bf16 && exponent < -133 ? 0 : flushed_want;
+                const double low = std::min(expected, flushed_expected), high = std::max(expected, flushed_expected);
+                const bool ok = std::isfinite(got) && (within(expected, magnitude) || testq::flushed(b, got, expected) ||
+                                                       (may_flush && ((got >= low && got <= high) || within(low, magnitude) || within(high, magnitude))));
                 if (!ok) std::cerr << "range: type=" << type << " half=" << h << " layout=" << layout
                     << " exponent=" << exponent << " dtype=" << int(dtype) << " tile=" << (run == &tile)
                     << " got=" << got << " expected=" << expected << '\n';
                 if (type == 23 && dtype == backend::Dtype::f32 && run == &tile) {
-                    float ordered = 0;
-                    for (size_t k = 0; k < bs; ++k) ordered = std::fma(weights[k], x[k], ordered);
-                    require(bits(got) == bits(ordered), "IQ4_XS range tile differs from independent ordered FMA");
+                    float ordered = 0, flushed_ordered = 0;
+                    for (size_t k = 0; k < bs; ++k) {
+                        ordered = std::fma(weights[k], x[k], ordered);
+                        flushed_ordered = testq::ftz_fma(weights[k], x[k], flushed_ordered);
+                    }
+                    require(bits(got) == bits(ordered) || testq::flushed(b, got, expected) || (may_flush && bits(got) == bits(flushed_ordered)),
+                            "IQ4_XS range tile differs from independent ordered FMA");
                 }
                 require(ok, "IQ4_NL/IQ4_XS finite-scale range dot differs");
                 ++checked;

@@ -88,6 +88,7 @@ The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this
   (`vulkan_kernels.hpp`) includes as an array. The binary carries its kernels; there are
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
+- **A device may be coarser than the backend's own layout.** A matrix input bound at an offset off `minStorageBufferOffsetAlignment` (16 bytes on an RTX 3060, 4 on RADV) is read from an aligned copy (`bindable`), and on a device without guaranteed 32-bit denormal preservation (`shaderDenormPreserveFloat32` false on that RTX 3060) the matrix modules may flush a subnormal F32 result to zero, which the range checks accept only where the exact result is below the smallest normal float.
 
 ### Activation range repair
 

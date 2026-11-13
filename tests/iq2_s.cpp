@@ -416,7 +416,7 @@ size_t range_products(backend::Backend& b) {
                 // F32 scale rounding plus one subnormal scale unit per integer level; no reciprocal oracle on tiny inputs.
                 const double repair = integer ? std::fabs(double(value)) * 0x1p-22 + 32767.0 * std::numeric_limits<float>::denorm_min() : 0;
                 const double bound = std::fabs(weight) * repair + std::fabs(want) * 0x1p-21 + 2.0 * std::numeric_limits<float>::denorm_min();
-                require(got.front() == 19 && got.back() == 19 && std::isfinite(got[1]) && std::fabs(double(got[1]) - want) <= bound,
+                require(got.front() == 19 && got.back() == 19 && std::isfinite(got[1]) && testq::range_product(b, "IQ2_S", h, input[1], dtype, extent, integer, got[1], weight, bound),
                         "finite half, maximal coefficient or activation-scale range control");
                 ++values;
             }

@@ -433,7 +433,8 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
 
 // Exact zero weights and one unit weight distinguish range repair from suppressing nonfinite outputs.
 void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype dtype = backend::Dtype::f16) {
-    size_t checked = 0, failed = 0;
+    size_t checked = 0, failed = 0, printed = 0;
+    float printed_peak = -1;
     struct Scale { uint16_t bits; double value; };
     const Scale scales[] = {{1, std::ldexp(1.0, -24)}, {0x3c00, 1}, {0x7bff, 65504}};
     constexpr size_t rows = 3;
@@ -556,11 +557,16 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                         const float expected = float(initial + product);
                         const double bound = unit_row ? std::abs(product) * (dtype == backend::Dtype::f32 ? 2.0 * std::numeric_limits<float>::epsilon() : 1.0 / 32767.0) + 2 * double(std::numeric_limits<float>::denorm_min()) : 0;
                         const bool valid = std::isfinite(expected)
-                            ? std::isfinite(output[i + 1]) && std::abs(double(output[i + 1]) - expected) <= bound
+                            ? std::isfinite(output[i + 1]) && (std::abs(double(output[i + 1]) - expected) <= bound || testq::flushed(b, output[i + 1], initial + product)
+                                                              || (unit_row && testq::flushed_product(b, double(output[i + 1]) - initial, scale.value * (op == 5 ? 0.5 : 1.0), c == 1 ? -double(peak) : double(peak), bound)))
                             : output[i + 1] == expected;
                         if (!valid) {
-                            if (failed < 12) std::fprintf(stderr, "offset range: type %u scale %u encoding %d width %zu peak %.9g op %d value %zu got %.9g expected %.9g\n",
-                                                        type, unsigned(scale.bits), encoding, width, double(peak), op, i, output[i + 1], expected);
+                            // The first few failures, then the first of each later peak, so one run shows every failing case.
+                            if (failed < 12 || (peak != printed_peak && printed < 48)) {
+                                std::fprintf(stderr, "offset range: type %u scale %u encoding %d width %zu peak %.9g op %d value %zu got %.9g expected %.9g\n",
+                                             type, unsigned(scale.bits), encoding, width, double(peak), op, i, output[i + 1], expected);
+                                ++printed; printed_peak = peak;
+                            }
                             ++failed;
                         }
                         ++checked;

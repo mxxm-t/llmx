@@ -272,7 +272,9 @@ void check_products(backend::Backend& device, const Format& f, backend::Dtype dt
         for (size_t i = 0; i < width; ++i)
             input[c * width + i] = float(int((3 * i + 5 * c) % 9) - 4) * .137f + float((i + c) % 3) * .00091f;
     std::vector<float> oracle_input = input;
-    if (dtype == backend::Dtype::bf16 && device.emulates_dtype(dtype))
+    // A Vulkan bf16 call takes the bf16 tile whether or not the device emulates bf16 for a model (emulates_dtype), so its inputs round to bf16.
+    const bool bf16 = dtype == backend::Dtype::bf16;
+    if (bf16)
         for (float& value : oracle_input) value = bf16_oracle(value);
     bool integer = false;
 #if LLMX_HAS_BACKEND_VULKAN
@@ -282,10 +284,15 @@ void check_products(backend::Backend& device, const Format& f, backend::Dtype dt
     }
 #endif
     if (integer) oracle_input = testq::row_activations(input);
-    const char* expected_path = dtype == backend::Dtype::bf16 && device.emulates_dtype(dtype) ? "bf16"
+    const char* expected_path = bf16 ? "bf16"
                               : integer ? "block-int16" : "f32";
     auto check_path = [&] {
         const auto paths = testq::take_matrix_paths(device);
+        if (paths != std::vector<std::string>{expected_path}) {
+            std::cerr << "low-bits path: type " << f.type << " dtype " << int(dtype) << " columns " << columns << " expected " << expected_path << " got";
+            for (const auto& path : paths) std::cerr << ' ' << path;
+            std::cerr << '\n';
+        }
         require(paths == std::vector<std::string>{expected_path}, "low-bit product arithmetic witness differs");
     };
     auto x = device.adopt(input.data(), input.size() * sizeof(float));

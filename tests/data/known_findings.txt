@@ -17,6 +17,8 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 |
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which backend-vulkan --isa writes out for the hand check AGENTS.md asks at every row-kernel change; goes only with that check
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_prefer_integer_dot | 1 | has a test's backend take the integer-dot kernels, which backend-vulkan needs to reach the Q8_0 decode kernel's builds on a device whose profile does not prefer the integer dot; goes only with that check
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_may_flush_float32 | 1 | says a device lacks guaranteed 32-bit denormal preservation, where the Vulkan range checks accept a flushed subnormal result (testq::flushed); goes only with those checks
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_row_reads_float | 1 | the row plan rule for a row reading F32 activations, which backend-vulkan feeds its reference by (fed); goes only with that check
 
 # Functions only test executables keep, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const read of a key block, which kv-cache takes on a storage it holds const; product code holds its storage mutable
@@ -26,6 +28,7 @@ linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vra
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::prefer_integer_dot() | 1 | what vulkan_prefer_integer_dot calls; goes with it
+linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::preserves_float32() const | 1 | what vulkan_may_flush_float32 calls; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user
 linked-test-only | src/server/cache.hpp | server::PairMemo::size() const | 1 | the memo's pair count, which server-resume reads to hold the memo to its bound as dead pairs come and go; no product reader needs the count

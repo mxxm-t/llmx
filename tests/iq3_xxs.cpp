@@ -197,7 +197,7 @@ size_t range_repair_products(backend::Backend& b) {
                     const double bound = std::fabs(weight) * repair + std::fabs(want) * 0x1p-21 +
                         2.0 * std::numeric_limits<float>::denorm_min();
                     require(got.front() == 19.0f && got.back() == 19.0f && std::isfinite(got[1]) &&
-                            std::fabs(double(got[1]) - want) <= bound,
+                            testq::range_product(b, "IQ3_XXS", h, input[0], dtype, extent, integer, got[1], weight, bound),
                             "IQ3_XXS finite-half or activation-scale repair range control");
                     ++products;
                 }

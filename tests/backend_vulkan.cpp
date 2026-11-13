@@ -47,9 +47,9 @@ using q35::close;
 
 using testq::row_activations;
 
-// The activations a matmul of `type` reads, on the tile kernel or the row kernel.
-std::vector<float> fed(const std::vector<float>& x, uint32_t type, bool idot, bool tile) {
-    if (type == quant::GGML_TYPE_F32 || (tile && !idot)) return x;
+// The activations a matmul of `type` reads on `device`: the tile's rounded twin with the integer dot, the row's as the backend's row plan picks.
+std::vector<float> fed(const backend::Backend& device, const std::vector<float>& x, uint32_t type, bool idot, bool tile) {
+    if (type == quant::GGML_TYPE_F32 || (tile ? !idot : backend::vulkan_row_reads_float(device, type, backend::Dtype::f16))) return x;
     return row_activations(x);
 }
 
@@ -288,7 +288,8 @@ size_t check_bf16_rounding(backend::Backend& vk) {
     const auto w = vk.adopt(weights, sizeof weights), x = vk.adopt(input.data(), input.size() * sizeof(float)),
                y = vk.alloc(input.size() * 2 * sizeof(float));
     std::vector<float> output(input.size() * 2);
-    size_t checked = 0;
+    size_t checked = 0, failed = 0;
+    const auto bits_of = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return unsigned(u); };
     for (auto dtype : {backend::Dtype::bf16, backend::Dtype::f32}) {
         testq::take_matrix_paths(vk);
         vk.matmul({quant::GGML_TYPE_F32, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 1, 2, input.size(), {}, dtype);
@@ -298,13 +299,18 @@ size_t check_bf16_rounding(backend::Backend& vk) {
         const auto& reference = dtype == backend::Dtype::bf16 ? rounded : input;
         for (size_t c = 0; c < input.size(); ++c) for (size_t row = 0; row < 2; ++row) {
             const float expected = reference[c] * weights[row], actual = output[2 * c + row];
-            if (!(actual == expected || (std::isnan(actual) && std::isnan(expected)))) {
-                std::fprintf(stderr, "BF16 boundary input %zu row %zu: got %.9g expected %.9g\n", c, row, actual, expected);
-                throw std::runtime_error("BF16 nearest rounding or exact weights differ");
+            // A device that flushes subnormals may read a subnormal input as zero before rounding it (testq::flushed_product).
+            const double read = testq::ftz(input[c]) == 0 ? 0.0 : double(reference[c]);
+            if (!(actual == expected || (std::isnan(actual) && std::isnan(expected)) || testq::flushed(vk, actual, expected)
+                  || testq::flushed_product(vk, actual, weights[row], read, 0))) {
+                if (failed < 12) std::fprintf(stderr, "BF16 boundary input %zu (bits 0x%08x) row %zu dtype %d: got %.9g expected %.9g\n",
+                                              c, bits_of(input[c]), row, int(dtype), actual, expected);
+                ++failed;
             }
             ++checked;
         }
     }
+    require(failed == 0, "BF16 nearest rounding or exact weights differ");
     return checked;
 }
 
@@ -1150,9 +1156,9 @@ size_t check_kernels(backend::Backend& vk) {
             // Choose reference activations from the device profile: row kernels and integer-dot tiles read the 16-bit twin; float tiles read the original inputs.
             const bool idot = profile.prefer_integer_dot;
             const bool tile8 = nbatch >= tile_from_8bit, tile_other = nbatch >= tile_from_other;
-            const auto xr8 = fed(x, quant::GGML_TYPE_Q8_0, idot, tile8);   // adopted, so they must outlive the calls
-            const auto xr4 = fed(x, quant::GGML_TYPE_Q4_0, idot, tile_other);
-            const auto xrk = fed(x, quant::GGML_TYPE_Q4_K, idot, tile_other);
+            const auto xr8 = fed(vk, x, quant::GGML_TYPE_Q8_0, idot, tile8);   // adopted, so they must outlive the calls
+            const auto xr4 = fed(vk, x, quant::GGML_TYPE_Q4_0, idot, tile_other);
+            const auto xrk = fed(vk, x, quant::GGML_TYPE_Q4_K, idot, tile_other);
             Pair::In xri8 = p.in(xr8), xri4 = p.in(xr4), xrik = p.in(xrk);
             for (int q = 0; q < 7; ++q) {
                 if (q >= 4 && nin % 256) continue;   // K-quant blocks are 256 wide
@@ -1747,7 +1753,7 @@ size_t check_kernels(backend::Backend& vk) {
                     } else {
                         std::vector<float> att(nq * qw);
                         b.read(*ob, 0, att.data(), att.size() * sizeof(float));
-                        const auto ar = fed(att, quant::GGML_TYPE_Q8_0, integer_dot, false);
+                        const auto ar = fed(vk, att, quant::GGML_TYPE_Q8_0, integer_dot, false);
                         const auto Ab = b.adopt(ar.data(), ar.size() * sizeof(float));
                         b.matmul({quant::GGML_TYPE_Q8_0, {Wb.get(), 0}}, {Ab.get(), 0}, {yb.get(), 0}, qw, nout, nq);
                     }
@@ -1828,7 +1834,7 @@ size_t check_kernels(backend::Backend& vk) {
             Pair::In xi = p.in(xa);
             const backend::DeviceProfile prof = backend::vulkan_device_profile(p.dev);
             const bool tile = nbatch >= backend::tile_from_for(prof, true, nin);
-            const auto xr = fed(xa, quant::GGML_TYPE_Q8_0, integer_dot, tile);
+            const auto xr = fed(vk, xa, quant::GGML_TYPE_Q8_0, integer_dot, tile);
             Pair::In xri = p.in(xr);
             const auto y0 = uniform(nbatch * nout, 21 + (uint32_t)nbatch);
             Pair::Out d = p.out(nbatch * nout);
@@ -1856,7 +1862,7 @@ size_t check_kernels(backend::Backend& vk) {
             std::vector<float> hc(rows * nin), fc(rows * nin);
             p.cpu.read(*h.c, 0, hc.data(), hc.size() * sizeof(float));
             p.cpu.read(*f.c, 0, fc.data(), fc.size() * sizeof(float));
-            const auto hr = fed(hc, quant::GGML_TYPE_Q8_0, integer_dot, false), fr = fed(fc, quant::GGML_TYPE_Q4_0, integer_dot, false);   // Q8_0 from the norm and Q4_0 from the SiLU, each on the twin its kernel reads
+            const auto hr = fed(vk, hc, quant::GGML_TYPE_Q8_0, integer_dot, false), fr = fed(vk, fc, quant::GGML_TYPE_Q4_0, integer_dot, false);   // Q8_0 from the norm and Q4_0 from the SiLU, each on the twin its kernel reads
             Pair::In hri = p.in(hr), fri = p.in(fr);
             p.cpu.matmul({quant::GGML_TYPE_Q8_0, wqi.cs()}, hri.cs(), d1.cs(), nin, nout, rows, {}, backend::Dtype::f32);
             p.cpu.matmul({quant::GGML_TYPE_Q4_0, w4i.cs()}, fri.cs(), d2.cs(), nin, nout, rows, {}, backend::Dtype::f32);
@@ -1926,7 +1932,7 @@ size_t check_kernels(backend::Backend& vk) {
             const auto x = uniform(nbatch * nin, 40 + (uint32_t)nbatch);
             const backend::DeviceProfile prof = backend::vulkan_device_profile(p.dev);
             const bool tiled = nbatch >= backend::tile_from_for(prof, false, nin);
-            const auto xr = fed(x, quant::GGML_TYPE_Q8_0, prof.prefer_integer_dot, true);
+            const auto xr = fed(vk, x, quant::GGML_TYPE_Q8_0, prof.prefer_integer_dot, true);
             if (!tiled) continue;
             Pair::In xi = p.in(x), xri = p.in(xr);
             const size_t rows[3] = {nout, 5, 33};
@@ -2263,7 +2269,7 @@ size_t check_kernels(backend::Backend& vk) {
                     for (size_t i = 0; i < v.size() / per_row; ++i) {
                         const std::vector<float> row(v.begin() + i * per_row, v.begin() + (i + 1) * per_row);
                         const bool t = tiled(i / per_entry_rows);
-                        const std::vector<float> got = fed(row, type, integer_dot, t);
+                        const std::vector<float> got = fed(vk, row, type, integer_dot, t);
                         std::copy(got.begin(), got.end(), out.begin() + i * per_row);
                     }
                     return out;
@@ -3688,7 +3694,7 @@ size_t check_refusals(backend::Backend& vk) {
         backend::CpuBackend cpu;
         cpu.set_threads(1);
         const bool tile = rows >= backend::tile_from_for(prof, true, nin);
-        const auto xr = fed(xf, q8, integer_dot, tile);
+        const auto xr = fed(vk, xf, q8, integer_dot, tile);
         const auto cw = cpu.adopt(wq.data(), wq.size()), cx = cpu.adopt(xr.data(), xr.size() * sizeof(float));
         const auto cy = cpu.alloc(rows * nout * sizeof(float), backend::Memory::device);
         cpu.matmul({q8, {cw.get(), 0}}, {cx.get(), 0}, {cy.get(), 0}, nin, nout, rows, {}, backend::Dtype::f32);
@@ -3830,12 +3836,16 @@ size_t check_refusals(backend::Backend& vk) {
 namespace vk35 {
 using namespace ::q35;
 // Every pair of extents of one class gives the same bits through each dtype's matrix products and shared attention (row_classes::check).
+// A type the device has no kernels for, MXFP4 without F64 and its float controls, is skipped as check_bf16_batch_split skips it.
 size_t check_row_classes(backend::Backend& vk) {
-    return row_classes::check(vk,
-                              {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
-                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0,
-                               quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0},
-                              [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
+    std::vector<uint32_t> types;
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q1_0, quant::GGML_TYPE_Q2_0, quant::GGML_TYPE_TQ1_0,
+                          quant::GGML_TYPE_TQ2_0}) {
+        if (vk.supports_type(type)) types.push_back(type);
+        else std::cout << "backend-vulkan: row-class type " << type << " unsupported, skipped\n";
+    }
+    return row_classes::check(vk, types, [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
 }
 
 // The gated-attention tail must replace attention's twin with the gated output before the residual projection.
@@ -3896,7 +3906,7 @@ size_t check_gated_attention(Pair& p, bool integer_dot) {
                 const auto Wb = b.adopt(wq.data(), wq.size());
                 const auto Yb = floats_on(b, y0);
                 if (reference) {
-                    const std::vector<float> xf = fed(gated, type, integer_dot, tile);
+                    const std::vector<float> xf = fed(p.dev, gated, type, integer_dot, tile);
                     const auto Xb = floats_on(b, xf);
                     b.matmul_add({type, {Wb.get(), 0}}, {Xb.get(), 0}, {Yb.get(), 0}, qw, nout, rows, rr);
                 } else {
@@ -4253,11 +4263,15 @@ size_t check_tq_range(backend::Backend& vk) {
             require(guarded.front() == 19.0f && guarded.back() == 19.0f, "TQ range matrix overwrote an output guard");
             const auto activations = integer ? testq::row_activations(rounded) : rounded;
             for (size_t c = 0; c < cols; ++c) for (size_t r = 0; r < rows; ++r) {
-                double want = 0.0, magnitude = 0.0, weight_sum = 0.0, peak = 0.0;
+                // On a device that may flush subnormals, any subset of subnormal operands may read as zero, moving the sum within [low, high] (docs/TESTS.md).
+                double want = 0.0, magnitude = 0.0, weight_sum = 0.0, peak = 0.0, low = 0.0, high = 0.0;
                 for (size_t i = 0; i < width; ++i) {
                     const double wi = weights[r * width + i], xi = activations[c * width + i];
+                    const double change = testq::ftz(wi) * testq::ftz(xi) - wi * xi;
                     want += wi * xi;
                     magnitude += std::fabs(wi * xi);
+                    low += std::min(0.0, change);
+                    high += std::max(0.0, change);
                     weight_sum += std::fabs(wi);
                     peak = std::max(peak, std::fabs(double(rounded[c * width + i])));
                 }
@@ -4267,10 +4281,16 @@ size_t check_tq_range(backend::Backend& vk) {
                     require(got == 0.0f, "TQ zero-scale matrix did not produce exact zero");
                 const double u = std::numeric_limits<float>::epsilon() / 2.0;
                 const double ops = double(width + 4) * u;
-                const double rounding = ops / (1.0 - ops) * magnitude + width * std::numeric_limits<float>::denorm_min();
                 const double quantization = integer ? peak / 32767.0 / 2.0 * weight_sum : 0.0;
-                require(std::fabs(double(got) - want) <= rounding + quantization,
-                        "TQ range matrix differs from the independent code-and-scale oracle");
+                const double bound = ops / (1.0 - ops) * magnitude + width * std::numeric_limits<float>::denorm_min() + quantization;
+                // A flushed partial sum is scaled later by at most the row scale; the integer kernels repair a subnormal combined scale through their float twin.
+                const double slack = testq::flush_slack(vk, 2 * (width + 4), std::fabs(double(f16_to_f32(scales[r]))));
+                const bool flush_ok = testq::may_flush(vk) && double(got) >= want + low - bound - slack && double(got) <= want + high + bound + slack;
+                if (!(std::fabs(double(got) - want) <= bound || testq::flushed(vk, got, want) || flush_ok)) {
+                    std::fprintf(stderr, "TQ range: type %u dtype %d columns %zu column %zu row %zu scale 0x%04x %s got %.9g expected %.9g bound %.3g flush [%.3g, %.3g] slack %.3g\n",
+                                 type, int(dtype), cols, c, r, unsigned(scales[r]), expected_path.c_str(), got, want, bound, low, high, slack);
+                    throw std::runtime_error("TQ range matrix differs from the independent code-and-scale oracle");
+                }
             }
             ++checked;
           }

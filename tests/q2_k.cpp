@@ -256,7 +256,8 @@ void ranges(backend::Backend& b) {
                 const double bound = 2 * std::numeric_limits<float>::epsilon() * std::fabs(want)
                                    + block_size * double(std::numeric_limits<float>::denorm_min())
                                    + std::fabs(double(value(h, uint16_t(h ^ 0x8000), 3, lane))) * input_error;
-                require(got.front() == guard && got.back() == guard && std::isfinite(got[1]) && std::fabs(double(got[1]) - want) <= bound,
+                require(got.front() == guard && got.back() == guard && std::isfinite(got[1]) && (std::fabs(double(got[1]) - want) <= bound || testq::flushed(b, got[1], want)
+                                    || testq::flushed_product(b, got[1], value(h, uint16_t(h ^ 0x8000), 3, lane), dtype == backend::Dtype::bf16 ? bf16(x[lane]) : x[lane], bound)),
                         "Q2_K finite one-hot range differs from independent product");
                 ++checked;
             }

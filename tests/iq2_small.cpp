@@ -508,7 +508,7 @@ size_t check_range(backend::Backend& backend, const Format& format) {
                         const double bound = std::fabs(weight) * repair + std::fabs(expected) * 0x1p-21 +
                             2.0 * std::numeric_limits<float>::denorm_min();
                         require(actual.front() == 19.0f && actual.back() == 19.0f &&
-                                std::isfinite(actual[1]) && std::fabs(double(actual[1]) - expected) <= bound,
+                                std::isfinite(actual[1]) && testq::range_product(backend, format.name, half_scale, input[0], dtype, extent, integer, actual[1], weight, bound),
                                 "IQ2 finite-half or activation-scale range control failed");
                         ++products;
                     }

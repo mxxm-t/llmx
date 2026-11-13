@@ -115,6 +115,7 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
     for (size_t i = 0; i < count; ++i)
         if (projections[i].rows) live.push_back(&projections[i]);
     if (live.empty()) return;
+    X = bindable(X, size_mul(nbatch, nin));
     // int8 takes f16's kernels but where a type has an 8-bit build.
     const bool sixteen = dtype == Dtype::f16 || dtype == Dtype::int8;
     if (dtype == Dtype::bf16 || kernel_choice == 1 || (kernel_choice < 0 && nbatch >= tile_from(projections, count, nin))) {
@@ -403,6 +404,13 @@ inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, siz
     each(col0, nbatch - col0, f.variant, f.chunks);
 }
 
+// A row reads F32 activations at F32, and wherever the row kernel the profile picks is the type's float row.
+inline bool VulkanBackend::row_reads_float(uint32_t type, Dtype dtype) const {
+    const WeightKernels& format = *weight_kernels(type);
+    const KernelId kernel = dev_->profile.*format.dot_from ? format.dot_row : format.row;
+    return format.layout != RowLayout::values && (dtype == Dtype::f32 || kernel == format.float_row);
+}
+
 inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin, Dtype dtype) const {
     const WeightKernels& format = *weight_kernels(type);
     const size_t nblocks = nin / quant::storage_type(type)->block_size;
@@ -429,7 +437,7 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
         units = nblocks * lanes;
         break;
     }
-    if ((dtype == Dtype::f32 || kernel == format.float_row) && format.layout != RowLayout::values) {
+    if (row_reads_float(type, dtype)) {
         kernel = format.float_row;
         units = nin;
         lanes = 1;
@@ -594,6 +602,7 @@ inline void VulkanBackend::matmul_experts_add(WeightView weight, CSlice X, Slice
 // One routed call over `nrows` token rows, k entries each, whose X has `xcols` columns: entry e reads column e / per, per being k when X is the token rows and 1 when it holds a column per entry.
 inline void VulkanBackend::routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
                                        CSlice ids, size_t n_expert, bool tile, Dtype dtype, size_t per) {
+    X = bindable(X, size_mul(xcols, nin));
     if (dtype == Dtype::bf16) tile = true;
     if (!per) per = k;
     const size_t entries = nrows * k;

@@ -342,7 +342,8 @@ size_t ranges(backend::Backend& b, bool medium) {
                         const double bound = std::fabs(weight) * repair + std::fabs(want) * 0x1p-21 +
                             2.0 * std::numeric_limits<float>::denorm_min();
                         require(got.front() == 19 && got.back() == 19 && std::isfinite(got[1]) &&
-                                    std::fabs(double(got[1]) - want) <= bound, "IQ1 finite-half/activation range repair differs");
+                                    testq::range_product(b, medium ? "IQ1_M" : "IQ1_S", h, input[0], dtype, extent, integer, got[1], weight, bound),
+                                "IQ1 finite-half/activation range repair differs");
                         ++checked;
                     }
             }

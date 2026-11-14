@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -81,6 +82,8 @@ void require(bool ok, const char* what) {
 }
 
 std::atomic<int> departures{0};
+// Clients that stopped reading while the server streamed to them, each seen as gone within the send timeout.
+std::atomic<int> drowned{0};
 
 http::Socket connect_to(uint16_t port) {
     http::platform_init();
@@ -98,8 +101,16 @@ void serve_one(http::Connection& c) {
     int status = 0;
     http::Limits limits;
     limits.max_body_bytes = 1024;
-    if (!c.read_request(req, limits, status)) {
-        if (status) c.respond(status, "text/plain", http::reason(status));
+    // Short deadlines, so a client that sends nothing, half a body or reads nothing is refused within the test's seconds.
+    limits.head_ms = std::chrono::milliseconds(300);
+    limits.body_ms = std::chrono::milliseconds(300);
+    limits.body_ms_per_mib = std::chrono::milliseconds(0);
+    limits.send_ms = std::chrono::milliseconds(300);
+    if (!c.read_head(req, limits, status) || !c.read_body(req, limits, status)) {
+        if (status) {
+            c.respond(status, "text/plain", http::reason(status));
+            c.linger();
+        }
         return;
     }
     if (req.method == "GET" && req.path == "/ping") {
@@ -139,6 +150,15 @@ void serve_one(http::Connection& c) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         ++departures;
+    } else if (req.method == "GET" && req.path == "/drown") {
+        // The client reads nothing: once its buffers are full a write must fail within the send timeout rather than block for ever, and throw ClientGone.
+        c.begin_stream(200, "text/plain");
+        const std::string chunk(64 * 1024, 'd');
+        const auto began = std::chrono::steady_clock::now();
+        for (size_t written = 0; written < size_t(256) << 20; written += chunk.size()) {
+            try { c.write_chunk(chunk); } catch (const http::ClientGone&) { ++drowned; break; }
+            require(std::chrono::steady_clock::now() - began < std::chrono::seconds(10), "a write to a client that reads nothing did not fail");
+        }
     } else {
         c.respond(404, "text/plain", "no such route");
     }
@@ -190,6 +210,71 @@ int main() {
             require(raw.rfind("HTTP/1.1 400", 0) == 0, "malformed request refused with 400");
         }
         {
+            // A body past the limit, sent whole with its head before the client reads, as a client library sends: the 413 must arrive, which a close with the body unread would turn into a reset.
+            const http::Socket s = connect_to(port);
+            const std::string big = "POST /echo HTTP/1.1\r\nContent-Length: 1048576\r\n\r\n" + std::string(1 << 20, 'y');
+            bool sent = true;
+            for (size_t off = 0; sent && off < big.size();) {
+                const int n = (int)::send(s, big.data() + off, (int)(big.size() - off), 0);
+                if (n <= 0) sent = false;
+                else off += (size_t)n;
+            }
+            std::string raw;
+            char buf[512];
+            for (;;) {
+                const int n = (int)::recv(s, buf, sizeof(buf), 0);
+                if (n <= 0) break;
+                raw.append(buf, (size_t)n);
+            }
+            http::close_socket(s);
+            require(sent && raw.rfind("HTTP/1.1 413", 0) == 0, "a body past the limit sent whole was not answered 413");
+        }
+        {
+            // A refusal from a thread that cannot wait, handed to Lingering before the client has sent: the request then meets an open socket, so the client reads the 503 and an end of stream rather than a reset.
+            http::Listener alone("127.0.0.1", 0);
+            http::Lingering lingering(4);
+            const http::Socket s = connect_to(alone.port());
+            http::Connection c = alone.accept();
+            require(c.open(), "the connection to refuse was not accepted");
+            c.respond(503, "text/plain", "full");
+            lingering.add(std::move(c), std::chrono::milliseconds(300));
+            const std::string req = "GET /ping HTTP/1.1\r\n\r\n";
+            require(::send(s, req.data(), (int)req.size(), 0) == (int)req.size(), "the request after the refusal was not sent");
+            std::string raw;
+            char buf[512];
+            int n;
+            while ((n = (int)::recv(s, buf, sizeof(buf), 0)) > 0) raw.append(buf, (size_t)n);
+            http::close_socket(s);
+            require(n == 0 && raw.rfind("HTTP/1.1 503", 0) == 0, "a refusal handed to Lingering was not read as 503 and an end of stream");
+        }
+        {
+            // Lingering holds at most its limit: a refusal past it closes the oldest at once, so refused clients that hold their sockets cost no more than the limit's descriptors, while the newest still drains to its end of stream.
+            http::Listener alone("127.0.0.1", 0);
+            http::Lingering lingering(2);
+            http::Socket clients[3];
+            for (http::Socket& s : clients) {
+                s = connect_to(alone.port());
+                http::Connection c = alone.accept();
+                require(c.open(), "a connection for the capped Lingering was not accepted");
+                c.respond(503, "text/plain", "full");
+                lingering.add(std::move(c), std::chrono::seconds(10));
+            }
+            const auto t0 = std::chrono::steady_clock::now();
+            std::string raw;
+            char buf[512];
+            int n;
+            while ((n = (int)::recv(clients[0], buf, sizeof(buf), 0)) > 0) raw.append(buf, (size_t)n);
+            require(n == 0 && raw.rfind("HTTP/1.1 503", 0) == 0, "the oldest refusal past Lingering's limit was not read as 503 and an end of stream");
+            require(std::chrono::steady_clock::now() - t0 < std::chrono::seconds(5), "the oldest refusal past Lingering's limit was not closed at once");
+            const std::string req = "GET /ping HTTP/1.1\r\n\r\n";
+            require(::send(clients[2], req.data(), (int)req.size(), 0) == (int)req.size(), "the request after the capped refusal was not sent");
+            ::shutdown(clients[2], http::kShutdownSend);
+            raw.clear();
+            while ((n = (int)::recv(clients[2], buf, sizeof(buf), 0)) > 0) raw.append(buf, (size_t)n);
+            require(n == 0 && raw.rfind("HTTP/1.1 503", 0) == 0, "the newest refusal in a capped Lingering was not read as 503 and an end of stream");
+            for (http::Socket s : clients) http::close_socket(s);
+        }
+        {
             // A client that sends one urgent byte after its request and waits a few seconds at most for the answer, which must come at once and say open.
             const http::Socket s = connect_to(port);
             int one = 1;
@@ -230,11 +315,40 @@ int main() {
             http::close_socket(s);
             require(raw.substr(raw.find("\r\n\r\n") + 4, 4) == "open", "a waiting client seen as open");
         }
+        // A client that sends nothing, and one that sends a head and only part of the body it announces: each is answered 408 within the head or body deadline and the connection closed.
+        for (const char* partial : {"", "POST /echo HTTP/1.1\r\nContent-Length: 100\r\n\r\nten bytes!"}) {
+            const http::Socket s = connect_to(port);
+            if (*partial) ::send(s, partial, (int)std::strlen(partial), 0);
+            const auto began = std::chrono::steady_clock::now();
+            std::string raw;
+            char buf[512];
+            for (;;) {
+                const int n = (int)::recv(s, buf, sizeof(buf), 0);
+                if (n <= 0) break;
+                raw.append(buf, (size_t)n);
+            }
+            http::close_socket(s);
+            require(raw.rfind("HTTP/1.1 408", 0) == 0, *partial ? "a half-sent body answered 408" : "a client that sent nothing answered 408");
+            require(std::chrono::steady_clock::now() - began < std::chrono::seconds(5), "the 408 did not come within the deadline");
+        }
+        {
+            // A client that reads nothing of its stream: the server's write fails within the send timeout and the client leaves afterwards.
+            const http::Socket s = connect_to(port);
+            const std::string get = "GET /drown HTTP/1.1\r\n\r\n";
+            ::send(s, get.data(), (int)get.size(), 0);
+            const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+            while (drowned.load() == 0) {
+                require(std::chrono::steady_clock::now() < until, "a client that reads nothing was not seen as gone");
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+            http::close_socket(s);
+        }
         // Closed while the server thread may still be serving /linger, so its next accept can start after the close.
         listener.close();
         server.join();
-        require(served.load() == 9, "every request served once");
+        require(served.load() == 13, "every request served once");
         require(departures.load() == 1, "a departed client seen as closed and a write to it refused");
+        require(drowned.load() == 1, "a client that reads nothing seen as gone once");
         {
             // A listener closed while its thread waits in accept, as a server with no client stops: that accept returns no connection within seconds, and so does any accept after it.
             http::Listener idle("127.0.0.1", 0);
@@ -252,7 +366,8 @@ int main() {
             require(std::chrono::steady_clock::now() - closed_at < std::chrono::seconds(5), "an accept waiting when its listener closed did not return");
             require(!idle.accept().open(), "an accept on a closed listener gave a connection");
         }
-        std::cout << "http: listener, whole responses, a 3-chunk stream, a response refused inside a stream, 413, 400 and 404, a client with an urgent byte answered, a client seen leaving, over " << served.load()
+        std::cout << "http: listener, whole responses, a 3-chunk stream, a response refused inside a stream, 413 (also for a body sent whole), 400 and 404, a client with an urgent byte answered, a client seen leaving, "
+                  << "408 for a silent client and a half-sent body, a client that reads nothing dropped, a refusal handed to Lingering read as 503 and an end of stream, a refusal past Lingering's limit closing the oldest at once, over " << served.load()
                   << " connections, and a listener closed while serving and while waiting\n";
         return 0;
     } catch (const std::exception& e) {

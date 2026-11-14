@@ -2100,6 +2100,38 @@ def check_limits(model):
         srv.close()
 
 
+def check_connection_cap(model):
+    """Connections past what the server can serve, its seats and queue places and the reserve for the other routes, are answered 503 at once and closed, and the server serves again once they leave."""
+    srv = Server(model, "--max-seqs", "1", "--max-queue", "1")
+    held = []
+    try:
+        # The cap is the seat and the queue place plus the routes' reserve of 16 connections (server::connection_limit), each held open without a request.
+        for _ in range(18):
+            held.append(socket.create_connection(("127.0.0.1", srv.port), timeout=30))
+        time.sleep(0.5)
+        conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=30)
+        conn.request("GET", "/v1/live")
+        reply = conn.getresponse()
+        body = json.loads(reply.read().decode("utf-8"))
+        conn.close()
+        assert reply.status == 503 and "connections" in body["error"], (reply.status, body)
+        for s in held:
+            s.close()
+        held = []
+        deadline = time.time() + 10
+        while True:
+            try:
+                assert srv.get("/v1/live") == {"status": "ok"}
+                break
+            except urllib.error.HTTPError as e:
+                assert e.code == 503 and time.time() < deadline, e.code
+                time.sleep(0.1)
+    finally:
+        for s in held:
+            s.close()
+        srv.close()
+
+
 def check_unencodable(directory):
     """A model whose vocabulary lacks the byte token `q`: /v1/tokenize refuses a text holding it with the 400 and the message the generating routes give, as a text and as messages, and `llmx tokenize` fails on it."""
     tokens = build_byte_vocab() + ["<|endoftext|>"]
@@ -2806,6 +2838,8 @@ def run(require=False):
               "a seeded repeat, refusals, the tokenize routes, a cancelled stream, the compatible completions, logprobs on the generate and completions routes, its file name as UTF-8 in every reply  [ok]" % n)
         check_unencodable(directory)
         print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
+        check_connection_cap(model)
+        print("server: synthetic F32 model, connections past the seats, the queue and the reserve answered 503 and served again once they left  [ok]")
         check_reasoning(os.path.join(directory, "reasoning.gguf"))
         checked = check_tool_messages(os.path.join(directory, "tools.gguf"))
         print("server: conversations with tool calls as a client sends them, %d renders under the pinned templates, are the reference's as the server hands them on, "

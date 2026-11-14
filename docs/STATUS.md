@@ -799,6 +799,63 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 - **Left:** timing level with the GGUF path; rebase onto main after fix/tokenizer-nfc, landing checks at that head (load-progress and disk-tier identity rerun); then step 2 (`--chat-template-file`, `llmx pull owner/repo`, the hosted job on the real directory).
 - **Gotchas:** a tensor whose file offset is not a multiple of 4 is refused (the GGUF path's alignment rule), not copied; MoE checkpoints are refused until expert stacking lands.
   Qwen3-0.6B's `config.json` sets `tie_word_embeddings` yet its file holds `lm_head.weight` (311 tensors against the GGUF's 310): the table must accept a tied head only when its bytes equal the embedding's, and drop it.
+## Held norm rows in parts (2026-11-14, QWEN28 then QWEN29, branch qwen27/norm-split, rebased onto main 929f042c6)
+
+**Goal.** A decode row's RMS norm on ROCm ran as one block on one compute unit, 14.6 us for a 5120-wide row with its int8 twin on an MI50, while every other unit waited; decode runs two a layer.
+
+**Done.**
+- `rms_norm_rows` launches the held builds (`rms_norm_held`, `kernels/f32.gpu`) over parts of a row in blockIdx.y, min(ceil(n / 512), floor(CUs / rows)) and at least one; each part sums the whole row in the same order and writes only its share, in whole twin blocks, so every value and twin is the bits of one part.
+- A call whose output overlaps its input runs one part a row, since a part's writes would reach another part's sum.
+- The kernel takes its part count as an argument and reads no `gridDim`: reading `gridDim.y` gave the held norms hidden kernel arguments (a kernarg segment of 320 bytes against 64), which cost every held norm 1.4 to 2.9 us a call on an MI50, enough that a 1024-wide row lost more than its two parts gained and Qwen3-0.6B Q8_0 int8 decode ran 2 percent below main (found at the landing of land-20261116 by LAND65).
+  rocprofv3 durations of `llmx_rms_norm_16_twin8` in a one-row probe of the norm and a product, ns: in place (one part) main 4640 at 1024 wide and 9120 at 5120, `gridDim.y` 6080 and 11840, with an unlaunched kernel appended to `f32.gpu` main's 4640 and 9120, so not code layout; out of place with the argument 4800 to 5280 at 1024 (2 parts) against main's 5120 to 5920, and 7840 to 8800 at 5120 (10 parts) against 12800.
+  One part in place stays 0.3 to 1.6 us a call above main's, from the share's bounds; a form that ran one part without them gave that back but cost the 1024-wide parts 0.5 us, and in-place norms run one a layer or a token, so the bounds stay.
+  The table above was measured with the hidden arguments, so its parts columns hold an overhead the kernel no longer pays.
+- The rule is the measured knee (`kb38`, one MI50, int8 twin, us a call; rows by parts): a part gains while the call holds at most one 1024-thread block a compute unit and stops gaining at about 512 values a part, and every part repeats the row's read and sum, so above one block a CU parts cost (QWEN28's first rule, four blocks a CU at 256 values, cost pp32 3.7 percent at 1x4 and 3.4 at 2x2).
+
+| n, rows | 1 part | 2 | 4 | 6 | 8 | 10 | rule |
+|---|---|---|---|---|---|---|---|
+| 5120, 1 | 14.59 | 11.63 | 10.41 | 9.82 | 9.54 | 9.34 | 10 |
+| 5120, 4 | 14.37 | 11.64 | 10.37 | 9.86 | 9.73 | 9.47 | 10 |
+| 5120, 8 | 14.65 | 11.83 | 10.52 | 10.17 | 15.90 | 15.70 | 7 |
+| 5120, 16 | 15.34 | 12.65 | 18.17 | 17.99 | 23.48 | 23.01 | 3 (11.77) |
+| 5120, 32 | 15.39 | 20.86 | 25.34 | 31.38 | 37.03 | 40.96 | 1 |
+| 4096, 8 | 11.13 | 8.92 | 7.79 | 7.67 | 8.74 | 8.85 | 7 |
+| 2048, 1 | 9.19 | 7.37 | 6.68 | 6.69 | 6.66 | - | 4 |
+| 1024, 1 | 7.63 | 6.38 | 6.22 | - | - | - | 2 |
+
+kb38 is device-timed, best of 5, and ran with the host flagged contended (hostwait w_ms 3172), so the shape of the table holds and its absolute microseconds are not clean figures.
+The rule's 7 parts at 8 rows was not timed: it lies between 6 parts (10.17 us) and 7 rows in 8 parts, the same 56 blocks (about 10.00 us); the timing round below covers it.
+
+- `producer_twins` in `tests/backend_rocm.cpp` requires the out-of-place norm, in parts, to give the values and the product of the twin of the same norm run in place, one part, at 1024, 1568 (four parts of 13, 13, 13 and 10 twin blocks), 4096 and 5120 wide and 1 to 3 rows, in both twin classes.
+- QWEN28's first rule on main c0d13585c (llmx 0.1.0+gc0d13585c against 0.1.0+g6acb3240dcee), Qwen3.8-27B Q8_0, ROCm int8, four MI50s, `bench --p 32 --n 64 --r 3` ABAB, every cell flagged contended by hostwait: tg64 1x4 56.61, 59.37 to 62.05, 61.36 and 2x2 39.06, 39.20 to 39.95, 40.07 tok/s, pp32 1x4 438.87, 440.38 to 421.84, 424.51 and 2x2 330.13, 330.20 to 319.40, 318.66 tok/s; the rule above replaces it.
+
+- Landing checks of 2ba234a02 (llmx 0.1.0+g2ba234a0214b) against main 9724cd436 (llmx 0.1.0+g9724cd436aca), both built by the same script and image, four MI50s, ROCm int8, Qwen3.8-27B Q8_0, two ABAB rounds, every cell flagged contended by hostwait.
+  `backend-rocm` passes on one MI50.
+  Greedy text of 256 tokens is byte-identical to main's at 1x4 and 2x2 with no drafter and with embedded drafting at draft-max 3 and 6 (the drafts kept per step are main's too), on Qwen3-0.6B Q8_0 on ROCm 1x4, and on the CPU for Qwen3-0.6B.
+
+| cell, tok/s | 1x4 main | 1x4 branch | 2x2 main | 2x2 branch |
+|---|---|---|---|---|
+| tg64 (bench --p 32 --n 64) | 57.31, 60.14 | 62.69, 59.21 | 38.75, 39.46 | 39.23, 39.42 |
+| pp32 | 441.10, 440.13 | 438.49, 434.23 | 326.69, 329.36 | 326.37, 324.37 |
+| tg16 (bench --p 128 --n 16) | 59.82, 57.78 | 61.91, 61.23 | 38.66, 38.59 | 39.76, 39.88 |
+| pp128 | 659.48, 655.41 | 657.05, 655.85 | 605.29, 605.68 | 601.05, 601.88 |
+| generate 256, no drafter | 56.32 | 59.99 | 38.92 | 39.86 |
+| generate 256, draft-max 3 | 110.01 | 113.84 | 82.20 | 83.71 |
+| generate 256, draft-max 6 | 98.48 | 100.32 | 75.72 | 76.02 |
+
+  Over the two rounds tg64 moves +3.8 percent at 1x4 and +0.2 at 2x2, tg16 after pp128 +4.6 and +3.0.
+  Prompts of 32 rows and more take one part, the code main runs, and pp32 and pp128 move +0.1 to -1.5 percent, inside the layout band the AGENTS.md principles give.
+  Qwen3-0.6B Q8_0 ROCm 1x4 generate 256: 256.64 to 263.80 tok/s.
+
+- The suite on one MI50 (`--device rocm:0 --require-tools`) and its `docs` and `dead-code` components pass at 992d8ef30, and that head's hosted run 43650517270 was green in every job.
+- Rebased onto main 929f042c6 (ROCm F16, Q4_0 and Q4_1 weights), whose `backend_core.hpp`, `f32.gpu` and `backend_rocm.cpp` changes merged without conflict; only this block and the `kernels/f32.gpu` paragraph of `docs/src/backends-gpu.md` were merged by hand.
+  At cd87d3a9e (llmx 0.1.0+gcd87d3a9e03d) against main 929f042c6 (llmx 0.1.0+g929f042c6b2a), built by the same scripts: the ROCm and CPU builds have no error, CTest on one MI50 passes 87 of 87, CTest on the CPU 83 of 83 (`cache-scenario` failed once at load 50 on "the write ending while the job is spared" and passed alone, a timing case this change does not reach), and Qwen3.8-27B Q8_0 ROCm int8 greedy text of 256 tokens is main's at 1x4 and 2x2 with no drafter and at draft-max 3.
+- Hosted run 43659906553 tests cd87d3a9e; this record changes `docs/STATUS.md` alone, and the change lands by fast-forward.
+
+**Left.** The Radeon VII check is not reached: the Windows build compiles neither `gpu/` nor `kernels/f32.gpu`.
+A follow-up branch measures Vulkan's `rms_norm_rows` chunk rule, ceil(4 CUs / rows) at 256 values, against the same cliff at more blocks than compute units (pp32: 32 rows by 8 chunks is 256 workgroups on 60 CUs); the two rules stay separate until that measurement says otherwise.
+
+**Gotchas.** The CUDA build shares `kernels/f32.gpu` and the launch; it compiles the same kernel and was not run on a device.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

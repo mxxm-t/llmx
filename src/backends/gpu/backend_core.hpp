@@ -724,9 +724,13 @@ public:
         float* td = t.d;
         TwinMap map = t.map;
         const Kernel build = twin_build(k, map);
-        Args args(d, s, wp, in, st, eps, q, td);
+        // A row runs in parts of about kNormPart values, at most one block a compute unit, each repeating the row's sum and writing its own share in whole twin blocks (docs/src/backends-gpu.md, kernels/f32.gpu).
+        // In place it runs as one part, since a part's writes would reach another's sum.
+        const size_t units = std::max(1u, dev_.caps.compute_units) / rows;
+        const unsigned parts = overlaps(CSlice(dst), rows * stride, src, rows * stride) ? 1 : (unsigned)std::max<size_t>(1, std::min((n + kNormPart - 1) / kNormPart, units));
+        Args args(d, s, wp, in, st, eps, parts, q, td);
         if (build != k) args.put(map);
-        launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, build, (unsigned)rows, 1, args, 1, kNormThreads);
+        launch_writing({{d, size_mul(rows, std::max<size_t>(n, stride))}}, build, (unsigned)rows, parts, args, 1, kNormThreads);
         keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
@@ -2070,6 +2074,7 @@ private:
     }
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.gpu)
     static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.gpu)
+    static constexpr size_t kNormPart = 512;         // the values a held norm's part writes, where the measured gain levels off
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.gpu)
     static constexpr size_t kRowsOut = 8, kRowsIn = 8;   // the blocked exact product's outputs and rows a block (kernels/f32.gpu)
     static constexpr size_t kTileOut = 64, kTileOutTall = 128, kTileRows = 64;   // the prompt tile's outputs, its tall build's, and its rows (kernels/int16.gpu)

@@ -1160,10 +1160,10 @@ void mxfp4_decode_bits(Backend& g) {
 void producer_twins(Backend& g, Dtype dt) {
     const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
     const size_t nout = 40;
-    bool norms = true, silus = true, dropped = true;
-    // Rows of 1024, 4096 and 5120 take the held builds of 16 and 32 values a thread, 9216 the plain one, and a stride past n writes no twin.
+    bool norms = true, silus = true, dropped = true, parts = true;
+    // Rows of 1024, 4096 and 5120 take the held builds of 16 and 32 values a thread, 9216 the plain one, and a stride past n writes no twin; 1568 runs four parts of 13, 13, 13 and 10 twin blocks.
     struct Case { size_t n, rows, stride, extent; };
-    for (const Case cs : {Case{4096, 1, 4096, 1}, Case{4096, 3, 4096, 3}, Case{5120, 2, 5120, 1}, Case{9216, 2, 9216, 2}, Case{1024, 2, 1024, 2}, Case{4096, 2, 4200, 1}}) {
+    for (const Case cs : {Case{4096, 1, 4096, 1}, Case{4096, 3, 4096, 3}, Case{5120, 2, 5120, 1}, Case{9216, 2, 9216, 2}, Case{1024, 2, 1024, 2}, Case{1568, 1, 1568, 1}, Case{1568, 2, 1568, 2}, Case{4096, 2, 4200, 1}}) {
         const size_t n = cs.n, rows = cs.rows, stride = cs.stride;
         const std::vector<float> x = row_classes::values(rows * stride, 91), w = row_classes::values(n, 92), up = row_classes::values(rows * stride, 93);
         const std::vector<uint8_t> m = q8_matrix(n, nout, 94);
@@ -1180,6 +1180,11 @@ void producer_twins(Backend& g, Dtype dt) {
         g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, prows, {prun, 1}, dt);
         norms = norms && same(read(g, *y, nout * prows), read(g, *yc, nout * prows));
         if (stride != n) continue;
+        // In place the norm runs one part a row, out of place several (rms_norm_rows): the values and the twin a product reads are the same bits.
+        g.copy(*cb, 0, *xb, 0, rows * n * 4);
+        g.rms_norm_rows({cb.get(), 0}, {cb.get(), 0}, {wb.get(), 0}, rows, n, n, 1e-6f, {run, 1});
+        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
+        parts = parts && same(read(g, *ob, rows * n), read(g, *cb, rows * n)) && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
         g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n, 0.0f, {run, 1});
         g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
         g.copy(*cb, 0, *ob, 0, rows * n * 4);
@@ -1225,6 +1230,7 @@ void producer_twins(Backend& g, Dtype dt) {
         }
     }
     require(norms, form + ": a product of rms_norm_rows' output gives the bits of a product of its copy");
+    require(parts, form + ": rms_norm_rows in parts gives the bits and twin of one part a row");
     require(silus, form + ": a product of silu_mul's output gives the bits of a product of its copy");
     require(dropped, form + ": a write or a product into a producer's output drops its twin");
 }

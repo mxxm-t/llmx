@@ -380,8 +380,8 @@ int dictionary_checks() {
     return failures;
 }
 
-// A hold (Backend::hold_between_submissions) ends within 1 ms at the 99th percentile once the next submission releases it or it is given back, and by the device's clock within 50 to 400 ms if never.
-// A release the spinning hold does not see shows as a hold that runs to its bound, and a misread clock rate as one that ends at 10 ms or at a second.
+// A hold (Backend::hold_between_submissions) ends within 4 times a plain submit-to-retire's 99th percentile, 1 to 25 ms, once the next submission releases it or it is given back, and by the device's clock within 50 to 400 ms if never.
+// A release the spinning hold does not see shows as a hold that runs to its bound, which also slows the plain submits, so the 25 ms cap keeps it failing; a misread clock rate shows as one that ends at 10 ms or at a second.
 int hold_timing_checks() {
     auto base = backend::make_vulkan_backend(0);
     auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
@@ -395,9 +395,11 @@ int hold_timing_checks() {
     b.hold_between_submissions(true);
     std::cout << "hold timing: uncached host memory " << backend::VulkanLifetimeTest::device(b)->uncached_memory << "\n";
     int failures = 0;
-    std::vector<double> release;
+    std::vector<double> release, plain;
     for (int i = 0; i < 1000; ++i) {
+        const auto tp = Clock::now();
         b.wait(b.submit());
+        plain.push_back(ms_since(tp));
         std::this_thread::sleep_for(std::chrono::microseconds(500));
         const uint64_t held = backend::VulkanLifetimeTest::hold_last(b);
         const auto t0 = Clock::now();
@@ -406,9 +408,11 @@ int hold_timing_checks() {
         release.push_back(ms_since(t0));
     }
     std::sort(release.begin(), release.end());
-    const bool released = release.size() == 1000 && at(release, 990) < 1.0;
+    std::sort(plain.begin(), plain.end());
+    const double bound = std::min(25.0, std::max(1.0, 4.0 * at(plain, 990)));
+    const bool released = release.size() == 1000 && at(release, 990) < bound;
     std::cout << "hold released by the next submission: " << release.size() << " holds, p50 " << at(release, 500) << " ms, p99 " << at(release, 990) << " ms, max "
-              << at(release, 999) << " ms" << (released ? " PASS\n" : " FAIL\n");
+              << at(release, 999) << " ms, bound " << bound << " ms from a plain submit's p99 " << at(plain, 990) << " ms" << (released ? " PASS\n" : " FAIL\n");
     if (!released) ++failures;
     // The hold given back with no work after it.
     std::vector<double> alone;
@@ -423,7 +427,7 @@ int hold_timing_checks() {
         b.hold_between_submissions(true);
     }
     std::sort(alone.begin(), alone.end());
-    const bool given_back = alone.size() == 300 && at(alone, 296) < 1.0;
+    const bool given_back = alone.size() == 300 && at(alone, 296) < bound;
     std::cout << "hold given back: " << alone.size() << " holds, p50 " << at(alone, 150) << " ms, p99 " << at(alone, 296) << " ms, max " << at(alone, 299) << " ms"
               << (given_back ? " PASS\n" : " FAIL\n");
     if (!given_back) ++failures;

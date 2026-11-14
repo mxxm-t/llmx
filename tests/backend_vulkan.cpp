@@ -2525,6 +2525,49 @@ size_t check_whole_chunks(backend::Backend& vk) {
     return checks;
 }
 
+// One-column calls of 16-bit Q4_0, Q4_1, IQ4_NL and IQ4_XS rows take the four-row build where the transposed reduction holds their cluster (one_column_variant), and the one-row build below that cluster.
+// Rows 300 and 301 tall reach whole clusters and the four-row build's partial last group; every row must equal column 0 of a two-column call.
+size_t check_four_row_builds(backend::Backend& vk) {
+    const bool tree = backend::vulkan_device_profile(vk).row_decode_tree;
+    size_t checks = 0;
+    for (uint32_t type : {uint32_t(quant::GGML_TYPE_Q4_0), uint32_t(quant::GGML_TYPE_Q4_1), uint32_t(quant::GGML_TYPE_IQ4_NL), uint32_t(quant::GGML_TYPE_IQ4_XS)}) {
+        if (!vk.supports_type(type) || backend::vulkan_row_reads_float(vk, type, backend::Dtype::f16)) continue;
+        // 256 values a row give a cluster of 8 lanes, below any subgroup; 1280 give 40 units, a cluster of the whole subgroup, which the transposed reduction holds.
+        for (size_t nin : {size_t(256), size_t(1280)})
+            for (size_t rows : {size_t(300), size_t(301)}) {
+                const auto x = uniform(2 * nin, 551 + uint32_t(nin));
+                const auto wb = matrix(type, nin, rows, 552 + uint32_t(rows));
+                const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), w = vk.adopt(wb.data(), wb.size());
+                const auto y1 = vk.alloc(rows * sizeof(float)), y2 = vk.alloc(2 * rows * sizeof(float));
+                const backend::RowRun one{1, 1}, two{2, 1};
+                (void)backend::vulkan_kernel_times(vk);
+                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, rows, 1, {&one, 1}, backend::Dtype::f16);
+                const auto times = backend::vulkan_kernel_times(vk);
+                if (times.empty()) {
+                    vk.sync();
+                    std::cout << "backend-vulkan: four-row builds unwitnessed without device timestamps\n";
+                    return 0;
+                }
+                const std::string want = tree && nin == 1280 ? "_1col_4row" : "_1col";
+                size_t products = 0;
+                for (const auto& entry : times) {
+                    if (entry.first.rfind("matmul_row_", 0) != 0) continue;
+                    require(entry.first.size() > want.size() && entry.first.compare(entry.first.size() - want.size(), want.size(), want) == 0,
+                            ("a one-column Q4 or IQ4 call expected a build ending " + want + ", got " + entry.first).c_str());
+                    ++products;
+                }
+                require(products == 1, "a one-column Q4 or IQ4 call did not witness exactly one row dispatch");
+                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y2.get(), 0}, nin, rows, 2, {&two, 1}, backend::Dtype::f16);
+                std::vector<float> a(rows), b(2 * rows);
+                vk.read(*y1, 0, a.data(), rows * sizeof(float));
+                vk.read(*y2, 0, b.data(), 2 * rows * sizeof(float));
+                require(std::memcmp(a.data(), b.data(), rows * sizeof(float)) == 0, "a one-column Q4 or IQ4 row differs from column 0 of a two-column call");
+                ++checks;
+            }
+    }
+    return checks;
+}
+
 // The decode-column cells: every type in `types` at 1 to 64 columns, and those in `wide` also at widths to 1024 (docs/TESTS.md, backend-vulkan).
 struct DecodeCells {
     std::vector<uint32_t> types, wide;
@@ -3413,7 +3456,7 @@ size_t check_weight_dispatch() {
                             if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
                             // A routed tile of few entries takes the narrow build of its tall module, or of its one module (kNarrowCols).
                             const bool narrow = routed && tile && integer && (entry.first == expected + "_tall_narrow" || entry.first == expected + "_narrow");
-                            require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_1col_1row" ||
+                            require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_1col_2row" || entry.first == expected + "_1col_4row" || entry.first == expected + "_1col_1row" ||
                                         entry.first == expected + "_1col_2step" || entry.first == expected + "_1col_paired" || entry.first == expected + "_small" || narrow,
                                     ("weight dispatch expected " + expected + ", got " + entry.first).c_str());
                             ++products;
@@ -5762,6 +5805,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_f32_filling_builds(*backend::make_vulkan_backend(0, true)) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
         std::cout << "backend-vulkan: " << check_whole_chunks(*backend::make_vulkan_backend(0, true)) << " Q8_0 and Q4_K decode calls of whole chunks in one dispatch\n";
+        std::cout << "backend-vulkan: " << check_four_row_builds(*backend::make_vulkan_backend(0, true)) << " one-column Q4 and IQ4 calls in the build their cluster gives, equal to a two-column call's first column\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8, cells) << " int8 decode columns equal to the same columns alone\n";

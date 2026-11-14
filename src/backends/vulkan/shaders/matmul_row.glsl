@@ -249,6 +249,7 @@ float lookup_input(uint col, uint b, uint j) {
 #include "iq3_dot.glsl"
 #else
 #include "iq4_dot.glsl"
+#include "iq4_pairs.glsl"
 #endif
 #endif
 #ifdef LLMX_K23

@@ -150,6 +150,8 @@
             uvec2 weights[8];
 #if defined(LLMX_LOW_BITS_DOT) && !defined(LLMX_Q1_0)
             for (uint j = 0u; j < 8u; ++j) weights[j] = lookup_q2_cached_pairs(lookup_q2_byte(codes, j));
+#elif defined(LLMX_IQ4_PAIRS)
+            lookup_pairs8(codes, weights);
 #else
             for (uint j = 0u; j < 8u; ++j) weights[j] = lookup_pairs(codes, j);
 #endif

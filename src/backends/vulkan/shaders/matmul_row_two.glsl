@@ -58,7 +58,11 @@
                 uvec2 wr[ROWS][8];
                 [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                     uint codes = lookup_group(wbr[r], p.nin, b, dwr[r]);
+#ifdef LLMX_IQ4_PAIRS
+                    lookup_pairs8(codes, wr[r]);
+#else
                     [[unroll]] for (uint j = 0u; j < 8u; ++j) wr[r][j] = lookup_pairs(codes, j);
+#endif
                 }
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     if (GROUPED && c >= ncols) break;

@@ -514,6 +514,8 @@ public:
             const VecBuild& b = kVecBuilds[variant];
             return std::string(kKernelNames[id]) + "_" + std::to_string(b.capacity()) + "col_" + std::to_string(b.rows) + "row" + (b.span > 1 ? "_span" + std::to_string(b.span) : "");
         }
+        if ((variant == kRowOneColumnTwoRows || variant == kRowOneColumnFourRows) && is_row_kernel((KernelId)id) && row_kernel_builds_two_rows((KernelId)id) && !low_bits_dot_row((KernelId)id))
+            return std::string(kKernelNames[id]) + (variant == kRowOneColumnFourRows ? "_1col_4row" : "_1col_2row");
         if (variant && is_row_kernel((KernelId)id)) {
             std::string name = std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
             if (low_bits_dot_row((KernelId)id) && variant == kLowBitsRows) name += id == K_MATMUL_ROW_Q2_0_DOT ? "_4row" : "_2row";

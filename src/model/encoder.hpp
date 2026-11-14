@@ -66,8 +66,9 @@ public:
     virtual ~VisionArchitecture() = default;
     // Its preprocessing; with `max_tokens`, its resize bound the one that keeps an image within that many tokens, refused where its images always take more.
     virtual image::Params preprocess(std::optional<uint64_t> max_tokens) const = 0;
-    // The most tokens an image resized under `p` takes.
+    // The most and the fewest tokens an image resized under `p` takes.
     virtual uint64_t max_tokens(const image::Params& p) const = 0;
+    virtual uint64_t min_tokens(const image::Params& p) const = 0;
     virtual size_t tokens(uint32_t grid_h, uint32_t grid_w) const = 0;
     virtual VisionPositions positions() const = 0;
     virtual ImageTokenTexts token_texts() const = 0;

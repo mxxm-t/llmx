@@ -147,6 +147,9 @@ inline size_t image_tokens(const Vision& v, const std::string& bytes) {
     return v.encoder->architecture().tokens(h / v.params.patch, w / v.params.patch);
 }
 
+// The fewest rows any image takes under the encoder's sizing, which bounds a request's images before any is decoded.
+inline size_t fewest_image_tokens(const Vision& v) { return size_t(v.encoder->architecture().min_tokens(v.params)); }
+
 // A prompt's ids with each image's pad run, and the runs its sequence reads each image's rows from, counted from the prompt's first id.
 struct ImagePrompt {
     std::vector<uint32_t> ids;

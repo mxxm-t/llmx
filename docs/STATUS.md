@@ -801,6 +801,30 @@ Radeon VII: not reached. The branch changes `CMakeLists.txt` (ROCm and CUDA rule
 **Left.** Nothing on this branch; it lands by fast-forward once reviewed.
 
 **Gotchas.** `merge_rank` is keyed by the joined text of a pair, so a second split of the same text overwrites the first's rank; the test's generated merges avoid that and its reference loop ranks the same way, so the identity check holds for the map as it is.
+## Image request limits (2026-11-15, SEC1-IMG, branch sec/image-limits on sec/tokenizer-linear 9d7c89afd)
+
+**Goal.** A served request's images cost no more than its tokens allow, and a hostile PNG or JPEG no more than a real one: the security scan's resource findings on `llmx serve --mmproj`, none of them a memory-safety bug, the decoders' bounds untouched.
+
+**Done.**
+- `Api::images_fit` (`src/server/api.hpp`): a request's images are held to `Scheduler::token_limit` before any is decoded, at `infer::fewest_image_tokens`, and as each is decoded, at their tokens so far, refused with 413 and the numbers on both chat routes and `/v1/tokenize`; before, a 64 MiB body of distinct tiny JPEGs made a raster of at least `min_pixels` for each.
+  The fewest is the architecture's `min_tokens(params)` beside `max_tokens`: min(min_pixels, max_pixels / 4) / (patch * merge)^2, at least 1, since smart_resize raises an image to min_pixels or above and floors a shrunk side to the factor, each side at least half its real-valued target; 64 for Qwen's defaults, 3 under `--image-max-tokens 12`.
+- JPEG (`src/image/jpeg.hpp`): a component's coefficient plane is allocated at its first scan and a component without one is refused, so a frame header alone at 9459 by 9459 (3 planes of 179 MB before) commits nothing; `kMaxScans` 64, where libjpeg's progressive script writes 10 scans for three components and 6 for one, bounds the passes over the planes a file may ask for (about 400k scans in 20 MiB before); `dc_pred` and the inverse DCT's sums are 64-bit, which any 16-bit coefficient against any 16-bit quantizer fits through both passes, with every fixture's bytes unchanged.
+- PNG (`src/image/png.hpp`, `src/image/inflate.hpp`): the keyed text chunks of a file inflate within one 1 MiB budget (`kTextLimit`), a file past it refused as Pillow refuses a text past its limit, where before each chunk inflated up to 1 MiB on its own (20k chunks, 20 GB of inflate); `InflateLimit` tells the limit from a malformed stream, which also closes a hole where a text past 1 MiB + 1 was dropped as malformed rather than refused.
+  The IDAT reserve stays: its limit is the exact raw size of the declared image, which the output reaches, and a lazily grown vector would copy the image's bytes on the decode path.
+- Tests: `image-decode`'s `limits` builds the files (a progressive JPEG of 64 and 65 one-bit scans, a frame header alone at 9459 by 9459 refused within 200 ms, a PNG whose zTXt chunks inflate to 1 MiB, 2 MiB and 1.5 MiB); the suite's `image` component sends 17 distinct broken JPEGs, refused with 413 before any decode, and 15 copies of the 70-token photo with a broken 16th, refused with 413 at the 15th.
+  On the unfixed code: the 65-scan JPEG decoded, the frame header alone decoded to a gray image in 346 ms, the 2 MiB and 1.5 MiB texts decoded, and the server decoded the first broken image (400, "a marker segment runs past the end of the file").
+- Results (2026-11-15, this Windows PC, MSVC, CPU only): `image-decode` 22410 checks, `image-cache`, `image-prompt` and `arch-qwen3vl-vision` pass; the suite's `image`, `docs` and `dead-code` components pass.
+  Decode time of a 4000 by 3000 JPEG (quality 90, 4:2:0, 2.8 MB) and PNG (24 MB), best of 7 a round over 8 interleaved rounds of main's sources against the branch's, built the same way: JPEG 184.1 to 256.9 ms before and 182.0 to 253.1 ms after (minima 184.1 and 182.0, medians 193.2 and 199.7), PNG 633.6 to 699.1 ms before and 634.1 to 840.5 ms after (minima 633.6 and 634.1, medians 653.9 and 648.9); the machine's spread is 10 to 30 percent between rounds and the arms sit inside it, the 64-bit IDCT costing nothing a 64-bit core can see.
+
+**Left.**
+- At landing: CTest, the CPU suite, Qwen3-0.6B byte identity against main and the hosted run (AGENTS.md, Merge gates), which this PC without the models did not run; the suite's `image` component on an MI50 with `--device vulkan:0`, since the server component rule covers it.
+
+**Gotchas.**
+- `kMaxDecodedPixels` stays at 89,478,485 (Pillow's threshold): phone photos of 48 megapixels and cameras past 60 exist, and the encoder's `max_pixels` (16.7M by default) shrinks a decoded image at once, so what a request keeps for its life is at most 50 MB of resized pixels an image, under the token bound above.
+  The transient peak a decode takes is bounded by the file, not the pixel cap alone: a 20 MiB JPEG can hold 89M pixels, which costs about 7 bytes a pixel at its peak (the coefficient planes, 2 bytes a pixel a component, the sample planes and the RGB, the planes freed component by component), about 630 MB on one connection thread for the decode's duration, and a PNG about 4 bytes a pixel plus the RGB; the body limit bounds it a request and the connection count bounds it a server.
+  Lowering the cap to the encoder's bound would refuse photos Pillow opens, which the decoder's one promise forbids.
+- The time bound in `image-decode` (200 ms for a frame header alone) is what makes a plane allocated at the frame header visible: 179 MB zero-filled takes 50 ms or more on any machine, and the refusal path microseconds.
+- The fewest-tokens bound is a lower bound, not the exact minimum: a request of images between it and their decoded tokens passes the first check and is refused as the decoded tokens pass the limit, having decoded up to limit / fewest images, so the worst a request can make is about limit / fewest rasters of min_pixels each, 16 of 196 KB at a 1024-token limit and 2048 at 131072, rather than the body's 290k.
 
 ## MXFP4 one-column 8-bit rows by four lanes a row (2026-11-14, DSDEV172 to DSDEV181, branch dsdev172/mxfp4-experts on main 84e98d4fe)
 

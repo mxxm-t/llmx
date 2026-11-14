@@ -111,51 +111,56 @@ struct BitReader {
     }
 };
 
+// The most scans a file may hold, each a pass over every block of its components: libjpeg's progressive script writes 10 for three components and 6 for one, and no encoder's script nears 64.
+inline constexpr int kMaxScans = 64;
+
 struct Component {
     int id = 0, h = 1, v = 1, tq = 0;
     int dc_table = 0, ac_table = 0;
     size_t bw = 0, bh = 0;                // blocks stored, padded to whole MCUs
     size_t width = 0, height = 0;         // samples before upsampling (libjpeg's downsampled size)
-    std::vector<int16_t> coefs;           // 64 a block, zigzag undone
-    int dc_pred = 0;
+    std::vector<int16_t> coefs;           // 64 a block, zigzag undone, allocated at the component's first scan
+    int64_t dc_pred = 0;                  // 64-bit, since a file may add a 16-bit difference a block for a million blocks
     int16_t* block(size_t bx, size_t by) { return coefs.data() + (by * bw + bx) * 64; }
 };
 
 // The islow inverse DCT of one block into 8 rows of `out`, `stride` apart, as libjpeg's jidctint computes it, the range limit included.
+// The sums are 64-bit: a file may put any 16-bit coefficient against a 16-bit quantizer, which 32 bits cannot hold through the passes, and a valid image's bytes are the same either way.
 inline void idct_islow(const int16_t* in, const uint16_t* q, uint8_t* out, size_t stride) {
     constexpr int CB = 13, P1 = 2;
-    constexpr int32_t F0298 = 2446, F0390 = 3196, F0541 = 4433, F0765 = 6270, F0899 = 7373, F1175 = 9633, F1501 = 12299,
+    using I = int64_t;
+    constexpr I F0298 = 2446, F0390 = 3196, F0541 = 4433, F0765 = 6270, F0899 = 7373, F1175 = 9633, F1501 = 12299,
                       F1847 = 15137, F1961 = 16069, F2053 = 16819, F2562 = 20995, F3072 = 25172;
-    int32_t ws[64];
+    I ws[64];
     for (int c = 0; c < 8; ++c) {
         const int16_t* col = in + c;
         if (!col[8] && !col[16] && !col[24] && !col[32] && !col[40] && !col[48] && !col[56]) {
-            const int32_t dc = int32_t(col[0]) * q[c] * (1 << P1);
+            const I dc = I(col[0]) * q[c] * (1 << P1);
             for (int r = 0; r < 8; ++r) ws[r * 8 + c] = dc;
             continue;
         }
-        int32_t z2 = int32_t(col[16]) * q[16 + c], z3 = int32_t(col[48]) * q[48 + c];
-        int32_t z1 = (z2 + z3) * F0541;
-        int32_t t2 = z1 + z3 * -F1847, t3 = z1 + z2 * F0765;
-        z2 = int32_t(col[0]) * q[c];
-        z3 = int32_t(col[32]) * q[32 + c];
-        int32_t t0 = (z2 + z3) * (1 << CB), t1 = (z2 - z3) * (1 << CB);
-        const int32_t t10 = t0 + t3, t13 = t0 - t3, t11 = t1 + t2, t12 = t1 - t2;
-        t0 = int32_t(col[56]) * q[56 + c];
-        t1 = int32_t(col[40]) * q[40 + c];
-        t2 = int32_t(col[24]) * q[24 + c];
-        t3 = int32_t(col[8]) * q[8 + c];
+        I z2 = I(col[16]) * q[16 + c], z3 = I(col[48]) * q[48 + c];
+        I z1 = (z2 + z3) * F0541;
+        I t2 = z1 + z3 * -F1847, t3 = z1 + z2 * F0765;
+        z2 = I(col[0]) * q[c];
+        z3 = I(col[32]) * q[32 + c];
+        I t0 = (z2 + z3) * (1 << CB), t1 = (z2 - z3) * (1 << CB);
+        const I t10 = t0 + t3, t13 = t0 - t3, t11 = t1 + t2, t12 = t1 - t2;
+        t0 = I(col[56]) * q[56 + c];
+        t1 = I(col[40]) * q[40 + c];
+        t2 = I(col[24]) * q[24 + c];
+        t3 = I(col[8]) * q[8 + c];
         z1 = t0 + t3;
         z2 = t1 + t2;
         z3 = t0 + t2;
-        int32_t z4 = t1 + t3;
-        const int32_t z5 = (z3 + z4) * F1175;
+        I z4 = t1 + t3;
+        const I z5 = (z3 + z4) * F1175;
         t0 *= F0298; t1 *= F2053; t2 *= F3072; t3 *= F1501;
         z1 *= -F0899; z2 *= -F2562; z3 *= -F1961; z4 *= -F0390;
         z3 += z5; z4 += z5;
         t0 += z1 + z3; t1 += z2 + z4; t2 += z2 + z3; t3 += z1 + z4;
         constexpr int s = CB - P1;
-        constexpr int32_t h = 1 << (s - 1);
+        constexpr I h = I(1) << (s - 1);
         ws[0 * 8 + c] = (t10 + t3 + h) >> s;
         ws[7 * 8 + c] = (t10 - t3 + h) >> s;
         ws[1 * 8 + c] = (t11 + t2 + h) >> s;
@@ -166,29 +171,29 @@ inline void idct_islow(const int16_t* in, const uint16_t* q, uint8_t* out, size_
         ws[4 * 8 + c] = (t13 - t0 + h) >> s;
     }
     // libjpeg's post-IDCT range limit: the descaled value plus 128, saturated over [-512, 511] and wrapping past it.
-    const auto limit = [](int32_t x) -> uint8_t {
-        const int32_t i = x & 1023;
+    const auto limit = [](I x) -> uint8_t {
+        const int i = int(x & 1023);
         return uint8_t(i < 128 ? i + 128 : i < 512 ? 255 : i < 896 ? 0 : i - 896);
     };
     for (int r = 0; r < 8; ++r) {
-        const int32_t* w = ws + r * 8;
+        const I* w = ws + r * 8;
         uint8_t* o = out + size_t(r) * stride;
         constexpr int s = CB + P1 + 3;
-        constexpr int32_t h = 1 << (s - 1);
+        constexpr I h = I(1) << (s - 1);
         if (!w[1] && !w[2] && !w[3] && !w[4] && !w[5] && !w[6] && !w[7]) {
             const uint8_t v = limit((w[0] + (1 << (P1 + 2))) >> (P1 + 3));
             for (int c = 0; c < 8; ++c) o[c] = v;
             continue;
         }
-        int32_t z2 = w[2], z3 = w[6];
-        int32_t z1 = (z2 + z3) * F0541;
-        int32_t t2 = z1 + z3 * -F1847, t3 = z1 + z2 * F0765;
-        int32_t t0 = (w[0] + w[4]) * (1 << CB), t1 = (w[0] - w[4]) * (1 << CB);
-        const int32_t t10 = t0 + t3, t13 = t0 - t3, t11 = t1 + t2, t12 = t1 - t2;
+        I z2 = w[2], z3 = w[6];
+        I z1 = (z2 + z3) * F0541;
+        I t2 = z1 + z3 * -F1847, t3 = z1 + z2 * F0765;
+        I t0 = (w[0] + w[4]) * (1 << CB), t1 = (w[0] - w[4]) * (1 << CB);
+        const I t10 = t0 + t3, t13 = t0 - t3, t11 = t1 + t2, t12 = t1 - t2;
         t0 = w[7]; t1 = w[5]; t2 = w[3]; t3 = w[1];
         z1 = t0 + t3; z2 = t1 + t2; z3 = t0 + t2;
-        int32_t z4 = t1 + t3;
-        const int32_t z5 = (z3 + z4) * F1175;
+        I z4 = t1 + t3;
+        const I z5 = (z3 + z4) * F1175;
         t0 *= F0298; t1 *= F2053; t2 *= F3072; t3 *= F1501;
         z1 *= -F0899; z2 *= -F2562; z3 *= -F1961; z4 *= -F0390;
         z3 += z5; z4 += z5;
@@ -226,6 +231,7 @@ inline Raster decode_jpeg(const uint8_t* p, size_t n, JpegExtras* extras = nullp
     bool progressive = false, frame = false, saw_jfif = false, saw_adobe = false, ended = false;
     int adobe_transform = -1;
     size_t restart_interval = 0, mcux = 0, mcuy = 0;
+    int scans = 0;
     size_t at = 2;
 
     const auto be16 = [&](size_t i) -> size_t {
@@ -322,7 +328,6 @@ inline Raster decode_jpeg(const uint8_t* p, size_t n, JpegExtras* extras = nullp
                 c.height = (height * size_t(c.v) + size_t(vmax) - 1) / size_t(vmax);
                 c.bw = mcux * size_t(c.h);
                 c.bh = mcuy * size_t(c.v);
-                c.coefs.assign(c.bw * c.bh * 64, 0);
             }
             progressive = m == 0xc2;
             frame = true;
@@ -332,6 +337,7 @@ inline Raster decode_jpeg(const uint8_t* p, size_t n, JpegExtras* extras = nullp
             throw std::runtime_error("jpeg: arithmetic coding is not supported");
         } else if (m == 0xda) {
             if (!frame) throw std::runtime_error("jpeg: a scan before the frame header");
+            if (++scans > kMaxScans) throw std::runtime_error("jpeg: more than " + std::to_string(kMaxScans) + " scans");
             if (sl < 1) throw std::runtime_error("jpeg: a malformed scan header");
             const int ns = s[0];
             if (ns < 1 || ns > 4 || sl < 4 + 2 * size_t(ns)) throw std::runtime_error("jpeg: a malformed scan header");
@@ -344,6 +350,7 @@ inline Raster decode_jpeg(const uint8_t* p, size_t n, JpegExtras* extras = nullp
                 c->dc_table = s[2 + 2 * i] >> 4;
                 c->ac_table = s[2 + 2 * i] & 15;
                 if (c->dc_table > 3 || c->ac_table > 3) throw std::runtime_error("jpeg: a malformed scan header");
+                if (c->coefs.empty()) c->coefs.assign(c->bw * c->bh * 64, 0);
                 sc.push_back(c);
             }
             const int ss = s[1 + 2 * ns], se = s[2 + 2 * ns], ah = s[3 + 2 * ns] >> 4, al = s[3 + 2 * ns] & 15;
@@ -480,6 +487,7 @@ inline Raster decode_jpeg(const uint8_t* p, size_t n, JpegExtras* extras = nullp
     std::vector<std::vector<uint8_t>> planes(comps.size());
     for (size_t ci = 0; ci < comps.size(); ++ci) {
         Component& c = comps[ci];
+        if (c.coefs.empty()) throw std::runtime_error("jpeg: a component has no scan");
         const size_t stride = c.bw * 8;
         planes[ci].assign(stride * c.bh * 8, 0);
         for (size_t by = 0; by < c.bh; ++by)

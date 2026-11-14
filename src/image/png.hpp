@@ -70,9 +70,12 @@ struct PngExtras {
     std::string raw_profile_exif, xmp;
 };
 
-// A text chunk's keyword and text as Pillow reads them, kept in `extras` where the keyword is one the conversion reads.
-// A compressed text that fails to inflate reads as empty, as Pillow drops it; one past Pillow's 1 MiB text limit is refused, as Pillow refuses it.
-inline void text_chunk(const std::string& type, const uint8_t* data, size_t len, PngExtras& extras);
+// The bytes a file's compressed texts may inflate to together, Pillow's limit on one text: a camera's or an editor's EXIF and XMP are tens of KiB, and a file past it has nothing to read.
+inline constexpr size_t kTextLimit = size_t(1) << 20;
+
+// A text chunk's keyword and text as Pillow reads them, kept in `extras` where the keyword is one the conversion reads, its inflated bytes taken from `text_left`.
+// A compressed text that fails to inflate reads as empty, as Pillow drops it; one that inflates past what is left is refused, as Pillow refuses a text past its limit.
+inline void text_chunk(const std::string& type, const uint8_t* data, size_t len, PngExtras& extras, size_t& text_left);
 
 inline bool is_png(const uint8_t* p, size_t n) {
     static const uint8_t sig[8] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
@@ -87,6 +90,7 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
     int depth = 0, color = -1, interlace = 0;
     std::vector<uint8_t> idat, palette;
     bool header = false, ended = false;
+    size_t text_left = kTextLimit;
     while (!ended) {
         if (at + 12 > n) throw std::runtime_error("png: the file ends inside a chunk");
         const uint32_t len = be32(p + at);
@@ -122,7 +126,7 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
         } else if (t == "eXIf" && extras) {
             extras->exif.assign(data, data + len);
         } else if ((t == "tEXt" || t == "zTXt" || t == "iTXt") && extras) {
-            text_chunk(t, data, len, *extras);
+            text_chunk(t, data, len, *extras, text_left);
         }
         at += size_t(len) + 12;
     }
@@ -191,20 +195,21 @@ inline Raster decode_png(const uint8_t* p, size_t n, PngExtras* extras = nullptr
     return img;
 }
 
-inline void text_chunk(const std::string& type, const uint8_t* data, size_t len, PngExtras& extras) {
+inline void text_chunk(const std::string& type, const uint8_t* data, size_t len, PngExtras& extras, size_t& text_left) {
     const char* k = reinterpret_cast<const char*>(data);
     const size_t klen = strnlen(k, len);
     const std::string key(k, klen);
     if (key != "exif" && key != "Raw profile type exif" && key != "XML:com.adobe.xmp") return;
-    constexpr size_t kTextLimit = size_t(1) << 20;
     const auto inflated = [&](const uint8_t* z, size_t zn) -> std::string {
         std::vector<uint8_t> v;
         try {
-            v = inflate_zlib(z, zn, kTextLimit + 1);
+            v = inflate_zlib(z, zn, text_left);
+        } catch (const InflateLimit&) {
+            throw std::runtime_error("png: the compressed text chunks inflate past 1 MiB");
         } catch (const std::runtime_error&) {
             return {};
         }
-        if (v.size() > kTextLimit) throw std::runtime_error("png: a compressed text chunk inflates past 1 MiB");
+        text_left -= v.size();
         return std::string(v.begin(), v.end());
     };
     std::string text;

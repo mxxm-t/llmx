@@ -11,4 +11,4 @@ Every chunk's CRC is checked, and IHDR first, PLTE before a palette image's data
 Refused by name: 16-bit samples (Pillow's conversion of them to RGB clips rather than scales), a palette index past the palette, an unknown compression, filter or interlace method, and an image past the pixel limit.
 
 `PngExtras` keeps what the orientation reads, as Pillow's chunk readers keep it: the EXIF of an eXIf chunk or of a tEXt chunk named `exif`, whichever comes last, the text of a `Raw profile type exif` chunk, and the XMP of a chunk named `XML:com.adobe.xmp`, from tEXt, zTXt or iTXt, compressed or not.
-A compressed text that fails to inflate reads as empty, as Pillow drops it, and one past Pillow's 1 MiB text limit is refused.
+A compressed text that fails to inflate reads as empty, as Pillow drops it; the compressed texts of those chunks inflate within one budget of 1 MiB a file (`kTextLimit`), and a file past it is refused, as Pillow refuses a text past its 1 MiB limit, since a camera's or an editor's EXIF and XMP are a few tens of KiB and a file past the budget has nothing to read, while skipping its chunks would spend a megabyte of inflate on each.

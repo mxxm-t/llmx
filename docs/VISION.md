@@ -101,6 +101,8 @@ It runs on the device that holds the embedding, counted in that device's fit, on
 - `/v1/chat/completions` and `/v1/chat` take `{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}`; a `detail` other than absent or `auto` is refused with the field named; `/v1/completions` stays text.
 - Only `data:` URLs of `image/png` and `image/jpeg`, base64 decoded strictly and the format read from its first bytes; http, https and file URLs are refused.
 - The limits: the body limit, 20 MiB decoded per image, 89,478,485 pixels, and the image's tokens inside the context; 16-bit PNG, CMYK, arithmetic-coded and 12-bit JPEG, GIF and WebP are refused by name.
+  A request's images are held to what a request may hold in tokens (the server's request limit) before any is decoded, at the fewest tokens an image takes under the encoder's sizing (64 for Qwen's at its defaults), and as each is decoded, at their tokens so far, refused with 413 and the numbers, so a request makes no more rasters than its tokens allow.
+  A decoder spends no more than a real file costs: a JPEG of more than 64 scans and a PNG whose compressed texts inflate past 1 MiB together are refused, and a JPEG's planes are allocated at their first scan, never for a header alone.
 - `/v1/tokenize` counts an image's tokens.
 - The CLI takes `--mmproj FILE` on its model commands and `--image FILE` on `generate` and `logits` with `--chat`, so a served reply is held to the CLI's.
 

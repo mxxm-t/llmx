@@ -114,6 +114,11 @@ public:
         return p;
     }
     uint64_t max_tokens(const image::Params& p) const override { return p.max_pixels / (uint64_t(p.patch) * p.merge * p.patch * p.merge); }
+    // smart_resize raises an image to min_pixels or above, and shrinks one to sides floored to the factor, each at least half its real-valued target, so to max_pixels / 4 at the least.
+    uint64_t min_tokens(const image::Params& p) const override {
+        const uint64_t side = uint64_t(p.patch) * p.merge;
+        return std::max<uint64_t>(1, std::min(p.min_pixels, p.max_pixels / 4) / (side * side));
+    }
     size_t tokens(uint32_t grid_h, uint32_t grid_w) const override { return size_t(grid_h) * grid_w / (c_.merge * c_.merge); }
     VisionPositions positions() const override { return VisionPositions::grid; }
     ImageTokenTexts token_texts() const override { return {"<|vision_start|>", "<|image_pad|>", "<|vision_end|>"}; }

@@ -755,19 +755,32 @@ private:
         if (out.urls.empty()) return out;
         if (route != Route::chat && route != Route::chat_completions) throw BadRequest(400, "images are read in messages, on the chat routes");
         if (!cfg_.vision) throw BadRequest(400, "this server reads no images; start it with --mmproj");
+        images_fit(out.urls.size(), out.urls.size() * infer::fewest_image_tokens(*cfg_.vision), false);
+        size_t tokens = 0, decoded = 0;
         for (const std::string& url : out.urls) {
-            if (out.prepared.count(url)) continue;
-            const std::string bytes = image_bytes(url);
-            try {
-                const infer::PreparedImage e = infer::prepare_image(*cfg_.vision, bytes, &cfg_.vision_identity);
-                std::fprintf(stderr, "server: an image of grid %ux%u, %zu rows: decoded in %.1f ms, resized in %.1f ms, hashed in %.1f ms\n", e.grid_h, e.grid_w, e.tokens,
-                             e.decode_ms, e.resize_ms, e.digest_ms);
-                out.prepared.emplace(url, e);
-            } catch (const std::exception& e) {
-                throw BadRequest(400, std::string("an image was refused: ") + e.what());
+            if (!out.prepared.count(url)) {
+                const std::string bytes = image_bytes(url);
+                try {
+                    const infer::PreparedImage e = infer::prepare_image(*cfg_.vision, bytes, &cfg_.vision_identity);
+                    std::fprintf(stderr, "server: an image of grid %ux%u, %zu rows: decoded in %.1f ms, resized in %.1f ms, hashed in %.1f ms\n", e.grid_h, e.grid_w, e.tokens,
+                                 e.decode_ms, e.resize_ms, e.digest_ms);
+                    out.prepared.emplace(url, e);
+                } catch (const std::exception& e) {
+                    throw BadRequest(400, std::string("an image was refused: ") + e.what());
+                }
             }
+            tokens += out.prepared.at(url).tokens;
+            images_fit(++decoded, tokens, true);
         }
         return out;
+    }
+    // A request's `images` taking `tokens`, at the fewest an image takes before any is decoded and as they are once `decoded`, held to what a request may hold (docs/VISION.md, section 6).
+    // So a request makes no more rasters than its tokens allow.
+    void images_fit(size_t images, size_t tokens, bool decoded) const {
+        const size_t limit = sched_.token_limit();
+        if (tokens <= limit) return;
+        throw BadRequest(413, (decoded ? "the request's first " + std::to_string(images) + " images take " : "the request's " + std::to_string(images) + " images take at least ") + std::to_string(tokens) +
+                                  " tokens, and a request may hold " + std::to_string(limit));
     }
     // The rows of the images `body` holds now, in prompt order, a cut having dropped some.
     static std::vector<size_t> image_rows_of(const jmini::Value& body, const RequestImages& images) {
@@ -1269,7 +1282,12 @@ private:
             if (!cfg_.vision) throw BadRequest(400, "this server reads no images; start it with --mmproj");
             std::vector<size_t> rows;
             try {
-                for (const std::string& url : urls) rows.push_back(infer::image_tokens(*cfg_.vision, image_bytes(url)));
+                images_fit(urls.size(), urls.size() * infer::fewest_image_tokens(*cfg_.vision), false);
+                size_t tokens = 0;
+                for (const std::string& url : urls) {
+                    rows.push_back(infer::image_tokens(*cfg_.vision, image_bytes(url)));
+                    images_fit(rows.size(), tokens += rows.back(), true);
+                }
                 ids = infer::expand(*cfg_.vision, ids, rows).ids;
             } catch (const BadRequest&) {
                 throw;

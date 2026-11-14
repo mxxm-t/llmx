@@ -10,6 +10,11 @@
 
 namespace image {
 
+// A stream that would inflate past the size the caller gives, which the PNG reader tells from a malformed stream.
+struct InflateLimit : std::runtime_error {
+    InflateLimit() : std::runtime_error("inflate: the stream holds more bytes than the image") {}
+};
+
 namespace inflate_detail {
 
 struct Bits {
@@ -78,7 +83,7 @@ inline void codes(Bits& b, std::vector<uint8_t>& out, size_t limit, const Huffma
     for (;;) {
         const int sym = lit.decode(b);
         if (sym < 256) {
-            if (out.size() >= limit) throw std::runtime_error("inflate: the stream holds more bytes than the image");
+            if (out.size() >= limit) throw InflateLimit();
             out.push_back(uint8_t(sym));
             continue;
         }
@@ -90,7 +95,7 @@ inline void codes(Bits& b, std::vector<uint8_t>& out, size_t limit, const Huffma
         if (di >= 30) throw std::runtime_error("inflate: an invalid distance code");
         const size_t d = kDistBase[di] + b.get(kDistExtra[di]);
         if (d > out.size()) throw std::runtime_error("inflate: a distance before the start of the stream");
-        if (out.size() + len > limit) throw std::runtime_error("inflate: the stream holds more bytes than the image");
+        if (out.size() + len > limit) throw InflateLimit();
         const size_t from = out.size() - d;
         for (size_t i = 0; i < len; ++i) out.push_back(out[from + i]);
     }
@@ -119,7 +124,7 @@ inline std::vector<uint8_t> inflate_zlib(const uint8_t* p, size_t n, size_t limi
             const uint32_t len = b.get(16), nlen = b.get(16);
             if ((len ^ 0xffffu) != nlen) throw std::runtime_error("inflate: a stored block's length check fails");
             if (b.at + len > b.n) throw std::runtime_error("inflate: the stream ends inside a stored block");
-            if (out.size() + len > limit) throw std::runtime_error("inflate: the stream holds more bytes than the image");
+            if (out.size() + len > limit) throw InflateLimit();
             out.insert(out.end(), b.p + b.at, b.p + b.at + len);
             b.at += len;
         } else if (type == 1) {

@@ -13,3 +13,5 @@ The color space is libjpeg-turbo's default: YCbCr when a JFIF marker is present,
 `JpegExtras` keeps the EXIF (the first Exif APP1 with later ones' bodies appended, as Pillow keeps it) and the last XMP APP1.
 
 Refused by name: arithmetic coding, lossless and hierarchical frames, 12-bit samples, CMYK and YCCK, 4:4:0 and other sampling, a height given in a DNL marker, a missing or misordered restart marker, and data that would need bits past a marker or the end of the file; a file without its end-of-image marker is refused too.
+
+What a hostile file may cost is bounded by what a real one costs: a component's coefficient plane is allocated at its first scan, so a frame header alone commits nothing and a component no scan names is refused; a file of more than `kMaxScans` (64) scans is refused, each scan being a pass over every block of its components, where libjpeg's progressive script writes 10 scans for three components and 6 for one; and the DC predictor and the inverse DCT's sums are 64-bit, so a file's coefficients cannot overflow them, with the bytes of every valid image unchanged.

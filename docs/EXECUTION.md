@@ -267,7 +267,7 @@ device, so no device waits on the host between chunks
 Flags are named for what fits best (AGENTS.md, Configuration). `--device`
 already selects `cpu` or `vulkan:N`; ROCm selection waits for that backend.
 `--n-cpu-moe N` and `--cpu-moe` put the experts of the first `N` routed
-layers, or all, on the CPU beside a device (`docs/USAGE.md`). A layer
+layers, or all, on the CPU beside a device or a layer split (`docs/USAGE.md`). A layer
 split is a `--device` list, fitted to the memory each backend reports free
 (`Backend::memory_available`, `split_layers` in `model/layer_split.hpp`)
 unless `--layer-shares` sets the proportions. The flags for the tensor split

@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## Experts on the CPU beside a layer split (2026-11-14, MOEOFF7, branch moe/cpu-experts-multi on main 845b270c1; MOEOFF7's proposal of 03:20)
+
+- **Goal:** `--n-cpu-moe` and `--cpu-moe` over a `--device` list, so a model too large for one card (Qwen3.8-Flash-Next, DeepSeek-V4.1-Flash) can keep experts in host memory.
+- **Done:** one rule for any list: the first N routed layers' experts go to a CPU backend placed before the devices (`adds_host_for_experts`, `ffn_on_host` in `model/place.hpp`), the split is fitted to the plan without those layers' feed-forward roles, and the split's placement moves every device index up one.
+  Execution is the existing one: each stage crosses to the CPU and back for such a layer (`Model::cross`), so the placement is not pipelined and a server keeps one pass in flight.
+  Refused by the flag's name: a tensor width above 1, and the CPU as a device of a split.
+  `llmx-placement-test` `experts_beside_split` (lands first, fails on main) holds the placement, the logits and steps against one CPU, and the fit, given shares and over free memory, leaving the experts off the devices.
+- **Measured:** greedy text of Qwen3.6-35B-A3B Q4_K_M, 3000-character prompt, 64 tokens, one card against a two-card split at `--n-cpu-moe` 10 and 30, Vulkan and ROCm: all 8 byte-identical.
+  Qwen3.8-Flash-Next UD-Q4_K_XL over four MI50s, `--threads 8`, host contended in every run: Vulkan N=0 pp512 762.2, tg64 39.08 tok/s, N=14 pp512 77.9, tg64 6.29; ROCm N=0 856.9 and 38.93, N=14 74.2 and 3.14 (/opt/claude-work/moeoff7/out/cell on the rig).
+  At N=14 the freed device room took lookup tables to the devices, so it is not a pure offload delta.
+- **Left:** the four-card Qwen3.8-Flash-Next cell again, uncontended, with `--lookup-storage file` in both arms, recording each stage's device idle time beside tok/s; the landing gates of a placement change.
+- **Gotchas:** pipelining stages that share the one CPU is not built; the CPU's expert time is expected to dominate such a layer, and each stage's device idle time in that cell, not the expectation, decides whether pipelining them is built.
+
 ## CPU prompt experts in float products (2026-11-14, MOEOFF5, branch moe/cpu-prompt-experts on main 845b270c1)
 
 **Goal:** a prompt's routed experts held on the CPU (`--n-cpu-moe`) run faster with every entry's bits unchanged, first where they take float products (MXFP4, Q5_1), then the K-quant packed prompt dots.

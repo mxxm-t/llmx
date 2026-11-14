@@ -428,8 +428,8 @@ The CPU reports what the process can still take of the host's memory: the host's
 the layers, one whole number per listed device: `1,1` halves the layers,
 `3,1` gives the first device three quarters; the fit is still checked. A
 device may be listed once. Expert offload (`--n-cpu-moe`, `--cpu-moe`)
-is a placement of one device and is refused with a list; list the CPU
-as a device to give it layers. `bench` without `--model` measures the
+works over a list too (Expert offload, below), and is refused where the
+CPU is one of several listed devices. `bench` without `--model` measures the
 first device listed.
 `--profile` takes Vulkan devices, one or a list, and is refused where a listed device is the CPU.
 Every command that takes `--device` takes a list.
@@ -443,7 +443,7 @@ A group runs the dense `qwen3` models and the hybrid `qwen35` ones (Qwen 3.5, 3.
 `--drafter embedded` works over a group too: each device runs its share of the MTP block and of its output head, a draft row costing three more sums, the last of three numbers a device from which every device picks the same drafted token.
 A group runs the mixture-of-experts models too (`qwen3moe`, `qwen35moe`): every device holds the router whole and its share of every expert's hidden rows, and of the shared expert's, so each routes a token alike and computes its share of the token's experts.
 Where an expert's hidden width over the group's width is not whole quant blocks of its down stack (256 values in a K-quant), each device holds the whole blocks that cover its even share, so every such file runs at widths 2 and 4 at the price of memory and of expert work: Qwen3-30B-A3B in a K-quant (768 an expert) holds two of an expert's three blocks on each device at width 2, 4/3 of the experts' bytes over the group, and Qwen3.6-35B-A3B in a K-quant at width 4 one of its two blocks on each, twice the bytes; the fit counts it.
-Expert offload (`--n-cpu-moe`, `--cpu-moe`) is a placement of one device and is refused with a tensor width.
+Expert offload (`--n-cpu-moe`, `--cpu-moe`) is refused with a tensor width.
 Refused before a model file is read: a list that is not whole groups, a width above 16, a share count other than the groups and a group of devices of different kinds; refused once the model is read: a width that does not divide its heads, KV heads (or is not a multiple of them), K or V heads or vocabulary rows, and a dense block's column split off whole quant blocks. A group whose devices share no memory or semaphores on the platform, as on Windows, is refused there too, once the file's headers are read.
 A device is listed once, so the command line forms groups of Vulkan devices, whose sum crosses the cards through dma-buf and sync files on Linux, or of ROCm devices, whose sum each member's kernel pushes into its peers' memory; a backend without a sum across its devices on this build or platform, the Vulkan backend on Windows, is refused naming it.
 A group may span PCI root complexes, which cost its sums the same on the machines measured; where a command prints its placement (`serve`, `bench --model`, and any command with `--verbose`) each group's devices are printed with their roots, and where the listed devices allow every group under one root a line says which order gives that; a group whose devices cannot share memory or semaphores is refused, naming each device and its root.
@@ -470,7 +470,10 @@ feed-forward blocks, the embedding table and the output head stay on the
 offloaded layer. `--threads` then sets the CPU's workers. With
 `--device cpu` the flags change nothing, and a model without routed
 layers refuses them on every device, the CPU included, naming the flag
-given. `generate`, `chat`, `logits`, `perplexity`,
+given.
+Over a `--device` list the same first `N` routed layers keep their experts on the CPU, whichever device runs their attention, and the fit gives each device its layers by what it holds without those experts, so the device with them takes more layers.
+A prompt then runs through the devices one after another rather than in chunks that overlap, and a server keeps one pass in flight.
+`generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench --model` take them. For example, Qwen3-30B-A3B Q4_K_M
 fits a 16 GB card with twelve layers' experts on the CPU:
 

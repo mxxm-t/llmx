@@ -704,9 +704,9 @@ void placement_checks() {
     request = {}; request.cpu_moe = 1;
     rejects("a fitted budget with experts on the CPU over a null backend", [&] { infer::place_model(routed, {nullptr}, request, options); });
     request = {}; request.cpu_moe = 1; request.names = {"a", "b"};
-    rejects("experts on the CPU beside two devices", [&] { infer::place_model(routed, {cpu(), cpu()}, request, options); });
+    rejects("experts on the CPU with the CPU among two devices", [&] { infer::place_model(routed, {cpu(), cpu()}, request, options); });
     request = {}; request.cpu_moe = -1; request.shares = {1}; request.names = {"a"};
-    rejects("experts on the CPU with layer shares", [&] { infer::place_model(routed, {cpu()}, request, options); });
+    rejects("experts on the CPU with layer shares over the CPU", [&] { infer::place_model(routed, {cpu()}, request, options); });
     request = {}; request.cpu_moe = 1;
     auto device = std::make_shared<LoadingBackend>();
     device->set_threads(1);

@@ -333,7 +333,7 @@ struct PlacementRequest {
     std::optional<backend::Dtype> dtype; // empty selects auto
     std::vector<std::string> names;   // each backend's name, for the fit's messages and its description
     std::vector<int> shares;          // each backend's proportion of the layers; empty to fit them to the devices' free memory
-    int cpu_moe = 0;                  // with one backend, the routed layers whose experts run on the CPU beside it, -1 for every one
+    int cpu_moe = 0;                  // the routed layers whose experts run on a CPU placed before the devices, -1 for every one
     size_t stream_from = 0;           // with experts on the CPU, the prompt length from which they are copied to the device (Placement::stream_from)
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
@@ -444,9 +444,10 @@ struct PlannedModel {
     std::string kv_kept_context;
 };
 
-// Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one backend that is not the CPU.
+// Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does before a device, or a layer split over devices, none of them the CPU.
 inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    return request.cpu_moe && backends.size() == 1 && request.shares.empty() && !backends[0]->is_cpu();
+    return request.cpu_moe && request.width == 1 &&
+           std::none_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return !b || b->is_cpu(); });
 }
 
 // The rows of a pass the fit counts: a ubatch of prompt rows, the generated tokens' and a verify's drafts.
@@ -489,7 +490,7 @@ inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends
            std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b && b->reads_in_place(); });
 }
 
-// Whether the request puts routed layer l's feed-forward block on the CPU beside its one device: the first `cpu_moe` routed layers, or every one.
+// Whether the request puts routed layer l's feed-forward block on the CPU beside its devices: the first `cpu_moe` routed layers, or every one, whichever device runs their mixers.
 inline bool ffn_on_host(const PlacementRequest& request, const std::vector<LayerPlan>& layers, size_t l) {
     if (!layers[l].routed) return false;
     size_t before = 0;
@@ -754,8 +755,8 @@ inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>&
     for (size_t i = 0; i < candidates.size(); ++i) candidates[i].file->hold(give[i]);
 }
 
-// The placement over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, before model buffers exist.
-// The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the device.
+// The placement over one backend or split by layers over several, with the first `cpu_moe` routed layers' experts on a CPU beside them, before model buffers exist.
+// The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the devices.
 inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, PlacementRequest request,
                                    ModelOptions options, const std::vector<LookupCandidate>& candidates = {}) {
     if (backends.empty()) throw std::runtime_error("placement: no device");
@@ -941,11 +942,19 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         for (size_t i = 0; i < candidates.size(); ++i)
             if (placed.lookups[i] == LookupStorage::device) candidates[i].file->hold(0);
     }
+    const bool experts_host = adds_host_for_experts(backends, request);
     if (backends.size() > 1 || !request.shares.empty()) {
-        if (request.cpu_moe)
-            throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
+        // The experts go to a CPU placed before the devices, so a CPU listed among them would hold layers of its own beside them.
+        if (request.cpu_moe && !experts_host)
+            throw std::runtime_error(experts_flag + ": not with the CPU as a device of a split; list the devices without the CPU, or the CPU alone");
         const size_t rows = fitted_rows(request);
-        const Footprint fp = footprint(weights, plan, options, request.width);
+        ModelPlan held = plan;
+        if (experts_host)
+            for (size_t l = 0; l < held.layers.size(); ++l)
+                if (ffn_on_host(request, plan.layers, l))
+                    for (Role& role : held.layers[l].roles)
+                        if (role.part == Part::ffn) role.tensor.reset();
+        const Footprint fp = footprint(weights, held, options, request.width);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
         auto fit = [&] {
@@ -963,7 +972,16 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         if (!split) std::rethrow_exception(refused);
         placed.placement = placement_for(*split, request.width);
         placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)));
-    } else if (!adds_host_for_experts(backends, request)) {
+        // Beside the CPU added at index 0 every device moves up one, and the first `cpu_moe` routed layers' feed-forward blocks go to the CPU.
+        if (experts_host) {
+            Placement& place = placed.placement;
+            for (int& d : place.mixer_device) ++d;
+            for (size_t l = 0; l < place.ffn_device.size(); ++l) place.ffn_device[l] = ffn_on_host(request, plan.layers, l) ? 0 : place.ffn_device[l] + 1;
+            ++place.embed_device;
+            ++place.output_device;
+            place.stream_from = request.stream_from;
+        }
+    } else if (!experts_host) {
         placed.placement = Placement{};
     } else {
         const size_t n_layer = plan.layers.size();

@@ -134,6 +134,8 @@ A MoE layer is a small attention block and a large set of experts of which each 
 
 The placement already puts a layer's feed-forward block on its own group, separate from its attention (the CPU experts use it). The splits, in the order they are built:
 
+Beside a layer split, `--n-cpu-moe N` keeps the experts of the first `N` routed layers on one CPU backend placed before the devices, whichever stage runs their attention, by the same rule as beside one device. The fit gives each stage its layers by what the stage holds without those experts. Each such layer's residual crosses to the CPU and back inside its stage, so the placement is not pipelined: a prompt's chunks run stage after stage and a server keeps one pass in flight. The CPU's expert time is expected to dominate such a layer, so overlapping the stages would hide little; each stage's measured device idle time decides whether pipelining stages that share one CPU is built. A tensor group refuses the flags.
+
 1. **Layer split** (first, and the default). Whole MoE layers per stage, attention and experts together. One crossing per boundary per pass, and with passes in flight each card reads its layers' experts once per pass for all of that pass's tokens. This is what phase 1 gives Qwen3-30B-A3B Q8_0 on two cards and Qwen3-235B-A22B on six.
 2. **Data-parallel attention with expert parallelism** (the MoE serving path of vLLM, SGLang and Megatron, adapted below). Built after the layer split, on the group collective the tensor groups also use, and only if phase 0's measurements say it pays.
 3. **Expert tiers.** A layer's experts divided by measured use between a card and the CPU, or two cards.

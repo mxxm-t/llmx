@@ -230,7 +230,7 @@ A table read from its file keeps its hot rows across passes in a store of host m
 
 The routed expert stacks are declared as whole-stack windows (`Stream::window`) and the router, shared expert and its gate as copies (`Stream::copy`), so the existing expert placement applies unchanged.
 Experts stay on the devices by default.
-`--n-cpu-moe N` or `--cpu-moe` runs the first N routed layers' experts, or every layer's, on the CPU beside one device, and is refused with several devices or a tensor split.
+`--n-cpu-moe N` or `--cpu-moe` runs the first N routed layers' experts, or every layer's, on the CPU beside one device or a layer split over several, and is refused with a tensor split.
 `--moe-stream-from N` copies those layers' whole gate, up and down stacks into device windows for prompts from N tokens (`Model::ffn_split`); it transfers whole stacks, not only the selected experts.
 Routing, shared-expert gating, dtype and reduction are the same on every path.
 

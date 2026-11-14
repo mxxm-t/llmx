@@ -59,6 +59,11 @@ __device__ __forceinline__ int dot2_i16(int a, int b, int s) {
     typedef short halves __attribute__((ext_vector_type(2)));
     return __builtin_amdgcn_sdot2(__builtin_bit_cast(halves, a), __builtin_bit_cast(halves, b), s, false);
 }
+// s plus the two products of a's and b's binary16 halves, in F32 (v_dot2_f32_f16).
+__device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
+    typedef _Float16 halves __attribute__((ext_vector_type(2)));
+    return __builtin_amdgcn_fdot2(__builtin_bit_cast(halves, a), __builtin_bit_cast(halves, b), s, false);
+}
 
 // No instruction is scheduled across this point.
 __device__ __forceinline__ void schedule_barrier() { __builtin_amdgcn_sched_barrier(0); }
@@ -173,6 +178,10 @@ __device__ __forceinline__ unsigned byte_perm(unsigned hi, unsigned lo, unsigned
 
 __device__ __forceinline__ int dot4_i8(int a, int b, int s) { return __dp4a(a, b, s); }
 __device__ __forceinline__ int dot2_i16(int a, int b, int s) { return port_dot2_i16(a, b, s); }
+__device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
+    const auto h = [](unsigned v, int i) { return __half2float(__ushort_as_half((unsigned short)(v >> (16 * i)))); };
+    return fmaf(h(a, 1), h(b, 1), fmaf(h(a, 0), h(b, 0), s));
+}
 
 __device__ __forceinline__ void schedule_barrier() {}
 __device__ __forceinline__ void spin_pause() { __nanosleep(64); }

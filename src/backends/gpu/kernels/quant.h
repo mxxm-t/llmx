@@ -27,6 +27,22 @@ struct Q8_0 {
     __device__ static float value(const unsigned char* b, int j) { return half_at(b) * (float)((const signed char*)(b + 2))[j]; }
 };
 
+struct Q4_0 {
+    static constexpr unsigned values = quant::Q4_0_BLOCK, bytes = quant::Q4_0_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int q = j < 16 ? b[2 + j] & 0xF : b[2 + j - 16] >> 4;
+        return (float)(q - 8) * half_at(b);
+    }
+};
+
+struct Q4_1 {
+    static constexpr unsigned values = quant::Q4_1_BLOCK, bytes = quant::Q4_1_TYPESIZE;
+    __device__ static float value(const unsigned char* b, int j) {
+        const int q = j < 16 ? b[4 + j] & 0xF : b[4 + j - 16] >> 4;
+        return half_at(b) * (float)q + half_at(b + 2);
+    }
+};
+
 struct Q5_0 {
     static constexpr unsigned values = quant::Q5_0_BLOCK, bytes = quant::Q5_0_TYPESIZE;
     __device__ static float value(const unsigned char* b, int j) {
@@ -77,6 +93,11 @@ struct Q6_K {
         const float sc = (float)((const signed char*)(b + 192))[8 * n + l / 16 + 2 * quarter];
         return half_at(b + 208) * sc * (float)q;
     }
+};
+
+struct F16 {
+    static constexpr unsigned values = 1, bytes = 2;
+    __device__ static float value(const unsigned char* b, int) { return half_at(b); }
 };
 
 struct BF16 {

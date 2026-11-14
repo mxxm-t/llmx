@@ -6,21 +6,18 @@
 
 #include <string>
 
+// The kernel modules, linked in by llmx_embed_modules (cmake/embed_modules.cmake).
+extern "C" const unsigned char llmx_rocm_f32_module[], llmx_rocm_int16_module[], llmx_rocm_int16dot_module[];
+
 namespace backend {
 namespace {
 
 // The dense F32 kernels, a code object for each target (gpu/kernels/f32.gpu).
-const unsigned char kF32Module[] = {
-#include "rocm/f32.inc"
-};
+constexpr const unsigned char* kF32Module = llmx_rocm_f32_module;
 // The F16 class's quantized products on a block-int16 twin (gpu/kernels/int16.gpu).
-const unsigned char kInt16Module[] = {
-#include "rocm/int16.inc"
-};
+constexpr const unsigned char* kInt16Module = llmx_rocm_int16_module;
 // The same kernels on the 16-bit integer dot, compiled only for the targets with the instruction; a device it holds no code object for runs the module above.
-const unsigned char kInt16DotModule[] = {
-#include "rocm/int16dot.inc"
-};
+constexpr const unsigned char* kInt16DotModule = llmx_rocm_int16dot_module;
 
 // The core's calls over HIP, each through hip() at the call, so a test that substitutes a call in the table reaches the backend.
 struct HipApi {

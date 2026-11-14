@@ -43,13 +43,13 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 
 | Weight format | CPU inference | Vulkan inference | ROCm inference | Written by `llmx quantize` |
 |---|---|---|---|---|
-| `F32`, `F16`, `BF16` | Supported | Supported | `F32` and `BF16` supported, `F16` planned | No |
+| `F32`, `F16`, `BF16` | Supported | Supported | Supported | No |
 | `MXFP4` | Supported | Supported | Supported | No |
 | `NVFP4` | Supported | Supported | Planned | No |
 | `Q1_0` | Supported | Supported | Planned | No |
 | `Q2_0`, `Q2_K` | Supported | Supported | Planned | No |
 | `Q3_K` | Supported | Supported | Planned | No |
-| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_K` supported, `Q4_0` and `Q4_1` planned | `Q4_0` |
+| `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | Supported | `Q4_0` |
 | `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | Supported | No |
 | `Q6_K` | Supported | Supported | Supported | No |
 | `Q8_0` | Supported | Supported | Supported | `Q8_0` |

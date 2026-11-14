@@ -864,11 +864,15 @@ struct ExactQ8 {
     }
 };
 template <class T> struct ExactDecoded {
-    static constexpr bool vector = __is_same(T, rq::BF16);
+    static constexpr bool vector = __is_same(T, rq::BF16) || __is_same(T, rq::F16);
     static constexpr int weight_bytes = 2;
     static constexpr unsigned long long align = 8;
     static __device__ float4 load4(const unsigned char* row, unsigned long long u) {
         const uint2 b = ((const uint2*)row)[u / 4];
+        if constexpr (__is_same(T, rq::F16)) {
+            const auto h = [](unsigned v) { return __half2float(__ushort_as_half((unsigned short)v)); };
+            return make_float4(h(b.x & 0xffffu), h(b.x >> 16), h(b.y & 0xffffu), h(b.y >> 16));
+        }
         return make_float4(__uint_as_float(b.x << 16), __uint_as_float(b.x & 0xffff0000u), __uint_as_float(b.y << 16), __uint_as_float(b.y & 0xffff0000u));
     }
     static __device__ unsigned long long row_bytes(unsigned long long nin) { return nin / T::values * T::bytes; }
@@ -1140,9 +1144,12 @@ template <class T> __device__ void gather_decoded(float* dst, const unsigned cha
 LLMX_DECODED(q4_k, Q4_K)
 LLMX_DECODED(q5_k, Q5_K)
 LLMX_DECODED(q6_k, Q6_K)
+LLMX_DECODED(q4_0, Q4_0)
+LLMX_DECODED(q4_1, Q4_1)
 LLMX_DECODED(q5_0, Q5_0)
 LLMX_DECODED(q5_1, Q5_1)
 LLMX_DECODED(bf16, BF16)
+LLMX_DECODED(f16, F16)
 LLMX_DECODED(iq4_nl, IQ4_NL)
 LLMX_DECODED(mxfp4, MXFP4)
 

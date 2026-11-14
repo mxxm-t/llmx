@@ -1,5 +1,111 @@
 # llmx - Development Status
 
+## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
+
+**Goal.** Qwen3 files in F16, Q4_0 and Q4_1 run on ROCm at or above the mx fork's ROCm speed, through the shared GPU core and its existing type families.
+
+**Done.**
+- F16 weights take the exact F32 family as BF16 does (rows widening four halves a load), so generated rows stay exact; prompt runs of a dtype other than f32 take `llmx_f16_tile` (`kernels/int16.gpu`, `f16_tile`), 64 by 64, its activations rounded to binary16 as they are staged and `dot2_f16` products summed in F32 in k order (`port.h`: the fdot2 instruction on HIP, two `fmaf` on CUDA).
+- Q4_0 and Q4_1 take the twin family as Q5_0 and Q5_1 do without fifth bits: a decoder in `kernels/quant.h`, one-lane and quarter row lanes, tile and stream decoders, and `kTypes` rows.
+- `row_form` gives the int8 class one lane a block at every width; the F16 class keeps the fill rule.
+  Dense decode rates (`rates decode`, one MI50, two ABAB runs, us a call, one lane against quarter, int8): one lane is faster at every Qwen3 width from 1024 to 17408, by 6 to 66 percent (Q4_0 14B ffn_down 81.5 against 112.2, Q5_1 4B ffn_up 45.9 against 75.5, the closest 4B ffn_up at 6 to 9 percent).
+  Routed one-column rates (`rates routed`, 512 experts, 10 a row, 1 to 128 rows): at 640 wide one lane is 46 to 75 percent faster for all four types; at 2560 wide one lane is 2 to 14 percent faster for Q4_0 and Q4_1, and the quarter form is level to 1 percent faster for Q5_0 and Q5_1 (6 percent at one row of Q5_1).
+  A dense row and a routed entry of one width must share a form, and the dense side's gain outweighs the routed tie, so no width threshold: one lane in int8 everywhere.
+  This changes the int8 decode bits of Q5_0 and Q5_1 rows at widths where the fill rule chose the quarter form (3072, 2560, 5120 and the like); see the HF table below.
+  The quarter form keeps its 16-bit row, routed and grouped builds alone: its int8 builds (`_quarter_rows8_*`, `_quarter_routed8` and `_quarter_routed8_g*` of the four types, 36 kernels) and their int8 break-evens, which no call reached once `row_form` gave the int8 class one lane, are removed.
+- Q4_0 and Q4_1 crossovers from their own rates (a measurement tree with every grouped build from one entry and every tile extent at 32, one run): grouped routed builds won at no count up to 2.5 entries an expert, so both classes take 5, except Q4_1's quarter form in F16 at 2.5; the routed tile wins from 128 rows in block-int16 for gate and up and for the down (1.16 times the rows at 32, 0.59 at 128), and from 32 in block-int8.
+- The ROCm and CUDA kernel modules are linked through the assembler's `.incbin` (`llmx_embed_modules`, `cmake/embed_modules.cmake`) instead of C arrays, so the CUDA build fits a 12 GB memory cap (cgroup peak 10.2 GB at -j1 on the landing tree; 13.8 GB with the arrays).
+- `backend-rocm`: `half_tile`, the F16 type check on the f16 path against a rounded-input double sum, F16 tile rates, Q4_0 to Q5_1 decode rates, and the new crossovers in `groups_at` and `tile_from_at`.
+
+**Results** (2026-11-14, MI50s at default clocks, branch build `llmx 0.1.0+g157fdc60f829`, main `llmx 0.1.0+gc0d13585ce24`, both from build-branch.sh):
+
+| Check | Result |
+|---|---|
+| `backend-rocm`, one MI50 | PASS |
+| Suite on rocm:0, `--require-device-types F16,Q4_0,Q4_1 --require-tools`, in six parts | PASS except `q2-k`, `q3-k`, `iq4-xs` skipping as on main; baseline with the Q8_0 fixture alone on disk |
+| CUDA build, 12 GB cap | rc 0, peak 10.2 GB |
+| CPU byte identity against main (Q8_0, Qwen3.5-0.8B Q4_K_M, 0.6B BF16; prompt logits, per-token logits, greedy text) | 9 of 9 identical |
+| ROCm byte identity against main, f16 and int8 (Q8_0 and BF16 0.6B, Qwen3.5-0.8B Q4_K_M, branch 157fdc60f; prompt logits, per-token logits, greedy text; `id-rocm/verdict-text.txt` hashes each output without its `pp:` and `tg:` timing lines, which `verdict.txt` had hashed) | 18 of 18 identical |
+| `backend-rocm` and suite parts `moe,int8,half-weights,raw-blocks,mxfp4,q5-0,q5-1` on 4a6e4ca5d | PASS |
+| Suite part C in four runs (C1 to C4) | PASS; IQ, TQ, NVFP4, Q1_0 and Q2_0 types and `vision`, `image` skip for lack of a device kernel or encoder |
+| Timing against main, Qwen3-0.6B Q8_0, `bench --p 512 --n 128`, one MI50, three reps ABAB, hostwait 0 contended | see the next table |
+| Review fix, build `llmx 0.1.0+g3174a444292e`: `backend-rocm` and suite parts `moe,int8,half-weights,raw-blocks,mxfp4,q5-0,q5-1` with `--require-device-types F16,Q4_0,Q4_1 --require-tools`, one MI50 | PASS |
+| Review fix, code objects against the build before it (4a6e4ca5d) | `f32.hipfb` byte identical; the gfx906 objects of `int16.hipfb` and `int16dot.hipfb` each lose 72 function symbols, all `_quarter_rows8_*`, `_quarter_routed8` and `_quarter_routed8_g*`, add none, and every kept function keeps its size |
+| Review fix, ROCm byte identity, f16 and int8, prompt logits, per-token logits and greedy text without timing lines | against the build before it, Q8_0, F16, Q4_0, Q4_1, Q5_0 and Q5_1 0.6B: 36 of 36 identical; against main, Q8_0, BF16, Q5_0, Q5_1 0.6B and Qwen3.5-0.8B Q4_K_M: 27 of 30 identical, the others Q5_0's int8 per-token logits and greedy text and Q5_1's int8 per-token logits, the rows `row_form` now gives one lane |
+| Review fix, CUDA build, 12 GB cap | rc 0 |
+| Review fix, CPU | neither changed file is compiled into a CPU or Vulkan build (`backend_core.hpp` is included by the ROCm and CUDA backends alone, `int16.gpu` built by their module rules), so the 9 of 9 above stands |
+
+| HF check | Observed | Bound |
+|---|---|---|
+| Qwen3-0.6B F16 file-exact on rocm:0, auto and int8 (F16 tile prompts) | NLL delta at most 0.000248, top-1 6/6 | 0.010 and 0.020 |
+| q5-0, int8, rocm:0 (96 and 160 wide, where the two lane forms tie, so main took one lane too and the check does not reach the change) | logits 0.0850, NLL 0.00846 | 0.2525, 0.0289 |
+| q5-1, int8, rocm:0 | logits 0.0864, NLL 0.00757 | 0.2587, 0.0346 |
+| q5-0 and q5-1, auto | logits 0.00044 and 0.00032 | 0.0117 and 0.0121 |
+| q5-0 and q5-1, int8, main c0d13585c | logits 0.0850 and 0.0864, NLL 0.00846 and 0.00757 (the branch's figures) | 0.2525 and 0.2587, 0.0289 and 0.0346 |
+| Qwen3-0.6B Q4_0 file-exact on rocm:0, auto and int8 | NLL delta at most 0.000204 and 0.00781, top-1 6/6 | 0.010 and 0.020 |
+| Qwen3-0.6B Q4_1 file-exact on rocm:0, auto and int8 | NLL delta at most 0.000204 and 0.0135, top-1 6/6 | 0.010 and 0.020 |
+| Qwen3-0.6B Q5_0 file-exact on rocm:0, auto, review fix | NLL delta at most 0.000283, top-1 6/6, headroom 0.0097 | 0.010 and 0.020 |
+| Qwen3-0.6B Q5_0 file-exact, int8, review fix (main) | prompt passes, identical to main: 0.00583 whole text, 0.00390 in windows; per token 0.000674 (0.00369) whole, 0.00380 (0.01083) in windows; headroom 0.0042 whole and 0.0161 in windows | 0.010 and 0.020 |
+| Qwen3-0.6B Q5_1 file-exact on rocm:0, auto, review fix | NLL delta at most 0.000080, top-1 6/6 | 0.010 and 0.020 |
+| Qwen3-0.6B Q5_1 file-exact, int8, review fix (main) | whole text within bounds: 0.000708 prompt, 0.00213 (0.00221) per token; windows of 64 over bound on main and on the branch: prompt passes 0.02476 and 0.02075, identical to main; per token 0.02153 (0.02250) and 0.01748 (0.02144); top-1 6/6 | 0.010 and 0.020 |
+
+The Q5_0 and Q5_1 rows run every case of `tests/baseline.py --file-exact` without stopping at the first out of bounds (`baseline.py` itself stops at Q5_1 int8's first 64-token window, on main as on the branch); the per-token figures differ from main's exactly where the byte identity above shows the one-lane rows ran, 3072-wide `ffn_down` being a width where main's fill rule took the quarter form.
+Q5_1 at int8 is over the Q8_0 fixture's bounds on main already, in the prompt tile this change does not touch as in the decode rows it does, and the one-lane rows bring the per-token excess down (0.02250 to 0.02153); those bounds are the Q8_0 file's applied to every dtype, not an int8-calibrated budget, and are not widened (Left, below).
+Files: the 0.6B F16, Q4_0 and Q4_1 (ROCMGAP1, `rocmgap1/mkmodels.sh`) and Q5_0 and Q5_1 (ROCMGAP7) were written by the mx fork's quantize tool (`llama-quantize --allow-requantize`) from the llmx Q8_0 fixture (`Qwen3-0.6B-Q8_0.gguf`, SHA-256 9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031), and the 4B F16 from `Qwen3-4B-Instruct-2507-Q4_0.gguf`; SHA-256 0.6B F16 6341ef3a7287cad1e42b5910cb3db4ee587ae2eff76f48f953fef63c00e26667, Q4_0 9e052e8656fcf60431e12f608322736bd0640c2f19de9748df40cd7cc72051f6, Q4_1 6781b7c1cec5e0cfcf897200644eb88e5d4b513f602a242c0cf8b519269667a8, Q5_0 9860632ccba1d949f5623e9e3ce00a4dd8b43a268c2f1b73f0dc18c19573527b, Q5_1 063857a489da668c3aaa32441d9b30e06886d4adf12da18652d7f5535fbbbb5f, 4B F16 0c7f4e500e640a3b9fb588d25e2487ababdbff0b457216071b98d577b9926375.
+The Q4_0 file ran through a renamed link, since `tests/data/fixtures.json` pins another file (unsloth's, SHA-256 33bcc570) under its basename; each file's HF goldens are `tools/gen_baseline.py file-exact` on that file.
+
+Speed, `bench --p 512 --n 128`, one MI50, three reps ABAB against the mx fork's ROCm image (`-fa 1 -ub 512`, f16 cache), tok/s pp512 / tg128, medians; before is ROCMGAP1's 911c71c3e:
+
+| Model | before int8 | llmx auto | llmx int8 | mx ROCm |
+|---|---|---|---|---|
+| Qwen3-14B Q4_0 | 675 / 54.4 | 383 / 50.6 | 666 / 62.8 | 643 / 56.6 |
+| Qwen3-14B Q4_1 | 646 / 52.8 | 412 / 50.3 | 646 / 65.5 | 650 / 57.7 |
+| Qwen3-0.6B F16 | 2150 / 231.5 | 5518 / 228.6 | 5506 / 223.5 | 5902 / 218.4 |
+| Qwen3-4B F16 | 391 / 69.8 | 1060 / 67.8 | 1061 / 68.3 | 656 / 48.6 |
+
+The F16 rows are the rerun alone on build `4a6e4ca5dc2f` (hostwait 0 contended, no amdgpu fault during the cells); the first run beside other jobs read 0.6B decode 165 to 196 and is superseded.
+The mx 4B prompt rate falls across its reps (897, 656, 600) and its decode ranges 30 to 66.
+
+Timing against main, Qwen3-0.6B Q8_0 (`llmx 0.1.0+gc0d13585ce24` and `0.1.0+g157fdc60f829`), tok/s pp512 / tg128, three reps each:
+
+| dtype | main | branch |
+|---|---|---|
+| auto | 8904, 8919, 8932 / 310, 380, 376 | 6934, 8820, 8901 / 300, 350, 386 |
+| int8 | 10973, 10992, 11009 / 347, 413, 419 | 10824, 10930, 10957 / 346, 411, 424 |
+
+The branch's first auto rep is a cold-start outlier; the others sit within 1 percent of main for prompts and within the spread of main's own decode reps, and int8 is level.
+
+
+**Landing record** (2026-11-15, LAND60; rebased onto main 9724cd436, whose sparse-attention commit touches `backend_core.hpp`, `f32.gpu`, `port.h`, `backend_rocm.cpp`, STATUS, TESTS and `backends-gpu.md` beside this branch, so the checks below were rerun).
+The one conflict was the kernel-name enum and name table of `backend_core.hpp`: main's `kIndexerScoresInt`, `kSparseScoresTile` and `kSparseValuesTile` replace this branch's old `kSparseSoftmaxG` and `kSparseColumns64` position for position, and the branch's `kRoutedExactQ40`, `kRoutedExactQ41`, `kRoutedExactF16`, `kRowsExactQ40`, `kRowsExactQ41` and `kRowsExactF16` stay.
+Tested builds from build-branch.sh: branch `llmx 0.1.0+gd697a8e48240` (the rebased tree before this record, which changes `docs/STATUS.md` alone) and main `llmx 0.1.0+g9724cd436aca`; one MI50 at default clocks, one build at a time.
+
+| Check at the rebased head | Result |
+|---|---|
+| ROCm, Vulkan and CPU builds, CUDA compile (llmx-cuda-vk-dev:12.9.1, 12 GB cap, -j1) | rc 0 each, 0 errors |
+| CTest on one MI50 (`backend-rocm`, `backend-rocm-sixteen`, `backend-rocm-scratch`, `sparse-attention`, `arch-deepseek4`, `deepseek4-ops` among them) | 87 of 87 passed |
+| CTest on the CPU build | 83 of 83 passed |
+| Suite on rocm:0, `--require-device-types F16,Q4_0,Q4_1 --require-tools`, one run | PASS for every component run, `dead-code` and `docs` included; `q2-k`, `q3-k`, `iq4-xs` and the other IQ, TQ, NVFP4 and Q1_0 types, `vision`, `image` and `baseline` skip |
+| Suite `deepseek4` on the CPU | PASS |
+| ROCm byte identity against main 9724cd436, f16 and int8 (Q8_0, Q5_0, Q5_1, BF16 0.6B and Qwen3.5-0.8B Q4_K_M; prompt logits, per-token logits, greedy text) | 27 of 30 identical; the 3 others are Q5_0 int8 per-token and greedy and Q5_1 int8 per-token, the one-lane int8 rows this change makes, as before the rebase |
+| ROCm byte identity against the tested build before the rebase (rocmgap7 B8 at fd492b216; Q8_0, Q5_0, Q5_1, Q4_0, Q4_1 and F16 0.6B, f16 and int8) | 36 of 36 identical |
+| HF file-exact on Q5_0 and Q5_1 0.6B, auto and int8, branch and main | as in the table above: Q5_0 and Q5_1 auto pass, Q5_0 int8 passes, Q5_1 int8 over the 64-token window bound by 0.02476 on the branch and on main alike |
+
+Carried forward from the tested build 3174a444 (fd492b216's tree, on c0d13585c): the HF figures for F16, Q4_0 and Q4_1, the speed tables and the Qwen3-0.6B Q8_0 timing against main.
+The delta since is main's DeepSeek sparse-attention kernels, which no Qwen3 path reaches (`llmx_sparse_*` and `llmx_indexer_scores_int`), and the identity runs above, which reach the changed headers and kernels and are identical to the pre-rebase build on every type the branch adds.
+Radeon VII: not reached. The branch changes `CMakeLists.txt` (ROCm and CUDA rules only), `cmake/embed_modules.cmake`, `src/backends/cuda/cuda_backend.cpp`, `src/backends/rocm/rocm_backend.cpp`, `src/backends/gpu/backend_core.hpp`, `src/backends/gpu/kernels/f32.gpu`, `int16.gpu`, `port.h`, `quant.h`, `tests/backend_rocm.cpp`, `tests/twin_checks.hpp` and docs, and none is compiled into a Vulkan or CPU `llmx.exe`; `gpu-port` and `gpu-core` compile `port.h` and `backend_core.hpp` on the host in every CMake build and run in the hosted Windows job.
+
+**Left.**
+- Open speed gates on first support (AGENTS.md, Traps the gates exist for), from the speed table above, one MI50, pp512 tok/s:
+  - Qwen3-0.6B F16 prompts: llmx auto 5518 against mx ROCm 5902, 6.5 percent below (reps 5518, 5513, 5524 against 5414, 5930, 5901, stable); int8 5506. Recovery: profile the 0.6B prompt pass by kernel, then the half tile's 64 by 64 shape at 1024-wide products and its staging; decode (228.6 against 218.4) and 4B F16 (1060 against 656) are ahead.
+  - Qwen3-14B Q4_1 int8 prompts: 646 against 650, a tie within the spread, not a win; Q4_0 int8 is 666 against 643. Recovery: the Q4 block-int8 tile's decode against Q8_0's at the 14B shapes.
+  - The default arm's Q4_0 and Q4_1 prompts: auto 383 and 412 against mx 643 and 650 (40 and 37 percent below) and llmx int8 666 and 646 (42 and 36 percent below). Their decode in auto, the 16-bit rows, is 50.6 and 50.3 against mx 56.6 and 57.7 (11 and 13 percent below), where int8 decodes at 62.8 and 65.5. Recovery: the block-int16 Q4 tile and the 16-bit Q4 rows, which auto takes, profiled and brought toward the int8 forms' rates; the mx fork's figures are its 8-bit activations, which `--dtype int8` matches.
+- Whether Q4_0 and Q4_1 streams take scalar loads (they follow Q5_0 and Q5_1, unmeasured).
+- Qwen3-0.6B Q5_1 at int8 is over the Q8_0 fixture's file-exact bounds in 64-token windows on main already (prompt 0.02476, per token 0.02250 on main and 0.02153 here, bound 0.020), the prompt tile identical to main: an int8-calibrated budget for the 32-value types (AGENTS.md, Traps the gates exist for), or the cause in the int8 Q5_1 tile and rows, is open on main and not this branch's change.
+- Pending for COORD: the hosted run of the landing head; the change lands by fast-forward.
+
+**Gotchas.** A one-column int8 Q5_0 or Q5_1 row now has the one-lane bits where main had the quarter form's. `baseline.py --file-exact` stops at the first case out of bounds, so a file over its bound in one window says nothing of the others; run every case when reading headroom.
+
 ## MXFP4 one-column 8-bit rows by four lanes a row (2026-11-14, DSDEV172 to DSDEV181, branch dsdev172/mxfp4-experts on main 84e98d4fe)
 
 **Goal.** Faster routed and dense one-column MXFP4 rows on ROCm int8 (DeepSeek-V4.1-Flash decode experts), with every row's bits unchanged.

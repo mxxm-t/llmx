@@ -646,7 +646,62 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
         }
 }
 
-// The twin products of the K-quants, Q5_0, Q5_1 and IQ4_NL: a lane takes eight values of one 32-value sub-block, whose term is ds * dot(q, x) - dm * sum(x) over the twin's integers.
+// The F16 class's prompt tile for F16 weights, q8_0_tile's 64 outputs by 64 rows: activations rounded to binary16 as they are staged, each output summed in F32 by half dots in k order.
+// A row's sums depend on nin alone, so a row gives the same bits wherever the tile falls; the host takes it for whole steps of 32 values on 16-byte aligned rows (backend_core.hpp, half_product).
+__device__ void f16_tile(const TileCall& c, const float* X) {
+    constexpr int OUTS = kTileOut, ROWS = kTileRows, WORDS = 16;   // a step's 32 values as 16 words of two halves
+    const unsigned long long nout = c.nout[0], nrows = c.nrows, nin = c.nin, steps = nin / 32;
+    __shared__ __attribute__((aligned(16))) unsigned wq[2][WORDS][OUTS];
+    __shared__ __attribute__((aligned(16))) unsigned xw[2][WORDS][ROWS];
+    const int t = threadIdx.x, tr = t / 16, tc = t % 16, r = t / 4, seg = t % 4;   // outputs tr * 4.., rows tc * 4..; weight row and twin row r staged, values 8 * seg..
+    const unsigned long long o = (unsigned long long)blockIdx.x * OUTS + r, b = (unsigned long long)blockIdx.y * ROWS + r;
+    const bool wok = o < nout, xok = b < nrows;
+    const unsigned char* wrow = c.w[0] + (wok ? o : 0) * nin * 2 + seg * 16;
+    const float* xrow = X + (xok ? b : 0) * nin + seg * 8;
+    float acc[4][4];
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j) acc[i][j] = 0.0f;
+    uint4 wv;
+    float4 x0, x1;
+    const auto load = [&](unsigned long long k) {
+        wv = *(const uint4*)(wrow + k * 64);
+        x0 = *(const float4*)(xrow + k * 32), x1 = *(const float4*)(xrow + k * 32 + 4);
+    };
+    const auto pack = [](float lo, float hi) { return (unsigned)__half_as_ushort(__float2half_rn(lo)) | ((unsigned)__half_as_ushort(__float2half_rn(hi)) << 16); };
+    const auto store = [&](int s) {
+        wq[s][4 * seg][r] = wok ? wv.x : 0, wq[s][4 * seg + 1][r] = wok ? wv.y : 0, wq[s][4 * seg + 2][r] = wok ? wv.z : 0, wq[s][4 * seg + 3][r] = wok ? wv.w : 0;
+        xw[s][4 * seg][r] = xok ? pack(x0.x, x0.y) : 0, xw[s][4 * seg + 1][r] = xok ? pack(x0.z, x0.w) : 0;
+        xw[s][4 * seg + 2][r] = xok ? pack(x1.x, x1.y) : 0, xw[s][4 * seg + 3][r] = xok ? pack(x1.z, x1.w) : 0;
+    };
+    // Step k computes from stage k % 2 while step k + 1's values, loaded before it, are stored to the other stage.
+    load(0);
+    store(0);
+    __syncthreads();
+    for (unsigned long long k = 0; k < steps; ++k) {
+        const int s = (int)(k & 1);
+        if (k + 1 < steps) load(k + 1);
+#pragma unroll
+        for (int w = 0; w < WORDS; ++w) {
+            const uint4 a = *(const uint4*)&wq[s][w][tr * 4], x = *(const uint4*)&xw[s][w][tc * 4];
+            const unsigned av[4] = {a.x, a.y, a.z, a.w}, xv[4] = {x.x, x.y, x.z, x.w};
+#pragma unroll
+            for (int i = 0; i < 4; ++i)
+#pragma unroll
+                for (int j = 0; j < 4; ++j) acc[i][j] = dot2_f16(av[i], xv[j], acc[i][j]);
+        }
+        if (k + 1 < steps) store(s ^ 1);
+        __syncthreads();
+    }
+    for (int j = 0; j < 4; ++j)
+        for (int i = 0; i < 4; ++i) {
+            const unsigned long long oo = (unsigned long long)blockIdx.x * OUTS + tr * 4 + i, bb = (unsigned long long)blockIdx.y * ROWS + tc * 4 + j;
+            if (oo >= nout || bb >= nrows) continue;
+            float* y = c.y[0] + bb * nout + oo;
+            *y = c.add ? *y + acc[i][j] : acc[i][j];
+        }
+}
+
+// The twin products of the K-quants, Q4_0, Q4_1, Q5_0, Q5_1 and IQ4_NL: a lane takes eight values of one 32-value sub-block, whose term is ds * dot(q, x) - dm * sum(x) over the twin's integers.
 // Every fused step is written as fmaf, the kernels compiling without contraction (CMakeLists.txt, LLMX_HIP_FLAGS).
 
 // A row lane's share of a block (k_rows, the Vulkan row layout of matmul_row_one.glsl): `lanes` lanes a block, lane t holding `segments` runs, its run s from value xoff(t, s) of twin block xblock(t, s).
@@ -728,6 +783,43 @@ __device__ inline void nibbles32(const unsigned (&l)[4], unsigned (&v)[8]) {
 #pragma unroll
     for (int i = 0; i < 4; ++i) v[i] = l[i] & 0x0F0F0F0Fu, v[4 + i] = (l[i] >> 4) & 0x0F0F0F0Fu;
 }
+// Q4_0: one lane an 18-byte block, 2-byte aligned, as 16-bit loads; its values less 8, taken out of the integer sum.
+struct Q40Lane {
+    static constexpr int lanes = 1, segments = 1, values = 32;
+    unsigned short d;
+    unsigned l[4];
+    __device__ void load(const unsigned char* b, unsigned) {
+        const unsigned short* w = (const unsigned short*)b;
+        d = w[0];
+#pragma unroll
+        for (int i = 0; i < 4; ++i) l[i] = w[1 + 2 * i] | ((unsigned)w[2 + 2 * i] << 16);
+    }
+    __device__ static unsigned xblock(unsigned, int) { return 0; }
+    __device__ static unsigned xoff(unsigned, int) { return 0; }
+    __device__ void decode(unsigned, int, unsigned (&v)[8], float& ds, float& dmin) const {
+        nibbles32(l, v);
+        ds = __half2float(__ushort_as_half(d));
+        dmin = 0.0f;
+    }
+};
+// Q4_1: one lane a 20-byte block, 4-byte aligned, its scale and min and nibbles as words; the min joins as a negative dm, so the term adds it.
+struct Q41Lane {
+    static constexpr int lanes = 1, segments = 1, values = 32;
+    unsigned dm, l[4];
+    __device__ void load(const unsigned char* b, unsigned) {
+        const unsigned* w = (const unsigned*)b;
+        dm = w[0];
+#pragma unroll
+        for (int i = 0; i < 4; ++i) l[i] = w[1 + i];
+    }
+    __device__ static unsigned xblock(unsigned, int) { return 0; }
+    __device__ static unsigned xoff(unsigned, int) { return 0; }
+    __device__ void decode(unsigned, int, unsigned (&v)[8], float& ds, float& dmin) const {
+        nibbles32(l, v);
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff)));
+        dmin = -__half2float(__ushort_as_half((unsigned short)(dm >> 16)));
+    }
+};
 // Q5_0: one lane a 22-byte block, 2-byte aligned, as 16-bit loads; its values less 16, taken out of the integer sum.
 struct Q50Lane {
     static constexpr int lanes = 1, segments = 1, values = 32;
@@ -829,6 +921,42 @@ __device__ inline void fifth_bits(unsigned h, unsigned (&v)[2]) {
         v[i] |= ((x & 1) | ((x & 2) << 7) | ((x & 4) << 14) | ((x & 8) << 21)) << 4;
     }
 }
+// Q4_0: an 18-byte block, 2-byte aligned, its scale and the lane's four nibble bytes' words as 16-bit loads; the values less 8, taken out of the integer sum.
+template <> struct KRaw<rq::Q4_0> {
+    static constexpr int offset = 8, halves = 1;
+    using Lane = Q40Lane;
+    unsigned short d, lo[4];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        const unsigned short* w = (const unsigned short*)b;
+        d = w[0];
+#pragma unroll
+        for (int i = 0; i < 4; ++i) lo[i] = w[1 + 4 * (part & 1) + i];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = ((lo[2 * i] | ((unsigned)lo[2 * i + 1] << 16)) >> sh) & 0x0F0F0F0Fu;
+        ds = __half2float(__ushort_as_half(d));
+        dmin = 0.0f;
+    }
+};
+// Q4_1: a 20-byte block, 4-byte aligned, its scale and min and the lane's nibble words; the min joins as a negative dm, so the term adds it.
+template <> struct KRaw<rq::Q4_1> {
+    static constexpr int offset = 0, halves = 1;
+    using Lane = Q41Lane;
+    unsigned dm, lo[2];
+    __device__ void load(const unsigned char* b, unsigned, unsigned part) {
+        const unsigned* w = (const unsigned*)b;
+        dm = w[0], lo[0] = w[1 + 2 * (part & 1)], lo[1] = w[2 + 2 * (part & 1)];
+    }
+    __device__ void decode(unsigned, unsigned part, unsigned (&v)[2], float& ds, float& dmin) const {
+        const unsigned sh = 4 * (part >> 1);
+#pragma unroll
+        for (int i = 0; i < 2; ++i) v[i] = (lo[i] >> sh) & 0x0F0F0F0Fu;
+        ds = __half2float(__ushort_as_half((unsigned short)(dm & 0xffff)));
+        dmin = -__half2float(__ushort_as_half((unsigned short)(dm >> 16)));
+    }
+};
 // Q5_0: a 22-byte block, 2-byte aligned, its scale, 32 fifth bits and the lane's four nibble bytes' words as 16-bit loads; the values less 16, taken out of the integer sum.
 template <> struct KRaw<rq::Q5_0> {
     static constexpr int offset = 16, halves = 1;
@@ -949,7 +1077,7 @@ template <> struct KRaw<rq::MXFP4> {
     }
 };
 // The quarter form: four lanes a 32-value block, lane t its values 8t to 8t + 7 through the type's KRaw, the tile's loads and arithmetic.
-// IQ4_NL's rows take it alone; a Q5_0 or Q5_1 row takes it or one lane a block by row_form (backend_core.hpp), whichever its lane units fill the cluster's steps fuller with.
+// IQ4_NL's rows take it alone; a Q4_0, Q4_1, Q5_0 or Q5_1 row in the F16 class takes it or one lane a block by row_form (backend_core.hpp), and in the int8 class one lane a block.
 template <typename KT> struct QuarterLane {
     static constexpr int lanes = 4, segments = 1, values = 8;
     KRaw<KT> raw;
@@ -1434,6 +1562,25 @@ template <> struct StreamDecode<rq::Q5_0> {
         }
     }
 };
+// Q4_0's 18-byte blocks sit at even offsets, so its halves come from the words by shifts, as Q5_0's do.
+template <> struct StreamDecode<rq::Q4_0> {
+    static constexpr int H = 1;
+    template <int NB> __device__ static void get(const StreamWords<rq::Q4_0, NB>& c, int i, unsigned, int (&v)[8], float (&ds)[1], float (&dm)[1]) {
+        const auto half = [&](unsigned k) { const unsigned b = i * rq::Q4_0::bytes + 2 * k; return (unsigned short)(c.w[b / 4] >> (8 * (b % 4))); };
+#pragma unroll
+        for (unsigned part = 0; part < 4; ++part) {
+            KRaw<rq::Q4_0> raw;
+            raw.d = half(0);
+#pragma unroll
+            for (unsigned t = 0; t < 4; ++t) raw.lo[t] = half(1 + 4 * (part & 1) + t);
+            unsigned u[2];
+            float d, m;
+            raw.decode(0, part, u, d, m);
+            v[2 * part] = (int)u[0], v[2 * part + 1] = (int)u[1];
+            if (part == 0) ds[0] = d, dm[0] = m;
+        }
+    }
+};
 template <> struct StreamDecode<rq::Q8_0> {
     static constexpr int H = 1;
     template <int NB> __device__ static void get(const StreamWords<rq::Q8_0, NB>& c, int i, unsigned, int (&v)[8], float (&ds)[1], float (&dm)[1]) {
@@ -1447,9 +1594,11 @@ template <> struct StreamDecode<rq::Q8_0> {
 };
 
 // Whether a type's stream reads the entries' twin blocks by uniform scalar loads, a batch of a lane load's decoded blocks then each entry over it, rather than staging them in shared memory.
-// Measured per type on one MI50 (docs/src/backends-gpu.md): the scalar loads win at every entry count for MXFP4, Q5_0 and Q5_1 and lose at some for the others.
+// Measured per type on one MI50 (docs/src/backends-gpu.md): the scalar loads win at every entry count for MXFP4, Q5_0 and Q5_1 and lose at some for the others; Q4_0 and Q4_1 follow Q5_0 and Q5_1.
 template <typename KT> struct StreamScalar { static constexpr bool value = false; };
 template <> struct StreamScalar<rq::MXFP4> { static constexpr bool value = true; };
+template <> struct StreamScalar<rq::Q4_0> { static constexpr bool value = true; };
+template <> struct StreamScalar<rq::Q4_1> { static constexpr bool value = true; };
 template <> struct StreamScalar<rq::Q5_0> { static constexpr bool value = true; };
 template <> struct StreamScalar<rq::Q5_1> { static constexpr bool value = true; };
 
@@ -1802,6 +1951,7 @@ LLMX_HALF(llmx_q8_0_half8_16, 16, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_16_r4, 16, 4, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_f16_tile(TileCall c, const float* X) { f16_tile(c, X); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }
 
 // The parts of a split tile call added in part order, plus y when adding (the Vulkan reduce's order, matmul_reduce.comp): a thread an output, projection p's outputs from workgroup c.start[p] on.
@@ -1910,6 +2060,8 @@ LLMX_GROUPED(llmx_q8_0_routed_half8_g8, signed char, 8, q8_0_rows_half<8, 2, 4, 
 LLMX_KTYPE(q4_k, rq::Q4_K)
 LLMX_KTYPE(q5_k, rq::Q5_K)
 LLMX_KTYPE(q6_k, rq::Q6_K)
+LLMX_KTYPE(q4_0, rq::Q4_0)
+LLMX_KTYPE(q4_1, rq::Q4_1)
 LLMX_KTYPE(q5_0, rq::Q5_0)
 LLMX_KTYPE(q5_1, rq::Q5_1)
 LLMX_KTYPE(iq4_nl, rq::IQ4_NL)
@@ -1921,26 +2073,19 @@ extern "C" __global__ void __launch_bounds__(kThreads)
 }
 LLMX_ROUTED(llmx_mxfp4_quad_routed8, signed char, mxfp4_quad_rows)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_mxfp4_routed_thin16(TileCall c, TileGroups g, const short* q, const float* dx) { k_thin(c, q, dx, g); }
-// The quarter form's row, routed and grouped builds of Q5_0 and Q5_1, in the order LLMX_KTYPE gives those builds (backend_core.hpp, quarter_twins).
+// The quarter form's 16-bit row, routed and grouped builds of Q4_0, Q4_1, Q5_0 and Q5_1, the F16 class's alone since row_form gives the int8 classes one lane a block (backend_core.hpp, quarter_twins).
 #define LLMX_KQUARTER(t, KT)                                                                                                       \
     LLMX_KROWS(llmx_##t##_quarter_rows16_1, KT, 1, short, 1, QuarterLane<KT>)                                                      \
     LLMX_KROWS(llmx_##t##_quarter_rows16_2, KT, 2, short, 2, QuarterLane<KT>)                                                      \
     LLMX_KROWS(llmx_##t##_quarter_rows16_4, KT, 4, short, 4, QuarterLane<KT>)                                                      \
     LLMX_KROWS(llmx_##t##_quarter_rows16_8, KT, 8, short, 4, QuarterLane<KT>)                                                      \
     LLMX_KROWS(llmx_##t##_quarter_rows16_16, KT, 16, short, 4, QuarterLane<KT>)                                                    \
-    LLMX_KROWS(llmx_##t##_quarter_rows8_1, KT, 1, signed char, 1, QuarterLane<KT>)                                                 \
-    LLMX_KROWS(llmx_##t##_quarter_rows8_2, KT, 2, signed char, 2, QuarterLane<KT>)                                                 \
-    LLMX_KROWS(llmx_##t##_quarter_rows8_4, KT, 4, signed char, 4, QuarterLane<KT>)                                                 \
-    LLMX_KROWS(llmx_##t##_quarter_rows8_8, KT, 8, signed char, 4, QuarterLane<KT>)                                                 \
-    LLMX_KROWS(llmx_##t##_quarter_rows8_16, KT, 16, signed char, 4, QuarterLane<KT>)                                               \
     LLMX_ROUTED(llmx_##t##_quarter_routed16, short, k_rows<KT, 1, short, 2, 1, Cols, QuarterLane<KT>>)                             \
-    LLMX_ROUTED(llmx_##t##_quarter_routed8, signed char, k_rows<KT, 1, signed char, 2, 1, Cols, QuarterLane<KT>>)                  \
     LLMX_GROUPED(llmx_##t##_quarter_routed16_g2, short, 2, k_rows<KT, 2, short, 2, 2, EntryCols<2>, QuarterLane<KT>>)            \
     LLMX_GROUPED(llmx_##t##_quarter_routed16_g4, short, 4, k_rows<KT, 4, short, 2, 4, EntryCols<4>, QuarterLane<KT>>)            \
-    LLMX_GROUPED(llmx_##t##_quarter_routed16_g8, short, 8, k_rows<KT, 8, short, 2, 4, EntryCols<8>, QuarterLane<KT>>)            \
-    LLMX_GROUPED(llmx_##t##_quarter_routed8_g2, signed char, 2, k_rows<KT, 2, signed char, 2, 2, EntryCols<2>, QuarterLane<KT>>) \
-    LLMX_GROUPED(llmx_##t##_quarter_routed8_g4, signed char, 4, k_rows<KT, 4, signed char, 2, 4, EntryCols<4>, QuarterLane<KT>>) \
-    LLMX_GROUPED(llmx_##t##_quarter_routed8_g8, signed char, 8, k_rows<KT, 8, signed char, 2, 4, EntryCols<8>, QuarterLane<KT>>)
+    LLMX_GROUPED(llmx_##t##_quarter_routed16_g8, short, 8, k_rows<KT, 8, short, 2, 4, EntryCols<8>, QuarterLane<KT>>)
+LLMX_KQUARTER(q4_0, rq::Q4_0)
+LLMX_KQUARTER(q4_1, rq::Q4_1)
 LLMX_KQUARTER(q5_0, rq::Q5_0)
 LLMX_KQUARTER(q5_1, rq::Q5_1)
 

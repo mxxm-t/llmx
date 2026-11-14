@@ -9,17 +9,16 @@
 #include <string>
 #include <vector>
 
+// The kernel modules, linked in by llmx_embed_modules (cmake/embed_modules.cmake).
+extern "C" const unsigned char llmx_cuda_f32_module[], llmx_cuda_int16_module[];
+
 namespace backend {
 namespace {
 
 // The dense F32 kernels, SASS for each target and PTX for later ones (gpu/kernels/f32.gpu).
-const unsigned char kF32Module[] = {
-#include "cuda/f32.inc"
-};
+constexpr const unsigned char* kF32Module = llmx_cuda_f32_module;
 // The F16 class's quantized products on a block-int16 twin (gpu/kernels/int16.gpu).
-const unsigned char kInt16Module[] = {
-#include "cuda/int16.inc"
-};
+constexpr const unsigned char* kInt16Module = llmx_cuda_int16_module;
 
 // The primary context of each device, retained once a process and made current on the calling thread, as hipSetDevice makes a device current.
 CUresult set_context(int index) {

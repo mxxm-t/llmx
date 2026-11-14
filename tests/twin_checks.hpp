@@ -74,14 +74,18 @@ inline std::vector<uint8_t> typed_matrix(uint32_t type, size_t nin, size_t rows,
         m[at + 1] = uint8_t(h >> 8);
     };
     std::vector<size_t> halves;
-    if (type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q5_1) halves = {0, 2};
-    if (type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL) halves = {0};
+    if (type == quant::GGML_TYPE_Q4_K || type == quant::GGML_TYPE_Q5_K || type == quant::GGML_TYPE_Q5_1 || type == quant::GGML_TYPE_Q4_1) halves = {0, 2};
+    if (type == quant::GGML_TYPE_Q8_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_Q4_0) halves = {0};
     if (type == quant::GGML_TYPE_Q6_K) halves = {208};
     for (size_t b = 0, i = 0; b < m.size() / st.type_size; ++b)
         for (size_t h : halves) put(b * st.type_size + h, f32_to_f16(scale[i++]));
     // MXFP4's E8M0 scale byte at 2^-10 to 2^-6, as the raw-block fixtures' ordinary blocks take it.
     if (type == quant::GGML_TYPE_MXFP4)
         for (size_t b = 0; b < m.size() / st.type_size; ++b) m[b * st.type_size] = uint8_t(118 + m[b * st.type_size] % 5);
+    if (type == quant::GGML_TYPE_F16) {
+        const std::vector<float> v = row_classes::values(nin * rows, seed + 9);
+        for (size_t i = 0; i < v.size(); ++i) put(2 * i, f32_to_f16(v[i]));
+    }
     if (type == quant::GGML_TYPE_BF16) {
         const std::vector<float> v = row_classes::values(nin * rows, seed + 9);
         for (size_t i = 0; i < v.size(); ++i) {
@@ -185,10 +189,10 @@ inline std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
     return row;
 }
 
-// A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q5_1's min; Q6_K, Q5_0, IQ4_NL and MXFP4 have none.
+// A block's min for its sub-block: Q4_K's and Q5_K's dmin times the 6-bit min as the format packs them, Q4_1's and Q5_1's min; Q6_K, Q4_0, Q5_0, IQ4_NL and MXFP4 have none.
 inline float k_min(uint32_t type, const uint8_t* block, int sub) {
-    if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4) return 0.0f;
-    if (type == quant::GGML_TYPE_Q5_1) return f16_to_f32(uint16_t(block[2] | (block[3] << 8)));
+    if (type == quant::GGML_TYPE_Q6_K || type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_IQ4_NL || type == quant::GGML_TYPE_MXFP4) return 0.0f;
+    if (type == quant::GGML_TYPE_Q5_1 || type == quant::GGML_TYPE_Q4_1) return f16_to_f32(uint16_t(block[2] | (block[3] << 8)));
     const uint8_t* q = block + 4;
     const int m = sub < 4 ? q[sub + 4] & 63 : (q[sub + 4] >> 4) | ((q[sub] >> 6) << 4);
     return f16_to_f32(uint16_t(block[2] | (block[3] << 8))) * float(m);
@@ -215,9 +219,9 @@ inline bool twin_close(uint32_t type, const std::vector<uint8_t>& w, const std::
 // Whether a one-column 8-bit MXFP4 row of nin values runs the quad rows' builds on a wave of W lanes: gpu_shape::quad_rows at the 32-lane cluster a 64-lane wave gives rows of 16 blocks or more.
 inline bool quad_build(uint32_t type, Dtype dt, size_t nin, size_t W) { return type == quant::GGML_TYPE_MXFP4 && dt == Dtype::int8 && W == 64 && gpu_shape::quad_rows(32, nin / 32); }
 
-// Whether row_form takes the quarter form's builds for a row of nin values on a wave of W lanes, restated from its rule: for Q5_0 and Q5_1, where four lanes a block fill the cluster's steps fuller than one, one lane on a tie.
-inline bool quarter_form(uint32_t type, size_t nin, size_t W) {
-    if (type != quant::GGML_TYPE_Q5_0 && type != quant::GGML_TYPE_Q5_1) return false;
+// Whether row_form takes the quarter form for a Q4_0, Q4_1, Q5_0 or Q5_1 row of nin values on a wave of W lanes: in the F16 class where four lanes a block fill the cluster's steps fuller than one, never in the int8 class.
+inline bool quarter_form(uint32_t type, size_t nin, size_t W, bool int8) {
+    if (int8 || (type != quant::GGML_TYPE_Q4_0 && type != quant::GGML_TYPE_Q4_1 && type != quant::GGML_TYPE_Q5_0 && type != quant::GGML_TYPE_Q5_1)) return false;
     const size_t blocks = nin / 32;
     const auto span = [W](size_t units) {
         size_t cl = 1;
@@ -228,7 +232,7 @@ inline bool quarter_form(uint32_t type, size_t nin, size_t W) {
 }
 
 // Widths whose rows take every lane cluster a type's rule gives (kernels/int16.gpu, k_rows): lane units below the wave, at the Q4_K and Q5_K cap, above it and not a multiple of the cluster.
-// Q5_0's and Q5_1's also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 37 outputs, which no block's rows divide.
+// The 32-value twin types' also lie each side of the lane form's switches on a 64-lane wave (one lane at 1024 and 2048, quarter at 1056 and 2080); 37 outputs, which no block's rows divide.
 inline std::vector<std::array<size_t, 2>> cluster_shapes(uint32_t type) {
     const bool k = quant::storage_type(type)->block_size == 256;
     const std::vector<size_t> widths = k ? std::vector<size_t>{256, 512, 768, 1024, 4096} : std::vector<size_t>{32, 64, 96, 640, 1024, 1056, 2048, 2080, 4096};
@@ -248,10 +252,10 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
         std::vector<std::array<size_t, 2>> shapes = flash_shapes(type);
         const size_t flash = shapes.size();
         for (const auto& sh : cluster_shapes(type)) shapes.push_back(sh);
-        if (type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1) {
+        if (type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1) {
             size_t quarter = 0;
-            for (const auto& sh : shapes) quarter += quarter_form(type, sh[0], wave);
-            require(quarter > 0 && quarter < shapes.size(), tname + "'s widths take both lane forms");
+            for (const auto& sh : shapes) quarter += quarter_form(type, sh[0], wave, false);
+            require(quarter > 0 && quarter < shapes.size(), tname + "'s widths take both lane forms in the F16 class");
         }
         for (size_t si = 0; si < shapes.size(); ++si) {
             const auto& sh = shapes[si];
@@ -293,7 +297,7 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
                     std::map<std::string, size_t> want;
                     for (size_t left = n; left; left -= std::min<size_t>(left, 16)) {
                         const size_t m = std::min<size_t>(left, 16), b = m <= 1 ? 1 : m <= 2 ? 2 : m <= 4 ? 4 : m <= 8 ? 8 : 16;
-                        ++want[b == 1 && quad_build(type, dt, nin, wave) ? "llmx_mxfp4_quad_rows8_1" : "llmx_" + tname + (quarter_form(type, nin, wave) ? "_quarter" : "") + "_rows" + form + "_" + std::to_string(b)];
+                        ++want[b == 1 && quad_build(type, dt, nin, wave) ? "llmx_mxfp4_quad_rows8_1" : "llmx_" + tname + (quarter_form(type, nin, wave, dt == Dtype::int8) ? "_quarter" : "") + "_rows" + form + "_" + std::to_string(b)];
                     }
                     const std::string what = "a " + cls + " call of " + std::to_string(n) + " generated rows";
                     require(run(n, 1, *yb, 0) == want, what + " runs its row builds alone");

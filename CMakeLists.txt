@@ -370,6 +370,7 @@ endif()
 
 # The shared GPU kernels (docs/src/backends-gpu.md), compiled by each GPU backend's own compiler.
 set(LLMX_GPU_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/gpu/kernels)
+include(cmake/embed_modules.cmake)
 
 # The ROCm backend (docs/ROCM.md): the SDK supplies the headers and the compiler at build time and the HIP runtime is opened at run time, so nothing links against libamdhip64.
 if(LLMX_HAS_BACKEND_ROCM)
@@ -381,7 +382,7 @@ if(LLMX_HAS_BACKEND_ROCM)
     if(NOT LLMX_HIP_INCLUDE_DIR OR NOT LLMX_HIP_CLANG)
         message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH")
     endif()
-    # Kernels are HIP in the tree, compiled to a code object for each target and embedded as byte arrays, as the Vulkan SPIR-V is; gfx1151 is compile coverage until hardware qualifies it.
+    # Kernels are HIP in the tree, compiled to a code object for each target and linked in as bytes (llmx_embed_modules); gfx1151 is compile coverage until hardware qualifies it.
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
     set(LLMX_ROCM_KERNELS f32 int16)
@@ -390,32 +391,30 @@ if(LLMX_HAS_BACKEND_ROCM)
     set(LLMX_HIP_FLAGS -x hip -std=c++17 -O3 -ffp-contract=off --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only)
     foreach(kernel IN LISTS LLMX_ROCM_KERNELS)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
-        set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.inc)
-        add_custom_command(OUTPUT ${inc}
+        add_custom_command(OUTPUT ${bundle}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
             COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx1151
                     -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
-            COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
             COMMENT "hip ${kernel}"
             VERBATIM)
-        list(APPEND LLMX_ROCM_OBJECTS ${inc})
+        list(APPEND LLMX_ROCM_OBJECTS ${bundle})
     endforeach()
     # The int16 kernels again, their products on the 16-bit integer dot, for the targets that have the instruction; a device whose code object is missing from it runs the plain module (docs/src/backends-gpu.md).
     set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.hipfb)
-    set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.inc)
-    add_custom_command(OUTPUT ${inc}
+    add_custom_command(OUTPUT ${bundle}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
         COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
                 -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
-        COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
         COMMENT "hip int16dot"
         VERBATIM)
-    list(APPEND LLMX_ROCM_OBJECTS ${inc})
+    list(APPEND LLMX_ROCM_OBJECTS ${bundle})
     add_custom_target(llmx-rocm-kernels DEPENDS ${LLMX_ROCM_OBJECTS})
     add_library(llmx-rocm STATIC src/backends/rocm/rocm_backend.cpp)
     add_dependencies(llmx-rocm llmx-rocm-kernels)
+    llmx_embed_modules(llmx-rocm rocm llmx_rocm_f32_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/f32.hipfb llmx_rocm_int16_module ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16.hipfb
+                       llmx_rocm_int16dot_module ${bundle})
     # The generated directory comes first, so the backend reads the build's config.hpp and its embedded kernels.
     target_include_directories(llmx-rocm
         PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -440,22 +439,21 @@ if(LLMX_HAS_BACKEND_CUDA)
     set(LLMX_CUDA_OBJECTS)
     foreach(kernel f32 int16)
         set(fatbin ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.fatbin)
-        set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.inc)
-        add_custom_command(OUTPUT ${inc} ${fatbin} ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas
+        add_custom_command(OUTPUT ${fatbin} ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda
             COMMAND ${CMAKE_COMMAND} -DNVCC=${LLMX_NVCC} -DSRC=${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -DOUT=${fatbin}
                     -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas -DINCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/src
                     "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=80 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
-            COMMAND ${CMAKE_COMMAND} -DIN=${fatbin} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
             DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
-                    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+                    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
             COMMENT "nvcc ${kernel}"
             VERBATIM)
-        list(APPEND LLMX_CUDA_OBJECTS ${inc})
+        list(APPEND LLMX_CUDA_OBJECTS ${fatbin})
     endforeach()
     add_custom_target(llmx-cuda-kernels DEPENDS ${LLMX_CUDA_OBJECTS})
     add_library(llmx-cuda STATIC src/backends/cuda/cuda_backend.cpp)
     add_dependencies(llmx-cuda llmx-cuda-kernels)
+    llmx_embed_modules(llmx-cuda cuda llmx_cuda_f32_module ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/f32.fatbin llmx_cuda_int16_module ${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/int16.fatbin)
     target_include_directories(llmx-cuda
         PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
         PRIVATE ${LLMX_CUDA_INCLUDE_DIR})

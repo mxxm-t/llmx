@@ -257,12 +257,27 @@ def check_served_refusals(model):
                  ([{"role": "user", "content": [{"type": "image_url", "image_url": "x"}]}], "image_url.url"),
                  ([{"role": "user", "content": [{"type": "image_url", "image_url": {"url": good}}, {"type": "text", "text": "Look <|image_pad|> here."}]}],
                   "the prompt marks 2 images and 1 were given")]
-        for messages, reason in cases:
+        cases = [(messages, reason, 400) for messages, reason in cases]
+        # A request's images against what it may hold in tokens, 1024 here: an image takes 64 at least, so 17 are refused before any is decoded, which 17 distinct broken files show.
+        # 16 pass that bound, and 15 copies of a 70-token image pass the limit by the 15th, so a broken 16th is never decoded.
+        limit = srv.get("/v1/health")["server"]["request_tokens"]
+        with open(os.path.join(DATA, "images", "photo-300x200.jpg"), "rb") as f:
+            photo = f.read()
+        assert limit == 1024, limit
+        def varied(raw, i):
+            return "data:image/jpeg;base64," + base64.b64encode(raw[:14] + bytes([i]) + raw[15:]).decode("ascii")
+        broken = [varied(photo[:100], i) for i in range(limit // 64 + 1)]
+        many = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}} for url in broken] + [{"type": "text", "text": "a"}]}]
+        cases.append((many, "%d images take at least %d tokens, and a request may hold %d" % (len(broken), 64 * len(broken), limit), 413))
+        decoded = [varied(photo, i) for i in range(limit // 64 - 1)] + [broken[0]]
+        many = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}} for url in decoded] + [{"type": "text", "text": "a"}]}]
+        cases.append((many, "images take 1050 tokens, and a request may hold %d" % limit, 413))
+        for messages, reason, expected in cases:
             for path in ("/v1/chat", "/v1/chat/completions", "/v1/tokenize"):
                 body = {"messages": messages} if path == "/v1/tokenize" else ask(messages)
                 status, err = srv.post(path, body)
                 message = err["error"]["message"] if isinstance(err["error"], dict) else err["error"]
-                assert status == 400 and reason in message, (path, reason, status, err)
+                assert status == expected and reason in message, (path, reason, status, err)
         status, err = srv.post("/v1/generate", dict(ask(part(good)), prompt="a"))
         assert status == 400 and "chat routes" in err["error"], err
     finally:

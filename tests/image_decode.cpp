@@ -1,6 +1,7 @@
 // image::decode_image, smart_resize and resize_bicubic held to the bytes of the vision models' processor (tests/data/image_decode.json, from `tools/gen_baseline.py image-decode`).
 // Unread formats are refused with their texts, and prefixes and flipped bits of every image are refused or decoded, never read past their end.
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
@@ -177,6 +178,139 @@ void damage(const std::filesystem::path& dir, const jmini::Value& doc) {
     require(prefixes > 1000 && corrupted > 1000, "damage: too few cases");
 }
 
+// Files whose decode would cost far more than their bytes, built here: a progressive JPEG of many scans, a frame header alone at a large size, and a PNG whose compressed texts are long.
+namespace synth {
+
+void be16(std::vector<uint8_t>& v, size_t x) {
+    v.push_back(uint8_t(x >> 8));
+    v.push_back(uint8_t(x));
+}
+
+void be32(std::vector<uint8_t>& v, uint32_t x) {
+    be16(v, x >> 16);
+    be16(v, x & 0xffff);
+}
+
+void segment(std::vector<uint8_t>& v, uint8_t marker, const std::vector<uint8_t>& body) {
+    v.push_back(0xff);
+    v.push_back(marker);
+    be16(v, body.size() + 2);
+    v.insert(v.end(), body.begin(), body.end());
+}
+
+// A quantization table of ones and a frame of one gray component, `sof` the frame marker.
+std::vector<uint8_t> frame(uint8_t sof, size_t width, size_t height) {
+    std::vector<uint8_t> v{0xff, 0xd8};
+    std::vector<uint8_t> dqt{0};
+    dqt.insert(dqt.end(), 64, 1);
+    segment(v, 0xdb, dqt);
+    std::vector<uint8_t> f{8};
+    be16(f, height);
+    be16(f, width);
+    f.insert(f.end(), {1, 1, 0x11, 0});
+    segment(v, sof, f);
+    return v;
+}
+
+// An 8 by 8 progressive JPEG of `scans` scans: the DC first and refinement, then AC bands of one coefficient each; both tables hold one code, so a block is one bit.
+std::vector<uint8_t> progressive_jpeg(int scans) {
+    std::vector<uint8_t> v = frame(0xc2, 8, 8);
+    for (int tc : {0, 1}) {
+        std::vector<uint8_t> dht{uint8_t(tc << 4), 1};
+        dht.insert(dht.end(), 15, 0);
+        dht.push_back(0);
+        segment(v, 0xc4, dht);
+    }
+    const auto scan = [&](int ss, int se, int ah, int al) {
+        segment(v, 0xda, {1, 1, 0x00, uint8_t(ss), uint8_t(se), uint8_t(ah << 4 | al)});
+        v.push_back(0x00);
+    };
+    scan(0, 0, 0, 1);
+    if (scans > 1) scan(0, 0, 1, 0);
+    for (int k = 1; k + 2 <= scans; ++k) scan(k, k, 0, 0);
+    v.insert(v.end(), {0xff, 0xd9});
+    return v;
+}
+
+// A frame header of `side` by `side` gray pixels and the end of image, with no scan between them.
+std::vector<uint8_t> frame_only_jpeg(size_t side) {
+    std::vector<uint8_t> v = frame(0xc0, side, side);
+    v.insert(v.end(), {0xff, 0xd9});
+    return v;
+}
+
+uint32_t adler32(const std::vector<uint8_t>& d) {
+    uint32_t a = 1, b = 0;
+    for (uint8_t x : d) {
+        a = (a + x) % 65521;
+        b = (b + a) % 65521;
+    }
+    return b << 16 | a;
+}
+
+// A zlib stream of `n` zero bytes in stored blocks.
+std::vector<uint8_t> zeros_zlib(size_t n) {
+    std::vector<uint8_t> z{0x78, 0x01};
+    for (size_t at = 0; at < n;) {
+        const size_t len = std::min<size_t>(65535, n - at);
+        z.push_back(at + len == n ? 1 : 0);
+        z.insert(z.end(), {uint8_t(len), uint8_t(len >> 8), uint8_t(~len), uint8_t(~len >> 8)});
+        z.insert(z.end(), len, 0);
+        at += len;
+    }
+    be32(z, adler32(std::vector<uint8_t>(n, 0)));
+    return z;
+}
+
+void chunk(std::vector<uint8_t>& v, const char* type, const std::vector<uint8_t>& data) {
+    be32(v, uint32_t(data.size()));
+    std::vector<uint8_t> body(type, type + 4);
+    body.insert(body.end(), data.begin(), data.end());
+    v.insert(v.end(), body.begin(), body.end());
+    be32(v, image::png_detail::crc32(body.data(), body.size()));
+}
+
+// A 1 by 1 gray PNG with a zTXt chunk named XML:com.adobe.xmp inflating to each of `texts` bytes.
+std::vector<uint8_t> text_png(const std::vector<size_t>& texts) {
+    std::vector<uint8_t> v{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a};
+    chunk(v, "IHDR", {0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0, 0, 0});
+    for (size_t n : texts) {
+        std::vector<uint8_t> t(reinterpret_cast<const uint8_t*>("XML:com.adobe.xmp"), reinterpret_cast<const uint8_t*>("XML:com.adobe.xmp") + 18);
+        t.push_back(0);
+        const std::vector<uint8_t> z = zeros_zlib(n);
+        t.insert(t.end(), z.begin(), z.end());
+        chunk(v, "zTXt", t);
+    }
+    std::vector<uint8_t> raw{0x78, 0x01, 0x01, 0x02, 0x00, 0xfd, 0xff, 0x00, 0x80};
+    be32(raw, adler32({0x00, 0x80}));
+    chunk(v, "IDAT", raw);
+    chunk(v, "IEND", {});
+    return v;
+}
+
+}  // namespace synth
+
+// What a hostile file may cost: scans past the cap are refused, a frame without a scan commits no plane, and compressed texts are read within one budget a file.
+void limits() {
+    using Clock = std::chrono::steady_clock;
+    require(refusal(synth::progressive_jpeg(64)).empty(), "a progressive JPEG of 64 scans was refused");
+    const std::string scans = refusal(synth::progressive_jpeg(65));
+    require(scans.find("scans") != std::string::npos, "a progressive JPEG of 65 scans was not refused for its scans: \"" + scans + "\"");
+    // 9459 squared is under the pixel limit; a plane of it is 179 MB, which a refusal without one never takes the time to fill.
+    const std::vector<uint8_t> header = synth::frame_only_jpeg(9459);
+    const Clock::time_point t0 = Clock::now();
+    const std::string frame = refusal(header);
+    const double ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
+    require(frame.find("no scan") != std::string::npos, "a frame header alone at 9459 by 9459 was not refused for its missing scan: \"" + frame + "\"");
+    require(ms < 200.0, "a frame header alone at 9459 by 9459 took " + std::to_string(ms) + " ms to refuse");
+    constexpr size_t mib = size_t(1) << 20;
+    require(refusal(synth::text_png({mib / 2, mib / 2})).empty(), "a PNG whose texts inflate to 1 MiB together was refused");
+    const std::string one = refusal(synth::text_png({2 * mib}));
+    require(one.find("inflate past 1 MiB") != std::string::npos, "a PNG whose text inflates to 2 MiB was not refused: \"" + one + "\"");
+    const std::string together = refusal(synth::text_png({mib / 2, mib / 2, mib / 2}));
+    require(together.find("inflate past 1 MiB") != std::string::npos, "a PNG whose texts inflate to 1.5 MiB together was not refused: \"" + together + "\"");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -193,6 +327,7 @@ int main(int argc, char** argv) {
         resizes(dir, doc);
         refusals(dir, doc);
         damage(dir, doc);
+        limits();
     } catch (const std::exception& e) {
         std::cerr << "image-decode: FAIL: " << e.what() << "\n";
         return 1;

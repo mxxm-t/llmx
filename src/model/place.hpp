@@ -459,28 +459,27 @@ inline size_t fitted_rows(const PlacementRequest& request) {
 inline size_t reply_rows(const PlacementRequest& request) { return request.slots > 1 ? request.decode_rows + request.draft_rows : 0; }
 
 
-// Each tensor group's backends and names put in the order its first backend gives (Backend::member_order), so every member index, shard and name after it follows the devices (docs/TENSOR-SPLIT.md, section 4.1).
+// The backends and names put in the permutation the listing's first backend picks (Backend::member_order), which forms the groups and orders their members (docs/TENSOR-SPLIT.md, section 4.1).
 inline void order_members(std::vector<backend::BackendPtr>& backends, PlacementRequest& request, size_t summed) {
-    const size_t w = request.width;
-    for (size_t g = 0; w > 1 && g + w <= backends.size(); g += w) {
-        std::vector<backend::Backend*> members;
-        for (size_t m = g; m < g + w; ++m) {
-            if (!backends[m]) throw std::runtime_error("inference: missing backend");
-            members.push_back(backends[m].get());
-        }
-        const std::vector<size_t> order = backends[g]->member_order(members, fitted_rows(request), summed);
-        std::vector<char> seen(w, 0);
-        for (size_t k : order) {
-            if (k >= w || seen[k]) throw std::logic_error("placement: a member order that is not an order of the group's members");
-            seen[k] = 1;
-        }
-        if (order.size() != w) throw std::logic_error("placement: a member order that is not an order of the group's members");
-        std::vector<backend::BackendPtr> held(backends.begin() + g, backends.begin() + g + w);
-        for (size_t k = 0; k < w; ++k) backends[g + k] = held[order[k]];
-        if (request.names.size() == backends.size()) {
-            const std::vector<std::string> names(request.names.begin() + g, request.names.begin() + g + w);
-            for (size_t k = 0; k < w; ++k) request.names[g + k] = names[order[k]];
-        }
+    const size_t w = request.width, n = backends.size();
+    if (w < 2 || n < w) return;
+    std::vector<backend::Backend*> devices;
+    for (const auto& b : backends) {
+        if (!b) throw std::runtime_error("inference: missing backend");
+        devices.push_back(b.get());
+    }
+    const std::vector<size_t> order = backends[0]->member_order(devices, w, fitted_rows(request), summed);
+    std::vector<char> seen(n, 0);
+    for (size_t d : order) {
+        if (d >= n || seen[d]) throw std::logic_error("placement: a member order that is not a permutation of the devices");
+        seen[d] = 1;
+    }
+    if (order.size() != n) throw std::logic_error("placement: a member order that is not a permutation of the devices");
+    const std::vector<backend::BackendPtr> held = backends;
+    for (size_t d = 0; d < n; ++d) backends[d] = held[order[d]];
+    if (request.names.size() == n) {
+        const std::vector<std::string> names = request.names;
+        for (size_t d = 0; d < n; ++d) request.names[d] = names[order[d]];
     }
 }
 

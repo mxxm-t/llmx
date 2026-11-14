@@ -1863,14 +1863,13 @@ void replay_over_stages() {
     checked += 2;
 }
 
-// A CPU backend that takes its group's members in reverse (Backend::member_order) and counts the orders it gives and the collectives it leads.
-struct Reversing final : backend::CpuBackend {
-    std::vector<size_t> member_order(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
-        (void)rows, (void)width;
+// A CPU backend whose pick (Backend::member_order) of four devices in groups of two crosses the groups, c+a and d+b, and that counts the picks it gives and the collectives it leads.
+struct Crossing final : backend::CpuBackend {
+    std::vector<size_t> member_order(const std::vector<backend::Backend*>& devices, size_t width, size_t rows, size_t summed) override {
+        (void)rows, (void)summed;
         ++asked;
-        std::vector<size_t> order(members.size());
-        for (size_t m = 0; m < order.size(); ++m) order[m] = order.size() - 1 - m;
-        return order;
+        require(devices.size() == 4 && width == 2, "placement did not ask for a pick of the whole listing");
+        return {2, 0, 3, 1};
     }
     std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
         ++joins;
@@ -1879,7 +1878,7 @@ struct Reversing final : backend::CpuBackend {
     size_t asked = 0, joins = 0;
 };
 
-// Two tensor groups of two whose first backends reverse their members: placement asks each group's listed first once, the reversed first joins, the plan names the members in that order, and the bytes are the listed order's.
+// Two groups of two picked across the listed ones: the listing's first is asked once, each picked group's first joins, the plan names the groups picked, and the bytes are the listing's.
 void member_order_followed() {
     const gguf::GGUFModel weights = infer::synthetic_model({2, 64, 128, 4, 2, 16, 64, 11u});
     infer::PlacementRequest request;
@@ -1890,10 +1889,10 @@ void member_order_followed() {
     for (int i = 0; i < 4; ++i) plain.push_back(std::make_shared<backend::CpuBackend>());
     for (auto& b : plain) b->set_threads(1);
     infer::PlacedModel listed = infer::place_model(infer::gguf_weights(weights), plain, request, infer::ModelOptions{});
-    std::vector<std::shared_ptr<Reversing>> rev;
+    std::vector<std::shared_ptr<Crossing>> rev;
     std::vector<backend::BackendPtr> backends;
     for (int i = 0; i < 4; ++i) {
-        rev.push_back(std::make_shared<Reversing>());
+        rev.push_back(std::make_shared<Crossing>());
         rev.back()->set_threads(1);
         backends.push_back(rev.back());
     }
@@ -1901,9 +1900,9 @@ void member_order_followed() {
     const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8, 1, 8, 2, 8};
     exact(listed.model->prefill(prompt), reordered.model->prefill(prompt), "a reordered group's prefill differs from its listed order's");
     for (int t : {3, 14, 1}) exact(step_row(*listed.model, t), step_row(*reordered.model, t), "a reordered group's step differs from its listed order's");
-    require(rev[0]->asked == 1 && rev[2]->asked == 1 && !rev[1]->asked && !rev[3]->asked, "placement did not ask each group's listed first member once for its order");
-    require(rev[1]->joins && rev[3]->joins && !rev[0]->joins && !rev[2]->joins, "a reordered group was not joined by its first member in that order");
-    require(reordered.plan.find("b+a: ") != std::string::npos && reordered.plan.find("d+c: ") != std::string::npos, "the plan does not name each group's members in the order applied");
+    require(rev[0]->asked == 1 && !rev[1]->asked && !rev[2]->asked && !rev[3]->asked, "placement did not ask the listing's first backend once for its pick");
+    require(rev[2]->joins && rev[3]->joins && !rev[0]->joins && !rev[1]->joins, "a picked group was not joined by its first member in that order");
+    require(reordered.plan.find("c+a: ") != std::string::npos && reordered.plan.find("d+b: ") != std::string::npos, "the plan does not name the groups picked");
     ++checked;
 }
 

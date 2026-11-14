@@ -479,7 +479,7 @@ std::vector<int> layer_shares(const std::string& value) {
 std::string kind_of(const std::string& spec) { return spec.substr(0, spec.find(':')); }
 
 // --tensor-width over the listed devices (docs/TENSOR-SPLIT.md, section 4.6), refused as the command line gives it: whole groups of at most backend::kMaxTensorWidth devices of one kind, and one layer share a group.
-// Each group's devices with their PCI roots on stderr, and, where infer::one_root_order finds one, the order of the listed devices that keeps every group under one root, the order given being kept (docs/TENSOR-SPLIT.md, section 4.5).
+// Each group's devices with their PCI roots on stderr, and infer::one_root_order's order where it finds one and no backend times its groups (docs/TENSOR-SPLIT.md, section 4.5).
 void report_groups(const std::vector<std::string>& specs, const std::vector<backend::BackendPtr>& backends, size_t w) {
     std::vector<std::string> roots;
     for (const auto& b : backends) roots.push_back(b->pci_root());
@@ -492,6 +492,7 @@ void report_groups(const std::vector<std::string>& specs, const std::vector<back
         }
         std::fprintf(stderr, "tensor group %s under %s\n", names.c_str(), under.c_str());
     }
+    if (backends[0]->times_groups()) return;
     std::string order;
     for (size_t d : infer::one_root_order(roots, w)) order += (order.empty() ? "" : ",") + specs[d];
     if (!order.empty()) std::fprintf(stderr, "tensor groups: --device %s puts every group under one root\n", order.c_str());

@@ -528,14 +528,16 @@ public:
         (void)members, (void)rows, (void)width;
         return nullptr;
     }
-    // The order a tensor group over `members`, this backend first, takes its members in for sums of `rows` rows of `width` floats, as indices into `members`, asked once before any weight loads.
-    // The members as listed where the order makes no difference this backend measures.
-    virtual std::vector<size_t> member_order(const std::vector<Backend*>& members, size_t rows, size_t width) {
-        (void)rows, (void)width;
-        std::vector<size_t> order(members.size());
-        for (size_t m = 0; m < order.size(); ++m) order[m] = m;
+    // The tensor groups of `width` over `devices`, this backend first, for sums of `rows` x `summed` floats: a permutation of `devices`, each consecutive `width` a group in member order.
+    // The listing where this backend times no grouping (times_groups).
+    virtual std::vector<size_t> member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) {
+        (void)width, (void)rows, (void)summed;
+        std::vector<size_t> order(devices.size());
+        for (size_t d = 0; d < order.size(); ++d) order[d] = d;
         return order;
     }
+    // Whether member_order times the groups it forms, so a grouping read from the topology alone would name an order it may undo.
+    virtual bool times_groups() const { return false; }
     // The device-side order for crossings from this backend's host-visible buffers to `readers`; null where it serves none of them, and every crossing goes through the host.
     virtual std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) {
         (void)readers;

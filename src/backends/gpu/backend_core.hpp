@@ -56,7 +56,6 @@ struct GroupPath {
     std::string why;
     size_t timed = 0;
     std::map<size_t, GpuSumForm> forms;   // from each timed size up, the form that won there; below the least, the one-shot
-    std::vector<size_t> order;             // the member order member_order gave this listing, empty until it is asked
 };
 
 template <class Api> class GpuBackend;
@@ -367,7 +366,8 @@ public:
     // The runtime's private scratch for the kernels that spill, which it takes at their first launch, and a group's signal block beside the staging collective_bytes_per_row counts.
     size_t memory_kept(size_t) const override { return size_add(driver_scratch_, alloc_bytes(kGroupSignalBytes)); }
     std::unique_ptr<Collective> join(const std::vector<Backend*>& members, size_t rows, size_t width) override;
-    std::vector<size_t> member_order(const std::vector<Backend*>& members, size_t rows, size_t width) override;
+    std::vector<size_t> member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) override;
+    bool times_groups() const override { return true; }
     std::unique_ptr<Handoff> handoff(const std::vector<Backend*>& readers) override;
     // A member's partial rows and two parity halves of a staging slot for each member's (GpuCollective<Api>).
     size_t collective_bytes_per_row(size_t members, size_t width) const override {
@@ -3281,6 +3281,7 @@ private:
     std::string failed_;
     unsigned* fault_ = nullptr;   // host memory a group sum's kernel sets where it gave up waiting (kernels/f32.gpu, llmx_group_sum)
     std::map<std::vector<int>, GroupPath> group_paths_;   // per group of device indices led by this backend
+    std::map<std::pair<std::vector<const Backend*>, size_t>, std::vector<size_t>> picks_;   // member_order's permutation by listing and width, asked once
     // The backends of this kind `members` names, this one first, with their device indices, refused as join refuses them.
     std::vector<GpuBackend<Api>*> group_of(const std::vector<Backend*>& members, std::vector<int>& ids);
     // This backend's path for the group of `ids`, probed and reported on stderr the first time the group is named.

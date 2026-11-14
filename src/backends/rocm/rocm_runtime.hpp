@@ -30,6 +30,7 @@ struct RocmUnavailable : std::runtime_error {
     X(hipExtMallocWithFlags, hipError_t(void**, size_t, unsigned)) \
     X(hipDeviceCanAccessPeer, hipError_t(int*, int, int)) \
     X(hipDeviceEnablePeerAccess, hipError_t(int, unsigned)) \
+    X(hipDeviceDisablePeerAccess, hipError_t(int)) \
     X(hipDeviceGetAttribute, hipError_t(int*, hipDeviceAttribute_t, int)) \
     X(hipFree, hipError_t(void*)) \
     X(hipHostMalloc, hipError_t(void**, size_t, unsigned)) \

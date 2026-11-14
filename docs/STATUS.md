@@ -94,6 +94,42 @@ Then D1 (double-buffered prompt streaming) and D2 of the MoE offload design.
   A draft at one row, width 2: a step 33.34 ms; drafts of 1, 2 and 3 a chain of 7.53, 7.39 and 7.41 ms and a verify of 43.76, 51.99 and 60.11 ms, 10.42, 18.65 and 26.77 ms over a step.
 - **Left:** the landing gates of a host/runtime change (CTest, the CPU suite, Qwen3-0.6B byte identity against main, the hosted run), and F2DEV's review.
 
+## Tensor groups picked by timing (2026-11-13, SUM7, branch sum/pick on the CUDA stack (gate/cuda); SUM1's finding and proposal of 21:31 with F2DEV's review of 21:35, items 1 to 8; lands as one commit after cuda/gpu-core and the CUDA steps)
+
+**Goal:** which cards form each tensor group, and each group's member order, follow the cards' timed sums, so two cards on sibling root ports of one x16 link are not paired where a pair across sums faster; one rule for any N x M, no flag and no topology rule.
+
+**Done:**
+- Owner: placement (`order_members` in `model/place.hpp`) asks the listing's first backend once, `Backend::member_order(devices, width, rows, summed)`, for a permutation of the whole device list, each consecutive `width` a group in member order, and applies it to the backends and names; the default keeps the listing, so the CPU and Vulkan are unchanged.
+- The GPU core (`GpuBackend<Api>::member_order`, `gpu/collective_core.hpp`): one swap descent from the listing over every pair of devices, a group's cost its fastest form at `fitted_rows` x `sum_width` floats on its own cards, cached by its ordered members, a permutation's cost the sum over its groups, a swap taken only where the groups it changes beat those they replace by `kOrderMargin` (4%); a group of two kinds or whose probe finds no peer writes is never formed. The peer access a costed group's probe enabled is disabled once the group is timed (F2DEV's review of 04:45), since a CUDA device holds at most eight peers and a card at ten would otherwise peer with every card it was costed against; the picked groups' `group_path` probes enable theirs again. A single group runs the descent member order ran before, so 1xW takes the same orders. It prints `rocm: tensor groups ... take devices ..., K groups timed in X ms`.
+- `one_root_order`'s hint prints only where the first backend times no grouping (`Backend::times_groups`), since a root says nothing of the x16 links below it (docs/TENSOR-SPLIT.md, section 4.5).
+- Tests: `placement` places four CPU backends whose pick crosses the listed groups (c+a, d+b) to the listed order's bytes; `backend-rocm` holds the pick of groups of two over the devices to a permutation, each device once, kept, each group summing to its oracle.
+
+
+**Gate** (Qwen3.6-27B Q8_0, ROCm int8, MI50 rig; base 84e98d4f, candidate beed24f4 for the rebased checks; timing cells ran with a contended run-queue wait in many cells and every cell is kept):
+
+| check | result |
+|---|---|
+| identity, greedy / decode / batched, base vs candidate | byte-identical on X 2x2, X 1x4, Y 2x2, Y 1x4 and the 4x2, and on the rebased head's X 2x2 |
+| ten cards, 5x2 (128-137) | placed, 84 groups timed in 2628 ms, pp512 1238.91, tg4 36.24 tok/s |
+| peer-access fix (SUM13, on base 84e98d4f), backend-rocm | pass |
+| peer-access fix, identity base vs candidate, X 2x2 greedy / decode / batched | same |
+| peer-access fix, ten cards 5x2 | load rc 0, pick 0+1, 2+3, 4+5, 6+7, 8+9 take devices 8+1, 2+4, 3+5, 6+0, 7+9, 5.040 ms vs 7.213 as listed, 84 groups timed in 2923 ms, all five groups sum by peer writes, pp512 1237.94, tg4 25.42 tok/s (one 4-token run, not a timing result) |
+| backend-rocm on the rebased head | pass |
+| dead-code, docs | pass (SUM10) |
+| Radeon VII check | pending, run by COORD |
+
+| timing, pp2048 / tg32 tok/s, ABAB pairs | base | candidate | change |
+|---|---|---|---|
+| X 2x2, 3 pairs | 872.4/38.37, 863.0/38.51, 872.0/38.91 | 908.3/38.38, 923.0/38.42, 910.6/38.17 | prompt about +5%, decode level |
+| Y 1x4, 3 pairs | 726.1/58.90, 685.9/34.26, 726.0/58.20 | 725.6/58.33, 726.0/57.99, 693.1/58.86 | level; base's one slow run kept |
+| round 1, X 1x4 | 737.4/59.63, 742.1/60.38 | 743.8/60.07, 743.7/60.17 | level |
+| round 1, Y 2x2 | 852.0/37.65, 849.9/38.39 | 844.2/35.78, 869.8/38.17 | level; one contended cell |
+| round 1, Y 1x4 | 726.5/56.38, 726.2/58.70 | 725.7/56.35, 726.2/54.87 | decode -3.4% did not repeat in round 2 |
+
+**Left:** Vulkan parity is a later step (F2DEV item 6): measure pairs at 2.6M floats with `llmx-vk-handoff exchange` first and implement only on a gain.
+
+**Gotchas:** the sum over groups, not the slowest group, is the cost, since a token crosses every stage and a max leaves every other group's order untuned.
+
 ## CUDA backend step 3: the F16 class, Q8_0, Q4_K, Q5_K and Q6_K rows and tiles on cuda:N (2026-11-13, CUDA11 and CUDA12, branch cuda/step3, stacked on step 2)
 
 **Goal.** Step 3 of docs/CUDA.md, Order of work: the block-int16 rows and tiles of Q8_0, Q4_K, Q5_K and Q6_K on `cuda:N`, held by the checks `backend-rocm` has for them.

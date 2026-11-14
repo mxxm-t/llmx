@@ -2540,18 +2540,36 @@ void collective() {
             seed += 100;
         }
         // The member order timed for the group is an order of its members, asked again the same, and the group in that order sums in its member order.
-        const std::vector<size_t> order = d[0]->member_order(group, 64, 97);
+        const std::vector<size_t> order = d[0]->member_order(group, W, 64, 97);
         std::vector<size_t> sorted = order;
         std::sort(sorted.begin(), sorted.end());
         bool permutes = sorted.size() == W;
         for (size_t k = 0; permutes && k < W; ++k) permutes = sorted[k] == k;
-        require(permutes && d[0]->member_order(group, 64, 97) == order, "a ROCm group's member order is not one order of its members, kept");
+        require(permutes && d[0]->member_order(group, W, 64, 97) == order, "a ROCm group's member order is not one order of its members, kept");
         std::vector<Backend*> ordered;
         for (size_t k : order) ordered.push_back(group[k]);
         std::unique_ptr<Collective> moved = ordered[0]->join(ordered, 64, 97);
         group_sums::check(ordered, *moved, 97, {1, 64}, seed, print);
         seed += 100;
         std::cout << "backend-rocm: a collective of " << W << " devices sums in member order by peer writes, two sums in flight, in each form forced and in its timed member order\n";
+    }
+    if (d.size() >= 4) {
+        // The pick over every device in groups of two is a permutation of them, each device once, asked again the same, and each group it forms sums in its member order.
+        const size_t N = d.size() / 2 * 2;
+        const std::vector<Backend*> listing = raw(d, N);
+        const std::vector<size_t> pick = d[0]->member_order(listing, 2, 64, 97);
+        std::vector<size_t> sorted = pick;
+        std::sort(sorted.begin(), sorted.end());
+        bool permutes = sorted.size() == N;
+        for (size_t k = 0; permutes && k < N; ++k) permutes = sorted[k] == k;
+        require(permutes && d[0]->member_order(listing, 2, 64, 97) == pick, "a ROCm pick of groups is not one permutation of the devices, kept");
+        for (size_t g = 0; permutes && g < N; g += 2) {
+            const std::vector<Backend*> pair{listing[pick[g]], listing[pick[g + 1]]};
+            std::unique_ptr<Collective> c = pair[0]->join(pair, 64, 97);
+            group_sums::check(pair, *c, 97, {1, 64}, seed, print);
+            seed += 100;
+        }
+        std::cout << "backend-rocm: a pick of " << N / 2 << " groups of two over " << N << " devices is a permutation of them, kept, each group summing in its member order\n";
     }
     {
         // Devices that cannot reach each other's memory sum by pulls, the same bytes.

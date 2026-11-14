@@ -34,7 +34,7 @@ constexpr size_t kChainBlocks = 16, kChainUnits = 4096;   // the kernel's chain 
 constexpr unsigned kProbeTimeoutMs = 1000;   // how long a probe sum's member waits for its peers before the probe finds peer writes unseen
 constexpr size_t kTimedFloor = 4096, kTimedSums = 3;   // the least floats a form is timed at, and the sums of each timing after a first
 constexpr size_t kSumForms = 4;          // GpuSumForm's forms, each timed
-constexpr double kOrderMargin = 0.04;    // how much faster than the order kept a member order must sum to replace it, so even links and noise keep the listed order
+constexpr double kOrderMargin = 0.04;    // how much faster than the groups it replaces a swap of devices must sum to be taken, so even links and noise keep the listing
 
 // A tensor group's ordered sum (docs/src/backends-gpu.md, the collective): each member's kernel, on its own stream, sends its partial rows to its peers in the form the sum's size takes and adds them in member order.
 // A member waits for a late peer as long as it takes, and a sum the host cancelled or a probe that ran out turns the collective to the conservative path for good, where each member pulls the peers' rows behind events.
@@ -321,8 +321,9 @@ private:
 };
 
 // Every directed pair reaches the other's memory, peer access enabled, every member's add leaves the one-shot's sanitized values invisible, and one fast sum of known rows gives their member-order sum; otherwise why not.
+// `enabled`, where given, gets each directed pair whose access this probe enabled, so a caller that does not keep the group can disable it.
 template <class Api>
-std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids) {
+std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::vector<int>& ids, std::vector<std::pair<int, int>>* enabled = nullptr) {
     for (int a : ids)
         for (int b : ids) {
             if (a == b) continue;
@@ -333,6 +334,7 @@ std::string group_probe(const std::vector<GpuBackend<Api>*>& group, const std::v
             const typename Api::Error e = Api::enable_peer_access(b);
             if (e != Api::kSuccess && e != Api::kPeerAlreadyEnabled)
                 return "peer access from device " + std::to_string(a) + " to device " + std::to_string(b) + " failed with " + Api::error_name(e);
+            if (e == Api::kSuccess && enabled) enabled->emplace_back(a, b);
         }
     const std::string adds = GpuCollective<Api>::add_check(group, ids);
     if (!adds.empty()) return adds;
@@ -396,69 +398,120 @@ GroupPath& GpuBackend<Api>::group_path(const std::vector<GpuBackend<Api>*>& grou
     return path->second;
 }
 
-// The order whose fastest form sums rows x width floats fastest, by swap descent from the listing, a swap taken only where it beats the order kept by kOrderMargin (docs/TENSOR-SPLIT.md, section 4.1).
-// The order's forms are timed here into the path of the group as ordered, so join times nothing twice, and every collective timed is gone before the fit reads free memory.
+// The permutation of the listing whose groups of `width` sum rows x summed floats fastest in all, by one swap descent from the listing over every pair of devices (docs/TENSOR-SPLIT.md, section 4.1).
+// A group's cost is its fastest form, timed once for its members as ordered; a swap is taken only where the groups it changes beat what they replace by kOrderMargin, and a group this backend cannot sum fast is never formed.
 template <class Api>
-std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& members, size_t rows, size_t width) {
-    std::vector<int> ids;
-    const std::vector<GpuBackend<Api>*> group = group_of(members, ids);
-    GroupPath& listed = group_path(group, ids);
-    const size_t W = group.size(), n = size_mul(rows, width);
-    if (!listed.order.empty()) return listed.order;
-    for (size_t m = 0; m < W; ++m) listed.order.push_back(m);
-    if (W < 2 || !listed.why.empty() || n < kTimedFloor) return listed.order;
+std::vector<size_t> GpuBackend<Api>::member_order(const std::vector<Backend*>& devices, size_t width, size_t rows, size_t summed) {
+    if (devices.empty() || devices[0] != this) throw std::logic_error("backend: a member order is asked of the listing's first device");
+    const size_t N = devices.size(), W = width, n = size_mul(rows, summed);
+    std::vector<size_t> perm(N);
+    for (size_t d = 0; d < N; ++d) perm[d] = d;
+    if (W < 2 || N % W || n < kTimedFloor) return perm;
+    const auto key = std::make_pair(std::vector<const Backend*>(devices.begin(), devices.end()), W);
+    const auto cached = picks_.find(key);
+    if (cached != picks_.end()) return cached->second;
+    const auto started = std::chrono::steady_clock::now();
     std::map<std::vector<size_t>, double> costs;
-    const auto cost = [&](const std::vector<size_t>& order) {
-        auto at = costs.find(order);
+    std::map<std::vector<int>, bool> slow;   // by its sorted device indices, a set whose probe found no peer writes
+    const auto cost = [&](const std::vector<size_t>& members) {
+        auto at = costs.find(members);
         if (at != costs.end()) return at->second;
-        std::vector<GpuBackend<Api>*> ordered;
-        for (size_t k : order) ordered.push_back(group[k]);
         double ms = 1e30;
-        // An order whose collective or timing throws is never taken, as a probe that fails falls conservative.
+        // A group of another kind, or whose probe or timing throws, is never formed, as a probe that fails falls conservative.
+        // The access a probe enabled is disabled once the group is timed, as a CUDA device holds at most eight peers; group_path enables the picked groups' again.
+        std::vector<GpuBackend<Api>*> group;
+        std::vector<std::pair<int, int>> enabled;
         try {
-            GpuCollective<Api> c(ordered, rows, width, true);
-            for (size_t f = 0; f < kSumForms; ++f) ms = std::min(ms, c.timed((GpuSumForm)f, n));
+            auto* lead = dynamic_cast<GpuBackend<Api>*>(devices[members[0]]);
+            if (!lead) throw std::runtime_error("a group led by another kind");
+            std::vector<Backend*> listed;
+            for (size_t d : members) listed.push_back(devices[d]);
+            std::vector<int> ids;
+            group = lead->group_of(listed, ids);
+            std::vector<int> set = ids;
+            std::sort(set.begin(), set.end());
+            if (!slow.count(set)) {
+                if (!group_probe(group, ids, &enabled).empty()) slow[set] = true;
+                else {
+                    GpuCollective<Api> c(group, rows, summed, true);
+                    for (size_t f = 0; f < kSumForms; ++f) ms = std::min(ms, c.timed((GpuSumForm)f, n));
+                }
+            }
         } catch (const std::exception&) {
             ms = 1e30;
         }
-        return costs[order] = ms;
+        for (auto* g : group) g->sync();
+        for (const auto& [a, b] : enabled)
+            if (Api::set_device(a) == Api::kSuccess) (void)Api::disable_peer_access(b);
+        return costs[members] = ms;
     };
-    std::vector<size_t> kept = listed.order;
-    double ms = cost(kept);
-    const double first = ms;
+    const auto group_at = [&](size_t g) { return std::vector<size_t>(perm.begin() + g * W, perm.begin() + (g + 1) * W); };
+    std::vector<double> group_ms(N / W);
+    for (size_t g = 0; g < group_ms.size(); ++g) group_ms[g] = cost(group_at(g));
+    double listed_ms = 0;
+    for (double ms : group_ms) listed_ms += ms;
     for (bool moved = true; moved;) {
         moved = false;
-        std::vector<size_t> best;
-        double best_ms = ms;
-        for (size_t i = 0; i < W; ++i)
-            for (size_t j = i + 1; j < W; ++j) {
-                std::vector<size_t> o = kept;
-                std::swap(o[i], o[j]);
-                const double t = cost(o);
-                if (t < best_ms) best_ms = t, best = o;
+        size_t bi = 0, bj = 0;
+        double drop = 0, ms_i = 0, ms_j = 0;
+        for (size_t i = 0; i < N; ++i)
+            for (size_t j = i + 1; j < N; ++j) {
+                const size_t gi = i / W, gj = j / W;
+                std::swap(perm[i], perm[j]);
+                const double ti = cost(group_at(gi)), tj = gi == gj ? 0.0 : cost(group_at(gj));
+                std::swap(perm[i], perm[j]);
+                const double before = gi == gj ? group_ms[gi] : group_ms[gi] + group_ms[gj];
+                if (ti + tj < before * (1.0 - kOrderMargin) && before - (ti + tj) > drop) drop = before - (ti + tj), bi = i, bj = j, ms_i = ti, ms_j = tj;
             }
-        if (!best.empty() && best_ms < ms * (1.0 - kOrderMargin)) kept = best, ms = best_ms, moved = true;
+        if (drop > 0) {
+            std::swap(perm[bi], perm[bj]);
+            group_ms[bi / W] = ms_i;
+            if (bi / W != bj / W) group_ms[bj / W] = ms_j;
+            moved = true;
+        }
     }
-    listed.order = kept;
-    std::vector<GpuBackend<Api>*> ordered;
-    std::vector<int> order_ids;
-    for (size_t k : kept) ordered.push_back(group[k]), order_ids.push_back(ids[k]);
-    std::fprintf(stderr, "%stensor group of devices %s takes member order %s, %.3f ms a sum of %zu floats against %.3f as listed, %zu orders timed\n", Api::prefix.c_str(),
-                 device_list(ids).c_str(), device_list(order_ids).c_str(), ms, n, first, costs.size());
-    GroupPath& path = ordered[0]->group_path(ordered, order_ids);
-    if (path.why.empty() && path.timed < n) {
+    picks_[key] = perm;
+    double picked_ms = 0;
+    for (double ms : group_ms) picked_ms += ms;
+    const auto id_of = [&](size_t d) {
+        auto* r = dynamic_cast<GpuBackend<Api>*>(devices[d]);
+        return r ? std::to_string(r->dev_.index) : std::string("?");
+    };
+    std::string listed, picked;
+    for (size_t d = 0; d < N; ++d) {
+        listed += (d == 0 ? "" : d % W ? "+" : ", ") + id_of(d);
+        picked += (d == 0 ? "" : d % W ? "+" : ", ") + id_of(perm[d]);
+    }
+    const double took = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+    std::fprintf(stderr, "%stensor groups %s take devices %s, %.3f ms of sums of %zu floats in all against %.3f as listed; %zu groups timed in %.0f ms\n",
+                 Api::prefix.c_str(), listed.c_str(), picked.c_str(), picked_ms, n, listed_ms, costs.size(), took);
+    // Each group's forms are timed in place into its path as ordered, so join times nothing twice, and every collective timed is gone before the fit reads free memory.
+    for (size_t g = 0; g < N / W; ++g) {
+        std::vector<Backend*> members;
+        for (size_t k = g * W; k < (g + 1) * W; ++k) members.push_back(devices[perm[k]]);
+        auto* lead = dynamic_cast<GpuBackend<Api>*>(members[0]);
+        std::vector<int> ids;
+        std::vector<GpuBackend<Api>*> group;
+        try {
+            if (lead) group = lead->group_of(members, ids);
+        } catch (const std::exception&) {
+            group.clear();
+        }
+        if (group.empty()) continue;
+        GroupPath& path = lead->group_path(group, ids);
+        if (!path.why.empty() || path.timed >= n) continue;
         std::string times;
         try {
-            GpuCollective<Api> c(ordered, rows, width, true);
+            GpuCollective<Api> c(group, rows, summed, true);
             times = c.time_forms(path.forms, path.timed);
             if (c.fast()) path.timed = n;
         } catch (const std::exception& e) {
             path.why = std::string("timing its sums failed: ") + e.what();
-            std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), device_list(order_ids).c_str(), path.why.c_str());
+            std::fprintf(stderr, "%stensor group of devices %s sums by peer pulls, since %s\n", Api::prefix.c_str(), device_list(ids).c_str(), path.why.c_str());
         }
-        if (!times.empty()) std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", Api::prefix.c_str(), device_list(order_ids).c_str(), times.c_str());
+        if (!times.empty()) std::fprintf(stderr, "%stensor group of devices %s timed its sums in place, ms one-shot, two shots, chain, wrap: %s\n", Api::prefix.c_str(), device_list(ids).c_str(), times.c_str());
     }
-    return listed.order;
+    return perm;
 }
 
 // A collective over devices of this backend and one kind, each once, decided fast or conservative once per group by group_probe and reported on stderr.

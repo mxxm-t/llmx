@@ -130,6 +130,14 @@ struct CudaApi {
         if (Error e = cu().cuCtxSetCurrent(mine)) return e;
         return cu().cuCtxEnablePeerAccess(theirs, 0);
     }
+    static Error disable_peer_access(int peer) {
+        CUcontext mine = nullptr, theirs = nullptr;
+        if (Error e = cu().cuCtxGetCurrent(&mine)) return e;
+        if (Error e = set_context(peer)) return e;
+        if (Error e = cu().cuCtxGetCurrent(&theirs)) return e;
+        if (Error e = cu().cuCtxSetCurrent(mine)) return e;
+        return cu().cuCtxDisablePeerAccess(theirs);
+    }
     // The kernels' wall clock is the global timer, in nanoseconds.
     static Error wall_clock_khz(int* khz, int) {
         *khz = 1000000;

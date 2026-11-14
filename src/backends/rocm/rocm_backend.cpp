@@ -81,6 +81,7 @@ struct HipApi {
     }
     static Error can_access_peer(int* can, int device, int peer) { return hip().hipDeviceCanAccessPeer(can, device, peer); }
     static Error enable_peer_access(int peer) { return hip().hipDeviceEnablePeerAccess(peer, 0); }
+    static Error disable_peer_access(int peer) { return hip().hipDeviceDisablePeerAccess(peer); }
     static Error wall_clock_khz(int* khz, int device) { return hip().hipDeviceGetAttribute(khz, hipDeviceAttributeWallClockRate, device); }
 };
 

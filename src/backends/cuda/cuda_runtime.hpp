@@ -19,7 +19,7 @@ struct CudaUnavailable : std::runtime_error {
 // The calls the backend makes; cuda.h maps a versioned call's name to its current symbol (cuMemAlloc to cuMemAlloc_v2), and the table loads that symbol with the header's own type.
 #define LLMX_CU_FUNCTIONS(X) \
     X(cuInit) X(cuDriverGetVersion) X(cuDeviceGetCount) X(cuDeviceGet) X(cuDeviceGetName) X(cuDeviceGetAttribute) X(cuDeviceTotalMem) \
-    X(cuDevicePrimaryCtxRetain) X(cuCtxSetCurrent) X(cuCtxGetCurrent) X(cuDeviceCanAccessPeer) X(cuCtxEnablePeerAccess) \
+    X(cuDevicePrimaryCtxRetain) X(cuCtxSetCurrent) X(cuCtxGetCurrent) X(cuDeviceCanAccessPeer) X(cuCtxEnablePeerAccess) X(cuCtxDisablePeerAccess) \
     X(cuMemAlloc) X(cuMemFree) X(cuMemHostAlloc) X(cuMemFreeHost) X(cuMemHostRegister) X(cuMemHostUnregister) X(cuMemHostGetDevicePointer) \
     X(cuMemcpyAsync) X(cuMemsetD8Async) X(cuMemGetInfo) \
     X(cuStreamCreate) X(cuStreamDestroy) X(cuStreamSynchronize) X(cuStreamWaitEvent) X(cuStreamWaitValue64) X(cuStreamWriteValue64) \

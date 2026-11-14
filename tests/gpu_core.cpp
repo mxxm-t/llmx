@@ -177,6 +177,7 @@ struct FakeApi {
         return kSuccess;
     }
     static Error enable_peer_access(int) { return kSuccess; }
+    static Error disable_peer_access(int) { return kSuccess; }
     static Error wall_clock_khz(int* khz, int) {
         *khz = 1000000;
         return kSuccess;

@@ -945,9 +945,9 @@ void q8_decode_bits(Backend& g) {
     DeviceProfile& profile = rocm_profile(g);
     const uint32_t keep = profile.q8_decode_two_rows_from;
     const size_t four = profile.q8_decode_four_steps_from;
-    // Row widths reach both edges of the step rule (63 to 65 and 254 to 257 blocks) and step tails, and output counts both edges of the two-row rule at both profiles' values.
-    for (size_t blocks0 : {size_t(8), size_t(16), size_t(18), size_t(20), size_t(24), size_t(33), size_t(40), size_t(63), size_t(64), size_t(65), size_t(80), size_t(191), size_t(192),
-                           size_t(193), size_t(254), size_t(255), size_t(256), size_t(257)}) {
+    // Row widths reach both edges of the step rule (63 to 65 and 254 to 257 blocks), both edges of the held rule (32 to 34 and 160 to 162) and step tails, and output counts both edges of the two-row rule at both profiles' values.
+    for (size_t blocks0 : {size_t(8), size_t(16), size_t(18), size_t(20), size_t(24), size_t(32), size_t(33), size_t(34), size_t(40), size_t(63), size_t(64), size_t(65), size_t(80), size_t(96),
+                           size_t(128), size_t(136), size_t(160), size_t(162), size_t(191), size_t(192), size_t(193), size_t(254), size_t(255), size_t(256), size_t(257)}) {
         const size_t nin = blocks0 * 32;
         const size_t blocks = nin / 32;
         std::vector<uint8_t> w = q8_matrix(nin, nout, uint32_t(nin + 5));
@@ -993,11 +993,13 @@ void q8_decode_bits(Backend& g) {
                     std::string ran;
                     for (const auto& [k, v] : rocm_take_launches(g))
                         if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
-                    // The half-block rows take one row a wave for few outputs and two for many, paired where a row has at most 16 blocks.
-                    // A row under two spans of blocks takes one step a load, and at two rows a wave from the profile's four-step width four.
+                    // A row of two to five spans of blocks takes one row a wave with all its steps loaded at once, whatever the outputs.
+                    // Other half-block rows run one row a wave for few outputs and two for many, paired up to 16 blocks a row, and under two spans one step a load, two rows a wave from the profile's four-step width four.
                     const bool narrow = blocks < W;
+                    const size_t spans = (blocks + W / 2 - 1) / (W / 2);
                     const std::string want = !half                   ? "llmx_q8_0_rows" + std::string(dt == Dtype::int8 ? "8" : "16") + "_1"
                                              : W == 64 && blocks <= 16 ? "llmx_q8_0_half8_1p"
+                                             : spans >= 2 && spans <= 5 ? "llmx_q8_0_half8_1h" + std::to_string(spans)
                                              : n < from              ? (narrow ? "llmx_q8_0_half8_1s1" : "llmx_q8_0_half8_1")
                                              : narrow                ? "llmx_q8_0_half8_1r2s1"
                                              : blocks >= four        ? "llmx_q8_0_half8_1r2s4"

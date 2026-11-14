@@ -799,6 +799,65 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 - **Left:** timing level with the GGUF path; rebase onto main after fix/tokenizer-nfc, landing checks at that head (load-progress and disk-tier identity rerun); then step 2 (`--chat-template-file`, `llmx pull owner/repo`, the hosted job on the real directory).
 - **Gotchas:** a tensor whose file offset is not a multiple of 4 is refused (the GGUF path's alignment rule), not copied; MoE checkpoints are refused until expert stacking lands.
   Qwen3-0.6B's `config.json` sets `tie_word_embeddings` yet its file holds `lm_head.weight` (311 tensors against the GGUF's 310): the table must accept a tied head only when its bytes equal the embedding's, and drop it.
+## Held one-column Q8_0 rows (2026-11-15, QWEN28 to QWEN34, branch qwen27/held-rows, rebased onto qwen27/norm-split 0b49e83fd on main 929f042c6)
+
+**Goal.** Faster one-column int8 Q8_0 decode rows on ROCm at the widths dense models' members run (Qwen 27B over four MI50s, Qwen3 1.7B to 8B on one), every output main's bits.
+
+**Done.**
+- A row of more than one and at most five spans of blocks (33 to 160 blocks on a 64-lane wave) runs `q8_0_half_held<NS>` (`kernels/int16.gpu`, `llmx_q8_0_half8_1h2` to `_1h5`): one row a wave whatever the output count, the twin's loads and then every step's weight loads issued at once, the products after them in the one-row build's block order and tree, so every row keeps its bits.
+- The row's weight address is the wave's, in scalar registers (`first_lane`); its output address stays per lane, since both in scalar registers took 45.6 us against 6.2 at 1024 rows 2048 wide and about 48 against 8 at 2048 rows (standalone `kb35` to `kb37`), and a few percent at other row counts; the cause in the hardware was not found.
+- `row_of` reads the projections' addresses through the global address space, so the compiler issues global rather than flat loads, whose waits also hold the scalar loads.
+  The cast reaches every row build that calls `row_of`, the 16-bit rows, the stepped half rows and the routed and grouped builds too; the loads read the same bytes, so no bit moves, and the ids runs at 1x4 and 2x2 cover it, while its timing is covered only by the cells below (Qwen3.8-27B at 1x4 and 2x2, Qwen3-0.6B and Qwen3-14B on one MI50).
+- `q8_decode_bits` in `tests/backend_rocm.cpp` reaches both edges of the held rule (32 to 34 and 160 to 162 blocks) and requires the held launch by name where the rule takes it.
+- One MI50, `llmx-backend-rocm-test` with a scratch `rates q27` (one-column int8 Q8_0 calls, weights outside L2, median us, two runs each, output hashes equal in every cell), main 9724cd436 against the branch:
+
+| nin x nout | main build | main us | branch build | branch us |
+|---|---|---|---|---|
+| 5120 x 8704 | half8_1r2 | 66.20, 66.45 | half8_1h5 | 60.40, 60.36 |
+| 4352 x 5120 | half8_1r2 | 35.82, 35.75 | half8_1h5 | 33.31, 33.31 |
+| 5120 x 2560 | half8_1r2 | 23.13, 23.30 | half8_1h5 | 21.06, 21.08 |
+| 5120 x 1536 | half8_1 | 15.26, 15.29 | half8_1h5 | 14.57, 14.56 |
+| 1536 x 5120 | half8_1r2s1 | 15.68, 15.79 | half8_1h2 | 14.49, 14.61 |
+| 5120 x 3072 | half8_1r2 | 26.66, 26.75 | half8_1h5 | 24.25, 24.54 |
+| 5120 x 62080 | half8_1r2 | 438.49, 438.73 | half8_1h5 | 410.82, 410.84 |
+| 5120 x 17408 | half8_1r2 | 127.39, 127.27 | half8_1h5 | 117.46, 117.52 |
+| 2048 x 1024 | half8_1 | 8.11, 8.13 | half8_1h2 | 7.33, 7.38 |
+| 2048 x 2048 | half8_1 | 11.47, 11.45 | half8_1h2 | 9.85, 9.75 |
+| 2048 x 6144 | half8_1r2 | 20.10, 20.25 | half8_1h2 | 19.56, 19.63 |
+| 3072 x 1024 | half8_1 | 9.64, 9.62 | half8_1h3 | 8.79, 8.77 |
+| 4096 x 4096 | half8_1r2 | 27.49, 27.55 | half8_1h4 | 25.09, 25.08 |
+| 4096 x 12288 | half8_1r2 | 72.38, 72.40 | half8_1h4 | 67.07, 66.91 |
+| 5120 x 1024 | half8_1 | 11.90, 12.01 | half8_1h5 | 11.57, 11.47 |
+| 1536 x 2048 | half8_1s1 | 9.58, 9.75 | half8_1h2 | 9.20, 9.16 |
+
+  8704 x 5120 (272 blocks) and 1024 x 2048 (32 blocks) keep their builds and times.
+- An earlier form of the same rows (QWEN28's n4, output address in scalar registers) against the norm parts alone, Qwen3.8-27B Q8_0 ROCm int8 four MI50s, ABAB, every cell contended: tg64 1x4 61.79, 62.02 to 64.75, 65.82 and 2x2 39.21, 39.71 to 41.13, 41.00 tok/s; generate 256 59.64 to 62.20 at 1x4 and 39.85 to 40.61 at 2x2, draft-max 3 at 1x4 111.00 to 113.10, text identical.
+- Landing checks on the branch's source as it lands (built as `a5e161c5` on `cd87d3a9e`; the amended commits differ from those only in `docs/STATUS.md`), against `qwen27/norm-split` built the same way, Qwen3.8-27B Q8_0 ROCm int8 on four MI50s, ABAB, two rounds, every cell contended (load about 48, host wait 12 to 38 s a cell):
+
+| cell | norm-split | held rows |
+|---|---|---|
+| 1x4 tg64 | 37.69, 45.13 | 47.23, 50.16 |
+| 1x4 pp32 | 431.88, 436.02 | 439.32, 440.38 |
+| 1x4 pp128 | 656.91, 657.18 | 654.21, 654.69 |
+| 1x4 generate 256, plain / draft-max 3 / 6 | 39.16 / 91.93 / 86.47 | 48.19 / 96.70 / 78.34 |
+| 2x2 tg64 | 35.13, 36.56 | 35.28, 37.54 |
+| 2x2 pp32 | 298.24, 320.14 | 319.86, 261.39 |
+| 2x2 pp128 | 581.97, 588.71 | 601.52, 595.31 |
+| 2x2 generate 256, plain / draft-max 3 / 6 | 33.06 / 71.75 / 67.21 | 37.25 / 83.41 / 72.42 |
+
+  tok/s; the tg16 lines of the pp128 cells and the 2x2 pp32 second round (one slice at 205.79 against 289) swing with the contention and are left out of any claim.
+  One MI50, ABAB: Qwen3-0.6B Q8_0 pp128 7172.93, 6351.82 against 7166.30, 6443.47 and Qwen3-14B Q8_0 pp128 721.33, 716.08 against 654.36, 719.13; generate 256 at 360.19 against 339.93 (0.6B) and 46.34 against 43.00 (14B).
+- Generated ids are the base's at 1x4 and 2x2 plain and at draft-max 3 and 6, on Qwen3-0.6B and Qwen3-14B on one MI50, and on the CPU.
+- CTest on one MI50: 85 of 87 at load 48, `backend-rocm` failing the two checks that dropped buffers' memory is free at once after sync and `cache-scenario` a timing check (a job spared while a write ends, 1 done against 0); `backend-rocm` alone then passed (364.6 s), and `cache-scenario` runs no ROCm kernel.
+  The suite on one MI50 passes with only fixture skips, and `dead-code` and `docs` pass on the tree with this STATUS.
+
+**Left.** The hosted run, and the owner's decision on landing `qwen27/norm-split` beneath it; a quiet-window timing round (`hs4`) is queued to replace the contended cells above.
+The Radeon VII check is not reached: the Windows build compiles no `gpu/` kernel.
+
+**Gotchas.** The CUDA build shares `kernels/int16.gpu` and `row_build`; on a 32-lane wave a span is 16 blocks, so the held rows there are rows of 17 to 80 blocks, compiled and not run on a device.
+The rule stops at five spans for a kernel register property, not a device number: each span holds its twin and weight words a lane, about 11 VGPRs a span, so five spans take 60 to 61 VGPRs on gfx906 (`kb35`'s assembly), within the 64 that keep four waves a SIMD, and a sixth would take 72 and drop to three; six spans and more were not timed and keep the stepped builds.
+Qwen3.8-27B's down projection (17408 x 5120 in the file) is 4352 x 5120 a member at 1x4 (136 blocks), held as `half8_1h5` in the table above, and 8704 x 5120 at 2x2 (272 blocks), which stays on the stepped builds; so the gains cover every 1x4 product, and at 2x2 all but the down projections.
+
 ## Held norm rows in parts (2026-11-14, QWEN28 then QWEN29, branch qwen27/norm-split, rebased onto main 929f042c6)
 
 **Goal.** A decode row's RMS norm on ROCm ran as one block on one compute unit, 14.6 us for a 5120-wide row with its int8 twin on an MI50, while every other unit waited; decode runs two a layer.

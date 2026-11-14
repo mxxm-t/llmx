@@ -88,8 +88,9 @@ __device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned lo
     const bool p1 = c.nproj > 1 && o >= c.start[1], p2 = c.nproj > 2 && o >= c.start[2];
     const auto pick = [&](unsigned long long a, unsigned long long b, unsigned long long d) { return a + (p1 ? b - a : 0) + (p2 ? d - b : 0); };
     const unsigned long long local = o - pick(0, c.start[1], c.start[2]);
-    const unsigned char* w = (const unsigned char*)pick((unsigned long long)c.w[0], (unsigned long long)c.w[1], (unsigned long long)c.w[2]);
-    float* y = (float*)pick((unsigned long long)c.y[0], (unsigned long long)c.y[1], (unsigned long long)c.y[2]);
+    // Through the global space, so the compiler keeps global loads rather than flat ones, whose waits also hold the scalar loads.
+    const unsigned char* w = (const unsigned char*)(const GPU_GLOBAL_SPACE unsigned char*)pick((unsigned long long)c.w[0], (unsigned long long)c.w[1], (unsigned long long)c.w[2]);
+    float* y = (float*)(GPU_GLOBAL_SPACE float*)pick((unsigned long long)c.y[0], (unsigned long long)c.y[1], (unsigned long long)c.y[2]);
     return {w + local * row_bytes, y + local, pick(c.nout[0], c.nout[1], c.nout[2])};
 }
 
@@ -418,6 +419,60 @@ __device__ void q8_0_half_one(const RowCall& rc, const signed char* q, const flo
             const float v = wave_sum(acc[j]);
             if (lane == 0 && base + j < rc.total) *r[j].y = add ? *r[j].y + v : v;
         }
+    }
+}
+
+// One row a wave, a row of at most NS spans of blocks: all of its steps' loads issue before any product, in one pass, so it gives the one-row build's bits.
+// A wave whose lanes all take the row's steps together measured 3 to 15 percent faster than the builds it replaces on an MI50 (docs/STATUS.md, Held one-column Q8_0 rows).
+template <int NS>
+__device__ void q8_0_half_held(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int add) {
+    const int lanes = warpSize, lane = threadIdx.x % lanes;
+    const unsigned blocks = (unsigned)(nin / 32), hl = lane & 1;
+    const unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes;
+    const unsigned span = lanes / 2, b0 = lane >> 1;
+    int4 xq[NS];
+    float xd[NS];
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span;
+        xq[d] = bd < blocks ? *(const int4*)(q + (unsigned long long)bd * 32 + 16 * hl) : int4{0, 0, 0, 0};
+        xd[d] = bd < blocks ? dx[bd] : 0.0f;
+    }
+    if (o >= rc.total) return;
+    // The weight base is the wave's, in scalar registers; the output pointer stays per lane, since both in scalar form took 48 us against 8 at 2048 rows of 2048 on an MI50.
+    const unsigned* w = (const unsigned*)row_of(rc, first_lane((unsigned)o), blocks * kQ8).w;
+    gpu_words<4> t4[NS];
+    unsigned t5[NS];
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, wi = start >> 2;
+        if (bd < blocks) {
+            t4[d] = *(const gpu_words<4>*)(w + wi);
+            t5[d] = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
+        }
+    }
+    float acc = 0.0f;
+#pragma unroll
+    for (int d = 0; d < NS; ++d) {
+        const unsigned bd = b0 + d * span, start = bd * kQ8 + 18 * hl, sh = start & 2, s0 = sh + 2 * (1 - hl);
+        // Both lanes of a block take or skip a step together, so the scale's exchange reads an active partner.
+        if (bd >= blocks) continue;
+        const bool next = s0 == 4;
+        const unsigned t0 = t4[d].x, t1 = t4[d].y, t2 = t4[d].z, t3 = t4[d].w, t5d = t5[d];
+        const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t5d : t3, n = s0 & 3;
+        int s = word_dot((int)byte_align(u1, u0, n), xq[d].x, 0, (signed char)0);
+        s = word_dot((int)byte_align(u2, u1, n), xq[d].y, s, (signed char)0);
+        s = word_dot((int)byte_align(u3, u2, n), xq[d].z, s, (signed char)0);
+        s = word_dot((int)byte_align(t5d, u3, n), xq[d].w, s, (signed char)0);
+        const int own = (int)(t0 >> (8 * sh)) & 0xffff;
+        const int partner = lane_xor(own, 1);
+        const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+        acc = fmaf(dw * xd[d], (float)s, acc);
+    }
+    const float v = wave_sum(acc);
+    if (lane == 0) {
+        float* y = row_of(rc, o, blocks * kQ8).y;
+        *y = add ? *y + v : v;
     }
 }
 
@@ -1929,6 +1984,12 @@ extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1s1(RowCa
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, kNarrowSteps>(c, q, dx, nin, add);
 }
+// The held builds by the row's spans of blocks, two to five (backend_core.hpp, product_twin).
+#define LLMX_HELD(name, NS)                                                                                                                                           extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {         q8_0_half_held<NS>(c, q, dx, nin, add);                                                                                                                     }
+LLMX_HELD(llmx_q8_0_half8_1h2, 2)
+LLMX_HELD(llmx_q8_0_half8_1h3, 3)
+LLMX_HELD(llmx_q8_0_half8_1h4, 4)
+LLMX_HELD(llmx_q8_0_half8_1h5, 5)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_half8_1r2s4(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     q8_0_half_one<2, kSteps>(c, q, dx, nin, add);
 }

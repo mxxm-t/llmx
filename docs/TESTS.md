@@ -216,6 +216,8 @@ A float written by `number` is its shortest decimal in the C locale's form under
 The Q8/Q4 round-trip test also checks escaped Unicode tensor names through the actual CLI.
 
 `tokenizer-encode` holds `bpe::Tokenizer::encode` to the encode it replaced, written out in the test (every byte checked against every special token, BPE run on every word), on a vocabulary of the 256 bytes, merged words and six special tokens, one a prefix of two others: each piece alone, special tokens at the start and the end and side by side, a `<` that begins none and specials cut short, the text's end among them, and 50 texts of up to 4000 random pieces, so a word stands beside every neighbour and repeats.
+On a second vocabulary of 4000 merges generated the way training makes them, over the ASCII letters and the continuation bytes 0x80 to 0xBF, of which no valid UTF-8 sequence consists, so the tokenizer's NFC pass leaves every word as it is, it holds the ids of 600 random words (of a few tokens, of random letters and of random continuation bytes) to a plain merge loop written in the test, which merges the adjacent pair of lowest rank, the leftmost on a tie, and requires a one-word text of 2 MiB of letters and one of continuation bytes to each encode within 15 s and decode back, nine times the fixed loop's slowest run on the Windows development machine, so a slower hosted runner holds, where the scan it replaced took 84 s for 64 KiB.
+It also requires the load to refuse a `tokenizer.ggml.tokens` array of a non-string element type and a `tokenizer.ggml.token_type` array shorter than the tokens, each by its message.
 
 `format-output` checks conversion staging, serialization and stream failure,
 refusal of premature publication, a later publication failure after the first

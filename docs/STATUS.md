@@ -786,6 +786,21 @@ Radeon VII: not reached. The branch changes `CMakeLists.txt` (ROCm and CUDA rule
 - Pending for COORD: the hosted run of the landing head; the change lands by fast-forward.
 
 **Gotchas.** A one-column int8 Q5_0 or Q5_1 row now has the one-lane bits where main had the quarter form's. `baseline.py --file-exact` stops at the first case out of bounds, so a file over its bound in one window says nothing of the others; run every case when reading headroom.
+## Tokenizer merge loop in O(n log n) and indexed specials (2026-11-15, SEC1-TOK, branch sec/tokenizer-linear on fix/tokenizer-nfc d03717071 on main 929f042c6)
+
+**Goal.** A one-word prompt or `/v1/tokenize` text from an unauthenticated client of `llmx serve` must not pin a core: `bpe()` rescanned every adjacent pair per merge, O(n^2) in the word, the special-token scan compared each position against every special sharing its first byte, and the load took a `tokenizer.ggml.tokens` array of any element type and a shorter `tokenizer.ggml.token_type` without complaint.
+
+**Done.**
+- `tests/tokenizer_encode.cpp` (CTest `tokenizer-encode`) gains a vocabulary of 4000 generated merges, 600 random words held to a plain lowest-rank-leftmost loop, two one-word texts of 2 MiB (letters, continuation bytes 0x80 to 0xBF, which NFC leaves as they are) bounded at 15 s each, and the two load refusals; on the unfixed code it fails at the first refusal, and without those two checks at the time bound (the CTest timeout of 60 s), the unfixed scan taking 21.1 / 21.8 s for 32 KiB and 83.9 / 76.6 s for 64 KiB (letters / high bytes, Windows development machine).
+- `bpe()` keeps the symbols as spans in a doubly linked list and the candidate pairs in a min-heap keyed by (rank, left span's index), skipping entries whose recorded span lengths changed and pushing the two new neighbour pairs after a merge; the ids are the scan's, since a merged span keeps its left half's index and the survivors keep their order, so the lowest index among equal ranks is the leftmost pair.
+- The specials are sorted by first byte and `special_at` gives each byte's range, in place of `special_lead`, so a position visits only its candidates.
+- The load refuses a `tokens` array whose element type is not string and a `token_type` array shorter than `tokens`, each with a message naming the key; every fixture writer in `tests/` writes string tokens and a `token_type` of the tokens' length, so they load as before.
+- Measured (Windows development machine, CPU): the 2 MiB words take 1.1 to 1.6 s fixed against a day extrapolated unfixed (quadratic from 84 s at 64 KiB); a 1 MiB English text (`docs/` pages repeated, Qwen3-0.6B vocabulary, 265529 ids, best of 40 in each of three interleaved rounds) takes 38.1 to 41.6 ms before and 39.1 to 41.4 ms after, equal within noise. On the rig (Linux, 16 cores at a load of 34 to 46, Qwen3-0.6B Q8_0, the first MiB of wikitext-2, 242186 ids in both arms, best of 40 a round) against fix/tokenizer-nfc 316bcdb9b: five rounds 91.0 to 109.9 ms before and 99.5 to 115.0 ms after, the heap loop behind by 0 to 12 percent; six rounds with the arm order alternating 98.0 to 129.6 ms before and 102.2 to 127.8 ms after, ahead in three rounds and behind in three, medians 117.7 and 118.7 ms; equal within the noise of a loaded machine, so the loop keeps its per-word spans, heap and text.
+- Checks at the head: `tokenizer-encode`, `chat-template` and `server-utf8` CTests pass; suite components `tokenizer`, `chat`, `docs` and `dead-code` pass. At this head over fix/tokenizer-nfc 316bcdb9b (F2DEV's REVIEW of 03:30, item 7) the `tokenizer-encode` CTest passes on the rig (Linux) with the NFC-invariant high-byte words.
+
+**Left.** Nothing on this branch; it lands by fast-forward once reviewed.
+
+**Gotchas.** `merge_rank` is keyed by the joined text of a pair, so a second split of the same text overwrites the first's rank; the test's generated merges avoid that and its reference loop ranks the same way, so the identity check holds for the map as it is.
 
 ## MXFP4 one-column 8-bit rows by four lanes a row (2026-11-14, DSDEV172 to DSDEV181, branch dsdev172/mxfp4-experts on main 84e98d4fe)
 

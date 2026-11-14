@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -53,8 +54,8 @@ public:
     std::unordered_map<std::string, uint32_t> merge_rank;
     std::unordered_map<uint8_t, std::string> byte_to_char;
     std::unordered_map<std::string, uint8_t> char_to_byte;
-    std::vector<SpecialToken> specials; // control / user-defined tokens
-    std::array<bool, 256> special_lead{};   // the bytes a special token begins with, so the scan for one skips every other byte
+    std::vector<SpecialToken> specials;     // control / user-defined tokens, ordered by their first byte
+    std::array<uint32_t, 257> special_at{}; // where the specials beginning with each byte start in `specials`, so a position visits only its candidates
     bool joyai = false;                     // whether the file's pretokenizer is joyai-llm rather than qwen2/qwen35
     int32_t bos_id = -1;
     int32_t eos_id = -1;
@@ -90,6 +91,8 @@ public:
         const gguf::MetaValue* toks = m.find("tokenizer.ggml.tokens");
         if (!toks || toks->vtype != gguf::V_ARRAY)
             throw std::runtime_error("tokenizer: missing tokenizer.ggml.tokens");
+        if (toks->u != gguf::V_STRING)
+            throw std::runtime_error("tokenizer: tokenizer.ggml.tokens is an array of type " + std::to_string(toks->u) + ", not of strings");
         vocab.reserve(toks->arr.size());
         for (const auto& e : toks->arr) {
             vocab.push_back(e.s);
@@ -101,7 +104,10 @@ public:
         std::vector<uint32_t> types(vocab.size(), 1);
         const gguf::MetaValue* tt = m.find("tokenizer.ggml.token_type");
         if (tt && tt->vtype == gguf::V_ARRAY) {
-            for (size_t i = 0; i < tt->arr.size() && i < types.size(); i++) {
+            if (tt->arr.size() < vocab.size())
+                throw std::runtime_error("tokenizer: tokenizer.ggml.token_type has " + std::to_string(tt->arr.size()) + " entries for " +
+                                         std::to_string(vocab.size()) + " tokens");
+            for (size_t i = 0; i < types.size(); i++) {
                 const auto& e = tt->arr[i];
                 if (e.vtype == gguf::V_INT8 || e.vtype == gguf::V_INT16 ||
                     e.vtype == gguf::V_INT32 || e.vtype == gguf::V_INT64)
@@ -124,11 +130,17 @@ public:
 
         // special tokens: control(3) and user-defined(4)
         for (size_t i = 0; i < vocab.size(); i++) {
-            if (types[i] == 3 || types[i] == 4)
+            if ((types[i] == 3 || types[i] == 4) && !vocab[i].empty())
                 specials.push_back({ vocab[i], (uint32_t)i });
         }
-        for (const auto& sp : specials)
-            if (!sp.text.empty()) special_lead[(unsigned char)sp.text[0]] = true;
+        std::stable_sort(specials.begin(), specials.end(), [](const SpecialToken& a, const SpecialToken& b) {
+            return (unsigned char)a.text[0] < (unsigned char)b.text[0];
+        });
+        for (size_t i = 0, b = 0; b < 256; b++) {
+            special_at[b] = (uint32_t)i;
+            while (i < specials.size() && (unsigned char)specials[i].text[0] == b) i++;
+        }
+        special_at[256] = (uint32_t)specials.size();
 
         // ids
         if (const gguf::MetaValue* v = m.find("tokenizer.ggml.bos_token_id"))
@@ -310,25 +322,51 @@ public:
         return s;
     }
 
-    // BPE merge loop over a byte-mapped word.
+    // BPE merge loop over a byte-mapped word: the adjacent pair of lowest rank, the leftmost on a tie, merged until no pair has a rank.
+    // The symbols are spans of the word in a linked list and the candidate pairs a heap keyed by rank and the left span's index, so a word of n symbols takes O(n log n) rather than a scan per merge.
     std::vector<std::string> bpe(const std::string& word) const {
-        std::vector<std::string> sym;
-        for (size_t i = 0; i < word.size(); ) {
-            size_t l = utf8::lead_length((unsigned char)word[i]);
-            sym.push_back(word.substr(i, l));
+        struct Span { uint32_t begin, len; int32_t prev, next; };
+        struct Pair { uint32_t rank, left; int32_t right; uint32_t left_len, right_len; };
+        // A pair is live while both spans are as they were pushed and still adjacent; a span merged away has length 0 and one that grew a longer length, so a stale pair fails the length check.
+        std::vector<Span> spans;
+        for (size_t i = 0; i < word.size();) {
+            const uint32_t l = (uint32_t)utf8::lead_length((unsigned char)word[i]);
+            spans.push_back({ (uint32_t)i, l, (int32_t)spans.size() - 1, (int32_t)spans.size() + 1 });
             i += l;
         }
-        while (sym.size() > 1) {
-            uint32_t best = UINT32_MAX; int best_pos = -1;
-            for (size_t i = 0; i + 1 < sym.size(); i++) {
-                std::string pair = sym[i] + sym[i + 1];
-                auto it = merge_rank.find(pair);
-                if (it != merge_rank.end() && it->second < best) { best = it->second; best_pos = (int)i; }
-            }
-            if (best_pos < 0) break;
-            sym[best_pos] += sym[best_pos + 1];
-            sym.erase(sym.begin() + best_pos + 1);
+        if (spans.empty()) return {};
+        spans.back().next = -1;
+        std::vector<Pair> heap;
+        // A merged span keeps its left half's index and the survivors keep their order, so the lowest index among equal ranks is the leftmost pair, as a scan chooses it.
+        const auto later = [](const Pair& a, const Pair& b) { return a.rank != b.rank ? a.rank > b.rank : a.left > b.left; };
+        std::string text;
+        const auto offer = [&](uint32_t left) {
+            const Span& l = spans[left];
+            if (l.next < 0) return;
+            const Span& r = spans[(size_t)l.next];
+            text.assign(word, l.begin, l.len + r.len);
+            const auto it = merge_rank.find(text);
+            if (it == merge_rank.end()) return;
+            heap.push_back({ it->second, left, l.next, l.len, r.len });
+            std::push_heap(heap.begin(), heap.end(), later);
+        };
+        for (uint32_t i = 0; i + 1 < spans.size(); ++i) offer(i);
+        while (!heap.empty()) {
+            std::pop_heap(heap.begin(), heap.end(), later);
+            const Pair p = heap.back();
+            heap.pop_back();
+            Span& l = spans[p.left];
+            if (l.len != p.left_len || l.next != p.right || spans[(size_t)p.right].len != p.right_len) continue;
+            Span& r = spans[(size_t)p.right];
+            l.len += r.len;
+            l.next = r.next;
+            r.len = 0;
+            if (l.next >= 0) spans[(size_t)l.next].prev = (int32_t)p.left;
+            if (l.prev >= 0) offer((uint32_t)l.prev);
+            offer(p.left);
         }
+        std::vector<std::string> sym;
+        for (int32_t i = 0; i >= 0; i = spans[(size_t)i].next) sym.push_back(word.substr(spans[(size_t)i].begin, spans[(size_t)i].len));
         return sym;
     }
 
@@ -359,11 +397,13 @@ public:
         size_t start = 0;
         for (size_t i = 0; i < text.size();) {
             const SpecialToken* match = nullptr; size_t best_len = 0;
-            if (special_lead[(unsigned char)text[i]])
-                for (const auto& sp : specials)
-                    if (sp.text.size() > best_len && text.compare(i, sp.text.size(), sp.text) == 0) {
-                        match = &sp; best_len = sp.text.size();
-                    }
+            const unsigned char lead = (unsigned char)text[i];
+            for (uint32_t k = special_at[lead]; k < special_at[lead + 1]; k++) {
+                const SpecialToken& sp = specials[k];
+                if (sp.text.size() > best_len && text.compare(i, sp.text.size(), sp.text) == 0) {
+                    match = &sp; best_len = sp.text.size();
+                }
+            }
             if (match) { flush(start, i); ids.push_back(match->id); i += best_len; start = i; }
             else ++i;
         }

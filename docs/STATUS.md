@@ -1078,6 +1078,79 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - The block-score slot is an index head's over the context's blocks a row (32768 floats at 1M positions), as deepseek41's index slot is a context's groups.
 - F2DEV's 4e note 1 (a shape at groups 2 over 4 KV heads) is not taken: MiniMax has as many index heads as KV heads, so only the ends of that mapping run.
 - The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
+## Vulkan Q4 and IQ4 one-column rows: four rows a cluster and the IQ4 pair table (2026-11-14, VKDEV2 to VKDEV4, branch perf/vulkan-q4-row-decode rebased on main 929f042c6; VKDEV1's findings of 2026-11-14; lands by fast-forward)
+
+**Goal.** Faster one-column (decode) rows on Vulkan for the 16-bit Q4_0, Q4_1, IQ4_NL and IQ4_XS row kernels, with every row's bits unchanged, toward the owner's gate of every Vulkan quant beating the reference's Vulkan on the same file and card.
+
+**Done.**
+- Finding (VKDEV1, Qwen3-14B on one MI50): `matmul_row_q4_dot_1col` took 86 percent of decode device time at about 375 GB/s and `matmul_row_iq4_dot_1col` 89 percent at about 210 GB/s, against about 720 GB/s for the 8-bit `matmul_row_q4_i8_1col`.
+- Cause: a one-row cluster reads its column's 16-bit twin, 72 bytes a 32-value block against 18 bytes of Q4_0 weights, for every row; IQ4 rows also decoded each code through byte loads and selects (1531 instructions).
+- `one_column_variant` (`vulkan_kernels.hpp`): where the transposed reduction holds the cluster, one-column calls of the 16-bit Q4_0, Q4_1, IQ4_NL and IQ4_XS rows take the new four-row one-column build (`kRowOneColumnFourRows`, variant 11, named `_1col_4row`), MXFP4 keeping its two-row build; a row's lanes, blocks and products are the one-row build's and the transposed reduction keeps the butterfly's pairs, so each row keeps its bits.
+- IQ4 rows decode a group through a 256-entry shared table of two codes' values as one pair word (`iq4_pairs` and `lookup_pairs8` in `shaders/iq4_pairs.glsl`), its code bytes loaded as four words and a halfword; the pair words are those `lookup_pairs` gives, which the tile keeps.
+- Measured on one MI50 (renderD136, default clocks), standalone one-column calls at Qwen3-14B's shapes (7168x5120, 5120x5120, 34816x5120, 5120x17408), sum of best device times in us, output hashes identical to main at every shape:
+
+| Type, dtype | main | branch |
+|---|---|---|
+| Q4_0 f16 | 557.2 | 281.1 |
+| Q4_1 f16 | 557.2 | 299.1 |
+| IQ4_NL f16 | 1064.7 | 376.7 |
+| IQ4_XS f16 | 1216.2 | 396.9 |
+| Q4_0 int8 (unchanged path) | 289.3 | 289.3 |
+| Q4_K f16 (unchanged path) | 337.1 | 337.5 |
+
+- Smaller shapes, same hashes: Q4_0 at Qwen3-1.7B's 97.9 to 57.1 us and Qwen3-0.6B's 44.4 to 41.3; IQ4_NL at 0.6B's 70.8 to 49.5; IQ4_XS at 0.6B's 80.5 to 50.1.
+- Rows a cluster, 14B Q4_0 f16: one 557.6, two 339.8, four 280.4, eight 277.8 us (eight at 84 VGPRs); 1.7B shapes one 97.9, two 65.4, four 57.1, eight 64.3. IQ4_NL with the table: one 638.1, two 426.9, four 372.2 at 14B, and 50.9, 48.2 and 49.5 at 0.6B.
+- Kernel statistics: `matmul_row_q4_dot_1col` 48 VGPRs and 5 waves a SIMD, `matmul_row_q4_dot_1col_4row` 64 and 4; `matmul_row_iq4_dot_1col` 48 and 5 before, `matmul_row_iq4_dot_1col_4row` 128 and 2 with 1 KiB of shared memory.
+- Checks on one MI50: `iq4-nl-vulkan` and `backend-vulkan` pass on the branch.
+- Models on the same card, `bench --p 512 --n 256 --r 1`, default dtype, f16 cache, main (A) and the branch (B) interleaved ABBAAB, tok/s, hostwait marking every cell contended (0.7 to 11 s of run-queue wait, kept):
+
+| Model | A tg256 | B tg256 | A pp512 | B pp512 |
+|---|---|---|---|---|
+| Qwen3-14B Q4_0 | 38.45, 38.44, 38.32 | 66.97, 67.44, 67.19 | 450.9 | 449.2 |
+| Qwen3-14B Q4_1 | 37.77, 38.14, 38.33 | 64.88, 64.78, 64.83 | 459.8 | 459.9 |
+| Qwen3-14B IQ4_NL | 21.91, 21.74, 21.67 | 51.62, 51.65, 51.55 | 261.3 | 261.4 |
+| Qwen3-0.6B IQ4_NL | 245.28, 250.27, 242.14 | 313.49, 299.87, 302.39 | 6761.5 | 6768.0 |
+
+- Greedy ids of `generate --temp 0 -n 256` are byte identical between A and B on all four files, for a chat prompt and for the first 6000 characters of wikitext-2.
+- Reference: the current reference fork (gitea `admin/llama.cpp` master cdc81dae4), built for Vulkan in the llmx Vulkan image and run with a guard on the card's kernel log, page-faulted the card (`[gfxhub0] no-retry page fault`, TCP client) one second into its first cell, Qwen3-14B Q5_K_M with `-fa 0`, so its column is recorded as reference faults and was not retried.
+
+- `_1col_2row`: the two-row one-column build of the other row families (variant 7, MXFP4's) had the name of variant 1's `_1col`, which made `backend-vulkan --isa` fail on an MI50 (`matmul_row_mxfp4_dot`); it is now `matmul_row_<family>_1col_2row`, and `tests/backend_vulkan.cpp` and `tests/mxfp4_vulkan.cpp` accept that name.
+
+**Gates (2026-11-15, VKDEV3 and VKDEV4).**
+- Identity: the branch is rebased on main 9724cd436 without a conflict and then on main 929f042c6 with a STATUS conflict only; both reach only the ROCm and CUDA sources, their CMake and tests, and the host tests `gpu-core` and `gpu-port` (the build's dependency files name `src/backends/gpu/` for those two tests alone), so no input of the Vulkan binary moved, and builds and CTest reran on the rebased tree.
+- The rig build of this tree is `llmx 0.1.0+geb6acea7e3e1` (sha256 760b7344e084...); main's arm is `llmx 0.1.0+gc0d13585ce24` (sha256 926fef7f858b...), the same Vulkan inputs as 9724cd436.
+- Native tests on one MI50 (renderD136, Vulkan image): `ctest -R 'vulkan|low-bits'` 21 of 21 passed, `llmx-backend-vulkan-test --isa` rc 0, `--decode-columns Q4_0,Q4_1,IQ4_NL,IQ4_XS` rc 0, which checks each column of a decode call against the one-column call bit for bit.
+- Driverless CTest of the whole build: 102 of 103 passed; `cache-scenario` failed on its `LastBlock::ended` case ("1 jobs done and 0 gave way, against 0 and 1"), a host scheduler timing case this change does not reach, and run alone it failed once in three runs on main c0d13585c and once in three on the branch, so it is main's intermittent failure, reported to COORD.
+- Suite on `--device vulkan:0` (rig, 8fd35e5fe, same code as this tree but line endings): every component passed or skipped for a missing file (vision mmproj, the server's real-model pass); `baseline`, `iq4-nl` and `iq4-xs` reran on this tree with the pinned fixtures fetched by `tools/fetch_test_models.py`.
+- HF error on vulkan:0, observed against bound: Qwen3-0.6B Q4_0 NLL delta 0.1314 against 0.160 (c=0, one chunk, per-token, the decode path; headroom 0.029), 0.1675 against 0.200 (c=64, four chunks), 0.1203 against 0.200 (c=123); Q8_0 0.0123 against 0.020; top-1 6 of 6 on every baseline file; IQ4_NL max logit error 0.000102 against 0.0033 and NLL 0.0000081 against 0.00030; IQ4_XS max logit error 0.000765 against 0.0586 and NLL 0.000057 against 0.0060.
+- Byte identity: greedy ids of `generate --temp 0 -n 256` on the first 6000 characters of wikitext-2 are identical between main and the branch on Vulkan for every timed file below, and on the CPU for Qwen3-0.6B Q4_0, IQ4_NL and IQ4_XS (128 tokens); on that prompt the 14B Q4_1 and IQ4_NL and the 0.6B IQ4_NL and Q8_0 files continue with a run of zeros, which the CPU gives too for 14B Q4_1, so those cells rest on the per-call identity and on VKDEV2's chat-prompt ids above.
+- Long context: a decode call at 16k tokens reads the same row kernels, whose every row keeps its bits (the decode-column check and the microbench hashes), so the 16k token ids follow from per-call identity; the change does not touch attention or the prompt path.
+- Timing round on one MI50 (renderD136, default clocks), `bench --p 512 --n 256 --r 1`, f16 cache, ABBAAB, mean of three, tok/s; hostwait marks every cell contended (0.25 to 16 s of run-queue wait over a cell, kept):
+
+| Model, dtype | main tg256 | branch tg256 | change | main pp512 | branch pp512 | mx Vulkan |
+|---|---|---|---|---|---|---|
+| Qwen3-14B Q4_0, auto | 38.33 | 66.98 | +74.8% | 452.4 | 451.7 | reference faults |
+| Qwen3-14B Q4_1, auto | 38.03 | 63.98 | +68.2% | 459.0 | 459.0 | reference faults |
+| Qwen3-14B IQ4_NL, auto | 21.66 | 51.29 | +136.8% | 261.3 | 261.2 | reference faults |
+| Qwen3-14B Q4_0, int8 (unchanged path) | 65.12 | 65.19 | +0.1% | 678.3 | 678.3 | reference faults |
+| Qwen3-0.6B Q4_0, auto | 305.5 | 315.7 | +3.3% | 8416.6 | 8407.2 | reference faults |
+| Qwen3-0.6B IQ4_NL, auto | 244.5 | 291.9 | +19.4% | 6709.1 | 6736.1 | reference faults |
+| Qwen3-0.6B IQ4_XS, auto | 249.3 | 309.4 | +24.1% | 6572.2 | 6590.0 | reference faults |
+| Qwen3-0.6B Q8_0, auto (control) | 352.6 | 348.1 | -1.3% | 8926.3 | 8897.1 | reference faults |
+
+- The control's -1.3% is one branch sample (333.9 against 354.2 and 356.1) inside main's own spread of 349.3 to 357.4; its kernels are main's.
+- mx Vulkan: the reference fork's Vulkan build page-faulted the MI50 on both builds tested (cdc81dae4 above), so its column is "reference faults" and it was not rerun; evidence in VKDEV2's run logs on the rig (`/opt/claude-work/vkdev2`).
+- Radeon VII (Windows, AMD proprietary driver, whose profile row has no `row_decode_tree`, so it runs the IQ4 pair table but not the four-row builds), on 23ca3ad48 built in `C:\mxh\vkq4r`: build, CTest (104 of 104) and the suite on `--device vulkan:0` all passed, every one of the 48 suite components (the server's signal checks skip on Windows), 2026-11-15.
+- Delta from 23ca3ad48 to this tree: the `_1col_2row` rename, a build the Radeon VII never takes, the two test lists that accept it, `check_four_row_builds` (not run there; on that profile it requires the one-row build at both widths), the docs, LF line endings, and main's ROCm and CUDA commits, so the Radeon VII result carries forward.
+- Evidence: `/opt/claude-work/vkdev3/out` (8fd35e5fe suite, timing, sweep) and `/opt/claude-work/vkdev3/out4` (this tree: build, CTest, `cache-scenario` runs, device tests, HF, 0.6B timing).
+
+**Left.**
+- Q1_0 (Boole-1.7B): decode device time is 60 percent `matmul_row_q1_0_dot_1col_2row`, 2.57 ms a token at about 80 GB/s, and 11 percent `rms_norm_rows`; four and eight rows a cluster measured slower (79.0, 87.1 and 125.5 us at the 1.7B shapes), so the row kernel needs another layout; not changed here.
+- Step 2, rows a cluster for the other row kernels: a sweep on one MI50 (27 shapes, one, two and four rows, 13 kernel and dtype pairs, hashes equal across arms; `/opt/claude-work/vkdev4/sweep1.sum`) puts the best per shape within 0.2 to 3 percent of a rule of rows a cluster by rows a compute unit, with the knee near 8 clusters a CU for the Q4 and IQ4 rows and 16 to 24 for Q5_0, Q5_1 and the K-quants; F2DEV's review (2026-11-15 00:41) asks for one helper shared with the GPU backends' row_four_waves_per_cu, a number per build class and a per-shape loss table before code, on its own branch.
+- Measured, not taken here: four rows at one column for Q4_K and Q5_K f16 (14B 337 to 278 and 401 to 355 us, slower than two rows at the 1.7B and 0.6B shapes), two rows for the 8-bit Q4 rows (14B 289 to 261 us, slower at 0.6B's 1024x2048), Q5_0 and Q5_1 f16 four rows (14B 841 to 684 and 570 to 366 us); Q6_K is slower with more rows (691 to 1030 us at four).
+
+**Gotchas.**
+- More rows raise VGPRs and cut waves; the four-row IQ4 build runs at two waves a SIMD and is still the fastest at these shapes.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

@@ -10,6 +10,9 @@ void main() {
     // Every invocation reaches the cache barrier, including inactive rows and empty routed groups.
     lookup_init();
 #endif
+#ifdef LLMX_IQ4_PAIRS
+    iq4_pairs_init();
+#endif
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
     {
         uint i = gl_LocalInvocationIndex;

@@ -552,6 +552,70 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
     return values;
 }
 
+// Routed prompt entries of the types without packed prompt dots (MXFP4, Q5_1) take float products, and unit columns give each weight as the registry's decoder writes it over every finite scale byte.
+// Each entry has the bits of its expert's plain prompt product of that entry alone.
+static size_t check_float_routed_prompts(backend::CpuBackend& cpu) {
+    const size_t nin = 256, nout = 11, n_expert = 3, k = 2, rows = 13;
+    uint32_t seed = 7;
+    auto byte = [&] { seed = seed * 1664525u + 1013904223u; return uint8_t(seed >> 24); };
+    size_t checks = 0;
+    for (uint32_t type : {quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_Q5_1}) {
+        const quant::QuantType* qt = quant::Registry::instance().get(type);
+        const size_t rb = quant::row_bytes(type, nin), nb = nin / qt->block_size;
+        std::vector<uint8_t> w(n_expert * nout * rb);
+        for (auto& b : w) b = byte();
+        for (size_t i = 0; i < w.size() / qt->type_size; ++i) {
+            uint8_t* blk = w.data() + i * qt->type_size;
+            if (type == quant::GGML_TYPE_MXFP4) blk[0] = uint8_t(i % 253);   // every scale byte that keeps all codes finite
+            else { blk[1] = uint8_t(0x30 | (blk[1] & 0x8f)); blk[3] = uint8_t(0x30 | (blk[3] & 0x8f)); }   // finite half scales and minimums of either sign
+        }
+        const auto wb = cpu.adopt(w.data(), w.size());
+        for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16}) {
+            // Unit columns through the plain prompt product: column j of row o is weight (o, j).
+            std::vector<float> unit(nin * nin, 0.0f), y(nin * n_expert * nout), ref(nin);
+            for (size_t j = 0; j < nin; ++j) unit[j * nin + j] = 1.0f;
+            const auto ub = cpu.adopt(unit.data(), unit.size() * sizeof(float)), yb = cpu.adopt(y.data(), y.size() * sizeof(float));
+            const backend::RowRun one[1] = {{nin, nin}};
+            cpu.matmul({type, {wb.get(), 0}}, {ub.get(), 0}, {yb.get(), 0}, nin, n_expert * nout, nin, {one, 1}, dtype);
+            cpu.sync();
+            for (size_t o = 0; o < n_expert * nout; ++o) {
+                qt->dequantize(w.data() + o * rb, ref.data(), nb);
+                for (size_t j = 0; j < nin; ++j)
+                    require(y[j * n_expert * nout + o] == ref[j] || (std::isnan(ref[j]) && std::isnan(y[j * n_expert * nout + o])), "a float prompt product read another weight than the decoder's");
+                ++checks;
+            }
+            // Routed entries: three tokens per expert or more, against each entry alone.
+            std::vector<float> x(rows * nin), ids_f(rows * k), wts(rows * k, 1.0f), out(rows * k * nout), alone(nout);
+            for (size_t i = 0; i < x.size(); ++i) x[i] = float(int(byte()) - 128) / 64.0f;
+            for (size_t r = 0; r < rows; ++r)
+                for (size_t j = 0; j < k; ++j) { const uint32_t e = uint32_t((r + j) % n_expert); std::memcpy(&ids_f[r * k + j], &e, 4); }
+            const auto xb = cpu.adopt(x.data(), x.size() * sizeof(float)), ib = cpu.adopt(ids_f.data(), ids_f.size() * sizeof(float));
+            const auto wtb = cpu.adopt(wts.data(), wts.size() * sizeof(float)), ob = cpu.adopt(out.data(), out.size() * sizeof(float));
+            const auto ab = cpu.adopt(alone.data(), alone.size() * sizeof(float));
+            const backend::RowRun prompt[1] = {{rows, rows}};
+            const backend::Backend::Routing routing{{ib.get(), 0}, {wtb.get(), 0}, k, n_expert};
+            cpu.matmul_experts({backend::Projection({type, {wb.get(), 0}}, {ob.get(), 0}, nout)}, {xb.get(), 0}, nin, rows, routing, {prompt, 1}, dtype);
+            cpu.sync();
+            for (size_t i = 0; i < rows * k; ++i) {
+                uint32_t e;
+                std::memcpy(&e, &ids_f[i], 4);
+                const backend::RowRun two[1] = {{1, 2}};
+                cpu.matmul({type, {wb.get(), (e * nout * rb) / sizeof(float)}}, {xb.get(), (i / k) * nin}, {ab.get(), 0}, nin, nout, 1, {two, 1}, dtype);
+                cpu.sync();
+                require(std::memcmp(alone.data(), out.data() + i * nout, nout * sizeof(float)) == 0, "a routed float prompt entry differs from its expert's product of it alone");
+                ++checks;
+            }
+        }
+    }
+    // Q5_1's d * q is exact for every finite half scale and code, so a compiler fusing the decoder's d * q + m gives the same bits as this unfused build.
+    for (uint32_t h = 0; h < 0x10000; ++h) {
+        const float d = f16_to_f32(uint16_t(h));
+        if (!std::isfinite(d)) continue;
+        for (int q = 0; q < 32; ++q) require(std::fma(d, float(q), -(d * float(q))) == 0.0f, "a Q5_1 scale times a code rounded");
+    }
+    return checks;
+}
+
 // The CPU half of backend-vulkan's no-candidate routing check (backend.hpp route_experts): NaN scores give kNoExpert with weight 0, one finite score among -inf that expert, then the others by id.
 // The routed gate-up and down calls leave an entry without an expert unwritten and add nothing for it, on two decode rows and on a 70-row prompt, every second row without candidates.
 size_t check_route_edges(backend::CpuBackend& cpu) {
@@ -676,6 +740,7 @@ int main() {
         const size_t magnitudes = check_magnitudes(cpu);
         const size_t summed = check_collective();
         const size_t routed = check_route_edges(cpu);
+        const size_t float_routed = check_float_routed_prompts(cpu);
         const size_t busy = check_busy(cpu);
         const moe::Matrix matrix = [](uint32_t type, size_t nin, size_t rows, uint32_t seed) {
             (void)seed;
@@ -729,7 +794,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << busy << " busy times; "
+                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; " << float_routed << " float routed prompt rows and entries; " << busy << " busy times; "
                   << steps << " routed step outputs equal to the calls it replaced; " << decode_steps << " CPU routed step outputs equal to the base step's; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "

@@ -518,56 +518,11 @@ public:
             for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true, dtype, scales);
             return;
         }
-        const quant::QuantType* qt = quant::Registry::instance().get(type);
+        const quant::QuantType* qt = f32 ? nullptr : quant::Registry::instance().get(type);
         if (!f32 && !qt->dequantize) throw std::runtime_error("backend: no dequantizer for tensor type");
-        const size_t nblocks = f32 ? 0 : nin / qt->block_size;
-
-        // Rows dequantized together before walking the batch: the fused kernel's row width, since dot_f32_x4 shares one activation load across exactly 4 rows.
         const size_t RB = (size_t)DOT_ROWS;
-
         auto do_rows = [&](int w, size_t o0, size_t o1) {
-            std::vector<float>& buf = rowbuf_[(size_t)w];
-            if (!f32 && buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
-            for (size_t o = o0; o < o1; o += RB) {
-                const size_t nr = std::min(RB, o1 - o);
-                const float* r = f32 ? (const float*)(data + o * rowbytes) : buf.data();
-                if (!f32)
-                    for (size_t k = 0; k < nr; k++)
-                        qt->dequantize(data + (o + k) * rowbytes, buf.data() + k * nin, nblocks);
-                // Round the reconstructed weight to F32 before any activation product.
-                if (scales)
-                    for (size_t i = 0; i < nr * nin; ++i) buf[i] *= scales[0];
-                size_t b = 0;
-                // Three activation columns at a time where the row block is full, so weight loads amortise across all three.
-                for (; b + 3 <= nbatch && nr == RB; b += 3) {
-                    const float* xa = X + b * nin;
-                    const float* xb3 = X + (b + 1) * nin;
-                    const float* xc3 = X + (b + 2) * nin;
-                    float* ya = Y + b * nout + o;
-                    float* yb = Y + (b + 1) * nout + o;
-                    float* yc = Y + (b + 2) * nout + o;
-                    for (size_t k = 0; k + 4 <= nr; k += 4)
-                        dot_f32_x4x3(r + k * nin, nin, xa, xb3, xc3, nin,
-                                     ya + k, yb + k, yc + k);
-                }
-                for (; b + 2 <= nbatch && nr == RB; b += 2) {
-                    const float* xa = X + b * nin;
-                    const float* xb2 = X + (b + 1) * nin;
-                    float* ya = Y + b * nout + o;
-                    float* yb = Y + (b + 1) * nout + o;
-                    for (size_t k = 0; k + 4 <= nr; k += 4)
-                        dot_f32_x4x2(r + k * nin, nin, xa, xb2, nin, ya + k, yb + k);
-                }
-                for (; b < nbatch; b++) {
-                    const float* x = X + b * nin;
-                    float* y = Y + b * nout + o;
-                    size_t k = 0;
-                    for (; k + 4 <= nr; k += 4)
-                        dot_f32_x4(r + k * nin, nin, x, nin, y + k);
-                    for (; k < nr; k++)
-                        y[k] = dot_f32(r + k * nin, x, nin);
-                }
-            }
+            float_rows(w, type, qt, data, rowbytes, nin, o0, o1, scales, nbatch, [&](size_t b) { return X + b * nin; }, [&](size_t b) { return Y + b * nout; });
         };
         const int nt = threads_;
         held();
@@ -579,6 +534,71 @@ public:
             const size_t e = std::min(nout, s + chunk);
             if (s < e) do_rows(w, s, e);
         });
+    }
+
+    // Rows o0..o1 of a matrix in float against columns x(b), written at y(b) + o: rows dequantized DOT_ROWS at a time into worker w's buffer, then each column's dots, so every column gets the same sums however many share the call.
+    template <class XF, class YF>
+    void float_rows(int w, uint32_t type, const quant::QuantType* qt, const uint8_t* data, size_t rowbytes, size_t nin, size_t o0, size_t o1,
+                    const float* scales, size_t ncols, const XF& x, const YF& y) {
+        const bool f32 = type == quant::GGML_TYPE_F32;
+        const size_t RB = (size_t)DOT_ROWS, nblocks = f32 ? 0 : nin / qt->block_size;
+        std::vector<float>& buf = rowbuf_[(size_t)w];
+        if (!f32 && buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
+        for (size_t o = o0; o < o1; o += RB) {
+            const size_t nr = std::min(RB, o1 - o);
+            const float* r = f32 ? (const float*)(data + o * rowbytes) : buf.data();
+            if (!f32)
+                for (size_t k = 0; k < nr; k++) dequantize_row(type, qt, data + (o + k) * rowbytes, buf.data() + k * nin, nblocks);
+            // Round the reconstructed weight to F32 before any activation product.
+            if (scales)
+                for (size_t i = 0; i < nr * nin; ++i) buf[i] *= scales[0];
+            size_t b = 0;
+            // Three activation columns at a time where the row block is full, so weight loads amortise across all three.
+            for (; b + 3 <= ncols && nr == RB; b += 3)
+                dot_f32_x4x3(r, nin, x(b), x(b + 1), x(b + 2), nin, y(b) + o, y(b + 1) + o, y(b + 2) + o);
+            for (; b + 2 <= ncols && nr == RB; b += 2) dot_f32_x4x2(r, nin, x(b), x(b + 1), nin, y(b) + o, y(b + 1) + o);
+            for (; b < ncols; b++) {
+                size_t k = 0;
+                for (; k + 4 <= nr; k += 4) dot_f32_x4(r + k * nin, nin, x(b), nin, y(b) + o + k);
+                for (; k < nr; k++) y(b)[o + k] = dot_f32(r + k * nin, x(b), nin);
+            }
+        }
+    }
+
+    // A row's weights widened to f32, MXFP4 and Q5_1 eight values per instruction with the scalar decoder's operations in its order, so every value keeps its bits.
+    static void dequantize_row(uint32_t type, const quant::QuantType* qt, const uint8_t* src, float* dst, size_t nblocks) {
+        if (type == quant::GGML_TYPE_Q5_1) {
+            // Byte j takes bit j of the high bits: each lane's bytes read the 32-bit word's byte j / 8 and test bit j % 8.
+            const __m256i pick = _mm256_setr_epi8(0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3);
+            const __m256i bit = _mm256_set1_epi64x(0x8040201008040201ll), low = _mm256_set1_epi8(15), sixteen = _mm256_set1_epi8(16);
+            for (size_t b = 0; b < nblocks; ++b, src += quant::Q5_1_TYPESIZE, dst += quant::Q5_1_BLOCK) {
+                const __m256 d = _mm256_set1_ps(f16_to_f32((uint16_t)(src[0] | ((uint16_t)src[1] << 8))));
+                const __m256 m = _mm256_set1_ps(f16_to_f32((uint16_t)(src[2] | ((uint16_t)src[3] << 8))));
+                uint32_t qh;
+                std::memcpy(&qh, src + 4, 4);
+                const __m128i qs = _mm_loadu_si128((const __m128i*)(src + 8));
+                const __m256i nib = _mm256_and_si256(_mm256_set_m128i(_mm_srli_epi16(qs, 4), qs), low);
+                const __m256i hb = _mm256_and_si256(_mm256_cmpeq_epi8(_mm256_and_si256(_mm256_shuffle_epi8(_mm256_set1_epi32((int)qh), pick), bit), bit), sixteen);
+                const __m256i q = _mm256_or_si256(nib, hb);
+                const __m128i q0 = _mm256_castsi256_si128(q), q1 = _mm256_extracti128_si256(q, 1);
+                const __m128i parts[4] = {q0, _mm_srli_si128(q0, 8), q1, _mm_srli_si128(q1, 8)};
+                // A half scale times a 5-bit code has at most 16 significant bits, so d * q is exact and the decoder's d * q + m gives these bits whether a compiler fuses it or not.
+                for (int i = 0; i < 4; ++i)
+                    _mm256_storeu_ps(dst + 8 * i, _mm256_add_ps(_mm256_mul_ps(d, _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(parts[i]))), m));
+            }
+            return;
+        }
+        if (type != quant::GGML_TYPE_MXFP4) { qt->dequantize(src, dst, nblocks); return; }
+        const __m128i table = _mm_loadu_si128((const __m128i*)quant::MXFP4_VALUES), low = _mm_set1_epi8(15);
+        for (size_t b = 0; b < nblocks; ++b, src += quant::MXFP4_TYPESIZE, dst += quant::MXFP4_BLOCK) {
+            const __m256 scale = _mm256_set1_ps(quant::mxfp4_scale(src[0]));
+            const __m128i q = _mm_loadu_si128((const __m128i*)(src + 1));
+            const __m128i lo = _mm_shuffle_epi8(table, _mm_and_si128(q, low)), hi = _mm_shuffle_epi8(table, _mm_and_si128(_mm_srli_epi16(q, 4), low));
+            _mm256_storeu_ps(dst, _mm256_mul_ps(scale, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(lo))));
+            _mm256_storeu_ps(dst + 8, _mm256_mul_ps(scale, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(lo, 8)))));
+            _mm256_storeu_ps(dst + 16, _mm256_mul_ps(scale, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(hi))));
+            _mm256_storeu_ps(dst + 24, _mm256_mul_ps(scale, _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_srli_si128(hi, 8)))));
+        }
     }
 
     void matmul_group(std::initializer_list<Projection> projections,
@@ -3071,20 +3091,34 @@ private:
             else run_parallel(work);
             return;
         }
+        // Float products: each expert's prompt entries read in place through the plain prompt product's row blocks, stretches of every expert's rows in one dispatch.
+        std::vector<uint32_t> batch, busy;
+        first.assign(n_expert + 1, 0);
         for (size_t e = 0; e < n_expert; ++e) {
-            std::vector<uint32_t> batch;
+            first[e] = batch.size();
             for (size_t c = g.start[e]; c < g.start[e + 1]; ++c)
                 if (!decode[g.order[c] / k]) batch.push_back(g.order[c]);
-            if (batch.empty()) continue;
-            const uint8_t* w = data + e * stride;
-            expert_x_.resize(batch.size() * nin);
-            expert_y_.resize(batch.size() * nout);
-            for (size_t c = 0; c < batch.size(); ++c)
-                std::memcpy(expert_x_.data() + c * nin, X + (batch[c] / per) * nin, nin * sizeof(float));
-            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, batch.size(), false, dtype, scales ? scales + (weight.scale_count == 1 ? 0 : e) : nullptr);
-            for (size_t c = 0; c < batch.size(); ++c)
-                std::memcpy(out + (size_t)batch[c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
+            if (batch.size() > first[e]) busy.push_back((uint32_t)e);
         }
+        first[n_expert] = batch.size();
+        if (busy.empty() || !nout) return;
+        if (type != quant::GGML_TYPE_F32 && !quant::Registry::instance().get(type)->dequantize) throw std::runtime_error("backend: no dequantizer for tensor type");
+        record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
+        const quant::QuantType* qt = type == quant::GGML_TYPE_F32 ? nullptr : quant::Registry::instance().get(type);
+        const size_t R = 8 * DOT_ROWS, per_expert = (nout + R - 1) / R, tasks = busy.size() * per_expert;
+        std::atomic<size_t> next{0};
+        auto work = [&](int w) {
+            for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
+                const size_t e = busy[t / per_expert], o0 = (t % per_expert) * R, o1 = std::min(nout, o0 + R);
+                const uint32_t* b = batch.data() + first[e];
+                float_rows(w, type, qt, data + e * stride, row_bytes, nin, o0, o1, scales ? scales + (weight.scale_count == 1 ? 0 : e) : nullptr, first[e + 1] - first[e],
+                           [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
+            }
+        };
+        // No small-work cutoff as prompt_q8 has: one entry still widens its expert's whole matrix, which outweighs waking the pool (docs/src/backends-cpu.md).
+        held();
+        if (threads_ <= 1) work(0);
+        else run_parallel(work);
     }
 
     // One weight row against one activation row in float: a dense decode row of float storage, Q8_0, IQ4 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
@@ -3121,7 +3155,7 @@ private:
     }
 
     std::vector<float> normed_, gates_;   // the gated delta rule's prologue: q and k normed per row, then beta and the decay per row
-    std::vector<float> expert_x_, expert_y_, expert_out_;
+    std::vector<float> expert_out_;
     std::vector<size_t> expert_rows_;   // each grouped entry's activation row
     std::vector<float*> expert_outs_;   // where each grouped entry's products go
     std::vector<size_t> prompt_rows_;   // a prompt matmul's columns

@@ -178,9 +178,11 @@ A compile without them stops at one `#error` at the top of the header.
   meets eight groups' scales in one vector multiply-add, so a (row, entry)
   pair accumulates in the same order whatever else is in the block. The
   activations are quantized once per call, split across the pool, and gate
-  and up share them. For MXFP4, whose prompt uses float products over the selected policy's inputs, or where a type has no quantized dots, including Q8_0, or with an F32 or BF16 request, a prompt's entries take one batched float
-  matmul per expert over its gathered rows (`matmul_raw`, the matmul on host
-  addresses, reaches an expert's matrix inside the stacked tensor).
+  and up share them. For MXFP4, whose prompt uses float products over the selected policy's inputs, or where a type has no quantized dots, including Q8_0, or with an F32 or BF16 request, a prompt's entries take float products
+  (`float_rows`, the row blocks `matmul_raw`'s float path walks): stretches of 32 rows of every expert with entries are handed to workers as they free up, in one dispatch, and each entry's activation row is read and its products written in place, so an entry has the bits of its expert's plain prompt product of it alone.
+  `dequantize_row` widens MXFP4 and Q5_1 rows eight values per instruction with the registry decoder's operations in its order, and every other type through the registry decoder.
+  Q5_1's `d * q` is exact (a half scale times a 5-bit code has at most 16 significant bits), so the widened values have the decoder's bits whether a compiler fuses the decoder's `d * q + m` into one rounding or not; backend-group checks that exactness over every finite half scale and code.
+  Unlike the packed prompt dots, the float path has no cutoff below which it stays on one worker: one entry still widens its expert's whole matrix, and at 2 prompt rows of Qwen3.8-Flash-Next shapes the Q5_1 down took 2.0 ms at 8 threads against 8.6 ms on one.
 - `moe_step`: a step whose rows are all generated tokens', with an F32 router and row gate and every other product on the decode dots under the default activations, runs in three pool dispatches instead of the base's six (`decode_step` decides, anything else takes `Backend::moe_step`).
   The first holds the router's rows, the shared expert's gate and up and its row gate; routing then runs on the caller.
   The second holds each routed entry's gate and up rows with its SiLU, and the shared expert's SiLU under its row gate; the routed and shared SiLU outputs are then quantized on the caller.

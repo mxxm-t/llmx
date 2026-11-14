@@ -221,6 +221,7 @@ Covering blocks: on a routed plan whose experts are three 256-value blocks wide,
 
 `backend-group` checks mixed types, uneven rows, batches, thread counts,
 output boundaries and fallback behavior against separate calls and double dots.
+Routed prompt entries of MXFP4 and Q5_1, which take float products, must equal their expert's prompt product of each entry alone bit for bit, and unit columns through the plain prompt product must give every weight as the registry decoder writes it, over every finite MXFP4 scale byte.
 It checks the CPU's busy times (`Backend::busy_ms`): copies held a positive time within the wall time around them, no answer for tickets out of order or not yet submitted, and a submission whose host slept 50 ms before its first op held under 10 ms.
 It also checks every finite f16 scale against signed Q8 weight extremes using
 one-hot inputs with exact expected products, and every column of the three-, two- and one-column prefill dots against one ordered scalar FMA oracle across dimension tails and unaligned inputs.

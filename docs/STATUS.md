@@ -1,5 +1,32 @@
 # llmx - Development Status
 
+## CPU prompt experts in float products (2026-11-14, MOEOFF5, branch moe/cpu-prompt-experts on main 845b270c1)
+
+**Goal:** a prompt's routed experts held on the CPU (`--n-cpu-moe`) run faster with every entry's bits unchanged, first where they take float products (MXFP4, Q5_1), then the K-quant packed prompt dots.
+
+**Done:**
+- `CpuBackend::expert_products`: entries without packed prompt dots no longer go through one `matmul_raw` per expert with their rows copied in and out; stretches of 32 rows of every expert with entries go to the pool in one dispatch through `float_rows`, the row blocks `matmul_raw`'s float path walks, reading each entry's activation row and writing its products in place.
+- `dequantize_row` widens MXFP4 and Q5_1 rows eight values per instruction with the registry decoder's operations in its order (MXFP4 a table shuffle times the half scale, Q5_1 d * q then + m), other types through the registry decoder; the dense float prompt path uses it too.
+- Q5_1's d * q is exact, a half scale times a 5-bit code having at most 16 significant bits, so the widened values are the decoder's bits whether a compiler fuses the decoder's d * q + m or not.
+  The rig's product build (Debian GCC 14.2.0, `-O3 -mavx2 -mfma -mf16c`, no fp-contract flag) fuses it, one `vfmadd132ss` in `quant::dequantize_row_q5_1` of main's binary; MSVC and the tests' `-ffp-contract=off` builds do not.
+  Every half scale, code and half minimum gives the same bits fused and unfused (2^37 cases, an AVX2 sweep on the rig), but for the payload of 4090 NaN results, and backend-group checks the exactness of d * q over every finite half scale and code.
+- backend-group `check_float_routed_prompts`: unit columns through the plain prompt product give every MXFP4 and Q5_1 weight as the registry decoder writes it, over every finite MXFP4 scale byte, and each routed float prompt entry equals its expert's product of it alone, under F32 and F16.
+
+**Measured** (`proto/moe_prompt_bench.cpp` on the rig, one layer's routed experts at 512 prompt rows, random weights at the model's shapes, `--threads 8`, EPYC 7262 shared at load 13 to 29, interleaved, checksum of every gate, up and down output equal to main's in every run):
+
+| Shape | main | branch |
+|---|---|---|
+| DeepSeek-V4.1-Flash MXFP4 (5120, 2304, 384 experts, 6 a row), load 13 | 2059 ms (gate+up 1442, down 599) | 644 ms (402, 217) |
+| same, load 25 | 7375 ms | 1683 ms |
+| Qwen3.8-Flash-Next UD-Q4_K_XL down Q5_1 (640 into 2560, 512 experts, 10 a row), load 22 to 29 | down 735, 1328 ms | down 176, 171 ms |
+
+**Identity against main** (CPU builds on the rig, Debian GCC 14.2.0, every invocation's stdout hashed): suite `--only mxfp4,moe --device cpu`, 371 invocations byte-identical, and 361 more under `--dtype bf16`; suite `--only q5-1 --device cpu`, dense tied and untied and MoE fixtures, 163 invocations (151 logits, 12 perplexity) byte-identical.
+A build whose Q5_1 widening scales the minimum by 1.0001 fails q5-1, so that component reaches the widened rows.
+
+**Left:** a model cell with `--n-cpu-moe` (prompt tok/s, main against branch, interleaved); then the Q6_K prompt down kernel and gate+up sharing activation loads.
+
+**Gotchas:** at these shapes the Q4_K packed prompt dots (gate and up of Qwen3.8) now take longer per product than the float path does for MXFP4; moving K-quant prompts to float products would change their numerics, which is a precision decision, not this branch's.
+
 ## CPU decode MoE step in three pool dispatches (2026-11-14, MOEOFF2 and MOEOFF3, branch moe/cpu-decode-step on main 845b270c1)
 
 **Goal:** experts kept on the CPU beside a device (`--n-cpu-moe`, `--cpu-moe`) cost less per generated token: the base `Backend::moe_step` waits on the CPU worker pool about six times a layer (router, routed gate, routed up, routed down, shared gate and up, shared down), each wait for the slowest worker, and on Qwen3.6-35B-A3B Q4_K_M the CPU experts are most of a CPU layer's decode time.

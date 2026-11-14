@@ -130,6 +130,44 @@ Then D1 (double-buffered prompt streaming) and D2 of the MoE offload design.
 
 **Gotchas:** the sum over groups, not the slowest group, is the cost, since a token crosses every stage and a max leaves every other group's order untuned.
 
+## Vulkan tensor-group sums, step 1: a shared timeline semaphore (2026-11-14, VDEV31 to VDEV38, branch vdev31/vk-timeline, rebased onto main 84e98d4fe)
+
+**Goal.** A Vulkan tensor group's sum waits on a timeline semaphore each member exports once per peer at join and imports for good, so a sum no longer makes the queue thread export and import a semaphore and its job fits inside the device period.
+This is step 1 only; the one-shot fan-out dispatch (step 2) is a separate branch on top and is not in this one.
+
+**Done.**
+- `vulkan_collective.hpp` and `vulkan_backend.cpp`: each member's timeline is exported once per peer at join and imported at join; a sum signals and waits on the timeline values instead of a per-sum sync file.
+- The collective ownership trace of `vulkan-lifetime` records every element of an arrayed binding and classes it by the bound kernel's write set; it saw only source 0 of `sum_rows` before, which made its witness scan fail at random from width 3.
+- Docs: `docs/TENSOR-SPLIT.md`, `docs/MULTI-DEVICE.md`, `docs/TESTS.md`, `docs/src/backends-vulkan.md` name the timeline semaphores.
+- Gate results on main 845b270c1 plus this step (binaries `--version` 0.1.0+ged722dcc, built from the step-1 head before the rebase; the rebase onto 84e98d4fe changed no file of the Vulkan path, only the docs hunks and the base):
+
+| Check | Result |
+|---|---|
+| `ctest -R "vulkan\|placement"`, one MI50 set, head ed722dcc | 21 of 21 pass |
+| After the rebase onto 84e98d4fe, build 0.1.0+g8c128981a023.dirty: `ctest -R "vulkan|placement"` on one MI50 set, hostwait contended | 21 of 21 pass on the second run; the first run failed `vulkan-lifetime`'s timing line "hold released by the next submission" (p99 1.3 ms) with 68 s of run-queue wait, and passed unchanged on the rerun |
+| After the rebase: suite `dead-code` and `docs` | both pass |
+| Byte identity head vs main, Qwen3.8-27B Q8_0 int8 1x4: batched, decode, greedy | identical, identical, identical |
+| Byte identity head vs main, Qwen3.8-Flash-Next UD-Q4_K_XL int8 2x2: batched, decode, greedy | identical, identical, identical |
+
+| Timing, int8, same MI50 sets, ABAB | main tok/s | head tok/s | hostwait main / head |
+|---|---|---|---|
+| Flash-Next 2x2 tg128, pair 1 | 50.42 | 49.92 | 111 s / 77 s |
+| Flash-Next 2x2 tg128, pair 2 | 22.24 | 49.74 | 399 s / 89 s |
+| Flash-Next 2x2 tg128, pair 3 | 26.02 | 28.49 | 908 s / 954 s |
+| Flash-Next 2x2 tg128, pair 4 | 27.50 | 27.87 | 805 s / 957 s |
+| 27B 1x4 tg64 | 16.36 | 19.84 | 27 s / 27 s |
+| 27B 1x4 tg64, earlier quieter 8 rounds | 28.44 | 40.07 | not recorded |
+
+Every timing cell was contended (hostwait above 100 ms by the run-queue monitor, 76 to 957 s of wait over a run) and every cell is kept, none replaced.
+Head is at or above main in 3 of 4 Flash-Next pairs and 1% below in pair 1, inside the spread of the cells; 27B 1x4 gains.
+No slowdown on a path main has; the gain is on the 27B tensor group.
+
+**Left.**
+- COORD reruns the Radeon VII check on the landing head: the 20 of 20 pass was on the older head 9bebe9ac.
+- Step 2 (the fan-out dispatch, the one-shot sum in one barrier command) follows on its own branch.
+
+**Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
+
 ## CUDA backend step 3: the F16 class, Q8_0, Q4_K, Q5_K and Q6_K rows and tiles on cuda:N (2026-11-13, CUDA11 and CUDA12, branch cuda/step3, stacked on step 2)
 
 **Goal.** Step 3 of docs/CUDA.md, Order of work: the block-int16 rows and tiles of Q8_0, Q4_K, Q5_K and Q6_K on `cuda:N`, held by the checks `backend-rocm` has for them.

@@ -744,7 +744,10 @@ public:
 
     // The collective splits flush into prepare, queue and queued so members can submit concurrently, signalling peer semaphores beside their timelines.
     // It adds no hold after a sum; the stage's own submission holds between stages.
-    void wait_on(VkSemaphore s) { waits_.push_back(s); }
+    void wait_on(VkSemaphore s, uint64_t value) {
+        waits_.push_back(s);
+        wait_values_.push_back(value);
+    }
 
     // The open command buffer ended and its submission filled, with the ticket it will carry.
     // From here to queued() the queue is lent: only Submission::queue may be called for this backend, from any one thread, and open() and prepare() refuse.
@@ -753,20 +756,22 @@ public:
         Ticket ticket = 0;
         bool dispatches = false;   // the command buffer holds a dispatch
         std::vector<VkSemaphore> signal, waits;
+        std::vector<uint64_t> wait_values;   // a value a wait
+        uint64_t peer_value = 0;             // what every signal after the device's own timeline takes
         std::atomic<uint32_t>* release = nullptr;   // on a submitter, the hold this submission lets go, released just before its call
         uint32_t release_seq = 0;
 
         // The queue's call alone; it touches nothing of the backend but the device's queue and a held queue's release word.
         VkResult queue(const Device& d) const {
             if (release) release->store(release_seq);
-            std::vector<uint64_t> values(signal.size(), 0), wait_values(waits.size(), 0);
+            std::vector<uint64_t> values(signal.size(), peer_value);
             values[0] = ticket;
             const std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
             VkTimelineSemaphoreSubmitInfo tsi{};
             tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
             tsi.signalSemaphoreValueCount = (uint32_t)values.size();
             tsi.pSignalSemaphoreValues = values.data();
-            tsi.waitSemaphoreValueCount = (uint32_t)wait_values.size();
+            tsi.waitSemaphoreValueCount = (uint32_t)waits.size();
             tsi.pWaitSemaphoreValues = wait_values.data();
             VkSubmitInfo si{};
             si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -782,8 +787,9 @@ public:
         }
     };
 
-    Submission prepare(const std::vector<VkSemaphore>& signals) {
+    Submission prepare(const std::vector<VkSemaphore>& signals, uint64_t peer_value = 0) {
         Submission s;
+        s.peer_value = peer_value;
         if (hold_.on) {
             // On a submitter the release travels with the submission, so the hold spins until the next work reaches the queue.
             if (submitter_ && hold_.pending) {
@@ -803,6 +809,7 @@ public:
         s.signal.push_back(timeline_);
         s.signal.insert(s.signal.end(), signals.begin(), signals.end());
         s.waits.swap(waits_);
+        s.wait_values.swap(wait_values_);
         open_ = false;
         s.ticket = tickets_.take();
         lent_.store(true, std::memory_order_relaxed);
@@ -951,6 +958,7 @@ public:
     // After a failed queue call: drops the waits left without a signal and, once earlier work has finished, moves the timeline past the tickets given up.
     void give_up() noexcept {
         waits_.clear();
+        wait_values_.clear();
         if (open_) {
             try { flush(); } catch (const std::exception& e) {
                 std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
@@ -2116,6 +2124,7 @@ private:
     std::vector<std::pair<Ticket, Ticket>> lost_;   // the runs of tickets whose calls were given up, which raise refuses to read
     TicketLedger tickets_;   // what a successful Vulkan wait confirmed is its retired ticket
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
+    std::vector<uint64_t> wait_values_;       // the value of each
     std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
     static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host, on the device's clock

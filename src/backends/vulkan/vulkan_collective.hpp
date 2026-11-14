@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 #if !defined(_WIN32)
-#include <fcntl.h>
+#include <unistd.h>
 #endif
 #include "backends/vulkan/vulkan_buffer.hpp"
 #include "backends/vulkan/vulkan_device.hpp"
@@ -78,7 +78,7 @@ inline void VulkanBackend::sum_rows(Slice residual, const CSlice* sources, size_
 inline size_t share_size(size_t n, size_t members, size_t align) { return ((n + members - 1) / members + align - 1) / align * align; }
 inline size_t share_begin(size_t k, size_t n, size_t members, size_t align) { return std::min(n, k * share_size(n, members, align)); }
 
-// A tensor group's ordered sum through per-peer dma-buf inboxes and sync files, alternating two parities (docs/TENSOR-SPLIT.md, section 4.3).
+// A tensor group's ordered sum through per-peer dma-buf inboxes and timeline semaphores, alternating two parities (docs/TENSOR-SPLIT.md, section 4.3).
 // Each inbox and gather buffer has one importer to avoid serializing unrelated peers.
 class VulkanCollective final : public Collective {
 public:
@@ -252,8 +252,8 @@ private:
                 }
     }
 
-    // Every member's submission ended and its ticket taken on the recording thread, its queue call, export and the peers' imports handed to the group's queue thread.
-    // The peers' next submissions name the imported semaphores now; the queue thread imports them before it makes any later call.
+    // Every member's submission ended and its ticket taken on the recording thread, its queue call handed to the group's queue thread.
+    // Each submission signals its member's timeline at this exchange's count and the peers' next submissions wait at that count, so the queue thread makes only queue calls.
     void exchange() {
         const size_t W = members_.size();
         std::vector<VulkanBackend::Submission> work(W);
@@ -263,95 +263,76 @@ private:
             taken_[0] = members_[0]->queued(work[0], work[0].queue(*members_[0]->device()));
             return;
         }
+        const uint64_t count = ++count_;
         for (size_t m = 0; m < W; ++m) {
             std::vector<VkSemaphore> signals;
             if (signal_[m]) signals.push_back(signal_[m]);
-            work[m] = members_[m]->prepare(signals);
+            work[m] = members_[m]->prepare(signals, count);
             taken_[m] = members_[m]->queued(work[m], VK_SUCCESS);
         }
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
-                if (t != m) members_[t]->wait_on(wait_[t][m]);
+                if (t != m) members_[t]->wait_on(wait_[t][m], count);
         submitter_->run({[this, work] { exchange_calls(work); },
                          [this, work] {
                              for (size_t m = 0; m < work.size(); ++m) members_[m]->made(work[m].ticket, false);
                          }});
     }
 
-    // On the queue thread: queue and export concurrently from three members on, then import each peer's fence.
-    // Member threads touch only their queue and semaphore exports; all are joined before return or throw.
+    // On the queue thread: the members' queue calls, concurrently from three members on, all joined before return or throw.
     void exchange_calls(const std::vector<VulkanBackend::Submission>& work) {
         const size_t W = members_.size();
-        struct Files {
-            std::vector<int> fd;
-            ~Files() {
-#if !defined(_WIN32)
-                for (int f : fd)
-                    if (f >= 0) close(f);
-#endif
-            }
-        } files{std::vector<int>(W * W, -1)};
         std::vector<VkResult> result(W, VK_NOT_READY);
         threads_->run(W, [&](size_t m) {
-            const Device& from = *members_[m]->device();
-            result[m] = work[m].queue(from);
-            if (result[m] != VK_SUCCESS) return;
-            members_[m]->made(work[m].ticket, true);
-            const size_t first = m ? 0 : 1;
-            VkSemaphoreGetFdInfoKHR gi{};
-            gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-            gi.semaphore = signal_[m];
-            gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-            int& fd = files.fd[m * W + first];
-            check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
-            // A sync file is an immutable fence; each peer takes its own descriptor, including -1 for a completed signal.
-            for (size_t t = 0; t < W; ++t) {
-                if (t == m || t == first || fd < 0) continue;
-#if !defined(_WIN32)
-                const int copy = fcntl(fd, F_DUPFD_CLOEXEC, 3);
-                if (copy < 0) throw std::runtime_error("vulkan: duplicating a sync file failed");
-                files.fd[m * W + t] = copy;
-#else
-                throw std::runtime_error("vulkan: sync files require POSIX descriptors");
-#endif
-            }
+            result[m] = work[m].queue(*members_[m]->device());
+            if (result[m] == VK_SUCCESS) members_[m]->made(work[m].ticket, true);
         });
         for (size_t m = 0; m < W; ++m) check(result[m], "vkQueueSubmit");
+    }
+
+    // A timeline a member signals once a submission, exported once as an opaque descriptor to each peer, which imports it for good as the semaphore its submissions wait on.
+    void make_semaphores() {
+        const size_t W = members_.size();
+        count_ = 0;
+        signal_.assign(W, VK_NULL_HANDLE);
+        wait_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
         for (size_t m = 0; m < W; ++m) {
+            if (W > 1) signal_[m] = semaphore(*members_[m]->device());
             for (size_t t = 0; t < W; ++t) {
                 if (t == m) continue;
+                wait_[t][m] = semaphore(*members_[t]->device());
+                const Device& from = *members_[m]->device();
+                VkSemaphoreGetFdInfoKHR gi{};
+                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                gi.semaphore = signal_[m];
+                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+                int fd = -1;
+                check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
                 const Device& to = *members_[t]->device();
                 VkImportSemaphoreFdInfoKHR ii{};
                 ii.sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR;
                 ii.semaphore = wait_[t][m];
-                ii.flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
-                ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-                ii.fd = files.fd[m * W + t];
-                check(to.import_semaphore_fd(to.device, &ii), "vkImportSemaphoreFdKHR");
-                files.fd[m * W + t] = -1;
+                ii.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+                ii.fd = fd;
+                const VkResult r = to.import_semaphore_fd(to.device, &ii);
+#if !defined(_WIN32)
+                if (r != VK_SUCCESS && fd >= 0) close(fd);
+#endif
+                check(r, "vkImportSemaphoreFdKHR");
             }
         }
     }
-
-    void make_semaphores() {
-        const size_t W = members_.size();
-        signal_.assign(W, VK_NULL_HANDLE);
-        wait_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
-        for (size_t m = 0; m < W; ++m) {
-            if (W > 1) signal_[m] = semaphore(*members_[m]->device(), true);
-            for (size_t t = 0; t < W; ++t) {
-                if (t == m) continue;
-                wait_[t][m] = semaphore(*members_[t]->device(), false);
-            }
-        }
-    }
-    static VkSemaphore semaphore(const Device& d, bool exported) {
+    static VkSemaphore semaphore(const Device& d) {
+        VkSemaphoreTypeCreateInfo ti{};
+        ti.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        ti.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
         VkExportSemaphoreCreateInfo ex{};
         ex.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
-        ex.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+        ex.pNext = &ti;
+        ex.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
         VkSemaphoreCreateInfo si{};
         si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        si.pNext = exported ? &ex : nullptr;
+        si.pNext = &ex;
         VkSemaphore s = VK_NULL_HANDLE;
         check(d.fn.vkCreateSemaphore(d.device, &si, nullptr, &s), "vkCreateSemaphore");
         return s;
@@ -381,6 +362,7 @@ private:
     std::vector<VulkanBackend*> members_;
     size_t rows_, width_;
     int parity_ = 0;
+    uint64_t count_ = 0;   // exchanges made since the semaphores were; every member's timeline reaches it once its submission of that exchange finishes
     std::vector<Ticket> taken_, last_, before_;   // per member, its submission of the last exchange, of the last sum and of the sum before it
     std::vector<VkBufferMemoryBarrier> acquires_;   // recording-thread scratch, sized once for every peer
     std::unique_ptr<core::JobThreads> threads_;   // a thread a member but the first, asleep between exchanges, from three members on (docs/STATUS.md, a group's members submit side by side)
@@ -390,8 +372,8 @@ private:
     size_t share_align_ = 1;   // the members' largest storage-buffer offset alignment, in floats
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> gather_[2];  // [parity][owner][sender]: the owner's gather rows for that sender's share, where a sum may take two shots
     std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
-    std::vector<VkSemaphore> signal_;                  // one binary signal per source, exported once for every peer
-    std::vector<std::vector<VkSemaphore>> wait_;        // [member][peer]: what member waits on from the peer
+    std::vector<VkSemaphore> signal_;                  // one timeline per source, imported by every peer
+    std::vector<std::vector<VkSemaphore>> wait_;        // [member][peer]: that peer's timeline as member imported it
     std::shared_ptr<VulkanSubmitter> submitter_;        // the group's queue thread, from two members on
 };
 

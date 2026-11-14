@@ -779,9 +779,9 @@ struct CollectiveCalls {
         std::vector<VkDescriptorBufferInfo> sources; uint32_t count = 0;   // a dispatch's bindings past the first, which a sum's kernel reads
     };
     struct Submitted { size_t member; std::vector<Event> events; std::vector<size_t> dependencies; };
-    struct Signal { size_t member; VkSemaphore semaphore; size_t submission; };
-    struct FenceFd { int fd; size_t submission; };
-    struct Imported { size_t member; VkSemaphore semaphore; std::vector<size_t> dependencies; };
+    struct Signal { size_t member; VkSemaphore semaphore; size_t submission; uint64_t value; };
+    struct FenceFd { int fd; VkSemaphore source; };
+    struct Imported { size_t member; VkSemaphore semaphore; VkSemaphore source; };   // a wait semaphore and the peer's timeline it was imported from
     struct Queued { size_t member; std::thread::id thread; uint64_t ticket; };
     std::vector<Queued> queued;   // every member's submission on its timeline, in the order the calls were made
     bool trace = false;
@@ -937,7 +937,10 @@ struct CollectiveCalls {
         std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         c.sources.clear();
-        for (uint32_t i = 0; i < n; ++i) if (writes[i].dstBinding >= 1 && writes[i].pBufferInfo) c.sources.push_back(*writes[i].pBufferInfo);
+        // Every element of an arrayed binding, such as sum_rows' sixteen sources, is a buffer the dispatch reads.
+        for (uint32_t i = 0; i < n; ++i)
+            if (writes[i].dstBinding >= 1 && writes[i].pBufferInfo)
+                c.sources.insert(c.sources.end(), writes[i].pBufferInfo, writes[i].pBufferInfo + writes[i].descriptorCount);
         q.original[c.member].vkCmdPushDescriptorSetKHR(cmd, point, layout, set, n, writes);
     }
     static VKAPI_ATTR void VKAPI_CALL constants(VkCommandBuffer cmd, VkPipelineLayout layout, VkShaderStageFlags stages,
@@ -997,7 +1000,12 @@ struct CollectiveCalls {
                 for (uint32_t k = 0; k < info[j].waitSemaphoreCount; ++k)
                     for (size_t w = q.imported.size(); w-- > 0;) if (q.imported[w].member == i && q.imported[w].semaphore == info[j].pWaitSemaphores[k]) {
                         if (!(info[j].pWaitDstStageMask[k] & VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)) q.bad_wait_stage = true;
-                        s.dependencies.insert(s.dependencies.end(), q.imported[w].dependencies.begin(), q.imported[w].dependencies.end());
+                        const auto* t = static_cast<const VkTimelineSemaphoreSubmitInfo*>(info[j].pNext);
+                        const uint64_t value = t && k < t->waitSemaphoreValueCount ? t->pWaitSemaphoreValues[k] : 0;
+                        bool found = false;
+                        for (const auto& g : q.signals)
+                            if (g.semaphore == q.imported[w].source && g.value == value) { s.dependencies.push_back(g.submission); found = true; }
+                        if (!found) q.bad_wait_stage = true;   // a wait on a value no earlier submission signalled
                         break;
                     }
                 for (uint32_t k = 0; k < info[j].commandBufferCount; ++k) {
@@ -1006,7 +1014,9 @@ struct CollectiveCalls {
                 }
                 const size_t id = q.submitted.size();
                 q.submitted.push_back(std::move(s));
-                for (uint32_t k = 0; k < info[j].signalSemaphoreCount; ++k) q.signals.push_back({i, info[j].pSignalSemaphores[k], id});
+                const auto* t = static_cast<const VkTimelineSemaphoreSubmitInfo*>(info[j].pNext);
+                for (uint32_t k = 0; k < info[j].signalSemaphoreCount; ++k)
+                    q.signals.push_back({i, info[j].pSignalSemaphores[k], id, t && k < t->signalSemaphoreValueCount ? t->pSignalSemaphoreValues[k] : 0});
             }
         }
         return r;
@@ -1017,10 +1027,7 @@ struct CollectiveCalls {
         const VkResult r = q.get_fd[q.index(d)](d, info, fd);
         if (q.trace && r == VK_SUCCESS) {
             std::lock_guard<std::mutex> lock(q.trace_mutex);
-            for (size_t i = q.signals.size(); i-- > 0;) if (q.signals[i].member == q.index(d) && q.signals[i].semaphore == info->semaphore) {
-                q.fences.push_back({*fd, q.signals[i].submission});
-                break;
-            }
+            q.fences.push_back({*fd, info->semaphore});
         }
         return r;
     }
@@ -1029,18 +1036,11 @@ struct CollectiveCalls {
         if (++q.imports == q.fail_import) return VK_ERROR_INVALID_EXTERNAL_HANDLE;
         const VkResult r = q.import_fd[q.index(d)](d, info);
         if (q.trace && r == VK_SUCCESS) {
-            Imported w{q.index(d), info->semaphore, {}};
-            // -1 denotes already-completed work, so every captured -1 source
-            // really has completed before this import; positive fds are unique
-            // until import consumes them, and may then be reused by the OS.
-            if (info->fd == -1) {
-                for (const auto& f : q.fences) if (f.fd == -1) w.dependencies.push_back(f.submission);
-            } else {
-                for (size_t i = q.fences.size(); i-- > 0;) if (q.fences[i].fd == info->fd) {
-                    w.dependencies.push_back(q.fences[i].submission); break;
-                }
+            // Descriptors are unique until an import consumes them.
+            for (size_t i = q.fences.size(); i-- > 0;) if (q.fences[i].fd == info->fd) {
+                q.imported.push_back({q.index(d), info->semaphore, q.fences[i].source});
+                break;
             }
-            q.imported.push_back(std::move(w));
         }
         return r;
     }
@@ -1608,14 +1608,13 @@ int collective_checks() {
                 std::cout << "collective_mixed_shots_ownership members=" << W << " rows=80,1,1,80,1,1,80 unchanged_tails=" << same << (ok ? " PASS\n" : " FAIL\n");
                 if (!ok) ++failures;
             }
-            for (int kind = 0; kind < 3; ++kind) {
+            {
+                const int kind = 2;
                 const size_t files = open_files();
                 CollectiveCalls q(group_vk);
                 auto sum = first->join(group, large_rows, large_width);
                 const int live = q.live;
-                if (kind == 0) q.fail_get = W * (W - 1) + 1;
-                if (kind == 1) q.fail_import = W * (W - 1) + 1;
-                if (kind == 2) q.fail_submit_call = W + 1;
+                q.fail_submit_call = W + 1;
                 std::vector<backend::BufferPtr> x;
                 std::vector<backend::Slice> xs;
                 for (auto* b : group) {
@@ -1638,14 +1637,28 @@ int collective_checks() {
                 if (!ok) ++failures;
             }
         }
-        for (int kind = 1; kind <= 7; ++kind) {
+        // A join whose export or import of a peer's timeline fails refuses and leaves no semaphore or descriptor behind.
+        for (int kind = 1; kind <= 4; ++kind) {
+            const size_t files = open_files();
+            bool threw = false, left = true;
+            {
+                CollectiveCalls q(group_vk);
+                if (kind <= 2) q.fail_get = kind; else q.fail_import = kind - 2;
+                try { first->join(group, rows, width); } catch (const std::exception&) { threw = true; }
+                left = q.live != 0 || q.premature;
+            }
+            const bool ok = threw && !left && open_files() == files;
+            std::cout << "collective_join_case=" << kind << " members=" << W << " threw=" << threw << " left=" << left << (ok ? " PASS\n" : " FAIL\n");
+            if (!ok) ++failures;
+        }
+        for (int kind = 5; kind <= 7; ++kind) {
             bool threw = false, drained = false, summed = false;
             const size_t files = open_files();
             {
                 CollectiveCalls q(group_vk);
                 auto sum = first->join(group, rows, width);
                 const int live = q.live;
-                if (kind <= 2) q.fail_get = kind; else if (kind <= 4) q.fail_import = kind - 2; else q.fail_submit = kind == 5 ? 1 : W;
+                q.fail_submit = kind == 5 ? 1 : W;
                 std::vector<backend::BufferPtr> x;
                 std::vector<backend::Slice> xs;
                 for (size_t m = 0; m < group.size(); ++m) {

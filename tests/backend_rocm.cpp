@@ -3585,7 +3585,10 @@ void qwen35(Backend& g) {
 // DeepSeek-V4.1's ops against the CPU (deepseek4_checks.hpp), those whose kernels form each value in the CPU's order held to its bits.
 void deepseek4(Backend& g) {
     q35::Pair p(g);
+    rocm_take_launches(g);
     const size_t values = ds4::check_ops(p, {"hc_collapse_norm", "hc_expand", "indexer_scores", "rope_forms", "mix_rows"});
+    // The FP4 keys 128 wide reach the integer index tile wherever the 8-bit dot is built.
+    if (rocm_device(0).caps.integer_dot) require(rocm_take_launches(g).count("llmx_indexer_scores_int") == 1, "deepseek4's index checks take llmx_indexer_scores_int");
     std::cout << "backend-rocm: deepseek4 ops: " << values << " values against the CPU, the formats, selections, routing picks, collapse, expansion, index scores, rope forms and taps bit for bit\n";
 }
 
@@ -3773,36 +3776,27 @@ void sixteen_ranks() {
     std::cout << "backend-rocm: " << W << " ranks of the fast sum on one device in each form, into and in place, each the oracle's bits\n";
 }
 
-// The grouped sparse softmax's head width: it runs while its four heads' queries fit the shared memory its own arrays leave, read here from the kernel itself, and the one-head build past that.
-// At the widest head that fits and one block wider, a 16-row call takes its build and gives every row the bits of the same row called alone, which the one-head build runs.
-void sparse_head_budget(Backend& g) {
-    HipFn& f = hip();
-    hipModule_t module = nullptr;
-    hipFunction_t softmax = nullptr;
-    hip_check(f.hipModuleLoadData(&module, kF32Module), "hipModuleLoadData");
-    hip_check(f.hipModuleGetFunction(&softmax, module, "llmx_sparse_softmax_g"), "hipModuleGetFunction");
-    int fixed = 0;
-    hip_check(f.hipFuncGetAttribute(&fixed, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, softmax), "hipFuncGetAttribute");
-    hip_check(f.hipModuleUnload(module), "hipModuleUnload");
-    const size_t widest = (rocm_device(0).caps.shared_bytes - size_t(fixed)) / 4 / 4 / 32 * 32, heads = 2, rows = 16, k = 24, kv_rows = 64;
-    std::cout << "backend-rocm: the four-head sparse softmax holds heads up to " << widest << " values wide beside its " << fixed << " bytes of shared memory\n";
-    const auto fmt = ModelFormat::fp8_power;
-    for (const size_t dim : {widest, widest + 32}) {
+// The sparse tile pair: a 16-row call takes it at any head width, staged 32 values at a time, and gives every row the bits of the same row called alone, which the one-head pair runs.
+// The widths cover one step, a part step past a tile of 128 columns, and 70 heads, past one tile of 64 heads, with 150 kept rows past one tile of 128.
+void sparse_tile_pair(Backend& g) {
+    const size_t rows = 16, kv_rows = 160;
+    // The f32 rows 44 wide end in a partial 32-value step and a read of 4 values past the last whole 8.
+    for (const auto& [dim, heads, k, fmt] : {std::tuple<size_t, size_t, size_t, ModelFormat>{32, 2, 24, ModelFormat::fp8_power}, {160, 3, 150, ModelFormat::fp8_power},
+                                            {64, 70, 40, ModelFormat::fp8_power}, {44, 3, 50, ModelFormat::f32}}) {
         const size_t words = format_words(fmt, dim);
         const std::vector<float> x = row_classes::values(kv_rows * dim, 71, 2.0f), q = row_classes::values(rows * heads * dim, 72), sink = row_classes::values(heads, 73);
         std::vector<uint32_t> ids(rows * k);
         for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t((i * 37 + i / k) % kv_rows);
         auto xb = g.adopt(x.data(), x.size() * 4), qb = g.adopt(q.data(), q.size() * 4), sb = g.adopt(sink.data(), sink.size() * 4), ib = g.adopt(ids.data(), ids.size() * 4);
         auto kv = g.alloc(kv_rows * words * 4), all = g.alloc(rows * heads * dim * 4), one = g.alloc(rows * heads * dim * 4);
-        g.model_format_pack({kv.get(), 0}, words, {xb.get(), 0}, kv_rows, dim, fmt);
+        if (fmt != ModelFormat::f32) g.model_format_pack({kv.get(), 0}, words, {xb.get(), 0}, kv_rows, dim, fmt);
+        const auto* kvb = fmt == ModelFormat::f32 ? xb.get() : kv.get();
         const float scale = 1.0f / std::sqrt(float(dim));
         rocm_take_launches(g);
-        g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kv.get(), 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
-        const bool fits = dim == widest, grouped = rocm_take_launches(g).count("llmx_sparse_softmax_g") == 1;
-        require(grouped == fits, std::to_string(rows) + " rows of heads " + std::to_string(dim) + " wide take the " + (fits ? "grouped" : "one-head") + " sparse softmax, the widest that fits " +
-                                     std::to_string(widest));
+        g.sparse_attention_sink({all.get(), 0}, {qb.get(), 0}, {kvb, 0}, {ib.get(), 0}, {sb.get(), 0}, rows, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {}, 0, fmt, fmt);
+        require(rocm_take_launches(g).count("llmx_sparse_scores_tile") == 1, std::to_string(rows) + " rows of heads " + std::to_string(dim) + " wide take the sparse tile pair");
         for (size_t r = 0; r < rows; ++r)
-            g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kv.get(), 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {},
+            g.sparse_attention_sink({one.get(), r * heads * dim}, {qb.get(), r * heads * dim}, {kvb, 0}, {ib.get(), r * k}, {sb.get(), 0}, 1, heads, dim, kv_rows, k, scale, 0, nullptr, 0, {},
                                     0, fmt, fmt);
         require(same(read(g, *all, rows * heads * dim), read(g, *one, rows * heads * dim)), "every row of a 16-row sparse attention call of heads " + std::to_string(dim) +
                                                                                              " wide is the row called alone, bit for bit");
@@ -3865,7 +3859,7 @@ int main(int argc, char** argv) {
         // `deepseek4` runs only DeepSeek-V4.1's ops against the CPU.
         if (argc > 1 && std::string(argv[1]) == "deepseek4") {
             deepseek4(*g);
-            sparse_head_budget(*g);
+            sparse_tile_pair(*g);
             std::cout << (failures ? "backend-rocm deepseek4: FAIL\n" : "backend-rocm deepseek4: PASS\n");
             return failures ? 1 : 0;
         }
@@ -3969,7 +3963,7 @@ int main(int argc, char** argv) {
         busy_times();
         qwen35(*g);
         deepseek4(*g);
-        sparse_head_budget(*g);
+        sparse_tile_pair(*g);
         routing(*g, *c);
         experts(*g, *c);
         experts_add(*g);

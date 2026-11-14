@@ -117,6 +117,42 @@ A CUDA device run of `half8_16_r4` when a card is at hand.
 - The threshold is the existing `row_four_waves_per_cu` rule, so kv and q_a, where four rows are slower, stay on two rows through it and not through a shape list.
 - Single-column decode (s1) never reaches this build; a s1 difference between arms is noise.
 
+## DeepSeek-V4.1 prompt sparse attention as a tile pair and an integer index tile (2026-11-14, DSDEV194, DSDEV195 then LAND59, branch dsdev194/ds4-attn rebased on main c0d13585c; lands by fast-forward)
+
+- **Goal:** the prompt's sparse attention and masked index scores, which bound DeepSeek-V4.1-Flash's 16k prompt on ten MI50s, run faster with every output the bits main gives, toward the owner's 2000 tok/s prefill gate at pp16384.
+- **Done:** on ROCm and CUDA (the shared GPU module), from `kSparseWideRows` rows a chunk's sparse attention runs `llmx_sparse_scores_tile` and `llmx_sparse_values_tile`, a block 64 heads by 128 kept rows, a thread 4 by 8, staged 32 values deep, in place of `llmx_sparse_softmax_g` and `llmx_sparse_columns64`, which go; each dot and each column keeps main's chain in d and kept-row order, and each tile's maxima go where the denominators went.
+  `llmx_indexer_scores_int` takes FP4 power keys 128 wide where the 8-bit dot is built (`GPU_DOT4` in kernels/port.h, `caps.integer_dot`): the query the model rounds to FP4 power values meets the codes in exact integer dots, so a score has main's bits wherever main's float sums are exact and is closer to exact elsewhere.
+  The integer index tile runs only on ROCm gfx906 today, the one target the dot module is built for; CUDA has no dot module (`int16_dot_module` is null in `cuda_backend.cpp`), so `caps.integer_dot` is never true there and CUDA keeps the float index tiles.
+  `backend-rocm`'s `sparse_tile_pair` replaces `sparse_head_budget`, with f32 rows 44 wide among its shapes so the partial 32-value step and a partial read of 8 values run, and `ds4::check_index_tile` adds FP4 keys 128 wide against a rounded query; `function_shared_bytes`, which the grouped softmax alone read, leaves the three GPU APIs.
+- **Measured, one MI50** (microbenchmark at DeepSeek-V4.1-Flash's shapes, 64 heads of 512 over a 128 window and 512 FP4 entries at depth 16384, index 32 heads of 128 over 4096 positions, /opt/claude-work/dsdev194/mb6.out): attention 198 rows 5754 to 3938 us (1.46x), 64 rows 2157 to 1479 us; index 198 rows 5828 to 617 us (9.45x), 64 rows 1721 to 309 us (5.57x); every output main's bits (0 of 6.5M and 0.8M differ).
+- **Identity** (DeepSeek-V4.1-Flash-1017 MXFP4 over ten MI50s, ROCm `--dtype int8 --lookup-storage file`, main 08e8a0ffb `eea99abb` against the branch at 8cbce9f2d `68648956`, /opt/claude-work/dsdev194/out on the rig): the layer split and 5x2 give main's bytes in all four comparisons, the 48 greedy tokens of a 2649-token prompt and the top-8 logits at the last 512 positions of a 15032-token prompt, compared over the token and logit lines with the version, timing and hostwait lines left out.
+  `backend-rocm deepseek4` requires `llmx_indexer_scores_int` to run where the 8-bit dot is built and passes on one MI50, so the index check reaches the integer tile; CTest `backend-rocm`, `backend-rocm-sixteen`, `backend-rocm-scratch`, `arch-deepseek4`, `deepseek4-ops` and `sparse-attention`, the suite's `deepseek4` on rocm:0, `dead-code` and `docs` pass, and the CUDA build compiles the module.
+- **Measured, ten MI50s** (same model and flags, default clocks, `bench --p 16384 --n 16 --r 1 --ubatch 256`, ABAB over 2 rounds, tok/s, the mean with the cells in brackets; hostwait flags no cell contended, 0 to 15 ms of run-queue wait):
+
+| ROCm int8 cell | main | branch | change |
+|---|---:|---:|---:|
+| layer split pp16384 | 1572.2 (1563.9, 1580.5) | 1850.9 (1861.4, 1840.4) | +17.7% |
+| layer split tg16 after it | 23.97 (24.02, 23.92) | 23.99 (23.81, 24.17) | +0.1% |
+| 5x2 pp16384 | 1255.7 (1297.7, 1213.6) | 1550.0 (1582.9, 1517.1) | +23.4% |
+| 5x2 tg16 after it | 32.04 (31.84, 32.23) | 32.03 (32.06, 32.00) | 0.0% |
+- **Landing gates** (F2DEV approved; head rebased on main c0d13585c, `llmx 0.1.0+gd6585d9eeb4b` sha256 111a974f9ff11504 against main's `0.1.0+gc0d13585ce24` d7e915993e5fe642, both arms built by the rig's build-branch.sh from committed trees; /opt/claude-work/land59/out on the rig):
+  identity over ten MI50s, ROCm int8, DeepSeek-V4.1-Flash-1017 MXFP4: the 48 greedy tokens of the 2649-token prompt and the top-8 logits at the last 512 positions of the 15032-token prompt are main's on the layer split and on 5x2, 4 of 4 SAME, compared over the token and logit lines with the version, device, dtype, timing and hostwait lines and the interleaved stderr path report left out.
+  No source the CPU build compiles changed, and the suite's `deepseek4` on the CPU passes.
+  CTest on one MI50 87 of 87, the suite on rocm:0 30 PASS, 16 SKIP and `dead-code` and `docs` failing only because that container could not read the worktree's git directory, both passing when rerun with it; the Vulkan, CPU and CUDA (llmx-cuda-vk-dev:12.9.1) builds compile all targets.
+  Radeon VII on Windows (Release with Vulkan, fresh build dir, MSVC 19.50): CTest 104 of 104 and the suite on vulkan:0 48 PASS.
+- **Timing at the head** (same cells and flags as above, ABAB, one round each, tok/s, the mean with the cells in brackets; hostwait flags no cell contended, 1 to 20 ms of run-queue wait):
+
+| ROCm int8 cell | main c0d13585c | head | change |
+|---|---:|---:|---:|
+| layer split pp16384 | 1598.7 (1592.9, 1604.4) | 1890.3 (1908.3, 1872.3) | +18.2% |
+| layer split tg16 after it | 25.82 (25.94, 25.69) | 25.73 (25.51, 25.94) | -0.3% |
+| 5x2 pp16384 | 1335.7 (1343.0, 1328.3) | 1571.1 (1592.0, 1550.3) | +17.6% |
+| 5x2 tg16 after it | 33.14 (34.51, 31.78) | 31.76 (34.22, 29.30) | -4.2% |
+
+  The 5x2 tg16 cell is 16 tokens after the prompt and spreads 8.6% within main's own two runs; a decode step's one row a view takes neither the tile pair (from 8 rows) nor the index tiles, and DSDEV195's round above read 32.04 against 32.03.
+- **Left:** the hosted run; the values kernel spills 9 registers at 128 VGPRs, a further tuning lever.
+- **Gotchas:** the integer index tile is exact only for FP4 power queries, so it is taken only where the model rounds the query (`model_format_qdq`); other key formats and dims keep the float tiles.
+
 ## Experts on the CPU beside a layer split (2026-11-14, MOEOFF7, branch moe/cpu-experts-multi on main 845b270c1; MOEOFF7's proposal of 03:20)
 
 - **Goal:** `--n-cpu-moe` and `--cpu-moe` over a `--device` list, so a model too large for one card (Qwen3.8-Flash-Next, DeepSeek-V4.1-Flash) can keep experts in host memory.

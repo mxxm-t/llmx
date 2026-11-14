@@ -71,7 +71,6 @@ struct HipApi {
     static Error module_load(Module* m, const void* image) { return hip().hipModuleLoadData(m, image); }
     static Error module_unload(Module m) { return hip().hipModuleUnload(m); }
     static Error module_function(Function* f, Module m, const char* name) { return hip().hipModuleGetFunction(f, m, name); }
-    static Error function_shared_bytes(int* v, Function f) { return hip().hipFuncGetAttribute(v, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, f); }
     static Error function_local_bytes(int* v, Function f) { return hip().hipFuncGetAttribute(v, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, f); }
     static Error occupancy(int* blocks, Function f, unsigned threads, size_t shared) { return hip().hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(blocks, f, (int)threads, shared); }
     // A launch of `threads` lanes a block whose arguments are `size` bytes at `args`, laid out as the kernel's argument segment.

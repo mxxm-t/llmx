@@ -35,7 +35,8 @@ namespace {
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.gpu)
 constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
 constexpr size_t kIndexTileRows = 16, kIndexTilePositions = 32, kIndexTileThreads = 128, kIndexTileFixed = 16 * 32 * 4;   // llmx_indexer_scores_tile's tile and its static shared bytes (kernels/f32.gpu)
-constexpr size_t kSparseColumnsNarrow = 8, kSparseColumnsWide = 64, kSparseWideRows = 8, kSparseSoftmaxHeads = 4;  // columns of the narrow and wide column blocks (kernels/f32.gpu, kSparseColumns and COLS of llmx_sparse_columns64), the rows from which the wide one runs, heads a grouped softmax block (kSparseHeads)
+constexpr size_t kIndexIntRows = 32, kIndexIntPositions = 128, kIndexIntDim = 128;   // llmx_indexer_scores_int's tile and the one dim it reads (kernels/f32.gpu)
+constexpr size_t kSparseColumnsNarrow = 8, kSparseWideRows = 8, kSparseTileWide = 128;   // columns of the narrow column block (kSparseColumns), the rows from which the tile pair runs, and its tile width (kSparseTileWide)
 constexpr size_t kEvents = 1024;           // tickets in flight before a submission waits for the oldest
 constexpr size_t kRingSlots = 4;           // a host ring's slots, each reused once the submission that last read it retires
 constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
@@ -287,11 +288,10 @@ public:
             const typename Api::Module m = k < kRows16x1 ? module_ : !plain && dot_module_ ? dot_module_ : int16_module_;
             // The fused moe_step's products are in the dot module alone; without it every step runs the base's ops.
             if (k >= kMoeStepUpQ4K && !dot_module_) continue;
+            // The integer index tile is built for the targets with the 8-bit dot alone (GPU_DOT4 in kernels/port.h), which the dot module marks.
+            if (k == kIndexerScoresInt && !dev_.caps.integer_dot) continue;
             Api::check(Api::module_function(&kernels_[k], m, kKernelNames[k]), "module_function");
         }
-        int fixed = 0;
-        Api::check(Api::function_shared_bytes(&fixed, kernels_[kSparseSoftmaxG]), "function_shared_bytes");
-        sparse_q_floats_ = dev_.caps.shared_bytes > (uint32_t)fixed ? (dev_.caps.shared_bytes - (uint32_t)fixed) / 4 : 0;
         for (size_t s = 0; s < kRingSlots; ++s) {
             args_.slots[s] = std::make_shared<GpuBuffer<Api>>(kArgBytes, true, graves_);
             stage_.slots[s] = std::make_shared<GpuBuffer<Api>>(kStageBytes, true, graves_);
@@ -1289,12 +1289,17 @@ public:
         for (size_t first = 0; first < rows; first += chunk) {
             const size_t n = std::min(chunk, rows - first);
             const unsigned fr = u32(first);
-            // From kSparseWideRows rows whose kSparseSoftmaxHeads queries fit in shared memory the wide pair runs, below them main's one-head pair.
-            const bool wide = n >= kSparseWideRows && kSparseSoftmaxHeads * dim <= sparse_q_floats_;
-            launch(wide ? kSparseSoftmaxG : kSparseSoftmax, u32(size_mul(n, wide ? (heads + kSparseSoftmaxHeads - 1) / kSparseSoftmaxHeads : heads)), 1, Args(pt, den, kept, counts, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr), 1, kThreads, wide ? u32(kSparseSoftmaxHeads * dim * 4) : 0u);
-            const size_t cols = wide ? kSparseColumnsWide : kSparseColumnsNarrow;
-            launch(wide ? kSparseColumns64 : kSparseColumns, u32((dim + cols - 1) / cols), u32(n), Args(o, (const float*)pt, (const float*)den, (const float* const*)kept,
-                                                                                                          (const unsigned*)counts, h, d, nm, kf, ef, fr));
+            // From kSparseWideRows rows the tile pair runs, its scores kernel writing each kept-row tile's maxima where the denominators go; below them the one-head pair.
+            if (n >= kSparseWideRows) {
+                launch(kSparseScoresTile, u32((named + kSparseTileWide - 1) / kSparseTileWide), u32(n),
+                       Args(pt, den, kept, counts, qp, kp, ip, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr));
+                launch(kSparseValuesTile, u32((dim + kSparseTileWide - 1) / kSparseTileWide), u32(n),
+                       Args(o, (const float*)pt, (const float*)den, (const float* const*)kept, (const unsigned*)counts, sk, h, d, nm, kf, ef, fr));
+                continue;
+            }
+            launch(kSparseSoftmax, u32(size_mul(n, heads)), 1, Args(pt, den, kept, counts, qp, kp, ip, sk, aux, tab, ep, h, d, kk, ek, scale, kr, tokens, bt, bf, rf, width, kf, ef, kws, fr));
+            launch(kSparseColumns, u32((dim + kSparseColumnsNarrow - 1) / kSparseColumnsNarrow), u32(n),
+                   Args(o, (const float*)pt, (const float*)den, (const float* const*)kept, (const unsigned*)counts, h, d, nm, kf, ef, fr));
         }
     }
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, ModelFormat key_format,
@@ -1327,6 +1332,9 @@ public:
         if (dim % 4 == 0 && rows >= size_mul(n_views, kIndexTileRows / 4) && tile_bytes <= dev_.caps.shared_bytes / 2 &&
             tile_fills_twice(dev_.caps, tile_bytes, kIndexTileRows, kIndexTilePositions, rows, n)) {
             const Args args(o, qp, aux, tab, wp, bp, nn, u32(rows), h, d, w_scale, tokens, bt, bf, rf, width, bk, bs, kf, kws);
+            // FP4 power keys of the one dim the integer tile reads take it: the model rounds the query to FP4 power values first (deepseek4's model_format_qdq).
+            if (key_format == ModelFormat::fp4_power && dim == kIndexIntDim && kernels_[kIndexerScoresInt])
+                return launch(kIndexerScoresInt, u32((n + kIndexIntPositions - 1) / kIndexIntPositions), u32((rows + kIndexIntRows - 1) / kIndexIntRows), args);
             return launch(kIndexerScoresTile, u32((n + kIndexTilePositions - 1) / kIndexTilePositions), u32((rows + kIndexTileRows - 1) / kIndexTileRows), args, 1, kIndexTileThreads,
                           u32(tile_shared));
         }
@@ -1897,7 +1905,7 @@ private:
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ51, kRowsExactBF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
-                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kPoolWrite, kSparseSoftmax, kSparseSoftmaxG, kSparseColumns, kSparseColumns64, kRouteSqrtSoftplus,
+                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus,
                   kNormRopeForm, kDeltaStep, kMixRows,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x2r4, kRows8x4, kRows8x4r4, kRows8x8, kRows8x8r4, kRows8x16, kTile8, kTileReduce,
@@ -1919,7 +1927,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_softmax_g", "llmx_sparse_columns", "llmx_sparse_columns64", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
                                                            "llmx_q8_0_rows8_2", "llmx_q8_0_rows8_2_r4", "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_4_r4", "llmx_q8_0_rows8_8",
@@ -2248,9 +2256,11 @@ private:
         size_t chunk, den_at, kept_at, counts_at, need;
     };
     static SinkLayout sink_layout(size_t rows, size_t named, size_t heads) {
-        const size_t row_bytes = size_add(size_mul(size_add(size_mul(named, heads), heads), 4), size_mul(size_add(named, 1), 8));
+        // A row's denominators, or the tile pair's maxima of each tile of kSparseTileWide kept rows.
+        const size_t dens = size_mul(heads, std::max<size_t>(1, (named + kSparseTileWide - 1) / kSparseTileWide));
+        const size_t row_bytes = size_add(size_mul(size_add(size_mul(named, heads), dens), 4), size_mul(size_add(named, 1), 8));
         const size_t chunk = std::min(rows, std::max<size_t>(1, ((size_t)32 << 20) / row_bytes));
-        const size_t pt_bytes = size_mul(size_mul(chunk, named), heads * 4), den_bytes = size_mul(chunk, heads * 4), kept_bytes = size_mul(size_mul(chunk, named), 8);
+        const size_t pt_bytes = size_mul(size_mul(chunk, named), heads * 4), den_bytes = size_mul(chunk, dens * 4), kept_bytes = size_mul(size_mul(chunk, named), 8);
         const size_t den_at = pt_bytes, kept_at = (den_at + den_bytes + 7) / 8 * 8, counts_at = kept_at + kept_bytes;
         return {chunk, den_at, kept_at, counts_at, counts_at + size_mul(chunk, 8)};
     }
@@ -3298,7 +3308,6 @@ private:
     std::vector<Held> ops_;   // the stream operations held since the last flush
     std::vector<uint8_t> op_bytes_;   // their kernels' arguments
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
-    size_t sparse_q_floats_ = 0;   // the query floats llmx_sparse_softmax_g stages in the shared memory its own arrays leave, its kSparseSoftmaxHeads heads' at most
     std::string route_only_;   // rocm_route_only's filter of the routed tile builds, empty for all of them
     std::mutex failed_mu_;
     std::string failed_;

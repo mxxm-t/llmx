@@ -582,9 +582,9 @@ size_t check_sparse_shapes(Pair& p, const Exact& exact) {
 }
 
 // indexer_scores at a size the tile kernels take (tile_fills_twice) on a device of up to about 180 compute units: 640 rows over 2048 groups of 32-value keys, as F32 and packed in FP4 as the model's are.
-// Sequence A holds 8192 positions on its blocks in reverse order, its last 628 positions the first view's rows, and the second view's 12 rows on sequence B start inside a tile.
-size_t check_index_tile(Pair& p, const Exact& exact) {
-    const size_t ratio = 4, entry = 24, key = 32, width = entry + key, na = 8192, nb = 16, n = na / ratio, bs = 64, bk = 3, ma = 628, mb = 12, m = ma + mb;
+// Sequence A holds 8192 positions on reversed blocks, its last 628 the first view's rows, the second view's 12 rows on B start inside a tile, and key 128 takes the integer tile (docs/TESTS.md).
+size_t check_index_tile(Pair& p, const Exact& exact, size_t key) {
+    const size_t ratio = 4, entry = 24, width = entry + key, na = 8192, nb = 16, n = na / ratio, bs = 64, bk = 3, ma = 628, mb = 12, m = ma + mb;
     auto cs = p.cpu.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
     auto vs = p.dev.kv_alloc(1, 0, 0, na + 512, backend::KVType::f32, backend::KVType::f32, {0}, {{ratio, width}});
     std::vector<int32_t> tables[2][2];
@@ -635,15 +635,24 @@ size_t check_index_tile(Pair& p, const Exact& exact) {
         if (i % 3) cand[i] = uint32_t(i * 7 % (n / bs));
     size_t values = 0;
     for (size_t heads : {4, 32}) {
-        Pair::In qi = held(p, uniform(m * heads * key, 72)), wi = held(p, uniform(m * heads, 73, -0.5f, 0.5f)), bi = held(p, as_floats(cand));
+        const std::vector<float> query = uniform(m * heads * key, 72);
+        Pair::In qi = held(p, query), wi = held(p, uniform(m * heads, 73, -0.5f, 0.5f)), bi = held(p, as_floats(cand));
+        Pair::Out qr = p.out(query.size());
+        if (key == 128) {
+            p.cpu.write(*qr.c, 0, query.data(), query.size() * 4);
+            p.dev.write(*qr.v, 0, query.data(), query.size() * 4);
+            p.cpu.model_format_qdq(qr.cs(), query.size(), backend::ModelFormat::fp4_power);
+            p.dev.model_format_qdq(qr.vs(), query.size(), backend::ModelFormat::fp4_power);
+        }
+        const backend::CSlice cq = key == 128 ? backend::CSlice(qr.cs()) : qi.cs(), dq = key == 128 ? backend::CSlice(qr.vs()) : qi.vs();
         for (bool fp4 : {false, true})
             for (bool blocks : {false, true}) {
-                if (fp4 && !packed) continue;
+                if ((fp4 && !packed) || (!fp4 && key == 128)) continue;
                 const backend::ModelFormat f = fp4 ? backend::ModelFormat::fp4_power : backend::ModelFormat::f32;
                 const std::vector<backend::KVView>&c = fp4 ? pcv : cv, &d = fp4 ? pdv : dv;
                 Pair::Out o = p.out(m * n);
-                p.cpu.indexer_scores(o.cs(), qi.cs(), 0, c.data(), c.size(), wi.cs(), 0.375f, heads, key, f, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
-                p.dev.indexer_scores(o.vs(), qi.vs(), 0, d.data(), d.size(), wi.vs(), 0.375f, heads, key, f, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
+                p.cpu.indexer_scores(o.cs(), cq, 0, c.data(), c.size(), wi.cs(), 0.375f, heads, key, f, n, blocks ? bi.cs() : backend::CSlice{}, bk, bs);
+                p.dev.indexer_scores(o.vs(), dq, 0, d.data(), d.size(), wi.vs(), 0.375f, heads, key, f, n, blocks ? bi.vs() : backend::CSlice{}, bk, bs);
                 auto r = p.results(o);
                 values += meet(exact, "indexer_scores", r.first, r.second, 1e-5,
                                "indexer_scores of the tile's size differs beyond 1e-5 at " + std::to_string(heads) + " heads" + (fp4 ? " over FP4 keys" : "") +
@@ -805,7 +814,8 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     values += check_pool_and_routing(p, exact);
     values += check_rope_forms(p, exact);
     values += check_pooled(p, exact);
-    values += check_index_tile(p, exact);
+    values += check_index_tile(p, exact, 32);
+    if (p.dev.implements(backend::Op::model_format_qdq) && p.dev.implements(backend::Op::model_format_pack)) values += check_index_tile(p, exact, 128);
     if (p.dev.implements(backend::Op::model_format_pack)) values += check_sparse_shapes(p, exact);
     values += check_rows_alone(p);
     values += check_taps(p, exact);

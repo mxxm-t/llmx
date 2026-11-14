@@ -13,6 +13,12 @@
 #else
 #define GPU_WAVE 32
 #endif
+// 1 where dot4_i8 is the one instruction the code is compiled with: gfx9 and CUDA; the plain module's other targets leave out the kernels that need it.
+#if defined(__GFX9__)
+#define GPU_DOT4 1
+#else
+#define GPU_DOT4 0
+#endif
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
@@ -133,6 +139,7 @@ LLMX_PORT_MODEL unsigned port_segment_mask(int width, unsigned lane) {
 
 // Under CUDA a wave is a warp of 32 lanes; an exchange of a width names that width's lanes alone, since a kernel may run a loop whose trip count differs between the segments of one warp.
 #define GPU_WAVE 32
+#define GPU_DOT4 1
 
 #define LLMX_FULL_WARP 0xffffffffu
 __device__ __forceinline__ unsigned segment_lanes(int width) {

@@ -156,10 +156,6 @@ struct FakeApi {
         *f = name;
         return kSuccess;
     }
-    static Error function_shared_bytes(int* v, Function) {
-        *v = 1024;
-        return kSuccess;
-    }
     static Error function_local_bytes(int* v, Function) {
         *v = 0;
         return kSuccess;

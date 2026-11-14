@@ -19,7 +19,7 @@ __device__ inline int word_dot(int a, int b, int s, short) {
 #endif
 }
 __device__ inline int word_dot(int a, int b, int s, signed char) {
-#ifdef LLMX_DOT16
+#if defined(LLMX_DOT16) || GPU_IMMA8
     return dot4_i8(a, b, s);
 #else
     for (int i = 0; i < 4; ++i) s += (int)(signed char)((a >> (8 * i)) & 0xff) * (int)(signed char)((b >> (8 * i)) & 0xff);
@@ -307,7 +307,7 @@ __device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const fl
                 wq[j][2] = byte_align(u3, u2, n);
                 wq[j][3] = byte_align(t4, u3, n);
                 const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-                const int partner = lane_xor(own, 1);
+                const int partner = pair_lane(own);
                 dw[j] = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
             }
 #pragma unroll
@@ -386,7 +386,7 @@ __device__ inline void half_steps(const unsigned* const (&w)[R], const signed ch
             s = word_dot((int)wq[2], xq[d].z, s, (signed char)0);
             s = word_dot((int)wq[3], xq[d].w, s, (signed char)0);
             const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-            const int partner = lane_xor(own, 1);
+            const int partner = pair_lane(own);
             const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
             acc[j] = fmaf(dw * xd[d], (float)s, acc[j]);
         }
@@ -500,7 +500,7 @@ __device__ void q8_0_half_pair(const RowCall& rc, const signed char* q, const fl
             s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
             s = word_dot((int)byte_align(t4, u3, n), xq.w, s, (signed char)0);
             const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-            const int partner = lane_xor(own, 1);
+            const int partner = pair_lane(own);
             const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
             v = fmaf(dw * xd, (float)s, 0.0f);
         }
@@ -556,8 +556,17 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
     if (ROUTED && (!nrows || (nrows <= kNarrowRows) != (ROWS == kNarrowRows) || sizeof(QT) == 1 && nrows <= kStreamRows)) return;
     const unsigned* ent = ROUTED ? tg.tab + tg.order0 + tg.tab[4 * gi + 1] : nullptr;
     const unsigned char* W = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0);
-    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS];
-    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS];
+#if GPU_IMMA8
+    // The 8-bit twin's block sums on the integer tensor cores, each warp 16 outputs by RW rows; the sums are exact, so the tile keeps the dot build's bits.
+    constexpr bool MMA = sizeof(QT) == 1 && !ROUTED;
+#else
+    constexpr bool MMA = false;
+#endif
+    constexpr int PAD = MMA ? 8 : 0;   // a fragment's eight rows and four words fall in 32 distinct banks
+    constexpr int MW = OUTS / 16, RW = ROWS / (kThreads / 32 / MW), NT = RW / 8;   // the warps along the outputs, a warp's rows and its 8-row products
+    static_assert(!MMA || NT * 4 == RO * J, "a lane's fragments are its outputs by rows");
+    __shared__ __attribute__((aligned(16))) int wq[STEP * WORDS][OUTS + PAD];
+    __shared__ __attribute__((aligned(16))) int xw[STEP * WORDS][ROWS + PAD];
     __shared__ float wd[STEP][OUTS], xd[STEP][ROWS];
     const int t = threadIdx.x, tr = t / 16, tc = t % 16;   // outputs tr * RO.., rows tc * J..
     // The narrow routed build gives each wave one quad of the group's entries, rotated by workgroup since wave w runs on SIMD w; a quad holding no entry skips its dots.
@@ -567,6 +576,16 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
     const auto out_at = [&](int i) { return QUADS ? lane : tr * RO + i; };
     const auto row_at = [&](int j) { return QUADS ? 4 * quad + j : tc * J + j; };
     const bool idle = QUADS && 4ull * quad >= nrows;
+    // Sum i, j's output and row: the thread's own outputs and rows, or under MMA fragment i * TJ + j's, d[f / 4][f % 4] of mma_s8.
+    // The fragment place of a lane is computed only under MMA, so the other builds keep the code they had and the HIP code objects stay byte identical.
+    const auto oat = [&](int i, int j) {
+        if constexpr (MMA) return 16 * (t / 32 % MW) + t % 32 / 4 + 8 * ((i * TJ + j) % 4 / 2);
+        else return out_at(i);
+    };
+    const auto rat = [&](int i, int j) {
+        if constexpr (MMA) return t / 32 / MW * RW + 8 * ((i * TJ + j) / 4) + 2 * (t % 4) + (i * TJ + j) % 2;
+        else return row_at(j);
+    };
     const unsigned long long o0 = (unsigned long long)(blockIdx.x - c.start[pi]) * OUTS, b0 = ROUTED ? 0 : (unsigned long long)blockIdx.y * ROWS;
     const unsigned long long blocks = nin / 32, kbeg = (unsigned long long)blockIdx.z * c.kper;
     const unsigned long long kend = kbeg + c.kper < blocks ? kbeg + c.kper : blocks;
@@ -655,34 +674,51 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
             for (int i = 0; i < TO; ++i)
 #pragma unroll
                 for (int j = 0; j < TJ; ++j) is[i][j] = 0;
+            if constexpr (MMA) {
+#if GPU_IMMA8
+                const int g = t % 32 / 4, gk = t % 4, wm = t / 32 % MW, wn = t / 32 / MW;
+                const int* q0 = wq[s * WORDS + gk];
+                const int* q1 = wq[s * WORDS + gk + 4];
+                const int a[4] = {q0[16 * wm + g], q0[16 * wm + g + 8], q1[16 * wm + g], q1[16 * wm + g + 8]};
 #pragma unroll
-            for (int w = 0; w < WORDS; ++w) {
-                int av[TO];
-                if constexpr (QUADS) {
-                    av[0] = wq[s * WORDS + w][lane];
-                } else {
+                for (int n = 0; n < NT; ++n) {
+                    const int b[2] = {xw[s * WORDS + gk][wn * RW + 8 * n + g], xw[s * WORDS + gk + 4][wn * RW + 8 * n + g]};
+                    int d[4] = {0, 0, 0, 0};
+                    mma_s8(d, a, b);
 #pragma unroll
-                    for (int h = 0; h < RO / 4; ++h) {
-                        const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
-                        av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
+                    for (int e = 0; e < 4; ++e) is[(4 * n + e) / TJ][(4 * n + e) % TJ] = d[e];
+                }
+#endif
+            } else {   // braced: nvcc takes a #pragma right after a bare else as the whole else branch
+#pragma unroll
+                for (int w = 0; w < WORDS; ++w) {
+                    int av[TO];
+                    if constexpr (QUADS) {
+                        av[0] = wq[s * WORDS + w][lane];
+                    } else {
+#pragma unroll
+                        for (int h = 0; h < RO / 4; ++h) {
+                            const int4 a = *(const int4*)&wq[s * WORDS + w][tr * RO + 4 * h];
+                            av[4 * h] = a.x, av[4 * h + 1] = a.y, av[4 * h + 2] = a.z, av[4 * h + 3] = a.w;
+                        }
                     }
-                }
-                int bv[TJ];
-                if constexpr (TJ == 4) {
-                    const int4 b4 = *(const int4*)&xw[s * WORDS + w][row_at(0)];
-                    bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
-                } else {
-                    for (int j = 0; j < TJ; ++j) bv[j] = xw[s * WORDS + w][row_at(j)];
-                }
+                    int bv[TJ];
+                    if constexpr (TJ == 4) {
+                        const int4 b4 = *(const int4*)&xw[s * WORDS + w][row_at(0)];
+                        bv[0] = b4.x, bv[1] = b4.y, bv[2] = b4.z, bv[3] = b4.w;
+                    } else {
+                        for (int j = 0; j < TJ; ++j) bv[j] = xw[s * WORDS + w][row_at(j)];
+                    }
 #pragma unroll
-                for (int i = 0; i < TO; ++i)
+                    for (int i = 0; i < TO; ++i)
 #pragma unroll
-                    for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                        for (int j = 0; j < TJ; ++j) is[i][j] = word_dot(av[i], bv[j], is[i][j], QT());
+                }
             }
 #pragma unroll
             for (int i = 0; i < TO; ++i)
 #pragma unroll
-                for (int j = 0; j < TJ; ++j) acc[i][j] = fmaf(wd[s][out_at(i)] * xd[s][row_at(j)], (float)is[i][j], acc[i][j]);
+                for (int j = 0; j < TJ; ++j) acc[i][j] = fmaf(wd[s][oat(i, j)] * xd[s][rat(i, j)], (float)is[i][j], acc[i][j]);
         }
         __syncthreads();
     }
@@ -690,7 +726,7 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx, const
     for (unsigned p = 0; p < pi; ++p) before += c.nout[p];
     for (int j = 0; j < TJ; ++j)
         for (int i = 0; i < TO; ++i) {
-            const unsigned long long o = o0 + out_at(i), b = b0 + row_at(j);
+            const unsigned long long o = o0 + oat(i, j), b = b0 + rat(i, j);
             if (o >= nout || b >= nrows) continue;
             if (c.parts > 1) {
                 c.partials[c.parts * nrows * before + blockIdx.z * nrows * nout + b * nout + o] = acc[i][j];
@@ -2242,7 +2278,7 @@ struct HalfLoads {
                 s = word_dot((int)byte_align(u3, u2, n), xq[d].z, s, (signed char)0);
                 s = word_dot((int)byte_align(tv, u3, n), xq[d].w, s, (signed char)0);
                 const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-                const int partner = lane_xor(own, 1);
+                const int partner = pair_lane(own);
                 const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
                 acc[j] = fmaf(dw * xd[d], (float)s, acc[j]);
             }
@@ -2533,7 +2569,7 @@ __device__ inline float q8_half_lane(const unsigned* w, const int4* lq, const fl
     s = word_dot((int)byte_align(u3, u2, n), xq.z, s, (signed char)0);
     s = word_dot((int)byte_align(t4, u3, n), xq.w, s, (signed char)0);
     const int own = (int)(t0 >> (8 * sh)) & 0xffff;
-    const int partner = lane_xor(own, 1);
+    const int partner = pair_lane(own);
     const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
     return fmaf(dw * xd, (float)s, 0.0f);
 }

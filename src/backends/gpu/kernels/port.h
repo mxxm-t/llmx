@@ -19,6 +19,8 @@
 #else
 #define GPU_DOT4 0
 #endif
+// 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose plain module keeps the scalar loop and whose dot module (LLMX_DOT16) takes dot4_i8.
+#define GPU_IMMA8 0
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
@@ -33,6 +35,8 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) 
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __builtin_amdgcn_mov_dpp(v, M == 1 ? 0xB1 : 0x4E, 0xF, 0xF, false);
 }
+// The value of lane (this lane xor 1) where only that pair of lanes is known to run the exchange.
+template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return lane_xor_quad<1>(v); }
 // The value of lane (this lane xor M) for M = 4, 8 or 16 by ds_swizzle's bit mode within groups of 32 lanes: offset 0x1F | (M << 10) is and-mask 0x1F, or-mask 0, xor-mask M.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T v) {
     static_assert(M == 4 || M == 8 || M == 16, "swizzle exchanges cover xor 4, 8 and 16");
@@ -166,6 +170,9 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T 
     static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __shfl_xor_sync(LLMX_FULL_WARP, v, M);
 }
+// The pair's exchange names the pair alone: the 8-bit rows hand a block's scale to the odd lane in a loop whose trip count differs between pairs, and a full-warp mask there is undefined.
+// It waits for every named lane, so lanes already past the loop met it from the wave sum's shuffles and both exchanged wrong values (docs/STATUS.md, CUDA backend step 4).
+template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return __shfl_xor_sync(segment_lanes(2), v, 1); }
 template <typename T> __device__ __forceinline__ auto first_lane(T v) { return __shfl_sync(LLMX_FULL_WARP, v, 0); }
 __device__ __forceinline__ unsigned long long wave_ballot(int p) { return __ballot_sync(LLMX_FULL_WARP, p); }
 
@@ -181,6 +188,15 @@ __device__ __forceinline__ int dot2_i16(int a, int b, int s) { return port_dot2_
 __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
     const auto h = [](unsigned v, int i) { return __half2float(__ushort_as_half((unsigned short)(v >> (16 * i)))); };
     return fmaf(h(a, 1), h(b, 1), fmaf(h(a, 0), h(b, 0), s));
+}
+// Every CUDA target has the four-way dot (GPU_DOT4, above) and the 8-bit integer tensor cores, so the int8 class takes both in its one module.
+#define GPU_IMMA8 1
+// d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
+// Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
+__device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {
+    asm("mma.sync.aligned.m16n8k32.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};"
+                 : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
+                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
 }
 
 __device__ __forceinline__ void schedule_barrier() {}

@@ -1581,6 +1581,61 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
 
 **Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
 
+## CUDA backend step 4: the int8 class on cuda:N, four-way dot rows and the integer tensor-core prompt tile (2026-11-14, CUDA17 to CUDA21, rebased by CUDA25 on 2026-11-15, branch cuda/step4 on main 929f042c6; lands by fast-forward)
+
+**Goal.** Step 4 of docs/CUDA.md, Order of work: the block-int8 rows on `__dp4a` and the Q8_0 prompt tile on the 8-bit integer tensor cores, first tuning on real shapes, held by product timings at Qwen3-0.6B and 27B shapes, the int8 budget (docs/PRECISION.md) and a short screen against the reference runtime.
+
+**Done.**
+- `port.h` gives CUDA `mma_s8` (mma m16n8k32 s8, exact int32) and `GPU_IMMA8`, defined once a vendor and tested by value: 1 under CUDA, where every target has the four-way dot (main's `GPU_DOT4`) and the 8-bit integer tensor cores, so the int8 class takes both in its one int16 module, and 0 under HIP.
+  `word_dot` takes `dot4_i8` for 8-bit words under `LLMX_DOT16` (HIP's dot module) or `GPU_IMMA8`, so HIP's plain module keeps its scalar loop on every target, gfx906's plain 8-bit decode rows among them.
+- `q8_0_tile` under CUDA sums the 8-bit twin's blocks of the non-routed tiles (`llmx_q8_0_tile8`, `_tall`) by `mma_s8`, a warp 16 outputs by 32 rows (64 tall), the staged arrays padded by 8 words; each output keeps the fold acc = fmaf(dw * dx, isum, acc) in block order, so the tile's bits are the dot build's. Under HIP `MMA` is false and the padding 0, and a lane's fragment place is computed only under `MMA`, so the HIP code is the code main has.
+- `backend-cuda` runs the Q8_0 twin products and the K-quants' twin products at int8 too, `row_classes::check` at F32, F16 and int8, and `imma_tile`, the int8 Q8_0 tile against the host's fold bit for bit where the call does not split, which none of its three shapes does on a card run so far (48, 192 and 128 workgroups against a split below 8 per unit), so it checks only that a tile kernel ran; `backend-cuda bench` prints product timings (docs/TESTS.md). `cuda-sass` requires IMMA in the two tiles and IDP.4A in `llmx_q8_0_half8_1`, `llmx_q4_k_rows8_1` and `llmx_q4_k_tile8` on every target.
+- The tile's missing IMMA: the dot loop sat in a bare `else` after `if constexpr (MMA)` with `#pragma unroll` before it, and nvcc takes a pragma right after a bare `else` as the whole branch, so the fold after the loop fell inside the discarded branch, acc stayed 0 and ptxas dropped the mma whose sums nothing read. The branch is braced now.
+- The HIP difference: the fragment indices (`t % 4` among them) were computed at function scope, so the HIP compiler merged `seg = t % 4` into the earlier value and scheduled the int16 tiles differently on gfx906 and gfx1151. They are computed inside the `MMA` branches now.
+- The half-block rows' scale exchange: the first card session (RTX 3060, CUDA19) failed seven 8-bit decode-row checks and the tiny int8 fixture's logit error was 1.65.
+  The odd lane took its block's scale from the even lane by `lane_xor(own, 1)` inside a loop or branch whose trip count differs between lane pairs whenever a row's blocks are not a multiple of 16, and the CUDA wrapper named the whole warp; a `__shfl_xor_sync` naming lanes that do not run it waits for every named lane, so lanes still in the loop met the wave sum's shuffles of lanes already past it and both read wrong values.
+  The five scale exchanges take `pair_lane` (port.h), which names the pair alone under CUDA (`segment_lanes(2)`) and is `lane_xor_quad<1>` under HIP; naming 2M lanes in every `lane_xor_quad` and `lane_xor_swizzle` instead made six kernels spill on some target.
+  The pair's mask costs `llmx_q8_0_half8_2_r4` 12 bytes of spill stores on sm_80, whose builds stop at 80 registers, so `cuda-sass` lists the `llmx_q8_0_half8_` family under step 4, beside `llmx_q4_k_rows8_` (sm_86, sm_89, sm_120), `llmx_q4_k_tile8` (sm_90) and `llmx_q6_k_rows8_` (sm_120), which spill 4 to 16 bytes since their 8-bit words take `__dp4a`; `llmx_q5_k_rows8_` no longer spills, and the check's timeout is 600 s.
+- `llmx-backend-cuda-test` links `llmx-vulkan` in a build with both backends, as the other tests that reach the device factory do.
+- Second card session (RTX 3060, CUDA20, `/opt/claude-work/cuda20/results/20261114-1721`): `backend-cuda` passes every check, the 8-bit rows among them; the int8 component passes with logit/NLL errors dense-untied 0.03119/0.001917, dense-tied 0.02764/0.000600 and MoE 0.02008/0.001056 against the frozen int8 budget; the Qwen3-0.6B Q8_0 baseline passes at f16 on CUDA and at int8 on Vulkan on the same card, which runs int8 as f16 there.
+- The int8 baseline on CUDA misses one prompt: "The three primary colors are red," gives top-5 overlap 4 of 5, HF's ranks 5 and 6 (3691 at 17.2474, 18575 at 17.0445) swapped at 17.2149 and 17.1136, 0.1013 apart against the 0.1 tie margin (`common.top5_overlap`).
+  This is the int8 activations' rounding, not a CUDA fault (CUDA21, `/opt/claude-work/cuda21/tie` and `tie2`): the products are exact against the twin's rule in `backend-cuda`, and the tiny fixtures' int8 errors on CUDA equal ROCm's to the digits printed (0.03119, 0.02764, 0.02008), while the real model's logits differ between any two int8 implementations by up to about 0.2.
+  On one MI50, ROCm int8 gives that prompt's top 10 within 0.28 of HF with ranks 5 and 6 at 17.2465 and 17.1689 (branch and main identical), Vulkan int8 within 0.24 of ROCm int8 with the two swapped at 17.1694 and 17.1483, and CUDA int8 differs from ROCm int8 by at most 0.22 with its own error to HF at most 0.29; at f16, Vulkan on the RTX 3060 and ROCm on the MI50 agree within 0.003.
+  The non-product operations (`expf`, the warp-width reductions of the norms and attention) differ between backends in the last bits, as docs/CUDA.md allows, and the int8 class turns such differences into whole steps of an activation's rounding; the suite holds every backend and dtype to one top-5 bound and one margin, and neither is changed for CUDA.
+
+| Qwen3-0.6B Q8_0, "The three primary colors are red,", rank 5 and 6 logits | 3691 | 18575 | gap |
+|---|---|---|---|
+| HF (BF16 model) | 17.2474 | 17.0445 | +0.2029 |
+| ROCm int8, MI50 | 17.2465 | 17.1689 | +0.0776 |
+| Vulkan int8, MI50 | 17.1483 | 17.1694 | -0.0211 |
+| CUDA int8, RTX 3060 | 17.1136 | 17.2149 | -0.1013 |
+| ROCm f16, MI50 | 17.1971 | 17.1077 | +0.0893 |
+| Vulkan f16 (int8 asked), RTX 3060 | 17.1968 | 17.1096 | +0.0872 |
+
+- Card session timings, Qwen3-0.6B Q8_0, one RTX 3060 at default clocks, `bench --p 512 --n 128 --r 3`, tok/s, two interleaved rounds each (CUDA19 `/opt/claude-work/cuda19/results/20261114-1544`, rows of the int8 class not yet valid there; CUDA20 with the exchange fix):
+
+| arm | CUDA19 pp512 | CUDA19 tg128 | CUDA20 pp512 | CUDA20 tg128 |
+|---|---|---|---|---|
+| llmx CUDA int8 | 5874, 5891 | 347, 347 | 5891, 5889 | 333, 333 |
+| llmx CUDA f16 | 3166, 3159 | 324, 323 | 2985, 2981 | 309, 310 |
+| llmx Vulkan f16 | 4255, 4229 | 268, 261 | 3691, 3715 | 229, 227 |
+| reference CUDA, flash attention | 13600 | 125 | 11643, 11614 | 86, 85 |
+| reference CUDA, no flash attention | 10025 | 120 | 8672 | 83 |
+
+  The two sessions ran on different rented cards, so their columns are separate results; within CUDA20 llmx int8 decodes 3.9 times the reference's tg128 and prefills at about half its pp512.
+- `backend-cuda bench` (CUDA20, us, median, f16 against int8): Qwen3-0.6B pp512 qkv 1113.9 against 331.6, gate_up 1651.7 against 503.0, down 700.0 against 252.6; Qwen3.6-27B shapes at 512 rows qkv 12144.6 against 3250.6 and gate_up 39942.1 against 10306.9, the int8 tile at 13 to 18 TOPS of the card's about 100 dense int8 TOPS.
+- Gates on main 929f042c6 (CUDA25 `gate6` and CUDA26, `/opt/claude-work/cuda25`, `/opt/claude-work/cuda26`), Qwen3-0.6B Q8_0 for the generation checks, token lines compared: `hipfb` f32, int16 and int16dot identical to main's; greedy 128 tokens identical to main on `rocm:0` f16, `rocm:0` int8 and `cpu` f16; ROCm CTest 87 of 87 on one MI50; the CPU and Vulkan builds pass; the CUDA build passes and its host CTests `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass once `cuda-sass` lists `llmx_q4_0_` and `llmx_q4_1_`, the Q4_0 and Q4_1 twins main added, whose 16-bit and 8-bit builds spill on sm_80 to sm_120 as the listed Q5_0 and Q5_1 twins do, while `backend-cuda` skips without a device; `docs` and `dead-code` pass.
+- Earlier heads (0d9c75a0e on c0d13585c, then 9724cd436) passed the same gates, and their CUDA int8 HF baseline missed `common.top5_overlap`'s 0.1 tie margin by 0.0013 on one prompt, ROCm and Vulkan int8 passing (above).
+
+**Left.** Steps 5 to 8 of docs/CUDA.md, with these from step 4:
+- `imma_tile` holds the fold on no card yet: step 5's next card session takes a shape that does not split from `caps.compute_units`, or folds the parts in `llmx_tile_reduce`'s order (F2DEV's review of 47f75df89, item 1).
+- The int8 baseline prompt above stays a CUDA int8 miss on the real-model HF check (`tests/baseline.py`, `common.top5_overlap`, 0.0013 over the 0.1 tie margin); the final gate (step 7) runs every dtype, and a non-product operation brought to ROCm's arithmetic there is the way to it, never a wider bound.
+- The prefill gap to the reference, 2.0x at pp512 int8: the int8 class's Q8_0 products take about 32 ms of its 87 ms and the f16 class's about 109 of 162 ms, so about 54 ms of both sits outside the matrices, against the reference's whole 38 ms; prompt attention (`llmx_attention_tile`, F32 on the CUDA cores) is the first suspect and needs kernel sums (nsys was absent from the card image).
+- In the matrices, the 16-bit twin's sums are exact as a signed high byte and an unsigned low byte on two IMMA products (m16n8k32 s8.s8 and u8.s8), which would put the f16 class on the tensor cores with its bits unchanged; then the spills `cuda-sass` lists under step 4 and the K-quants' int8 tile on the tensor cores.
+
+**Gotchas.** The rebase onto 9724cd436 met main's `GPU_DOT4` (by `__GFX9__` under HIP, 1 under CUDA): this step's second CUDA definition went, `GPU_IMMA8` is defined once a vendor and tested by value, and `word_dot` takes the dot under `LLMX_DOT16` or `GPU_IMMA8`, so HIP's plain module keeps its scalar loop (F2DEV's review of 0d9c75a0e). The rebase onto 929f042c6 conflicted in `port.h`, where main's `dot2_f16` and this step's `mma_s8` stand side by side, and in `docs/src/backends-gpu.md`'s port.h and int16.gpu lines; both sides are kept.
+The rebase onto c0d13585c conflicted only in `docs/src/backends-gpu.md`'s int16.gpu paragraph, which main's four-row Q8_0 build also edits; both edits are kept. Main's MXFP4 quad rows exchange lanes only after their loop, where every lane arrives, and `llmx_q8_0_half8_16_r4` is a build of the half-block rows, whose scale exchanges take `pair_lane`.
+
 ## CUDA backend step 3: the F16 class, Q8_0, Q4_K, Q5_K and Q6_K rows and tiles on cuda:N (2026-11-13, CUDA11 and CUDA12, branch cuda/step3, stacked on step 2)
 
 **Goal.** Step 3 of docs/CUDA.md, Order of work: the block-int16 rows and tiles of Q8_0, Q4_K, Q5_K and Q6_K on `cuda:N`, held by the checks `backend-rocm` has for them.

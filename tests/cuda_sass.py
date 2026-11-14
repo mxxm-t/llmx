@@ -14,7 +14,10 @@ ARCHS = ["sm_80", "sm_86", "sm_89", "sm_90", "sm_120"]
 SPILL_ALLOWED = {
     "llmx_q4_k_rows16_": "step 4, first tuning on real shapes, the Q4_K 16-row build",
     "llmx_matmul_rows_q8_0": "step 4, first tuning on real shapes, the Q8_0 row build",
-    "llmx_q5_k_rows8_": "step 4, the int8 class",
+    "llmx_q4_k_rows8_": "step 4, the int8 class",
+    "llmx_q4_k_tile8": "step 4, the int8 class",
+    "llmx_q6_k_rows8_": "step 4, the int8 class",
+    "llmx_q8_0_half8_": "step 4, the int8 class, the pair mask of the scale exchange at sm_80's 80 registers",
     "llmx_q4_k_routed": "step 8, the routed MoE operations",
     "llmx_q5_k_routed": "step 8, the routed MoE operations",
     "llmx_q6_k_routed": "step 8, the routed MoE operations",
@@ -23,13 +26,20 @@ SPILL_ALLOWED = {
     "llmx_mxfp4_": "step 8, MXFP4",
     "llmx_route_step_": "step 8, the deepseek4 one-launch router, its eight sorted keys a lane on one wave: a few dozen bytes on sm_90 and sm_120",
     "llmx_indexer_": "step 8, the deepseek4 operations",
+    "llmx_sparse_": "main's llmx_sparse_scores_tile, 12 bytes on sm_120, which no card has run",
     "llmx_moe_": "step 8, the routed MoE operations",
+    "llmx_q4_0_": "step 8, Q4_0",
+    "llmx_q4_1_": "step 8, Q4_1",
     "llmx_q5_0_": "step 8, Q5_0",
     "llmx_q5_1_": "step 8, Q5_1",
     "llmx_iq4_nl_": "step 8, IQ4_NL",
     "llmx_matmul_rows_iq4_nl": "step 8, IQ4_NL",
 }
 
+
+# The int8 class's witnesses: the tensor-core prompt tiles, and a Q8_0 row build and a K-quant tile on the 8-bit twin.
+IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall")
+DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1", "llmx_q4_k_tile8")
 
 def family(fn):
     return next((f for f in SPILL_ALLOWED if fn.startswith(f)), None)
@@ -106,6 +116,12 @@ def main():
         require(matmul and not no_ffma, f"{arch}: the {len(matmul)} F32 matmul kernels sum with FFMA" + (" (not " + ", ".join(no_ffma) + ")" if no_ffma else ""))
         ftz = sorted(fn for fn in matmul if any(".FTZ" in l for l in funcs[fn]))
         require(not ftz, f"{arch}: no F32 matmul kernel flushes subnormals" + (" (" + ", ".join(ftz[:8]) + ")" if ftz else ""))
+        # The int8 class (docs/CUDA.md, step 4): the Q8_0 prompt tiles sum on the integer tensor cores and the 8-bit rows on the four-way dot.
+        funcs = sass_by_function(cuobjdump, os.path.join(gen, "int16.fatbin"), arch)
+        no_imma = [fn for fn in IMMA_KERNELS if not any("IMMA" in l for l in funcs.get(fn, []))]
+        require(not no_imma, f"{arch}: the int8 Q8_0 prompt tiles sum with IMMA" + (" (not " + ", ".join(no_imma) + ")" if no_imma else ""))
+        no_dp4a = [fn for fn in DP4A_KERNELS if not any("IDP.4A" in l for l in funcs.get(fn, []))]
+        require(not no_dp4a, f"{arch}: the int8 rows sum with IDP.4A" + (" (not " + ", ".join(no_dp4a) + ")" if no_dp4a else ""))
     for kernel in ("f32", "int16"):
         text = subprocess.run([cuobjdump, "-ptx", os.path.join(gen, kernel + ".fatbin")], capture_output=True, text=True, check=True).stdout
         asked = sorted(set(re.findall(r"([a-z0-9]+(?:\.[a-z0-9]+)*\.ftz(?:\.[a-z0-9]+)*)", text)) - {"ex2.approx.ftz.f32"})

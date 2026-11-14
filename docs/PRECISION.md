@@ -190,6 +190,21 @@ The IQ1_S raw reciprocal controls support this diagnosis: Vulkan-only F32 KV giv
 
 What each value covers, stated the same way for every value, is the table in [USAGE](USAGE.md#precision): its columns are the quantized-weight products, the F32-weight products, the routers, and attention and the KV cache.
 
+## What each part computes in
+
+What each part of a forward pass computes in, on every backend; `--dtype` by backend is in the README.
+
+| Part | Precision |
+|---|---|
+| Weight matrix products | Inputs follow `--dtype` (16-bit integer blocks of 32 under `f16`, the default; 8-bit blocks under `int8`); sums are F32 |
+| Output head | The same form as the other products; logits are F32 |
+| Attention | Queries, scores, softmax and the value sum in F32; `--dtype` does not touch it, and `int8` changes nothing here |
+| KV cache | `f16` by default, or `f32`, per side with `--cache-type-k` and `--cache-type-v`; read back exactly as stored; `native` only where the model declares a format (DeepSeek-V4.1, where it is the default); no quantized cache types |
+| Norms, RoPE, residuals, recurrent state | F32 |
+| Routers of mixture-of-experts models | F32 under every `--dtype` |
+| `F16` and `BF16` weights | Widened exactly to F32 in the product |
+| `MXFP4` and the other quantized weight types | Decoded exactly; `MXFP4` has no 8-bit form, so `int8` runs it as `f16`; on Vulkan it needs a device with double-precision support |
+
 ## 6. Approved delivery order (2026-09-30)
 
 Each step lands on its own branch off `main`, with its gate:

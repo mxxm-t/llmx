@@ -233,7 +233,7 @@ Then D1 (double-buffered prompt streaming) and D2 of the MoE offload design.
 | peer-access fix, ten cards 5x2 | load rc 0, pick 0+1, 2+3, 4+5, 6+7, 8+9 take devices 8+1, 2+4, 3+5, 6+0, 7+9, 5.040 ms vs 7.213 as listed, 84 groups timed in 2923 ms, all five groups sum by peer writes, pp512 1237.94, tg4 25.42 tok/s (one 4-token run, not a timing result) |
 | backend-rocm on the rebased head | pass |
 | dead-code, docs | pass (SUM10) |
-| Radeon VII check | pending, run by COORD |
+| Radeon VII check | covered at the later landing head 0ccb3edb6, which holds this change: CTest 104 of 104, suite on `vulkan:0` 48 of 48 |
 
 | timing, pp2048 / tg32 tok/s, ABAB pairs | base | candidate | change |
 |---|---|---|---|
@@ -357,7 +357,7 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
   CTest on the ROCm build, 85 of 85 pass; `dead-code` and `docs` pass on the landing tree; the suite with `--device rocm:0` on one MI50 passes (32 components pass, 16 skip for kernels or fixtures the device or the fixture set lacks, none fail), run on the step before its MSVC atomics fix and carried over, since that fix touches only `backend_core.hpp` and `collective_core.hpp` host-side atomics.
 - **Diagnostics:** a failed vendor call's message names the core's call, `rocm: malloc failed with hipErrorOutOfMemory`, where main named HIP's, `rocm: hipMalloc failed with ...`; nothing reads the text, and the HIP error name is kept.
 - **Numerics fingerprint:** `--version`'s numerics value changes, 06620e39645002bc on main ad437ef47 to 4a146021fd59d105, because it hashes the paths and bytes of the source files and the kernel sources moved; the outputs it guards are unchanged, as (i) and (ii) show.
-- **Left:** F2DEV's review; the Radeon VII check on Windows, pending because the owner is using that machine; then CUDA plan step 1.
+- **Left:** CUDA plan step 1 onward; the Radeon VII check ran at the later landing head 0ccb3edb6, which holds this change (CTest 104 of 104, suite 48 of 48).
 
 ## ROCm one-shot sum signalled by its data (2026-11-12 to 2026-11-13, QDEV10, QDEV15 and QDEV18, then QDEV25, branch qdev10/lamport on main c847fa762, rebased onto main e2615307b by QDEV25; QDEV7's proposal of 15:25 with F2DEV's reviews of 17:31 and 20:58, and of 2026-11-13 07:00 for the rebase; lands by fast-forward on main e2615307b)
 

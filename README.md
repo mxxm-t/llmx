@@ -68,10 +68,23 @@ GGUF metadata can recognize layouts without an inference decoder; `info`, `token
 TQ read-only support is qualified with a user-approved baseline exception for one position in the two pinned released files' default Vulkan chat captures; original miss counts and the generic 0.1 rule remain unchanged. See [precision policy](docs/PRECISION.md#independent-hf-depth-acceptance-agreed-2026-10-01).
 
 Activation `--dtype` is independent of weight storage and KV-cache type.
-`auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device.
-See [precision and dtype reporting](docs/USAGE.md#precision).
-On a ROCm device `auto` selects F16, `f16`, `f32` and `int8` run natively, and `bf16` widens to F32 with a warning.
-F16 is the KV-cache default; F32 is also available.
+It sets the form of the inputs to the weight matrix products, never the weights, which are decoded exactly.
+`auto` is the default, and `int8` is never chosen by `auto`.
+A device that lacks the requested dtype runs the nearest wider form the table gives and prints a warning in the `dtype:` line on stderr.
+
+| `--dtype` | CPU | Vulkan | ROCm | CUDA (in development) |
+|---|---|---|---|---|
+| `auto` | `f16` | `f16` | `f16` | `f16` |
+| `f32` | Native | Native | Native | Runs on dense `qwen3` |
+| `f16` | Native: 16-bit integer blocks where a kernel has them, F32 products elsewhere | Native: 16-bit integer blocks on most types, F32 products for the `Q1_0`, `Q2_0`, `Q2_K` and `Q3_K` rows of devices without the integer dot and for some `IQ` and `TQ` types | Native: 16-bit integer blocks for `Q8_0`, `Q4_K`, `Q5_K`, `Q6_K`, `Q5_0`, `Q5_1` and `IQ4_NL`, F32 products for `F32`, `BF16` and `MXFP4` weights | Runs on dense `qwen3` |
+| `bf16` | Emulated: inputs rounded to BF16, F32 arithmetic | Emulated on devices that keep F32 denormals, signed zeros, infinities and NaNs; others run `f32` with a warning | Runs `f32` with a warning | Not run yet |
+| `int8` | Runs `f16` with a warning | Native on devices that prefer the integer dot product, today the MI50 under Mesa; others run `f16` with a warning | Native: 8-bit integer blocks for the types with a 16-bit form above, F32 products for the rest | Not run yet |
+
+Not every weight type has every form, and `--dtype` prints the forms each device uses; see [USAGE](docs/USAGE.md#precision).
+
+Matrix products take 16-bit integer inputs under the default and 8-bit under `int8`, and every sum is F32.
+Attention, norms, RoPE, residuals and routers stay F32, and the KV cache is `f16` unless `--cache-type-k` and `--cache-type-v` say `f32`.
+The full table of what each part computes in is in [PRECISION](docs/PRECISION.md#what-each-part-computes-in).
 
 ## File formats
 

@@ -797,7 +797,7 @@ It runs in the qwen35 venv above, offline, and passes the same environment check
 
 `tests/baseline_qwen35.py` pins every golden by SHA-256 and a file by its entry's, and finds a file's goldens by the files they name.
 `tests/baseline.py` runs it on each file of the gate on disk at 512-token windows, and it runs by hand on any pinned file at either window (`docs/TESTS.md`).
-Where llmx does not run the architecture, on a device whose backend lacks its ops, it runs the 47 id checks (37 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
+Where llmx does not run the architecture, on a device whose backend lacks its ops, it runs the 52 id checks (42 tokenizer texts, the file's chat template, the two renders, the six prompts and the excerpt) and reports one skip line.
 The chat checks hold the file to the template transformers rendered with and to the render's ids; the `chat-template` test holds llmx's own render of the two conversations to transformers', and the renderer to transformers' on that template over other conversations.
 Each file's bounds come from llmx's first measurement on it, and a file without them is measured and fails.
 
@@ -1127,8 +1127,8 @@ python -X utf8 tools/gen_layered_reference.py goldens --file-exact --repo Qwen/Q
 ```
 
 **The consumer.**
-`tests/baseline_layered.py` chooses the goldens by the model's SHA-256 and runs the 8B consumer's checks with them (`tests/baseline_8b.py`, one runner for both): 20 tokenizer cases, six rankings and four NLL cases, each batched and per token, 41 checks with a report.
-A file with file-exact goldens is held to them first, the six rankings and four NLL cases again, 21 checks labelled `file-exact-`, at the qwen35 family's file-exact bounds (`tests/baseline_qwen35.py`, the Qwen3.5-0.8B Q8_0's: top-1 exact, top-5 overlap 5 of 5, NLL within 0.02 continuous and windowed), and to its model's goldens only if they pass, 62 checks in all, or 63 with a quality bound's count of top-1 matches.
+`tests/baseline_layered.py` chooses the goldens by the model's SHA-256 and runs the 8B consumer's checks with them (`tests/baseline_8b.py`, one runner for both): 25 tokenizer cases, the generator's five NFC texts included, six rankings and four NLL cases, each batched and per token, 46 checks with a report.
+A file with file-exact goldens is held to them first, the six rankings and four NLL cases again, 21 checks labelled `file-exact-`, at the qwen35 family's file-exact bounds (`tests/baseline_qwen35.py`, the Qwen3.5-0.8B Q8_0's: top-1 exact, top-5 overlap 5 of 5, NLL within 0.02 continuous and windowed), and to its model's goldens only if they pass, 67 checks in all, or 68 with a quality bound's count of top-1 matches.
 Where llmx does not run the qwen35 architecture it prints one line and exits 0, after the tokenizer cases: on a device whose backend lacks the linear attention's ops, `... HF check SKIP: llmx does not run this model yet (error: inference: layer 0's mixer needs causal_conv_silu, which the backend of its device does not implement)`.
 A check failed before the refusal, any other error, and a model with no goldens fail it.
 

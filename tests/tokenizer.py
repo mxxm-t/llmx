@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common import run as cli, tokenize_failures
 
 # Tokenizer round-trip gate: builds a minimal GGUF with a tiny GPT-2-style BPE vocab and merges, written directly since going through the CLI's quantize path is overkill, then exercises encode/decode incl. unicode and specials.
-# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35 and joyai-llm pretokenizers to HF's ids and the Unicode class table to unicodedata (docs/TESTS.md, Suite components).
+# It also requires a file naming another tokenizer or pretokenizer to be refused, and holds the qwen35 and joyai-llm pretokenizers to HF's ids and the Unicode class table and NFC to unicodedata (docs/TESTS.md, Suite components).
 
 ALIGN = 32
 QWEN35_GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "baseline_tokenizer_qwen35.json")
@@ -137,6 +137,61 @@ def check_unicode_class():
     return version, len(runs)
 
 
+def nfc_items():
+    """Texts whose NFC differs from them or could: every code point the running Python's unicodedata assigns with a canonical decomposition, a combining class or a quick check other than Yes, alone and decomposed, every Hangul syllable decomposed, and seeded runs of combining marks out of order after a base."""
+    import random
+    import unicodedata
+    items, marks = [], []
+    for cp in range(0x110000):
+        c = chr(cp)
+        if unicodedata.category(c) in ("Cn", "Cs"):
+            continue
+        if unicodedata.combining(c):
+            marks.append(c)
+        decomposition = unicodedata.decomposition(c)
+        if (decomposition and not decomposition.startswith("<")) or unicodedata.combining(c) or not unicodedata.is_normalized("NFC", c):
+            items += [c, unicodedata.normalize("NFD", c)]
+    items += [unicodedata.normalize("NFD", chr(cp)) for cp in range(0xAC00, 0xAC00 + 11172)]
+    rng = random.Random(1234)
+    bases = "aeoAOUnsz\u0915\u0b47\u1100\uac00"
+    items += [rng.choice(bases) + "".join(rng.choice(marks) for _ in range(rng.randint(1, 4))) for _ in range(3000)]
+    return items
+
+
+def check_nfc(d, tokens):
+    """NFC as the qwen2 and qwen35 pretokenizers apply it, against the running Python's unicodedata: a file holding the bytes alone gives back each text's bytes, so its ids are the normalized text.
+    Code points only 16.0 assigns are left out, as in the class check, and joyai-llm, whose tokenizer.json names no normalizer, must keep a decomposed accent as it is."""
+    import unicodedata
+    path = build_tokenizer_gguf(os.path.join(d, "nfc.gguf"), tokens[:256], [], [], [("tokenizer.ggml.pre", "qwen2")])
+    items, chunks, chunk = nfc_items(), [], []
+    for item in items:
+        chunk.append(item)
+        if sum(len(x) + 1 for x in chunk) > 4000:
+            chunks.append(chunk)
+            chunk = []
+    chunks.append(chunk)
+
+    def tokenized(model, text):
+        rc, out = cli(["tokenize", model, text])
+        assert rc == 0, "nfc: tokenize failed: %s" % out.strip()[:200]
+        return bytes(int(i) for i in out.replace(",", " ").split())
+
+    def nfc(text):
+        return unicodedata.normalize("NFC", text).encode("utf-8")
+
+    wrong = []
+    for chunk in chunks:
+        if tokenized(path, " ".join(chunk)) != nfc(" ".join(chunk)):
+            wrong += [x for x in chunk if tokenized(path, x) != nfc(x)]
+            if len(wrong) >= 5:
+                break
+    assert not wrong, "nfc: texts differ from unicodedata %s, first %s" % (unicodedata.unidata_version,
+                                                                       [x.encode("unicode_escape").decode("ascii") for x in wrong[:5]])
+    joyai = build_tokenizer_gguf(os.path.join(d, "nfc_joyai.gguf"), tokens[:256], [], [], [("tokenizer.ggml.pre", "joyai-llm")])
+    assert tokenized(joyai, "cafe\u0301") == "cafe\u0301".encode("utf-8"), "nfc: joyai-llm normalized a decomposed accent"
+    return len(items)
+
+
 def check_deepseek41(d):
     """The deepseek41 golden's texts through a file naming the joyai-llm pretokenizer, holding the part of the pinned vocabulary those texts reach and the GGUF file's token types: each must give HF's ids."""
     with io.open(DEEPSEEK41_GOLDEN, encoding="utf-8") as f:
@@ -209,11 +264,12 @@ def run():
                 "%s = %s was not refused naming %s: %r" % (key, value, implemented, out8)
 
         n, controls = check_qwen35(d)
+        nfc = check_nfc(d, tokens)
         version, runs = check_unicode_class()
         n41 = check_deepseek41(d)
         print("tokenizer: encode->decode round-trip 'hello' -> %s, unicode and special token, other tokenizers refused, "
               "qwen35 %d/%d texts match HF and its %d file-only control tokens are one id each, "
-              "the Unicode class table's %d runs match Unicode %s, deepseek41 %d/%d texts match HF  [ok]" % (out2.strip(), n, n, controls, runs, version, n41, n41))
+              "the Unicode class table's %d runs match Unicode %s, NFC of %d texts matches it, deepseek41 %d/%d texts match HF  [ok]" % (out2.strip(), n, n, controls, runs, version, nfc, n41, n41))
         return True
     finally:
         import shutil

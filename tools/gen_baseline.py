@@ -89,6 +89,12 @@ CASES = [
     "co\u00adoperate",
     "\u4e2d\u6587",
     "\u036d",
+    # Texts NFC changes, which HF composes before the split: decomposed accents, Hangul jamo, singletons, marks out of order and a composition exclusion.
+    "cafe\u0301 nai\u0308ve",
+    "\u1112\u1161\u11ab\u1100\u1173\u11af",
+    "\u212b \u2126 A\u030a",
+    "q\u0307\u0323 a\u0301\u0328",
+    "\u0915\u093c \u0958",
 ]
 
 # The qwen35 tokenizer golden reads Qwen3.5-0.8B's tokenizer.json, whose vocabulary and merges every Qwen3.5, 3.6 and 3.8 file holds, and its tokenizer_config.json, which adds the control tokens those files hold beyond it.

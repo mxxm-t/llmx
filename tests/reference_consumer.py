@@ -510,15 +510,15 @@ class Qwen35Consumer(unittest.TestCase):
             with self.subTest(refusal=refusal), tempfile.TemporaryDirectory() as directory:
                 code, report = self.simulate(Path(directory), refuse=refusal)
                 # The 37 tokenizer cases, the file's chat template, and the ids of both chat renders, of the six prompts and of the perplexity excerpt.
-                self.assertEqual((code, report["status"], len(report["checks"])), (0, "skip", 47))
+                self.assertEqual((code, report["status"], len(report["checks"])), (0, "skip", 52))
                 self.assertTrue(all(check["status"] == "pass" for check in report["checks"]))
                 self.assertEqual([record["label"] for record in report["commands"] if "logits" in record["command"]], ["logits-00"])
 
     def test_measured_run_needs_bounds(self):
         with tempfile.TemporaryDirectory() as directory:
             code, report = self.simulate(Path(directory))
-        # Beyond the 47, the six prompts and both chat renders ranked, and the whole excerpt and its windows of 512 scored both ways.
-        self.assertEqual((code, report["status"], len(report["checks"])), (1, "unbounded", 59))
+        # Beyond the 52, the six prompts and both chat renders ranked, and the whole excerpt and its windows of 512 scored both ways.
+        self.assertEqual((code, report["status"], len(report["checks"])), (1, "unbounded", 64))
         self.assertTrue(all(check["status"] == "pass" for check in report["checks"]))
         bounds = {self.FILE: {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02}}
         with tempfile.TemporaryDirectory() as directory:
@@ -572,15 +572,15 @@ class Qwen35Consumer(unittest.TestCase):
         for refusal in (ARCHITECTURE_REFUSAL, DEVICE_REFUSAL):
             with tempfile.TemporaryDirectory() as directory:
                 self.assertEqual(self.hosted(Path(directory), refuse=refusal),
-                                 (True, name + "SKIP - llmx does not run the qwen35 architecture here (47 tokenizer and chat id checks pass)\n"))
-        # Once llmx runs the model, a file without bounds fails the suite, and one with bounds passes all 59 checks.
+                                 (True, name + "SKIP - llmx does not run the qwen35 architecture here (52 tokenizer and chat id checks pass)\n"))
+        # Once llmx runs the model, a file without bounds fails the suite, and one with bounds passes all 64 checks.
         with tempfile.TemporaryDirectory() as directory:
             ok, printed = self.hosted(Path(directory))
         self.assertFalse(ok)
         self.assertTrue(printed.startswith(name + "FAIL - no bounds"), printed)
         bounds = {self.FILE: {"top5_overlap": 5, "continuous_nll": 0.01, "window_nll": 0.02}}
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(self.hosted(Path(directory), bounds=bounds), (True, name + "59 checks  [ok]\n"))
+            self.assertEqual(self.hosted(Path(directory), bounds=bounds), (True, name + "64 checks  [ok]\n"))
 
     def test_required_baseline_counts_qwen35_gate_models(self):
         # A qwen35 file that joins the gate is required as a Qwen3 one is, though the Qwen3 gate's list leaves it out.
@@ -673,9 +673,9 @@ class Qwen35QualityConsumer(unittest.TestCase):
     def test_two_top1_swaps_pass_and_three_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             code, report, _ = self.simulate(Path(directory), model_swaps=2)
-        # 54 checks against the file-exact goldens, then the 59 against the model's and the count of top-1 matches.
-        self.assertEqual((code, report["status"], len(report["checks"])), (0, "pass", 114))
-        self.assertEqual(sum(check["label"].startswith("file-exact-") for check in report["checks"]), 54)
+        # 59 checks against the file-exact goldens, then the 64 against the model's and the count of top-1 matches.
+        self.assertEqual((code, report["status"], len(report["checks"])), (0, "pass", 124))
+        self.assertEqual(sum(check["label"].startswith("file-exact-") for check in report["checks"]), 59)
         self.assertEqual(report["checks"][-5]["label"], "top1")
         with tempfile.TemporaryDirectory() as directory:
             code, report, _ = self.simulate(Path(directory), model_swaps=3)
@@ -759,7 +759,7 @@ class LayeredConsumer(unittest.TestCase):
                 docs = consumer.load_goldens(golden["data"], golden["fixture_sha256"])
                 code, report, printed, _ = self.consume(digest, simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT))
                 self.assertEqual((code, report["status"], report["golden"]), (0, "pass", golden["name"]))
-                self.assertEqual(len(report["checks"]), 41)
+                self.assertEqual(len(report["checks"]), 46)
                 self.assertIn(golden["name"] + " HF check PASS", printed)
 
     def test_file_exact_goldens_run_first(self):
@@ -775,7 +775,7 @@ class LayeredConsumer(unittest.TestCase):
                 self.assertEqual(golden["bounds"], dict(layered.BOUNDS, top1_matches=5))
                 code, report, printed, _ = self.consume(digest, simulated_llmx(dict(docs, **exact), tokens, layered.MODEL_CONTEXT))
                 exact_checks = [item for item in report["checks"] if item["label"].startswith("file-exact-")]
-                self.assertEqual((len(exact_checks), len(report["checks"])), (21, 63))
+                self.assertEqual((len(exact_checks), len(report["checks"])), (21, 68))
                 self.assertEqual((code, report["status"], report["file_exact_bounds"]), (0, "pass", golden["file_exact"]["bounds"]))
                 self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
                 self.assertEqual(next(item for item in report["checks"] if item["label"] == "top1")["top1_matches"], 5)
@@ -797,13 +797,13 @@ class LayeredConsumer(unittest.TestCase):
                 self.assertIn("top-1 matches HF on 4 of 6 rankings, below the 5 this file keeps", next(item for item in report["checks"] if item["label"] == "top1")["error"])
                 # An llmx giving the model's answers fails the file-exact goldens, and the model's rankings never run.
                 code, report, _, _ = self.consume(digest, simulated_llmx(docs, tokens, layered.MODEL_CONTEXT))
-                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 41))
+                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 46))
                 self.assertIn("failed file-exact checks: file-exact-logits-03", report["error"])
                 # File-exact goldens made from another file are refused before they are run.
                 other = lambda data, sha: {name: dict(doc, weights={"sha256": "0" * 64}) if "weights" in doc else doc for name, doc in load(data, sha).items()}
                 with patch.object(consumer, "load_goldens", side_effect=other):
                     code, report, _, _ = self.consume(digest, simulated_llmx(dict(docs, **exact), tokens, layered.MODEL_CONTEXT))
-                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 20))
+                self.assertEqual((code, report["status"], len(report["checks"])), (1, "fail", 25))
                 self.assertIn("were not made from this file", report["error"])
 
     def test_the_quality_bound_is_one_files_alone(self):
@@ -830,7 +830,7 @@ class LayeredConsumer(unittest.TestCase):
                 self.assertEqual([line for line in printed.splitlines() if "HF check" in line],
                                  [golden["name"] + " HF check SKIP: llmx does not run this model yet (" + skipped.strip() + ")"])
                 # The tokenizer cases ran before the first logits command was refused, and passed.
-                self.assertEqual(len(report["checks"]), 21)
+                self.assertEqual(len(report["checks"]), 26)
                 self.assertTrue(all(item["status"] == "pass" for item in report["checks"]))
         # A check that failed before the refusal fails the run, and any other error is a failure, not a skip.
         answer = simulated_llmx(docs, docs["baseline_perplexity.json"]["n_tokens"], layered.MODEL_CONTEXT, refuse=refusal)

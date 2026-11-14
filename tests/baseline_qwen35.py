@@ -24,7 +24,7 @@ PPL_GOLDENS = {512: "baseline_perplexity.json", 4096: "baseline_perplexity_4096.
 
 # Every golden this check reads, with the SHA-256 of its text with LF line endings.
 GOLDEN_SHA256 = {
-    "baseline_tokenizer_qwen35.json": "fdf0bcfb75d77345f1321fcd6c98aa0b48abda41306371a499b659a8dce3cb6a",
+    "baseline_tokenizer_qwen35.json": "795c8c9fd839a542d17ed8826a1322dbbd78e107fb12ab969587c252dcde8d67",
     "qwen35-0.8b/baseline_logits.json": "faa5d386b9eb0842e3f01f442fdd5478a744026d5606e6cff11f302a9ec3525b",
     "qwen35-0.8b/baseline_chat.json": "9d0c6903633934efcc260ae38de4185f99c10824801957b11efa4fbd6acba3b1",
     "qwen35-0.8b/baseline_perplexity.json": "42c5ef92ec3da19b8ef67b81aa5cfafd55b7c9a9413a76c4e65df9a57d8e98f4",

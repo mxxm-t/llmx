@@ -396,7 +396,7 @@ if(LLMX_HAS_BACKEND_ROCM)
             COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 --offload-arch=gfx1151
                     -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu -o ${bundle}
             COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
             COMMENT "hip ${kernel}"
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${inc})
@@ -409,7 +409,7 @@ if(LLMX_HAS_BACKEND_ROCM)
         COMMAND ${LLMX_HIP_CLANG} ${LLMX_HIP_FLAGS} --offload-arch=gfx906 -DLLMX_DOT16
                 -I${CMAKE_CURRENT_SOURCE_DIR}/src -c ${LLMX_GPU_KERNEL_DIR}/int16.gpu -o ${bundle}
         COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${LLMX_GPU_KERNEL_DIR}/int16.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
         COMMENT "hip int16dot"
         VERBATIM)
     list(APPEND LLMX_ROCM_OBJECTS ${inc})
@@ -447,7 +447,7 @@ if(LLMX_HAS_BACKEND_CUDA)
                     -DREPORT=${CMAKE_CURRENT_BINARY_DIR}/generated/cuda/${kernel}.ptxas -DINCLUDE=${CMAKE_CURRENT_SOURCE_DIR}/src
                     "-DARCHS=${LLMX_CUDA_ARCHS}" -DPTX=80 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake
             COMMAND ${CMAKE_COMMAND} -DIN=${fatbin} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
-            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
+            DEPENDS ${LLMX_GPU_KERNEL_DIR}/${kernel}.gpu ${LLMX_GPU_KERNEL_DIR}/quant.h ${LLMX_GPU_KERNEL_DIR}/port.h ${LLMX_GPU_KERNEL_DIR}/shapes.h ${CMAKE_CURRENT_SOURCE_DIR}/src/quant/types.hpp
                     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/nvcc.cmake ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
             COMMENT "nvcc ${kernel}"
             VERBATIM)

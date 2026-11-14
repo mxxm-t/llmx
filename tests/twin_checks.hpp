@@ -3,6 +3,7 @@
 // A test passes its own types, classes, wave width, launches reader and require, so each keeps its own reporting.
 #include "backends/backend.hpp"
 #include "backends/device_profile.hpp"
+#include "backends/gpu/kernels/shapes.h"
 #include "core/fp16.hpp"
 #include "quant/types.hpp"
 #include "row_classes.hpp"
@@ -211,6 +212,9 @@ inline bool twin_close(uint32_t type, const std::vector<uint8_t>& w, const std::
     return std::fabs(got - sum) <= 1e-6 * mag + 1e-30;
 }
 
+// Whether a one-column 8-bit MXFP4 row of nin values runs the quad rows' builds on a wave of W lanes: gpu_shape::quad_rows at the 32-lane cluster a 64-lane wave gives rows of 16 blocks or more.
+inline bool quad_build(uint32_t type, Dtype dt, size_t nin, size_t W) { return type == quant::GGML_TYPE_MXFP4 && dt == Dtype::int8 && W == 64 && gpu_shape::quad_rows(32, nin / 32); }
+
 // Whether row_form takes the quarter form's builds for a row of nin values on a wave of W lanes, restated from its rule: for Q5_0 and Q5_1, where four lanes a block fill the cluster's steps fuller than one, one lane on a tie.
 inline bool quarter_form(uint32_t type, size_t nin, size_t W) {
     if (type != quant::GGML_TYPE_Q5_0 && type != quant::GGML_TYPE_Q5_1) return false;
@@ -289,7 +293,7 @@ inline void twin_types(Backend& g, Backend& c, const std::vector<uint32_t>& kind
                     std::map<std::string, size_t> want;
                     for (size_t left = n; left; left -= std::min<size_t>(left, 16)) {
                         const size_t m = std::min<size_t>(left, 16), b = m <= 1 ? 1 : m <= 2 ? 2 : m <= 4 ? 4 : m <= 8 ? 8 : 16;
-                        ++want["llmx_" + tname + (quarter_form(type, nin, wave) ? "_quarter" : "") + "_rows" + form + "_" + std::to_string(b)];
+                        ++want[b == 1 && quad_build(type, dt, nin, wave) ? "llmx_mxfp4_quad_rows8_1" : "llmx_" + tname + (quarter_form(type, nin, wave) ? "_quarter" : "") + "_rows" + form + "_" + std::to_string(b)];
                     }
                     const std::string what = "a " + cls + " call of " + std::to_string(n) + " generated rows";
                     require(run(n, 1, *yb, 0) == want, what + " runs its row builds alone");

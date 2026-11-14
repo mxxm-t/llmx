@@ -960,12 +960,13 @@ float mxfp4_row_host(const uint8_t* row, const std::vector<float>& d, const int1
 }
 
 // Every MXFP4 decode build against the host's row bit for bit in both twins: dense rows of 1 to 16 columns, routed entries and the grouped builds of 2, 4 and 8.
-// The widths take 4 to 640 units a row, on both sides of 32 and 64, with DeepSeek-V4.1-Flash's 2304 and 5120 and a 65-block row.
+// The widths take 4 to 1040 units a row, on both sides of 32 and 64, with DeepSeek-V4.1-Flash's 2304 and 5120, a 65-block row, and the quad rows' edges: 15 to 18 and 20 blocks, 256 blocks (the staging loop's two passes) and 260.
 void mxfp4_decode_bits(Backend& g) {
     const unsigned wave = rocm_device(0).caps.subgroup_size;
     const uint32_t T = quant::GGML_TYPE_MXFP4;
     const size_t nout = 40, ne = 4, cols = 16, K = 2;
-    for (size_t nin : {size_t(32), size_t(224), size_t(256), size_t(288), size_t(480), size_t(512), size_t(544), size_t(2080), size_t(2304), size_t(5120)}) {
+    size_t quad_runs = 0;
+    for (size_t nin : {size_t(32), size_t(224), size_t(256), size_t(288), size_t(480), size_t(512), size_t(544), size_t(576), size_t(640), size_t(2080), size_t(2304), size_t(5120), size_t(8192), size_t(8320)}) {
         const size_t blocks = nin / 32, rowb = blocks * 17;
         // 64 experts of rows, so the routed calls over 64 have them all; the entries pick among the first 4.
         const std::vector<uint8_t> w = typed_matrix(T, nin, nout * 64, uint32_t(nin + 3));
@@ -992,16 +993,21 @@ void mxfp4_decode_bits(Backend& g) {
                 }
                 require(ok, what + ": every output the host row's bits");
             };
-            const auto ran = [&](const std::string& build, const std::string& what) {
+            // A one-column 8-bit call takes MXFP4's quad rows exactly where the shared rule gives them at the 32-lane cluster a 64-lane wave gives rows of 16 blocks or more (twin_checks.hpp, quad_build).
+            const bool quad = twin_checks::quad_build(quant::GGML_TYPE_MXFP4, dt, nin, wave);
+            const auto ran = [&](const std::string& build, const std::string& quad_build, const std::string& what, bool one_column) {
                 const auto l = rocm_take_launches(g);
-                require(l.count(build) > 0, what + " runs " + build);
+                const bool takes = one_column && quad;
+                require(l.count(takes ? quad_build : build) > 0, what + " runs " + (takes ? quad_build : build));
+                require(l.count(takes ? build : quad_build) == 0, what + " does not run " + (takes ? build : quad_build));
+                quad_runs += takes;
             };
             for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(5), size_t(9), size_t(16)}) {
                 const RowRun rr{n, 1};
                 rocm_take_launches(g);
                 g.matmul({T, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout * ne, n, {&rr, 1}, dt);
                 const std::string what = "MXFP4 decode rows " + at + ", " + std::to_string(n) + " columns";
-                ran("llmx_mxfp4_rows" + tw + "_" + std::to_string(n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 8 ? 8 : 16), what);
+                ran("llmx_mxfp4_rows" + tw + "_" + std::to_string(n <= 1 ? 1 : n <= 2 ? 2 : n <= 4 ? 4 : n <= 8 ? 8 : 16), "llmx_mxfp4_quad_rows8_1", what, n == 1);
                 std::vector<std::pair<size_t, size_t>> rc;
                 for (size_t c = 0; c < n; ++c)
                     for (size_t o = 0; o < nout * ne; ++o) rc.push_back({o, c});
@@ -1017,7 +1023,7 @@ void mxfp4_decode_bits(Backend& g) {
                 const size_t avg = n * K / std::min(n_expert, n * K);
                 const std::string build = "llmx_mxfp4_routed" + tw + (n_expert == 64 ? "" : avg <= 2 ? "_g2" : avg <= 4 ? "_g4" : "_g8");
                 const std::string what = "MXFP4 routed decode " + at + ", " + std::to_string(n) + " columns over " + std::to_string(n_expert) + " experts";
-                ran(build, what);
+                ran(build, "llmx_mxfp4_quad_routed8", what, n_expert == 64);
                 std::vector<std::pair<size_t, size_t>> rc;
                 for (size_t e = 0; e < n * K; ++e)
                     for (size_t o = 0; o < nout; ++o) rc.push_back({ids[e] * nout + o, e / K});
@@ -1025,6 +1031,7 @@ void mxfp4_decode_bits(Backend& g) {
             }
         }
     }
+    require(wave != 64 || quad_runs > 0, "MXFP4 decode takes the quad rows on a 64-lane wave");
 }
 
 // The twins producers write beside their outputs, once a product has read one in the class: a product of a norm's or silu_mul's output gives the bits of the same product of a copy of it, whose twin the product makes itself.

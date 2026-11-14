@@ -24,11 +24,13 @@ template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, i
 // Both pass row mask 0xF, bank mask 0xF and bound_ctrl false, so every lane writes and reads its partner.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) {
     static_assert(M == 1 || M == 2, "quad_perm exchanges cover xor 1 and 2");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __builtin_amdgcn_mov_dpp(v, M == 1 ? 0xB1 : 0x4E, 0xF, 0xF, false);
 }
 // The value of lane (this lane xor M) for M = 4, 8 or 16 by ds_swizzle's bit mode within groups of 32 lanes: offset 0x1F | (M << 10) is and-mask 0x1F, or-mask 0, xor-mask M.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T v) {
     static_assert(M == 4 || M == 8 || M == 16, "swizzle exchanges cover xor 4, 8 and 16");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __builtin_amdgcn_ds_swizzle(v, 0x1F | (M << 10));
 }
 
@@ -144,10 +146,12 @@ template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d) {
 template <typename T> __device__ __forceinline__ auto shuffle_down(T v, int d, int width) { return __shfl_down_sync(segment_lanes(width), v, d, width); }
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) {
     static_assert(M == 1 || M == 2, "quad_perm exchanges cover xor 1 and 2");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __shfl_xor_sync(LLMX_FULL_WARP, v, M);
 }
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T v) {
     static_assert(M == 4 || M == 8 || M == 16, "swizzle exchanges cover xor 4, 8 and 16");
+    static_assert(__is_same(T, int) || __is_same(T, unsigned), "lane exchanges move a 32-bit integer's bits; a float goes through lane_xor");
     return __shfl_xor_sync(LLMX_FULL_WARP, v, M);
 }
 template <typename T> __device__ __forceinline__ auto first_lane(T v) { return __shfl_sync(LLMX_FULL_WARP, v, 0); }

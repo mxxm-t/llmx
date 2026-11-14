@@ -1,5 +1,60 @@
 # llmx - Development Status
 
+## MXFP4 one-column 8-bit rows by four lanes a row (2026-11-14, DSDEV172 to DSDEV181, branch dsdev172/mxfp4-experts on main 84e98d4fe)
+
+**Goal.** Faster routed and dense one-column MXFP4 rows on ROCm int8 (DeepSeek-V4.1-Flash decode experts), with every row's bits unchanged.
+
+**Done.**
+- Profile (DSDEV172): the routed MXFP4 decode builds were VALU-bound, both lanes of a block decoding all 16 bytes, at 22 to 49 percent of the MI50's bandwidth.
+- `mxfp4_quad_rows` in `kernels/int16.gpu`: four lanes a row, lane p the four whole blocks of every fourth group from p, the next group's words loaded ahead, the column's twin and scales in shared memory; its 16 chains are `k_rows`' canonical chains folded by the same tree, so a row keeps its bits.
+- The quad rows are kernels of their own, `llmx_mxfp4_quad_rows8_1` and `llmx_mxfp4_quad_routed8`, which the host launches in place of `llmx_mxfp4_rows8_1` and `llmx_mxfp4_routed8` where `gpu_shape::quad_rows` holds (new `kernels/shapes.h`: 32-lane cluster, 16 to 256 blocks, a multiple of four), at 64 rows a block (`block_rows`); the launch counts name them.
+- `backend-rocm`'s MXFP4 decode bits check adds 576, 640, 8192 and 8320 wide rows and requires the quad rows exactly where the rule gives them, and at least once on a 64-lane wave.
+- Standalone microbenchmark (DSDEV172, one MI50, us): one entry gate-up 109-123 to 73, down 105-121 to 45; 16 entries gate-up 1450 to 880, down 1472 to 568; bit-identical at all four shapes.
+- Results (2026-11-14), MI50s at default clocks: `backend-rocm` passes on one card at the head that lands, the quad-rows witness asserted; the CUDA build with `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` passes; `docs` and `dead-code` pass.
+- DeepSeek-V4.1-Flash-1017 MXFP4 on ten MI50s, ROCm int8, tensor width 2, `--lookup-storage file`, main 84e98d4fe (A) against the branch (B), every cell uncontended by hostwait: 64 greedy ids of `generate` byte identical; `bench --p 512 --n 64 --r 3` ABAB, tok/s:
+
+| Cell | A round 1 | B round 1 | A round 2 | B round 2 |
+|---|---|---|---|---|
+| pp512 | 775.91 | 799.94 | 774.98 | 795.25 |
+| tg64 | 32.23 | 33.93 | 31.79 | 34.25 |
+
+- `serve` with `server_load` at 16 users, 32 prompts of 512 tokens and 64-token replies, one round, A then B, no failures: output 50.09 to 59.66 tok/s, total 450.8 to 536.9 tok/s, mean time to first token 12.50 to 9.82 s, mean time per output token 86.6 to 83.4 ms.
+
+- Review fixes (F2DEV): `docs/TESTS.md` lists the widths and the quad-rows witness; `port.h`'s `lane_xor_quad` and `lane_xor_swizzle` static_assert an int or unsigned operand in both the HIP and CUDA copies; `mxfp4_decode_bits` adds 8192 and its comment names the edges (15 to 18, 20, 256 and 260 blocks); the kernel custom commands in `CMakeLists.txt` depend on `kernels/shapes.h`, which `int16.gpu` includes.
+- Fallback timing (DSDEV179, one MI50, standalone `mbf`, dense rows8_1 and routed one-column int8, about 64 MiB of weights a call, best of 5x400 us, two interleaved rounds, spread under 1 percent unless noted), us, main 84e98d4fe against the branch:
+
+| Width (blocks) | Path in the branch | main dense | branch dense | main routed | branch routed |
+|---|---|---|---|---|---|
+| 480 (15) | fallback | 323.1 | 540.0 | 341.6 | 584.2 |
+| 2880 (90) | fallback | 157.4 | 212.0 | 173.9 | 224.4 |
+| 16384 (512) | fallback | 144.0 | 169.1 | 166.2 | 177.3 |
+| 2048 (64) | quad | 162.3 | 106.4 | 177.6 | 112.1 |
+| 4096 (128) | quad | 143.4 | 108.6 | 160.3 | 114.0 |
+| 8320 (260) | fallback | 139.4 | 170.0 | 158.8 | 180.5 |
+
+  The fallback widths 480, 2880 (90 blocks is not a multiple of four), 8320 and 16384 were 8 to 67 percent slower in that build than main, and 2048 and 4096 33 to 37 percent faster.
+- Dynamic shared memory (candidate, rejected): the quad kernel's 9 KB static LDS replaced by `extern __shared__` sized by `gpu_shape::quad_shared`, so fallback launches carry none. Branch against that candidate: 480 540.0 to 532.0 dense and 584.2 to 580.0 routed, 2880 212.0 to 214.2 dense and 224.4 to 221.9 routed, 8320 170.0 to 171.7 dense and 180.5 to 179.8 routed, 16384 169.1 to 171.1 dense and 177.3 to 176.4 routed, and the quad widths unchanged within 0.4 percent. The candidate recovers none of the loss, so the static LDS is not its cause and the candidate is dropped.
+
+- Fallback cause (DSDEV181): with the quad path inside `k_rows`, `llmx_mxfp4_rows8_1` and `llmx_mxfp4_routed8` compiled to the quad path's registers on every width. In the dot module, which an MI50 loads them from, main's 57 and 48 VGPRs and no LDS became 96 and 96 VGPRs and 9216 bytes of LDS (99 and 99 in the plain module, main 58 and 58), so a SIMD held 2 waves of either build rather than 4 and 5. As builds of their own the quad rows keep 96 VGPRs and the 9 KB, and `llmx_mxfp4_rows8_1` and `llmx_mxfp4_routed8` are back to main's 57 and 48 VGPRs with no LDS, no spills and as many instructions as main's; their schedule differs from main's in a few lines through the `mx_signed` helper.
+- Standalone timing after the split (DSDEV181, one MI50, same `mbf` harness, two interleaved rounds, spread under 0.5 percent), us, main 84e98d4fe against the branch:
+
+| Width (blocks) | Path in the branch | main dense | branch dense | main routed | branch routed |
+|---|---|---|---|---|---|
+| 480 (15) | fallback | 323.1 | 322.9 | 341.4 | 341.7 |
+| 2880 (90) | fallback | 157.9 | 157.7 | 173.8 | 174.1 |
+| 16384 (512) | fallback | 143.7 | 144.2 | 166.2 | 166.3 |
+| 2048 (64) | quad | 162.5 | 106.5 | 177.6 | 111.8 |
+| 4096 (128) | quad | 143.8 | 108.7 | 160.1 | 112.2 |
+| 8320 (260) | fallback | 140.0 | 140.1 | 158.6 | 158.8 |
+
+- DeepSeek-V4.1-Flash-1017 MXFP4 after the split, ten MI50s, ROCm int8, tensor width 2, main 84e98d4fe against the branch, uncontended by hostwait: 64 greedy ids of `generate` byte identical; `bench --p 512 --n 64 --r 3`, one pair, pp512 761.56 to 776.17 tok/s and tg64 31.42 to 33.83 tok/s. Its routed MXFP4 shapes (5120 and 2304 wide, 1152 under the width-2 split) are all quad widths, and no MXFP4 model llmx runs has fallback widths; the MXFP4 fixtures (16 and 128 wide) give main's greedy output in int8 and f16 on one MI50.
+
+- Rebased onto main 08e8a0ffb (LAND55): `docs/STATUS.md` conflicted where main and this block both open blocks at the top, both kept; `docs/TESTS.md` conflicted where main added DSpark's taps to `backend-rocm`'s paragraph and this branch the MXFP4 widths and the quad-rows witness after it, both kept; `docs/src/backends-gpu.md` names `tests/twin_checks.hpp` as including `kernels/shapes.h` (F2DEV's nit).
+
+**Left.** The gates at the landing head, then land by fast-forward.
+
+**Gotchas.** `lane_xor_quad<M>` and `lane_xor_swizzle` now refuse at compile time an operand that is not an int or unsigned. `lane_xor_quad<M>` takes the integer type HIP's DPP move takes, so a float passed to it is converted rather than moved; float folds go through `lane_xor(float, int)`, which moves the bits (DSDEV176 found the first port failing every quad-path check that way).
+
 ## Experts on the CPU beside a layer split (2026-11-14, MOEOFF7, branch moe/cpu-experts-multi on main 845b270c1; MOEOFF7's proposal of 03:20)
 
 - **Goal:** `--n-cpu-moe` and `--cpu-moe` over a `--device` list, so a model too large for one card (Qwen3.8-Flash-Next, DeepSeek-V4.1-Flash) can keep experts in host memory.

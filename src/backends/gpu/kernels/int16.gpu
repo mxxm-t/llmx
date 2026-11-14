@@ -2,6 +2,7 @@
 // A row's result depends on that row alone: the row kernel for generated rows and the tile for prompt rows each fix their order, whatever the call holds.
 #include "backends/gpu/kernels/port.h"
 #include "backends/gpu/kernels/quant.h"
+#include "backends/gpu/kernels/shapes.h"
 
 namespace {
 
@@ -890,6 +891,12 @@ template <> struct KRaw<rq::IQ4_NL> {
         dmin = 0.0f;
     }
 };
+// Four MXFP4 nibbles, one a byte, as their doubled E2M1 values in signed bytes: byte selects of the table held in registers, positive and negated, picked by each nibble's sign bit through a byte select of bit 3.
+__device__ inline unsigned mx_signed(unsigned x) {
+    const unsigned idx = x & 0x07070707u, y = x << 4, neg = byte_perm(y, y << 8, 0x0B090A08u);
+    const unsigned pos = byte_perm(0x0C080604u, 0x03020100u, idx), minus = byte_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
+    return (pos & ~neg) | (minus & neg);
+}
 // MXFP4's row lane: two lanes a block, lane t the nibbles of half t of all 16 bytes, so values 16t to 16t + 15, the quarters 2t and 2t + 1, from one scale and one five-word gather.
 // Its two chains keep each quarter's terms in an accumulator of their own, and the host gives the row half the lanes the four quarters would take (backend_core.hpp, row_cluster), so every sum has the four-lane order's bits.
 struct MXFP4Lane {
@@ -909,9 +916,7 @@ struct MXFP4Lane {
         for (int i = 0; i < 4; ++i) {
             // Bytes 4i to 4i + 3 of the 16 from byte s of the words; the sign mask repeats each nibble's bit 3 over its byte by a byte select.
             const unsigned lo = byte_align(a ? (i + 2 < 5 ? q[i + 2] : q[4]) : q[i + 1], a ? q[i + 1] : q[i], r);
-            const unsigned x = (lo >> sh) & 0x0F0F0F0Fu, idx = x & 0x07070707u, y = x << 4, neg = byte_perm(y, y << 8, 0x0B090A08u);
-            const unsigned pos = byte_perm(0x0C080604u, 0x03020100u, idx), minus = byte_perm(0xF4F8FAFCu, 0xFDFEFF00u, idx);
-            v[i] = (pos & ~neg) | (minus & neg);
+            v[i] = mx_signed((lo >> sh) & 0x0F0F0F0Fu);
         }
         ds = rq::e8m0_half((unsigned char)((q[0] >> (8u * off)) & 0xffu));
         dmin = 0.0f;
@@ -1057,6 +1062,66 @@ __device__ inline void store_cluster_pairs(float (&a)[R][C], float (&b)[R][C], c
     }
 }
 
+// Four lanes a row, lane p taking the four whole blocks (68 aligned bytes) of every fourth group from p, the next group's words loaded ahead, the column's twin and scales staged in shared memory.
+// Lane p's 16 chains are k_rows' canonical chains 16p + 4b + Q at a 32-lane cluster, folded by the same tree, so every row keeps k_rows' bits, and every thread passes the barrier into a workgroup-uniform loop.
+template <typename M = Cols>
+__device__ void mxfp4_quad_rows(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add, const M& m = M{}) {
+    __shared__ int4 xs[gpu_shape::kQuadValues / 16];
+    __shared__ float xds[gpu_shape::kQuadValues / 32];
+    const unsigned long long kblocks = nin / 32, groups = kblocks / 4, row_bytes = kblocks * 17, col = m.x(0) * kblocks;
+    for (unsigned i = threadIdx.x; i < nin / 16; i += kThreads) xs[i] = ((const int4*)(q + col * 32))[i];
+    for (unsigned i = threadIdx.x; i < kblocks; i += kThreads) xds[i] = dx[col + i];
+    __syncthreads();
+    constexpr unsigned teams = kThreads / gpu_shape::kQuadLanes;
+    const unsigned p = threadIdx.x % gpu_shape::kQuadLanes;
+    for (unsigned long long base = (unsigned long long)blockIdx.x * teams; base < rc.total; base += (unsigned long long)gridDim.x * teams) {
+        const unsigned long long o = base + threadIdx.x / gpu_shape::kQuadLanes;
+        Row r[1] = {row_of(rc, o < rc.total ? o : rc.total - 1, row_bytes)};
+        float acc[16];
+#pragma unroll
+        for (int i = 0; i < 16; ++i) acc[i] = 0.0f;
+        unsigned Wn[17];
+        if (p < groups)
+#pragma unroll
+            for (int i = 0; i < 17; ++i) Wn[i] = ((const unsigned*)(r[0].w + p * 68))[i];
+        for (unsigned long long g = p; g < groups; g += 4) {
+            unsigned W[17];
+#pragma unroll
+            for (int i = 0; i < 17; ++i) W[i] = Wn[i];
+            if (g + 4 < groups)
+#pragma unroll
+                for (int i = 0; i < 17; ++i) Wn[i] = ((const unsigned*)(r[0].w + (g + 4) * 68))[i];
+#pragma unroll
+            for (int b = 0; b < 4; ++b) {
+                // Block b of the group starts at byte 17b: its scale byte in word SW[b], its 16 nibble bytes the words from A[b] shifted by RS[b] bytes.
+                constexpr int A[4] = {0, 4, 8, 13}, RS[4] = {1, 2, 3, 0}, SW[4] = {0, 4, 8, 12};
+                const unsigned long long kb = 4 * g + b;
+                const int4 xa = xs[2 * kb], xb = xs[2 * kb + 1];
+                const int xv[8] = {xa.x, xa.y, xa.z, xa.w, xb.x, xb.y, xb.z, xb.w};
+                const float xd = xds[kb], ds = rq::e8m0_half((unsigned char)((W[SW[b]] >> (8 * b)) & 0xffu));
+                unsigned D[4];
+#pragma unroll
+                for (int i = 0; i < 4; ++i) D[i] = RS[b] ? byte_align(W[A[b] + i + 1], W[A[b] + i], RS[b]) : W[A[b] + i];
+#pragma unroll
+                for (int Q = 0; Q < 4; ++Q) {
+                    const unsigned sh = Q >= 2 ? 4 : 0;
+                    const unsigned w0 = mx_signed((D[2 * (Q & 1)] >> sh) & 0x0F0F0F0Fu), w1 = mx_signed((D[2 * (Q & 1) + 1] >> sh) & 0x0F0F0F0Fu);
+                    const int is = word_dot((int)w1, xv[2 * Q + 1], word_dot((int)w0, xv[2 * Q], 0, (signed char)0), (signed char)0);
+                    acc[4 * b + Q] = fmaf(xd, ds * (float)is, acc[4 * b + Q]);
+                }
+            }
+        }
+#pragma unroll
+        for (int i = 0; i < 16; ++i) acc[i] += lane_xor(acc[i], 2);
+#pragma unroll
+        for (int i = 0; i < 16; ++i) acc[i] += lane_xor(acc[i], 1);
+#pragma unroll
+        for (int d = 8; d > 0; d /= 2)
+#pragma unroll
+            for (int i = 0; i < d; ++i) acc[i] += acc[i + d];
+        store_sum<1>(r, acc[0], 0, 0, p == 0, o, rc.total, ncols, add, m);
+    }
+}
 // A cluster of rc.cluster lanes computes R output rows for up to C generated rows; each lane adds its runs' terms into F32 in block order, and the cluster folds them by one xor tree.
 // The cluster and the lane follow the row's width and type alone (backend_core.hpp, row_cluster and row_form), so a row and a column keep their bits in every build.
 template <typename KT, int C, typename QT, int R, int G, typename M = Cols, typename L = typename KRaw<KT>::Lane>
@@ -1847,6 +1912,12 @@ LLMX_KTYPE(q5_0, rq::Q5_0)
 LLMX_KTYPE(q5_1, rq::Q5_1)
 LLMX_KTYPE(iq4_nl, rq::IQ4_NL)
 LLMX_KTYPE(mxfp4, rq::MXFP4)
+// MXFP4's quad rows are builds of their own, which the host picks by gpu_shape::quad_rows, so the one-column builds keep k_rows' registers and occupancy at every other width.
+extern "C" __global__ void __launch_bounds__(kThreads)
+    llmx_mxfp4_quad_rows8_1(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
+    mxfp4_quad_rows(c, q, dx, nin, ncols, add);
+}
+LLMX_ROUTED(llmx_mxfp4_quad_routed8, signed char, mxfp4_quad_rows)
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_mxfp4_routed_thin16(TileCall c, TileGroups g, const short* q, const float* dx) { k_thin(c, q, dx, g); }
 // The quarter form's row, routed and grouped builds of Q5_0 and Q5_1, in the order LLMX_KTYPE gives those builds (backend_core.hpp, quarter_twins).
 #define LLMX_KQUARTER(t, KT)                                                                                                       \

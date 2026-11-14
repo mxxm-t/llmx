@@ -51,9 +51,71 @@
 
 - Rebased onto main 08e8a0ffb (LAND55): `docs/STATUS.md` conflicted where main and this block both open blocks at the top, both kept; `docs/TESTS.md` conflicted where main added DSpark's taps to `backend-rocm`'s paragraph and this branch the MXFP4 widths and the quad-rows witness after it, both kept; `docs/src/backends-gpu.md` names `tests/twin_checks.hpp` as including `kernels/shapes.h` (F2DEV's nit).
 
-**Left.** The gates at the landing head, then land by fast-forward.
+**Left.** Nothing; the landing gates are recorded with the dense Q8_0 four-row build below.
 
 **Gotchas.** `lane_xor_quad<M>` and `lane_xor_swizzle` now refuse at compile time an operand that is not an int or unsigned. `lane_xor_quad<M>` takes the integer type HIP's DPP move takes, so a float passed to it is converted rather than moved; float folds go through `lane_xor(float, int)`, which moves the bits (DSDEV176 found the first port failing every quad-path check that way).
+
+## Dense Q8_0 at 16 columns: a four-row build (2026-11-14, DSDEV185, DSDEV188 then DSDEV191, branch dsdev185/q8-columns on main 84e98d4fe; lands by fast-forward)
+
+**Goal.** The dense Q8_0 decode call of 16 columns at int8 reads each weight row once for 16 columns, and the two-row build `llmx_q8_0_half8_16` left large calls short of the card.
+A four-row build of the same lanes and order, chosen by `row_build`'s existing four-row rule, gives the same bits per row and is faster on the large shapes.
+
+**Done.**
+- `llmx_q8_0_half8_16_r4` is `LLMX_HALF(16, 4, 4)` in `kernels/int16.gpu`, with `kHalf8x16r4` in `backend_core.hpp` and `kQ8Twins.four[2][4]` naming it, so a call of at least 4 * `row_four_waves_per_cu` * CUs rows (1920 on an MI50) takes it and smaller calls keep the two-row build.
+- The 9 to 15 column override `kHalfWide` replaces the new build too and sets two rows, so those widths run `half8_9` to `half8_15` as before.
+- Witness `q8_columns_bits` in `tests/backend_rocm.cpp` (full and `types`): 16 columns at 33 and at edge - 1 outputs run `half8_16`, at the edge and at 4097 run `half8_16_r4`, 9 to 15 columns at 4097 run `half8_9` to `half8_15`, and every column is bit-equal to the one-column call, by launch names.
+- Microbench, 16 columns, int8 twin, synthetic, one MI50, us per call, every variant bit-identical to `half8_16` by memcmp:
+
+| shape (nin -> nout) | two rows (main) | four rows (chosen) |
+|---|---|---|
+| kv 5120 -> 512 | 26.7 | 32.0 (stays on two rows) |
+| q_a 5120 -> 1280 | 42.9 | 39.7 (stays on two rows) |
+| q_b 1280 -> 16384 | 182.3 | 140.8 |
+| out_a 4096 -> 4096 | 95.5 | 75.8 |
+| out_b 4096 -> 5120 | 112.1 | 88.1 |
+| gate_up 5120 -> 2304 | 65.2 | 58.3 |
+| down 1152 -> 5120 | 67.1 | 50.8 |
+| Qwen3.6-27B qkv 5120 -> 3584 | 90.2 | 70.4 |
+| Qwen3.6-27B up 5120 -> 8704 | 190.3 | 161.1 |
+| Qwen3.6-27B down 4352 -> 5120 | 122.6 | 101.4 |
+| wide 17408 -> 1280 | 118.3 | 103.1 |
+
+- Rejected in the microbench: eight rows a group, two groups of 16 columns, LDS staging of the input (barriers per 32-block step lost at 1 to 2 waves per SIMD) and four rows at group 2, all slower than four rows at group 4.
+- A `waves_per_eu(3)` two-row build helps kv, q_a, q_b and down by 13 to 21 percent below the four-row threshold and is not taken here.
+- Results (2026-11-14, MI50 cards by cardpick, hostwait contended=no in every cell, A = main 84e98d4fe, B = this branch 3ceb2029, built the same way):
+
+| model, cell | main | branch |
+|---|---|---|
+| DeepSeek-V4.1-Flash MXFP4 5x2 int8, pair 1, s1 tg32 (tok/s) | 31.98 | 32.29 |
+| same, pair 1, s16 x16 tg32 | 102.03 | 103.55 |
+| same, pair 2, s1 tg32 | 32.40 | 29.01 +- 2.84 (one slow run, s1 does not reach the build) |
+| same, pair 2, s16 x16 tg32 | 102.15 | 103.38 |
+| Qwen3.6-27B-MTP Q8_0 1x4 int8, s1 tg64 | 56.43 +- 6.28 | 54.79 +- 2.47 (inside the spread) |
+| same, s16 x16 tg64 | 291.08 | 313.49 (+7.7 percent) |
+| same, pp128 (tok/s) | 659.63 | 657.00 |
+
+- Identity: `server_mix_check` over 16 requests on DeepSeek-V4.1-Flash and on Qwen3.6-27B-MTP, main against the branch, `ids-idA` and `ids-idB` compare equal byte for byte for both models, and each run showed 0 of 12 differ.
+- `backend-rocm` (full) passes on an MI50; `docs` and `dead-code` pass.
+- CUDA (llmx-cuda-dev 12.9.1): the build and `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` pass, and `half8_16_r4` uses 252 registers with no spills on all arches.
+  With 64 sums folding through `store_sums`' parts-of-32 path as `rows8_16` does, it compiles and is reachable on CUDA at int8 from 896 rows on a 28-SM card; it has not run on an NVIDIA device.
+
+- Review fixes (F2DEV's approval, two nits) and stacking (LAND55): stacked on the MXFP4 quad rows over main 08e8a0ffb, where `backend_core.hpp`'s 9-to-15-column reroute conflicted with that branch's `block_rows` line, both kept: the reroute takes the half form's two rows from `kQ8Twins.two_rows[2][4]` rather than a literal 2, and the launch's rows a block come from `block_rows`, which gives the plain formula for any kernel but MXFP4's; `q8_columns_bits` checks 9 to 15 columns and the four-row build at the larger of 4097 outputs and the four-row edge, so the reroute is checked on devices with more compute units; `docs/STATUS.md`, `docs/TESTS.md` and `docs/src/backends-gpu.md` conflicted only where both branches add lines, all kept.
+
+**Landing gates** (on 0ccb3edb6, the stacked head of this block and the dense Q8_0 four-row build, on main 08e8a0ffb; lands by fast-forward).
+- Builds: CPU, ROCm and Vulkan rc 0; CUDA build and its host CTests 85 of 85.
+- CTest on the CPU 82 of 83: `server-spec` failed once under `-j4` and passed 3 of 3 alone on this head and on main, a load-dependent check this change does not reach, recorded for its own fix.
+- ROCm `gpu-core` and `backend-rocm` pass on one MI50; the Vulkan suite on `vulkan:0` rc 0; docs and dead-code pass.
+- Identity against main: the mxfp4 fixtures on the CPU and `rocm:0` are identical, HF max error 0.00012650 (CPU) and 0.00031847 (ROCm); DeepSeek-V4.1-Flash 5x2 on ten MI50s gives the same top-10 logits and 48 greedy tokens; Qwen3.6-27B Q8_0 1x4 at 16 requests gives byte-identical ids.
+- Timing against main, ABAB, no contended run: 27B tg at 16 sequences 269.1 / 265.4 against 271.9 / 279.9 tok/s, 27B pp128 flat near 573, the DeepSeek bench within about 4 percent either way, and one DeepSeek serve pair at 16 users 39.1 against 54.3 tok/s with p50 time to first token 15.4 against 10.6 s.
+- Radeon VII on Windows: build rc 0, CTest 104 of 104, suite on `vulkan:0` 48 of 48.
+- Hosted run 43591415062 passes, 8 of 8 jobs, on 0ccb3edb6 (the macOS job timed out once at 90 minutes in its CPU test step and passed on its rerun); the landing commit differs from it only in this record, and the docs and dead-code components pass on it.
+A `waves_per_eu(3)` build for 16 columns below the four-row threshold, as its own kernel id, if the reviewer wants it measured on real shapes.
+A CUDA device run of `half8_16_r4` when a card is at hand.
+
+**Gotchas.**
+- The four-row build keeps each row's lanes and order, so it must not be paired with a reduction change; the memcmp over 11 shapes and the witness hold that.
+- The threshold is the existing `row_four_waves_per_cu` rule, so kv and q_a, where four rows are slower, stay on two rows through it and not through a shape list.
+- Single-column decode (s1) never reaches this build; a s1 difference between arms is noise.
 
 ## Experts on the CPU beside a layer split (2026-11-14, MOEOFF7, branch moe/cpu-experts-multi on main 845b270c1; MOEOFF7's proposal of 03:20)
 

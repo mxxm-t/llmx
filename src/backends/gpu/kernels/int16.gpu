@@ -1798,6 +1798,8 @@ LLMX_HALF(llmx_q8_0_half8_13, 13, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_14, 14, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_15, 15, 2, 4)
 LLMX_HALF(llmx_q8_0_half8_16, 16, 2, 4)
+// Four rows a wave halve the twin loads a weight row takes, measured faster once the call gives row_four_waves_per_cu waves a compute unit (docs/STATUS.md, dense Q8_0 at 16 columns).
+LLMX_HALF(llmx_q8_0_half8_16_r4, 16, 4, 4)
 
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile16(TileCall c, const short* q, const float* dx) { q8_0_tile<short, 4>(c, q, dx); }
 extern "C" __global__ void __launch_bounds__(kThreads) llmx_q8_0_tile8(TileCall c, const signed char* q, const float* dx) { q8_0_tile<signed char, 4>(c, q, dx); }

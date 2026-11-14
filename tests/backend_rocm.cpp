@@ -959,6 +959,41 @@ float mxfp4_row_host(const uint8_t* row, const std::vector<float>& d, const int1
     return acc[0];
 }
 
+// A Q8_0 int8 decode call of 9 to 16 columns against each column computed alone, bit for bit, by the kernels it ran.
+// Sixteen columns take the half-block build of four rows a wave once its waves give each compute unit row_four_waves_per_cu, from the rule's edge on, and the two-row build below it; 9 to 15 columns keep their own builds.
+void q8_columns_bits(Backend& g) {
+    const size_t nin = 1024, edge = size_t(4) * rocm_profile(g).row_four_waves_per_cu * rocm_device(0).caps.compute_units;
+    const size_t big = std::max<size_t>(edge, 4097);
+    const std::vector<uint8_t> w = q8_matrix(nin, big, 27);
+    auto wb = g.adopt(w.data(), w.size());
+    const std::vector<float> x = row_classes::values(nin * 16, 28);
+    std::vector<BufferPtr> xs;
+    for (size_t c = 0; c < 16; ++c) xs.push_back(g.adopt(x.data() + c * nin, nin * 4));
+    auto xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(big * 16 * 4);
+    for (const size_t n : {size_t(33), edge - 1, edge, big})
+        for (size_t cols = 9; cols <= 16; ++cols) {
+            if (cols < 16 && n != big) continue;
+            const RowRun rr{cols, 1};
+            rocm_take_launches(g);
+            g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, n, cols, {&rr, 1}, Dtype::int8);
+            std::string ran;
+            for (const auto& [k, v] : rocm_take_launches(g))
+                if (k.rfind("llmx_q8_0", 0) == 0) ran += k;
+            const std::vector<float> y = read(g, *yb, n * cols);
+            const std::string want = "llmx_q8_0_half8_" + std::to_string(cols) + (cols == 16 && n >= edge ? "_r4" : "");
+            const std::string what = "a Q8_0 int8 decode call of " + std::to_string(cols) + " columns, " + std::to_string(n) + " outputs";
+            require(ran == want, what + " runs " + want + " (ran " + ran + ")");
+            bool ok = true;
+            for (size_t c = 0; c < cols; ++c) {
+                const RowRun one{1, 1};
+                g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xs[c].get(), 0}, {yb.get(), 0}, nin, n, 1, {&one, 1}, Dtype::int8);
+                const std::vector<float> y1 = read(g, *yb, n);
+                ok = ok && std::memcmp(y1.data(), y.data() + c * n, n * 4) == 0;
+            }
+            require(ok, what + ": every column the one-column call's bits");
+        }
+}
+
 // Every MXFP4 decode build against the host's row bit for bit in both twins: dense rows of 1 to 16 columns, routed entries and the grouped builds of 2, 4 and 8.
 // The widths take 4 to 1040 units a row, on both sides of 32 and 64, with DeepSeek-V4.1-Flash's 2304 and 5120, a 65-block row, and the quad rows' edges: 15 to 18 and 20 blocks, 256 blocks (the staging loop's two passes) and 260.
 void mxfp4_decode_bits(Backend& g) {
@@ -3889,7 +3924,7 @@ int main(int argc, char** argv) {
             exact_rows(*g);
             twin_types(*g, *c);
             q8_decode_bits(*g);
-        mxfp4_decode_bits(*g);
+            q8_columns_bits(*g);
             mxfp4_decode_bits(*g);
             std::cout << (failures ? "backend-rocm types: FAIL\n" : "backend-rocm types: PASS\n");
             return failures ? 1 : 0;
@@ -3902,6 +3937,7 @@ int main(int argc, char** argv) {
         exact_rows(*g);
         twin_types(*g, *c);
         q8_decode_bits(*g);
+        q8_columns_bits(*g);
         mxfp4_decode_bits(*g);
         attention(*g, *c);
         classes(*g);

@@ -1372,3 +1372,5 @@ python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5
 It prints one skip line where llmx does not run the architecture, on a device whose backend lacks its ops, and a file without bounds is measured and fails, so the first measurement sets them.
 
 `tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B, Qwen3.6-27B and Qwen3.6-35B-A3B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line where llmx does not run the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
+
+The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images.

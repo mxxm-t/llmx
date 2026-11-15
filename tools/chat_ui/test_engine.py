@@ -4,6 +4,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from engine import Engine
@@ -120,6 +121,18 @@ class EngineTests(unittest.TestCase):
         if self.store is not None:
             self.store.close()
         self.temp.cleanup()
+
+    def test_image_rejection_keeps_conversation_unchanged(self):
+        body = {"content": "Describe this", "attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}
+        before = self.store.snapshot(self.chat["id"])
+        with mock.patch("engine.Connection.json", side_effect=ValueError("chat template refused the messages")), \
+                mock.patch("engine.threading.Thread") as start:
+            with self.assertRaisesRegex(ValueError, "images"):
+                self.engine.start(self.chat["id"], body, self.settings())
+            start.assert_not_called()
+        self.assertEqual(before, self.store.snapshot(self.chat["id"]))
+        self.assertEqual(body["content"], "Describe this")
+        self.assertEqual(len(body["attachments"]), 1)
 
     def settings(self, tools=None):
         return {"model": "fake-model", "max_tokens": 32, "tools": tools or []}

@@ -46,6 +46,15 @@
 **Left.** Resolve the Linux tooltip finding, finish stacked hosted qualification and hand the head to the coordinator. The owner permits local static previews while checks run.
 
 **Gotchas.** Presentation only. Preserve existing actions and message behavior; check the late `.message-actions` cascade in `app.css`.
+## Chat image admission (2026-11-15, In progress)
+
+**Goal.** Refuse an image-bearing prompt before creating a reply when the upstream cannot process it, preserving the draft and attachments. Engine owns the model request shape and admission.
+
+**Done.** The running text-only server renders its template before checking image support, producing a string/list error. Runtime ordering and served capability metadata were reported to the runtime owners.
+
+**Left.** Add failing admission tests, validate image prompts with the existing tokenize route before persistence, and verify rejection and successful image forwarding.
+
+**Gotchas.** Never infer vision support from a model name or silently remove images. Text-only requests keep their existing path.
 
 ## Standalone dashboard upstream key file (2026-11-15, Done)
 

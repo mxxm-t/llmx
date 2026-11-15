@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Chat sidebar keyboard focus fill (2026-11-16, in progress)
+
+**Goal.** Keep keyboard focus on a chat row visually consistent with its active and hover shapes at narrow and wide widths and across themes.
+
+**Done.** Baseline browser check at `bd876444` did not reproduce an active/hover size mismatch: both states measure 223 by 42 px, with a 187 px chat button and a contiguous 36 px menu button. Pixel samples at both row edges match in light and dark themes. A new focus regression fails on the baseline: its pixels show the surface color where the full row should use the selected color.
+
+**Left.** Make focus paint cover the full row; pass the focused browser check on desktop and narrow layouts in light and dark themes; run syntax, docs and dead-code checks.
+
+**Gotchas.** Sidebar markup is emitted by `tools/chat_ui/app.js`; layout is in `tools/chat_ui/shell.css`; `.chat-item` states are in `tools/chat_ui/app.css`. Do not alter `browser_check.mjs`'s Chrome launch block.
+
 ## Companion features landed (2026-11-15, Done)
 
 The six companion features below landed on main at `b2367461cdbc55c4e2bf31df3fa93b81f67162ee`.

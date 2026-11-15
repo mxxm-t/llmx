@@ -107,6 +107,13 @@ async function idle() { await wait("document.querySelector('#stop').hidden && do
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
+async function sidebarFocusSamples(selector) {
+  const box = await evaluate(`(()=>{const row=document.querySelector(${JSON.stringify(selector)}).parentElement,r=row.getBoundingClientRect(),probe=document.createElement('div');probe.style.background='var(--hover)';document.body.append(probe);const expected=getComputedStyle(probe).backgroundColor;probe.remove();return {x:r.x,y:r.y,width:r.width,height:r.height,expected}})()`);
+  const left = Math.floor(box.x), top = Math.floor(box.y);
+  const width = Math.ceil(box.width + box.x - left), height = Math.ceil(box.height + box.y - top);
+  const image = await cdp('Page.captureScreenshot', {format: 'png', clip: {x: left, y: top, width, height, scale: 1}});
+  return await evaluate(`new Promise(resolve=>{const img=new Image();img.onload=()=>{const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(img,0,0);const pixels=[[10,4],[img.naturalWidth-8,4],[10,img.naturalHeight-5],[img.naturalWidth-8,img.naturalHeight-5]].map(([x,y])=>Array.from(context.getImageData(x,y,1,1).data));resolve({expected:${JSON.stringify(box.expected)},pixels})};img.onerror=()=>resolve({expected:${JSON.stringify(box.expected)},pixels:[]});img.src='data:image/png;base64,${image.data}'})`);
+}
 
 try {
   let port;
@@ -551,6 +558,31 @@ try {
     await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...hoverPoint});
     assert.equal(await evaluate(`(()=>{const row=document.querySelector(${JSON.stringify(menuSelector)}).parentElement;return getComputedStyle(row.querySelector('.chat-row-menu')).backgroundColor===getComputedStyle(row.querySelector('.chat-item')).backgroundColor})()`), true, 'sidebar menu hover does not match its chat row background');
   }
+  const assertSidebarFocusPaint = async context => {
+    const paint = await sidebarFocusSamples(targetMenu);
+    const expected = paint.expected.match(/\d+/g).map(Number).slice(0, 3);
+    assert.equal(paint.pixels.length, 4, 'sidebar focus screenshot could not be sampled');
+    assert.equal(paint.pixels.every(pixel => pixel.slice(0, 3).every((channel, index) => channel === expected[index])), true, context + ' sidebar keyboard focus does not fill both row edges: ' + JSON.stringify(paint));
+  };
+  await evaluate(`document.querySelector(${JSON.stringify(targetMenu)}).focus({focusVisible:true})`);
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
+    await assertSidebarFocusPaint('Desktop ' + theme);
+    if (theme === 'light') await screenshot('sidebar-chat-row-focus-desktop.png');
+  }
+  await evaluate('document.activeElement.blur()');
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+  await wait("getComputedStyle(document.querySelector('.mobile-nav')).display!=='none'", 'narrow sidebar toggle');
+  await click('#drawer-shade'); await wait("document.querySelector('#drawer-shade').hidden", 'narrow drawer shade closes');
+  await pointerClick('.mobile-nav'); await wait("document.querySelector('#app').classList.contains('sidebar-open')", 'narrow sidebar opens');
+  await evaluate(`document.querySelector(${JSON.stringify(targetMenu)}).scrollIntoView({block:'center'});document.querySelector(${JSON.stringify(targetMenu)}).focus({focusVisible:true})`);
+  for (const theme of ['light', 'dark']) {
+    await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)}`);
+    await assertSidebarFocusPaint('Mobile ' + theme);
+    if (theme === 'light') await screenshot('sidebar-chat-row-focus-mobile.png');
+  }
+  await click('#drawer-shade');
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');
   await click('#action-menu [data-action="rename"]');

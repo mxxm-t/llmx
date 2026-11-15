@@ -258,6 +258,13 @@ try {
   await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'attachment chip');
   await upload('#file-input', imageFixture);
   await wait("document.querySelector('#attachments').innerText.includes('pixel.png')", 'image attachment chip');
+  const beforeImageRefusal = await evaluate("document.querySelectorAll('.message').length");
+  await send('Reject image test');
+  await wait("!document.querySelector('#send').disabled && document.querySelector('#banner').textContent.includes('images')", 'friendly image rejection');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Reject image test', 'rejected image lost draft');
+  assert.equal(await evaluate("document.querySelectorAll('#attachments .attachment-pill').length"), 2, 'rejected image lost attachments');
+  assert.equal(await evaluate("document.querySelectorAll('.message').length"), beforeImageRefusal, 'rejected image created a message');
+  assert.equal(await evaluate("document.querySelector('#stop').hidden"), true, 'rejected image started generation');
   await send('Read the attachment.');
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The attached file is readable.')", 'attachment response');
   await click('[data-tab="stats"]');
@@ -306,6 +313,25 @@ try {
   await wait("document.querySelector('#stop').hidden && Array.from(document.querySelectorAll('.message.assistant')).at(-1)?.textContent.includes('Incomplete response')", 'persisted failed response');
   assert.equal(await evaluate("!document.querySelector('#banner').hidden && document.querySelector('#banner').textContent.includes('disconnected')"), true, 'failed snapshot did not restore its error banner');
   assert.equal(runStreams.length, streamsBeforeFailedReload, 'completed failure snapshot unexpectedly subscribed to active generation');
+  await evaluate(`(() => {
+    const original = window.fetch;
+    const path = '/api/chats/' + localStorage.getItem('llmx-chat');
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (args[0] !== path) return response;
+      window.fetch = original;
+      const snapshot = await response.json();
+      const leaf = snapshot.messages.find(m => m.id === snapshot.chat.active_leaf);
+      snapshot.runs.find(r => r.id === leaf.run_id).error = 'llmx returned HTTP 400: the chat template refused the messages: can only concatenate str (not "list") to str';
+      return new Response(JSON.stringify(snapshot), {status: 200, headers: {'Content-Type': 'application/json'}});
+    };
+  })()`);
+  await click('.chat-item.active');
+  await wait("document.querySelector('#banner').textContent.includes('Edit the message')", 'legacy image failure explanation');
+  assert.equal(await evaluate("document.querySelector('#banner').textContent.includes('concatenate')"), false, 'legacy template error leaked into banner');
+  await reloadDocument();
+  await wait("document.querySelector('#banner').textContent.includes('disconnected')", 'unrelated failure stays specific');
+
   await send('Cancel this response.');
   await wait("document.querySelector('#messages').textContent.includes('Cancellation test') && !document.querySelector('#stop').hidden", 'cancellable live response');
   await click('#stop');

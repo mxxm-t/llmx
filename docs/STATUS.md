@@ -1,6 +1,6 @@
 # llmx - Development Status
 
-## Chat backup branch validation (2026-11-15, In progress)
+## Chat backup branch validation (2026-11-15, Ready)
 
 **Goal.** Reject broken conversation branches before a restored backup replaces the active database. The existing Store validation owns this check.
 
@@ -12,10 +12,10 @@
 
 **Checks.** All 77 companion tests pass locally, including the real-browser fixture (61.266 seconds). Docs report no findings and 21 planted checks (27.782 seconds); dead-code reports the 15 expected findings and 20 planted checks (39.204 seconds). Focused store tests pass all 13 cases, including nine invalid-graph subcases. A bounded second-agent source review found no blocker. The affected Markdown owners and all companion references were checked against this diff; the preceding full Markdown review carries forward for unchanged files.
 
-**Left.** Hosted companion qualification, then READY to the coordinator for landing.
+**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
 
 **Gotchas.** Standalone Python companion only. No runtime, inference or GPU changes. Preserve valid alternative branches and SQLite row-order independence.
-## Workspace refresh ordering (2026-11-15, In progress)
+## Workspace refresh ordering (2026-11-15, Ready)
 
 **Goal.** Keep a pending workspace refresh from hiding a completed save or restoring an older revision in the UI. The browser workspace owner holds snapshot ordering.
 
@@ -27,11 +27,11 @@
 
 **Checks.** The first delayed-refresh fix passed in 25.980 seconds. Review then identified a failed older read cancelling the save's queued refresh; the added failed-read case reproduced that in 27.528 seconds. The final full browser check passes both cases in 23.937 seconds, including a clean error state after recovery. JavaScript syntax passes. Earlier request failures remain reported by their own caller, while queued callers still fetch current state.
 
-**Left.** Stacked hosted qualification with the backup fix, then READY to the coordinator.
+**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
 
 **Gotchas.** No inference changes. Keep this independent of backup validation and message-action styling.
 
-## Chat message action buttons (2026-11-15, In progress)
+## Chat message action buttons (2026-11-15, Ready)
 
 **Goal.** Make message controls easy to recognize without persistent labels, while keeping the toolbar accessible and compact across themes and screen sizes.
 
@@ -43,18 +43,41 @@
 
 **Checks.** Hosted run 43731177435 passes Windows but fails the Linux hover-tooltip assertion. The workspace refresh regression passes. A focused Windows reproduction passes in 26.976 seconds. Hosted run 43732095834 diagnostics show the hover test aimed at y=101.09375 after the button had moved to y=-9.90625..22.09375. Hit-testing found a different article and no pointer events reached the button. The test now waits for send completion and queued layout frames, scrolls the target into view, and verifies its current hit target before moving the pointer. No tooltip product change or timeout increase was needed. The corrected pointer check passes locally in 26.516 seconds.
 
-**Left.** Resolve the Linux tooltip finding, finish stacked hosted qualification and hand the head to the coordinator. The owner permits local static previews while checks run.
+**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
 
 **Gotchas.** Presentation only. Preserve existing actions and message behavior; check the late `.message-actions` cascade in `app.css`.
-## Chat image admission (2026-11-15, In progress)
+## Chat image admission (2026-11-15, Ready)
 
 **Goal.** Refuse an image-bearing prompt before creating a reply when the upstream cannot process it, preserving the draft and attachments. Engine owns the model request shape and admission.
 
 **Done.** The running text-only server renders its template before checking image support, producing a string/list error. Runtime ordering and served capability metadata were reported to the runtime owners.
 
-**Left.** Add failing admission tests, validate image prompts with the existing tokenize route before persistence, and verify rejection and successful image forwarding.
+**Done.** The engine checks image-bearing prompts through tokenize before Store.start, including follow-up and retry history. Shared content and request builders preserve images, tools and template settings. Refusal keeps the conversation and browser draft unchanged, with actionable text instead of the template error. Transport failures ask for retry.
+
+**Checks.** The unfixed admission test fails by accepting the request. All 13 focused engine tests pass, including exact preflight/generation payload equality with tools and network failure. The browser verifies refused uploads retain both files and text, create no messages or active run, and can then be sent successfully (26.045 seconds).
+
+**Checks.** Final companion discovery passes all 79 tests (55.735 seconds). Docs report no findings and 21 planted checks (28.2 seconds); dead-code reports 15 expected findings and 20 planted checks (34.2 seconds). A second-agent review confirmed the shared payload and pre-persistence refusal. The affected owner documentation was reviewed, with prior full Markdown review carried forward for unchanged files.
+
+**Done.** Local preview on port 8183 uses the fix. An isolated real-server check and a live companion request both refuse the image with useful text and leave messages and runs unchanged.
+
+**Done.** Old saved template errors on image-bearing branches now show an actionable banner, while Activity retains the original diagnostic and the database is unchanged. The browser regression fails on the uncorrected presentation (21.951 seconds).
+
+**Checks.** The legacy-error browser regression now passes (25.521 seconds), including reopening an image-bearing failed branch and retaining a specific unrelated failure. Docs pass with no findings and 21 planted checks (22.4 seconds). The final punctuation-only preview edit also passes JavaScript syntax.
+
+**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
 
 **Gotchas.** Never infer vision support from a model name or silently remove images. Text-only requests keep their existing path.
+
+
+## Companion batch qualification (2026-11-15, Ready)
+
+**Goal.** Land backup graph validation, workspace refresh ordering, accessible message icons and image admission as independent features in one fast-forward batch.
+
+**Checks.** Hosted [Chat workspace run 43732502725](https://github.com/mxxm-t/llmx/actions/runs/43732502725) passes on Ubuntu 24.04 and Windows 2022 at 15d083a3fa12db59e38c945ad8a8c1bb388f18ec. Both jobs run Python compilation, dead-code regressions, the complete companion tests with a real browser, and existing dashboard tests. Local combined browser passes in 26.516 seconds after the measured Linux pointer-test correction. Local docs checks pass with no findings and 21 planted checks. Image admission was additionally checked against the real local text-only server and the live companion, with zero messages or runs inserted on refusal. The final change after that hosted run updates only this STATUS record; product and test inputs are unchanged and the documentation check runs again.
+
+**Review.** Store, workspace ordering and shared image payload changes received a bounded second-agent source review. Affected Markdown owners and their references were checked. The preceding full Markdown audit carries forward for unchanged files at the same main base. The earlier Linux failures remain recorded with the ordering reproduction and stale-pointer geometry; neither was waived. No runtime, inference, device, numerical or GPU performance paths changed.
+
+**Left.** Main remains 795dc3495. Send the exact qualified head to the coordinator for fast-forward landing, then remove this batch's superseded temporary GitHub branches. The separate pending-send draft-preservation work is not included.
 
 ## Standalone dashboard upstream key file (2026-11-15, Done)
 

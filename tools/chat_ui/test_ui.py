@@ -28,6 +28,16 @@ class StepGate(threading.Event):
 
 class BrowserUpstream(FakeUpstream):
     def do_POST(self):
+        if self.path == "/v1/tokenize":
+            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            refused = any("Reject image test" in str(m.get("content")) for m in payload.get("messages", []))
+            data = json.dumps({"error": {"message": "can only concatenate str (not list) to str"}} if refused else {"tokens": [1], "count": 1}).encode()
+            self.send_response(400 if refused else 200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         with type(self).lock:
             cancellation = bool(type(self).replies and type(self).replies[0][0] == text_event(reasoning="Cancellation test"))
         if cancellation:

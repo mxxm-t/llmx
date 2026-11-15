@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 import json
+import http.client
 import threading
 import time
 
@@ -37,6 +38,23 @@ class Engine:
         self.threads = set()
 
     def start(self, chat_id, body, settings):
+        body = dict(body)
+        with self.store.lock:
+            chat = self.store.chat(chat_id)
+            parent = body.setdefault("parent_id", chat["active_leaf"])
+            if parent and self.store.message(parent)["chat_id"] != chat_id:
+                raise ValueError("The parent belongs to another conversation.")
+            messages = self._history(parent, settings.get("system", ""))
+        if not body.get("regenerate"):
+            messages.append({"role": "user", "content": self._content(body)})
+        if any(isinstance(m["content"], list) and any(p.get("type") == "image_url" for p in m["content"]) for m in messages):
+            try:
+                available = self.tools.list_tools() if settings.get("tools") else []
+                Connection(self.upstream, timeout=30, key=self.key).json("/tokenize", self._payload(messages, settings, available))
+            except (OSError, http.client.HTTPException) as exc:
+                raise ValueError("Could not reach the server to check this message's images. Try again. Your draft has been kept.") from exc
+            except ValueError as exc:
+                raise ValueError("The server could not process this message with images. Use an image-capable model and server, or remove the images. Your draft has been kept.") from exc
         with self.lock:
             if len(self.controls) >= 8:
                 raise ValueError("Eight replies are already running. Wait for one to finish.")
@@ -80,6 +98,20 @@ class Engine:
     def _state(self, rid, status, **extra):
         self.store.publish(rid, "state", dict(self.store.run(rid), status=status, **extra))
 
+    @staticmethod
+    def _content(message):
+        text = message.get("content", "")
+        attachments = message.get("attachments", [])
+        if not attachments:
+            return text
+        parts = [{"type": "text", "text": text}] if text else []
+        for attachment in attachments:
+            if "text" in attachment:
+                parts.append({"type": "text", "text": f"\nFile: {attachment['name']}\n{attachment['text']}"})
+            else:
+                parts.append({"type": "image_url", "image_url": {"url": attachment["data"]}})
+        return parts
+
     def _history(self, leaf, system):
         messages = [{"role": "system", "content": system}] if system else []
         chain = self.store.path(leaf)
@@ -87,14 +119,8 @@ class Engine:
         for message in chain:
             role, text = message["role"], message["content"]
             entry = {"role": role, "content": text}
-            if role == "user" and message.get("attachments"):
-                parts = [{"type": "text", "text": text}] if text else []
-                for attachment in message["attachments"]:
-                    if "text" in attachment:
-                        parts.append({"type": "text", "text": f"\nFile: {attachment['name']}\n{attachment['text']}"})
-                    else:
-                        parts.append({"type": "image_url", "image_url": {"url": attachment["data"]}})
-                entry["content"] = parts
+            if role == "user":
+                entry["content"] = self._content(message)
             if role == "tool":
                 entry["tool_call_id"] = message["tool_call_id"]
             if role == "assistant":
@@ -109,14 +135,19 @@ class Engine:
             messages.append(entry)
         return messages
 
-    def _model(self, rid, message, settings, available, control):
+    @staticmethod
+    def _payload(messages, settings, available):
         payload = {k: settings[k] for k in ("model", "temperature", "top_p", "top_k", "max_tokens") if k in settings and settings[k] is not None}
-        payload.update(messages=self._history(message["parent_id"], settings.get("system", "")),
+        payload.update(messages=messages,
                        stream=True, stream_options={"include_usage": True})
         selected = [t for t in available if t["name"] in settings.get("tools", [])]
         if selected:
             payload["tools"] = [{"type": "function", "function": {"name": t["name"],
                                 "description": t["description"], "parameters": t["inputSchema"]}} for t in selected]
+        return payload
+
+    def _model(self, rid, message, settings, available, control):
+        payload = self._payload(self._history(message["parent_id"], settings.get("system", "")), settings, available)
         conn = Connection(self.upstream, timeout=120, key=self.key)
         with control.changed:
             control.connection = conn

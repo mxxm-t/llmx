@@ -105,7 +105,28 @@ must belong to the same conversation, and every message branch must be acyclic.
 Valid branches may be stored in any row order. A refused backup leaves the current
 conversations and event journal unchanged.
 
+## Workspace snapshots
+
 Workspace refresh callers wait for an older refresh to finish before starting
 their own. A completed mutation therefore receives a subsequent snapshot rather
 than silently reusing a response requested before that mutation. Failure of the
 older request does not cancel a queued refresh; its own caller reports the error.
+
+### Image admission
+
+Before persisting a reply, the engine sends an image-bearing prompt to the
+upstream `/v1/tokenize` route with the same message content, selected tools and
+template settings as generation. This includes images in follow-up and retry
+history. A refusal leaves the conversation unchanged and keeps the browser draft
+and attachments. The UI offers an image-capable server or removal of the images,
+rather than exposing a template type error. Connection failures ask the user to
+retry. Images are never dropped or converted into invented descriptions.
+
+Text-only prompts do not make this extra request. Image admission requires the
+llmx tokenize route; an upstream without that route cannot validate image input.
+This checks input processing, not whether the model will describe an image well.
+
+Saved template failures on an image-bearing branch also receive an actionable
+banner when the chat is reopened. The original error remains in Activity for
+diagnosis; stored history is not rewritten. Other failures retain their specific
+messages.

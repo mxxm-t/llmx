@@ -134,6 +134,39 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(body["content"], "Describe this")
         self.assertEqual(len(body["attachments"]), 1)
 
+    def test_image_admission_includes_followup_and_retry_history(self):
+        body = {"content": "Describe this", "attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}
+        self.reply(text_event("A picture"))
+        with mock.patch("engine.Connection.json", return_value={"tokens": [1], "count": 1}) as probe:
+            run = self.engine.start(self.chat["id"], body, self.settings(["echo"]))
+            self.wait_run(run["id"], {"completed"})
+        args = probe.call_args.args
+        self.assertEqual(args[0], "/tokenize")
+        self.assertEqual(args[1], FakeUpstream.requests[0])
+        self.assertEqual(args[1]["messages"][0]["content"][-1]["image_url"]["url"], body["attachments"][0]["data"])
+        snapshot = self.store.snapshot(self.chat["id"])
+        user = next(m for m in snapshot["messages"] if m["role"] == "user")
+        for next_body in ({"content": "And its colour?"}, {"regenerate": True, "parent_id": user["id"]}):
+            with self.subTest(body=next_body), mock.patch("engine.Connection.json", side_effect=ValueError("no images")):
+                with self.assertRaisesRegex(ValueError, "images"):
+                    self.engine.start(self.chat["id"], next_body, self.settings())
+                self.assertEqual(snapshot, self.store.snapshot(self.chat["id"]))
+
+    def test_image_preflight_connection_failure_keeps_draft(self):
+        before = self.store.snapshot(self.chat["id"])
+        with mock.patch("engine.Connection.json", side_effect=TimeoutError("timeout")):
+            with self.assertRaisesRegex(ValueError, "Try again"):
+                self.engine.start(self.chat["id"], {"attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}, self.settings())
+        self.assertEqual(before, self.store.snapshot(self.chat["id"]))
+
+    def test_text_attachment_does_not_probe_images(self):
+        self.reply(text_event("Read it"))
+        with mock.patch("engine.Connection.json") as probe:
+            run = self.engine.start(self.chat["id"], {"content": "Read", "attachments": [{"name": "notes.txt", "text": "hello"}]}, self.settings())
+            self.wait_run(run["id"], {"completed"})
+            probe.assert_not_called()
+        self.assertIn("hello", FakeUpstream.requests[0]["messages"][0]["content"][1]["text"])
+
     def settings(self, tools=None):
         return {"model": "fake-model", "max_tokens": 32, "tools": tools or []}
 

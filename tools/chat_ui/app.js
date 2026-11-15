@@ -23,11 +23,24 @@
   function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4200); }
   function banner(message) { $('banner').textContent = message || ''; $('banner').hidden = !message; }
   function configurationWarning() { return [S.config.upstream_available === false ? S.config.upstream_error || 'The model server is unavailable. Check the companion connection and reload to reconnect.' : '', S.config.tools_error ? 'Tools unavailable: ' + S.config.tools_error : ''].filter(Boolean).join(' '); }
+  function runError(run) {
+    const error = run.error || (run.status === 'interrupted' ? 'The response was interrupted.' : 'The response failed.');
+    if (!error.includes('chat template refused the messages')) return error;
+    const messages = new Map(S.messages.map(m => [m.id, m])), seen = new Set();
+    let message = messages.get(run.message_id);
+    while (message && !seen.has(message.id)) {
+      seen.add(message.id);
+      if ((message.attachments || []).some(a => (a.data || '').startsWith('data:image/')))
+        return 'The server rejected this message with images. Edit the message to remove the images or use an image-capable model and server.';
+      message = messages.get(message.parent_id);
+    }
+    return error;
+  }
   function snapshotBanner() {
     const leaf = S.messages.find(message => message.id === S.chat?.active_leaf);
     const run = S.runs.find(item => item.id === leaf?.run_id);
     const failed = run && ['failed', 'interrupted'].includes(run.status);
-    banner(failed ? run.error || (run.status === 'interrupted' ? 'The response was interrupted.' : 'The response failed.') : configurationWarning());
+    banner(failed ? runError(run) : configurationWarning());
   }
   function currentRun() { return S.runs.find(r => !terminal(r.status)); }
   function closeStream() { if (S.stream) S.stream.close(); S.stream = null; }
@@ -380,7 +393,7 @@
           const message = S.messages.find(m => m.id === data.message_id); if (message) { message.tool_calls ||= []; const index = message.tool_calls.findIndex(c => c.id === data.call.id); if (index < 0) message.tool_calls.push(data.call); else message.tool_calls[index] = data.call; }
         } else if (update.kind === 'state') {
           const index = S.runs.findIndex(r => r.id === data.id); if (index < 0) S.runs.push(data); else S.runs[index] = data;
-          if (terminal(data.status)) { closeStream(); connection('Connected'); if (data.error) banner(data.error); syncSnapshot(chatId).catch(error => banner(error.message)); refreshChats().catch(error => toast(error.message)); }
+          if (terminal(data.status)) { closeStream(); connection('Connected'); if (data.error) banner(runError(data)); syncSnapshot(chatId).catch(error => banner(error.message)); refreshChats().catch(error => toast(error.message)); }
         }
         scheduleRender();
       } catch (error) { banner('Could not apply a stream update: ' + error.message); }

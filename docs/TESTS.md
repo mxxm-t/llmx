@@ -14,7 +14,9 @@ The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 HTTP checks cover authentication, origin checks, attachments and import/export.
-Store checks cover schema upgrades, online backup and validated restore. Workspace
+Store checks cover schema upgrades, online backup and validated restore, including
+broken branch references, cycles and preservation of the destination on refusal.
+Valid alternative branches need not be stored in parent-first row order. Workspace
 checks cover revision conflicts, file limits, checkpoint restore, bounded output,
 cancellation, container isolation flags and unsafe returned files. HTTP checks
 also cover authenticated monitoring, preview CSP and backup/restore routes,

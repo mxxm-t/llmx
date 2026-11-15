@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import tempfile
@@ -195,6 +196,87 @@ class StorePersistenceTests(unittest.TestCase):
                 destination.chat(destination_chat)
         finally:
             source.close()
+            destination.close()
+
+    def test_restore_rejects_invalid_message_graphs_without_changing_destination(self):
+        source_path = self.path("graph-source")
+        source, chat_id, _ = self.populated(source_path, "graph source")
+        other_chat = source.create_chat({"title": "other chat"})["id"]
+        other_message = source.new_message(other_chat, None, "user", None, content="other")
+        source._save_message(other_message)
+        source.db.commit()
+        cases = ("self-cycle", "two-message-cycle", "missing-parent", "cross-chat-parent",
+                 "parent-mismatch", "missing-active-leaf", "cross-chat-active-leaf")
+        try:
+            for name in cases:
+                with self.subTest(name=name):
+                    destination, keep_chat, keep_run = self.populated(self.path("graph-destination-" + name), "keep me")
+                    try:
+                        baseline = destination.snapshot(keep_chat)
+                        baseline_events = destination.events(keep_run, 0)
+                        candidate_path = self.path("graph-" + name)
+                        source.backup(candidate_path)
+                        connection = sqlite3.connect(candidate_path)
+                        try:
+                            rows = connection.execute("SELECT id,chat,parent,data FROM messages ORDER BY rowid").fetchall()
+                            user = next(row for row in rows if json.loads(row[3])["role"] == "user")
+                            answer = next(row for row in rows if json.loads(row[3])["role"] == "assistant")
+                            data = json.loads(answer[3])
+                            if name == "self-cycle":
+                                parent = answer[0]
+                                data["parent_id"] = parent
+                                connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (parent, json.dumps(data), answer[0]))
+                            elif name == "two-message-cycle":
+                                data["parent_id"] = user[0]
+                                connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (user[0], json.dumps(data), answer[0]))
+                                user_data = json.loads(user[3])
+                                user_data["parent_id"] = answer[0]
+                                connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (answer[0], json.dumps(user_data), user[0]))
+                            elif name == "missing-parent":
+                                parent = "missing-parent-id"
+                                data["parent_id"] = parent
+                                connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (parent, json.dumps(data), answer[0]))
+                            elif name in ("cross-chat-parent", "parent-mismatch"):
+                                parent = other_message["id"] if name == "cross-chat-parent" else user[0]
+                                data["parent_id"] = parent
+                                sql_parent = None if name == "parent-mismatch" else parent
+                                connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (sql_parent, json.dumps(data), answer[0]))
+                            else:
+                                chat = json.loads(connection.execute("SELECT data FROM chats WHERE id=?", (chat_id,)).fetchone()[0])
+                                chat["active_leaf"] = "missing-leaf" if name == "missing-active-leaf" else other_message["id"]
+                                connection.execute("UPDATE chats SET data=? WHERE id=?", (json.dumps(chat), chat_id))
+                            connection.commit()
+                        finally:
+                            connection.close()
+                        with self.assertRaises(ValueError):
+                            destination.restore(candidate_path)
+                        self.assertEqual(destination.snapshot(keep_chat), baseline)
+                        self.assertEqual(destination.events(keep_run, 0), baseline_events)
+                    finally:
+                        destination.close()
+        finally:
+            source.close()
+
+    def test_restore_accepts_alternative_branches_and_child_before_parent_rows(self):
+        source_path = self.path("branch-source")
+        source, chat_id, _ = self.populated(source_path, "branch source")
+        parent = source.new_message(chat_id, None, "user", None, content="alternate")
+        child = source.new_message(chat_id, parent["id"], "assistant", None, content="alternate answer", status="completed")
+        source._save_message(child)
+        source._save_message(parent)
+        chat = source.chat(chat_id)
+        chat["active_leaf"] = child["id"]
+        source.db.execute("UPDATE chats SET data=? WHERE id=?", (json.dumps(chat), chat_id))
+        source.db.commit()
+        expected = source.snapshot(chat_id)
+        source.close()
+        destination, _, _ = self.populated(self.path("branch-destination"), "discarded")
+        try:
+            destination.restore(source_path)
+            self.assertEqual(destination.snapshot(chat_id), expected)
+            self.assertEqual([message["content"] for message in destination.path(child["id"])],
+                             ["alternate", "alternate answer"])
+        finally:
             destination.close()
 
     def test_restore_refuses_active_runs_and_preserves_database(self):

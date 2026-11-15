@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## Chat backup branch validation (2026-11-15, In progress)
+
+**Goal.** Reject broken conversation branches before a restored backup replaces the active database. The existing Store validation owns this check.
+
+**Done.** An isolated current-main reproduction accepted a self-parented message and replaced the old conversations; reading the restored branch then failed. User data and running services were not touched.
+
+**Checks.** The valid alternative-branch restore passes on the unfixed store. All seven invalid graph cases fail because restore accepts them: self and two-message cycles, missing and cross-chat parents, JSON/SQL parent disagreement, and missing or cross-chat active leaves. Failure evidence is retained in scratch/backup-branches/focused-unfixed.log.
+
+**Left.** Validate branch references and cycles in the existing store owner, then run focused companion checks and applicable hosted qualification before landing.
+
+**Gotchas.** Standalone Python companion only. No runtime, inference or GPU changes. Preserve valid alternative branches and SQLite row-order independence.
+
+
 ## Standalone dashboard upstream key file (2026-11-15, Done)
 
 **Goal.** Let the standalone collector authenticate its health requests using an operator-owned key file, through the existing Collector headers.

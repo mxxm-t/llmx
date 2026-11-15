@@ -130,6 +130,8 @@ A server without `--disk-cache-keep` removes its directory when it exits and the
 **The server refuses requests.**
 - 503: the queue is full, or more connections wait with their request not yet with the scheduler than the seats, the queue and 16 more; the body says which.
 - 408: the request did not arrive within its deadline, 15 s for the head and 30 s plus 4 s a MiB for the body ([SERVER](SERVER.md), Protocol).
+- 401: the request sent no key the server holds; send `Authorization: Bearer KEY` with a key of `--api-key-file`, or start the server with `--no-auth` ([SERVER](SERVER.md), Authentication).
+- 415: under `--no-auth` a request body was not sent as `Content-Type: application/json`.
   `requests.now.queued` equals `requests.limits.queued`.
   Raise `--max-queue`, raise `--max-seqs` if the devices have the room, or send fewer requests.
 - 413: the prompt plus `max_tokens` is more than what a request may hold (`server.request_tokens`: the smallest of `--ctx-size`, the model's context and the pool), or a prompt sent without `max_tokens` leaves its reply less than an eighth of that; the message gives the prompt's tokens and the limit. For a chat front end that sends the whole conversation every turn and does not trim it, start the server with `--context-overflow shift`: it drops the oldest turns in steps of half the limit, before a reply would run out of room and not only when the prompt overflows, says so in each reply's `context` object and counts it in health (`requests.since_start.shifts`), and the turn that drops them waits for the kept window to be read again.

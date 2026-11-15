@@ -51,7 +51,7 @@ def check_expert_flags(model):
     configured = os.environ.get("LLMX_DEVICE", "cpu")
     devices = ["cpu"] + ([configured] if configured != "cpu" and "," not in configured else [])
     commands = (["generate", model, "a", "-n", "1"], ["chat", model], ["logits", model, "a"], ["perplexity", model, "a b c d"],
-                ["bench", "--model", model, "--p", "1", "--n", "1", "--r", "1"], ["serve", model, "--port", "0"])
+                ["bench", "--model", model, "--p", "1", "--n", "1", "--r", "1"], ["serve", model, "--port", "0", "--no-auth"])
     for device in devices:
         for command in commands:
             for flags in (["--n-cpu-moe", "1"], ["--cpu-moe"],
@@ -310,7 +310,7 @@ def check_help():
     A flag is tried on a line that the command reads in full and then fails on as it opens an input file that does not exist, the model or a file a flag names, so no file or network is reached; pull fails on an empty quant the same way.
     The devices are made before the model is opened, so the one line naming a Vulkan device, --profile's, ends at that device's refusal on a build or a machine without it."""
     model = "missing.gguf"
-    bases = {"chat": ["chat", model], "generate": ["generate", model, "a"], "serve": ["serve", model],
+    bases = {"chat": ["chat", model], "generate": ["generate", model, "a"], "serve": ["serve", model, "--no-auth"],
              "logits": ["logits", model, "a"], "perplexity": ["perplexity", model, "a"], "bench": ["bench", "--model", model],
              "pull": ["pull", "owner/repo:"], "info": ["info", model], "tokenize": ["tokenize", model, "a"],
              "detokenize": ["detokenize", model, "1"], "dequantize": ["dequantize", model, "out.json", "out.bin"],
@@ -329,6 +329,9 @@ def check_help():
 
     def line(command, flag, value):
         args = given(flag, value)
+        # serve needs --api-key-file or --no-auth to start, so its base carries --no-auth, which the two flags themselves are tried without.
+        if command == "serve" and flag in ("--api-key-file", "--no-auth"):
+            return bases[command][:2] + args
         if command == "bench" and flag in ("--size", "--iters"):
             return synthetic + given("--iters" if flag == "--size" else "--size", "N") + args
         # bench's base line names the model with --model, so the flag's own line is the command and the flag alone.

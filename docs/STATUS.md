@@ -662,6 +662,25 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 **Left.** Nothing; F2DEV approved the change (devlog 09:37) and it lands by fast-forward.
 
 **Gotchas.** Rounding that a device does not state, and a budget given by number that the fit kept whole, are not measured: the first is cut only once a build shows it, and the second keeps its number.
+## API keys on the server (2026-11-15, SEC1 and SEC2, branch server/auth on sec/http-limits 28d2f4b9d)
+
+**Goal.** `llmx serve` served every client that reached it, with auth left to a reverse proxy (SEC1 PROPOSAL re:server auth of 2026-11-14 23:55, F2DEV REVIEW of 2026-11-15 02:58): every route but `/v1/live` now needs a key, on by default, off only with `--no-auth`, so a server is never open by omission and development stays one flag away.
+
+**Done.**
+- `src/server/auth.hpp`: `Auth` from `--api-key-file` (one key a line, comments and blank lines skipped, a POSIX warning where other users can read it) or `--no-auth`; no key goes on the command line, as the review asked; a key has at least 16 printable ASCII characters without spaces; a token is compared by SHA-256 digest against every stored digest with no early exit.
+- `Front::serve_one` reads each request's head, refuses one not admitted with 401 and `WWW-Authenticate: Bearer realm="llmx"` (`error="invalid_token"` where a token was given) in the route's error shape before the body is read, the connection then lingering (`Connection::linger`, sec/http-limits) so a client that sent the body reads the 401 rather than a reset, counts it for `/v1/health` (`requests.since_start.unauthorized`), under `--no-auth` refuses a body that is not `application/json` with 415 the same way, then reads the body and hands it to the routes or the start; `Api::handle` takes the read request.
+- CLI: the two flags, one of them required, both refused together, the key rule's refusals as usage errors, a warning for every `--no-auth` server; `print_usage`, docs/USAGE.md (the curl examples send the content type), docs/SERVER.md (Authentication), docs/OPERATING.md, README, docs/src/server.md, docs/TESTS.md.
+- Landing checks (2026-11-15): the `http`, `server-auth` and `server-utf8` CTests pass on Linux and on Windows at the stack head 717db7851, whose `src/` is this head's but a split comment; F2DEV's REVIEW of 03:48 (2) approved the branch with its items 2 and 3 done here and its item 1 in sec/http-limits; CTest, the CPU suite, the MI50 `server` component, the Windows suite and the hosted run at that head are recorded in sec/http-limits' block (Connections held to deadlines and a cap, below).
+- Tests: the `server-auth` CTest (the key rule, a key file, the bearer header, keys admitted and refused, the 401 bodies), `check_auth` (the 401 on a head whose 10 MB body is never sent, and on a head sent with its 1 MiB body in one write before the client reads, included) and `check_json_bodies` in the `server` component; `common.start_server` adds `--no-auth` unless a command names its key file, and the other starters in `tests/chat.py`, `tests/cli.py`, `tests/drafters.py`, `tests/server.py` and `tools/long_context_check.py` pass it; `tools/server_load.py` takes `--api-key-file`.
+
+**Left.**
+- The health dashboard (`tools/health_dashboard`) needs a key option to poll a keyed server; its owner is told.
+- Depends on sec/http-limits, whose `Front` reads the request before handing it on; lands after it by fast-forward.
+
+**Gotchas.**
+- `/v1/health` needs the key: it carries the model name, the version and the request counts; a readiness probe that cannot carry a header uses `/v1/live`, which says nothing of the model.
+- A server's key compare costs one SHA-256 of the token and a pass over every stored digest per request, microseconds beside the request itself.
+
 ## Tokenizer NFC for qwen2 and qwen35 (2026-11-15, VLLM1, branch fix/tokenizer-nfc on main 9724cd436; F2DEV's review of 01:28, Q3, of the vLLM formats step-1 proposal; lands by fast-forward as two commits, the failing test and then the fix)
 
 - **Goal:** llmx's ids equal HF's on text NFC changes, the first step of the vLLM formats stream, since the safetensors directories' `tokenizer.json` names the NFC normalizer (owner decision of 2026-09-26: NFC for GGUF too).

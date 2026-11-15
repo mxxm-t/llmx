@@ -119,10 +119,10 @@ The binary is `build/llmx`, or `build\Release\llmx.exe` with Visual Studio; on W
 model=$(./build/llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0)
 ./build/llmx generate "$model" "The capital of France is" --temp 0 -n 32
 ./build/llmx chat "$model" -n 512 --device vulkan:0
-./build/llmx serve "$model"
+./build/llmx serve "$model" --no-auth
 ```
 
-`pull` needs curl 8.4 or later and reads `HF_TOKEN` for gated repositories; the server listens on `127.0.0.1:8080`.
+`pull` needs curl 8.4 or later and reads `HF_TOKEN` for gated repositories; the server listens on `127.0.0.1:8080` and needs a key file (`--api-key-file`) or `--no-auth`; requests send a key as `Authorization: Bearer KEY`.
 `llmx bench --model "$model"` measures prefill and decode speed on your hardware.
 `llmx <command> --help` shows a command's options, and [USAGE](docs/USAGE.md) covers every command and flag.
 

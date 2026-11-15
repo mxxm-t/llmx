@@ -804,6 +804,8 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 |---|---|---|---|
 | Server | `--host H` | `127.0.0.1` | Listen address |
 | Server | `--port N` | `8080` | Port 0 to 65535; 0 asks the system for a free port |
+| Server | `--api-key-file PATH` | none | The keys requests send as `Authorization: Bearer KEY`, one a line of at least 16 printable ASCII characters without spaces, blank lines and `#` comments skipped; a key never goes on the command line, which `ps` shows; on POSIX a file other users can read gets a warning |
+| Server | `--no-auth` | off | Serve every client, with a warning at start; request bodies must then be `application/json`; one of the two flags is required |
 | Server | `--ctx-size N`, `-c` | model context | At least 1 (`k` and `m` suffixes work) and no more than the model context; per-request prompt plus reply limit |
 | Server | `--timing` | off | Times rounds and device work for `/v1/health`; slows serving |
 | Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
@@ -836,6 +838,8 @@ Each flag's own range still holds after the suffix.
 | Disk cache | `--disk-cache-adopt WHICH` | `exact` | `exact` adopts this build's entries; `proved` also checks another build's entries and requires `--disk-cache-keep`; recurrent-state models need at least two `--state-checkpoints` for proof |
 
 `--port` is 0 to 65535, 0 asking the system for a free port, which the server prints as it starts, and `--max-seqs`, `--max-queue`, `--passes`, `--ctx-size` and `--kv-tokens` are at least 1.
+Every route but `/v1/live` needs a key ([SERVER](SERVER.md), Authentication): `--api-key-file PATH` gives the keys, and `--no-auth` serves every client with a warning, which development uses; `serve` does not start without one of the two, and refuses both together, a key shorter than 16 characters or one with a space, a control character or a character beyond ASCII.
+A request without a key the server holds is answered 401 with a `WWW-Authenticate: Bearer` challenge as soon as its head is read, before any body, and `/v1/health` counts them as `requests.since_start.unauthorized`; under `--no-auth` a request body that is not `Content-Type: application/json` is answered 415.
 `--passes` is how many passes the server keeps in flight: on a layer split whose every device runs its layers whole, a pass per stage and one more by default, of which the server keeps one a stage in flight and the one more only while a prompt is read beside replies, so every device works on some pass while the host samples another and a prompt's next chunk continues beside a pass of replies; one elsewhere, where a number above 1 is refused as the server starts.
 The server prints the number it keeps, and passes whose buffers the memory cannot hold are dropped at start with a line on stderr.
 A request already generating keeps being served while a prompt is read, by one rule on every placement with no setting (docs/SERVER.md, The service rule).
@@ -962,8 +966,8 @@ A body that is not a JSON object, a `text` that is not a string, both `text` and
 
 ```
 llmx serve Qwen3-0.6B-Q8_0.gguf --device vulkan:0 --port 8080
-curl -N -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
-curl -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
+curl -N -H 'Content-Type: application/json' -d '{"prompt":"The capital of France is","max_tokens":16,"stream":true}' http://127.0.0.1:8080/v1/generate
+curl -H 'Content-Type: application/json' -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 ```
 
 ### `/v1/health` and `/v1/live`
@@ -1018,6 +1022,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `work.since_start.prefilled_tokens` | tokens | since start | Client prompt rows in successfully retired passes, including recovery re-prefill; excludes cached rows, background jobs, generated-history replay and speculative verification or drafter rows | divide changes by actual elapsed sampling time for live aggregate prompt throughput |
 | `work.since_start.generated_tokens` | tokens | since start | Output tokens successfully published to request channels, including the first token and accepted speculative tokens, each once; excludes EOS and rejected drafts | divide changes by actual elapsed sampling time for live aggregate output throughput |
 | `requests.since_start.shifts`, `.shifted_tokens` | requests, tokens | since start | Under `--context-overflow shift`: the requests whose prompt was cut, and the tokens those cuts dropped | each shift is a kept window read again; many shifts for few requests means a context too small for the conversations |
+| `requests.since_start.unauthorized` | requests | since start | Requests answered 401, sent without a key the server holds | above 0: a client without the key, or a probe at `/v1/health` that should use `/v1/live` |
 | `reuse.since_start.forks` | requests | since start | Requests that started from a shared history rather than from nothing | close to 0 for a client that sends conversations |
 | `reuse.since_start.tokens` | tokens | since start | Prompt tokens those requests did not have to read | |
 | `requests.now.kv_tokens` | tokens | now | The pool the running requests hold or have promised, their prompts, what they generated and the room reserved for them to grow, a block shared with a kept conversation counted once | near `server.kv_tokens` with `pressure` rising: requests are pausing each other |
@@ -1103,6 +1108,7 @@ Every request streams a greedy reply, or with `--sampled` one drawn at llmx's de
 | Flag | Meaning | Default |
 |---|---|---|
 | `--url U` | the server | `http://127.0.0.1:8080` |
+| `--api-key-file PATH` | a file whose first key the server needs, sent as `Authorization: Bearer KEY` | none |
 | `--api A` | `llmx` (`/v1/generate`), `openai` (`/v1/completions`) or `completion` (the reference server's `/completion`) | `llmx` |
 | `--model M` | the model id `--api openai` sends | the first id `/v1/models` lists |
 | `--concurrency C ...` | closed-loop levels: C users, each sending its next request when its reply ends | `1 2 4 8 16 32 64`, none when `--rate` is given alone |

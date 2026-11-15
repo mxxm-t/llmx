@@ -2143,8 +2143,19 @@ def check_auth(model, directory):
             raw += chunk
         s.close()
         assert raw.startswith(b"HTTP/1.1 401") and time.time() - began < 5, raw[:80]
+        # A request without a key whose body comes with its head in one write, as a client library sends it: the 401 arrives, not a reset from a close with the body unread.
+        s = socket.create_connection(("127.0.0.1", srv.port), timeout=10)
+        s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 1048576\r\n\r\n" + b"x" * 1048576)
+        raw = b""
+        while True:
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            raw += chunk
+        s.close()
+        assert raw.startswith(b"HTTP/1.1 401"), raw[:80]
         status, challenge, health = call(srv.port, "GET", "/v1/health", key=first)
-        assert status == 200 and health["requests"]["since_start"]["unauthorized"] == 4, (status, health["requests"]["since_start"])
+        assert status == 200 and health["requests"]["since_start"]["unauthorized"] == 5, (status, health["requests"]["since_start"])
     finally:
         srv.close()
     short = os.path.join(directory, "short.txt")

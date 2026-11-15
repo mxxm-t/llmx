@@ -113,7 +113,7 @@ def build_prompt(port, want_tokens):
 
 def serve(exe, model, device, ctx, extra):
     """(process, port, log) of `llmx serve` on `device`, once it answers."""
-    cmd = [exe, "serve", model, "--kv-tokens", str(ctx)] + extra
+    cmd = [exe, "serve", model, "--no-auth", "--kv-tokens", str(ctx)] + extra
     if device:
         cmd += ["--device", device]
     return common.start_server(cmd, wait=600)

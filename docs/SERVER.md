@@ -461,7 +461,19 @@ A non-streaming request gets one JSON object with the text, the ids and the coun
 Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt and its `max_tokens` past what one request may hold, unless `--context-overflow shift` cuts it as A prompt larger than the context, above, has it (the model context or the KV pool, whichever is smaller) or a body past 64 MiB, 408 for a head that has not arrived whole within 15 s or a body within 30 s and 4 s a MiB (`http::Limits`), 503 when the queue is full or the connections whose request the scheduler does not hold yet are past the seats, the queue places and a reserve of 16 for the other routes (`server::connection_limit`), the last answered before the request is read.
 A 500 is the server's own failure, a pass that failed or an exception a route did not expect: its body is the fixed message `the server failed to answer the request` in the route's shape, and the failure's text goes to stderr as a `server:` line (`failure_json`), so a client learns nothing of the server's internals; a stream whose pass fails ends with that message as its last event.
 A client whose reads do not take a response, or one chunk of its stream, within 30 s is dropped as one that left, so it holds no seat.
-A refusal before the request is read in full, a 408, 413, 431 or 503, is followed by the connection shutting its sending side and draining what the client still sends for up to 2 s, so a client that sends its whole request before it reads gets the status rather than a reset.
+A refusal before the request is read in full, a 401, 408, 413, 415, 431 or 503, is followed by the connection shutting its sending side and draining what the client still sends for up to 2 s, so a client that sends its whole request before it reads gets the status rather than a reset.
+
+### Authentication
+
+Every route but `/v1/live` needs a key: `Authorization: Bearer KEY`, with one of the keys in the file `--api-key-file PATH` names (`server::Auth`, `src/server/auth.hpp`), or the server runs with `--no-auth` and admits every client.
+A key is never given on the command line, which `ps` and shell histories show, so there is no `--api-key`.
+`serve` does not start without one of the two flags, so a server is never open by omission; development passes `--no-auth`, and the suite's servers do (`common.start_server`).
+A `--no-auth` server prints a warning as it starts, whatever address it binds, and takes a request body only as `Content-Type: application/json`, answering 415 otherwise, so a browser page cannot drive it with a form or a text body, which browsers send across origins without asking.
+A key has at least 16 printable ASCII characters without spaces, so it travels in a header as it is and a guessable key is refused rather than taken; a key file holds one a line, blank lines and `#` comments skipped, and on POSIX one other users can read gets a warning.
+`Front` reads each request's head and checks it before the body is read and before any route sees it, during the start too, so a client without a key is answered as soon as its head arrives and its body never crosses: a request without a bearer token, or with one that matches no key, gets 401 with `WWW-Authenticate: Bearer realm="llmx"`, `error="invalid_token"` added where a token was given, and a body in the route's error shape, the compatible routes' with the `authentication_error` type and the `invalid_api_key` code their clients read.
+A given token is compared by its SHA-256 digest against every stored digest with no early exit, so neither a key's length nor a matching prefix shows in the time; keys never reach the log, and `/v1/health` counts the refusals as `requests.since_start.unauthorized`.
+`/v1/live` stays open so a liveness probe holds no secret; `/v1/health` carries the model's name, the version and the request counts, so it needs the key, and so does the health dashboard that polls it.
+With a key, a browser page cannot drive the server, since the header forces a preflight the server never grants; under `--no-auth` the JSON content type forces the same preflight, while a page at a name that resolves to the server's address (DNS rebinding) could still read replies, so a server that stays up takes a key.
 A conversation the chat template raises on is a bad request, answered 400 with the template's message; a template the renderer refuses stops `serve` before it serves, since no chat request could be answered.
 A model whose layers keep a recurrent state, a `qwen35` file, has a state only at the end of what it has read, so its prefix reuse goes through checkpoints, states kept at a position in slots of their own ([SPECULATIVE](SPECULATIVE.md), section 2): each request keeps one where its prompt's last whole block ends within what a follow-up turn would begin with, the conversation rendered without the generation prompt for a chat route and the whole prompt for a text, the slice that reaches it ending there.
 A finished request's donor is its history back to that checkpoint, which a follow-up turn forks, reading the state in place; a paused request keeps its whole history as its checkpoint where a slot is free, taking it back on resuming, and its prompt's checkpoint otherwise.
@@ -529,7 +541,7 @@ Refused with 400, each naming its field and why: `tool_choice` `"required"` or n
 ### Scope limits
 
 - Grammars, logit bias and embeddings endpoints are not implemented.
-- TLS, authentication, rate limiting: the reverse proxy's job.
+- TLS and rate limiting: the reverse proxy's job; authentication is the server's own (Authentication, above).
 
 Speculative decoding is available through `--drafter` ([SPECULATIVE](SPECULATIVE.md)). Prefix reuse and the host and persistent disk tiers are implemented through the shared cache owner ([CACHE-PLAN](CACHE-PLAN.md)); they are no longer first-version exclusions.
 

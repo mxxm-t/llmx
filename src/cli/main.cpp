@@ -1425,17 +1425,36 @@ std::array<uint8_t, 32> vision_identity(const std::string& path, const server::D
     return infer::sha256_bytes({{digest.data(), digest.size()}});
 }
 
+// The keys the server admits, from the flags: auth is on unless --no-auth says otherwise, so a server without a key and without that flag does not start (docs/SERVER.md, Authentication).
+// A bad key is a usage error naming the flag; a key file that cannot be opened fails as a missing model does.
+server::Auth serve_auth(const server::Config& cfg) {
+    if (!cfg.api_key_file.empty() && cfg.no_auth) throw UsageError("--api-key-file and --no-auth set the same thing; give one of them");
+    if (cfg.api_key_file.empty() && !cfg.no_auth) throw UsageError("serve needs --api-key-file PATH, or --no-auth to serve every client");
+    if (cfg.no_auth) return server::Auth::everyone();
+    if (!std::filesystem::exists(std::filesystem::u8path(cfg.api_key_file))) throw std::runtime_error("cannot open file: " + cfg.api_key_file);
+    try {
+        std::string warning;
+        server::Auth auth = server::Auth::file(cfg.api_key_file, &warning);
+        if (!warning.empty()) std::cerr << warning << "\n";
+        return auth;
+    } catch (const std::runtime_error& e) {
+        throw UsageError("--api-key-file: " + std::string(e.what()));
+    }
+}
+
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images) {
     // Without --passes a pipelined split keeps a pass in flight per stage and one more (Scheduler), and its stages are at most the devices listed.
     const size_t devices = backend::device_specs(exec.device).size();
     const size_t slots = cfg.passes ? cfg.passes : devices > 1 ? devices + 1 : 1;
     // The flags' own refusals and a model path with nothing there, as the load would refuse it, come before the server listens, so a mistyped line fails at once.
     exec_specs(exec);
+    const server::Auth auth = serve_auth(cfg);
     if (!std::filesystem::exists(std::filesystem::u8path(model_path))) throw std::runtime_error("cannot open file: " + model_path);
     // The server listens before it loads, so /v1/health tells how its start goes (docs/SERVER.md, Startup).
     http::Listener listener(cfg.host, cfg.port);
+    if (auth.open()) std::cerr << "server: no authentication: every client that reaches " << cfg.host << ":" << listener.port() << " may use it\n";
     server::Startup startup(std::filesystem::u8path(model_path).filename().u8string());
-    server::Front front(listener, startup, server::connection_limit(cfg));
+    server::Front front(listener, startup, server::connection_limit(cfg), auth);
     try {
         serve_loaded(model_path, cfg, exec, drafts, images, slots, front);
     } catch (const std::exception& e) {
@@ -1699,6 +1718,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Server:\n"
             << "  --host H                Listen address (default: " << cfg.host << ")\n"
             << "  --port N                Listen port. 0 picks a free one (default: " << cfg.port << ")\n"
+            << "  --api-key-file PATH     Admit requests that send Authorization: Bearer KEY with a key of PATH, one a\n"
+            << "                          line of at least " << server::kMinKeyChars << " characters, blank lines and # comments skipped\n"
+            << "  --no-auth               Serve every client, with a warning; bodies must then be application/json.\n"
+            << "                          One of the two is required; /v1/live needs no key either way\n"
             << "  --ctx-size N, -c        Tokens one request may hold, prompt and reply, at most the\n"
             << "                          model's context (default: model context)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health. This slows serving\n"
@@ -2071,6 +2094,8 @@ int main(int argc, char** argv) {
                 const std::string a = argv[i];
                 const std::string_view f = long_spelling(a);
                 if (f == "--host") cfg.host = flag_value(argc, argv, i, a);
+                else if (f == "--api-key-file") cfg.api_key_file = nonempty_value(argc, argv, i, a, "a path");
+                else if (f == "--no-auth") cfg.no_auth = true;
                 else if (f == "--port") cfg.port = (uint16_t)int_arg(argc, argv, i, a, 0, 65535);   // 0 asks the system for a free port
                 else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);

@@ -27,6 +27,7 @@
 #include "inference/media.hpp"
 #include "model/place.hpp"
 #include "quant/types.hpp"
+#include "server/auth.hpp"
 #include "server/context_cut.hpp"
 #include "server/http.hpp"
 #include "server/scheduler.hpp"
@@ -75,6 +76,9 @@ struct Config {
     // The vision encoder `--mmproj` opened, and its file's digest, which an image's digest begins with (docs/VISION.md, sections 5 and 6); none takes no images.
     infer::Vision* vision = nullptr;
     std::array<uint8_t, 32> vision_identity{};
+    // The file of keys a request needs one of, or every client admitted under --no-auth; the CLI builds the Auth from them (docs/SERVER.md, Authentication).
+    std::string api_key_file;
+    bool no_auth = false;
 };
 
 // The connections held before their request reaches the scheduler, which bounds the rest: a seat's and a queue place's each, so a burst the queue would take is not refused first, and a reserve for the routes without a queue.
@@ -146,6 +150,12 @@ inline std::string error_json(const std::string& message, bool compat) {
     const std::string text = jmini::quote(utf8_sanitize(message));
     if (!compat) return "{\"error\":" + text + "}";
     return "{\"error\":{\"message\":" + text + ",\"type\":\"invalid_request_error\"}}";
+}
+// A 401's body: the native shape, or the compatible routes' with the type and code the OpenAI clients read for a bad key.
+inline std::string unauthorized_json(bool compat) {
+    const std::string text = jmini::quote("a key is needed: send it as Authorization: Bearer KEY");
+    if (!compat) return "{\"error\":" + text + "}";
+    return "{\"error\":{\"message\":" + text + ",\"type\":\"authentication_error\",\"code\":\"invalid_api_key\"}}";
 }
 
 // A 500's body: the server's own failure is one fixed message in the route's shape, and the exception's text goes to stderr alone, where no client reads it.
@@ -313,9 +323,9 @@ class Front;
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
-        const Config& cfg, const Startup* startup = nullptr)
+        const Config& cfg, const Startup* startup = nullptr, const std::atomic<uint64_t>* unauthorized = nullptr)
         : model_(model), tok_(tok), format_(format), sched_(sched), cfg_(cfg),
-          cached_topology_json_(topology_json(model_.topology(), cfg_.dtype)), startup_(startup), started_((int64_t)std::time(nullptr)) {
+          cached_topology_json_(topology_json(model_.topology(), cfg_.dtype)), startup_(startup), unauthorized_(unauthorized), started_((int64_t)std::time(nullptr)) {
         // The model's name is its file's, which on Linux can hold bytes that are not UTF-8, and every reply that names the model carries it.
         cfg_.model_name = utf8_sanitize(cfg_.model_name);
     }
@@ -441,7 +451,7 @@ private:
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
                   "},\"since_start\":{\"finished\":" + n(s.finished) + ",\"prompt_tokens\":" + n(s.prompt_tokens) + ",\"generated_tokens\":" + n(s.generated_tokens) +
-                  ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) +
+                  ",\"unauthorized\":" + n(unauthorized_ ? unauthorized_->load() : 0) + ",\"shifts\":" + n(shifts_.load()) + ",\"shifted_tokens\":" + n(shifted_tokens_.load()) +
                   "},\"live\":{\"sample_elapsed_ms\":" + n(s.live.sample_elapsed_ms) + ",\"limit\":" + n(Scheduler::LiveRequests::limit) +
                   ",\"total\":" + n(s.live.total) + ",\"omitted\":" + n(s.live.total - s.live.count) +
                   ",\"work\":{\"prefilled_tokens\":" + n(s.live.prefilled_tokens) + ",\"generated_tokens\":" + n(s.live.published_tokens) + "},\"items\":[" + live + "]}}" +
@@ -1684,6 +1694,7 @@ private:
     Config cfg_;
     const std::string cached_topology_json_;
     const Startup* startup_;   // the start's record, which health keeps, where the server has one
+    const std::atomic<uint64_t>* unauthorized_;   // Front's count of requests refused for their key, where the server has one
     const int64_t started_;
     const std::string request_prefix_ = [] {
         std::random_device random;
@@ -1746,10 +1757,10 @@ struct StopOnSignal {
 } // namespace detail
 
 // The server's accept loop from the moment it listens, on a thread of its own: until the routes are published, health answers 503 with the start's record and every other route 503.
-// It holds at most `connections` not yet with the scheduler, answers the rest 503 unread, ends when the listener closes, and destroyed, closes the listener and waits for them.
+// It holds at most `connections` not yet with the scheduler, answers the rest 503 unread, refuses a request `auth` does not admit with 401, ends when the listener closes, and destroyed, closes the listener and waits for them.
 class Front {
 public:
-    Front(http::Listener& listener, Startup& startup, size_t connections) : listener_(listener), startup_(startup), limit_(connections), lingering_(connections) {
+    Front(http::Listener& listener, Startup& startup, size_t connections, const Auth& auth) : listener_(listener), startup_(startup), limit_(connections), lingering_(connections), auth_(auth) {
         thread_ = std::thread([this] { loop(); });
     }
     ~Front() {
@@ -1772,6 +1783,8 @@ public:
     void drain() {
         while (open_.load() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+    // The requests refused for their key since the start, which /v1/health gives.
+    const std::atomic<uint64_t>& unauthorized() const { return unauthorized_; }
 
 private:
     void loop() {
@@ -1815,13 +1828,26 @@ private:
         try { answer(c, admitted); } catch (...) {}
         admitted();
     }
-    // The request: its head read within the limits and refused where malformed, then its body, and the routes, or the start until they are published, answer.
+    // The request: its head read within the limits and refused where malformed, the key checked on the head alone, so a client without one sends no body, then the body read and the routes, or the start until they are published, answer.
+    // /v1/live needs no key, so a liveness probe holds no secret; under --no-auth a body must be application/json, so a browser page cannot send one as a form (docs/SERVER.md, Authentication).
     void answer(http::Connection& c, const std::function<void()>& admitted) {
         http::Request req;
         int status = 0;
         const http::Limits limits;
         if (!c.read_head(req, limits, status)) {
             if (status) refuse_unread(c, status, Api::compat_shape(req.path));
+            return;
+        }
+        const Auth::Check check = auth_.check(req);
+        if (check != Auth::Check::admitted && req.path != "/v1/live") {
+            ++unauthorized_;
+            const std::string challenge = std::string("WWW-Authenticate: Bearer realm=\"llmx\"") + (check == Auth::Check::wrong ? ", error=\"invalid_token\"" : "") + "\r\n";
+            c.respond(401, "application/json", unauthorized_json(Api::compat_shape(req.path)), challenge);
+            c.linger();
+            return;
+        }
+        if (auth_.open() && c.body_length() && !json_body(req)) {
+            refuse_unread(c, 415, Api::compat_shape(req.path), "a request body must be sent as Content-Type: application/json");
             return;
         }
         if (!c.read_body(req, limits, status)) {
@@ -1832,9 +1858,18 @@ private:
         else starting(c, req);
     }
     // A refusal before the request was read in full: the answer, then the connection lingers (Connection::linger), so the client reads the status rather than a reset.
-    static void refuse_unread(http::Connection& c, int status, bool shape) {
-        c.respond(status, "application/json", error_json(http::reason(status), shape));
+    static void refuse_unread(http::Connection& c, int status, bool shape, const std::string& message = "") {
+        c.respond(status, "application/json", error_json(message.empty() ? http::reason(status) : message, shape));
         c.linger();
+    }
+    // Whether the request's Content-Type names JSON, its parameters and case aside.
+    static bool json_body(const http::Request& req) {
+        const auto it = req.headers.find("content-type");
+        if (it == req.headers.end()) return false;
+        std::string type = it->second.substr(0, it->second.find(';'));
+        type.erase(type.find_last_not_of(" \t") + 1);
+        for (auto& ch : type) ch = (char)std::tolower((unsigned char)ch);
+        return type == "application/json";
     }
     // A request while the server starts: health gives the record with 503, so a readiness check on 200 keeps its meaning, liveness answers as ever, and every other route is refused with 503 in its clients' shape.
     void starting(http::Connection& c, const http::Request& req) {
@@ -1851,6 +1886,8 @@ private:
     std::atomic<int> pending_{0};   // of them, those whose request the scheduler does not hold yet
     const size_t limit_;            // the most pending at once
     http::Lingering lingering_;     // the connections refused on the accept thread, draining until closed, at most limit_ of them
+    const Auth& auth_;           // the keys a request needs, which outlives the Front
+    std::atomic<uint64_t> unauthorized_{0};   // requests refused for their key since the start
     std::thread thread_;
 };
 
@@ -1864,7 +1901,7 @@ inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::Ch
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,
                  started.samplers == 1 ? "" : "s");
-    Api api(model, tok, format, sched, cfg, &front.startup());
+    Api api(model, tok, format, sched, cfg, &front.startup(), &front.unauthorized());
     std::thread runner([&] { sched.run(); });
     const detail::StopOnSignal stop_on_signal(front.listener());
     front.startup().ready();

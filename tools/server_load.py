@@ -117,10 +117,21 @@ class Failure(Exception):
     """A request that did not complete, with the reason."""
 
 
+def first_key(path):
+    """The first key of a key file as the server reads it: a line that is not blank and not a # comment, its surrounding whitespace dropped."""
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                return line
+    raise SystemExit("the key file %s holds no key" % path)
+
+
 class Target:
     """The server's address: host, port and a base path the routes are appended to."""
 
-    def __init__(self, url):
+    def __init__(self, url, api_key=None):
+        self.api_key = api_key
         u = urllib.parse.urlsplit(url)
         if u.scheme not in ("http", "https") or not u.hostname:
             raise ValueError("--url must look like http://host:port")
@@ -133,13 +144,19 @@ class Target:
         cls = http.client.HTTPSConnection if self.https else http.client.HTTPConnection
         return cls(self.host, self.port, timeout=timeout)
 
+    def headers(self, json_body):
+        """The headers a request sends: the content type of a JSON body, and the key as a bearer token where the server needs one."""
+        h = {"Content-Type": "application/json"} if json_body else {}
+        if self.api_key:
+            h["Authorization"] = "Bearer " + self.api_key
+        return h
+
     def call(self, method, path, body=None, timeout=60):
         """A whole request: the status and the parsed JSON reply, or None for a reply that is not JSON."""
         conn = self.connection(timeout)
         try:
             data = None if body is None else json.dumps(body).encode("utf-8")
-            conn.request(method, self.base + path, body=data,
-                         headers={"Content-Type": "application/json"} if data is not None else {})
+            conn.request(method, self.base + path, body=data, headers=self.headers(data is not None))
             r = conn.getresponse()
             raw = r.read()
         finally:
@@ -358,7 +375,7 @@ def send(target, api, spec, index, limits, t0):
         rec["connect"] = time.perf_counter() - sent
         # The response takes the socket over from a connection it closes, so the reads set their timeouts on the socket itself.
         sock = conn.sock
-        conn.request("POST", target.base + path, body=data, headers={"Content-Type": "application/json"})
+        conn.request("POST", target.base + path, body=data, headers=target.headers(True))
         r = wait(conn.getresponse)
         if r.status != 200:
             raise Failure("HTTP %d %s" % (r.status, wait(lambda: r.read(200)).decode("utf-8", "replace").strip()))
@@ -723,6 +740,7 @@ def rate(text):
 def parse(argv):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--url", default="http://127.0.0.1:8080")
+    p.add_argument("--api-key-file", default=None, metavar="PATH", help="a file whose first key the server needs, sent as Authorization: Bearer")
     p.add_argument("--api", choices=["llmx", "openai", "completion"], default="llmx")
     p.add_argument("--model", default=None, help="the model id --api openai sends; by default the first /v1/models lists")
     p.add_argument("--concurrency", type=positive, nargs="+", default=None,
@@ -771,7 +789,7 @@ def main(argv=None):
     args = parse(argv)
     if args.self_test:
         return 0 if self_test() else 1
-    target = Target(args.url)
+    target = Target(args.url, first_key(args.api_key_file) if args.api_key_file else None)
     levels = args.concurrency if args.concurrency is not None else ([] if args.rate else DEFAULT_LEVELS)
     rates = args.rate or []
     limits = (args.timeout, args.total_timeout)

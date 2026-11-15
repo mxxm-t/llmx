@@ -145,10 +145,12 @@ inline const char* reason(int status) {
     switch (status) {
     case 200: return "OK";
     case 400: return "Bad Request";
+    case 401: return "Unauthorized";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
     case 408: return "Request Timeout";
     case 413: return "Payload Too Large";
+    case 415: return "Unsupported Media Type";
     case 431: return "Request Header Fields Too Large";
     case 500: return "Internal Server Error";
     case 503: return "Service Unavailable";
@@ -223,11 +225,13 @@ public:
     }
 
     // Refused while a stream is open: its head has gone out, and a second one would land inside the chunked body.
-    void respond(int status, const std::string& content_type, const std::string& body) {
+    // `headers` are further header lines, each ending in CRLF, such as a 401's WWW-Authenticate.
+    void respond(int status, const std::string& content_type, const std::string& body, const std::string& headers = "") {
         if (streaming_) throw std::logic_error("http: a response inside a stream");
         std::string out = "HTTP/1.1 " + std::to_string(status) + " " + reason(status) + "\r\n";
         out += "Content-Type: " + content_type + "\r\n";
         out += "Content-Length: " + std::to_string(body.size()) + "\r\n";
+        out += headers;
         out += "Connection: close\r\n\r\n";
         out += body;
         send_all(out);
@@ -272,6 +276,9 @@ public:
         const int n = (int)::recv(s_, buf, sizeof(buf), 0);
         return n > 0 || (n < 0 && transient(last_error()));
     }
+
+    // The body length the head announced, for a reader that decides before read_body.
+    size_t body_length() const { return body_length_; }
 
     // After a response to a request not read in full: the sending side is shut, then what the client still sends is read and dropped until its end of stream or linger_ms_, so the close sends no reset, which would take the response with it.
     // A thread that cannot wait, the accept thread, hands the connection to Lingering instead.

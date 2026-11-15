@@ -294,13 +294,28 @@ def free_port():
     return port
 
 
+def server_key(command):
+    """The key a serve command's flags give, which the readiness poll of a keyed server sends: the first key of --api-key-file, or None without one."""
+    command = list(command)
+    if "--api-key-file" in command:
+        with open(command[command.index("--api-key-file") + 1], encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    return line
+    return None
+
+
 def start_server(command, wait=120):
     """Start `command`, an `llmx serve` command line, on a free loopback port and return (process, port, log) once /v1/health answers ok.
     The server logs a line per request, so its output goes to a temporary file: a pipe nobody reads would fill and block it."""
     port = free_port()
     # The log names the model by its file name, which on Linux can hold bytes that are not UTF-8, so reading it back replaces them rather than raising in place of the real error.
     log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
-    proc = subprocess.Popen(list(command) + ["--host", "127.0.0.1", "--port", str(port)],
+    # Auth is on unless a command names its keys or asks for none, so a server of the suite serves its checks without a key.
+    auth = [] if any(flag in command for flag in ("--api-key-file", "--no-auth")) else ["--no-auth"]
+    key = server_key(command)
+    proc = subprocess.Popen(list(command) + ["--host", "127.0.0.1", "--port", str(port)] + auth,
                             stdout=log, stderr=subprocess.STDOUT)
     # Anything that ends the wait without a healthy server, a health reply that is not UTF-8 or not JSON included, stops the server before it goes up to the caller.
     try:
@@ -310,7 +325,8 @@ def start_server(command, wait=120):
                 log.seek(0)
                 raise RuntimeError("server exited early: " + log.read())
             try:
-                with urllib.request.urlopen("http://127.0.0.1:%d/v1/health" % port, timeout=30) as r:
+                request = urllib.request.Request("http://127.0.0.1:%d/v1/health" % port, headers={"Authorization": "Bearer " + key} if key else {})
+                with urllib.request.urlopen(request, timeout=30) as r:
                     if json.load(r).get("status") == "ok":
                         return proc, port, log
             except OSError:

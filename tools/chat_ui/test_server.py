@@ -38,6 +38,93 @@ class FakeUpstream(BaseHTTPRequestHandler):
 
 
 class ServerAdmissionTests(unittest.TestCase):
+    def test_cli_reports_invalid_https_origin_and_overlong_password_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            password_file = os.path.join(directory, "password.txt")
+            for password, origin, error in (("x" * 1025, "https://chat.example", "12 to 1024"),
+                                             ("correct horse", "http://chat.example", "HTTPS")):
+                with self.subTest(error=error):
+                    with open(password_file, "w", encoding="utf-8") as file:
+                        file.write(password)
+                    argv = ["server.py", "--host", "0.0.0.0", "--password-file", password_file,
+                            "--public-origin", origin, "--data-dir", directory]
+                    app = mock.MagicMock(password="hash")
+                    with mock.patch.object(chat_server.sys, "argv", argv), \
+                            mock.patch.object(chat_server, "Application", return_value=app), \
+                            mock.patch.object(chat_server, "Connection"), \
+                            mock.patch.object(chat_server.sys, "stderr") as stderr:
+                        with self.assertRaises(SystemExit) as exc:
+                            chat_server.main()
+                        self.assertEqual(exc.exception.code, 2)
+                        self.assertIn(error, "".join(call.args[0] for call in stderr.write.call_args_list))
+                    app.monitor.collector.start.assert_not_called()
+
+    def test_invalid_deployment_settings_do_not_bind_or_start_collector(self):
+        for host, password, origin in (("0.0.0.0", None, "https://chat.example"),
+                                       ("0.0.0.0", "hash", None),
+                                       ("127.0.0.1", "hash", "https://chat.example:invalid"),
+                                       ("127.0.0.1", "hash", "https://chat.example/path")):
+            with self.subTest(host=host, origin=origin):
+                app = mock.MagicMock(password=password)
+                with mock.patch.object(ThreadingHTTPServer, "__init__", autospec=True) as init:
+                    with self.assertRaises(ValueError):
+                        Server((host, 0), app, origin)
+                    init.assert_not_called()
+                app.monitor.collector.start.assert_not_called()
+
+    def test_failed_bind_or_collector_start_closes_socket_without_closing_borrowed_app(self):
+        bind = ThreadingHTTPServer.server_bind
+        for fail_bind in (True, False):
+            with self.subTest(fail_bind=fail_bind):
+                app = mock.MagicMock()
+                sockets = []
+
+                def server_bind(server):
+                    sockets.append(server.socket)
+                    if fail_bind:
+                        raise OSError("bind failed")
+                    bind(server)
+
+                app.monitor.collector.start.side_effect = RuntimeError("collector start failed")
+                with mock.patch.object(ThreadingHTTPServer, "server_bind", autospec=True, side_effect=server_bind):
+                    with self.assertRaises((OSError, RuntimeError)):
+                        Server(("127.0.0.1", 0), app)
+                self.assertEqual(sockets[0].fileno(), -1)
+                app.temporary.close.assert_not_called()
+                app.workspace.close.assert_not_called()
+                app.monitor.stop.assert_not_called()
+
+    def test_thread_start_and_handler_errors_release_connection_slots(self):
+        workers = queue.Queue()
+        with mock.patch.object(chat_server, "MAX_CONNECTIONS", 1):
+            server = Server(("127.0.0.1", 0), mock.MagicMock())
+        try:
+            request = mock.Mock()
+            address = ("127.0.0.1", 1234)
+            with mock.patch.object(server, "get_request", return_value=(request, address)), \
+                    mock.patch.object(server, "handle_error"), \
+                    mock.patch.object(server, "shutdown_request") as shutdown, \
+                    mock.patch.object(threading.Thread, "start", side_effect=RuntimeError("thread start failed")):
+                server._handle_request_noblock()
+                shutdown.assert_called_once_with(request)
+
+            def finish_request(_request, _address):
+                workers.put(threading.current_thread())
+                raise RuntimeError("handler failed")
+
+            with mock.patch.object(server, "finish_request", side_effect=finish_request), \
+                    mock.patch.object(server, "handle_error") as error, \
+                    mock.patch.object(server, "shutdown_request") as shutdown:
+                for _ in range(2):
+                    server.process_request(request, address)
+                    worker = workers.get(timeout=1)
+                    worker.join(timeout=1)
+                    self.assertFalse(worker.is_alive())
+                self.assertEqual(error.call_count, 2)
+                self.assertEqual(shutdown.call_count, 2)
+        finally:
+            server.server_close()
+
     def test_nonloopback_http_public_origin_is_rejected_before_bind_and_https_is_accepted(self):
         secure_app = mock.MagicMock()
         secure_app.password = "password-hash"
@@ -218,6 +305,46 @@ class RouteTests(unittest.TestCase):
         owner_login = self.request("POST", "/api/login", {"password": "correct horse"},
                                    source_address=("127.0.0.1", 0))
         self.assertEqual(owner_login[0], 200, self.json_body(owner_login))
+
+    def test_forwarded_headers_do_not_bypass_same_source_limit_and_expiry(self):
+        with mock.patch.object(chat_server.time, "monotonic", return_value=100) as clock:
+            for attempt in range(10):
+                self.assertEqual(self.request("POST", "/api/login", {"password": "wrong"},
+                                             headers={"X-Forwarded-For": f"192.0.2.{attempt}"})[0], 403)
+            with mock.patch.object(self.app, "digest", wraps=self.app.digest) as digest:
+                blocked = self.request("POST", "/api/login", {"password": "correct horse"},
+                                       headers={"Forwarded": "for=192.0.2.99", "X-Forwarded-For": "192.0.2.99"})
+                self.assertEqual(blocked[0], 400)
+                digest.assert_not_called()
+                clock.return_value = 160
+                self.assertEqual(self.request("POST", "/api/login", {"password": "correct horse"})[0], 200)
+                digest.assert_called_once()
+
+    def test_failure_client_records_are_bounded_and_expired_records_are_reclaimed(self):
+        with mock.patch.object(chat_server.time, "monotonic", return_value=100) as clock, \
+                mock.patch.object(self.app, "digest", return_value=b"incorrect") as digest:
+            for client in range(1024):
+                with self.assertRaises(PermissionError):
+                    self.app.login("wrong", str(client))
+            self.assertEqual(len(self.app.failures), 1024)
+            with self.assertRaises(ValueError):
+                self.app.login("wrong", "new-client")
+            self.assertEqual(digest.call_count, 1024)
+            self.assertEqual(len(self.app.failures), 1024)
+            with self.assertRaises(PermissionError):
+                self.app.login("wrong", "0")
+            clock.return_value = 160
+            with self.assertRaises(PermissionError):
+                self.app.login("wrong", "new-client")
+            self.assertEqual(set(self.app.failures), {"new-client"})
+
+    def test_maximum_password_survives_escaped_json_and_overlong_password_skips_hash(self):
+        password = "\U0001f512" * 1024
+        self.app.password = self.app.digest(password)
+        self.assertEqual(self.request("POST", "/api/login", {"password": password})[0], 200)
+        with mock.patch.object(self.app, "digest", wraps=self.app.digest) as digest:
+            self.assertEqual(self.request("POST", "/api/login", {"password": password + "x"})[0], 400)
+            digest.assert_not_called()
 
     def test_cross_origin_host_and_request_header_are_rejected(self):
         cookie = self.login()

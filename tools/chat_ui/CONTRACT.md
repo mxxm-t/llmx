@@ -20,6 +20,19 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
 - `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
 
+## Admission
+
+Login JSON is limited to 16 KiB, checked from Content-Length before reading the
+body. Other JSON routes retain their 16 MiB limit. Failed-login records use the
+socket peer address, never forwarded headers, with ten failures per minute and
+at most 1024 active addresses. A full record table refuses a new address rather
+than evicting an address whose failures still count.
+
+The transport admits 64 handler connections, including SSE, before starting
+threads. Excess sockets close without an HTTP response. Slots are released
+when handlers finish or thread creation fails. Non-loopback deployment requires
+a password and an HTTPS public origin, validated before binding the socket.
+
 ## Temporary conversation lifetime
 
 `config.temporary` advertises `enabled`, `ttl_seconds`, `max_chats` and `tools`.

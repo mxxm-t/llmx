@@ -10,7 +10,12 @@ HTTP checks cover authentication, origin checks, attachments and import/export.
 Store checks cover schema upgrades, online backup and validated restore. Workspace
 checks cover revision conflicts, file limits, checkpoint restore, bounded output,
 cancellation, container isolation flags and unsafe returned files. HTTP checks
-also cover authenticated monitoring, preview CSP and backup/restore routes.
+also cover authenticated monitoring, preview CSP and backup/restore routes,
+login body rejection before reading, failure limits isolated by socket peer,
+HTTPS validation before non-loopback binding, and bounded handler admission
+with recovery after connections finish or startup/handler errors. They also
+check failure-record expiry and capacity, ignored forwarded address headers,
+and maximum-length escaped Unicode passwords.
 Temporary-chat HTTP checks exercise real generation and replay in memory, absence
 from durable history, database files and backups, tool refusal, capacity, expiry,
 cancellation and restart cleanup. Browser checks cover anchored grouped

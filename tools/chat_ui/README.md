@@ -33,13 +33,26 @@ browser-facing origin:
 python tools/chat_ui/server.py --upstream http://127.0.0.1:8090 --host 0.0.0.0 --port 8183 --password-file /run/secrets/chat-password --public-origin https://chat.example.com
 ```
 
+Non-loopback listening requires an HTTPS public origin and an owner password.
 Put HTTPS in front of that deployment with a reverse proxy. The proxy must pass
 the browser's Host header and disable buffering for `/api/runs/*/events` and
 `/api/monitor/stream`.
-The password must contain at least 12 characters. The owner session cookie is
+The password must contain 12 to 1024 characters. The owner session cookie is
 HttpOnly and SameSite=Strict; an HTTPS public origin also sets Secure. An optional
 `--api-key-file PATH` supplies an upstream bearer key without placing it in the
 command line or browser. The files and data directory belong to the operator.
+
+Login bodies are limited to 16 KiB before they are read. Ten failed logins in
+one minute block further attempts from that socket's source address until the
+failures expire. Forwarded address headers are not trusted, so clients behind
+one proxy or NAT share a limit. Failure records are bounded to 1024 active
+addresses, with new addresses refused while that table is full.
+
+The service admits at most 64 simultaneous HTTP connections, including event
+streams. Excess connections are closed before a handler thread is started.
+This bounds resources, but does not guarantee availability against clients
+that keep connections occupied. Configure request deadlines and connection
+limits at the reverse proxy for a public deployment.
 
 This is one owner workspace. Everyone who knows its password can access its
 conversations and tools. There is no multi-user account or role system.

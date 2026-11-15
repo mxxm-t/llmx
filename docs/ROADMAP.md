@@ -334,11 +334,11 @@ The standard-library companion is the lightweight self-hosted owner interface
 for chat, runtime monitoring, request inspection and managed workspace tasks.
 It complements other chat clients and does not add multi-user accounts or
 replace the inference server's authentication and scheduling owners.
+Non-loopback deployment requires an HTTPS public origin. Login bodies,
+per-client failure records and handler connections have bounded admission in
+the companion's existing transport owner; its usage page describes the limits.
 
 Prioritized follow-ups:
-- With the server/auth work, require HTTPS for non-loopback browser origins,
-  bound login request bodies, isolate failed-login limits by client and bound
-  concurrent handlers. Coordinate transport/auth changes with their owner.
 - Document the host privileges required by a local Docker daemon and prefer a
   dedicated or rootless remote daemon where appropriate; the workspace
   container's existing isolation flags remain in force.

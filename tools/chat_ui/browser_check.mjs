@@ -20,6 +20,7 @@ let nextId = 0;
 const pending = new Map();
 const errors = [];
 const runStreams = [];
+let heldMonitorLoad = null;
 async function cdp(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
@@ -35,7 +36,7 @@ async function evaluate(expression) {
 }
 async function wait(expression, description, timeout = 12000) {
   const end = Date.now() + timeout;
-  while (Date.now() < end) { if (await evaluate(expression)) return; await delay(80); }
+  while (Date.now() < end) { if (typeof expression === 'function' ? await expression() : await evaluate(expression)) return; await delay(80); }
   throw new Error('Timed out waiting for ' + description + '\n' + await evaluate('document.body.innerText'));
 }
 async function documentIdentity() {
@@ -104,6 +105,7 @@ try {
     if (data.id && pending.has(data.id)) { const call = pending.get(data.id); pending.delete(data.id); clearTimeout(call.timeout); if (data.error) call.reject(new Error(JSON.stringify(data.error))); else call.resolve(data.result); }
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
+    if (data.method === 'Fetch.requestPaused') heldMonitorLoad = data.params.requestId;
     if (data.method === 'Page.javascriptDialogOpening') cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {});
   };
   await cdp('Page.enable'); await cdp('Runtime.enable'); await cdp('DOM.enable'); await cdp('Network.enable');
@@ -142,11 +144,11 @@ try {
   await fill('#password', 'wrong'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
   await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local'", 'authenticated workspace');
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
   await evaluate("localStorage.removeItem('llmx-theme')");
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'light'}]});
   await reloadDocument();
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local'", 'authenticated workspace after theme reload');
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace after theme reload');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light', 'unset theme did not use light system preference');
   assert.equal(await evaluate("document.querySelector('#theme-button').textContent"), 'Dark theme', 'theme button label did not follow system preference');
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
@@ -157,19 +159,19 @@ try {
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light', 'system change overrode explicit theme');
   await reloadDocument();
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local'", 'saved theme after reload');
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'saved theme after reload');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light', 'saved explicit theme did not persist');
   assert.equal(await evaluate("document.querySelector('#theme-button').textContent"), 'Dark theme', 'saved theme button label is wrong');
   await click('#theme-button');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark', 'explicit dark theme toggle did not win');
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'light'}]});
   await reloadDocument();
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local'", 'saved dark theme after reload');
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'saved dark theme after reload');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark', 'saved dark theme did not persist');
   await evaluate("localStorage.removeItem('llmx-theme')");
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await reloadDocument();
-  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local'", 'restored legacy dark browser setup');
+  await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'restored legacy dark browser setup');
   await screenshot('desktop-empty.png');
   await evaluate("for (let i=0;i<12;i++) document.querySelector('[data-action=\"new\"]').click()");
   await wait("document.querySelector('.chat-item.active')!==null", 'new empty conversation');
@@ -210,7 +212,7 @@ try {
   const streamsBeforeActiveReload = runStreams.length;
   await reloadDocument();
   await wait(`document.querySelector('.message.assistant')?.dataset.message===${JSON.stringify(activeRetry.message)} && document.querySelector('.reasoning')?.textContent.includes('Consider another approach.') && !document.querySelector('#stop').hidden`, 'restored active reasoning after refresh');
-  assert(runStreams.slice(streamsBeforeActiveReload).some(stream => new URL(stream).pathname === '/api/runs/' + activeRetry.run + '/events'), 'refresh did not reconnect to the same active run');
+  await wait(() => runStreams.slice(streamsBeforeActiveReload).some(stream => new URL(stream).pathname === '/api/runs/' + activeRetry.run + '/events'), 'refresh reconnecting to the same active run');
   assert.equal(await evaluate("document.querySelectorAll('.message.assistant').length"), 1, 'active refresh duplicated assistant message');
   await pointerClick('.reasoning > summary');
   await pointerClick('.reasoning > summary');
@@ -300,7 +302,7 @@ try {
   assert.equal(createGeometry[0].weight, createGeometry[1].weight, 'new and temporary text weights differ');
   const sidebarTarget = await evaluate(`fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Sidebar target'})}).then(r=>r.json()).then(c=>c.id)`);
   await reloadDocument();
-  await wait("document.querySelector('.chat-row-menu')!==null", 'sidebar actions after reload');
+  await wait("document.querySelector('.chat-row-menu')!==null && !document.querySelector('[data-action=\"new\"]').disabled", 'sidebar actions after reload');
   await click('[data-action="new"]');
   await wait("document.querySelector('.chat-item.active')!==null", 'separate selected chat');
   const selectedBeforeMenu = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
@@ -378,8 +380,16 @@ try {
   await wait("document.querySelectorAll('.workspace-tool-open').length===4", 'workspace tool navigation buttons');
   await pointerClick('.workspace-tool-open');
   assert.equal(await evaluate("document.querySelector('#app').dataset.view"), 'workbench', 'workspace result button did not open workspace');
+  const monitorBlock = new URL('/fixture-monitor-load', url).href;
+  await cdp('Fetch.enable', {patterns: [{urlPattern: monitorBlock}]});
+  const monitorScript = await cdp('Page.addScriptToEvaluateOnNewDocument', {source: `if(location.pathname==='/monitor/view')document.addEventListener('DOMContentLoaded',()=>{const image=new Image();image.hidden=true;image.src=${JSON.stringify(monitorBlock)};document.body.append(image);});`});
   await click('.global-nav [data-view="monitor"]');
-  await wait("document.querySelector('#monitor-frame').contentDocument?.querySelector('main')!==null", 'embedded monitor');
+  await wait(() => heldMonitorLoad !== null, 'held monitor load resource');
+  await wait("Boolean(document.querySelector('#monitor-frame').contentDocument?.querySelector('main'))", 'parsed monitor before load');
+  assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.readyState==='complete'"), false, 'held resource did not defer monitor load');
+  await cdp('Fetch.fulfillRequest', {requestId: heldMonitorLoad, responseCode: 204});
+  await cdp('Fetch.disable'); await cdp('Page.removeScriptToEvaluateOnNewDocument', {identifier: monitorScript.identifier});
+  await wait("{const doc=document.querySelector('#monitor-frame').contentDocument; Boolean(doc?.readyState==='complete' && doc.querySelector('main') && doc.documentElement.dataset.theme==='light')}", 'loaded embedded monitor with light theme');
   assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme"), 'light', 'monitor theme mismatch');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('#monitor-frame').contentDocument.querySelector('body>header')).display"), 'none', 'duplicate monitor header');
   const lightPanels = await evaluate(`(() => {
@@ -416,7 +426,7 @@ try {
   await pointerClick('#view-preferences [data-action="theme"]');
   assert(luminance(await evaluate('getComputedStyle(document.body).backgroundColor')) > 0.5, 'Settings toggle did not render a light page');
   await reloadDocument();
-  await wait("window.ChatShell?.config!==null && document.querySelector('#connection').textContent!=='Connecting'", 'theme preference restored after reload');
+  await wait("window.ChatShell?.config!=null && document.querySelector('#connection').textContent!=='Connecting' && !document.querySelector('[data-action=\"new\"]').disabled", 'theme preference restored after reload');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light', 'saved theme not restored');
   assert(luminance(await evaluate('getComputedStyle(document.body).backgroundColor')) > 0.5, 'Reload left the page dark');
   await click('.global-nav [data-view="preferences"]');
@@ -479,7 +489,7 @@ try {
   assert.equal(await evaluate("document.body.dataset.previewTouched"), undefined, 'preview accessed parent document');
   assert((await evaluate("document.querySelector('.artifact-console-output').textContent")).includes('parent-blocked'));
   await wait("document.querySelector('.artifact-console-output').textContent.includes('preview-error')", 'preview error bridge');
-  await evaluate("window.postMessage({channel:'llmx-preview',token:'forged',kind:'error',text:'forged-output'},location.origin)");
+  await evaluate("new Promise(resolve=>{function received(event){if(event.data?.token==='forged'){window.removeEventListener('message',received);resolve();}}window.addEventListener('message',received);window.postMessage({channel:'llmx-preview',token:'forged',kind:'error',text:'forged-output'},location.origin);})");
   assert.equal(await evaluate("document.querySelector('.artifact-console-output').textContent.includes('forged-output')"), false, 'preview accepted forged bridge message');
   await screenshot('studio-artifact-preview.png');
   await click('#artifact-source-tab');
@@ -543,7 +553,7 @@ try {
   const expiredId = await evaluate("sessionStorage.getItem('llmx-temporary-chat')");
   await evaluate(`fetch('/api/chats/${expiredId}',{method:'DELETE',headers:{'X-Chat-Request':'1'}})`);
   await reloadDocument();
-  await wait("window.ChatShell?.config!==null && document.querySelector('#connection').textContent!=='Connecting' && sessionStorage.getItem('llmx-temporary-chat')===null", 'missing temporary chat handled after reload');
+  await wait("window.ChatShell?.config!=null && document.querySelector('#connection').textContent!=='Connecting' && sessionStorage.getItem('llmx-temporary-chat')===null && !document.querySelector('[data-action=\"new\"]').disabled", 'missing temporary chat handled after reload');
   assert.equal(await evaluate("document.querySelector('#temporary-notice').hidden"), true);
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');

@@ -28,7 +28,10 @@ from workspace import Workspace, WorkspaceTools
 
 ROOT = Path(__file__).resolve().parent
 MAX_BODY = 16 * 1024 * 1024
+MAX_LOGIN_BODY = 16 * 1024
 MAX_BACKUP = 256 * 1024 * 1024
+MAX_CONNECTIONS = 64
+MAX_LOGIN_CLIENTS = 1024
 DEFAULTS = dict(model="", system="", temperature=0.7, top_p=0.95, top_k=40, max_tokens=4096, tools=[])
 
 
@@ -116,7 +119,7 @@ class Application:
         self.temporary = TemporaryChats(upstream, api_key)
         self.salt = secrets.token_bytes(32)
         self.password = self.digest(password) if password else None
-        self.sessions, self.failures = {}, []
+        self.sessions, self.failures = {}, {}
         self.lock = threading.Lock()
         self.config_lock = threading.Lock()
         self.cached_config, self.config_time = None, 0
@@ -139,21 +142,23 @@ class Application:
             self.sessions = {k: v for k, v in self.sessions.items() if v > now}
             return self.sessions.get(token, 0) > now
 
-    def login(self, password):
+    def login(self, password, client):
         if not isinstance(password, str) or len(password) > 1024:
             raise ValueError("Invalid password")
         with self.lock:
-            now = time.time()
-            self.failures = [t for t in self.failures if t > now - 60]
-            if len(self.failures) >= 10:
+            now = time.monotonic()
+            self.failures = {key: active for key, times in self.failures.items()
+                             if (active := [t for t in times if t > now - 60])}
+            failures = self.failures.get(client, [])
+            if len(failures) >= 10 or (client not in self.failures and len(self.failures) >= MAX_LOGIN_CLIENTS):
                 raise ValueError("Too many attempts. Try again in one minute.")
             if self.password and not hmac.compare_digest(self.digest(password), self.password):
-                self.failures.append(now)
+                self.failures.setdefault(client, []).append(now)
                 raise PermissionError("Incorrect password")
             token = secrets.token_urlsafe(32)
             if len(self.sessions) > 64:
                 self.sessions.pop(next(iter(self.sessions)))
-            self.sessions[token] = now + 12 * 3600
+            self.sessions[token] = time.time() + 12 * 3600
             return token
 
     def logout(self, raw):
@@ -198,24 +203,57 @@ class Server(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, app, public_origin=None):
-        super().__init__(address, Handler)
+        parsed = None
+        if public_origin:
+            parsed = urlsplit(public_origin)
+            if (parsed.scheme not in ("http", "https") or not parsed.hostname
+                    or parsed.path not in ("", "/") or parsed.query or parsed.fragment
+                    or parsed.username is not None or (parsed.port is not None and not 1 <= parsed.port <= 65535)):
+                raise ValueError("Public origin must be an HTTP(S) origin without path or credentials")
+        if address[0] not in ("127.0.0.1", "localhost") and (not app.password or not parsed or parsed.scheme != "https"):
+            raise ValueError("Non-loopback listening needs an owner password and an HTTPS public origin")
         self.app = app
+        self._started = False
+        self._connections = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        super().__init__(address, Handler)
         port = self.server_address[1]
         self.origins = {f"http://localhost:{port}", f"http://127.0.0.1:{port}"}
         if public_origin:
-            parsed = urlsplit(public_origin)
-            if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username:
-                raise ValueError("Public origin must be an HTTP(S) origin without path or credentials")
             self.origins.add(public_origin.rstrip("/"))
         self.hosts = {urlsplit(origin).netloc for origin in self.origins}
-        self.secure = bool(public_origin and public_origin.startswith("https://"))
-        app.monitor.collector.start()
+        self.secure = bool(parsed and parsed.scheme == "https")
+        try:
+            app.monitor.collector.start()
+        except BaseException:
+            super().server_close()
+            raise
+        self._started = True
+
+    def process_request(self, request, client_address):
+        if not self._connections.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._connections.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._connections.release()
 
     def server_close(self):
-        self.app.temporary.close()
-        self.app.monitor.stop()
-        self.app.workspace.close()
-        super().server_close()
+        try:
+            if self._started:
+                self._started = False
+                self.app.temporary.close()
+                self.app.monitor.stop()
+                self.app.workspace.close()
+        finally:
+            super().server_close()
 
     def handle_error(self, request, client_address):
         if not isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
@@ -264,11 +302,11 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("Invalid content length")
         length = int(raw_length)
         if not 0 < length <= maximum:
-            raise ValueError(f"Request body must be between 1 byte and {maximum // (1024 * 1024)} MiB")
+            raise ValueError(f"Request body must be between 1 and {maximum} bytes")
         return length
 
-    def _body(self):
-        length = self._length("application/json", MAX_BODY)
+    def _body(self, maximum=MAX_BODY):
+        length = self._length("application/json", maximum)
         raw = self.rfile.read(length)
         if len(raw) != length:
             raise ValueError("Incomplete request body")
@@ -327,7 +365,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/session" and method == "GET":
             return self._json(dict(authenticated=authenticated, password_required=self.app.password is not None))
         if path == "/api/login" and method == "POST":
-            token = self.app.login(self._body().get("password"))
+            token = self.app.login(self._body(MAX_LOGIN_BODY).get("password"), self.client_address[0])
             cookie = f"llmx_chat={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200" + ("; Secure" if self.server.secure else "")
             return self._json({"ok": True}, extra={"Set-Cookie": cookie})
         if path == "/api/logout" and method == "POST":
@@ -570,15 +608,18 @@ def main():
     parser.add_argument("--sandbox-docker-host", help="Optional Docker endpoint, for example ssh://user@host")
     args = parser.parse_args()
     password = args.password_file.read_text(encoding="utf-8").strip() if args.password_file else None
-    if password is not None and len(password) < 12:
-        parser.error("Use an owner password of at least 12 characters")
+    if password is not None and not 12 <= len(password) <= 1024:
+        parser.error("Use an owner password of 12 to 1024 characters")
     if args.host not in ("127.0.0.1", "localhost") and (not password or not args.public_origin):
         parser.error("Non-loopback listening needs --password-file and --public-origin")
     Connection(args.upstream).close()
     args.data_dir.mkdir(parents=True, exist_ok=True)
     key = args.api_key_file.read_text(encoding="utf-8").strip() if args.api_key_file else None
     app = Application(args.data_dir / "chat.sqlite3", args.upstream, args.tools, password, key, args.sandbox_image, args.sandbox_docker_host)
-    server = Server((args.host, args.port), app, args.public_origin)
+    try:
+        server = Server((args.host, args.port), app, args.public_origin)
+    except ValueError as exc:
+        parser.error(str(exc))
     print(f"llmx chat: http://{args.host}:{server.server_address[1]}", flush=True)
     print("Owner workspace. Conversation data stays in the configured data directory.", flush=True)
     try:

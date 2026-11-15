@@ -8,7 +8,11 @@
 
 **Checks.** The valid alternative-branch restore passes on the unfixed store. All seven invalid graph cases fail because restore accepts them: self and two-message cycles, missing and cross-chat parents, JSON/SQL parent disagreement, and missing or cross-chat active leaves. Failure evidence is retained in scratch/backup-branches/focused-unfixed.log.
 
-**Left.** Validate branch references and cycles in the existing store owner, then run focused companion checks and applicable hosted qualification before landing.
+**Done.** Store validates JSON/SQL parent agreement, same-conversation parent and active-leaf references, and cycles in every branch before replacing the database. The iterative scan visits each message once and does not depend on SQLite row order. Extra tests cover inactive cycles and invalid active-leaf types.
+
+**Checks.** All 77 companion tests pass locally, including the real-browser fixture (61.266 seconds). Docs report no findings and 21 planted checks (27.782 seconds); dead-code reports the 15 expected findings and 20 planted checks (39.204 seconds). Focused store tests pass all 13 cases, including nine invalid-graph subcases. A bounded second-agent source review found no blocker. The affected Markdown owners and all companion references were checked against this diff; the preceding full Markdown review carries forward for unchanged files.
+
+**Left.** Hosted companion qualification, then READY to the coordinator for landing.
 
 **Gotchas.** Standalone Python companion only. No runtime, inference or GPU changes. Preserve valid alternative branches and SQLite row-order independence.
 

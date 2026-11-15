@@ -205,8 +205,8 @@ class StorePersistenceTests(unittest.TestCase):
         other_message = source.new_message(other_chat, None, "user", None, content="other")
         source._save_message(other_message)
         source.db.commit()
-        cases = ("self-cycle", "two-message-cycle", "missing-parent", "cross-chat-parent",
-                 "parent-mismatch", "missing-active-leaf", "cross-chat-active-leaf")
+        cases = ("self-cycle", "inactive-cycle", "two-message-cycle", "missing-parent", "cross-chat-parent",
+                 "parent-mismatch", "missing-active-leaf", "cross-chat-active-leaf", "invalid-active-leaf")
         try:
             for name in cases:
                 with self.subTest(name=name):
@@ -222,10 +222,12 @@ class StorePersistenceTests(unittest.TestCase):
                             user = next(row for row in rows if json.loads(row[3])["role"] == "user")
                             answer = next(row for row in rows if json.loads(row[3])["role"] == "assistant")
                             data = json.loads(answer[3])
-                            if name == "self-cycle":
+                            if name in ("self-cycle", "inactive-cycle"):
                                 parent = answer[0]
                                 data["parent_id"] = parent
                                 connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (parent, json.dumps(data), answer[0]))
+                                if name == "inactive-cycle":
+                                    connection.execute("UPDATE chats SET data=json_set(data,'$.active_leaf',NULL) WHERE id=?", (chat_id,))
                             elif name == "two-message-cycle":
                                 data["parent_id"] = user[0]
                                 connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (user[0], json.dumps(data), answer[0]))
@@ -243,7 +245,9 @@ class StorePersistenceTests(unittest.TestCase):
                                 connection.execute("UPDATE messages SET parent=?,data=? WHERE id=?", (sql_parent, json.dumps(data), answer[0]))
                             else:
                                 chat = json.loads(connection.execute("SELECT data FROM chats WHERE id=?", (chat_id,)).fetchone()[0])
-                                chat["active_leaf"] = "missing-leaf" if name == "missing-active-leaf" else other_message["id"]
+                                chat["active_leaf"] = {"missing-active-leaf": "missing-leaf",
+                                                       "cross-chat-active-leaf": other_message["id"],
+                                                       "invalid-active-leaf": []}[name]
                                 connection.execute("UPDATE chats SET data=? WHERE id=?", (json.dumps(chat), chat_id))
                             connection.commit()
                         finally:

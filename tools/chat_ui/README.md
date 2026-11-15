@@ -19,7 +19,9 @@ Open `http://127.0.0.1:8183`. `--upstream` accepts an origin or a URL ending in
 `/v1`. By default, data is in `~/.llmx-chat/chat.sqlite3`. `--data-dir PATH`
 selects another directory. Settings can download an online SQLite chat backup
 and restore one while replies are idle. Restore replaces conversations, and
-accepts backups up to 256 MiB as a streamed binary upload. Back up the entire data
+accepts backups up to 256 MiB as a streamed binary upload. Broken message branches,
+including cycles and references to other conversations, are refused before the
+active database is replaced. Back up the entire data
 directory with the companion stopped to include workspace files and checkpoints.
 Do not point two companion processes at the same database.
 

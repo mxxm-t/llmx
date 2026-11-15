@@ -97,9 +97,10 @@ class Store:
             raise ValueError("Backup integrity check failed.")
         if db.execute("PRAGMA foreign_key_check").fetchone() is not None:
             raise ValueError("Backup contains invalid references.")
+        branches, leaves = {}, {}
         checks = (
-            ("chats", "SELECT id,data FROM chats", ("id", "title")),
-            ("messages", "SELECT id,chat,data FROM messages", ("id", "chat_id", "role", "content", "status")),
+            ("chats", "SELECT id,data FROM chats", ("id", "title", "active_leaf")),
+            ("messages", "SELECT id,chat,parent,data FROM messages", ("id", "chat_id", "parent_id", "role", "content", "status")),
             ("runs", "SELECT id,chat,data FROM runs", ("id", "chat_id", "status", "message_id")),
             ("events", "SELECT seq,run,data FROM events", ("kind", "data", "time")),
         )
@@ -118,7 +119,7 @@ class Store:
                         raise ValueError("Backup contains invalid record data.")
                     continue
                 expected_id = row[0]
-                if value.get("id") != expected_id:
+                if not isinstance(expected_id, str) or not expected_id or value.get("id") != expected_id:
                     raise ValueError("Backup record identity does not match its row.")
                 if table in ("chats", "runs") and (not isinstance(expected_id, str) or expected_id.startswith("tmp_")):
                     raise ValueError("Backup contains a reserved temporary identifier.")
@@ -131,15 +132,39 @@ class Store:
                         raise ValueError("Backup contains reserved temporary chat metadata.")
                     if not isinstance(value["title"], str):
                         raise ValueError("Backup contains invalid record data.")
+                    leaf = value["active_leaf"]
+                    if leaf is not None and not isinstance(leaf, str):
+                        raise ValueError("Backup contains an invalid active branch.")
+                    leaves[expected_id] = leaf
                 elif table == "messages":
                     if (value["role"] not in ("user", "assistant", "tool") or
                             not isinstance(value["content"], str) or
                             not isinstance(value["status"], str)):
                         raise ValueError("Backup contains invalid record data.")
+                    parent = value["parent_id"]
+                    if parent != row[2] or parent is not None and not isinstance(parent, str):
+                        raise ValueError("Backup contains an invalid message parent.")
+                    branches[expected_id] = (row[1], parent)
                 elif table == "runs":
                     if (not isinstance(value["status"], str) or
                             value["message_id"] is not None and not isinstance(value["message_id"], str)):
                         raise ValueError("Backup contains invalid record data.")
+
+        for chat, parent in branches.values():
+            if chat not in leaves or parent is not None and (parent not in branches or branches[parent][0] != chat):
+                raise ValueError("Backup contains an invalid message parent.")
+        for chat, leaf in leaves.items():
+            if leaf is not None and (leaf not in branches or branches[leaf][0] != chat):
+                raise ValueError("Backup contains an invalid active branch.")
+        checked = set()
+        for message in branches:
+            trail = set()
+            while message is not None and message not in checked:
+                if message in trail:
+                    raise ValueError("Backup contains a conversation cycle.")
+                trail.add(message)
+                message = branches[message][1]
+            checked.update(trail)
 
     @staticmethod
     def _temporary_path(directory):

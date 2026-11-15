@@ -7,13 +7,22 @@ import shutil
 import subprocess
 import tempfile
 import threading
-import time
 import unittest
 from http.server import ThreadingHTTPServer
 
 from server import Application, Server
 from monitor import DASHBOARD, health
 from test_engine import FakeTools, FakeUpstream, text_event, tool_event
+
+
+class StepGate(threading.Event):
+    def wait(self, timeout=None):
+        released = super().wait(30)
+        if not released:
+            raise TimeoutError("Browser did not release the streamed fixture")
+        if released:
+            self.clear()
+        return released
 
 
 class BrowserUpstream(FakeUpstream):
@@ -25,6 +34,11 @@ class BrowserUpstream(FakeUpstream):
         super().do_POST()
 
     def do_GET(self):
+        if self.path == "/browser-step":
+            type(self).gate.set()
+            self.send_response(204)
+            self.end_headers()
+            return
         health = {"status": "ok", "server": {"uptime_s": 30, "model": "qwen3-local", "version": "browser-fixture", "devices": ["cpu"]},
                   "requests": {"now": {"active": 1, "queued": 0}, "since_start": {"finished": 4}}}
         data = json.dumps(health if self.path.endswith('/health') else {"data": [{"id": "qwen3-local"}]}).encode()
@@ -65,16 +79,18 @@ class BrowserTests(unittest.TestCase):
                                "prompt_ms": 500, "predicted_ms": 1600, "queued_ms": 0, "prepared_ms": 10},
                    "context": {"tokens": 160, "limit": 4096}}
         first = [text_event(reasoning="Let me think carefully."), "WAIT",
+                 text_event(reasoning=" Compare the options."), "WAIT",
+                 text_event(reasoning=" Choose a clear plan."), "WAIT",
                  text_event("A practical plan.\n\n```python\nprint('hello')\n```\n\n| Step | State |\n| --- | --- |\n| One | Ready |\n\n<script>window.injected=true</script>"), metrics]
         with BrowserUpstream.lock:
-            BrowserUpstream.replies = [first, [text_event("An alternative approach."), metrics],
+            BrowserUpstream.replies = [first, [text_event(reasoning="Consider another approach."), "WAIT", text_event("An alternative approach."), metrics],
                 [text_event("An edited branch."), metrics], [tool_event(name="echo"), metrics],
                 [text_event("The tool returned hello."), metrics], [text_event("The attached file is readable."), metrics],
                 [text_event("Incomplete response"), "TRUNCATE"],
                 [text_event(reasoning="Cancellation test"), "WAIT", text_event("Should be cancelled")],
                 [text_event("Temporary response."), metrics]]
             BrowserUpstream.requests = []
-        BrowserUpstream.gate = threading.Event()
+        BrowserUpstream.gate = StepGate()
         BrowserUpstream.stream_opened = threading.Event()
         upstream = ThreadingHTTPServer(("127.0.0.1", 0), BrowserUpstream)
         threading.Thread(target=upstream.serve_forever, daemon=True).start()
@@ -90,12 +106,6 @@ class BrowserTests(unittest.TestCase):
                 threading.Thread(target=server.serve_forever, daemon=True).start()
                 dashboard = ThreadingHTTPServer(("127.0.0.1", 0), health.make_handler(app.monitor.collector, str(DASHBOARD / "index.html")))
                 threading.Thread(target=dashboard.serve_forever, daemon=True).start()
-                def release_stream():
-                    if BrowserUpstream.stream_opened.wait(10):
-                        time.sleep(1.5)
-                        BrowserUpstream.gate.set()
-                release = threading.Thread(target=release_stream, daemon=True)
-                release.start()
                 try:
                     artifacts = Path(__file__).resolve().parents[2] / "scratch/chat-ui-browser"
                     artifacts.mkdir(parents=True, exist_ok=True)
@@ -106,7 +116,8 @@ class BrowserTests(unittest.TestCase):
                     result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
                         "http://127.0.0.1:%d" % server.server_address[1], chrome,
                         str(Path(temporary) / "profile"), str(artifacts), str(fixture), str(image),
-                        "http://127.0.0.1:%d" % dashboard.server_address[1]],
+                        "http://127.0.0.1:%d" % dashboard.server_address[1],
+                        "http://127.0.0.1:%d" % upstream.server_address[1]],
                         capture_output=True, text=True, timeout=100)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertGreaterEqual(len(tools.calls), 1)

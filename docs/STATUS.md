@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Chat controls and streaming reasoning (2026-11-15, in progress)
+
+**Goal.** A compact anchored conversation menu with clear actions and usable rename/folder controls. Reasoning disclosures stay interactive while text streams.
+
+**Done.** Identified full message DOM replacement on every delta as the reasoning pointer-target risk. The previous conversation-menu and temporary-chat feature passed hosted Windows/Linux checks and landed as edc54afd7.
+
+**Left.** Reproduce the reasoning issue with deterministic pointer events across actual stream updates, preserve connected disclosure nodes, refine the menu, and check focused browser and documentation coverage.
+
+**Gotchas.** Static browser presentation only. Existing conversation APIs and inference behavior stay with their current owners. No inference gates apply.
+
 ## Chat menus and temporary conversations (2026-11-15, Done)
 
 **Goal.** Each sidebar conversation has its own actions. Temporary chats use memory only and stay out of saved history and backups.

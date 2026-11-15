@@ -4,7 +4,7 @@ import {readFile, writeFile, mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-const [url, executable, profile, artifacts, fixture, imageFixture, originalDashboard] = process.argv.slice(2);
+const [url, executable, profile, artifacts, fixture, imageFixture, originalDashboard, upstreamFixture] = process.argv.slice(2);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const launchArgs = ['--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile,
@@ -69,6 +69,16 @@ async function pointerClick(selector) {
   assert(point.hit, 'Pointer blocked for '+selector+': '+JSON.stringify(point));
   await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1});
   await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1});
+}
+async function reasoningClickDuringDelta(text, expectedOpen) {
+  const point = await evaluate(`{const summary=document.querySelector('.reasoning > summary');summary.scrollIntoView({block:'nearest'});window.reasoningSummary=summary;window.reasoningDetached=false;window.reasoningObserver=new MutationObserver(records=>{if(records.some(r=>Array.from(r.removedNodes).some(n=>n===summary||n.contains?.(summary))))window.reasoningDetached=true;});reasoningObserver.observe(document.querySelector('#messages'),{childList:true,subtree:true});const r=summary.getBoundingClientRect();({x:r.x+r.width/2,y:r.y+r.height/2})}`);
+  await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', clickCount: 1});
+  assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
+  await wait(`document.querySelector('.reasoning').textContent.includes(${JSON.stringify(text)})`, 'reasoning delta during pointer gesture');
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', ...point, button: 'left', clickCount: 1});
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), expectedOpen, 'stream delta cancelled reasoning pointer click');
+  assert.equal(await evaluate("reasoningSummary===document.querySelector('.reasoning > summary') && !reasoningDetached"), true, 'stream delta detached reasoning summary');
+  await evaluate('reasoningObserver.disconnect()');
 }
 async function fill(selector, text) { await evaluate(`{const e=document.querySelector(${JSON.stringify(selector)});e.value=${JSON.stringify(text)};e.dispatchEvent(new Event('input',{bubbles:true}));}`); }
 async function send(text) { await fill('#draft', text); await evaluate("document.querySelector('#composer').requestSubmit()"); }
@@ -144,6 +154,13 @@ try {
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep my unsent draft');
   await send('Make a practical plan.');
   await wait("document.querySelector('.reasoning')!==null", 'streamed reasoning');
+  await reasoningClickDuringDelta('Compare the options.', true);
+  await reasoningClickDuringDelta('Choose a clear plan.', false);
+  await pointerClick('.reasoning > summary');
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'reasoning did not reopen while streaming');
+  assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
+  await idle();
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'completion discarded open reasoning choice');
   await reloadDocument();
   await wait("document.querySelectorAll('.message.assistant').length===1 && document.querySelector('#stop').hidden", 'refresh and persisted stream completion');
   assert.equal(await evaluate("document.querySelector('.message.assistant').textContent.split('A practical plan.').length-1"), 1, 'snapshot replay duplicated output');
@@ -160,7 +177,13 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.code-block .syntax-string').length>0"), true, 'code syntax colors missing');
   await click('#artifact-dialog [aria-label="Close artifact"]');
   await click('.message.assistant [data-action="retry"]');
+  await wait("document.querySelector('.reasoning')?.textContent.includes('Consider another approach.') && !document.querySelector('#stop').hidden", 'retry reasoning stream');
+  await pointerClick('.reasoning > summary');
+  await pointerClick('.reasoning > summary');
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), false, 'reasoning did not close while streaming');
+  assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await wait("document.querySelector('.message.assistant')?.innerText.includes('An alternative approach.') && document.querySelector('#stop').hidden", 'retry branch');
+  assert.equal(await evaluate("document.querySelector('.reasoning').open"), false, 'completion discarded closed reasoning choice');
   await click('.message.assistant .branch-switch button');
   await wait("document.querySelector('.message.assistant')?.innerText.includes('A practical plan.')", 'previous response branch');
   await click('.message.user [data-action="edit"]');

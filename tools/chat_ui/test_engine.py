@@ -147,6 +147,28 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.store.message(image_user["id"]), image_user)
         self.assertEqual(self.store.message(assistant["id"]), assistant)
 
+    def test_image_rejection_recovery_preserves_other_failures_and_output(self):
+        image = {"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}
+        refusal = "llmx returned HTTP 400: the chat template refused the messages"
+        cases = [("partial answer", {"content": "A visible answer"}, refusal),
+                 ("reasoning", {"reasoning": "A visible thought"}, refusal),
+                 ("tool action", {"tool_calls": [{"id": "action", "name": "echo", "arguments": "{}"}]}, refusal),
+                 ("other failure", {}, "The upstream stopped responding")]
+        for label, output, error in cases:
+            with self.subTest(label=label):
+                chat = self.store.create_chat({})
+                run = self.store.start(chat["id"], {"content": "Image", "attachments": [image]}, self.settings())
+                assistant = self.store.message(run["message_id"])
+                assistant.update(status="failed", **output)
+                self.store.publish(run["id"], "message", assistant)
+                self.store.publish(run["id"], "state", {"status": "failed", "error": error})
+                before = self.store.snapshot(chat["id"])
+                with mock.patch("engine.Connection.json", side_effect=ValueError("Images unsupported")) as probe:
+                    with self.assertRaisesRegex(ValueError, "images"):
+                        self.engine.start(chat["id"], {"content": "Follow up"}, self.settings())
+                    probe.assert_called_once()
+                self.assertEqual(self.store.snapshot(chat["id"]), before)
+
     def test_image_rejection_keeps_conversation_unchanged(self):
         body = {"content": "Describe this", "attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}
         before = self.store.snapshot(self.chat["id"])

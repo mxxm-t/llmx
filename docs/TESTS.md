@@ -40,7 +40,7 @@ that already reached the server or restore an older displayed revision.
 Its optional installed-browser check exercises the actual interface, theme toggles
 and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.
-The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images.
+The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images. It also checks that an older empty image turn rejected by the template does not block a text follow-up, while preserving saved records, image retries, partial answers, reasoning, tool actions and unrelated failures.
 The companion browser check also delays a successful Send response while editing its original draft or switching to another active conversation. It verifies captured request content, branch parent and files, preservation of newer composer state, and no duplicate subscription to the other reply.
 The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
 Docker image to verify actual container isolation, returned files and cancellation.

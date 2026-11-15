@@ -20,6 +20,12 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
 - `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
 
+The prompt-history owner omits an older image user turn and its adjacent empty
+failed assistant only when the run records a chat-template refusal. The saved
+messages and branches remain unchanged. Accepted images, partial replies,
+reasoning and tool calls stay in prompt history. Regenerating from the image user
+message still submits its images and requires image admission.
+
 ## Admission
 
 Login JSON is limited to 16 KiB, checked from Content-Length before reading the

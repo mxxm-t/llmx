@@ -1,12 +1,18 @@
 # llmx - Development Status
 
-## Continue after a rejected image turn (2026-11-15, In progress)
+## Continue after a rejected image turn (2026-11-15, Ready)
 
 **Goal.** Let a text follow-up continue after an older persisted image turn was refused by the template, without deleting history or removing images from accepted turns.
 
-**Done.** Live metadata confirms the active branch ends in an image-only user message and an empty failed assistant with the template refusal. Engine history includes that rejected image again, so preflight refuses every follow-up. Engine owns prompt-history selection. This dependent fix builds on the qualified companion batch at 5d2a394ad, whose image admission exposes the old persisted failure.
+**Done.** Live metadata confirms the active branch ends in an image-only user message and an empty failed assistant with the template refusal. Engine history includes that rejected image again, so preflight refuses every follow-up. Engine owns prompt-history selection. This fix builds on published main 5d2a394ad, whose image admission exposes the old persisted failure.
 
-**Left.** Reproduce with a stored rejected turn, fix prompt-history selection, verify retries and partial replies remain intact, and update the local preview.
+**Done.** The regression fails on the unfixed engine because the text follow-up reaches image preflight. The history owner now excludes only adjacent image-user and empty failed-assistant pairs whose run records the known template refusal. Saved records are unchanged, and a deliberate retry from the image user node still submits the image. The focused regression passes.
+
+**Checks.** All 15 engine tests pass, including preservation of accepted images, partial answers, reasoning, tool calls, unrelated failures and explicit image retries. The full companion discovery passes all 83 tests in 58.621 seconds, including the real browser. Dead-code passes with 15 expected findings and 20 planted faults. A bounded second-agent review found no blocker and noted that alternate refusal wording conservatively remains in context. Affected README, contract and test documentation were reviewed; the final docs-check receipt is scratch/image-recovery/docs-final.log. Standalone companion scope only.
+
+**Checks.** Hosted Chat workspace run 43746068799 passes on Windows and Linux at 7df503dbe. The final delta only updates this status record, so source, tests and build inputs match that evidence. The branch is ready for coordinator fast-forward landing over 5d2a394ad. It reuses Engine._history and adds no helper, thread, allocator or kernel.
+
+**Left.** Coordinator landing. The current conversation was recovered through the existing branch-selection API with all 41 messages and 25 runs preserved. No service restart occurred; engine code is not yet active in the existing process.
 
 **Gotchas.** Do not alter saved messages, accepted image turns, partial replies, tool actions or a deliberate retry of the image. No inference code changes.
 

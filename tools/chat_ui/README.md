@@ -91,7 +91,10 @@ conversations and tools. There is no multi-user account or role system.
   A read that finishes after switching conversations is discarded with a notice.
   The upstream model and server must support images. Image-bearing prompts are
   checked through llmx tokenization before a reply starts, including images in
-  conversation history. A rejection keeps your draft and attachments. PDF extraction, audio, OCR, rendered
+  conversation history. A rejection keeps your draft and attachments.
+  Older saved image turns refused by the chat template before any reply or tool
+  call stay visible but are excluded from later prompts. Retrying that image turn
+  still includes its images. Accepted images and partial replies remain in context. PDF extraction, audio, OCR, rendered
   LaTeX, executable artifacts and knowledge-base retrieval are not implemented.
 - A companion process restart marks unfinished runs interrupted. It never
   retries a tool automatically after losing its outcome.

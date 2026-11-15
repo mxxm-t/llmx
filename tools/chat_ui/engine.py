@@ -115,6 +115,18 @@ class Engine:
     def _history(self, leaf, system):
         messages = [{"role": "system", "content": system}] if system else []
         chain = self.store.path(leaf)
+        excluded = set()
+        for user, reply in zip(chain, chain[1:]):
+            if user["role"] != "user" or not any(a.get("data", "").startswith("data:image/") for a in user.get("attachments", [])):
+                continue
+            if reply["role"] != "assistant" or reply.get("status") != "failed" or any(reply.get(k) for k in ("content", "reasoning", "tool_calls")):
+                continue
+            if not reply.get("run_id"):
+                continue
+            run = self.store.run(reply["run_id"])
+            if run["status"] == "failed" and "chat template refused the messages" in (run.get("error") or ""):
+                excluded.update((user["id"], reply["id"]))
+        chain = [m for m in chain if m["id"] not in excluded]
         resolved = {m["tool_call_id"] for m in chain if m["role"] == "tool"}
         for message in chain:
             role, text = message["role"], message["content"]

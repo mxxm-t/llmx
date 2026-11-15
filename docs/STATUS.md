@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Nested Python tool analysis (2026-11-15, in progress)
+
+**Goal.** Extend the existing Python dead-code owner to nested tools, including chat and dashboard, without conflating same-named modules.
+
+**Done.** Source review confirms the depth-one inventory skips both packages. Existing AST analysis remains the owner.
+
+**Left.** Add failing coverage for nested dead definitions, directory-local and package imports, direct command roots and unittest discovery. Implement scoped resolution, inspect newly exposed findings, and run focused analyzer checks and applicable hosted qualification.
+
+**Gotchas.** Static analysis is conservative around instance attributes and dynamic imports. This change must not claim complete runtime reachability or execute the scanned code. No UI, inference or production change.
+
 ## Chat system theme (2026-11-15, Done)
 
 **Goal.** Use the operating system color preference until the owner chooses a saved light or dark theme. Keep the monitor theme in sync.

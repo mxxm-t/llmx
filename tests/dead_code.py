@@ -1401,6 +1401,33 @@ def plant(texts, path, before, add):
     return copy
 
 
+def python_nested_self_test():
+    """Nested modules retain their own import identities and declared test entrypoints."""
+    tree = {
+        "CMakeLists.txt": "",
+        ".github/workflows/nested.yml": "run: python -X utf8 -m unittest discover -s tools/one -p 'test_*.py'\n",
+        "tools/one/helper.py": "def live(): return 1\ndef dead(): return 2\n",
+        "tools/two/helper.py": "def live(): return 3\n",
+        "tools/one/test_local.py": "from helper import live\nassert live() == 1\n",
+        "tools/two/test_unrun.py": "import unittest\n",
+        "tools/one/deep/helper.py": "def relative(): return 4\n",
+        "tools/one/deep/test_relative.py": "from .helper import relative\nassert relative() == 4\n",
+        "tools/one/deep/__init__.py": "",
+        "tools/two/qualified.py": "def reach(): return 5\n",
+        "tools/one/test_qualified.py": "import tools.two.qualified as q\nassert q.reach() == 5\n",
+        "tools/two/test_direct.py": "import unittest\n",
+        "tools/two/README.md": "```\npython tools/two/test_direct.py\n```\n",
+    }
+    expected = {("python", "tools/one/helper.py", "dead"),
+                ("python", "tools/two/helper.py", "live"),
+                ("python", "tools/two/test_unrun.py", "module")}
+    got = set(python_findings(tree))
+    if got != expected:
+        print("  self-test: nested Python findings differ: missing=%s extra=%s" % (sorted(expected - got), sorted(got - expected)))
+        return False, 1
+    return True, 1
+
+
 def self_test(texts, found, listed):
     """The planted faults: a dead function, one after a function with a braced default argument, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, one declared over several lines and one with a braced default argument, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, a test object under a path holding src/, and a stale list entry.
     The faults one check reports share a copy of the tree, so each check runs once."""
@@ -1455,7 +1482,8 @@ def self_test(texts, found, listed):
                               "\n`tests/planted.cpp` was built by hand.\n"), [
             ("an unbuilt test source a record names", ("file", "tests/planted.cpp", "unreached"))]),
     ]
-    ok, count = True, 1
+    ok, nested_count = python_nested_self_test()
+    count = 1 + nested_count
     for check, tree, faults in cases:
         got = check(tree)
         for what, key in faults:

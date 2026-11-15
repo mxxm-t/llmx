@@ -15,7 +15,7 @@
   systemTheme.addEventListener('change', event => { if (!themeChosen) setTheme(event.matches ? 'light' : 'dark'); });
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
-  let toastTimer, creatingChat = false, menuId = null;
+  let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
   const objectIds = new WeakMap(); let nextObjectId = 0;
   function identity(value) { if (!value || typeof value !== 'object') return value; if (!objectIds.has(value)) objectIds.set(value, ++nextObjectId); return objectIds.get(value); }
   function messageKey(m, text = false) { return [m.id, m.role, m.status, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
@@ -105,7 +105,7 @@
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
     snapshotBanner();
     S.searchText.set(id, S.messages.map(m => m.content || '').join(' '));
-    S.attachments = []; $('draft').value = ''; resizeDraft(); renderAttachments(); $('edit-note').hidden = true;
+    S.attachments = []; $('draft').value = ''; composerRevision++; resizeDraft(); renderAttachments(); $('edit-note').hidden = true;
     if (S.chat.temporary) sessionStorage.setItem('llmx-temporary-chat', id); else localStorage.setItem('llmx-chat', id);
     loadSettings(); renderSidebar(); render(); closeDrawers();
     requestAnimationFrame(() => bottom());
@@ -131,7 +131,7 @@
     if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
     if (old) S.searchText.delete(old.id);
     S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
-    $('draft').value = ''; $('edit-note').hidden = true; resizeDraft(); renderAttachments(); loadSettings(); render();
+    $('draft').value = ''; composerRevision++; $('edit-note').hidden = true; resizeDraft(); renderAttachments(); loadSettings(); render();
   }
   async function leaveTemporary() {
     if (!S.chat?.temporary) return true;
@@ -408,16 +408,40 @@
   }
   async function send() {
     if (currentRun() || S.busy || creatingChat) return;
-    const content = $('draft').value.trim(); if (!content && !S.attachments.length) { $('draft').focus(); return; }
-    if (!settings().model) throw new Error('Select a model before sending a message.');
+    const originalChat = S.chat, generation = S.generation, edit = S.edit;
+    const draft = $('draft').value, content = draft.trim(), revision = composerRevision, attachments = S.attachments.slice(), requestSettings = settings();
+    if (!content && !attachments.length) { $('draft').focus(); return; }
+    if (!requestSettings.model) throw new Error('Select a model before sending a message.');
+    let chatId = originalChat?.id, parent = edit ? edit.parent_id : originalChat?.active_leaf;
+    let chatTitle = originalChat?.title || 'New conversation';
+    let phase = 'create a conversation for this send';
+    const isCurrentView = () => S.generation === generation && (chatId ? S.chat?.id === chatId : S.chat === originalChat);
     S.busy = true; $('send').disabled = true;
     banner(configurationWarning());
     try {
-      if (!S.chat) { const chat = await api('/chats', 'POST', {settings: settings()}); S.chat = chat; localStorage.setItem('llmx-chat', chat.id); S.chats.unshift(chat); renderSidebar(); }
-      const chatId = S.chat.id; const parent = S.edit ? S.edit.parent_id : S.chat.active_leaf;
-      await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {content, attachments: S.attachments, parent_id: parent || null, settings: settings()});
-      $('draft').value = ''; S.attachments = []; S.edit = null; $('edit-note').hidden = true; resizeDraft(); renderAttachments(); await syncSnapshot(chatId);
-      const run = currentRun(); if (run) subscribe(run); await refreshChats(); bottom();
+      if (!chatId) {
+        const chat = await api('/chats', 'POST', {settings: requestSettings});
+        chatId = chat.id; parent = null; chatTitle = chat.title || chatTitle;
+        S.chats.unshift(chat);
+        if (S.generation === generation && S.chat === originalChat) { S.chat = chat; localStorage.setItem('llmx-chat', chat.id); }
+        renderSidebar();
+      }
+      phase = 'send to "' + chatTitle + '"';
+      await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {content, attachments, parent_id: parent || null, settings: requestSettings});
+      if (!isCurrentView()) return;
+      if (composerRevision === revision && S.edit === edit) {
+        $('draft').value = ''; S.attachments = []; S.edit = null; composerRevision++; $('edit-note').hidden = true; resizeDraft(); renderAttachments();
+      }
+      phase = 'refresh "' + chatTitle + '"';
+      await syncSnapshot(chatId);
+      if (!isCurrentView()) return;
+      const run = currentRun(); if (run) subscribe(run);
+      phase = 'refresh conversations after sending to "' + chatTitle + '"';
+      await refreshChats();
+      if (isCurrentView()) bottom();
+    } catch (error) {
+      if (!isCurrentView()) { toast('Could not ' + phase + ': ' + error.message); return; }
+      throw error;
     } finally { S.busy = false; scheduleRender(); }
   }
   async function retry(id) {
@@ -456,7 +480,7 @@
         if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.'); pending.push({name: file.name, type: file.type || 'text/plain', text});
       } else throw new Error('Unsupported file: ' + file.name + '. Attach UTF-8 text, PNG or JPEG.');
     }
-    S.attachments.push(...pending); renderAttachments(); $('draft').focus();
+    S.attachments.push(...pending); composerRevision++; renderAttachments(); $('draft').focus();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }
   function resizeDraft() { const el = $('draft'); el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; }
@@ -474,11 +498,11 @@
     if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; renderSidebar(); return; }
     if (name === 'attach') return $('file-input').click();
-    if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); renderAttachments(); return; }
+    if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); composerRevision++; renderAttachments(); return; }
     if (name === 'bottom') return bottom();
     if (name === 'import') return $('import-input').click();
     if (name === 'logout') { await api('/logout', 'POST', {}); closeStream(); location.reload(); return; }
-    if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; renderAttachments(); resizeDraft(); return; }
+    if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; composerRevision++; renderAttachments(); resizeDraft(); return; }
     if (name === 'save-settings') { if (S.chat) await patchChat({settings: settings()}); toast('Settings saved for the next response.'); return; }
     if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
     if (['rename', 'pin', 'archive', 'folder', 'delete', 'export', 'duplicate'].includes(name)) {
@@ -507,7 +531,7 @@
     if (!S.chat) return;
     if (name === 'stop') { const run = currentRun(); if (run) { await api('/runs/' + encodeURIComponent(run.id) + '/cancel', 'POST', {}); toast('Stop requested.'); } }
     if (name === 'copy') { const message = S.messages.find(m => m.id === el.dataset.id); await navigator.clipboard.writeText(message.content || ''); toast('Message copied.'); }
-    if (name === 'edit') { if (currentRun()) throw new Error('Stop the current response before editing.'); const message = S.messages.find(m => m.id === el.dataset.id); S.edit = message; $('draft').value = message.content || ''; S.attachments = [...(message.attachments || [])]; renderAttachments(); $('edit-note').hidden = false; resizeDraft(); $('draft').focus(); }
+    if (name === 'edit') { if (currentRun()) throw new Error('Stop the current response before editing.'); const message = S.messages.find(m => m.id === el.dataset.id); S.edit = message; $('draft').value = message.content || ''; S.attachments = [...(message.attachments || [])]; composerRevision++; renderAttachments(); $('edit-note').hidden = false; resizeDraft(); $('draft').focus(); }
     if (name === 'retry') await retry(el.dataset.id);
     if (name === 'branch') await branch(el.dataset.id);
     if (name === 'approve' || name === 'deny') { await api('/runs/' + encodeURIComponent(el.dataset.run || currentRun()?.id) + '/approve', 'POST', {call_id: el.dataset.id, allow: name === 'approve', remember: el.closest('.approval').querySelector('.remember-approval').checked}); el.closest('.approval').querySelectorAll('button').forEach(b => { b.disabled = true; }); }
@@ -538,12 +562,12 @@
       if (el.dataset.action) await action(el.dataset.action, el);
       else if (el.dataset.chat) await openChat(el.dataset.chat);
       else if (el.dataset.tab) showTab(el.dataset.tab);
-      else if (el.dataset.prompt) { $('draft').value = el.dataset.prompt; resizeDraft(); $('draft').focus(); }
+      else if (el.dataset.prompt) { $('draft').value = el.dataset.prompt; composerRevision++; resizeDraft(); $('draft').focus(); }
     };
     execute().catch(error => toast(error.message));
   });
   $('composer').addEventListener('submit', event => { event.preventDefault(); send().catch(error => banner(error.message)); });
-  $('draft').addEventListener('input', resizeDraft);
+  $('draft').addEventListener('input', () => { composerRevision++; resizeDraft(); });
   $('draft').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send().catch(error => banner(error.message)); } });
   $('draft').addEventListener('paste', event => { const files = Array.from(event.clipboardData?.files || []); if (files.length) { event.preventDefault(); attach(files).catch(error => toast(error.message)); } });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });

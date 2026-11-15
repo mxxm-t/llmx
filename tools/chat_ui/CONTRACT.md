@@ -112,7 +112,7 @@ their own. A completed mutation therefore receives a subsequent snapshot rather
 than silently reusing a response requested before that mutation. Failure of the
 older request does not cancel a queued refresh; its own caller reports the error.
 
-### Image admission
+## Image admission
 
 Before persisting a reply, the engine sends an image-bearing prompt to the
 upstream `/v1/tokenize` route with the same message content, selected tools and
@@ -130,3 +130,12 @@ Saved template failures on an image-bearing branch also receive an actionable
 banner when the chat is reopened. The original error remains in Activity for
 diagnosis; stored history is not rewritten. Other failures retain their specific
 messages.
+
+## Pending Send requests
+
+Send captures the selected conversation, branch parent, settings, text and files
+before the request starts. Later composer edits stay in place when it completes.
+Changing conversations prevents the old completion from clearing that view,
+replacing its snapshot or subscribing to its stream again. A failure arriving
+after navigation uses a toast rather than replacing the new conversation's banner.
+This does not provide persistent drafts when leaving a conversation.

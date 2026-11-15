@@ -103,7 +103,9 @@ class BrowserTests(unittest.TestCase):
                 [text_event(reasoning="Cancellation test"), "WAIT", text_event("Should be cancelled")],
                 [text_event("Temporary response."), metrics],
                 [text_event("The other chat is active."), "WAIT", text_event("The other chat completed."), metrics],
-                [text_event("The delayed submission completed."), metrics]]
+                [text_event("Editable seed response."), metrics],
+                [text_event("The submitted edit completed."), metrics],
+                [text_event("The second submission completed."), metrics]]
             BrowserUpstream.requests = []
         BrowserUpstream.gate = StepGate()
         BrowserUpstream.stream_opened = threading.Event()

@@ -78,15 +78,21 @@
 **Review.** Store, workspace ordering and shared image payload changes received a bounded second-agent source review. Affected Markdown owners and their references were checked. The preceding full Markdown audit carries forward for unchanged files at the same main base. The earlier Linux failures remain recorded with the ordering reproduction and stale-pointer geometry; neither was waived. No runtime, inference, device, numerical or GPU performance paths changed.
 
 **Left.** Main remains 795dc3495. Send the exact qualified head to the coordinator for fast-forward landing, then remove this batch's superseded temporary GitHub branches. The separate pending-send draft-preservation work is not included.
-## Preserve composer changes during send admission (2026-11-15, In progress)
+## Preserve composer changes during send admission (2026-11-15, Ready)
 
 **Goal.** Keep edits made while a send request is pending in the selected chat, and keep the request completion from changing another chat's composer or stream.
 
-**Done.** A browser fixture now delays the actual run POST response after the server has accepted the request, then switches conversations and enters a new draft with an attachment before releasing that response.
+**Done.** Send snapshots the selected conversation, generation, edit parent, settings, attachments and composer revision before network work. It clears the composer only if the same view is still selected and the user has not changed it. Late responses skip snapshot, scroll and subscription work for another conversation; late failures use a toast naming the original target.
 
-**Checks.** The unfixed Chrome regression fails after the actual successful response is released: the request body retains its submitted text and notes.txt, but the old send handler clears the newer draft entered in another conversation (26.488 seconds). The fixture also keeps that other conversation's generation stream active to check the completion path does not reconnect it.
+**Checks.** Test commit a279ee3ae fails on the unfixed code after a real HTTP 201 is released: the request retains its submitted text and notes.txt, but the old handler clears the newer draft in another conversation (26.488 seconds). The final focused Chrome check passes in 24.433 seconds. It holds a successful send while editing an existing message in the same conversation, then verifies the newer edit and image attachment remain and the submitted branch parent and original attachment persist. It holds a second successful send while switching to another conversation with an active SSE stream, then verifies the new draft and attachment remain, the stream is not reopened, and the submitted text and attachments persist. JavaScript syntax checks pass.
 
-**Left.** Preserve newer composer state and stop the old send completion from acting on the newly selected chat; rerun the focused browser check.
+**Review scope.** The late HTTP rejection and initial chat-creation races are handled by the same snapshot/view predicate and were source-reviewed, not separately exercised in the browser fixture.
+
+**Checks.** The combined browser check passes in 28.555 seconds, including exact submitted text-file content, image bytes and persisted attachment content. Docs report no findings and 21 planted checks (26.1 seconds); dead-code reports 15 expected findings and 20 planted checks (31.1 seconds). [Hosted run 43734557040](https://github.com/mxxm-t/llmx/actions/runs/43734557040) passes Ubuntu 24.04 and Windows 2022 at 8bced65b7871b45af6ae99a3feb0fa11cb52c709, including Python compilation, dead-code, complete companion/browser tests and existing dashboard tests. The final delta only records qualification in STATUS; product, tests and build inputs are unchanged and the documentation check runs again.
+
+**Review.** The feature remains two commits, the failing regression then the fix. Source review checked request ownership and the single late-error handler. Owner documentation and affected test descriptions match the implementation; unrelated Markdown carries forward the preceding batch audit. The static local preview serves this change without a Python or model restart.
+
+**Left.** Coordinator fast-forward landing after the qualified companion batch. The integration branch extends f88e6d69e without changing those feature commits. No runtime or inference gates apply.
 
 **Gotchas.** UI-only state ordering. The submitted request must retain its original text and attachments; switching chats owns the visible composer.
 

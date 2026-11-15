@@ -40,6 +40,8 @@ that already reached the server or restore an older displayed revision.
 Its optional installed-browser check exercises the actual interface, theme toggles
 and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.
+The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images.
+The companion browser check also delays a successful Send response while editing its original draft or switching to another active conversation. It verifies captured request content, branch parent and files, preservation of newer composer state, and no duplicate subscription to the other reply.
 The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
 Docker image to verify actual container isolation, returned files and cancellation.
 How to run them, the project's two gates and the merge gates are in `AGENTS.md` (`AGENTS.md`, Tests).
@@ -1372,5 +1374,3 @@ python -X utf8 tests/baseline_qwen35.py --exe build/llmx --model path/to/Qwen3.5
 It prints one skip line where llmx does not run the architecture, on a device whose backend lacks its ops, and a file without bounds is measured and fails, so the first measurement sets them.
 
 `tests/baseline_layered.py` runs the same checks on the Qwen3.5-9B, Qwen3.6-27B and Qwen3.6-35B-A3B Q4_K_M files against the layered HF reference's goldens, chosen by the file's SHA-256, and skips in one line where llmx does not run the qwen35 architecture (`docs/ASSETS.md`, The layered qwen35 reference).
-
-The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images.

@@ -6,6 +6,9 @@ keeps up to one hour in memory. Browsers receive updates over a one-way
 EventSource stream; opening another tab does not add another upstream sampler.
 No inference request is sent. Browser updates are coalesced to at most once per
 second, while the collector keeps its existing two-second default interval.
+The [chat workspace](../chat_ui/README.md) embeds this same renderer and collector
+behind its owner session. Both applications load `theme.css`; include that file
+alongside `index.html` and `server.py` when deploying the standalone dashboard.
 Fresh visits default to a five-minute chart range; a saved range remains in
 effect. The chart timeline advances continuously using elapsed browser time and
 targets one configured collection interval of buffering. Actual lag varies

@@ -1,0 +1,59 @@
+/* Shared visual tokens originate in the runtime dashboard. */
+:root {
+  color-scheme: dark;
+  --bg: #0b1017;
+  --panel: #111923;
+  --raised: #151f2c;
+  --line: #233040;
+  --muted: #8796ab;
+  --text: #e8eef6;
+  --cyan: #66dfd1;
+  --blue: #7aa9ff;
+  --amber: #f3c17e;
+  --red: #f48d99;
+  --violet: #b09aff;
+  font-family: Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg)
+}
+
+:root,
+:root[data-theme=light] {
+  --header: #0e151e;
+  --selected: #293746;
+  --brand-bg: #162f32;
+  --brand-line: #37605e;
+  --ui-card-radius: 12px;
+  --ui-control-radius: 9px;
+  --ui-card-padding: 20px 22px;
+  --ui-control-padding: 11px 13px;
+  --surface: var(--raised);
+  --hover: var(--selected);
+  --border: var(--line);
+  --faint: var(--muted);
+  --accent: var(--cyan);
+  --accent-ink: #0b2022;
+  --danger: var(--red);
+  --shadow: 0 16px 60px #0005;
+}
+:root[data-theme=light] {
+  --bg: #f1f5f9;
+  --panel: #ffffff;
+  --raised: #e8eef5;
+  --line: #ccd7e4;
+  --muted: #53657a;
+  --text: #172436;
+  --cyan: #087f78;
+  --blue: #2964b9;
+  --amber: #91600b;
+  --red: #bd354d;
+  --violet: #7151b5;
+  --header: #ffffff;
+  --selected: #dce8f1;
+  --brand-bg: #e1f0ee;
+  --brand-line: #98c7c0;
+  --accent-ink: #ffffff;
+  --shadow: 0 16px 60px #10203018;
+  color-scheme: light;
+}

@@ -5,6 +5,13 @@
 llmx is a dependency-free C++17 inference runtime for supported x86-64 CPUs, Vulkan devices (AMD and NVIDIA GPUs) and, on Linux, AMD GPUs through ROCm and NVIDIA GPUs through CUDA (in development).
 Run it from the command line or as an OpenAI-compatible server, read images with a vision encoder file, and split one model across devices in one machine.
 
+The optional [chat companion](tools/chat_ui/README.md) brings conversations,
+monitoring, code previews and a managed file workspace into one owner interface.
+It includes branches, MCP tools, request statistics and optional isolated execution.
+It uses Python's standard library and static browser files, with no inference
+runtime dependencies. Run `python tools/chat_ui/server.py --upstream http://127.0.0.1:8090`
+and open `http://127.0.0.1:8183` after starting the llmx server.
+
 The tables summarize current model, weight-format and backend support. **Supported** means the path is implemented and has applicable checks. **In development** means the implementation exists but qualification remains open. **Planned** means roadmap work not available in this tree; see the [ROADMAP](docs/ROADMAP.md).
 
 ## Supported models

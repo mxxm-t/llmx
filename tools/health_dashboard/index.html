@@ -7,26 +7,11 @@
   <title>
    llmx monitor
   </title>
+  <link rel="stylesheet" href="/theme.css">
   <style>
 
 
-:root {
-  --bg: #0b1017;
-  --panel: #111923;
-  --raised: #151f2c;
-  --line: #233040;
-  --muted: #8796ab;
-  --text: #e8eef6;
-  --cyan: #66dfd1;
-  --blue: #7aa9ff;
-  --amber: #f3c17e;
-  --red: #f48d99;
-  --violet: #b09aff;
-  font-family: Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size: 14px;
-  color: var(--text);
-  background: var(--bg)
-}
+
 * {
   box-sizing: border-box
 }
@@ -216,9 +201,9 @@ p {
   gap: 7px;
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--ui-control-radius);
   color: #bdc9d9;
-  padding: 11px 13px;
+  padding: var(--ui-control-padding);
   font-size: 12px
 }
 .pause:hover {
@@ -326,12 +311,12 @@ p {
 .card {
   background: linear-gradient(145deg,#131c27,#101822);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--ui-card-radius);
   overflow: hidden;
   min-width: 0
 }
 .kpi {
-  padding: 20px 22px;
+  padding: var(--ui-card-padding);
   position: relative
 }
 .card-label {
@@ -1195,7 +1180,7 @@ p {
   margin-top: 24px
 }
 .explorer summary {
-  padding: 20px 22px;
+  padding: var(--ui-card-padding);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1564,7 +1549,7 @@ td:last-child {
 .range-metrics {
   display: grid;
   grid-template-columns: repeat(6,minmax(0,1fr));
-  padding: 20px 22px;
+  padding: var(--ui-card-padding);
   gap: 15px;
 }
 .range-value {
@@ -4831,7 +4816,7 @@ function applyHistory(data) {
     scheduleTelemetryRender();
 }
 function connectStream() {
-  const source = new EventSource('/api/stream');
+  const source = new EventSource((document.documentElement.dataset.apiRoot || '/api') + '/stream');
   source.addEventListener('history', event => {
     try {
       applyHistory(JSON.parse(event.data));

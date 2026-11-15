@@ -1,0 +1,6 @@
+/* The workspace owns navigation and theme, the monitor owns its metrics. */
+body > header { display: none; }
+body { background: var(--bg); }
+main { max-width: none; padding: 24px; }
+
+@media (max-width: 720px) { main { padding: 16px; } }

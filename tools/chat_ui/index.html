@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="dark light">
+    <meta name="description" content="A private workspace for conversations with your local models.">
+    <title>llmx / Chat</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23bce8b1'/%3E%3Cpath d='M12 11v18h6M23 11v18h6' stroke='%23192318' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/app.css">
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="stylesheet" href="/shell.css">
+    <script src="/render.js" defer></script>
+    <script src="/artifacts.js" defer></script>
+    <script src="/shell.js" defer></script>
+    <script src="/workspace.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#draft">Skip to message</a>
+    <div id="app" class="workspace" data-view="chat">
+      <aside class="sidebar" id="sidebar" aria-label="Conversations">
+        <div class="brand">
+          <span class="brand-mark">ll</span>
+          <strong>llmx<span class="brand-slash"> / </span><span class="brand-sub">studio</span></strong>
+          <button class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
+        </div>
+        <nav class="global-nav" aria-label="Studio">
+          <button data-view="chat" aria-current="page">
+            <svg viewBox="0 0 24 24">
+              <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>
+            </svg>
+            <span>Chat</span>
+            <kbd>01</kbd>
+          </button>
+          <button data-view="monitor">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 12h4l3-8 4 16 3-8h4"/>
+            </svg>
+            <span>Monitor</span>
+            <kbd>02</kbd>
+          </button>
+          <button data-view="workbench">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 7h7l2-3h9v16H3Z"/>
+              <path d="m8 12-3 3 3 3m8-6 3 3-3 3"/>
+            </svg>
+            <span>Workspace</span>
+            <kbd>03</kbd>
+          </button>
+          <button data-view="preferences">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 6h16M4 12h16M4 18h16"/>
+              <circle cx="8" cy="6" r="2"/>
+              <circle cx="16" cy="12" r="2"/>
+              <circle cx="10" cy="18" r="2"/>
+            </svg>
+            <span>Settings</span>
+            <kbd>04</kbd>
+          </button>
+        </nav>
+        <div class="chat-library-heading">CONVERSATIONS</div>
+        <button class="new-chat" data-action="new">
+          <span>+ New conversation</span>
+          <kbd>Ctrl K</kbd>
+        </button>
+        <label class="search-box"><span aria-hidden="true">&#8981;</span><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"></label>
+        <div class="library-heading">
+          <span>WORKSPACE</span>
+          <button id="archive-toggle" class="text-button" data-action="archive-view">Show archive</button>
+        </div>
+        <nav id="chat-list" class="chat-list" aria-label="Chat history"></nav>
+        <div class="sidebar-footer">
+          <div class="local-label">
+            <span class="status-dot"></span>
+            <span>Local workspace<small>Your conversations, your machine.</small></span>
+          </div>
+          <div class="footer-actions">
+            <button data-action="import" class="text-button">Import</button>
+            <button data-action="theme" class="text-button" id="theme-button">Light theme</button>
+            <button data-action="logout" class="text-button" id="logout-button" hidden>Lock</button>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <button class="icon mobile-nav" data-action="sidebar" aria-label="Open conversations">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+          </button>
+          <div class="chat-heading">
+            <span class="eyebrow">CONVERSATION</span>
+            <button id="chat-title" data-action="rename" class="title-button">New conversation</button>
+          </div>
+          <div class="shell-heading" hidden>
+            <span class="eyebrow" id="shell-eyebrow">STUDIO</span>
+            <h1 id="shell-title">Monitor</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="monitor-reload" class="secondary-button" aria-label="Reconnect runtime monitor">Reconnect</button>
+            <span id="connection" class="connection"><span class="status-dot"></span>Connecting</span>
+            <button class="icon" data-action="chat-menu" aria-label="Conversation actions" title="Conversation actions">
+              <svg viewBox="0 0 24 24">
+                <circle cx="5" cy="12" r="1"/>
+                <circle cx="12" cy="12" r="1"/>
+                <circle cx="19" cy="12" r="1"/>
+              </svg>
+            </button>
+            <button class="icon" data-action="inspector" aria-label="Toggle details" title="Conversation details">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="16" rx="3"/>
+                <path d="M15 4v16"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div id="banner" class="banner" role="status" hidden></div>
+        <div id="scroll-region" class="scroll-region">
+          <section id="messages" class="messages" aria-label="Messages"></section>
+          <div id="welcome" class="welcome">
+            <div class="welcome-symbol" aria-hidden="true">
+              <svg viewBox="0 0 64 64">
+                <path d="M32 7v50M7 32h50M14 14l36 36M14 50l36-36"/>
+              </svg>
+            </div>
+            <p class="eyebrow">A PRIVATE SPACE FOR GOOD IDEAS</p>
+            <h1>Where should we begin?</h1>
+            <p>Think it through. Make something.<br>Explore a different possibility.</p>
+            <div class="suggestions">
+              <button data-prompt="Help me think through a difficult decision. Start by asking me a few useful questions.">
+                <span>Think it through</span>
+                <small>Find clarity in a complicated decision</small>
+              </button>
+              <button data-prompt="Help me turn an idea into a practical plan. Ask me what I am working on.">
+                <span>Make a plan</span>
+                <small>Give your next idea a place to start</small>
+              </button>
+              <button data-prompt="Help me understand a topic deeply. Ask what I would like to explore.">
+                <span>Explore something</span>
+                <small>Follow your curiosity a little further</small>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="composer-area">
+          <button id="jump-bottom" class="jump-bottom" data-action="bottom" hidden>Jump to latest &darr;</button>
+          <div id="edit-note" class="edit-note" hidden>Editing creates a new branch.<button data-action="cancel-edit">Cancel edit</button></div>
+          <div id="attachments" class="attachments"></div>
+          <form id="composer" class="composer">
+            <textarea id="draft" rows="1" aria-label="Message" placeholder="Message your model..." maxlength="1000000"></textarea>
+            <div class="composer-toolbar">
+              <div class="composer-left">
+                <button type="button" class="icon" data-action="attach" aria-label="Attach text or image" title="Attach text or image">
+                  <svg viewBox="0 0 24 24">
+                    <path d="m8 12 6-6a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L12 4M6 16l10-10"/>
+                  </svg>
+                </button>
+                <select id="model" aria-label="Model">
+                  <option value="">Select model</option>
+                </select>
+                <span class="composer-divider"></span>
+                <button type="button" class="text-button" data-action="settings">Settings</button>
+              </div>
+              <button id="send" type="submit" class="send-button" aria-label="Send message">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 19V5m-6 6 6-6 6 6"/>
+                </svg>
+              </button>
+              <button id="stop" type="button" class="send-button stop-button" data-action="stop" aria-label="Stop generation" hidden>
+                <svg viewBox="0 0 24 24">
+                  <rect x="7" y="7" width="10" height="10" rx="1"/>
+                </svg>
+              </button>
+            </div>
+          </form>
+          <div class="composer-caption">
+            <span id="run-caption">Enter to send <span class="caption-separator">/</span> Shift + Enter for a new line</span>
+            <span>Powered by <strong>llmx</strong></span>
+          </div>
+        </div>
+        <section id="view-monitor" class="studio-view monitor-view" aria-label="Runtime monitor" hidden>
+          <div id="monitor-notice" class="view-notice" role="status" hidden></div>
+          <iframe id="monitor-frame" title="llmx runtime monitor" class="monitor-frame" hidden></iframe>
+        </section>
+        <section id="view-workbench" class="studio-view workbench-view" aria-label="Workspace" hidden></section>
+        <section id="view-preferences" class="studio-view preferences-view" aria-label="Studio settings" hidden>
+          <div class="view-introduction">
+            <span class="eyebrow">CONFIGURATION</span>
+            <h2>Make this space yours.</h2>
+            <p>Appearance, connected services and workspace capabilities in one place.</p>
+          </div>
+          <div class="preference-grid">
+            <section class="settings-card">
+              <h3>Appearance</h3>
+              <p>Use the same theme across your conversations and runtime monitor.</p>
+              <button data-action="theme" class="secondary-button">Switch light / dark theme</button>
+            </section>
+            <section class="settings-card">
+              <h3>Model connection</h3>
+              <p id="preferences-upstream">Loading connection details.</p>
+              <div id="preferences-models" class="connected-models"></div>
+            </section>
+            <section class="settings-card">
+              <h3>Workspace access</h3>
+              <p id="preferences-auth">Checking authentication configuration.</p>
+              <p>Connection and authentication are configured when the companion starts.</p>
+            </section>
+            <section class="settings-card">
+              <h3>Runtime monitor</h3>
+              <p id="preferences-monitor">Loading monitor configuration.</p>
+              <button class="secondary-button" data-view="monitor">Open monitor</button>
+            </section>
+            <section class="settings-card">
+              <h3>Connected tools</h3>
+              <p>Tool selection and generation parameters are saved per conversation.</p>
+              <div id="preferences-tools"></div>
+              <button class="secondary-button" id="preferences-chat-settings">Conversation settings</button>
+            </section>
+            <section class="settings-card">
+              <h3>Conversation backup</h3>
+              <p>Download a SQLite backup of all conversations and branches. Managed workspace files and checkpoints are not included.</p>
+              <div class="backup-actions">
+                <button id="backup-download" class="secondary-button">Download backup</button>
+                <button id="backup-restore" class="secondary-button">Restore backup</button>
+              </div>
+              <p id="backup-status" role="status" class="backup-status" hidden></p>
+              <input id="backup-file" type="file" accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3" hidden>
+            </section>
+          </div>
+        </section>
+      </main>
+      <aside id="inspector" class="inspector" aria-label="Conversation details">
+        <div class="inspector-heading">
+          <span>Conversation details</span>
+          <button class="icon" data-action="inspector" aria-label="Close details">x</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Details">
+          <button role="tab" id="tab-activity" data-tab="activity" aria-selected="true">Activity</button>
+          <button role="tab" id="tab-stats" data-tab="stats" aria-selected="false">Statistics</button>
+          <button role="tab" id="tab-settings" data-tab="settings" aria-selected="false">Settings</button>
+        </div>
+        <div id="panel-activity" class="inspector-panel" role="tabpanel" aria-labelledby="tab-activity"></div>
+        <div id="panel-stats" class="inspector-panel" role="tabpanel" aria-labelledby="tab-stats" hidden></div>
+        <div id="panel-settings" class="inspector-panel" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <p class="panel-intro">Fine-tune this conversation. Changes apply to the next response.</p>
+          <label class="field">System instructions<textarea id="setting-system" rows="5" placeholder="How should the model respond?"></textarea></label>
+          <div class="field-grid">
+            <label class="field">Temperature<input id="setting-temperature" type="number" min="0" max="2" step="0.05" value="0.7"></label>
+            <label class="field">Top P<input id="setting-top_p" type="number" min="0" max="1" step="0.05" value="0.95"></label>
+            <label class="field">Top K<input id="setting-top_k" type="number" min="0" step="1" value="40"></label>
+            <label class="field">Max output<input id="setting-max_tokens" type="number" min="1" max="1000000" step="1" value="4096"></label>
+          </div>
+          <h3 class="section-label">CONNECTED TOOLS</h3>
+          <div id="tool-settings"></div>
+          <button class="secondary-button full" data-action="save-settings">Save settings</button>
+          <p class="muted fine-print">Tool permissions are requested before execution. Remembered approval lasts for the current run only.</p>
+        </div>
+        <div class="inspector-bottom"><span class="status-dot"></span>Checking connection</div>
+      </aside>
+    </div>
+    <div id="drawer-shade" class="drawer-shade" data-action="close-drawers" hidden></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <input id="file-input" type="file" multiple accept="image/png,image/jpeg,text/*,.md,.csv,.json,.py,.js,.ts,.cpp,.hpp,.log,.yaml,.yml,.toml" hidden>
+    <input id="import-input" type="file" accept="application/json,.json" hidden>
+    <dialog id="login-dialog">
+      <form id="login-form" class="dialog-content">
+        <span class="brand-mark">ll</span>
+        <h2>Your private workspace</h2>
+        <p>Enter your companion password to continue.</p>
+        <label class="field">Password<input id="password" type="password" autocomplete="current-password" required></label>
+        <p id="login-error" role="alert" class="error-text"></p>
+        <button class="primary-button" type="submit">Unlock workspace</button>
+      </form>
+    </dialog>
+    <dialog id="action-dialog">
+      <form method="dialog" class="dialog-content">
+        <h2>Conversation</h2>
+        <button type="button" data-action="rename">Rename</button>
+        <button type="button" data-action="pin">Pin / unpin</button>
+        <button type="button" data-action="folder">Move to folder</button>
+        <button type="button" data-action="archive">Archive / restore</button>
+        <button type="button" data-action="export">Export conversation</button>
+        <button type="button" data-action="delete" class="danger">Delete conversation</button>
+        <button type="submit" class="secondary-button">Close</button>
+      </form>
+    </dialog>
+  </body>
+</html>

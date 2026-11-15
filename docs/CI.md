@@ -1,5 +1,16 @@
 # Continuous integration
 
+The dedicated `Chat workspace` workflow runs the standalone companion and
+existing dashboard checks on Windows and Linux. It requires the real-browser
+check with `LLMX_CHAT_REQUIRE_BROWSER=1`; local runs may explicitly skip it if
+Chrome/Chromium and Node are absent. The tests use local HTTP fixtures and
+temporary storage, not inference or external tools. The workflow runs for the
+companion/dashboard paths on main, pull requests and temporary
+`ci/chat-workspace-*` qualification branches. This keeps standalone workspace
+qualification independent of the inference build matrix. See the
+[companion documentation](../tools/chat_ui/README.md) for commands and the manual
+Docker isolation check, which uses an installed image rather than a hosted model.
+
 ## Choosing checks by impact
 
 For a push containing only documentation or static dashboard presentation, after its focused checks pass, include `[skip ci]` in the commit message to avoid starting the unrelated inference matrix. Do not use this for runtime, API, test or workflow changes. This uses [GitHub's commit-message skip mechanism](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/skip-workflow-runs); it changes no workflow configuration.

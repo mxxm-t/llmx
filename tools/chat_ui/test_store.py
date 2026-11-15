@@ -1,0 +1,223 @@
+import os
+import sqlite3
+import tempfile
+import unittest
+
+from store import SCHEMA_VERSION, Store
+
+
+class StorePersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.directory = self.temp.name
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def path(self, name):
+        return os.path.join(self.directory, name + ".sqlite")
+
+    @staticmethod
+    def settings():
+        return {"model": "fixture", "tools": []}
+
+    def populated(self, path, title):
+        store = Store(path)
+        chat = store.create_chat({"title": title})
+        run = store.start(chat["id"], {"content": "question"}, self.settings())
+        answer = store.message(run["message_id"])
+        answer.update(content="answer: " + title, status="completed")
+        store.publish(run["id"], "message", answer)
+        store.publish(run["id"], "metrics", {"message_id": answer["id"], "usage": {"total_tokens": 3}})
+        store.publish(run["id"], "state", dict(store.run(run["id"]), status="completed"))
+        return store, chat["id"], run["id"]
+
+    def test_unversioned_database_migrates_without_losing_data(self):
+        path = self.path("legacy")
+        store, chat_id, run_id = self.populated(path, "legacy chat")
+        before = store.snapshot(chat_id)
+        before_events = store.events(run_id, 0)
+        store.close()
+        connection = sqlite3.connect(path)
+        connection.execute("PRAGMA user_version=0")
+        connection.commit()
+        connection.close()
+
+        upgraded = Store(path)
+        try:
+            self.assertEqual(upgraded.db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
+            self.assertEqual(upgraded.snapshot(chat_id), before)
+            self.assertEqual(upgraded.events(run_id, 0), before_events)
+        finally:
+            upgraded.close()
+
+    def test_newer_schema_is_refused_without_mutation(self):
+        path = self.path("newer")
+        store, _, _ = self.populated(path, "newer database")
+        store.close()
+        connection = sqlite3.connect(path)
+        version = SCHEMA_VERSION + 1
+        connection.execute("PRAGMA user_version=%d" % version)
+        connection.commit()
+        connection.close()
+        with self.assertRaisesRegex(ValueError, "newer"):
+            Store(path)
+        connection = sqlite3.connect(path)
+        try:
+            self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], version)
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM chats").fetchone()[0], 1)
+        finally:
+            connection.close()
+
+    def test_online_backup_preserves_a_consistent_chat_and_event_log(self):
+        source_path = self.path("live")
+        backup_path = self.path("backup")
+        source, chat_id, run_id = self.populated(source_path, "backup source")
+        expected = source.snapshot(chat_id)
+        events = source.events(run_id, 0)
+        source.backup(backup_path)
+        copied = Store(backup_path)
+        try:
+            self.assertEqual(copied.snapshot(chat_id), expected)
+            self.assertEqual(copied.events(run_id, 0), events)
+        finally:
+            copied.close()
+            source.close()
+
+    def test_backup_refuses_the_active_database_path(self):
+        path = self.path("same")
+        store, _, _ = self.populated(path, "same file")
+        try:
+            with self.assertRaisesRegex(ValueError, "differ"):
+                store.backup(path)
+        finally:
+            store.close()
+
+    def test_invalid_restore_sources_leave_original_unchanged(self):
+        destination_path = self.path("destination")
+        destination, chat_id, run_id = self.populated(destination_path, "keep me")
+        baseline = destination.snapshot(chat_id)
+        baseline_events = destination.events(run_id, 0)
+        invalid_paths = [self.path("garbage"), self.path("wrong-schema")]
+        with open(invalid_paths[0], "wb") as output:
+            output.write(b"not a sqlite database")
+        malformed = sqlite3.connect(invalid_paths[1])
+        malformed.execute("PRAGMA user_version=%d" % SCHEMA_VERSION)
+        malformed.execute("CREATE TABLE unrelated(value TEXT)")
+        malformed.commit()
+        malformed.close()
+        try:
+            for source_path in invalid_paths:
+                with self.subTest(source=source_path):
+                    with self.assertRaises(ValueError):
+                        destination.restore(source_path)
+                    self.assertEqual(destination.snapshot(chat_id), baseline)
+                    self.assertEqual(destination.events(run_id, 0), baseline_events)
+        finally:
+            destination.close()
+
+    def test_malformed_backup_records_and_schema_objects_leave_original_unchanged(self):
+        destination, chat_id, run_id = self.populated(self.path("destination-records"), "keep me")
+        baseline = destination.snapshot(chat_id)
+        baseline_events = destination.events(run_id, 0)
+        source, source_chat, _ = self.populated(self.path("source-records"), "candidate")
+        source.close()
+
+        mutations = [
+            ("chat-json", "UPDATE chats SET data='not json'"),
+            ("chat-array", "UPDATE chats SET data='[]'"),
+            ("chat-id-mismatch", "UPDATE chats SET data=json_set(data,'$.id','wrong')"),
+            ("message-id-mismatch", "UPDATE messages SET data=json_set(data,'$.id','wrong')"),
+            ("run-chat-mismatch", "UPDATE runs SET data=json_set(data,'$.chat_id','wrong')"),
+            ("event-json", "UPDATE events SET data='[]'"),
+            ("trigger", "CREATE TRIGGER extra AFTER INSERT ON chats BEGIN SELECT 1; END"),
+            ("view", "CREATE VIEW extra AS SELECT id FROM chats"),
+        ]
+        try:
+            for name, statement in mutations:
+                with self.subTest(name=name):
+                    candidate_path = self.path("candidate-" + name)
+                    candidate, _, _ = self.populated(candidate_path, "candidate")
+                    candidate.close()
+                    connection = sqlite3.connect(candidate_path)
+                    try:
+                        connection.execute(statement)
+                        connection.commit()
+                    finally:
+                        connection.close()
+                    with self.assertRaises(ValueError):
+                        destination.restore(candidate_path)
+                    self.assertEqual(destination.snapshot(chat_id), baseline)
+                    self.assertEqual(destination.events(run_id, 0), baseline_events)
+        finally:
+            destination.close()
+
+    def test_successful_restore_replaces_database_contents(self):
+        source, source_chat, source_run = self.populated(self.path("source"), "restored")
+        destination, destination_chat, _ = self.populated(self.path("destination"), "discarded")
+        expected = source.snapshot(source_chat)
+        expected_events = source.events(source_run, 0)
+        try:
+            destination.restore(self.path("source"))
+            self.assertEqual(destination.snapshot(source_chat), expected)
+            self.assertEqual(destination.events(source_run, 0), expected_events)
+            with self.assertRaises(KeyError):
+                destination.chat(destination_chat)
+        finally:
+            source.close()
+            destination.close()
+
+    def test_restore_refuses_active_runs_and_preserves_database(self):
+        source, _, _ = self.populated(self.path("source"), "source")
+        destination = Store(self.path("destination"))
+        chat = destination.create_chat({"title": "active destination"})
+        run = destination.start(chat["id"], {"content": "still running"}, self.settings())
+        before = destination.snapshot(chat["id"])
+        before_events = destination.events(run["id"], 0)
+        try:
+            with self.assertRaisesRegex(ValueError, "active replies"):
+                destination.restore(self.path("source"))
+            self.assertEqual(destination.snapshot(chat["id"]), before)
+            self.assertEqual(destination.events(run["id"], 0), before_events)
+        finally:
+            source.close()
+            destination.close()
+
+    def test_restored_active_run_is_recovered_as_interrupted(self):
+        source_path = self.path("source-active")
+        source = Store(source_path)
+        chat = source.create_chat({"title": "active source"})
+        run = source.start(chat["id"], {"content": "pending"}, self.settings())
+        message = source.message(run["message_id"])
+        message["tool_calls"] = [{"id": "call-1", "name": "tool", "arguments": "{}", "status": "approval"}]
+        source.publish(run["id"], "message", message)
+        source.publish(run["id"], "state", dict(source.run(run["id"]), status="approval"))
+        destination, _, _ = self.populated(self.path("destination"), "old destination")
+        try:
+            destination.restore(source_path)
+            self.assertEqual(destination.run(run["id"])["status"], "interrupted")
+            recovered = destination.message(message["id"])
+            self.assertEqual(recovered["status"], "interrupted")
+            self.assertEqual(recovered["tool_calls"][0]["status"], "interrupted")
+        finally:
+            source.close()
+            destination.close()
+
+    def test_restore_requires_file_backed_store_and_distinct_source(self):
+        memory = Store(":memory:")
+        try:
+            with self.assertRaisesRegex(ValueError, "file-backed"):
+                memory.restore(self.path("backup"))
+        finally:
+            memory.close()
+        path = self.path("same")
+        store, _, _ = self.populated(path, "same")
+        try:
+            with self.assertRaisesRegex(ValueError, "differ"):
+                store.restore(path)
+        finally:
+            store.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

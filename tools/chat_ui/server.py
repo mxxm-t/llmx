@@ -1,0 +1,574 @@
+"""Serve the owner chat workspace without adding dependencies to llmx."""
+
+import argparse
+import base64
+import hashlib
+import hmac
+import json
+import math
+import mimetypes
+from pathlib import Path
+import secrets
+import sys
+import threading
+import time
+import tempfile
+from http import cookies
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
+
+from engine import Engine, TERMINAL
+from store import Store, encoded
+from tools import ToolRegistry
+from upstream import Connection
+from monitor import Monitor
+from workspace import Workspace, WorkspaceTools
+
+
+ROOT = Path(__file__).resolve().parent
+MAX_BODY = 16 * 1024 * 1024
+MAX_BACKUP = 256 * 1024 * 1024
+DEFAULTS = dict(model="", system="", temperature=0.7, top_p=0.95, top_k=40, max_tokens=4096, tools=[])
+
+
+def settings_of(value):
+    if not isinstance(value, dict) or set(value) - set(DEFAULTS):
+        raise ValueError("Unsupported chat settings")
+    settings = dict(DEFAULTS, **value)
+    for name, limit in (("model", 512), ("system", 100000)):
+        if not isinstance(settings[name], str) or len(settings[name]) > limit:
+            raise ValueError(f"Invalid {name}")
+    for name, lo, hi in (("temperature", 0, 5), ("top_p", 0, 1), ("top_k", 0, 100000), ("max_tokens", 1, 1000000)):
+        number = settings[name]
+        if isinstance(number, bool) or not isinstance(number, (int, float)) or not math.isfinite(number) or not lo <= number <= hi:
+            raise ValueError(f"Invalid {name}")
+        if name in ("top_k", "max_tokens") and not isinstance(number, int):
+            raise ValueError(f"{name} must be an integer")
+    if not isinstance(settings["tools"], list) or len(settings["tools"]) > 64 or any(not isinstance(t, str) or len(t) > 256 for t in settings["tools"]):
+        raise ValueError("Invalid tool selection")
+    return settings
+
+
+def attachments_of(value):
+    if not isinstance(value, list) or len(value) > 8:
+        raise ValueError("Attach at most eight files")
+    clean, total = [], 0
+    for a in value:
+        if not isinstance(a, dict) or not isinstance(a.get("name"), str) or not 1 <= len(a["name"]) <= 255:
+            raise ValueError("Invalid attachment")
+        name = a["name"].replace("\\", "/").split("/")[-1]
+        if "text" in a:
+            if not isinstance(a["text"], str) or "\x00" in a["text"]:
+                raise ValueError("Text attachments must be UTF-8 text")
+            size = len(a["text"].encode("utf-8"))
+            if size > 2 * 1024 * 1024:
+                raise ValueError("A text attachment may be at most 2 MiB")
+            clean.append(dict(name=name, type="text/plain", text=a["text"]))
+        else:
+            mime, data = a.get("type"), a.get("data")
+            if mime not in ("image/png", "image/jpeg") or not isinstance(data, str) or not data.startswith(f"data:{mime};base64,"):
+                raise ValueError("Images must be PNG or JPEG data URLs")
+            try:
+                decoded = base64.b64decode(data.split(",", 1)[1], validate=True)
+            except ValueError as exc:
+                raise ValueError("Invalid image encoding") from exc
+            magic = b"\x89PNG\r\n\x1a\n" if mime == "image/png" else b"\xff\xd8\xff"
+            if not decoded.startswith(magic):
+                raise ValueError("Image content does not match its type")
+            size = len(decoded)
+            if size > 8 * 1024 * 1024:
+                raise ValueError("An image may be at most 8 MiB")
+            clean.append(dict(name=name, type=mime, data=data))
+        total += size
+    if total > 10 * 1024 * 1024:
+        raise ValueError("Attachments exceed 10 MiB")
+    return clean
+
+
+def chat_values(body, patch=False):
+    if not isinstance(body, dict):
+        raise ValueError("Expected a JSON object")
+    allowed = {"title", "folder", "settings"} | ({"pinned", "archived", "active_leaf"} if patch else set())
+    if set(body) - allowed:
+        raise ValueError("Unsupported conversation field")
+    values = dict(body)
+    for key in ("title", "folder"):
+        if key in values and (not isinstance(values[key], str) or len(values[key]) > 200):
+            raise ValueError(f"Invalid {key}")
+    for key in ("pinned", "archived"):
+        if key in values and not isinstance(values[key], bool):
+            raise ValueError(f"Invalid {key}")
+    if "active_leaf" in values and values["active_leaf"] is not None and not isinstance(values["active_leaf"], str):
+        raise ValueError("Invalid branch")
+    if "settings" in values:
+        values["settings"] = settings_of(values["settings"])
+    return values
+
+
+class Application:
+    def __init__(self, database, upstream, tool_config=None, password=None, api_key=None, sandbox_image=None, docker_host=None):
+        self.store = Store(database)
+        self.upstream, self.api_key = upstream, api_key
+        self.workspace = Workspace(Path(database).parent / "workspace", sandbox_image, docker_host)
+        self.tools = WorkspaceTools(ToolRegistry(tool_config), self.workspace)
+        self.engine = Engine(self.store, upstream, self.tools, api_key)
+        self.salt = secrets.token_bytes(32)
+        self.password = self.digest(password) if password else None
+        self.sessions, self.failures = {}, []
+        self.lock = threading.Lock()
+        self.config_lock = threading.Lock()
+        self.cached_config, self.config_time = None, 0
+        self.monitor = Monitor(upstream, api_key)
+        self.previews = {}
+
+    def digest(self, password):
+        return hashlib.pbkdf2_hmac("sha256", password.encode(), self.salt, 200000)
+
+    def authenticated(self, raw):
+        if self.password is None:
+            return True
+        try:
+            jar = cookies.SimpleCookie(raw)
+            token = jar["llmx_chat"].value
+        except (KeyError, cookies.CookieError):
+            return False
+        with self.lock:
+            now = time.time()
+            self.sessions = {k: v for k, v in self.sessions.items() if v > now}
+            return self.sessions.get(token, 0) > now
+
+    def login(self, password):
+        if not isinstance(password, str) or len(password) > 1024:
+            raise ValueError("Invalid password")
+        with self.lock:
+            now = time.time()
+            self.failures = [t for t in self.failures if t > now - 60]
+            if len(self.failures) >= 10:
+                raise ValueError("Too many attempts. Try again in one minute.")
+            if self.password and not hmac.compare_digest(self.digest(password), self.password):
+                self.failures.append(now)
+                raise PermissionError("Incorrect password")
+            token = secrets.token_urlsafe(32)
+            if len(self.sessions) > 64:
+                self.sessions.pop(next(iter(self.sessions)))
+            self.sessions[token] = now + 12 * 3600
+            return token
+
+    def logout(self, raw):
+        try:
+            token = cookies.SimpleCookie(raw)["llmx_chat"].value
+        except (KeyError, cookies.CookieError):
+            return
+        with self.lock:
+            self.sessions.pop(token, None)
+            self.previews.clear()
+        with self.monitor.collector.changed:
+            self.monitor.collector.changed.notify_all()
+
+    def config(self):
+        with self.config_lock:
+            if self.cached_config and time.monotonic() - self.config_time < 10:
+                return self.cached_config
+            result = dict(models=[], tools=[], upstream_available=False, upstream_error=None, tools_error=None)
+            result["monitor"] = dict(url="/monitor/view", interval_s=self.monitor.collector.interval_s)
+            result["authentication"] = "owner-password" if self.password else "local-only"
+            result["upstream"] = self.upstream
+            result["backup_max_bytes"] = MAX_BACKUP
+            result["workspace"] = self.workspace.snapshot()["execution"]
+            try:
+                models = Connection(self.upstream, timeout=8, key=self.api_key).json("/models")
+                result["models"] = [{"id": m["id"]} for m in models.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)]
+                result["upstream_available"] = True
+            except Exception as exc:
+                result["upstream_error"] = f"Unable to reach llmx: {type(exc).__name__}"
+            try:
+                result["tools"] = self.tools.list_tools()
+                result["tools_error"] = getattr(self.tools, "last_error", None)
+            except Exception as exc:
+                result["tools_error"] = str(exc)[:500]
+            self.cached_config, self.config_time = result, time.monotonic()
+            return result
+
+
+class Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, address, app, public_origin=None):
+        super().__init__(address, Handler)
+        self.app = app
+        port = self.server_address[1]
+        self.origins = {f"http://localhost:{port}", f"http://127.0.0.1:{port}"}
+        if public_origin:
+            parsed = urlsplit(public_origin)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.path not in ("", "/") or parsed.query or parsed.fragment or parsed.username:
+                raise ValueError("Public origin must be an HTTP(S) origin without path or credentials")
+            self.origins.add(public_origin.rstrip("/"))
+        self.hosts = {urlsplit(origin).netloc for origin in self.origins}
+        self.secure = bool(public_origin and public_origin.startswith("https://"))
+        app.monitor.collector.start()
+
+    def server_close(self):
+        self.app.monitor.stop()
+        self.app.workspace.close()
+        super().server_close()
+
+    def handle_error(self, request, client_address):
+        if not isinstance(sys.exc_info()[1], (ConnectionError, TimeoutError)):
+            super().handle_error(request, client_address)
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    @property
+    def app(self):
+        return self.server.app
+
+    def log_message(self, _format, *_args):
+        pass
+
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(20)
+
+    def _headers(self, status, mime, length=None, extra=None, policy=None):
+        self.send_response(status)
+        self.send_header("Content-Type", mime)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", policy or "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+        if length is not None:
+            self.send_header("Content-Length", str(length))
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+
+    def _json(self, value, status=200, extra=None):
+        data = encoded(value).encode()
+        self._headers(status, "application/json; charset=utf-8", len(data), extra)
+        self.wfile.write(data)
+
+    def _length(self, mime, maximum):
+        if self.headers.get_content_type() != mime:
+            raise ValueError("Send " + mime)
+        if self.headers.get("Transfer-Encoding"):
+            raise ValueError("Chunked request bodies are not accepted")
+        raw_length = self.headers.get("Content-Length", "0")
+        if not raw_length.isdecimal():
+            raise ValueError("Invalid content length")
+        length = int(raw_length)
+        if not 0 < length <= maximum:
+            raise ValueError(f"Request body must be between 1 byte and {maximum // (1024 * 1024)} MiB")
+        return length
+
+    def _body(self):
+        length = self._length("application/json", MAX_BODY)
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            raise ValueError("Incomplete request body")
+        body = json.loads(raw, parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Nonfinite JSON number")))
+        if not isinstance(body, dict):
+            raise ValueError("Expected a JSON object")
+        return body
+
+    def _guard(self):
+        if self.headers.get("Host", "") not in self.server.hosts:
+            raise PermissionError("Unrecognized request host")
+        origin = self.headers.get("Origin")
+        if origin and origin not in self.server.origins:
+            raise PermissionError("Cross-origin requests are not allowed")
+        if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            raise PermissionError("Cross-site requests are not allowed")
+        if self.command != "GET" and self.headers.get("X-Chat-Request") != "1":
+            raise PermissionError("Missing request header")
+
+    def do_GET(self):
+        self._handle()
+
+    def do_POST(self):
+        self._handle()
+
+    def do_PATCH(self):
+        self._handle()
+
+    def do_DELETE(self):
+        self._handle()
+
+    def _handle(self):
+        try:
+            self._guard()
+            self._route()
+        except PermissionError as exc:
+            self.close_connection = True
+            self._json({"error": str(exc)}, 403)
+        except KeyError:
+            self.close_connection = True
+            self._json({"error": "Not found"}, 404)
+        except (ValueError, TypeError, UnicodeError) as exc:
+            self.close_connection = True
+            self._json({"error": str(exc)[:1000]}, 400)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+            self.close_connection = True
+        except Exception:
+            self.close_connection = True
+            self._json({"error": "The chat service could not complete the request."}, 500)
+
+    def _route(self):
+        parsed = urlsplit(self.path)
+        path, method = parsed.path, self.command
+        raw_cookie = self.headers.get("Cookie", "")
+        authenticated = self.app.authenticated(raw_cookie)
+        if path == "/api/session" and method == "GET":
+            return self._json(dict(authenticated=authenticated, password_required=self.app.password is not None))
+        if path == "/api/login" and method == "POST":
+            token = self.app.login(self._body().get("password"))
+            cookie = f"llmx_chat={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200" + ("; Secure" if self.server.secure else "")
+            return self._json({"ok": True}, extra={"Set-Cookie": cookie})
+        if path == "/api/logout" and method == "POST":
+            self._body()
+            self.app.logout(raw_cookie)
+            return self._json({"ok": True}, extra={"Set-Cookie": "llmx_chat=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"})
+        protected_document = path == "/monitor/view" or path.startswith("/preview/")
+        if protected_document and not authenticated:
+            return self._json({"error": "Sign in to continue"}, 401)
+        if protected_document and method == "GET":
+            if path == "/monitor/view":
+                data = self.app.monitor.document()
+                policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
+            else:
+                with self.app.lock:
+                    created, data = self.app.previews[path[len('/preview/'):]]
+                if time.monotonic() - created > 1800:
+                    raise KeyError()
+                policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'; sandbox allow-scripts"
+            self._headers(200, "text/html; charset=utf-8", len(data), policy=policy)
+            return self.wfile.write(data)
+        if not path.startswith("/api/"):
+            if path == "/theme.css" and method == "GET":
+                data = self.app.monitor.theme()
+                self._headers(200, "text/css; charset=utf-8", len(data))
+                return self.wfile.write(data)
+            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/favicon.svg", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js"):
+                raise KeyError()
+            name = "index.html" if path == "/" else path[1:]
+            file = ROOT / name
+            if not file.is_file():
+                raise KeyError()
+            data = file.read_bytes()
+            mime = {".js": "text/javascript", ".css": "text/css", ".html": "text/html"}.get(file.suffix, mimetypes.guess_type(name)[0] or "application/octet-stream")
+            self._headers(200, mime + "; charset=utf-8", len(data))
+            return self.wfile.write(data)
+        if not authenticated:
+            self.close_connection = True
+            return self._json({"error": "Sign in to continue"}, 401)
+        if path == "/api/config" and method == "GET":
+            return self._json(self.app.config())
+        if path == "/api/backup" and method == "GET":
+            with tempfile.TemporaryDirectory(prefix="llmx-backup-") as directory:
+                destination = Path(directory) / "chat.sqlite3"
+                self.app.store.backup(destination)
+                self._headers(200, "application/vnd.sqlite3", destination.stat().st_size,
+                              {"Content-Disposition": 'attachment; filename="llmx-chat.sqlite3"'})
+                with destination.open("rb") as file:
+                    while chunk := file.read(65536):
+                        self.wfile.write(chunk)
+            return
+        if path == "/api/restore" and method == "POST":
+            remaining = self._length("application/vnd.sqlite3", MAX_BACKUP)
+            with tempfile.TemporaryDirectory(prefix="llmx-restore-") as directory:
+                source = Path(directory) / "chat.sqlite3"
+                with source.open("wb") as file:
+                    while remaining:
+                        chunk = self.rfile.read(min(remaining, 65536))
+                        if not chunk:
+                            raise ValueError("Incomplete backup upload")
+                        file.write(chunk)
+                        remaining -= len(chunk)
+                with self.app.engine.lock:
+                    if self.app.engine.controls:
+                        raise ValueError("Wait for active replies before restoring")
+                    self.app.store.restore(source)
+            return self._json({"ok": True})
+        if path.startswith("/api/workspace"):
+            return self._workspace(path, method, parsed.query)
+        if path == "/api/monitor/history" and method == "GET":
+            query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)
+            raw = query.get("after", ["0"])
+            if set(query) - {"after"} or len(raw) != 1 or not raw[0].isascii() or not raw[0].isdigit() or len(raw[0]) > 20:
+                raise ValueError("Invalid monitor cursor")
+            return self._json(self.app.monitor.collector.snapshot(int(raw[0])))
+        if path == "/api/monitor/stream" and method == "GET" and not parsed.query:
+            return self.app.monitor.stream(self, lambda: self.app.authenticated(raw_cookie))
+        if path == "/api/previews" and method == "POST":
+            html = self._body().get("html")
+            if not isinstance(html, str) or len(html.encode()) > 1024 * 1024:
+                raise ValueError("Preview must be an HTML document of at most 1 MiB")
+            token = secrets.token_urlsafe(24)
+            with self.app.lock:
+                while len(self.app.previews) >= 16:
+                    self.app.previews.pop(next(iter(self.app.previews)))
+                self.app.previews[token] = (time.monotonic(), html.encode())
+            return self._json({"url": "/preview/" + token})
+        if path == "/api/chats":
+            if method == "GET":
+                return self._json({"chats": self.app.store.chats()})
+            if method == "POST":
+                return self._json(self.app.store.create_chat(chat_values(self._body())), 201)
+        if path == "/api/tokenize" and method == "POST":
+            text = self._body().get("text")
+            if not isinstance(text, str) or len(text) > 1000000:
+                raise ValueError("Invalid text")
+            return self._json(Connection(self.app.upstream, timeout=15, key=self.app.api_key).json("/tokenize", {"text": text}))
+        if path == "/api/import" and method == "POST":
+            payload = self._body()
+            source = payload.get("chat", {})
+            if not isinstance(source, dict):
+                raise ValueError("Invalid imported conversation")
+            payload["chat"] = dict(chat_values({k: source[k] for k in ("title", "folder", "settings") if k in source}), active_leaf=source.get("active_leaf"))
+            if not isinstance(payload.get("messages"), list):
+                raise ValueError("Missing imported messages")
+            for message in payload["messages"]:
+                if not isinstance(message, dict):
+                    raise ValueError("Invalid imported message")
+                message["attachments"] = attachments_of(message.get("attachments", []))
+            return self._json(self.app.store.import_chat(payload), 201)
+        bits = path.strip("/").split("/")
+        if len(bits) >= 3 and bits[:2] == ["api", "chats"]:
+            cid = bits[2]
+            if len(bits) == 3:
+                if method == "GET":
+                    return self._json(self.app.store.snapshot(cid))
+                if method == "PATCH":
+                    return self._json(self.app.store.update_chat(cid, chat_values(self._body(), True)))
+                if method == "DELETE":
+                    self.app.store.delete_chat(cid)
+                    return self._json({"ok": True})
+            if len(bits) == 4 and bits[3] == "export" and method == "GET":
+                snapshot = self.app.store.snapshot(cid)
+                return self._json(dict(version=1, chat=snapshot["chat"], messages=snapshot["messages"]), extra={"Content-Disposition": 'attachment; filename="conversation.json"'})
+            if len(bits) == 4 and bits[3] == "runs" and method == "POST":
+                body = self._body()
+                if set(body) - {"content", "attachments", "parent_id", "settings", "regenerate"}:
+                    raise ValueError("Unsupported run field")
+                content = body.get("content", "")
+                if not isinstance(content, str) or len(content) > 1000000:
+                    raise ValueError("Invalid message text")
+                body["attachments"] = attachments_of(body.get("attachments", []))
+                if not content.strip() and not body["attachments"] and not body.get("regenerate"):
+                    raise ValueError("Write a message or attach a file")
+                if "parent_id" in body and body["parent_id"] is not None and not isinstance(body["parent_id"], str):
+                    raise ValueError("Invalid parent message")
+                if "regenerate" in body and not isinstance(body["regenerate"], bool):
+                    raise ValueError("Invalid regenerate flag")
+                chat = self.app.store.chat(cid)
+                settings = settings_of(body.get("settings", chat["settings"]))
+                return self._json({"run": self.app.engine.start(cid, body, settings)}, 201)
+        if len(bits) == 4 and bits[:2] == ["api", "runs"]:
+            rid, action = bits[2:]
+            if action == "events" and method == "GET":
+                cursor = self.headers.get("Last-Event-ID", parse_qs(parsed.query).get("after", ["0"])[0])
+                if not cursor.isdecimal():
+                    raise ValueError("Invalid event cursor")
+                return self._events(rid, int(cursor))
+            if action == "cancel" and method == "POST":
+                self._body()
+                self.app.engine.cancel(rid)
+                return self._json({"ok": True})
+            if action == "approve" and method == "POST":
+                body = self._body()
+                if not isinstance(body.get("call_id"), str) or not isinstance(body.get("allow"), bool) or not isinstance(body.get("remember", False), bool):
+                    raise ValueError("Invalid approval")
+                self.app.engine.approve(rid, body["call_id"], body["allow"], body.get("remember", False))
+                return self._json({"ok": True})
+        raise KeyError()
+
+    def _workspace(self, path, method, query):
+        workspace = self.app.workspace
+        parts = path.split("/")[3:]
+        if not parts and method == "GET":
+            return self._json(workspace.snapshot())
+        if parts == ["file"] and method == "GET":
+            params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
+            if set(params) != {"path"} or len(params["path"]) != 1:
+                raise ValueError("Expected one file path")
+            return self._json(workspace.read(params["path"][0]))
+        if parts in (["file"], ["delete"]) and method == "POST":
+            body = self._body()
+            return self._json(workspace.write(body.get("path"), body.get("content"), body.get("revision"), parts == ["delete"]))
+        if parts == ["checkpoints"] and method == "POST":
+            return self._json(workspace.checkpoint(self._body().get("label")))
+        if len(parts) == 3 and parts[0] == "checkpoints" and parts[2] == "restore" and method == "POST":
+            return self._json(workspace.restore(parts[1], self._body().get("revision")))
+        if parts == ["diff"] and method == "GET":
+            params = parse_qs(query, keep_blank_values=True, strict_parsing=True)
+            if set(params) != {"checkpoint"} or len(params["checkpoint"]) != 1:
+                raise ValueError("Expected one checkpoint")
+            return self._json(workspace.diff(params["checkpoint"][0]))
+        if parts == ["jobs"] and method == "POST":
+            return self._json({"job": workspace.start(self._body().get("command"))})
+        if len(parts) == 2 and parts[0] == "jobs" and method == "GET":
+            return self._json({"job": workspace.job(parts[1])})
+        if len(parts) == 3 and parts[0] == "jobs" and parts[2] == "cancel" and method == "POST":
+            self._body()
+            return self._json({"job": workspace.cancel(parts[1])})
+        raise KeyError()
+
+    def _events(self, rid, after):
+        self.app.store.run(rid)
+        self.close_connection = True
+        self._headers(200, "text/event-stream", extra={"Connection": "close", "X-Accel-Buffering": "no"})
+        try:
+            while True:
+                with self.app.store.changed:
+                    events = self.app.store.events(rid, after)
+                    run = self.app.store.run(rid)
+                    if not events and run["status"] not in TERMINAL:
+                        self.app.store.changed.wait(10)
+                for event in events:
+                    self.wfile.write(f"id: {event['seq']}\nevent: update\ndata: {encoded(event)}\n\n".encode())
+                    after = event["seq"]
+                self.wfile.write(b": heartbeat\n\n")
+                self.wfile.flush()
+                if run["status"] in TERMINAL and after >= run["last_seq"]:
+                    break
+        except (OSError, TimeoutError):
+            pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description="A focused chat workspace for llmx.")
+    parser.add_argument("--upstream", default="http://127.0.0.1:8090", help="llmx HTTP origin or /v1 URL")
+    parser.add_argument("--host", default="127.0.0.1", help="Listen address (default: loopback)")
+    parser.add_argument("--port", type=int, default=8183)
+    parser.add_argument("--data-dir", type=Path, default=Path.home() / ".llmx-chat")
+    parser.add_argument("--tools", type=Path, help="Operator-managed MCP HTTP server configuration")
+    parser.add_argument("--password-file", type=Path, help="Owner password file, required for non-loopback listening")
+    parser.add_argument("--api-key-file", type=Path, help="Optional upstream API key file")
+    parser.add_argument("--public-origin", help="Browser-facing origin, for example https://chat.example.com")
+    parser.add_argument("--sandbox-image", help="Existing Linux container image for isolated workspace commands")
+    parser.add_argument("--sandbox-docker-host", help="Optional Docker endpoint, for example ssh://user@host")
+    args = parser.parse_args()
+    password = args.password_file.read_text(encoding="utf-8").strip() if args.password_file else None
+    if password is not None and len(password) < 12:
+        parser.error("Use an owner password of at least 12 characters")
+    if args.host not in ("127.0.0.1", "localhost") and (not password or not args.public_origin):
+        parser.error("Non-loopback listening needs --password-file and --public-origin")
+    Connection(args.upstream).close()
+    args.data_dir.mkdir(parents=True, exist_ok=True)
+    key = args.api_key_file.read_text(encoding="utf-8").strip() if args.api_key_file else None
+    app = Application(args.data_dir / "chat.sqlite3", args.upstream, args.tools, password, key, args.sandbox_image, args.sandbox_docker_host)
+    server = Server((args.host, args.port), app, args.public_origin)
+    print(f"llmx chat: http://{args.host}:{server.server_address[1]}", flush=True)
+    print("Owner workspace. Conversation data stays in the configured data directory.", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        app.engine.shutdown()
+
+
+if __name__ == "__main__":
+    main()

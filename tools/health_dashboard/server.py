@@ -122,8 +122,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Collector:
-    def __init__(self, url, interval_s=2.0, retention_s=3600.0, fetch=None, clock=time.time):
+    def __init__(self, url, interval_s=2.0, retention_s=3600.0, fetch=None, clock=time.time, headers=None):
         self.url = url
+        self.headers = dict(headers or {})
         self.interval_s = interval_s
         self.retention_s = retention_s
         self.fetch = fetch or self._fetch
@@ -148,7 +149,7 @@ class Collector:
 
     def _fetch(self):
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
-        request = urllib.request.Request(self.url, headers={"Accept": "application/json"}, method="GET")
+        request = urllib.request.Request(self.url, headers={"Accept": "application/json", **self.headers}, method="GET")
         try:
             with opener.open(request, timeout=3.0) as response:
                 raw = response.read(MAX_BODY + 1)
@@ -286,6 +287,87 @@ def _positive_float(text, label, low, high):
     return value
 
 
+def accepts_gzip(headers):
+    for part in headers.get("Accept-Encoding", "").split(","):
+        fields = [field.strip() for field in part.split(";")]
+        if fields[0].lower() != "gzip":
+            continue
+        try:
+            quality = next((float(field[2:]) for field in fields[1:] if field.lower().startswith("q=")), 1.0)
+        except ValueError:
+            quality = 0.0
+        return math.isfinite(quality) and quality > 0.0
+    return False
+
+
+def stream_history(handler, collector, authorized=lambda: True):
+    cursor = 0
+    collector_id = None
+    last_id = handler.headers.get("Last-Event-ID", "")
+    if last_id:
+        parts = last_id.split(":")
+        if (len(parts) == 3 and len(parts[0]) <= 64 and
+                all(part.isascii() and part.isdigit() and len(part) <= 20 for part in parts[1:])):
+            collector_id = parts[0]
+            cursor = int(parts[1])
+    if collector_id != collector.collector_id:
+        cursor = 0
+    gzip_ok = accepts_gzip(handler.headers)
+    compressor = zlib.compressobj(level=1, wbits=16 + zlib.MAX_WBITS) if gzip_ok else None
+    handler.send_response(200)
+    handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
+    if gzip_ok:
+        handler.send_header("Content-Encoding", "gzip")
+    handler.send_header("Vary", "Accept-Encoding")
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("X-Content-Type-Options", "nosniff")
+    handler.send_header("Connection", "keep-alive")
+    handler.send_header("X-Accel-Buffering", "no")
+    handler.end_headers()
+
+    def write_frame(frame):
+        if compressor is not None:
+            frame = compressor.compress(frame) + compressor.flush(zlib.Z_SYNC_FLUSH)
+        handler.wfile.write(frame)
+        handler.wfile.flush()
+
+    def finish_stream():
+        if compressor is not None:
+            handler.wfile.write(compressor.flush(zlib.Z_FINISH))
+            handler.wfile.flush()
+
+    revision = -1
+    try:
+        while True:
+            with collector.changed:
+                stopped = collector.stopped.is_set()
+                if not stopped and revision == collector.revision:
+                    collector.changed.wait(15.0)
+                stopped = stopped or collector.stopped.is_set()
+                current_revision = collector.revision
+            if stopped or not authorized():
+                finish_stream()
+                handler.close_connection = True
+                return
+            if current_revision != revision:
+                data = collector.snapshot(cursor)
+                if data["collector_id"] != collector_id:
+                    cursor = 0
+                    data = collector.snapshot(cursor)
+                if data["samples"]:
+                    cursor = data["samples"][-1]["seq"]
+                event_id = data["collector_id"] + ":" + str(cursor) + ":" + str(data["revision"])
+                body = json.dumps(data, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+                write_frame(("id: " + event_id + "\nevent: history\ndata: " + body + "\n\n").encode("utf-8"))
+                collector_id = data["collector_id"]
+                revision = current_revision
+            else:
+                write_frame(b": keepalive\n\n")
+    except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+        handler.close_connection = True
+        return
+
+
 def make_handler(collector, html_path):
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -298,16 +380,7 @@ def make_handler(collector, html_path):
             pass
 
         def _accepts_gzip(self):
-            for part in self.headers.get("Accept-Encoding", "").split(","):
-                fields = [field.strip() for field in part.split(";")]
-                if fields[0].lower() != "gzip":
-                    continue
-                try:
-                    quality = next((float(field[2:]) for field in fields[1:] if field.lower().startswith("q=")), 1.0)
-                except ValueError:
-                    quality = 0.0
-                return math.isfinite(quality) and quality > 0.0
-            return False
+            return accepts_gzip(self.headers)
 
         def _send(self, status, body, content_type):
             if self._accepts_gzip() and body:
@@ -339,6 +412,15 @@ def make_handler(collector, html_path):
                 return
             if parsed.scheme or parsed.netloc or parsed.fragment:
                 self._send(400, b"Bad request", "text/plain; charset=utf-8")
+                return
+            if parsed.path == "/theme.css" and not parsed.query:
+                try:
+                    with open(os.path.join(os.path.dirname(html_path), "theme.css"), "rb") as stream:
+                        body = stream.read()
+                except OSError:
+                    self._send(404, b"Not found", "text/plain; charset=utf-8")
+                    return
+                self._send(200, body, "text/css; charset=utf-8")
                 return
             if parsed.path == "/" and not parsed.query:
                 try:
@@ -377,71 +459,7 @@ def make_handler(collector, html_path):
             self._send(404, b"Not found", "text/plain; charset=utf-8")
 
         def _stream(self):
-            cursor = 0
-            collector_id = None
-            last_id = self.headers.get("Last-Event-ID", "")
-            if last_id:
-                parts = last_id.split(":")
-                if (len(parts) == 3 and len(parts[0]) <= 64 and
-                        all(part.isascii() and part.isdigit() and len(part) <= 20 for part in parts[1:])):
-                    collector_id = parts[0]
-                    cursor = int(parts[1])
-            if collector_id != collector.collector_id:
-                cursor = 0
-            gzip_ok = self._accepts_gzip()
-            compressor = zlib.compressobj(level=1, wbits=16 + zlib.MAX_WBITS) if gzip_ok else None
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            if gzip_ok:
-                self.send_header("Content-Encoding", "gzip")
-            self.send_header("Vary", "Accept-Encoding")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-
-            def write_frame(frame):
-                if compressor is not None:
-                    frame = compressor.compress(frame) + compressor.flush(zlib.Z_SYNC_FLUSH)
-                self.wfile.write(frame)
-                self.wfile.flush()
-
-            def finish_stream():
-                if compressor is not None:
-                    self.wfile.write(compressor.flush(zlib.Z_FINISH))
-                    self.wfile.flush()
-
-            revision = -1
-            try:
-                while True:
-                    with collector.changed:
-                        stopped = collector.stopped.is_set()
-                        if not stopped and revision == collector.revision:
-                            collector.changed.wait(15.0)
-                        stopped = stopped or collector.stopped.is_set()
-                        current_revision = collector.revision
-                    if stopped:
-                        finish_stream()
-                        self.close_connection = True
-                        return
-                    if current_revision != revision:
-                        data = collector.snapshot(cursor)
-                        if data["collector_id"] != collector_id:
-                            cursor = 0
-                            data = collector.snapshot(cursor)
-                        if data["samples"]:
-                            cursor = data["samples"][-1]["seq"]
-                        event_id = data["collector_id"] + ":" + str(cursor) + ":" + str(data["revision"])
-                        body = json.dumps(data, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
-                        write_frame(("id: " + event_id + "\nevent: history\ndata: " + body + "\n\n").encode("utf-8"))
-                        collector_id = data["collector_id"]
-                        revision = current_revision
-                    else:
-                        write_frame(b": keepalive\n\n")
-            except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
-                self.close_connection = True
-                return
+            stream_history(self, collector)
 
         def do_POST(self):
             self._send(405, b"Method not allowed", "text/plain; charset=utf-8")

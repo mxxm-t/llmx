@@ -1,6 +1,20 @@
 # Tests
 
 What each native test (CTest) and each suite component checks, and the real-model checks run by hand.
+
+The standalone [chat companion](../tools/chat_ui/README.md) is checked with
+`python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP
+fixtures exercise stream accumulation and usage, approval and denial, tool
+execution, replay, conversation branches, cancellation and restart recovery.
+HTTP checks cover authentication, origin checks, attachments and import/export.
+Store checks cover schema upgrades, online backup and validated restore. Workspace
+checks cover revision conflicts, file limits, checkpoint restore, bounded output,
+cancellation, container isolation flags and unsafe returned files. HTTP checks
+also cover authenticated monitoring, preview CSP and backup/restore routes.
+Its optional installed-browser check exercises the actual interface and reports
+when browser prerequisites are unavailable. These checks make no inference calls.
+The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
+Docker image to verify actual container isolation, returned files and cancellation.
 How to run them, the project's two gates and the merge gates are in `AGENTS.md` (`AGENTS.md`, Tests).
 Every CTest and suite component is described on this page, and a new one is described here in the change that adds it; the `docs` component's `test-name` check holds that.
 

@@ -1,0 +1,69 @@
+# Chat companion contract
+
+The Python standard-library service owns persisted conversations, branches, runs and tools. The static browser application owns presentation. All JSON APIs are same-origin under `/api`. Mutations require `X-Chat-Request: 1`, and JSON bodies use `Content-Type: application/json`. Errors use `{error: string}` with an HTTP error status.
+
+## Routes
+
+- `GET /api/session`: `{authenticated, password_required}`. All other APIs require a session when a password is configured.
+- `POST /api/login` with `{password}` sets an HttpOnly session cookie. `POST /api/logout` clears it.
+- `GET /api/config`: `{models: [{id}], tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error}`. No credentials are returned. A tool discovery failure does not disable a reachable model.
+- `GET /api/chats`: `{chats: [{id,title,pinned,archived,folder,created,updated,active_leaf,settings}]}`.
+- `POST /api/chats` with optional `{title,settings,folder}` creates and returns a chat.
+- `GET /api/chats/{id}`: `{chat, messages: [...], runs: [...]}`. Messages include all branches. Follow `parent_id` backward from `chat.active_leaf` for the selected path.
+- `PATCH /api/chats/{id}` accepts `title,pinned,archived,folder,active_leaf,settings`. Selecting a branch while a run is active is refused.
+- `DELETE /api/chats/{id}` deletes an idle chat.
+- `GET /api/chats/{id}/export`: versioned JSON download.
+- `POST /api/import` with exported JSON creates a new chat with fresh identifiers.
+- `POST /api/chats/{id}/runs` with `{content,attachments:[],parent_id,settings}` adds a user message then starts a run. Parent may be null for a root branch. With `{regenerate:true,parent_id: USER_MESSAGE_ID,settings}`, reuse that user message and start an alternative response. Returns `{run}`.
+- `GET /api/runs/{id}/events?after=N`: SSE with monotonically increasing `id`, `event: update`, and JSON `{seq,kind,data,time}`. Reconnect sends `Last-Event-ID`. Persisted events replay after the cursor. The stream closes after its terminal state has been delivered. A browser disconnect does not cancel generation.
+- `POST /api/runs/{id}/cancel` requests cancellation. It does not promise to undo an external tool action.
+- `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
+- `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
+
+## Workspace and monitor routes
+
+These routes share the chat session and mutation-header rules.
+
+- `GET /monitor/view`: existing dashboard renderer with shared theme and embedded navigation.
+- `GET /theme.css`: public, static visual tokens shared with the standalone dashboard.
+- `GET /api/monitor/history?after=N` and `GET /api/monitor/stream`: existing collector snapshot and SSE history protocol. One collector serves all clients. A stream ends when the session expires or is revoked.
+- `POST /api/previews` with `{html}` returns `{url}` for an authenticated opaque-origin preview document. Documents are at most 1 MiB and expire after 30 minutes; at most 16 are retained. They never execute on the host.
+- `GET /api/backup`: online SQLite chat backup download. It does not include workspace files.
+- `POST /api/restore` with a binary SQLite body and `Content-Type: application/vnd.sqlite3`: validates and replaces the idle chat database. The upload is streamed to a temporary file and limited to 256 MiB, advertised as `config.backup_max_bytes`. The caller reloads its view afterward. This binary route still requires the normal mutation header.
+- `GET /api/workspace`: `{revision,files:[{path,size}],checkpoints:[{id,label,created}],jobs:[...],execution:{enabled,image,description,limits}}`. Execution enabled means configured, not a successful Docker health check. A failed container start is reported as a failed job.
+- `GET /api/workspace/file?path=PATH`: `{path,content,revision}`.
+- `POST /api/workspace/file` with `{path,content,revision}` or `/api/workspace/delete` with `{path,revision}`: revision-checked edit returning the new snapshot.
+- `POST /api/workspace/checkpoints` with `{label}`: checkpoint and return snapshot. `POST /api/workspace/checkpoints/ID/restore` with `{revision}` restores after first checkpointing the current files.
+- `GET /api/workspace/diff?checkpoint=ID`: `{diff}` with a unified text diff.
+- `POST /api/workspace/jobs` with `{command}`: `{job}`. `GET /api/workspace/jobs/ID` reads it; `POST /api/workspace/jobs/ID/cancel` with `{}` requests cancellation.
+
+A job contains `id,command,status,output,output_truncated,exit_code,error,created`.
+States are `running`, `completed`, `failed`, `cancelled`. Output is bounded tail
+text; the truncation flag must be shown. Browser job polling runs only while a
+job is active and the Workspace view is open. One command runs at a time per
+managed workspace. It blocks file edits until its files return or it is cancelled.
+Container files return only after all entries pass validation. Cancellation or
+an invalid returned file leaves the saved project unchanged.
+
+## Data
+
+Settings: `{model,system,temperature,top_p,top_k,max_tokens,tools:[]}`. Omitted settings use documented companion defaults. Tools are selected by the exposed tool name. A model name selects only what the configured upstream actually serves.
+
+Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser reads files, the service validates bounds and stores them in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
+
+Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
+
+Run: `{id,chat_id,status,message_id,created,updated,error,last_seq}`. Run statuses are `running`, `approval`, `completed`, `cancelled`, `failed` and `interrupted`.
+
+Events:
+- `message`: complete message record, insert or replace by id.
+- `delta`: `{message_id,content,reasoning}`, append supplied text only.
+- `metrics`: `{message_id,usage,timings,context}`, merge available objects.
+- `tool`: `{message_id,call}`, replace the matching call by id.
+- `state`: full run record. Terminal states stop streaming.
+
+A snapshot contains persisted text and the matching run cursor. Subscribe from `last_seq`, not zero, after loading that snapshot. Usage is stored once per model call, not added for each event. A turn can contain several model calls. Cached input is a subset of input. Live chunks are never counted as tokens. The UI shows measured server rates only when provided, and an elapsed timer while live. It must not invent per-request health rates.
+
+## UI behavior
+
+Sidebar: new chat, search across loaded conversations, pin/archive, folders, import/export. Center: branch-aware messages, reasoning disclosure, safe Markdown/code/tables, tool rows, composer with text/image attachments. Inspector: activity, statistics and effective settings. Edit and retry preserve old branches. Mobile uses drawers and stable controls. Errors and empty states are explicit. Use ASCII source and SVG icons, no external CDN, packages or fonts.

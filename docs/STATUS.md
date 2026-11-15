@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## Chat workspace (2026-11-15, Done)
+
+| Feature | State | Evidence |
+|---|---|---|
+| Unified Chat, Monitor, Workspace and Settings | Done | [Usage and qualification](../tools/chat_ui/README.md#qualification) |
+| Shared dashboard design and responsive navigation | Done | Actual pointer checks at seven viewport sizes and 200 percent CSS zoom |
+| Durable conversations, MCP approvals, backup and restore | Done | Hosted Windows/Linux protocol, persistence and browser checks |
+| Code previews and isolated workspace commands | Done | Browser isolation checks and a real bounded Docker check on the rig |
+
+Lands by fast-forward as one feature commit on main 929f042c6. [Hosted run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passes both Windows and Linux on source/test/workflow tree 53f83204a. The landing rebase preserves main's ROCm change 929f042c6 and both STATUS blocks. That runtime change and the final qualification documentation do not change the tested companion, dashboard or workflow inputs. The final Markdown and dead-code checks cover the tree that lands. No inference code changes, model gates or production deployment are part of this feature.
+
+The local application is at `http://127.0.0.1:8183`. Its configured upstream at rig port 8090 is unavailable, which the UI reports. It has optional bounded container execution on the rig, with no GPUs or production containers involved. This is one owner workspace with managed text files; binary artifact persistence and complete Pi/OpenCode integration are not claimed. Current process and local test receipts remain under ignored `scratch/chat-ui-browser`.
+
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 
 **Goal.** Qwen3 files in F16, Q4_0 and Q4_1 run on ROCm at or above the mx fork's ROCm speed, through the shared GPU core and its existing type families.

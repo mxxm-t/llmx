@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Companion tools and reading view integration (2026-11-15, In progress)
+
+**Goal.** Land the independent image-history, wordmark, tool-connection and readability changes together by fast-forward over main 5d2a394ad.
+
+**Done.** Each feature retains its own commits and regression-first history where applicable. The combined browser and protocol tree is under scoped qualification. No runtime source, model or build configuration changed. An isolated live preview on port 8184 uses the actual local model and separate chat storage. Port 8183 remains running to preserve temporary conversations.
+
+**Checks.** A second-agent Markdown inventory and source-backed review covered project guidance, README, architecture, roadmap, status, test descriptions and companion/dashboard references. One duplicate status heading introduced by stacking was removed. Feature evidence below remains historical to the stated revisions. Combined local and hosted companion evidence is pending.
+
+**Left.** Complete focused integration checks and the Windows/Linux Chat workspace workflow, then notify the coordinator for fast-forward landing. No inference, HF or GPU gate is required for this standalone companion scope.
+
 ## Continue after a rejected image turn (2026-11-15, Ready)
 
 **Goal.** Let a text follow-up continue after an older persisted image turn was refused by the template, without deleting history or removing images from accepted turns.
@@ -44,12 +54,15 @@
 
 **Gotchas.** Tests contact configured endpoints only, never execute tools or expose credential headers/URLs. A failed remote must not hide local tools or healthy connections. Probing must not reset a draft, chat settings or an active run. No model/runtime change or dependency on pending branding/image branches.
 ## Chat reading hierarchy and model availability (2026-11-15, In Progress)
+## Chat reading hierarchy and model availability (2026-11-15, Ready)
 
 **Goal.** Put Temporary chat in the conversation header, clarify reading hierarchy while retaining tool/reasoning/metrics access, align sidebar action hover with its row, and refuse sending with a saved model absent from upstream configuration.
 
-**Done.** The initial browser regression covers the header action, unavailable-model send guard, and menu hit-area alignment.
+**Done.** Temporary chat keeps its existing action and ID in the conversation header. Saved model IDs absent from `/api/config` remain visible as disabled unavailable options, the send button is blocked with clear guidance until the user picks an available model, and settings remain intact. Empty or absent catalogs produce one disabled choice. Sidebar action buttons match their title button bounds, and selected/unselected rows share the right hover background. Message text, reasoning and tool disclosures have a clearer reading scale while metrics remain available.
 
-**Left.** Land the failing regression first, then implement and qualify the static browser changes.
+**Checks.** The first browser commit fails against the old UI because Temporary chat remains outside the conversation header. The final Chrome check passes in 31.890 seconds, including empty and absent model catalogs, unavailable-model recovery without settings loss, selected/unselected row bounds and hover, temporary-chat behavior, and responsive desktop/mobile flows. `node --check` passes for `app.js` and `browser_check.mjs`. Docs reports 0 findings and 21 planted checks, and dead-code matches its 15 expected findings and 20 planted checks. The docs helper binary was built before this UI-only follow-up; CLI and build inputs are unchanged. Build output is in `scratch/chat-readability-build.log`. Desktop and mobile screenshots are in `scratch/chat-ui-browser/`; the header and sidebar screenshots were reviewed. No inference gates apply.
+
+**Left.** Coordinator integration and fast-forward landing.
 
 **Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
 

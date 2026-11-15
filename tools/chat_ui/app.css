@@ -724,8 +724,8 @@ kbd {
   font-size:13px
 }
 .markdown {
-  font-size:13px;
-  line-height:1.85;
+  font-size:14px;
+  line-height:1.8;
   min-width:0;
   width:100%
 }
@@ -739,7 +739,7 @@ kbd {
   margin-bottom:0
 }
 .markdown p {
-  margin:0 0 17px
+  margin:0 0 13px
 }
 .markdown h2,.markdown h3,.markdown h4 {
   line-height:1.5;
@@ -898,11 +898,11 @@ kbd {
 .reasoning summary {
   padding:10px 13px;
   cursor:pointer;
-  font-size:11px
+  font-size:12px
 }
 .reasoning .markdown {
   padding:0 13px 13px;
-  font-size:11px
+  font-size:12px
 }
 .tool-call {
   border:1px solid var(--border);
@@ -916,7 +916,7 @@ kbd {
   align-items:center;
   gap:9px;
   cursor:pointer;
-  font-size:11px;
+  font-size:12px;
   padding:12px
 }
 .tool-call summary .badge {

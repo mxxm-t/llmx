@@ -472,7 +472,13 @@ try {
   const selectedBeforeMenu = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
   assert.notEqual(selectedBeforeMenu, sidebarTarget);
   const targetMenu = '.chat-row-menu[data-id="' + sidebarTarget + '"]';
-  assert.equal(await evaluate(`(()=>{const m=document.querySelector(${JSON.stringify(targetMenu)}).getBoundingClientRect(),r=document.querySelector('[data-chat="${sidebarTarget}"]').parentElement.getBoundingClientRect();return Math.abs(m.top-r.top)<1&&Math.abs(m.bottom-r.bottom)<1})()`), true, 'sidebar menu target does not share the selected row height');
+  const selectedMenu = '.chat-row.active .chat-row-menu';
+  for (const menuSelector of [selectedMenu, targetMenu]) {
+    assert.equal(await evaluate(`(()=>{const row=document.querySelector(${JSON.stringify(menuSelector)}).parentElement,m=document.querySelector(${JSON.stringify(menuSelector)}).getBoundingClientRect(),r=row.querySelector('.chat-item').getBoundingClientRect();return Math.abs(m.top-r.top)<1&&Math.abs(m.bottom-r.bottom)<1})()`), true, 'sidebar menu target does not match its chat row bounds');
+    const hoverPoint = await evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(menuSelector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+    await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', ...hoverPoint});
+    assert.equal(await evaluate(`(()=>{const row=document.querySelector(${JSON.stringify(menuSelector)}).parentElement;return getComputedStyle(row.querySelector('.chat-row-menu')).backgroundColor===getComputedStyle(row.querySelector('.chat-item')).backgroundColor})()`), true, 'sidebar menu hover does not match its chat row background');
+  }
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');
   await click('#action-menu [data-action="rename"]');
@@ -912,11 +918,21 @@ try {
   assert.equal(await evaluate("document.querySelector('#model option:checked').textContent"), 'Qwen3.5-0.8B-Q8_0.gguf (unavailable)', 'saved unavailable model is not labeled');
   assert.equal(await evaluate("document.querySelector('#model option:checked').disabled"), true, 'saved unavailable model remains selectable');
   assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'send remains available with an unavailable model');
-  assert((await evaluate("document.querySelector('#banner').textContent")).includes('Choose a model advertised'), 'unavailable model has no recovery guidance');
+  assert((await evaluate("document.querySelector('#banner').textContent")).includes('Choose another model'), 'unavailable model has no recovery guidance');
   const savedUnavailableModel = await evaluate(`fetch('/api/chats/${invalidModelChat}').then(r=>r.json()).then(d=>d.chat.settings.model)`);
   assert.equal(savedUnavailableModel, 'Qwen3.5-0.8B-Q8_0.gguf', 'opening an unavailable model erased saved settings');
   await evaluate(`document.querySelector('#model').value=${JSON.stringify(availableModel)};document.querySelector('#model').dispatchEvent(new Event('change',{bubbles:true}))`);
   assert.equal(await evaluate("document.querySelector('#send').disabled"), false, 'advertised model did not restore sending');
+  const catalogOverride = await cdp('Page.addScriptToEvaluateOnNewDocument', {source: `(()=>{const original=window.fetch.bind(window);window.fetch=async(...args)=>{const response=await original(...args);if(new URL(typeof args[0]==='string'?args[0]:args[0].url,location.href).pathname!=='/api/config'||!['empty','missing'].includes(localStorage.getItem('llmx-test-model-catalog')))return response;const config=await response.json();if(localStorage.getItem('llmx-test-model-catalog')==='empty')config.models=[];else delete config.models;return new Response(JSON.stringify(config),{status:response.status,headers:{'Content-Type':'application/json'}})}})();`});
+  for (const catalog of ['empty', 'missing']) {
+    await evaluate(`localStorage.setItem('llmx-test-model-catalog',${JSON.stringify(catalog)})`); await reloadDocument();
+    await wait("document.querySelector('#connection').textContent==='Connected' && document.querySelector('#model').textContent.includes('(unavailable)')", catalog + ' model catalog handled');
+    assert.equal(await evaluate("document.querySelector('#model').options.length"), 1, catalog + ' model catalog rendered extra selectable entries');
+    assert.equal(await evaluate("document.querySelector('#model option:checked').textContent"), 'Qwen3.5-0.8B-Q8_0.gguf (unavailable)', catalog + ' catalog did not create one unavailable saved-model choice');
+    assert.equal(await evaluate("document.querySelector('#send').disabled"), true, catalog + ' catalog allowed sending without an available model');
+  }
+  await evaluate("localStorage.removeItem('llmx-test-model-catalog')");
+  await cdp('Page.removeScriptToEvaluateOnNewDocument', {identifier: catalogOverride.identifier});
   await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(submittedChat)})`); await reloadDocument();
   await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(submittedChat)}`, 'restore prior chat after unavailable-model check');
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}

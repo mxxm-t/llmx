@@ -48,6 +48,7 @@
   function connection(text, offline = false) { const el = $('connection'); el.replaceChildren(node('span', 'status-dot'), document.createTextNode(text)); el.classList.toggle('offline', offline); document.querySelector('.inspector-bottom').replaceChildren(node('span', 'status-dot'), document.createTextNode(offline ? text + ' / local runtime' : 'Connected to your local runtime')); }
   function settings() {
     const value = {model: $('model').value, system: $('setting-system').value};
+    if (!(S.config.models || []).some(model => model.id === value.model)) throw new Error('This model is not available on the connected server. Choose another model before sending.');
     for (const key of ['temperature', 'top_p', 'top_k', 'max_tokens']) {
       const input = $('setting-' + key);
       if (!input.checkValidity() || input.value.trim() === '') throw new Error('Check the ' + key.replaceAll('_', ' ') + ' setting.');
@@ -61,8 +62,8 @@
     $('model').replaceChildren();
     const models = S.config.models || [];
     models.forEach(model => { const option = node('option', '', model.id); option.value = model.id; $('model').append(option); });
-    if (!models.length) { const option = node('option', '', value.model || 'No model available'); option.value = value.model || ''; $('model').append(option); }
-    if (value.model && !models.some(m => m.id === value.model)) { const option = node('option', '', value.model); option.value = value.model; $('model').append(option); }
+    if (!models.length) { const option = node('option', '', value.model ? value.model + ' (unavailable)' : 'No model available'); option.value = value.model || ''; option.disabled = true; $('model').append(option); }
+    else if (value.model && !models.some(m => m.id === value.model)) { const option = node('option', '', value.model + ' (unavailable)'); option.value = value.model; option.disabled = true; $('model').append(option); }
     if (value.model) $('model').value = value.model;
     const defaults = {system: '', temperature: 0.7, top_p: 0.95, top_k: 40, max_tokens: 4096};
     Object.keys(defaults).forEach(key => { $('setting-' + key).value = value[key] ?? defaults[key]; });
@@ -120,7 +121,7 @@
         if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
         button.append(node('span', 'chat-glyph', '#'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
         if (chat.pinned) button.append(node('span', 'pin-mark', '*'));
-        const row = node('div', 'chat-row');
+        const row = node('div', 'chat-row' + (S.chat?.id === chat.id ? ' active' : ''));
         const menu = node('button', 'chat-row-menu', '...'); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
         menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'menu'); menu.title = 'Conversation actions';
         row.append(button, menu); out.append(row);
@@ -348,7 +349,9 @@
     $('app').dataset.temporary = String(Boolean(S.chat?.temporary));
     const lifetime = S.config.temporary?.ttl_seconds;
     $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
-    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || !S.config.upstream_available;
+    const modelUnavailable = !(S.config.models || []).some(model => model.id === $('model').value);
+    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || !S.config.upstream_available || modelUnavailable;
+    if (!run && modelUnavailable && S.config.upstream_available) banner('This model is not available on the connected server. Choose another model before sending.');
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
     renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
   }
@@ -607,6 +610,7 @@
   });
   $('composer').addEventListener('submit', event => { event.preventDefault(); send().catch(error => banner(error.message)); });
   $('draft').addEventListener('input', () => { composerRevision++; resizeDraft(); });
+  $('model').addEventListener('change', () => { snapshotBanner(); render(); });
   $('draft').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send().catch(error => banner(error.message)); } });
   $('draft').addEventListener('paste', event => { const files = Array.from(event.clipboardData?.files || []); if (files.length) { event.preventDefault(); attach(files).catch(error => toast(error.message)); } });
   $('file-input').addEventListener('change', event => { attach(Array.from(event.target.files)).catch(error => toast(error.message)); event.target.value = ''; });

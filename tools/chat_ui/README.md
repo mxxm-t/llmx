@@ -101,7 +101,7 @@ conversations and tools. There is no multi-user account or role system.
 
 ## Temporary chats
 
-Temporary chat in the sidebar opens a conversation held only in companion memory.
+Temporary chat in the conversation header opens a conversation held only in companion memory.
 It is absent from saved history and SQLite backups. Messages, attachments, settings
 and replay events share the normal conversation engine in a separate in-memory
 store. Reloading the page recovers the current temporary chat through an identifier

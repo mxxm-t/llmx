@@ -598,7 +598,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         info = health["server"]
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]
-        assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "shifts", "shifted_tokens"}, health["requests"]
+        assert set(health["requests"]["since_start"]) == {"finished", "prompt_tokens", "generated_tokens", "unauthorized", "shifts", "shifted_tokens"}, health["requests"]
         live = health["requests"]["live"]
         assert set(live) == {"sample_elapsed_ms", "limit", "total", "omitted", "items", "work"}, live
         assert live["limit"] == 64 and live["total"] == live["omitted"] == 0 and live["items"] == [], live
@@ -1379,7 +1379,7 @@ TOP = 5
 def check_ctx_past_context(model):
     """A request limit past the model's context (--ctx-size 1024 on a context of 512) is refused at start, once the file is read, with both numbers and the pool's flag, and the server never listens."""
     f32.write_model(model, reasoning_tensors(), PLAIN_TEMPLATE, f32.VOCAB - 1, config=REASONING_CONFIG)
-    got = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--port", "0", "--ctx-size", "1024"] + common.pool_args(model), "f32"), capture_output=True, timeout=300)
+    got = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--no-auth", "--port", "0", "--ctx-size", "1024"] + common.pool_args(model), "f32"), capture_output=True, timeout=300)
     err = got.stderr.decode("utf-8", "replace")
     assert got.returncode == 1 and "--ctx-size 1024 is past the model's context of 512 tokens" in err and "--kv-tokens" in err and "serving" not in err, (got.returncode, err)
 
@@ -2100,6 +2100,92 @@ def check_limits(model):
         srv.close()
 
 
+def check_auth(model, directory):
+    """Keys: a key file admits each of its keys and refuses a request without one or with a wrong one with 401 and a challenge, sent on the head alone, /v1/live stays open and health counts the refusals.
+    A server without a key flag, with both or with a short key is refused as a usage error, and one with a missing key file as a missing file."""
+    exe = common.exe_path()
+    first, second = "first-key-0123456789", "second-key-abcdefghij"
+    keys = os.path.join(directory, "keys.txt")
+    with open(keys, "w", encoding="utf-8") as f:
+        f.write("# the keys\n\n%s\n  %s  \n" % (first, second))
+
+    def call(port, method, path, body=None, key=None):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=60)
+        headers = {"Content-Type": "application/json"}
+        if key is not None:
+            headers["Authorization"] = "Bearer " + key
+        conn.request(method, path, body=None if body is None else json.dumps(body).encode("utf-8"), headers=headers)
+        r = conn.getresponse()
+        raw = r.read()
+        conn.close()
+        return r.status, r.getheader("WWW-Authenticate"), json.loads(raw.decode("utf-8"))
+
+    srv = Server(model, "--api-key-file", keys)
+    try:
+        assert call(srv.port, "GET", "/v1/live") == (200, None, {"status": "ok"})
+        status, challenge, body = call(srv.port, "GET", "/v1/health")
+        assert status == 401 and challenge == 'Bearer realm="llmx"' and "Bearer" in body["error"], (status, challenge, body)
+        status, challenge, body = call(srv.port, "GET", "/v1/models", key="not-the-key-0123456789")
+        assert status == 401 and challenge == 'Bearer realm="llmx", error="invalid_token"', (status, challenge, body)
+        status, challenge, body = call(srv.port, "POST", "/v1/chat/completions", {"messages": [{"role": "user", "content": "a"}]})
+        assert status == 401 and body["error"]["type"] == "authentication_error" and body["error"]["code"] == "invalid_api_key", (status, body)
+        for key in (first, second):
+            status, challenge, body = call(srv.port, "POST", "/v1/generate", {"prompt": "a", "max_tokens": 2, "temperature": 0}, key=key)
+            assert status == 200 and challenge is None and "text" in body, (status, body)
+        # A request without a key is refused on its head: the 401 comes before the body it announces, which is never sent.
+        s = socket.create_connection(("127.0.0.1", srv.port), timeout=10)
+        s.sendall(b"POST /v1/generate HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 10000000\r\n\r\n")
+        began = time.time()
+        raw = b""
+        while b"\r\n\r\n" not in raw:
+            chunk = s.recv(4096)
+            assert chunk, raw
+            raw += chunk
+        s.close()
+        assert raw.startswith(b"HTTP/1.1 401") and time.time() - began < 5, raw[:80]
+        status, challenge, health = call(srv.port, "GET", "/v1/health", key=first)
+        assert status == 200 and health["requests"]["since_start"]["unauthorized"] == 4, (status, health["requests"]["since_start"])
+    finally:
+        srv.close()
+    short = os.path.join(directory, "short.txt")
+    with open(short, "w", encoding="utf-8") as f:
+        f.write("short\n")
+    for args, code, reason in (([], 2, "serve needs --api-key-file"), (["--api-key-file", short], 2, "at least 16 characters"),
+                               (["--api-key-file", keys, "--no-auth"], 2, "set the same thing"),
+                               (["--api-key-file", os.path.join(directory, "none.txt")], 1, "cannot open file: ")):
+        p = subprocess.run([exe, "serve", model, "--port", "0"] + args, capture_output=True, timeout=60)
+        err = p.stderr.decode("utf-8", "replace")
+        assert p.returncode == code and reason in err, (args, p.returncode, err)
+
+
+def check_json_bodies(model):
+    """Under --no-auth a body must be application/json: text/plain, a form and no Content-Type are refused with 415 before the body is read, the type with a charset is taken, and a request without a body needs none."""
+    srv = Server(model)
+    try:
+        body = json.dumps({"prompt": "a", "max_tokens": 2, "temperature": 0}).encode("utf-8")
+        for content_type in ("text/plain", "application/x-www-form-urlencoded", None):
+            conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=60)
+            conn.putrequest("POST", "/v1/generate")
+            if content_type:
+                conn.putheader("Content-Type", content_type)
+            conn.putheader("Content-Length", str(len(body)))
+            conn.endheaders()
+            conn.send(body)
+            r = conn.getresponse()
+            reply = json.loads(r.read().decode("utf-8"))
+            conn.close()
+            assert r.status == 415 and "application/json" in reply["error"], (content_type, r.status, reply)
+        conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=60)
+        conn.request("POST", "/v1/generate", body=body, headers={"Content-Type": "Application/JSON; charset=utf-8"})
+        r = conn.getresponse()
+        reply = json.loads(r.read().decode("utf-8"))
+        conn.close()
+        assert r.status == 200 and "text" in reply, (r.status, reply)
+        assert srv.get("/v1/live") == {"status": "ok"}
+    finally:
+        srv.close()
+
+
 def check_connection_cap(model):
     """Connections past what the server can serve, its seats and queue places and the reserve for the other routes, are answered 503 at once and closed, and the server serves again once they leave."""
     srv = Server(model, "--max-seqs", "1", "--max-queue", "1")
@@ -2476,7 +2562,7 @@ def check_startup(model, directory):
         os.mkfifo(pipe)
         port = common.free_port()
         log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
-        proc = subprocess.Popen([common.exe_path()] + common.device_args(["serve", pipe], "f32") + ["--host", "127.0.0.1", "--port", str(port)],
+        proc = subprocess.Popen([common.exe_path()] + common.device_args(["serve", pipe, "--no-auth"], "f32") + ["--host", "127.0.0.1", "--port", str(port)],
                                 stdout=log, stderr=subprocess.STDOUT)
         try:
             deadline = time.time() + 60
@@ -2580,7 +2666,7 @@ def check_disk_exit(model):
         srv.close()
         for flags, reason in ((disk_flags(root)[:2] + ("--disk-cache-bytes", str(1 << 62), "--disk-cache-dir", root), "free in"),
                               (("--host-cache-bytes", "0", "--disk-cache-bytes", str(256 << 20), "--disk-cache-dir", root), "host cache holds none")):
-            p = subprocess.run([common.exe_path()] + common.device_args(["serve", model] + list(flags) + ["--port", "0"] + common.pool_args(model), "f32"),
+            p = subprocess.run([common.exe_path()] + common.device_args(["serve", model, "--no-auth"] + list(flags) + ["--port", "0"] + common.pool_args(model), "f32"),
                                capture_output=True, text=True, errors="replace", timeout=120)
             assert p.returncode != 0 and reason in p.stderr, (flags, p.returncode, p.stderr[-400:])
     return True
@@ -2840,6 +2926,10 @@ def run(require=False):
         print("server: synthetic F32 model without the byte token q, a text holding it refused alike by /v1/tokenize, /v1/generate and /v1/chat  [ok]")
         check_connection_cap(model)
         print("server: synthetic F32 model, connections past the seats, the queue and the reserve answered 503 and served again once they left  [ok]")
+        check_auth(model, directory)
+        print("server: synthetic F32 model, a key file's keys admitted, requests without or with a wrong key refused with 401 on the head, /v1/live open, a server without a key flag refused  [ok]")
+        check_json_bodies(model)
+        print("server: synthetic F32 model under --no-auth, a body that is not application/json refused with 415  [ok]")
         check_reasoning(os.path.join(directory, "reasoning.gguf"))
         checked = check_tool_messages(os.path.join(directory, "tools.gguf"))
         print("server: conversations with tool calls as a client sends them, %d renders under the pinned templates, are the reference's as the server hands them on, "

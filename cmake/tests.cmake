@@ -379,6 +379,11 @@ target_include_directories(llmx-server-utf8-test PRIVATE ${CMAKE_CURRENT_SOURCE_
 list(APPEND LLMX_TARGETS llmx-server-utf8-test)
 add_test(NAME server-utf8 COMMAND llmx-server-utf8-test)
 set_tests_properties(server-utf8 PROPERTIES TIMEOUT 30)
+add_executable(llmx-server-auth-test tests/server_auth.cpp)
+target_include_directories(llmx-server-auth-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-server-auth-test)
+add_test(NAME server-auth COMMAND llmx-server-auth-test)
+set_tests_properties(server-auth PROPERTIES TIMEOUT 30)
 
 # The suite compares original CPU F32 activations against independent HF fixtures beside quantized decode.
 add_executable(llmx-cpu-f32-check tools/cpu_f32_check.cpp)

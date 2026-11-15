@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Companion tool navigation and attachment feedback integration (2026-11-15, Ready)
+
+**Goal.** Land the independent static UI follow-ups after the qualified companion batch a05e37f51, keeping its separate features and CI evidence intact.
+
+**Done.** Activity opens the exact message/call result and preserves the focused summary through streamed updates. The composer checks attachment byte limits before admission and shows measured sizes. Rejected batches preserve draft and existing attachments. No API, collector, runtime, payload or persistence changes.
+
+**Checks.** The integrated real-browser regression, JavaScript syntax, docs (0 findings/21 planted) and dead-code (15 expected findings/20 planted) checks pass on the prepared landing tree. Browser coverage includes streaming reasoning, status/result updates, repeated call IDs across messages, keyboard/mobile navigation, exact attachment limits, BOM handling and concurrent reads. Project Markdown references to companion tools, Activity and attachment limits were checked against the source. Prior hosted run 43757369732 remains the evidence for unchanged Python APIs and shared routes. The intervening product delta is browser JavaScript/CSS only, with fixture and documentation updates, so unrelated hosted inference jobs, HF and GPU gates do not apply.
+
+**Left.** Coordinator fast-forward landing and removal of superseded temporary GitHub branches. The previous batch's a05e37f51 remains a qualified intermediate head. This stack can land over it or over its main base 5d2a394ad without a merge commit.
+
 ## Companion tools and reading view integration (2026-11-15, Ready)
 
 **Goal.** Land the independent image-history, wordmark, tool-connection and readability changes together by fast-forward over main 5d2a394ad.
@@ -66,7 +76,6 @@
 
 **Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
 
-## Attachment reads stay with their conversation (2026-11-15, Done)
 ## Navigate from Activity to tool details (2026-11-15, Ready)
 
 **Goal.** Let Activity entries reveal the matching tool arguments and result in the selected conversation, including on narrow screens.
@@ -78,8 +87,19 @@
 **Left.** Coordinator review and fast-forward integration.
 
 **Gotchas.** Keep result rendering in `toolRow()`; navigate only within the currently selected branch. No API, server, inference or execution semantics changes.
+## Chat attachment size feedback (2026-11-15, Ready)
 
-## Attachment reads stay with their conversation (2026-11-15, Ready)
+**Goal.** Match the browser's attachment limits to the companion service and show users the sizes before sending.
+
+**Done.** The browser checks decoded UTF-8 text against 2 MiB, PNG/JPEG bytes against 8 MiB and the combined attachment bytes against 10 MiB. A rejected batch leaves existing attachments and draft text intact. Existing asynchronous ownership checks remain, and concurrent reads recheck the total against the current attachment list at commit. The composer shows each file size and an accessible combined size, with exact byte counts available to assistive technology and tooltips. No payload or persistence fields changed.
+
+**Checks.** Regression commit `17dbc636f` fails on the original client because it accepts a 2 MiB+1 text file. The focused Chrome check passes after the fix (34.184 seconds), covering the 2 MiB text and 8 MiB image boundaries, exact 10 MiB total, BOM-aware UTF-8 byte accounting, early refusal before reading an 8 MiB text file, atomic mixed-batch refusal, two concurrent reads that together exceed the current total, preservation of prior files and draft, ordinary uploads, aggregate refusal and a 390 px mobile layout. `node --check` passes for `app.js` and `browser_check.mjs`. Against the unchanged `../chat-readability-20261115/llmx.exe`, docs reports 0 findings and 21 planted checks; dead-code reports 15 expected findings (1 unused, 14 test-only) and 20 planted checks. No C++ build or inference check applies.
+
+**Left.** Coordinator review and fast-forward integration.
+
+**Gotchas.** Text checks use the encoded bytes of decoded text, matching the JSON value the service receives. The 3-byte raw-file allowance is only for a UTF-8 BOM that `TextDecoder` strips.
+
+## Attachment reads stay with their conversation (2026-11-15, Done)
 
 **Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.
 

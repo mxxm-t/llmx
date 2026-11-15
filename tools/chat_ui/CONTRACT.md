@@ -105,7 +105,7 @@ an invalid returned file leaves the saved project unchanged.
 
 Settings: `{model,system,temperature,top_p,top_k,max_tokens,tools:[]}`. Omitted settings use documented companion defaults. Tools are selected by the exposed tool name. A model name selects only what the configured upstream actually serves.
 
-Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser reads files, the service validates bounds and stores them in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
+Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
 
 Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 

@@ -524,19 +524,45 @@
     await patchChat({active_leaf: leaf}); bottom();
   }
   function renderAttachments() {
-    $('attachments').replaceChildren(); S.attachments.forEach((a, i) => { const pill = node('span', 'attachment-pill', a.name); const remove = button('x', 'remove-attachment', String(i)); remove.setAttribute('aria-label', 'Remove ' + a.name); pill.append(remove); $('attachments').append(pill); });
+    const root = $('attachments'); root.replaceChildren(); let total = 0;
+    S.attachments.forEach((a, i) => {
+      const size = attachmentBytes(a); total += size;
+      const pill = node('span', 'attachment-pill', a.name);
+      const label = node('small', 'attachment-file-size', formatAttachmentSize(size));
+      label.title = size.toLocaleString() + ' bytes'; label.setAttribute('aria-label', a.name + ', ' + size.toLocaleString() + ' bytes'); pill.append(label);
+      const remove = button('x', 'remove-attachment', String(i)); remove.setAttribute('aria-label', 'Remove ' + a.name); pill.append(remove); root.append(pill);
+    });
+    if (S.attachments.length) {
+      const summary = node('span', 'attachment-total', 'Total: ' + S.attachments.length + (S.attachments.length === 1 ? ' file' : ' files') + ' - ' + formatAttachmentSize(total) + ' / 10 MiB');
+      summary.setAttribute('role', 'status'); summary.setAttribute('aria-label', 'Total attachment size: ' + total.toLocaleString() + ' bytes of 10 MiB'); root.append(summary);
+    }
+  }
+  function attachmentBytes(attachment) {
+    if (typeof attachment.text === 'string') return new TextEncoder().encode(attachment.text).byteLength;
+    const encoded = (attachment.data || '').split(',', 2)[1] || '';
+    const compact = encoded.replace(/\s/g, '');
+    return Math.floor(compact.length * 3 / 4) - (compact.endsWith('==') ? 2 : compact.endsWith('=') ? 1 : 0);
+  }
+  function formatAttachmentSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(bytes % 1024 ? 1 : 0) + ' KiB';
+    return (bytes / (1024 * 1024)).toFixed(bytes % (1024 * 1024) ? 1 : 0) + ' MiB';
   }
   async function attach(files) {
     const chatId = S.chat?.id, generation = S.generation, attachments = S.attachments;
     if (attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
     const pending = [];
     for (const file of files) {
-      if (file.size > 8 * 1024 * 1024) throw new Error(file.name + ' is larger than 8 MB.');
       if (['image/png', 'image/jpeg'].includes(file.type)) {
+        if (file.size > 8 * 1024 * 1024) throw new Error(file.name + ' is larger than 8 MiB.');
         const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read ' + file.name)); reader.readAsDataURL(file); }); pending.push({name: file.name, type: file.type, data});
       } else if (file.type.startsWith('text/') || /\.(txt|md|csv|json|py|js|ts|jsx|tsx|cpp|hpp|h|c|rs|go|java|sh|ps1|html|css|xml|log|yaml|yml|toml|ini|sql)$/i.test(file.name)) {
+        if (file.size > 2 * 1024 * 1024 + 3) throw new Error(file.name + ' is larger than 2 MiB.');
         const bytes = await file.arrayBuffer(); let text; try { text = new TextDecoder('utf-8', {fatal: true}).decode(bytes); } catch (_) { throw new Error(file.name + ' must be UTF-8 text.'); }
-        if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.'); pending.push({name: file.name, type: file.type || 'text/plain', text});
+        if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.');
+        const size = new TextEncoder().encode(text).byteLength;
+        if (size > 2 * 1024 * 1024) throw new Error(file.name + ' is larger than 2 MiB.');
+        pending.push({name: file.name, type: file.type || 'text/plain', text});
       } else throw new Error('Unsupported file: ' + file.name + '. Attach UTF-8 text, PNG or JPEG.');
     }
     if (chatId !== S.chat?.id || generation !== S.generation || attachments !== S.attachments)
@@ -544,6 +570,8 @@
         ? 'Attachment read cancelled because the selected conversation changed.'
         : 'The draft changed while the attachment was being read. Attach the file again.');
     if (S.attachments.length + pending.length > 8) throw new Error('Attach up to 8 files per message.');
+    const total = S.attachments.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0) + pending.reduce((sum, attachment) => sum + attachmentBytes(attachment), 0);
+    if (total > 10 * 1024 * 1024) throw new Error('Attachments exceed 10 MiB. Remove a file before adding more.');
     S.attachments.push(...pending); composerRevision++; renderAttachments(); $('draft').focus();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }

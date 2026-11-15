@@ -134,18 +134,27 @@ class BrowserTests(unittest.TestCase):
                     text_max.write_bytes(b"x" * (2 * 1024 * 1024))
                     text_over = Path(temporary) / "text-over.txt"
                     text_over.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+                    text_raw_over = Path(temporary) / "text-raw-over.txt"
+                    text_raw_over.write_bytes(b"x" * (8 * 1024 * 1024))
+                    text_bom_max = Path(temporary) / "text-bom-max.txt"
+                    text_bom_max.write_bytes(b"\xef\xbb\xbf" + b"x" * (2 * 1024 * 1024))
                     image_max = Path(temporary) / "image-max.png"
                     image_max.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * (8 * 1024 * 1024 - 8))
                     image_over = Path(temporary) / "image-over.png"
                     image_over.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * (8 * 1024 * 1024 - 7))
                     text_tiny = Path(temporary) / "tiny.txt"
                     text_tiny.write_bytes(b"x")
+                    text_race_a = Path(temporary) / "race-a.txt"
+                    text_race_a.write_bytes(b"a" * (3 * 1024 * 1024 // 2))
+                    text_race_b = Path(temporary) / "race-b.txt"
+                    text_race_b.write_bytes(b"b" * (3 * 1024 * 1024 // 2))
                     result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
                         "http://127.0.0.1:%d" % server.server_address[1], chrome,
                         str(Path(temporary) / "profile"), str(artifacts), str(fixture), str(image),
                         "http://127.0.0.1:%d" % dashboard.server_address[1],
                         "http://127.0.0.1:%d" % upstream.server_address[1],
-                        str(text_max), str(text_over), str(image_max), str(image_over), str(text_tiny)],
+                        str(text_max), str(text_over), str(image_max), str(image_over), str(text_tiny),
+                        str(text_raw_over), str(text_bom_max), str(text_race_a), str(text_race_b)],
                         capture_output=True, text=True, timeout=100)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertGreaterEqual(len(tools.calls), 1)

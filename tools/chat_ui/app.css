@@ -974,7 +974,21 @@ kbd {
   display:flex;
   gap:8px;
   align-items:center;
-  background:var(--surface)
+  background:var(--surface);
+  max-width:100%;
+  overflow-wrap:anywhere
+}
+.attachment-file-size {
+  color:var(--muted);
+  font-size:9px;
+  white-space:nowrap
+}
+.attachment-total {
+  flex-basis:100%;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.5;
+  overflow-wrap:anywhere
 }
 .attachment-pill button {
   padding:0;

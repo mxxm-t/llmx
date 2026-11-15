@@ -1012,19 +1012,24 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 **Goal.** MiniMax-M3.1-Flash (`minimax-m3`, unsloth UD-Q8_K_XL, NVFP4 experts) runs on the CPU, Vulkan and ROCm, held to HF and at or above the reference's speed on ten MI50s ([MINIMAX](MINIMAX.md)).
 
 **Done.**
-- Design page [MINIMAX](MINIMAX.md): shapes, the forward pass with MiniMax sparse attention on every layer, the file's conventions (the Gemma `1 + w` folded into every norm, checked against the checkpoint), what a layer keeps, the ops planned.
+- Step 1, design page [MINIMAX](MINIMAX.md): shapes, the forward pass with MiniMax sparse attention on every layer, the file's conventions (the Gemma `1 + w` folded into every norm, checked against the checkpoint), what a layer keeps, the ops planned.
 - HF reference environment: Python 3.12.13 in the `python:3.12.13-slim` image, torch 2.11.0+cpu and transformers 5.23.0 (`modeling_minimax_m3_vl.py` SHA-256 52b4860c...), offline from kept wheels; a tiny random model's full and token-by-token cached logits differ by 5.3e-6.
 - Reference: the mx fork (b11757-cdc81dae4) refuses the file (`wrong number of tensors; expected 1359, got 1347`, the index tensors of the dense layers), and llama.cpp master at e574a17b0 has the same loader.
   The reference is llama.cpp pull request 31192 at 6b95a9908, the converter that wrote the file, built for HIP gfx906 and Vulkan.
+- Step 3: `src/model/arch/minimax_m3.hpp` reads the configuration with its refusals and builds the plan of the file's tensors (every layer's index projections and its index key kept a position, the dense lead, the routed layers with the router bias and one shared expert); the registry names `minimax-m3`, whose plan is refused by name until step 5.
+  `arch-minimax-m3` holds every key and refusal by its text and the plan against a tiny file built in memory.
 
-**Left** (each step reviewed before the next):
-1. Text: pretokenizer `minimax-m2` and NFC (after VLLM1's fix/tokenizer-nfc), ids against HF; chat render with tool calls against transformers.
-2. Configuration, plan and refusals with `tests/arch_minimax_m3.cpp`; the plan refuses the architecture by name until the math runs.
-3. Ops on the CPU with unit tests from the math: sigmoid routing, the GLU form, the raw per-head index scores as block maxima, block-granular per-group `sparse_attention`.
-4. CPU math against the tiny fixture (block 4, top 3, F2DEV's conditions (a) to (d)).
-5. Real file against a file-exact layered HF reference: 512-token windows, the raw and chat 16k sequences and decode after them, block-pick agreement per layer.
-6. Vulkan, then ROCm with NVFP4 as its own step; identity, 16k and speed on ten MI50s.
-7. CUDA after the CUDA stream's MoE and BF16, on a rented card through COORD; DSpark, serving, tensor groups and vision later.
+**Left** (one numbering for this block, the proposal of 02:36 and [MINIMAX](MINIMAX.md); each step reviewed before the next):
+2. Text: pretokenizer `minimax-m2` and NFC, ids against HF; chat render with tool calls against transformers.
+   Waits for fix/tokenizer-nfc to land on main and slides after steps 3 to 5, which need no ids.
+4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: sigmoid routing; the GLU form as a field beside the clamp limit; the raw per-head index scores over the `kv_aux` rows `kv_write` stores, written as block maxima, a loop body of its own beside deepseek41's; `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
+   An op landing before its caller takes a `known_findings` line naming this step.
+5. CPU math against tiny fixtures (block 4, top 3, F2DEV's conditions (a) to (d)), one of them at the real head widths (D 128, Di 128) so the device sparse builds get an HF-held check.
+6. Real file against a file-exact layered HF reference: the CPU covers the 512-token windows and one prompt past 2048 for device identity; the raw and chat 16k sequences and decode after them run on the devices, with block-pick agreement per layer.
+7. Vulkan: the step 4 ops, identity against the CPU, the 16k pair, speed cells against the reference's Vulkan and HIP columns.
+   The first landing follows this step, with the ROCm NVFP4 deficit recorded.
+8. ROCm: NVFP4 as its own step under the ROCm backend owner, then the step 4 ops; the int8 arm matched to the reference's 8-bit activations, auto beside it.
+9. CUDA after the CUDA stream's MoE and BF16, on a rented card through COORD; DSpark, serving, tensor groups and vision later.
 
 **Gotchas.**
 - Top-k counts the pinned block, so selection drops a block first at position 2048; every check shorter than that runs dense attention.

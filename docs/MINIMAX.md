@@ -82,14 +82,14 @@ At f16 K and V that is 2 KiB plus 0.5 KiB a position a layer, 150 KiB a position
 
 ## The ops (planned)
 
-The module is `src/model/arch/minimax_m3.hpp`, reached through the registry name `minimax-m3`.
-Each op change goes under its existing owner (F2DEV's review of 2026-11-14 22:45):
+The module is `src/model/arch/minimax_m3.hpp`, reached through the registry name `minimax-m3`; it reads the configuration and plans the file's tensors, and refuses its plan by name until the ops below run.
+Each op change goes under its existing owner (F2DEV's reviews of 2026-11-14 22:45 and 2026-11-15 02:46), and each new form is an `Op` mode entry the plan names, so a backend lacking it refuses the model at load:
 
 - `RouteRule::Score::sigmoid` beside softmax and sqrt_softplus.
-- The GLU form with alpha and the +1 on the up half, as its own form so existing clamped-GLU callers keep their code path.
-- `indexer_scores` gains a raw per-head form over per-position auxiliary keys, writing block maxima, rows x heads x blocks, so no rows x positions score matrix is stored.
+- The GLU form with alpha and the +1 on the up half, a form field beside the clamp limit, so existing clamped-GLU callers keep their code path.
+- `indexer_scores` gains a raw per-head form over the per-position index keys `kv_write` stores, a loop body of its own beside deepseek41's, writing block maxima, rows x heads x blocks, so no rows x positions score matrix is stored; blocks past a row's length score -inf.
 - `candidate_blocks` runs over those maxima unchanged, block size 1, lengths in blocks.
-- `sparse_attention` gains a group stride, so each KV head reads its own ids, and a block granularity, so an id names B positions.
+- `sparse_attention` is extended in place with a group stride, so each KV head reads its own ids, and a block size, so an id names B positions; groups 1 and block 1 are today's chain, held by qwen4exp's byte identity.
 
 ## Classes and checks
 

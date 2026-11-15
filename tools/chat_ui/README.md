@@ -248,8 +248,7 @@ The optional workspace tools use the existing model/tool loop and approval UI.
 Enable `workspace_list`, `workspace_read`, `workspace_write` and, when configured,
 `workspace_run` in conversation settings. Agent writes and commands require
 approval and create checkpoints. Reading returns bounded lines rather than
-silently inserting the whole project into the prompt. This is not a Pi/OpenCode
-adapter or a general IDE, and does not claim their complete feature set.
+silently inserting the whole project into the prompt.
 
 ## Ownership and checks
 
@@ -286,42 +285,3 @@ restore, cancellation and symlink rejection:
 ```text
 python tools/chat_ui/check_sandbox.py --image python:3-slim --docker-host ssh://user@host --output sandbox-result.json
 ```
-
-## Qualification
-
-The 2026-11-15 feature lands by fast-forward as one commit from main 929f042c6.
-The exact source, tests and workflow at 53f83204a pass the dedicated
-[Windows/Linux run](https://github.com/mxxm-t/llmx/actions/runs/43658421323).
-The landing rebase adds main's unrelated ROCm change 929f042c6 and preserves
-both STATUS blocks. Companion, dashboard and workflow inputs are identical
-to that tested tree. Final docs checks cover the combined landing tree.
-
-| Check | Result |
-|---|---|
-| Companion protocol, storage, workspace and browser checks | Passed on Windows and Linux |
-| Existing dashboard tests | 20 passed on each hosted platform |
-| Real Docker isolation, file round-trip and cancellation | Passed on the rig, no GPUs |
-| Actual llmx synthetic-F32 chat protocol | Two turns completed, input/output usage 23/8 and 77/8 |
-| Responsive navigation | Actual coordinate clicks at seven sizes, landscape and 200 percent CSS zoom |
-| Docs and dead-code | Passed, with existing findings retained |
-
-Original failures remain available: [run 43656889014](https://github.com/mxxm-t/llmx/actions/runs/43656889014)
-exposed browser startup and document-navigation synchronization in the test;
-[run 43657441535](https://github.com/mxxm-t/llmx/actions/runs/43657441535)
-passed Windows and exposed a Linux-timed product race where an already-failed
-snapshot omitted the error banner. A locally failing check reproduced it.
-Snapshot hydration now restores the selected branch's failure reason, including
-on reload without another run stream. The final hosted run proves the correction.
-
-Local checks also caught and fixed repeated New conversation creation, a closed
-mobile drawer intercepting clicks, a database filename shadowing the history
-method, and restore's former small JSON-upload limit. A valid SQLite backup over
-12 MiB is now restored through the streamed binary route. Original failures and
-screenshots remain in the local receipts rather than being treated as passes.
-
-The Docker image was `python:3-slim`, Linux amd64, image ID
-`sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928`.
-The check verified uid 65534, read-only root, blocked network, absent Docker
-socket, nested-file updates, checkpoint restore, cancellation and link refusal.
-All containers created by that check were removed. These are application and
-isolation results, not model accuracy, throughput or absolute security claims.

@@ -6,7 +6,7 @@
 
 **Done.** The shell and login use llmx, the conversation list is History, and Workspace names project files and commands. Accessible navigation/settings labels match the interface. Unused secondary-brand styles were removed; internal view identifiers and stored preferences remain compatible.
 
-**Checks.** The existing Chrome flow passes in 25.476 seconds, including seven responsive sizes and 200 percent zoom; JavaScript syntax passes. Desktop and mobile screenshots were reviewed. The Markdown inventory was checked for affected naming claims and the README/roadmap were updated. Final docs and dead-code checks run on the combined naming and deployment-documentation tree before fast-forward landing from main 98869de0d. No inference or hosted runtime checks apply.
+**Checks.** The Chrome flow passed at naming head `a620a022f` in 25.476 seconds, including seven responsive sizes and 200 percent zoom; JavaScript syntax passed. Desktop and mobile screenshots were reviewed. Docs and dead-code passed on the combined naming and deployment-documentation tree at `2f1b94557` with 0 findings and 21 planted checks in 24.6 seconds, and 15 expected findings and 20 planted checks in 29.4 seconds. No inference or hosted runtime checks apply.
 
 **Left.** None for this change.
 
@@ -23,13 +23,14 @@ official Docker documentation. The README separates command-container
 controls from daemon authority if the companion process is compromised. It
 clarifies that this is not a demonstrated owner-cookie-to-host path and
 recommends a dedicated host or rootless daemon without claiming this exact
-setup has been qualified. Updated the Docker guidance item in ROADMAP. Only
-`tools/chat_ui/README.md`, this record and `docs/ROADMAP.md` changed.
+setup has been qualified. Updated the Docker guidance item in ROADMAP.
 
 **Qualification.** Root checked the documentation against the current runner and
-Docker's official daemon-access, SSH and rootless pages. Final docs and dead-code
-checks cover the combined naming and deployment-documentation tree before
-fast-forward landing from main 98869de0d. No inference or deployment checks apply.
+Docker's official daemon-access, SSH and rootless pages. The combined naming and
+deployment-documentation tree at `2f1b94557` passed docs with 0 findings and 21
+planted checks in 24.6 seconds, and dead-code with 15 expected findings and 20
+planted checks in 29.4 seconds. The naming browser check passed at `a620a022f`
+in 25.476 seconds. No inference or deployment checks apply.
 
 **Left.** None for this documentation change. Rootless deployment itself remains
 unqualified, as the usage page states.
@@ -37,7 +38,28 @@ unqualified, as the usage page states.
 **Gotchas.** Keep command-container controls distinct from companion-process
 compromise and daemon credentials. Do not claim a direct owner-cookie-to-host
 execution path or that this exact deployment has been tested with rootless
-Docker. No code, deployment, push or merge is in scope.
+Docker.
+
+## Companion user-facing documentation follow-up (2026-11-15, Done)
+
+**Goal.** Keep the companion usage page focused on current setup and behavior.
+
+**Done.** Removed old qualification receipts and Pi/OpenCode comparison language
+from the user-facing README. Historical test evidence remains in this status
+record. The usage/checks link now points to the live section.
+
+**Checks.** The final docs check reports 0 findings and 21 planted checks in
+19.9 seconds. Dead-code reports 15 expected findings and 20 planted checks in
+24.9 seconds. At the 2026-11-15 landing, static assets were verified against
+companion PID 84144; Python HTTP admission changes are not active until that
+process restarts.
+
+**Left.** None.
+
+**Landing.** Lands by fast-forward from main `2f1b94557`.
+
+**Gotchas.** Documentation only; Docker deployment guidance remains in the usage
+page and its exact rootless configuration is not qualified.
 
 ## Nested Python tool analysis (2026-11-15, Done)
 
@@ -139,14 +161,14 @@ The browser regression first failed on the original dark card gradient under lig
 
 | Feature | State | Evidence |
 |---|---|---|
-| Unified Chat, Monitor, Workspace and Settings | Done | [Usage and qualification](../tools/chat_ui/README.md#qualification) |
+| Unified Chat, Monitor, Workspace and Settings | Done | [Usage and checks](../tools/chat_ui/README.md#ownership-and-checks) |
 | Shared dashboard design and responsive navigation | Done | Actual pointer checks at seven viewport sizes and 200 percent CSS zoom |
 | Durable conversations, MCP approvals, backup and restore | Done | Hosted Windows/Linux protocol, persistence and browser checks |
 | Code previews and isolated workspace commands | Done | Browser isolation checks and a real bounded Docker check on the rig |
 
-Lands by fast-forward as one feature commit on main 929f042c6. [Hosted run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passes both Windows and Linux on source/test/workflow tree 53f83204a. The landing rebase preserves main's ROCm change 929f042c6 and both STATUS blocks. That runtime change and the final qualification documentation do not change the tested companion, dashboard or workflow inputs. The final Markdown and dead-code checks cover the tree that lands. No inference code changes, model gates or production deployment are part of this feature.
+Landed by fast-forward as one feature commit on main 929f042c6. [Hosted run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passed both Windows and Linux on source/test/workflow tree 53f83204a. The landing rebase preserves main's ROCm change 929f042c6 and both STATUS blocks. That runtime change and the final qualification documentation do not change the tested companion, dashboard or workflow inputs. The final Markdown and dead-code checks cover the tree that landed. No inference code changes, model gates or production deployment were part of this feature.
 
-The local application is at `http://127.0.0.1:8183`. Its configured upstream at rig port 8090 is unavailable, which the UI reports. It has optional bounded container execution on the rig, with no GPUs or production containers involved. This is one owner workspace with managed text files; binary artifact persistence and complete Pi/OpenCode integration are not claimed. Current process and local test receipts remain under ignored `scratch/chat-ui-browser`.
+Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, which was unavailable. That snapshot was superseded by a local Qwen3-0.6B Q8 server on port 8091; its real tool test completed one `workspace_list` call and a final answer. The original hosted failures remain recorded in [run 43656889014](https://github.com/mxxm-t/llmx/actions/runs/43656889014) and [run 43657441535](https://github.com/mxxm-t/llmx/actions/runs/43657441535); the final [run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passed both platforms after a test synchronization fix and an error-banner hydration fix. The historical Docker check used `python:3-slim` Linux amd64 image `sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928` and verified non-root execution, read-only root, blocked network, absent Docker socket, file round-trip, checkpoint restore, cancellation and link refusal. The actual llmx synthetic-F32 chat protocol completed two turns with input/output usage 23/8 and 77/8. These are companion and isolation checks, not model accuracy, throughput or absolute security claims. Process and local test receipts remain under ignored `scratch/chat-ui-browser`.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

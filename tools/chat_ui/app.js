@@ -164,6 +164,35 @@
     return selected;
   }
   function button(text, action, id, cls = 'text-button') { const el = node('button', cls, text); el.type = 'button'; el.dataset.action = action; if (id) el.dataset.id = id; return el; }
+  let actionTooltip = null, tooltipTarget = null, tooltipSequence = 0;
+  function hideActionTooltip(target, force = false) {
+    if (!actionTooltip || target && tooltipTarget !== target) return;
+    if (!force && target && (target.matches(':hover') || target === document.activeElement)) return;
+    tooltipTarget?.removeAttribute('aria-describedby'); actionTooltip.remove(); actionTooltip = null; tooltipTarget = null;
+  }
+  function showActionTooltip(target) {
+    hideActionTooltip();
+    const tip = node('div', 'message-action-tooltip', target.getAttribute('aria-label'));
+    tip.id = 'message-action-tooltip-' + (++tooltipSequence); tip.setAttribute('role', 'tooltip'); document.body.append(tip);
+    target.setAttribute('aria-describedby', tip.id); tooltipTarget = target; actionTooltip = tip;
+    const box = target.getBoundingClientRect(), size = tip.getBoundingClientRect(), pad = 8;
+    const left = Math.max(pad, Math.min(box.left + (box.width - size.width) / 2, innerWidth - size.width - pad));
+    const below = box.bottom + size.height + pad <= innerHeight;
+    const top = below ? box.bottom + pad : Math.max(pad, box.top - size.height - pad);
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  function actionIcon(label, action, id, path, cls = 'message-icon-action') {
+    const el = button('', action, id, cls); el.setAttribute('aria-label', label);
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.8'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'path'); shape.setAttribute('d', path); icon.append(shape); el.append(icon);
+    el.addEventListener('pointerenter', () => showActionTooltip(el)); el.addEventListener('pointerleave', () => hideActionTooltip(el));
+    el.addEventListener('blur', () => hideActionTooltip(el)); el.addEventListener('click', () => hideActionTooltip(el, true));
+    return el;
+  }
+  document.addEventListener('focusin', event => { if (event.target.matches('.message-icon-action,.branch-action')) showActionTooltip(event.target); }, true);
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') hideActionTooltip(); }, true);
+  document.addEventListener('scroll', () => { if (tooltipTarget && tooltipTarget === document.activeElement) showActionTooltip(tooltipTarget); else hideActionTooltip(); }, true);
+  window.addEventListener('resize', () => hideActionTooltip());
   function renderAttachment(attachment) {
     if (/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=\r\n]+$/.test(attachment.data || '')) {
       const img = node('img', 'attachment-image'); img.src = attachment.data; img.alt = attachment.name || 'Attached image'; img.loading = 'lazy'; return img;
@@ -212,14 +241,14 @@
     });
     if (!message.content && !message.reasoning && !message.tool_calls?.length && message.role === 'assistant' && !terminal(message.status)) el.append(node('span', 'muted fine-print', 'Preparing a response...'));
     const actions = node('div', 'message-actions');
-    if (message.content) actions.append(button('Copy', 'copy', message.id));
-    if (message.role === 'user') actions.append(button('Edit', 'edit', message.id));
-    if (message.role === 'assistant') actions.append(button('Retry', 'retry', message.id));
+    if (message.content) actions.append(actionIcon('Copy message', 'copy', message.id, 'M8 5H5v16h12v-3 M9 3h11v14H9z'));
+    if (message.role === 'user') actions.append(actionIcon('Edit message', 'edit', message.id, 'M4 16.5V20h3.5L19 8.5 15.5 5 4 16.5z M13.8 6.7l3.5 3.5'));
+    if (message.role === 'assistant') actions.append(actionIcon('Retry response', 'retry', message.id, 'M20 7v5h-5 M19 12a7 7 0 1 1-2-5'));
     const siblings = S.messages.filter(m => m.role === message.role && m.parent_id === message.parent_id);
     if (siblings.length > 1) {
       const index = siblings.findIndex(m => m.id === message.id); const branch = node('span', 'branch-switch');
-      const prev = button('<', 'branch', siblings[(index + siblings.length - 1) % siblings.length].id); prev.setAttribute('aria-label', 'Previous branch');
-      const next = button('>', 'branch', siblings[(index + 1) % siblings.length].id); next.setAttribute('aria-label', 'Next branch');
+      const prev = actionIcon('Previous branch', 'branch', siblings[(index + siblings.length - 1) % siblings.length].id, 'M15 18l-6-6 6-6', 'branch-action');
+      const next = actionIcon('Next branch', 'branch', siblings[(index + 1) % siblings.length].id, 'M9 18l6-6-6-6', 'branch-action');
       branch.append(prev, node('span', '', (index + 1) + ' / ' + siblings.length), next); actions.append(branch);
     }
     if (message.status && ['failed', 'cancelled', 'interrupted'].includes(message.status)) actions.append(node('span', 'error-text', message.status));
@@ -263,6 +292,7 @@
       }
       if (container.children[index] !== old) container.insertBefore(old, container.children[index] || null);
     });
+    if (tooltipTarget && !tooltipTarget.isConnected) hideActionTooltip();
     container.querySelector('.live-state')?.remove();
     const run = currentRun();
     if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', '', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'run-elapsed')); container.append(live); }

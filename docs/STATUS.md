@@ -27,10 +27,25 @@
 
 **Checks.** The first delayed-refresh fix passed in 25.980 seconds. Review then identified a failed older read cancelling the save's queued refresh; the added failed-read case reproduced that in 27.528 seconds. The final full browser check passes both cases in 23.937 seconds, including a clean error state after recovery. JavaScript syntax passes. Earlier request failures remain reported by their own caller, while queued callers still fetch current state.
 
-**Left.** Final source review, documentation checks and stacked hosted qualification with the backup fix before READY to the coordinator.
+**Left.** Stacked hosted qualification with the backup fix, then READY to the coordinator.
 
 **Gotchas.** No inference changes. Keep this independent of backup validation and message-action styling.
 
+## Chat message action buttons (2026-11-15, In progress)
+
+**Goal.** Make message controls easy to recognize without persistent labels, while keeping the toolbar accessible and compact across themes and screen sizes.
+
+**Done.** Copy, Edit, Retry and branch navigation use familiar inline SVG icons in compact outlined controls. Each control has an accessible label and a viewport-positioned tooltip on hover and keyboard focus. Copy retains its visible live-region confirmation. Desktop targets remain 32px; narrow layouts and coarse pointers use 40px targets. Existing toolbar wrapping lets mobile usage metrics sit below the buttons.
+
+**Checks.** The final combined Chrome integration passes in 28.190 seconds, including inline SVG and accessible names, focus and hover tooltips, tooltip viewport bounds on both message alignments, Escape/scroll dismissal, copy confirmation, 40px mobile targets, usage-metric wrapping, seven responsive sizes, workspace refresh ordering and backup restore. Desktop dark and mobile light screenshots are in `scratch/chat-ui-browser/`. `node --check` passes for both edited JavaScript files and `git diff --check` is clean. Final docs reports 0 findings and 21 planted faults (33.3 seconds); dead-code reports 15 expected findings and 20 planted faults (39.0 seconds). Full logs are in `scratch/integration/`.
+
+**Prior CSS-only qualification.** The preceding CSS/browser-only revision passed a focused browser check in 25.99 seconds and dead-code (15 expected findings and 20 planted checks, 31.7 seconds) and docs (no findings and 21 planted checks, 23.3 seconds); root reviewed the desktop dark and mobile light screenshots. This evidence does not qualify the icon/tooltip follow-up. Relevant Markdown claims carry forward the preceding main review. The initial docs invocation against the stale root binary reported 48 CLI mismatches; the current documentation binary passed. No inference gates apply.
+
+**Checks.** Hosted run 43731177435 passes Windows but fails the Linux hover-tooltip assertion. The workspace refresh regression passes. A focused Windows reproduction passes in 26.976 seconds. Hosted run 43732095834 diagnostics show the hover test aimed at y=101.09375 after the button had moved to y=-9.90625..22.09375. Hit-testing found a different article and no pointer events reached the button. The test now waits for send completion and queued layout frames, scrolls the target into view, and verifies its current hit target before moving the pointer. No tooltip product change or timeout increase was needed. The corrected pointer check passes locally in 26.516 seconds.
+
+**Left.** Resolve the Linux tooltip finding, finish stacked hosted qualification and hand the head to the coordinator. The owner permits local static previews while checks run.
+
+**Gotchas.** Presentation only. Preserve existing actions and message behavior; check the late `.message-actions` cascade in `app.css`.
 
 ## Standalone dashboard upstream key file (2026-11-15, Done)
 

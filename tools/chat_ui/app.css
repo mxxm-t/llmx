@@ -847,27 +847,61 @@ kbd {
 .message-actions {
   display:flex;
   align-items:center;
-  gap:15px;
+  gap:7px;
   margin-top:11px;
-  color:var(--faint);
-  font-size:10px
+  color:var(--muted);
+  font-size:12px
 }
 .message-actions button {
-  padding:2px 0;
-  color:var(--faint);
-  font-size:10px
+  display:inline-grid;
+  place-items:center;
+  width:32px;
+  min-width:32px;
+  min-height:32px;
+  padding:0;
+  border:1px solid var(--border);
+  border-radius:7px;
+  background:var(--surface);
+  color:var(--muted);
+  font-size:12px;
+  line-height:18px;
+  transition:background-color .14s ease,border-color .14s ease,color .14s ease
+}
+.message-actions button svg {
+  display:block;
+  width:16px;
+  height:16px
 }
 .message-actions button:hover {
+  border-color:var(--muted);
+  background:var(--bg);
   color:var(--text)
 }
 .branch-switch {
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:5px;
   font-variant-numeric:tabular-nums
 }
 .branch-switch button {
-  padding:2px 4px
+  width:32px;
+  min-width:32px;
+  min-height:32px
+}
+.message-action-tooltip {
+  position:fixed;
+  z-index:1000;
+  max-width:calc(100vw - 16px);
+  padding:5px 8px;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:var(--surface);
+  box-shadow:var(--shadow);
+  color:var(--text);
+  font-size:11px;
+  line-height:16px;
+  white-space:nowrap;
+  pointer-events:none
 }
 .reasoning {
   border:1px solid var(--border);
@@ -1274,7 +1308,7 @@ dialog::backdrop {
     font-size:13px
   }
   .message-actions {
-    gap:13px
+    gap:7px
   }
   .composer-caption>span:last-child {
     white-space:nowrap
@@ -1310,6 +1344,18 @@ body {
 .message-actions {
   flex-wrap:wrap;
   row-gap:7px
+}
+@media(max-width:720px),(pointer:coarse) {
+  .message-actions button {
+    width:40px;
+    min-width:40px;
+    min-height:40px;
+    padding:0
+  }
+  .branch-switch button {
+    min-width:40px;
+    min-height:40px
+  }
 }
 .message-metrics {
   margin-left:auto;

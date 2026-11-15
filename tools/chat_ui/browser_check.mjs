@@ -75,6 +75,18 @@ async function pointerClick(selector) {
   await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1});
   await cdp('Input.dispatchMouseEvent', {type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1});
 }
+async function actionHoverPoint(selector) {
+  await wait("!document.querySelector('#send').disabled", 'completed send before pointer checks');
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 10, y: 90});
+  return evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const button = document.querySelector(${JSON.stringify(selector)});
+    button.scrollIntoView({block: 'center', behavior: 'instant'});
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const r = button.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      resolve({x, y, hit: button.contains(document.elementFromPoint(x, y)), rect: r.toJSON()});
+    }));
+  })))`);
+}
 async function reasoningClickDuringDelta(text, expectedOpen) {
   const point = await evaluate(`{const summary=document.querySelector('.reasoning > summary');summary.scrollIntoView({block:'nearest'});window.reasoningSummary=summary;window.reasoningDetached=false;window.reasoningObserver=new MutationObserver(records=>{if(records.some(r=>Array.from(r.removedNodes).some(n=>n===summary||n.contains?.(summary))))window.reasoningDetached=true;});reasoningObserver.observe(document.querySelector('#messages'),{childList:true,subtree:true});const r=summary.getBoundingClientRect();({x:r.x+r.width/2,y:r.y+r.height/2})}`);
   await cdp('Input.dispatchMouseEvent', {type: 'mousePressed', ...point, button: 'left', clickCount: 1});
@@ -251,6 +263,32 @@ try {
   await click('[data-tab="stats"]');
   assert((await evaluate("document.querySelector('#panel-stats').innerText")).includes('960'), 'all-branch totals omitted retries');
   assert.equal(await evaluate("document.querySelectorAll('.attachment-image').length"), 1, 'image attachment missing');
+  assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),s=getComputedStyle(b),r=b.getBoundingClientRect(); b.getAttribute('aria-label')==='Retry response' && b.querySelector('svg[aria-hidden=true]') && !b.textContent.trim() && s.backgroundColor!=='rgba(0, 0, 0, 0)' && s.borderTopWidth==='1px' && r.width>=32 && r.height>=30}"), true, 'message actions lack an accessible icon, visible surface or minimum target size');
+  await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]');b.blur();b.focus({preventScroll:true})}");
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9});
+  await wait("document.activeElement?.getAttribute('aria-describedby')?.startsWith('message-action-tooltip-')", 'keyboard focus tooltip');
+  assert.equal(await evaluate("{const b=document.activeElement,t=document.getElementById(b.getAttribute('aria-describedby'));b.closest('.message-actions')!==null && getComputedStyle(b).outlineStyle==='solid' && getComputedStyle(b).outlineWidth==='2px' && t?.getAttribute('role')==='tooltip'}"), true, 'message action keyboard focus or tooltip is not visible');
+  await evaluate("document.activeElement.blur()");
+  const retryPoint = await actionHoverPoint('.message.assistant [data-action=retry]');
+  assert(retryPoint.hit, 'Retry hover target is obscured: ' + JSON.stringify(retryPoint));
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: retryPoint.x, y: retryPoint.y});
+  const retryHover = await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),t=document.getElementById(b.getAttribute('aria-describedby')),r=b.getBoundingClientRect(),tr=t?.getBoundingClientRect(),hit=document.elementFromPoint("+retryPoint.x+","+retryPoint.y+"),style=getComputedStyle(b);({hover:b.matches(':hover'),aria:b.getAttribute('aria-describedby'),tip:t?.textContent||null,tipRect:tr?{left:tr.left,right:tr.right,top:tr.top,bottom:tr.bottom}:null,buttonRect:{left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height},point:"+JSON.stringify(retryPoint)+",hit:hit?{tag:hit.tagName,className:String(hit.className),inside:b.contains(hit)}:null,active:document.activeElement?.outerHTML?.slice(0,180),display:style.display,visibility:style.visibility,pointerEvents:style.pointerEvents,viewport:{width:innerWidth,height:innerHeight,scale:visualViewport.scale,offsetLeft:visualViewport.offsetLeft,offsetTop:visualViewport.offsetTop}})}");
+  assert(retryHover.hover && retryHover.tip==='Retry response' && retryHover.tipRect.left>=0 && retryHover.tipRect.right<=retryHover.viewport.width,
+    'message action hover tooltip is missing or clipped: '+JSON.stringify(retryHover));
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  assert.equal(await evaluate("!document.querySelector('.message-action-tooltip') && !document.querySelector('.message.assistant [data-action=retry]').hasAttribute('aria-describedby')"), true, 'Escape did not dismiss the action tooltip');
+  const userEditPoint = await actionHoverPoint('.message.user [data-action=edit]');
+  assert(userEditPoint.hit, 'Edit hover target is obscured: ' + JSON.stringify(userEditPoint));
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: userEditPoint.x, y: userEditPoint.y});
+  assert.equal(await evaluate("{const b=document.querySelector('.message.user [data-action=edit]'),t=document.getElementById(b.getAttribute('aria-describedby')),r=t?.getBoundingClientRect(); b.matches(':hover') && t?.textContent==='Edit message' && r.left>=0 && r.right<=innerWidth}"), true, 'edge message tooltip is clipped');
+  await evaluate("{const s=document.querySelector('#scroll-region');s.scrollTop=s.scrollTop>0?s.scrollTop-1:1}");
+  await wait("!document.querySelector('.message-action-tooltip')", 'tooltip dismissal while scrolling');
+  await cdp('Input.dispatchMouseEvent', {type: 'mouseMoved', x: 10, y: 90});
+  await click('.message.assistant [data-action=copy]');
+  await wait("!document.querySelector('#toast').hidden && document.querySelector('#toast').textContent==='Message copied.'", 'accessible message copy confirmation');
+  await evaluate("document.querySelector('#toast').hidden=true");
   await screenshot('desktop-conversation.png');
   const exported = await evaluate("fetch('/api/chats/'+localStorage.getItem('llmx-chat')+'/export').then(r=>r.json())");
   const importFile = path.join(profile, 'import.json'); await writeFile(importFile, JSON.stringify(exported));
@@ -287,6 +325,8 @@ try {
   await click('[data-action="close-drawers"]');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light');
   await screenshot('mobile-light.png');
+  assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),r=b?.getBoundingClientRect(),m=document.querySelector('.message.assistant .message-metrics')?.getBoundingClientRect(),a=document.querySelector('.message.assistant .message-actions')?.getBoundingClientRect();Boolean(b?.querySelector('svg[aria-hidden=true]') && b.getAttribute('aria-label')==='Retry response' && r && r.width>=40 && r.height>=40 && r.right<=innerWidth && m && a && m.top>=r.bottom && m.right<=a.right+1)}"), true, 'mobile message action sizing or metric wrapping is wrong');
+  await screenshot('mobile-actions-light.png');
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="archive"]');
   await wait("!document.querySelector('.chat-item.active')", 'archived conversation leaves active library');
   await click('[data-action="archive-view"]');

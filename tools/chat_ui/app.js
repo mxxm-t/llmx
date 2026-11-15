@@ -123,7 +123,9 @@
     chatCreating(true);
     try {
       if (S.chat?.temporary && !await leaveTemporary()) return;
-      const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats(); await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
+      const generation = S.generation, selectedChat = S.chat?.id;
+      const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats();
+      if (generation === S.generation && selectedChat === S.chat?.id) { await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus(); }
     } finally { chatCreating(false); }
   }
   function clearChat() {

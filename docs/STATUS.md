@@ -136,7 +136,9 @@
 
 **Checks.** The Chrome flow passed at naming head `a620a022f` in 25.476 seconds, including seven responsive sizes and 200 percent zoom; JavaScript syntax passed. Desktop and mobile screenshots were reviewed. Docs and dead-code passed on the combined naming and deployment-documentation tree at `2f1b94557` with 0 findings and 21 planted checks in 24.6 seconds, and 15 expected findings and 20 planted checks in 29.4 seconds. No inference or hosted runtime checks apply.
 
-**Left.** None for this change.
+**Checks.** The integrated Chrome fixture passes in 29.036 seconds, including the earlier delayed Send and attachment-read regressions. Dead-code passes with the expected 15 findings and 20 planted faults. Syntax and diff checks pass. Final docs validation is recorded in scratch/create-navigation-qualification/docs-final.log. The companion README and affected Markdown references were reviewed against this change. Unchanged documentation carries forward the prior main-base review. Static browser-only scope does not require additional runtime, HF, GPU or hosted inference checks.
+
+**Left.** Coordinator fast-forward landing. The preceding six fixes remain independently qualified at 346e6ec5a.
 
 **Gotchas.** Presentation only. Internal view identifiers, routes, preferences and stored conversation data stay compatible.
 ## Chat deployment Docker trust boundary (2026-11-15, Done)
@@ -203,15 +205,17 @@ page and its exact rootless configuration is not qualified.
 
 **Gotchas.** Static analysis is conservative around instance attributes and dynamic imports. This change must not claim complete runtime reachability or execute the scanned code. No UI, inference or production change.
 
-## Chat creation navigation race (2026-11-15, In progress)
+## Chat creation navigation race (2026-11-15, Ready)
 
 **Goal.** A late New conversation response must preserve the selected conversation and its newer draft while keeping the created chat in the sidebar.
 
-**Done.** The browser regression pauses the successful chat-create response after the server has persisted it, switches to another existing conversation, and types a newer draft. It fails on this revision because the late response selects the newly created chat.
+**Done.** The browser regression first failed on the unfixed code: after the successful chat-create response resumed, `newChat()` selected the created chat instead of the other existing conversation. `newChat()` now captures the selected chat and generation before the POST; it opens the created chat only if navigation has not changed. `refreshChats()` still makes the created conversation discoverable. The README records the behavior.
 
-**Left.** Fix `newChat()` so only an unchanged selection receives the new-chat navigation, preserve the newer draft, keep the created row discoverable, and rerun the focused browser check.
+**Checks.** The focused Chrome check pauses the actual successful POST response, switches to another existing conversation, types a newer draft, then resumes the response. On the fix it confirms the selection and draft remain and the created chat appears in the sidebar. `python tools/chat_ui/test_ui.py -v` passes in 26.979 seconds; `node --check` passes for `app.js` and `browser_check.mjs`; `git diff --check` passes.
 
-**Gotchas.** The persisted conversation remains discoverable even when it does not become the selected conversation.
+**Left.** None for this change.
+
+**Gotchas.** This protects a changed selection during creation; it does not test draft typing in the same conversation from which New was invoked.
 
 ## Chat system theme (2026-11-15, Done)
 

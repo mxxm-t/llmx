@@ -64,6 +64,8 @@ conversations and tools. There is no multi-user account or role system.
 
 - New conversation reuses the current empty conversation and keeps its unsent
   text and attachments. Repeated clicks create at most one new conversation.
+  If a conversation is created after you have selected another chat, it stays
+  in the sidebar without replacing that selection or clearing its newer draft.
 - Replies stream while the companion records them. Refreshing or switching
   conversations does not cancel generation. Reopening the chat replays missed
   events from the saved cursor without resubmitting the prompt.

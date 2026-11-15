@@ -1,10 +1,11 @@
 """File-exact MiniMax-M3.1 HF reference: transformers' own MiniMaxM3VLForCausalLM on a GGUF's stored weights, each module's weights resident only while it runs.
 
     python -X utf8 tools/minimax_file_reference.py rows --hf HF_DIR --output-dir OUT
-    python -X utf8 tools/minimax_file_reference.py run --hf HF_DIR --gguf SHARD... --output-dir OUT [--threads N]
+    python -X utf8 tools/minimax_file_reference.py run --hf HF_DIR --gguf SHARD... --output-dir OUT [--routes DIR] [--threads N]
     python -X utf8 tools/minimax_file_reference.py compare --output-dir OUT --name NAME --llmx LOGITS.txt
 
 rows tokenizes the test texts with the checkpoint's own tokenizer offline (docs/MINIMAX.md, Classes and checks), run writes HF's logits of each row, and compare holds `llmx logits` output to them.
+With --routes, run reads DIR/NAME.routes from llmx-route-probe and takes llmx's pick wherever HF's own scores cannot order the experts the two picks differ in (FileReference.followed).
 """
 
 import argparse
@@ -35,6 +36,34 @@ INSTRUCTION = "Summarize the following text.\n\n"
 CHAT_OFFSET = 200000
 # Experts decoded ahead of HF's loop, in the router's hit order.
 AHEAD = 4
+# A pick is llmx's where every expert the two picks differ in scores within this many ulps of HF's k-th score: twice the largest score deviation measured before the rerun, 49 ulps (docs/MINIMAX.md, Classes and checks).
+MARGIN_ULPS = 98
+
+
+def read_routes(path):
+    """An llmx-route-probe routes file as {layer: (ids, scores, k, n_expert)}, ids and scores flat arrays of the layer's rows in position order."""
+    from array import array
+    import struct
+    data = Path(path).read_bytes()
+    layers, at = {}, 0
+    while at < len(data):
+        if at + 16 > len(data):
+            raise ValueError("a routes record cut short")
+        layer, rows, k, n = struct.unpack_from("<iiii", data, at)
+        at += 16
+        ids, scores = array("I"), array("f")
+        ids.frombytes(data[at:at + 4 * rows * k])
+        at += 4 * rows * k
+        scores.frombytes(data[at:at + 4 * rows * n])
+        at += 4 * rows * n
+        if len(ids) != rows * k or len(scores) != rows * n or sys.byteorder != "little":
+            raise ValueError("a routes record cut short")
+        have = layers.setdefault(layer, (array("I"), array("f"), k, n))
+        if have[2:] != (k, n):
+            raise ValueError("layer %d's records disagree on k or the expert count" % layer)
+        have[0].extend(ids)
+        have[1].extend(scores)
+    return layers
 
 
 def rows(hf, output_dir):
@@ -145,6 +174,9 @@ class FileReference:
                 for kind in ("gate_up", "down"):
                     delattr(layer.mlp.experts, kind + "_proj")
                     setattr(layer.mlp.experts, kind + "_proj", ExpertView(experts, kind))
+        self.follow, self.routes, self.picks = None, {}, []
+        for i in self.experts:
+            text.layers[i].mlp.gate.register_forward_hook(self.followed(i))
         delattr(text.embed_tokens, "weight")
         text.embed_tokens.weight = self.torch.empty(0, c.hidden_size)
         self.modules = [("model.layers.%d" % i, layer) for i, layer in enumerate(text.layers)]
@@ -158,6 +190,52 @@ class FileReference:
             for name, shape in (("ffn_gate_exps", (e, f, x)), ("ffn_up_exps", (e, f, x)), ("ffn_down_exps", (f, e, x))):
                 self.check("blk.%d.%s.weight" % (i, name), shape)
         self.check("token_embd.weight", (c.hidden_size, c.vocab_size))
+
+    def followed(self, layer):
+        """A router hook taking llmx's pick where HF cannot order the experts the two picks differ in, each within MARGIN_ULPS of HF's k-th score; any other differing pick stays HF's and is counted."""
+        torch = self.torch
+
+        def hook(module, args, output):
+            if self.follow is None:
+                return None
+            import numpy as np
+            logits, weights, picks = output
+            ids, theirs, k, n = self.follow[layer]
+            rows = logits.shape[0]
+            if k != module.top_k or n != logits.shape[1] or len(ids) != rows * k:
+                raise ValueError("llmx's routes of layer %d are not this row's" % layer)
+            llmx_ids = torch.from_numpy(np.frombuffer(ids, dtype=np.uint32).astype(np.int64).reshape(rows, k))
+            llmx_logits = torch.from_numpy(np.frombuffer(theirs, dtype=np.float32).reshape(rows, n).copy())
+            routing = torch.sigmoid(logits.float())
+            scores = routing + module.e_score_correction_bias
+            deviation = (torch.sigmoid(llmx_logits) + module.e_score_correction_bias - scores).abs()
+            kth = scores.topk(k, dim=-1).values[:, -1]
+            ulp = torch.nextafter(kth, torch.full_like(kth, math.inf)) - kth
+            mine, other = picks.sort(dim=-1).values, llmx_ids.sort(dim=-1).values
+            record = self.routes.setdefault(layer, {"layer": layer, "followed": 0, "exact_ties": 0, "beyond": 0,
+                                                    "max_score_deviation": 0.0, "max_score_deviation_ulps": 0.0,
+                                                    "max_score_deviation_position": None, "max_logit_deviation": 0.0})
+            record["max_score_deviation"] = max(record["max_score_deviation"], float(deviation.max()))
+            in_ulps = (deviation / ulp[:, None]).amax(dim=-1)
+            worst = int(in_ulps.argmax())
+            if record["max_score_deviation_position"] is None or float(in_ulps[worst]) > record["max_score_deviation_ulps"]:
+                record["max_score_deviation_ulps"], record["max_score_deviation_position"] = float(in_ulps[worst]), worst
+            record["max_logit_deviation"] = max(record["max_logit_deviation"], float((llmx_logits - logits.float()).abs().max()))
+            out_weights, out_picks = weights.clone(), picks.clone()
+            for r in (mine != other).any(dim=-1).nonzero().flatten().tolist():
+                hf_only = sorted(set(mine[r].tolist()) - set(other[r].tolist()))
+                llmx_only = sorted(set(other[r].tolist()) - set(mine[r].tolist()))
+                distance = max(abs(float(scores[r, e] - kth[r])) for e in hf_only + llmx_only) / float(ulp[r])
+                near = distance <= MARGIN_ULPS
+                record["followed" if near else "beyond"] += 1
+                record["exact_ties"] += int(near and distance == 0)
+                self.picks.append({"layer": layer, "position": r, "hf_only": hf_only, "llmx_only": llmx_only, "distance_ulps": distance, "followed": near})
+                if near:
+                    taken = routing[r:r + 1].gather(1, llmx_ids[r:r + 1])
+                    taken /= taken.sum(dim=-1, keepdim=True)
+                    out_weights[r], out_picks[r] = taken[0], llmx_ids[r]
+            return logits, out_weights, out_picks
+        return hook
 
     def check(self, name, shape):
         if name not in self.source.tensors:
@@ -250,9 +328,13 @@ class FileReference:
             for hook in hooks:
                 hook.remove()
 
-    def forward(self, ids, last, on_load=None):
-        """The logits of the last `last` positions of `ids`, with each layer's least router and index cut margin and the indexers' kept blocks."""
+    def forward(self, ids, last, on_load=None, routes=None):
+        """The logits of the last `last` positions of `ids`, with each layer's least router and index cut margin and the indexers' kept blocks.
+        Given llmx's `routes` (read_routes), its picks are taken where HF cannot order them (followed), and every pick that differs is listed."""
         trace = pins._Trace(self.model, self.torch)
+        if routes is not None and sorted(routes) != sorted(self.experts):
+            raise ValueError("llmx's routes name layers %s, the model routes %s" % (sorted(routes), sorted(self.experts)))
+        self.follow, self.routes, self.picks = routes, {}, []
         layers, marks = [], []
         for i, layer in enumerate(self.model.model.layers):
             marks.append(layer.register_forward_hook(lambda module, args, output, i=i: layers.append((i, len(trace.margins["router"]), len(trace.margins["index"])))))
@@ -260,6 +342,7 @@ class FileReference:
             with self.scope(on_load), trace.mode:
                 logits = self.model(input_ids=ids, use_cache=False, logits_to_keep=last).logits[0]
         finally:
+            self.follow = None
             trace.close()
             for mark in marks:
                 mark.remove()
@@ -270,7 +353,14 @@ class FileReference:
                               "index_within_1e-3": sum(1 for v in x if v < 1e-3)})
             start = (router, index)
         first = pins._first_sparse(trace.kept, self.config.index_block_size)
-        return logits, {"layers": per_layer, "first_sparse_position": first}
+        result = {"layers": per_layer, "first_sparse_position": first}
+        if routes is not None:
+            routed = [self.routes[i] for i in sorted(self.routes)]
+            result["routes"] = {"margin_ulps": MARGIN_ULPS, "layers": routed, "picks": self.picks,
+                                "first_differing_position": min((p["position"] for p in self.picks), default=None),
+                                **{key: sum(r[key] for r in routed) for key in ("followed", "exact_ties", "beyond")},
+                                **{key: max(r[key] for r in routed) for key in ("max_score_deviation", "max_score_deviation_ulps", "max_logit_deviation")}}
+        return logits, result
 
 
 def run(args):
@@ -287,8 +377,9 @@ def run(args):
         ids = table[name]["ids"]
         last = min(len(ids), WINDOW)
         start = time.time()
+        routes = read_routes(Path(args.routes) / (name + ".routes")) if args.routes else None
         logits, trace = runner.forward(torch.tensor([ids], dtype=torch.long), last,
-                                       lambda layer, module: print("HF %s %s %.0fs" % (name, layer, time.time() - start), file=sys.stderr, flush=True))
+                                       lambda layer, module: print("HF %s %s %.0fs" % (name, layer, time.time() - start), file=sys.stderr, flush=True), routes)
         if not torch.isfinite(logits).all():
             raise ValueError("nonfinite HF logits in row " + name)
         nll = score_nll(torch, logits, torch.tensor(ids[len(ids) - last:]))
@@ -348,9 +439,17 @@ def compare(args):
               "top5_overlap_last": overlap[-1], "bounds": bounds,
               "pass": {"window_nll": window <= bounds["window_nll"], "top5_overlap_last": overlap[-1] >= bounds["top5_overlap"]},
               "headroom_window_nll": bounds["window_nll"] / window if window else math.inf}
+    routes = doc.get("routes")
+    if routes:
+        # The claim is scoped to the picks HF could not order, "PASS with N tie picks followed"; a differing pick beyond the margin fails.
+        report["routes"] = {k: v for k, v in routes.items() if k != "picks"}
+        report["pass"]["routes_beyond_margin"] = routes["beyond"] == 0
     (out / ("compare-%s.json" % args.name)).write_text(json.dumps(report) + "\n", encoding="utf-8")
-    print(json.dumps({k: v for k, v in report.items() if k != "top1_flips"}))
-    return 0 if all(report["pass"].values()) else 1
+    print(json.dumps({k: v for k, v in report.items() if k not in ("top1_flips", "routes")}))
+    passed = all(report["pass"].values())
+    tail = " with %d tie picks followed (%d exact ties, %d beyond the margin)" % (routes["followed"], routes["exact_ties"], routes["beyond"]) if routes else ""
+    print(("PASS" if passed else "FAIL") + tail)
+    return 0 if passed else 1
 
 
 def main(argv=None):
@@ -364,6 +463,7 @@ def main(argv=None):
     reference.add_argument("--gguf", required=True, nargs="+")
     reference.add_argument("--output-dir", required=True)
     reference.add_argument("--rows", nargs="+", default=["raw", "chat", "long"])
+    reference.add_argument("--routes", help="the directory of llmx-route-probe's NAME.routes files, whose picks HF takes where it cannot order the experts")
     reference.add_argument("--threads", type=int, default=8)
     reference.add_argument("--decode-threads", type=int, default=4)
     reference.add_argument("--max-decoded-mib", type=int, default=5120)

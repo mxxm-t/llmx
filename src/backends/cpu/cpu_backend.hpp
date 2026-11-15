@@ -2179,7 +2179,7 @@ public:
     }
 
     void indexer_scores(Slice out_s, CSlice q_s, size_t layer, const KVView* views, size_t n_views, CSlice w_s, float w_scale, size_t heads, size_t dim,
-                        ModelFormat key_format, size_t n, CSlice blocks_s, size_t block_k, size_t block_size, IndexForm form) override {
+                        ModelFormat key_format, size_t n, CSlice blocks_s, size_t block_k, size_t block_size, IndexForm form = IndexForm::weighted_relu) override {
         if (form == IndexForm::raw_blocks) {
             if (w_s.buffer || blocks_s.buffer || block_k || key_format != ModelFormat::f32) throw std::runtime_error("backend: raw index scores take no weights, candidate blocks or key format but f32");
             raw_index_scores(out_s, q_s, layer, views, n_views, heads, dim, n, block_size);

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -272,6 +273,10 @@ struct PreparedLookup {
     size_t rows = 0;
 };
 
+// A routed step's picks as a pass made them, for a reference that follows them where it cannot order the experts itself (tools/route_probe.cpp).
+// It gets the model's layer, the step's rows, each row's k expert ids and its n_expert router scores, read back from the device after the step.
+using RouteHook = std::function<void(int layer, size_t rows, size_t k, const uint32_t* ids, size_t n_expert, const float* scores)>;
+
 // One call of an architecture's part: the backend of the device it runs on and that device's arena, the residual at the call's first row, the rows and their runs, the weights to read by role id, and the layer's kind and cache views.
 // It also holds the rows' positions, the position tables on that device, a run list the part may rebuild without allocating, which holds a run for every entry of the pass, and a state layer's views.
 struct Step {
@@ -316,6 +321,7 @@ struct Step {
     bool native = false;
     // The model's layer this part belongs to, -1 for the embedding, the head, the drafter and a group's sum.
     int layer = -1;
+    const RouteHook* routes = nullptr;  // ModelOptions::routes where a caller gave one
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 

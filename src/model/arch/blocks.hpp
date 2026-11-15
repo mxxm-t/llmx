@@ -96,7 +96,7 @@ inline void embed(const Step& s, const Weight& table, const uint32_t* ids) {
 }
 
 // The SwiGLU feed-forward block over the normed rows `h`: the residual gains down(silu(gate h) * up h), through the slots `g`, `u` and `act`, each as wide as the block.
-// `limit` and `form` are silu_mul's clamp and GLU form, MiniMax-M3.1's quick_gelu under its limit among them.
+// `limit` and `form` are silu_mul's clamp and GLU form, SiLU or quick_gelu.
 inline void swiglu(const Step& s, const Weight& gate, const Weight& up, const Weight& down, backend::Slice h, backend::Slice g, backend::Slice u, backend::Slice act,
                    float limit = 0.0f, backend::GluForm form = backend::GluForm::silu) {
     s.b.matmul_group({projection(gate, g), projection(up, u)}, h, gate.nin, s.rows, s.runs, s.dtype);
@@ -127,6 +127,13 @@ inline void moe_step(const Step& s, const Weight& router, const Weight& gate, co
     const backend::MoeStep m{projection(router, scores), k, rule, ids, weights, projection(gate, g), projection(up, u), down.operand(), act,
                              shared ? &sh : nullptr, zero ? zero : s.width > 1 ? s.zero : nullptr, s.scratch, limit, form};
     s.b.moe_step(m, h, s.width > 1 ? s.partial : s.x, router.nin, s.rows, s.runs, s.dtype);
+    if (s.routes) {
+        std::vector<uint32_t> picked(s.rows * k);
+        std::vector<float> logits(s.rows * router.nout);
+        s.b.read(*ids.buffer, ids.offset * sizeof(float), picked.data(), picked.size() * sizeof(uint32_t));
+        s.b.read(*scores.buffer, scores.offset * sizeof(float), logits.data(), logits.size() * sizeof(float));
+        (*s.routes)(s.layer, s.rows, k, picked.data(), router.nout, logits.data());
+    }
 }
 
 // An MTP block's input (docs/SPECULATIVE.md, section 7): `pair` holds 2 * rows rows of E, the tokens' rows then the target's before them, normed in place by `enorm` and `hnorm`, joined token first through `side` and projected by `eh_proj`.

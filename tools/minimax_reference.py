@@ -229,4 +229,7 @@ def generate(output_dir):
 
 
 if __name__ == "__main__":
-    generate(sys.argv[1] if len(sys.argv) > 1 else str(TOOLS.parent / "tests" / "data"))
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("output_dir", nargs="?", default=str(TOOLS.parent / "tests" / "data"), help="where minimax_m3_reference.json is written")
+    generate(parser.parse_args().output_dir)

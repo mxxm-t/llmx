@@ -1520,7 +1520,7 @@ public:
                                float scale, size_t layer, const KVView* views, size_t n_views, CSlice entry_ids, size_t entry_k, ModelFormat kv_format,
                                ModelFormat entry_format) override;
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim,
-                        ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form) override;
+                        ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form = IndexForm::weighted_relu) override;
     void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override;
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.

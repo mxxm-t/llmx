@@ -100,6 +100,8 @@ struct ModelOptions {
     std::string chat_template;
     // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure.
     std::function<std::optional<size_t>()> host_memory;
+    // Called after every routed step with its picks (RouteHook), which a pass then waits to read back; a tool's, never a run's, and refused for tensor groups.
+    RouteHook routes;
 };
 
 // The most rows an argmax pass keeps on the output device (Model::argmax_buffers): a verify's, which a mark bounds, or a step's one, and none where passes take no argmax (ModelOptions::argmax_passes).
@@ -541,6 +543,7 @@ public:
             throw std::runtime_error("inference: placement does not cover every layer");
         // A tensor group is named by its first member, its other members the backends after it (Placement::width).
         width_ = place_.width;
+        if (options_.routes && width_ > 1) throw std::runtime_error("inference: a route hook reads one device's picks, not a tensor group's");
         if (!width_ || backends.size() % width_)
             throw std::runtime_error("inference: a tensor width of " + std::to_string(width_) + " needs whole groups of devices, and " + std::to_string(backends.size()) + " were given");
         auto device_index = [&](int d) {

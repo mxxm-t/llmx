@@ -82,11 +82,12 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     role ids below `role_ids`, and the fit to one of its three pass fields
     for each pass role, a role of another part and kind needing a field of
     its own first; each is the architecture's error (`std::logic_error`).
+- `RouteHook`: what a routed step hands a caller that follows its picks (tools/route_probe.cpp): the model's layer, the step's rows, each row's k expert ids and its router scores, read back from the device after the step.
 - `Step`: one call of a part: the backend of the device it runs on and that
   device's arena with each slot's offset (`slot(i)`), the residual at the
   call's first row (`x`), the rows and their runs, the row of weights by
   role id (the layer's, the pass's, or a streamed layer's copies and
-  windows), the layer's kind and the model's layer it belongs to (`layer`, -1 for the embedding, the head, the drafter and a group's sum), the cache views and the layer's index in its
+  windows), the layer's kind and the model's layer it belongs to (`layer`, -1 for the embedding, the head, the drafter and a group's sum), the caller's route hook where it gave one (`routes`, `ModelOptions::routes`), the cache views and the layer's index in its
   storage, the rows' positions, one a row or three where a pass holds an image's rows (`streams`), the position tables on that device, a
   run list the part may rebuild, which the runtime reserves at a run per
   row so the part does not allocate, and for a layer whose cache is a state

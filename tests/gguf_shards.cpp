@@ -63,8 +63,9 @@ struct Tensor {
     uint64_t offset = std::numeric_limits<uint64_t>::max();
 };
 
+// `pad` false ends a file of no tensors at its header, before the padding to its data section, as a writer of metadata alone may.
 static Bytes encode(const std::vector<Metadata>& metadata, const std::vector<Tensor>& tensors,
-                    size_t alignment = 32) {
+                    size_t alignment = 32, bool pad = true) {
     Bytes bytes;
     integer(bytes, 0x46554747, 4);
     integer(bytes, 3, 4);
@@ -85,7 +86,7 @@ static Bytes encode(const std::vector<Metadata>& metadata, const std::vector<Ten
         position += t.data.size();
         position += (alignment - position % alignment) % alignment;
     }
-    bytes.resize(bytes.size() + (alignment - bytes.size() % alignment) % alignment);
+    if (pad) bytes.resize(bytes.size() + (alignment - bytes.size() % alignment) % alignment);
     for (const auto& t : tensors) {
         bytes.insert(bytes.end(), t.data.begin(), t.data.end());
         bytes.resize(bytes.size() + (alignment - bytes.size() % alignment) % alignment);
@@ -259,6 +260,10 @@ int main(int argc, char** argv) {
         reset();
         save(first, encode(first_meta, {}, 64));
         save(second, encode(split(1, 2, 3), {quant, scalar, empty}));
+        accepted(first, {quant, scalar, empty}, {second, second, second});
+        const Bytes unpadded = encode(first_meta, {}, 64, false);
+        require(unpadded.size() % 64 != 0, "the metadata shard's header must end off its alignment");
+        save(first, unpadded);
         accepted(first, {quant, scalar, empty}, {second, second, second});
         // A zero-sized tensor that ends a shard lies at the offset the next shard starts at, and still belongs to its own shard.
         save(first, encode(first_meta, {quant, empty}, 64));

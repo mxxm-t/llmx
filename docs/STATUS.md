@@ -1,5 +1,30 @@
 # llmx - Development Status
 
+## ROCm processes end before HIP's teardown (2026-11-15, MEMBUG1 to MEMBUG3, branch fix/rocm-exit on main 929f042c6; F2DEV's review of 16:43, W-b; lands by fast-forward after XDEV's review)
+
+- **Goal:** no ROCm process crashes at exit.
+- **Cause:** a ROCm 7.2.1 runtime race, not llmx's.
+  `hipStreamSynchronize` after a batch of 8 or more commands returns on the hardware signal while the batch marker's `HsaAmdSignalHandler` can still be queued on HSA's async thread (clr `rocclr/device/rocm/rocvirtual.cpp:557-633`, `rocclr/platform/commandqueue.cpp:162`), and the static `RuntimeTearDown` (`rocclr/platform/runtime.cpp:113`) frees the state it reads, the lines being clr's at b2451a4539, tag rocm-7.2.1; an ASan run put the crash at `libamdhip64.so.7+0x45be17`, inside `HsaAmdSignalHandler`.
+  A pure-HIP program with an `LD_PRELOAD` shim around `hsa_amd_signal_async_handler` saw the handler still queued at exit in 150 of 285 runs after a stream synchronize, 146 of 284 after `hipEventSynchronize`, 151 of 283 after `hipDeviceSynchronize`, and 0 of 441 with a batch under 8 commands; it crashed with SIGSEGV at exit 3 times in about 6000 runs, and llmx processes about 1 in 700 to 4000 with 4 processes on 2 CPUs.
+  No HIP call waits for the handler, so no wait inside the backend closes the window (docs/ROCM.md, Process exit).
+- **Fix:** `hip()` registers an `on_exit` hook once `hipInit` succeeds, which flushes C stdio and calls `_exit` with the exit status, so HIP's teardown never runs; ROCm only, no flag.
+- **Test:** no hosted runner has a device and the crash is too rare for a failing test, so the hand check is the test: `sl.sh` in the rig directory `/opt/claude-work/membug3` runs `llmx-model-logits` on the half-weights fixtures over `rocm:0`, 4 processes on 2 CPUs on one MI50, under the shim with every handler held until exit begins and then 20 ms more (`MB2_HOLD=1`, `MB2_DELAY_US=20000`).
+  On main 929f042c6, 2330 of 2330 runs had handlers outstanding when exit began and ran them after it, into HIP's teardown; none of those runs crashed, so the check shows the window rather than the crash.
+  On the fix, 2329 of 2329 runs had 4 or 5 handlers outstanding at exit, every one exited 0 with its whole JSON output, and in 2 a held handler ran 47 ms into exit, before `_exit` took effect on the contended CPUs, with HIP's state still intact.
+  In 20 runs of each arm with their error output kept, HIP's teardown reached `hsa_shut_down` in 20 on main and in none on the fix.
+  A token ID outside the vocabulary, which fails after the device opened, exits 1 on both.
+  Without the shim, 5635 runs of the fix and 1406 of main, interleaved 4 to 1, all exited 0 with whole output; the median run took 1.11 s on both (90th percentile 1.71 s on the fix, 1.80 s on main).
+- **Done:** the hook, docs/ROCM.md (Process exit) and the hand check above, on the fix build llmx 0.1.0+g0600d3ef2986 (ROCm 7.2.1, MI50).
+  CTest passes 87 of 87; the suite with `--device rocm:0` passes 31 components and skips 16, and on the CPU passes 46 and skips 11, with `docs` failing in both only on the Process exit heading this commit adds, and `docs` and `dead-code` passing on the tree that lands.
+  `llmx serve` of Qwen3-0.6B Q8_0 on `rocm:0` answers a request and exits 0 on SIGTERM with its whole log, 0.165 s after the signal on the fix against 0.672 s on main.
+  Byte identity against main is carried forward rather than rerun: the hook runs only once the process exits, after every pass and every output, and the suite on `rocm:0` checks the outputs of every ROCm process it starts; a greedy identity run of Qwen3-0.6B Q8_0 on `rocm:0` against main is queued for the review.
+- **Costs:** every exit handler registered before the first ROCm device opened is skipped: LeakSanitizer's report and ThreadSanitizer's exit status on ROCm runs (the hosted TSan job is CPU-only), gcov dumps, and HIP's and HSA's teardown.
+- **Profiling:** `rocprofv3 --hip-trace` of a 16-token Qwen3-0.6B Q8_0 generate on `rocm:0` still writes its whole export on the fix, 12519 HIP API rows against 12518 on main.
+- **Registration:** `on_exit` fails only when the C library cannot allocate an exit-handler block; the result is not checked, since a failure leaves the process on its previous exit path, with the rare race, and no input reaches that path for a test to cover.
+- **Removal:** the hook goes with the first ROCm release whose teardown waits for its queued async handlers; the hand check above shows when that holds (main's arm stops showing late handlers).
+  A report for ROCm/clr with the reproduction and the proposed fix is drafted at `/opt/claude-work/membug3/rocm-clr-issue.md` on the rig, not filed, awaiting the owner.
+- **Left:** XDEV's review of the diff, then the landing, which waits on the owner's decision for main.
+
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 
 **Goal.** Qwen3 files in F16, Q4_0 and Q4_1 run on ROCm at or above the mx fork's ROCm speed, through the shared GPU core and its existing type families.

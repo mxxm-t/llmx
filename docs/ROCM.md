@@ -267,6 +267,22 @@ existing recorder/collective ownership to avoid duplicate worker pools. Measure
 rank start skew and CPU cost with graphs on and off. Ordinary scheduling and
 resource limits still apply when other users occupy the GPUs or CPU cores.
 
+## Process exit
+
+A process that opened the HIP runtime ends from an `on_exit` hook that `hip()` in `src/backends/rocm/rocm_runtime.hpp` registers once `hipInit` succeeds: it flushes C stdio and calls `_exit` with the exit status, so HIP's own teardown never runs and the kernel reclaims the device.
+ROCm 7.2.1's teardown can free state a completion handler still reads.
+A stream synchronize after a batch of 8 or more commands returns on the hardware signal while the batch marker's `HsaAmdSignalHandler` may still be queued on HSA's async thread (clr `rocclr/device/rocm/rocvirtual.cpp:557-633` and `rocclr/platform/commandqueue.cpp:162`), and the runtime's static `RuntimeTearDown` (`rocclr/platform/runtime.cpp:113`) frees the virtual GPU that handler reads; the lines are clr's at b2451a4539, tag rocm-7.2.1.
+No HIP call waits for that handler, and handlers HSA queues run in an arbitrary order, so no wait inside the backend closes the window; before the hook, about one ROCm process in 700 to 4000 crashed at exit with SIGSEGV when the host was contended.
+Exit handlers run last registered first, so a hook registered after the runtime opened runs before the runtime's static teardown, and every way out through `exit` or a return from `main` takes it.
+
+Nothing llmx needs runs after it: standard output goes through C stdio and is flushed, files llmx writes are published whole before `main` returns, and `serve` stops, joins and drains its work inside `main`.
+What it skips is every exit handler registered before the first ROCm device opened: LeakSanitizer's leak report and ThreadSanitizer's exit status on a ROCm run (the hosted sanitizer job runs on the CPU and is unaffected), gcov's counter dumps, and HIP's and HSA's teardown.
+A completion handler still queued may run on HSA's thread while the hook flushes, against HIP's state, which is still whole until `_exit`.
+If `on_exit` cannot register the hook, which happens only when the C library cannot allocate, the process exits as it did before the hook, race included.
+`rocprofv3 --hip-trace` still writes its whole export: a traced 16-token generate on ROCm 7.2.1 gave 12519 HIP API rows with the hook against 12518 without it.
+The CUDA backend has no such hook: its driver API completes a synchronize on the calling thread, with no handler thread to race.
+The hook goes with the first ROCm release whose teardown waits for its queued async handlers.
+
 ## Collective design and proof
 
 Implement a conservative F32 sum first: ordered copies plus an ordered reduction

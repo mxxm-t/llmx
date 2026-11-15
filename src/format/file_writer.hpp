@@ -21,7 +21,8 @@ public:
     FileWriter(const std::string& path, bool direct) : path_(path), direct_(direct) {
 #if defined(_WIN32)
         const std::wstring wide = std::filesystem::u8path(path).wstring();
-        const DWORD flags = FILE_FLAG_OVERLAPPED | (direct ? FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH : FILE_ATTRIBUTE_NORMAL);
+        // Opening the reparse point itself makes CREATE_NEW fail on a symbolic link at the path, as O_EXCL does, instead of following it to its target.
+        const DWORD flags = FILE_FLAG_OVERLAPPED | FILE_FLAG_OPEN_REPARSE_POINT | (direct ? FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH : FILE_ATTRIBUTE_NORMAL);
         file_ = CreateFileW(wide.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, flags, nullptr);
         if (file_ == INVALID_HANDLE_VALUE) throw std::runtime_error("cannot create file: " + path + " (" + std::to_string(GetLastError()) + ")");
         granule_ = core::page_size();

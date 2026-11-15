@@ -825,6 +825,23 @@ Radeon VII: not reached. The branch changes `CMakeLists.txt` (ROCm and CUDA rule
   Lowering the cap to the encoder's bound would refuse photos Pillow opens, which the decoder's one promise forbids.
 - The time bound in `image-decode` (200 ms for a frame header alone) is what makes a plane allocated at the frame header visible: 179 MB zero-filled takes 50 ms or more on any machine, and the refusal path microseconds.
 - The fewest-tokens bound is a lower bound, not the exact minimum: a request of images between it and their decoded tokens passes the first check and is refused as the decoded tokens pass the limit, having decoded up to limit / fewest images, so the worst a request can make is about limit / fewest rasters of min_pixels each, 16 of 196 KB at a 1024-token limit and 2048 at 131072, rather than the body's 290k.
+## Three low-severity security-scan findings: stop bounds, 500 bodies, writer and symbolic links (2026-11-15, SEC1-SMALL, branch sec/small-fixes on sec/image-limits 6ab52dbb0)
+
+**Goal.** Close three low-severity findings of the security scan, each in its owner, with the smallest change: a request's stop texts bounded in count and length, a 500's body without the exception's text, and the Windows `FileWriter` refusing a symbolic link at its path as POSIX does.
+
+**Done.**
+- `infer::Sampling::stop_texts` (16) and `stop_bytes` (256), beside the sampler's other ranges: the compatible API allows 4 stops, so 16 of 256 bytes hold what clients send. `Api::params_of` refuses a `stop` past either with 400 naming the field and the bound, and the CLI's `--stop` refuses a longer text, so the two take the same length.
+- `server::failure_json`, beside `error_json`: a 500's body is `the server failed to answer the request` in the route's shape and the exception's text goes to stderr as `server: a request failed: ...`; `Api::handle`'s catch and the streamed error event of a failed pass both use it. No test read the streamed event's text.
+- `FileWriter` on Windows opens with `FILE_FLAG_OPEN_REPARSE_POINT`, so `CREATE_NEW` fails on a symbolic link at the path instead of following it and creating the link's target.
+- Tests, committed first and failing on main: the `server` component posts 17 stop texts and a 257-byte one (main answered 200 to both) and accepts 16 of 256 bytes, `cli` expects `--stop` to refuse a 257-byte text (main exited 0), `server-utf8` checks `failure_json` (main did not compile it), and `format-output-link` makes a dangling symbolic link at a writer's path and expects the open to fail without creating the target.
+- `format-output-link` skips, which CTest reports as a skipped test (`SKIP_REGULAR_EXPRESSION`), where the process may not create a symbolic link (`ERROR_PRIVILEGE_NOT_HELD`), as on the Windows machine this was written on, which has neither developer mode nor the privilege; so the Windows failing arm was not observed here, and is read from `CreateFileW`'s documented behaviour, that `CREATE_NEW` without the flag follows a link and creates its target. On POSIX `O_EXCL` already refused the link and the check holds that.
+- Docs: `docs/SERVER.md` Protocol (the stop bound, the 500 text), `docs/USAGE.md` (`--stop`), `docs/src/server.md`, `docs/src/inference-sampler.md`, `docs/src/cli-main.md`, `docs/src/format-file_writer.md`, `docs/TESTS.md`.
+
+- Observed on the hosted windows-2022 runner (runs 43672625419 at aba7fae46 and 43678853915 at 717db7851): `format-output-link` Passed there, so the link check ran and `FileWriter` refused the link on Windows; on this machine it reports Skipped, on Linux and macOS Passed.
+
+**Left.** Nothing on this branch; it lands by fast-forward after sec/image-limits.
+
+**Gotchas.** A `stop` entry that is not a string is still dropped silently, as before; only the count and the length of the string entries are bounded.
 
 ## MXFP4 one-column 8-bit rows by four lanes a row (2026-11-14, DSDEV172 to DSDEV181, branch dsdev172/mxfp4-experts on main 84e98d4fe)
 

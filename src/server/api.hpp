@@ -142,6 +142,12 @@ inline std::string error_json(const std::string& message, bool compat) {
     return "{\"error\":{\"message\":" + text + ",\"type\":\"invalid_request_error\"}}";
 }
 
+// A 500's body: the server's own failure is one fixed message in the route's shape, and the exception's text goes to stderr alone, where no client reads it.
+inline std::string failure_json(const std::string& what, bool compat) {
+    std::fprintf(stderr, "server: a request failed: %s\n", what.c_str());
+    return error_json("the server failed to answer the request", compat);
+}
+
 // The least log-probability a compatible shape writes, since its fields are numbers: a lower one, minus infinity or a NaN is written as this, a probability of zero to any float.
 inline constexpr float kLogprobFloor = -9999.0f;
 
@@ -333,7 +339,7 @@ public:
         } catch (const http::ClientGone&) {
             // A client that has left gets no answer, the 500 below included: a client that shut only its sending side may still be reading, and an error would tell it of a failure that is not the server's.
         } catch (const std::exception& e) {
-            try { c.respond(500, "application/json", error_json(e.what(), shape)); } catch (...) {}
+            try { c.respond(500, "application/json", failure_json(e.what(), shape)); } catch (...) {}
         }
     }
 
@@ -1099,6 +1105,9 @@ private:
             else if (stop->isArray())
                 for (const auto& s : stop->asArray())
                     if (s.isString()) params.stop.push_back(s.asString());
+            if (params.stop.size() > infer::Sampling::stop_texts) throw BadRequest(400, "stop takes at most " + std::to_string(infer::Sampling::stop_texts) + " texts");
+            for (const std::string& s : params.stop)
+                if (s.size() > infer::Sampling::stop_bytes) throw BadRequest(400, "stop takes texts of at most " + std::to_string(infer::Sampling::stop_bytes) + " bytes");
         }
         if (compat(route) && integer(body, "n", lo, hi, 1) != 1) throw BadRequest(400, "n must be 1");
         // Log-probabilities in each route's shape: the completions route's `logprobs` is how many of the most likely tokens to list beside each sampled one, and the other routes take `logprobs` true with `top_logprobs` for that count.
@@ -1574,7 +1583,7 @@ private:
             if (finish == "error") {
                 if (!stream) throw std::runtime_error(r->error());
                 // The stream's head went out as 200, so the failure is its last event.
-                c.write_chunk("data: " + error_json(r->error(), compat(route)) + "\n\n");
+                c.write_chunk("data: " + failure_json(r->error(), compat(route)) + "\n\n");
                 c.end_stream();
                 close_follow(false);
                 return;

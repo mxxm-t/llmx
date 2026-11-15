@@ -638,7 +638,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--load-mode M`         | how the weights are read: `auto`, `mapped` or `direct` | auto    |
 | `--lookup-storage S`    | bounded lookup table storage: `auto`, `device` or `file` | auto |
 | `--seed N`              | RNG seed (0 retains the fixed default state)        | 0       |
-| `--stop "<text>"`       | stop generating once decoded output contains this    | (none)  |
+| `--stop "<text>"`       | stop generating once decoded output contains this, at most 256 bytes | (none)  |
 | `--ignore-eos`          | never end at the model's end-of-text token           | off     |
 | `--drafter D`           | draft tokens to verify in one pass: `off`, or sources tried in the order given, comma-separated: `lookup`, `embedded` or a drafter file beside the model, as `lookup,embedded` | `off`  |
 | `--draft-max N`         | most drafts a draft holds, verified up to 63 a pass, 1 to 1023 | 3 |

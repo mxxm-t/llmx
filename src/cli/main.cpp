@@ -1958,7 +1958,10 @@ int main(int argc, char** argv) {
                 else if (f == "--frequency-penalty") gp.frequency_penalty = float_arg(argc, argv, i, a, infer::Sampling::frequency_penalty_range.lo, infer::Sampling::frequency_penalty_range.hi);
                 else if (f == "--min-p") gp.min_p = float_arg(argc, argv, i, a, infer::Sampling::min_p_range.lo, infer::Sampling::min_p_range.hi);
                 else if (f == "--seed") gp.seed = int_arg<uint64_t>(argc, argv, i, a, 0);
-                else if (f == "--stop") gp.stop = nonempty_value(argc, argv, i, a, "a text");
+                else if (f == "--stop") {
+                    gp.stop = nonempty_value(argc, argv, i, a, "a text");
+                    if (gp.stop.size() > infer::Sampling::stop_bytes) throw UsageError(a + " takes a text of at most " + std::to_string(infer::Sampling::stop_bytes) + " bytes");
+                }
                 else if (f == "--ignore-eos") gp.ignore_eos = true;
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, true)) {}

@@ -59,6 +59,9 @@ struct Sampling {
     static constexpr SampleRange<float> presence_penalty_range{-2.0f, 2.0f};   // 0 is none, and a negative value favors repeats
     static constexpr SampleRange<float> frequency_penalty_range{-2.0f, 2.0f};  // 0 is none
     static constexpr SampleRange<float> min_p_range{0.0f, 1.0f};                // 0 keeps every token, 1 only the likeliest
+    // A request's stop texts, how many and how long each, since every stop is scanned at every length per token; the compatible API allows 4, so 16 of 256 bytes hold what clients send.
+    static constexpr size_t stop_texts = 16;
+    static constexpr size_t stop_bytes = 256;
 };
 
 // What generate reads: the sampling settings and the one stop text of the CLI's generate and chat.

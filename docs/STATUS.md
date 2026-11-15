@@ -573,6 +573,19 @@ The browser regression first failed on the original dark card gradient under lig
 Landed by fast-forward as one feature commit on main 929f042c6. [Hosted run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passed both Windows and Linux on source/test/workflow tree 53f83204a. The landing rebase preserves main's ROCm change 929f042c6 and both STATUS blocks. That runtime change and the final qualification documentation do not change the tested companion, dashboard or workflow inputs. The final Markdown and dead-code checks cover the tree that landed. No inference code changes, model gates or production deployment were part of this feature.
 
 Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, which was unavailable. That snapshot was superseded by a local Qwen3-0.6B Q8 server on port 8091; its real tool test completed one `workspace_list` call and a final answer. The original hosted failures remain recorded in [run 43656889014](https://github.com/mxxm-t/llmx/actions/runs/43656889014) and [run 43657441535](https://github.com/mxxm-t/llmx/actions/runs/43657441535); the final [run 43658421323](https://github.com/mxxm-t/llmx/actions/runs/43658421323) passed both platforms after a test synchronization fix and an error-banner hydration fix. The historical Docker check used `python:3-slim` Linux amd64 image `sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928` and verified non-root execution, read-only root, blocked network, absent Docker socket, file round-trip, checkpoint restore, cancellation and link refusal. The actual llmx synthetic-F32 chat protocol completed two turns with input/output usage 23/8 and 77/8. These are companion and isolation checks, not model accuracy, throughput or absolute security claims. Process and local test receipts remain under ignored `scratch/chat-ui-browser`.
+## A file a server may be deleting counts as there while a test polls it (2026-11-15, FLAKE1, branch flake/server-resume-delete-pending on main 929f042c6; tests only, lands by fast-forward as one commit)
+
+- **Goal:** `server-resume` passes on Windows whatever the disk store is deleting while a case looks at its files.
+- **Cause:** hosted run 43647639734, attempt 1, failed `server-resume` on windows-2022 with `exists: Access is denied.` on `entry-1.tmp`: the held-write case polls the cancelled write's temporary file with the throwing `fs::exists` while the store deletes it, and Windows refuses that question for a file whose deletion is pending.
+- **Done:** `present` in `tests/server_harness.hpp` takes a refused question for a file still there, as the deletion case of `server-resume` already did inline; the held-write case's three questions and the deletion case use it, and what each case requires is unchanged.
+- **Not reproduced by hand:** Linux has no pending deletion, so the rig cannot fail it; the hosted Windows job runs the case.
+- **Gates (rig, 2026-11-15):** main 929f042c6 is `llmx 0.1.0+g929f042c6b2a` and flake/stack e9d6c3916, the three branches stacked in landing order, is `llmx 0.1.0+ge9d6c391680a`, both numerics 1147553042f68f72 and both builds rc 0.
+  Qwen3-0.6B Q8_0 on the CPU gives identical output on 6 files, 0 differ.
+  The Vulkan build is rc 0 and the suite's `server` component passes on one MI50 (vulkan:0), its real-model pass skipped because the fixture is not on disk.
+  CTest passes 83 of 83, and the full CPU suite is rc 0 with every component PASS and `baseline` SKIP.
+  Hosted run 43683194283 on gate/flake-stack e9d6c3916 is green on all 8 jobs.
+  The change lands by fast-forward.
+- **Left:** nothing.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

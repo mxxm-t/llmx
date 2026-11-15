@@ -3039,9 +3039,9 @@ void disk_never_blocks(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
             const auto start = std::chrono::steady_clock::now();
             replies.push_back(drain(*sched.submit(reqs[copies + 1].prompt, params_of(reqs[copies + 1]))));
             last_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-            if (copies == 1) within_a_minute([&] { return !fs::exists(first); }, what + ": the cancelled write's temporary file removed");
-            first_tmp_left = fs::exists(first);
-            first_kv = fs::exists(fs::path(first).replace_extension(".kv"));
+            if (copies == 1) within_a_minute([&] { return !present(first); }, what + ": the cancelled write's temporary file removed");
+            first_tmp_left = present(first);
+            first_kv = present(fs::path(first).replace_extension(".kv"));
             stats = sched.stats();
             ledger(stats, *model, what);
         } catch (...) {
@@ -4950,13 +4950,7 @@ void disk_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
             demote(sched, vocab, what);
             const std::vector<fs::path> left = disk.files(".kv");
             require(!left.empty(), what + ": no entry file after six turns");
-            // A file being deleted can refuse the question on Windows; it is then still there, and asked again.
-            const auto remaining = [&] {
-                return (size_t)std::count_if(left.begin(), left.end(), [](const fs::path& f) {
-                    std::error_code ec;
-                    return fs::exists(f, ec) || ec;
-                });
-            };
+            const auto remaining = [&] { return (size_t)std::count_if(left.begin(), left.end(), present); };
             within_a_minute([&] { return remaining() == 0; }, what + ": the entries deleted");
             files = remaining();
             stats = sched.stats();

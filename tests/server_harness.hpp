@@ -502,6 +502,12 @@ inline void within(std::chrono::seconds limit, const std::function<bool()>& done
 // Polls `done` for up to a minute.
 inline void within_a_minute(const std::function<bool()>& done, const std::string& what) { within(std::chrono::seconds(60), done, what, "within a minute"); }
 
+// Whether file `f` is there while a server may be deleting it: Windows refuses the question for a file whose deletion is pending, which is then still there.
+inline bool present(const std::filesystem::path& f) {
+    std::error_code ec;
+    return std::filesystem::exists(f, ec) || ec;
+}
+
 // A disk tier's root for one case, removed after it, with a small file standing for the model, whose digest the entries' identity carries.
 struct DiskRoot {
     std::filesystem::path root;

@@ -14,12 +14,15 @@
 #include <utility>
 #include <vector>
 
+#include "core/bf16.hpp"
+#include "core/fp16.hpp"
 #include "core/host_memory.hpp"
 #include "format/file_reader.hpp"
 #include "format/gguf.hpp"
 #include "inference/read_ring.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
+#include "inference/directory.hpp"
 #include "inference/pair.hpp"
 #include "model/runtime.hpp"
 #include "model/place.hpp"
@@ -77,6 +80,7 @@ struct LoadedModel {
     std::vector<backend::BackendPtr> backends;  // the backends the caller gave, which a draft model beside the model shares
     LoadTimes times;
     std::vector<std::shared_ptr<core::HostPages>> host;   // direct copies, shared with any immutable table that reads them
+    std::vector<float> widened;     // a directory's 16-bit vectors as F32 (inference/directory.hpp), which a host reads in place
     std::unique_ptr<Model> model;
 
     LoadedModel() = default;
@@ -119,9 +123,10 @@ inline void put_runs(const shard::Held& held, size_t lo, size_t n, const uint8_t
 struct WeightPlan {
     std::vector<char> host_reads;
     std::vector<Upload> uploads;
+    std::vector<char> resident;   // per tensor, whether its bytes are the loader's own host data rather than the file's, adopted at once and never streamed; empty for none
 };
 
-// The adoption hook load_model builds the model with: a backend that reads in place adopts a weight where it lies, and one that copies adopts it there and then unless `defer`, which gives it storage to stream into (plan.uploads).
+// load_model's adoption hook: a backend that reads in place adopts a weight where it lies, and one that copies adopts it at once unless `defer` gives a weight not plan.resident storage to stream into (plan.uploads).
 // The model hands each tensor to each of `backends` about once whole and once as a shard, which sizes the records; a record that cannot be kept drains the backend before its storage goes, as a failed write does.
 inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
     plan.host_reads.assign(weights.tensors.size(), 0);
@@ -129,6 +134,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
     plan.uploads.reserve(defer ? 2 * weights.tensors.size() * backends : 0);
     return [&weights, &plan, defer](size_t i, backend::Backend& b, const shard::Held* held) {
         const TensorView& t = weights.tensors[i];
+        const bool resident = i < plan.resident.size() && plan.resident[i], later = defer && !resident;
         const auto record = [&](const backend::BufferPtr& buffer, std::optional<shard::Held> part) {
             try {
                 plan.uploads.push_back({i, &b, buffer, std::move(part)});
@@ -147,7 +153,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
                     zeros.resize(std::max(zeros.size(), r.bytes));
                     b.write(*buffer, r.to, zeros.data(), r.bytes);
                 });
-                if (!defer) {
+                if (!later) {
                     const auto write = [&](size_t to, const uint8_t* from, size_t n) { b.write(*buffer, to, from, n); };
                     put_runs(*held, 0, t.bytes, t.data, packed, write, [&](size_t from, size_t to, size_t n) { b.write(*buffer, to, t.data + from, n); });
                 }
@@ -155,14 +161,14 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
                 b.sync();
                 throw;
             }
-            if (defer) record(buffer, *held);
+            if (later) record(buffer, *held);
             return buffer;
         }
         if (b.reads_in_place()) {
-            plan.host_reads[i] = 1;
+            plan.host_reads[i] = !resident;
             return b.adopt(t.data, t.bytes);
         }
-        if (!defer) return b.adopt(t.data, t.bytes);
+        if (!later) return b.adopt(t.data, t.bytes);
         backend::BufferPtr buffer = b.alloc_weight(t.bytes);
         record(buffer, std::nullopt);
         return buffer;
@@ -361,7 +367,7 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shar
 // Finish a header-only load after its architecture has read the metadata.
 inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> loaded, ModelWeights weights,
                                                 std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
-                                                const ModelOptions& options, const LoadReport& report, LoadMode mode) {
+                                                const ModelOptions& options, const LoadReport& report, LoadMode mode, bool widen) {
     gguf::GGUFModel& file = loaded->file;
     loaded->times.mode = mode;
     std::vector<size_t> every(file.tensors.size());
@@ -390,6 +396,46 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             }
         }
     }
+    // A tensor's bytes read from its span into `to`, through a page-aligned window when its reader is direct.
+    core::HostPages window;
+    const auto read_span = [&](size_t i, uint8_t* to) {
+        const format::FileSpan span = file.span(i);
+        const format::FileReader& reader = reader_of(file_index(span.file));
+        if (reader.direct()) {
+            if (!window.data()) {
+                window = core::HostPages::reserved(reader.granule());
+                window.commit(0, reader.granule());
+            }
+            format::read_aligned(reader, span.offset, to, span.bytes, window.data(), reader.granule(), "loading");
+        } else if (reader.read(span.offset, to, span.bytes) != span.bytes) {
+            throw std::runtime_error("loading: short file read");
+        }
+    };
+    // A directory's 16-bit vectors are widened to F32, exactly, into the loader's buffer, as the converter stores them; they are adopted at once and never streamed or warmed.
+    std::vector<char> resident(file.tensors.size(), 0);
+    if (widen) {
+        size_t floats = 0;
+        for (size_t i : every)
+            if (widened_on_load(file.tensors[i])) floats += size_t(file.tensors[i].n_elements());
+        loaded->widened.resize(floats);
+        std::vector<uint16_t> half;
+        size_t at = 0;
+        for (size_t i : every) {
+            const gguf::TensorInfo& info = file.tensors[i];
+            if (!widened_on_load(info)) continue;
+            const size_t n = size_t(info.n_elements());
+            half.resize(n);
+            read_span(i, reinterpret_cast<uint8_t*>(half.data()));
+            float* out = loaded->widened.data() + at;
+            for (size_t k = 0; k < n; ++k) out[k] = info.type == quant::GGML_TYPE_BF16 ? bf16_to_f32(half[k]) : f16_to_f32(half[k]);
+            TensorView& t = weights.tensors[i];
+            t.type = quant::GGML_TYPE_F32;
+            t.data = reinterpret_cast<const uint8_t*>(out);
+            t.bytes = n * sizeof(float);
+            resident[i] = 1;
+            at += n;
+        }
+    }
     std::vector<LookupCandidate> lookups;
     const ModelPlan architecture = plan_model(weights, request.drafter);
     for (const LayerPlan& layer : architecture.layers) {
@@ -412,7 +458,8 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     }
     // A table read from its file reads through its own reader, so the payload is mapped only for weights a host reads in place; the table never joins the stream or the warming.
     if (mode == LoadMode::mapped || (mode == LoadMode::automatic && host)) gguf::map_payload(file);
-    for (size_t i : every) weights.tensors[i].data = file.tensor_data(i);
+    for (size_t i : every)
+        if (!resident[i]) weights.tensors[i].data = file.tensor_data(i);
     // A direct load gives a host a copy of each file laid out as the file, so every weight keeps the offset within its page the mapping would give it: address space now, memory once the model says which weights the host reads.
     if (mode == LoadMode::direct && host) {
         // Each copy covers its file as its header gave it, rounded up to the reads' granule, since the last read ends on it.
@@ -421,11 +468,12 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             loaded->host.push_back(std::make_shared<core::HostPages>(core::HostPages::reserved(size_t(gguf::aligned_size(gguf::file_size(file, paths[f]), g)))));
         }
         for (size_t i : every) {
+            if (resident[i]) continue;
             const format::FileSpan s = file.span(i);
             weights.tensors[i].data = loaded->host[file_index(s.file)]->data() + s.offset;
         }
     }
-    std::vector<char> external(file.tensors.size(), 0);
+    std::vector<char> external = resident;
     for (size_t n = 0; n < lookups.size(); ++n) {
         const size_t i = lookups[n].tensor;
         TensorView& t = weights.tensors[i];
@@ -438,23 +486,14 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     // Source roles' bytes, read from their spans in every mode for fill_tables and never placed; they go when the load ends (docs/src/inference-load.md).
     std::vector<std::vector<uint8_t>> sources;
     std::vector<size_t> source_tensors;
-    core::HostPages window;
     for (const LayerPlan& layer : architecture.layers)
         for (const Role& role : layer.roles) {
-            if (role.kind != RoleKind::source || !role.tensor || external[*role.tensor]) continue;
+            if (role.kind != RoleKind::source || !role.tensor) continue;
             const size_t i = *role.tensor;
-            const format::FileSpan span = file.span(i);
-            const format::FileReader& reader = reader_of(file_index(span.file));
-            sources.emplace_back(span.bytes);
-            if (reader.direct()) {
-                if (!window.data()) {
-                    window = core::HostPages::reserved(reader.granule());
-                    window.commit(0, reader.granule());
-                }
-                format::read_aligned(reader, span.offset, sources.back().data(), span.bytes, window.data(), reader.granule(), "loading");
-            } else if (reader.read(span.offset, sources.back().data(), span.bytes) != span.bytes) {
-                throw std::runtime_error("loading: short file read");
-            }
+            if (resident[i]) throw std::runtime_error("loading: a widened vector is a source role: " + file.tensors[i].name);
+            if (external[i]) continue;
+            sources.emplace_back(file.span(i).bytes);
+            read_span(i, sources.back().data());
             weights.tensors[i].data = sources.back().data();
             external[i] = 1;
             source_tensors.push_back(i);
@@ -469,6 +508,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         detail::warm(file, warmed, progress);
     }
     WeightPlan plan;
+    plan.resident = resident;
     const size_t devices = backends.size();
     loaded->backends = backends;
     const auto built = std::chrono::steady_clock::now();
@@ -503,6 +543,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         };
         std::vector<size_t> streamed, hosted, warmed;
         for (size_t i : every) {
+            if (resident[i]) continue;
             if (plan.host_reads[i] && mode == LoadMode::direct) hosted.push_back(i);
             else if (copied[i]) streamed.push_back(i);
             else if (plan.host_reads[i]) warmed.push_back(i);
@@ -603,14 +644,15 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
 
 } // namespace detail
 
-// Read a GGUF and its optional paired drafter, then load its weights through the shared placement and I/O path.
+// Read a GGUF file or a Hugging Face directory (inference/directory.hpp) and its optional paired drafter, then load its weights through the shared placement and I/O path.
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
                                                const LoadReport& report = {}, LoadMode mode = LoadMode{},
                                                const std::string& drafter_file = {}) {
     auto loaded = std::make_unique<LoadedModel>();
     if (report) report({"metadata"});
-    loaded->file = gguf::read_gguf(path);
+    const bool directory = is_model_directory(path);
+    loaded->file = directory ? read_directory(path) : gguf::read_gguf(path);
     PlacementRequest placing = request;
     if (!drafter_file.empty()) {
         gguf::GGUFModel side = gguf::read_gguf(drafter_file);
@@ -623,7 +665,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     loaded->tok.emplace(loaded->file);
     loaded->chat = chat::chat_format(loaded->file, *loaded->tok);
     ModelWeights weights = gguf_weights(loaded->file);
-    return detail::load_weights(std::move(loaded), std::move(weights), std::move(backends), placing, options, report, mode);
+    return detail::load_weights(std::move(loaded), std::move(weights), std::move(backends), placing, options, report, mode, directory);
 }
 
 } // namespace infer

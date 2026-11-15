@@ -26,11 +26,13 @@ struct ArchEntry {
     backend::Dtype dtype;
     // A drafter file's header adaptation into the target's blocks, called by the pairing owner after tokenizer equality for every drafter file; a file the hook does not recognise is left as it is, and null preserves the ordinary contract.
     void (*normalize_drafter)(const gguf::GGUFModel& target, gguf::GGUFModel& side) = nullptr;
+    // The table that reads a Hugging Face directory of the architecture (model/arch/hf_config.hpp), or null for one llmx reads only from GGUF.
+    const hf::Table& (*hf_table)() = nullptr;
 };
 
 // GGUF has no source dtype; these are architecture defaults, not declarations inferred from weight storage.
 inline const ArchEntry kArchitectures[] = {
-    {"qwen3", qwen3::open_dense, backend::Dtype::bf16},
+    {"qwen3", qwen3::open_dense, backend::Dtype::bf16, nullptr, qwen3::hf_table},
     {"qwen3moe", qwen3::open_routed, backend::Dtype::bf16},
     {"qwen35", qwen35::open_dense, backend::Dtype::bf16},
     {"qwen35moe", qwen35::open_routed, backend::Dtype::bf16},
@@ -45,6 +47,13 @@ inline const ArchEntry& architecture_of(const gguf::GGUFModel& m) {
     for (const ArchEntry& e : kArchitectures)
         if (name == e.name) return e;
     throw std::runtime_error("inference: unsupported metadata general.architecture");
+}
+
+// The entry whose table reads a Hugging Face config.json of `model_type`; a type no module has a table for is refused by name.
+inline const ArchEntry& hf_architecture(const std::string& model_type) {
+    for (const ArchEntry& e : kArchitectures)
+        if (e.hf_table && model_type == e.hf_table().model_type) return e;
+    throw std::runtime_error("inference: no Hugging Face reader for model_type " + model_type);
 }
 
 // A GGUF model's weights: its architecture, whose configuration is read once, and a view of every tensor, whose data is null while the tensor's file is not mapped (gguf::map_payload).

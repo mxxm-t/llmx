@@ -426,7 +426,7 @@ void dump_value(const gguf::MetaValue& v) {
 }
 
 int cmd_info(const std::string& in_path) {
-    gguf::GGUFModel m = gguf::read_gguf(in_path);
+    gguf::GGUFModel m = infer::read_model(in_path);
     std::cout << "File: " << in_path << "\n";
     std::cout << "Tensors: " << m.tensors.size() << "\n";
     std::cout << "Metadata: " << m.kv.size() << " entries\n";
@@ -449,7 +449,7 @@ int cmd_info(const std::string& in_path) {
 }
 
 int cmd_tokenize(const std::string& model_path, const std::string& text) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
+    gguf::GGUFModel m = infer::read_model(model_path);
     bpe::Tokenizer t(m);
     std::vector<uint32_t> ids = t.encode(text);
     for (size_t i = 0; i < ids.size(); i++) {
@@ -461,7 +461,7 @@ int cmd_tokenize(const std::string& model_path, const std::string& text) {
 }
 
 int cmd_detokenize(const std::string& model_path, const std::string& ids_arg) {
-    gguf::GGUFModel m = gguf::read_gguf(model_path);
+    gguf::GGUFModel m = infer::read_model(model_path);
     bpe::Tokenizer t(m);
     std::cout << t.decode(token_ids(ids_arg, t.vocab.size())) << "\n";
     return 0;
@@ -1614,7 +1614,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  logits      <model> \"<text>\"         Inspect next-token scores\n"
             << "  perplexity  <model> \"<text>\"         Score text or a file\n"
             << "  bench                               Measure kernels or a real model\n\n"
-            << "A model is a GGUF file, or the first shard of a GGUF set.\n"
+            << "A model is a GGUF file, the first shard of a GGUF set, or a Hugging Face model directory.\n"
             << "Downloads require curl 8.4+. No Python runtime is needed.\n\n"
             << "Help:     llmx <command> --help  (or -h)\n"
             << "Version:  llmx --version\n"
@@ -1854,7 +1854,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
     } else if (command == "info") {
         page << "Show GGUF metadata, tensor types and dimensions.\n\n"
             << "Usage: llmx info <model.gguf>\n\n"
-            << "For a sharded model, pass its first shard.\n"
+            << "For a sharded model, pass its first shard; a Hugging Face model directory shows as the GGUF file it reads as.\n"
             << "Example: llmx info model.gguf\n";
     } else if (command == "tokenize") {
         page << "Encode text with the model's tokenizer.\n\n"

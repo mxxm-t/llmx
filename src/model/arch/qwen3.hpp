@@ -16,6 +16,7 @@
 #include "model/architecture.hpp"
 #include "model/arch/metadata.hpp"
 #include "model/arch/blocks.hpp"
+#include "model/arch/hf_config.hpp"
 
 // Qwen3's architecture, from scratch: dense Qwen3 and its mixture-of-experts form, qwen3moe, which the registry (model/arch/registry.hpp) reaches through open_dense and open_routed.
 // Dense matrices use supported block quants or F32 with F32 norms, ne[0] is the input dimension, each output row contiguous, an absent output.weight ties the head to token_embd.weight, and the attention width need not equal n_embd.
@@ -96,6 +97,55 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
     }
     check_config(c);
     return c;
+}
+
+// A dense Qwen3 checkpoint's Hugging Face form, read into the keys and names its GGUF converter writes.
+inline const hf::Table& hf_table() {
+    using hf::Rule;
+    static const hf::Table table{"qwen3", "Qwen3ForCausalLM",
+        {{"num_hidden_layers", "block_count", Rule::integer, nullptr},
+         {"max_position_embeddings", "context_length", Rule::integer, nullptr},
+         {"hidden_size", "embedding_length", Rule::integer, nullptr},
+         {"intermediate_size", "feed_forward_length", Rule::integer, nullptr},
+         {"num_attention_heads", "attention.head_count", Rule::integer, nullptr},
+         {"num_key_value_heads", "attention.head_count_kv", Rule::integer, nullptr},
+         {"rope_theta", "rope.freq_base", Rule::real, nullptr},
+         {"rms_norm_eps", "attention.layer_norm_rms_epsilon", Rule::real, nullptr},
+         {"head_dim", "attention.key_length", Rule::integer, nullptr},
+         {"head_dim", "attention.value_length", Rule::integer, nullptr},
+         {"attention_bias", nullptr, Rule::check, "false"},
+         {"hidden_act", nullptr, Rule::check, "\"silu\""},
+         {"rope_scaling", nullptr, Rule::check, "null"},
+         {"use_sliding_window", nullptr, Rule::check, "false"},
+         {"tie_word_embeddings", nullptr, Rule::check, "true|false"},
+         {"torch_dtype", nullptr, Rule::check, "\"bfloat16\"|\"float16\"|\"float32\""},
+         {"dtype", nullptr, Rule::check, "\"bfloat16\"|\"float16\"|\"float32\""},
+         // Read elsewhere (vocab_size against the embedding, the token ids from the tokenizer's files) or with no effect on inference.
+         {"vocab_size", nullptr, Rule::check, nullptr},
+         {"bos_token_id", nullptr, Rule::check, nullptr},
+         {"eos_token_id", nullptr, Rule::check, nullptr},
+         {"attention_dropout", nullptr, Rule::check, nullptr},
+         {"initializer_range", nullptr, Rule::check, nullptr},
+         {"max_window_layers", nullptr, Rule::check, nullptr},
+         {"sliding_window", nullptr, Rule::check, nullptr},
+         {"transformers_version", nullptr, Rule::check, nullptr},
+         {"use_cache", nullptr, Rule::check, nullptr}},
+        {{"model.embed_tokens.weight", "token_embd.weight"},
+         {"model.norm.weight", "output_norm.weight"},
+         {"lm_head.weight", "output.weight"},
+         {"model.layers.{N}.input_layernorm.weight", "blk.{N}.attn_norm.weight"},
+         {"model.layers.{N}.self_attn.q_proj.weight", "blk.{N}.attn_q.weight"},
+         {"model.layers.{N}.self_attn.k_proj.weight", "blk.{N}.attn_k.weight"},
+         {"model.layers.{N}.self_attn.v_proj.weight", "blk.{N}.attn_v.weight"},
+         {"model.layers.{N}.self_attn.o_proj.weight", "blk.{N}.attn_output.weight"},
+         {"model.layers.{N}.self_attn.q_norm.weight", "blk.{N}.attn_q_norm.weight"},
+         {"model.layers.{N}.self_attn.k_norm.weight", "blk.{N}.attn_k_norm.weight"},
+         {"model.layers.{N}.post_attention_layernorm.weight", "blk.{N}.ffn_norm.weight"},
+         {"model.layers.{N}.mlp.gate_proj.weight", "blk.{N}.ffn_gate.weight"},
+         {"model.layers.{N}.mlp.up_proj.weight", "blk.{N}.ffn_up.weight"},
+         {"model.layers.{N}.mlp.down_proj.weight", "blk.{N}.ffn_down.weight"}},
+        "token_embd.weight", "output.weight"};
+    return table;
 }
 
 // Qwen3's roles, by the id a row of resolved weights is indexed by, and its layer kinds.

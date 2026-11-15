@@ -100,7 +100,7 @@ def check_model_logits(doc, model, spec, name="baseline-logits"):
     Top-1 must agree on every case unless the file's spec names an approved aggregate count.
     True within those bounds, False after printing failures, and None when the configured device has no kernel for the model."""
     bounds = dict(spec, max_abs_logit=MAX_PLAUSIBLE_LOGIT)
-    failures, ordered, top1 = [], 0, 0
+    failures, ordered, top1, worst = [], 0, 0, 0.0
     required_top1 = spec.get("top1_matches", len(doc["cases"]))
     for case in doc["cases"]:
         rc, out = cli(["logits", model, case["text"], "--top", "10"])
@@ -118,6 +118,9 @@ def check_model_logits(doc, model, spec, name="baseline-logits"):
             failures.append((case["text"], str(error)))
             continue
         top1 += ids[0] == case["top_ids"][0]
+        # The largest logit difference on an id both top-10 lists hold, against the golden's 4 decimals.
+        got = dict(zip(ids, common.parse_logits(out)[1]))
+        worst = max([worst] + [abs(got[i] - v) for i, v in zip(case["top_ids"], case["top_logits"]) if i in got])
         if ids[:5] == case["top_ids"][:5]:
             ordered += 1
 
@@ -132,8 +135,8 @@ def check_model_logits(doc, model, spec, name="baseline-logits"):
             print("    %s" % text.encode("unicode_escape").decode("ascii")[:60])
             print("      %s" % why)
         return False
-    print("%s[%s]: top-1 %d/%d, top-5 set >=%d %d/%d, exact order %d/%d  [ok]"
-          % (name, spec["file"], top1, n, spec["top5_overlap"], n, n, ordered, n))
+    print("%s[%s]: top-1 %d/%d, top-5 set >=%d %d/%d, exact order %d/%d, max top-10 logit error %.5f  [ok]"
+          % (name, spec["file"], top1, n, spec["top5_overlap"], n, n, ordered, n, worst))
     return True
 
 
@@ -194,9 +197,28 @@ def check_model_ppl(doc, path, model, spec, name="baseline-ppl", model_context=M
 FILE_EXACT_BOUNDS = dict(BOUNDS["Qwen3-0.6B-Q8_0.gguf"])
 
 
+# The pinned goldens were made from Qwen/Qwen3-0.6B at this revision in float32, so its directory is held to them as a file-exact file is; its one weight file's SHA-256 names it.
+REFERENCE_DIRECTORY = {"repo": "Qwen/Qwen3-0.6B", "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+                       "model.safetensors": "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b"}
+
+
+def run_directory(model):
+    """The reference's Hugging Face directory `model` against the pinned logit and perplexity goldens, at the file-exact bounds."""
+    docs = []
+    for path in (GOLDEN_LOGITS, GOLDEN_PPL):
+        with io.open(path, encoding="utf-8") as f:
+            docs.append(json.load(f))
+    assert docs[1]["reference_revision"] == REFERENCE_DIRECTORY["revision"], "the perplexity golden's revision is not the reference directory's"
+    sha256 = file_sha256(Path(model) / "model.safetensors")
+    assert sha256 == REFERENCE_DIRECTORY["model.safetensors"], ("%s is not %s at %s: model.safetensors has SHA-256 %s"
+                                                                % (model, REFERENCE_DIRECTORY["repo"], REFERENCE_DIRECTORY["revision"], sha256))
+    with io.open(os.path.join(model, "config.json"), encoding="utf-8") as f:
+        model_context = json.load(f)["max_position_embeddings"]
+    return check_exact(docs, model, os.path.basename(os.path.normpath(model)), model_context)
+
+
 def run_file_exact(directory, model):
-    """`model` against the logit and perplexity goldens in `directory`, which must have been made from this very file.
-    A device with no kernel for the model fails the run rather than skipping it, since the run was asked for this one file there."""
+    """`model` against the logit and perplexity goldens in `directory`, which must have been made from this very file."""
     docs = []
     for name in ("baseline_logits.json", "baseline_perplexity.json"):
         with io.open(os.path.join(directory, name), encoding="utf-8") as f:
@@ -212,7 +234,13 @@ def run_file_exact(directory, model):
     # Qwen3's reader defaults an omitted trained context to 4096; pinned baseline files use MODEL_CONTEXT.
     model_context = file.value(str(architecture) + ".context_length", 4096 if architecture in ("qwen3", "qwen3moe") else None)
     assert type(model_context) is int and model_context > 0, "file-exact GGUF needs a positive integer context_length"
-    spec = dict(FILE_EXACT_BOUNDS, file=os.path.basename(model))
+    return check_exact(docs, model, os.path.basename(model), model_context)
+
+
+def check_exact(docs, model, label, model_context):
+    """`model` against the logit and perplexity goldens `docs` made from its own weights, at the file-exact bounds.
+    A device with no kernel for the model fails the run rather than skipping it, since the run was asked for this one model there."""
+    spec = dict(FILE_EXACT_BOUNDS, file=label)
     logits, ppl = docs
     checked = check_model_logits(logits, model, spec, "file-exact-logits")
     if checked:
@@ -303,18 +331,23 @@ def run_tokenizer():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="The real-model HF checks on the pinned fixture models, or one file against its file-exact goldens.")
+    parser = argparse.ArgumentParser(description="The real-model HF checks on the pinned fixture models, one file against its file-exact goldens, or the reference's own directory against the pinned goldens.")
     parser.add_argument("--exe", default=common.EXE, help="path to the built llmx executable")
     parser.add_argument("--device", help="run the commands that take --device on this device, e.g. vulkan:0")
     parser.add_argument("--file-exact", metavar="DIR", help="the goldens tools/gen_baseline.py file-exact wrote for --model")
     parser.add_argument("--model", help="with --file-exact, the GGUF file those goldens were made from")
+    parser.add_argument("--directory", help="the Hugging Face directory of Qwen/Qwen3-0.6B at the goldens' revision, held to the pinned goldens")
     args = parser.parse_args(argv)
     if bool(args.file_exact) != bool(args.model):
         parser.error("--file-exact and --model go together")
+    if args.directory and args.file_exact:
+        parser.error("--directory runs alone")
     common.EXE = os.path.abspath(args.exe)
     common.exe_path()
     if args.device:
         os.environ["LLMX_DEVICE"] = args.device
+    if args.directory:
+        return 0 if run_directory(args.directory) else 1
     return 0 if (run_file_exact(args.file_exact, args.model) if args.file_exact else run()) else 1
 
 

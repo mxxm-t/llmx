@@ -18,6 +18,7 @@ which variant it reads and under which prefix.
   An optional `normalize_drafter(target, side)` callback adapts a drafter file's headers to the blocks-only pairing contract; the pairing calls it for every drafter file, and it leaves a file it does not recognise as it is (qwen4exp's same-architecture sidecars, deepseek41's `dflash` DSpark sidecar).
   The pairing owner calls it after tokenizer equality and before classifying the file.
   Only qwen4exp supplies it; its module validates every exception before changing metadata or tensor names and preserves storage.
+- `hf_table`, `hf_architecture(model_type)`: an entry may name the table that reads a Hugging Face directory of its architecture ([hf_config](model-arch-hf_config.md)), today `qwen3` alone; `hf_architecture` gives the entry whose table reads a `config.json` of that `model_type`, and refuses another type by name ("inference: no Hugging Face reader for model_type ...").
 - `architecture_of(file)`: the entry a file names. A file without
   `general.architecture` is read as qwen3, since the tests' fixtures write
   none; an unknown name, or one that is not a string, is refused

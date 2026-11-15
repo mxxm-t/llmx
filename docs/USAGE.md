@@ -66,6 +66,8 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 ## Global conventions
 
 - A model file is a GGUF v3 container (see `docs/src/format-gguf.md`).
+  `generate`, `chat`, `logits`, `perplexity`, `bench --model`, `serve`, `info`, `tokenize` and `detokenize` also take a Hugging Face model directory (`config.json`, `*.safetensors` with or without `model.safetensors.index.json`, `tokenizer.json`, `tokenizer_config.json`), read as the GGUF file the converter writes from it would be; today dense Qwen3 in F32, F16 or BF16 (`docs/src/inference-directory.md`).
+  `quantize` and `dequantize`, a `--drafter` file and an `--mmproj` file stay GGUF only.
 - Every command that reads a model's tokenizer refuses a file that names a `tokenizer.ggml.model` other than `gpt2` or a `tokenizer.ggml.pre` other than `qwen2`, `qwen35` or `joyai-llm`, the byte-level BPE with Qwen2, Qwen3.5 and DeepSeek-V4.1 pretokenization that llmx implements.
   A key the file omits is not checked.
 - Text arguments containing spaces must be quoted so they arrive as one argv
@@ -224,7 +226,8 @@ llmx info <in.gguf>
 Inspect a GGUF file without running inference. Prints:
 
 - file path, tensor count, metadata entry count
-- every metadata key/value (typed dump)
+- every metadata key/value (typed dump); for a directory, the keys it is read into
+
 - the tensor list: type, name, shape, element count, and on-disk byte size
 
 The reader validates field lengths, tensor sizes, alignment, file extents

@@ -16,6 +16,7 @@ import perf
 import tokenizer
 import perplexity
 import f32
+import safetensors_dir
 import int8
 import half_weights
 import moe
@@ -125,6 +126,7 @@ def main():
                   ("tokenizer", tokenizer.run),
                   ("perplexity", perplexity.run),
                   ("f32", f32.run),
+                  ("safetensors", safetensors_dir.run),
                   ("half-weights", lambda: half_weights.run(require=args.require_tools)),
                   ("moe", moe.run),
                   ("int8", int8.run),

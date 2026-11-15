@@ -21,6 +21,8 @@
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
 #include "format/gguf.hpp"
+#include "format/safetensors.hpp"
+#include "inference/directory.hpp"
 #include "inference/read_ring.hpp"
 #include "model/runtime.hpp"
 #include "server/disk_index.hpp"
@@ -67,11 +69,12 @@ inline std::string disk_identity(const std::string& digest, const std::string& l
     return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nentries: " + std::to_string(DiskStore::kVersion) + "\nlayout: " + flat + "\n";
 }
 
-// Every file of the model at `path` whose bytes its weights are: the path, and each shard of a set the reader finds tensors in.
+// Every file of the model at `path` whose bytes its weights are: the path, or a directory's metadata files, and each file the reader finds tensors in.
 // A first shard of metadata alone is the same bytes for models whose tensors differ, so the identity takes them all.
 inline std::vector<std::string> model_files(const std::string& path) {
-    std::vector<std::string> files{path};
-    for (const auto& segment : gguf::read_gguf(path).segments)
+    std::vector<std::string> files = infer::is_model_directory(path) ? infer::directory_metadata_files(path) : std::vector<std::string>{path};
+    const auto segments = infer::is_model_directory(path) ? safetensors::read_directory(path).segments : gguf::read_gguf(path).segments;
+    for (const auto& segment : segments)
         if (std::find(files.begin(), files.end(), segment.path) == files.end()) files.push_back(segment.path);
     return files;
 }

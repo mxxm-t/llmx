@@ -21,6 +21,7 @@ names it.
   11, and the feed-forward slots are as wide as a dense layer or k
   experts, whichever is wider.
 
+- `hf_table()`: dense Qwen3's Hugging Face form (`Qwen3ForCausalLM`), the `config.json` keys and tensor names its GGUF converter maps and its embedding and head names, read by [hf_config](model-arch-hf_config.md); `qwen3moe` has none yet, as its experts need stacking.
 - `Config`, `read_config(file, prefix, moe)`: the configuration, read
   under the prefix the registry hands it (`qwen3.`, or `qwen3moe.` with
   `moe`): `block_count`, `embedding_length`, `feed_forward_length`,

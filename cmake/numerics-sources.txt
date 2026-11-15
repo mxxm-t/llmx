@@ -45,3 +45,4 @@ allow src/core/sha.hpp | file_digest.hpp hashes the model file with it
 allow src/inference/chat.hpp | load.hpp carries the chat format beside the model
 allow src/inference/sampler.hpp | spec.hpp accepts drafts with the sampler's draw; the rows a verify writes are the model's
 allow src/tokenizer/tokenizer.hpp | load.hpp carries the tokenizer beside the model
+allow src/tokenizer/hf_tokenizer.hpp | directory.hpp reads the tokenizer keys beside the model

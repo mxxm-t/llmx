@@ -1,0 +1,8 @@
+# `src/inference/directory.hpp` - a Hugging Face model directory read as a GGUF file
+
+`infer::read_directory(dir)` reads a Hugging Face model directory into the `gguf::GGUFModel` its GGUF file would give: the tensors and their files from `safetensors::read_directory` ([safetensors](format-safetensors.md)), renamed with the architecture's metadata by the table of the module `config.json`'s `model_type` names (`infer::hf_architecture`, `infer::hf::apply`, [hf_config](model-arch-hf_config.md)), and the tokenizer keys `bpe::hf::read_keys` writes from the tokenizer files ([hf_tokenizer](tokenizer-hf_tokenizer.md)), `config.json`'s `vocab_size`, which `hf::apply` holds to the embedding's rows, giving the vocabulary.
+The tensors keep the directory's storage types: the loader widens 16-bit vectors (`widened_on_load`: rank 1, BF16 or F16) to F32 into a buffer of its own, as the converter stores vectors ([load](inference-load.md)).
+
+- `is_model_directory(path)`: whether `path` is a directory, which every command that takes a model reads as a Hugging Face directory.
+- `read_model(path)`: a directory through `read_directory`, anything else through `gguf::read_gguf`; `info`, `tokenize` and `detokenize` read a model through it, and `infer::load_model` takes the same branch.
+- `directory_metadata_files(dir)`: `config.json`, `tokenizer.json`, `tokenizer_config.json`, `chat_template.jinja` and `model.safetensors.index.json`, those present, which the disk tier's model identity digests beside the tensor files ([server](server.md)).

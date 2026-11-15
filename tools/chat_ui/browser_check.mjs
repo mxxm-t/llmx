@@ -23,6 +23,7 @@ const runStreams = [];
 let heldMonitorLoad = null;
 let heldRestoreRequest = null;
 let heldSendResponse = null;
+let heldChatCreateResponse = null;
 const nativeDialogs = [];
 const apiMutations = [];
 async function cdp(method, params = {}) {
@@ -126,6 +127,10 @@ try {
     if (data.method === 'Fetch.requestPaused') {
       if (data.params.request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(data.params.request.url).pathname)) heldSendResponse = data.params;
       else if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
+      else if (new URL(data.params.request.url).pathname === '/api/chats') {
+        if (data.params.request.method === 'POST' && data.params.responseStatusCode) heldChatCreateResponse = data.params;
+        else cdp('Fetch.continueResponse', {requestId: data.params.requestId}).catch(() => {});
+      }
       else heldMonitorLoad = data.params.requestId;
     }
     if (data.method === 'Page.javascriptDialogOpening') { nativeDialogs.push(data.params.type); cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {}); }
@@ -213,6 +218,27 @@ try {
   assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await idle();
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'completion discarded open reasoning choice');
+  const selectedBeforeDelayedCreate = await evaluate("localStorage.getItem('llmx-chat')");
+  const navigationTarget = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Delayed create navigation target'})}).then(r=>r.json()).then(c=>c.id)");
+  await reloadDocument();
+  await wait(`document.querySelector('[data-chat="${navigationTarget}"]')!==null && document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(selectedBeforeDelayedCreate)}`, 'existing navigation target available');
+  await cdp('Fetch.enable', {patterns: [{urlPattern: url + '/api/chats', requestStage: 'Response'}]});
+  await click('[data-action="new"]');
+  await wait(() => heldChatCreateResponse !== null, 'successful chat-create response paused');
+  const createdBody = await cdp('Fetch.getResponseBody', {requestId: heldChatCreateResponse.requestId});
+  const createdDuringDelay = JSON.parse(Buffer.from(createdBody.body, createdBody.base64Encoded ? 'base64' : 'utf8').toString('utf8')).id;
+  await click(`[data-chat="${navigationTarget}"]`);
+  await wait(`localStorage.getItem('llmx-chat')===${JSON.stringify(navigationTarget)} && document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(navigationTarget)}`, 'switch existing conversation during delayed create');
+  await fill('#draft', 'Newer draft typed during chat creation');
+  await cdp('Fetch.continueResponse', {requestId: heldChatCreateResponse.requestId});
+  heldChatCreateResponse = null;
+  await cdp('Fetch.disable');
+  await wait(`document.querySelector('[data-chat="${createdDuringDelay}"]')!==null`, 'created conversation discoverable after response');
+  await wait("!document.querySelector('[data-action=\"new\"]').disabled", 'chat creation completion');
+  assert.equal(await evaluate("document.querySelector('.chat-item.active')?.dataset.chat"), navigationTarget, 'late create response navigated away from selected conversation');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Newer draft typed during chat creation', 'late create response cleared newer draft');
+  await click(`[data-chat="${selectedBeforeDelayedCreate}"]`);
+  await wait(`localStorage.getItem('llmx-chat')===${JSON.stringify(selectedBeforeDelayedCreate)}`, 'restore original conversation for following checks');
   await reloadDocument();
   await wait("document.querySelectorAll('.message.assistant').length===1 && document.querySelector('#stop').hidden", 'refresh and persisted stream completion');
   assert.equal(await evaluate("document.querySelector('.message.assistant').textContent.split('A practical plan.').length-1"), 1, 'snapshot replay duplicated output');

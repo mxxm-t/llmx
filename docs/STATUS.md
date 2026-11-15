@@ -203,6 +203,16 @@ page and its exact rootless configuration is not qualified.
 
 **Gotchas.** Static analysis is conservative around instance attributes and dynamic imports. This change must not claim complete runtime reachability or execute the scanned code. No UI, inference or production change.
 
+## Chat creation navigation race (2026-11-15, In progress)
+
+**Goal.** A late New conversation response must preserve the selected conversation and its newer draft while keeping the created chat in the sidebar.
+
+**Done.** The browser regression pauses the successful chat-create response after the server has persisted it, switches to another existing conversation, and types a newer draft. It fails on this revision because the late response selects the newly created chat.
+
+**Left.** Fix `newChat()` so only an unchanged selection receives the new-chat navigation, preserve the newer draft, keep the created row discoverable, and rerun the focused browser check.
+
+**Gotchas.** The persisted conversation remains discoverable even when it does not become the selected conversation.
+
 ## Chat system theme (2026-11-15, Done)
 
 **Goal.** Use the operating system color preference until the owner chooses a saved light or dark theme. Keep the monitor theme in sync.

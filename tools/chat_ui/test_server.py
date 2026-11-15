@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+from pathlib import Path
 import queue
 import socket
 import tempfile
@@ -11,6 +12,7 @@ from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import server as chat_server
+import monitor as chat_monitor
 from server import Application, Server
 
 
@@ -276,6 +278,29 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(cleared[0], 200)
         self.assertIn("Max-Age=0", dict((key.lower(), value) for key, value in cleared[1])["set-cookie"])
         self.assertEqual(self.request("GET", "/api/chats", cookie=cookie)[0], 401)
+
+    def test_shared_dashboard_assets_are_fixed_and_have_binary_mime_types(self):
+        expected = {
+            "favicon.svg": (b"<svg>favicon</svg>", "image/svg+xml"),
+            "logo.svg": (b"<svg>logo</svg>", "image/svg+xml"),
+            "icon-192.png": (b"\x89PNG\r\n\x1a\n192", "image/png"),
+            "icon-512.png": (b"\x89PNG\r\n\x1a\n512", "image/png"),
+            "theme.css": (b"/* shared theme */", "text/css; charset=utf-8"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, (data, _) in expected.items():
+                (root / name).write_bytes(data)
+            with mock.patch.object(chat_monitor, "DASHBOARD", root):
+                for name, (data, mime) in expected.items():
+                    with self.subTest(asset=name):
+                        status, headers, body = self.request("GET", "/" + name)
+                        self.assertEqual(status, 200)
+                        self.assertEqual(body, data)
+                        self.assertEqual(dict((k.lower(), v) for k, v in headers)["content-type"], mime)
+                for path in ("/server.py", "/../server.py", "/logo.svg?x=1"):
+                    with self.subTest(path=path):
+                        self.assertEqual(self.request("GET", path)[0], 404)
 
     def test_oversized_login_is_rejected_before_body_read_or_password_hash(self):
         with mock.patch.object(self.app, "digest", wraps=self.app.digest) as digest:

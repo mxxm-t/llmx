@@ -199,6 +199,10 @@ try {
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'dark'}]});
   await reloadDocument();
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'restored legacy dark browser setup');
+  await wait("getComputedStyle(document.querySelector('.brand-wordmark')).maskImage.includes('/logo.svg')", 'shared wordmark');
+  assert.equal(await evaluate("document.querySelector('link[rel=icon]').getAttribute('href')"), '/favicon.svg', 'shared favicon');
+  assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().width"), 96, 'wordmark width');
+  assert.equal(await evaluate("(async()=>{const img=new Image();img.src='/logo.svg';await img.decode();return img.naturalWidth>0})()"), true, 'wordmark asset decoded');
   await screenshot('desktop-empty.png');
   await evaluate("for (let i=0;i<12;i++) document.querySelector('[data-action=\"new\"]').click()");
   await wait("document.querySelector('.chat-item.active')!==null", 'new empty conversation');
@@ -401,6 +405,7 @@ try {
   await click('[data-action="theme"]');
   await click('[data-action="close-drawers"]');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light');
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.brand-wordmark')).maskImage.includes('/logo.svg')"), true, 'light theme wordmark');
   await screenshot('mobile-light.png');
   assert.equal(await evaluate("{const b=document.querySelector('.message.assistant [data-action=retry]'),r=b?.getBoundingClientRect(),m=document.querySelector('.message.assistant .message-metrics')?.getBoundingClientRect(),a=document.querySelector('.message.assistant .message-actions')?.getBoundingClientRect();Boolean(b?.querySelector('svg[aria-hidden=true]') && b.getAttribute('aria-label')==='Retry response' && r && r.width>=40 && r.height>=40 && r.right<=innerWidth && m && a && m.top>=r.bottom && m.right<=a.right+1)}"), true, 'mobile message action sizing or metric wrapping is wrong');
   await screenshot('mobile-actions-light.png');
@@ -517,6 +522,7 @@ try {
   await wait("{const doc=document.querySelector('#monitor-frame').contentDocument; Boolean(doc?.readyState==='complete' && doc.querySelector('main') && doc.documentElement.dataset.theme==='light')}", 'loaded embedded monitor with light theme');
   assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme"), 'light', 'monitor theme mismatch');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('#monitor-frame').contentDocument.querySelector('body>header')).display"), 'none', 'duplicate monitor header');
+  assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.querySelector('link[rel=icon]').getAttribute('href')"), '/favicon.svg', 'monitor favicon matches chat');
   const lightPanels = await evaluate(`(() => {
     const doc = document.querySelector('#monitor-frame').contentDocument;
     const root = doc.createElement('div'); doc.body.append(root);

@@ -21,6 +21,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MAX_BODY = 1024 * 1024
 MAX_SAMPLES = 3601
 MAX_EVENTS = 128
+ASSETS = {
+    "theme.css": "text/css; charset=utf-8",
+    "favicon.svg": "image/svg+xml",
+    "logo.svg": "image/svg+xml",
+    "icon-192.png": "image/png",
+    "icon-512.png": "image/png",
+}
 
 
 def _reject_constant(value):
@@ -413,14 +420,15 @@ def make_handler(collector, html_path):
             if parsed.scheme or parsed.netloc or parsed.fragment:
                 self._send(400, b"Bad request", "text/plain; charset=utf-8")
                 return
-            if parsed.path == "/theme.css" and not parsed.query:
+            asset_name = parsed.path[1:] if parsed.path.startswith("/") else ""
+            if asset_name in ASSETS and not parsed.query:
                 try:
-                    with open(os.path.join(os.path.dirname(html_path), "theme.css"), "rb") as stream:
+                    with open(os.path.join(os.path.dirname(html_path), asset_name), "rb") as stream:
                         body = stream.read()
                 except OSError:
                     self._send(404, b"Not found", "text/plain; charset=utf-8")
                     return
-                self._send(200, body, "text/css; charset=utf-8")
+                self._send(200, body, ASSETS[asset_name])
                 return
             if parsed.path == "/" and not parsed.query:
                 try:

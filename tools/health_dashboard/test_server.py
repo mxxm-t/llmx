@@ -251,6 +251,47 @@ class HealthTests(unittest.TestCase):
             web.server_close()
             thread.join()
 
+    def test_shared_brand_assets_are_fixed_and_have_binary_mime_types(self):
+        expected = {
+            "favicon.svg": (b"<svg>favicon</svg>", "image/svg+xml"),
+            "logo.svg": (b"<svg>logo</svg>", "image/svg+xml"),
+            "icon-192.png": (b"\x89PNG\r\n\x1a\n192", "image/png"),
+            "icon-512.png": (b"\x89PNG\r\n\x1a\n512", "image/png"),
+            "theme.css": (b"/* shared theme */", "text/css; charset=utf-8"),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = os.path.abspath(directory)
+            index = os.path.join(root, "index.html")
+            with open(index, "wb") as stream:
+                stream.write(b"<html></html>")
+            for name, (data, _) in expected.items():
+                with open(os.path.join(root, name), "wb") as stream:
+                    stream.write(data)
+            web = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(server.Collector("unused"), index))
+            thread = threading.Thread(target=web.serve_forever, daemon=True)
+            thread.start()
+            try:
+                def get(path):
+                    connection = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=2)
+                    connection.request("GET", path)
+                    response = connection.getresponse()
+                    body = response.read()
+                    result = response.status, response.getheader("Content-Type"), body
+                    connection.close()
+                    return result
+
+                for name, (data, mime) in expected.items():
+                    with self.subTest(asset=name):
+                        status, content_type, body = get("/" + name)
+                        self.assertEqual((status, content_type, body), (200, mime, data))
+                for path in ("/server.py", "/../server.py", "/logo.svg?x=1"):
+                    with self.subTest(path=path):
+                        self.assertEqual(get(path)[0], 404)
+            finally:
+                web.shutdown()
+                web.server_close()
+                thread.join()
+
     def test_sse_replays_from_cursor_and_does_not_poll_per_client(self):
         calls = []
 

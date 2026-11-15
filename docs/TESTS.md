@@ -7,13 +7,17 @@ The standalone [health dashboard](../tools/health_dashboard/README.md) runs with
 fixtures cover health collection, startup, recovery, shared history and streams.
 Key-file checks cover anonymous and authenticated startup, file validation before
 listening, ready and startup bearer requests, rejected keys, redirect refusal and
-credentials excluded from browser snapshots. They do not require a model.
+credentials excluded from browser snapshots. Fixed shared-asset routes check exact
+SVG/PNG bytes, content types and refusals of unknown paths and traversal. They
+do not require a model.
 
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 HTTP checks cover authentication, origin checks, attachments and import/export.
+Shared branding checks cover the same asset bytes and MIME types in both servers,
+with the browser checking icon loading, sizing and matching Chat/Monitor favicons.
 Store checks cover schema upgrades, online backup and validated restore, including
 broken branch references, cycles and preservation of the destination on refusal.
 Valid alternative branches need not be stored in parent-first row order. Workspace

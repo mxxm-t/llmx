@@ -6,7 +6,8 @@
     <meta name="color-scheme" content="dark light">
     <meta name="description" content="Conversations, runtime monitoring and project files in one llmx interface.">
     <title>llmx</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23bce8b1'/%3E%3Cpath d='M12 11v18h6M23 11v18h6' stroke='%23192318' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="stylesheet" href="/app.css">
     <link rel="stylesheet" href="/theme.css">
     <link rel="stylesheet" href="/shell.css">
@@ -21,8 +22,7 @@
     <div id="app" class="workspace" data-view="chat">
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
-          <span class="brand-mark">ll</span>
-          <strong>llmx</strong>
+          <span class="brand-wordmark" role="img" aria-label="llmx"></span>
           <button class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
         </div>
         <nav class="global-nav" aria-label="Main navigation">
@@ -274,7 +274,7 @@
     <input id="import-input" type="file" accept="application/json,.json" hidden>
     <dialog id="login-dialog">
       <form id="login-form" class="dialog-content">
-        <span class="brand-mark">ll</span>
+        <span class="brand-wordmark" role="img" aria-label="llmx"></span>
         <h2>Unlock llmx</h2>
         <p>Enter your companion password to continue.</p>
         <label class="field">Password<input id="password" type="password" autocomplete="current-password" required></label>

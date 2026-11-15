@@ -7,6 +7,8 @@
   <title>
    llmx monitor
   </title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="stylesheet" href="/theme.css">
   <style>
 
@@ -61,20 +63,6 @@ header .inner {
   display: flex;
   align-items: center;
   gap: 12px
-}
-.mark {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--brand-line);
-  border-radius: 10px;
-  background: var(--brand-bg);
-  display: grid;
-  place-items: center;
-  color: var(--cyan)
-}
-.brand strong {
-  font-size: 20px;
-  letter-spacing: -1px
 }
 .brand .slash {
   color: var(--muted);
@@ -1859,15 +1847,7 @@ button[hidden] {
   <header>
    <div class="inner">
     <a aria-label="llmx monitor home" class="brand" href="/">
-     <span class="mark">
-      <svg aria-hidden="true" fill="none" height="22" stroke="currentColor" stroke-width="1.6" viewbox="0 0 24 24" width="22">
-       <path d="M4 16V8m5 11V5m5 12V7m5 7v-4">
-       </path>
-      </svg>
-     </span>
-     <strong>
-      llmx
-     </strong>
+     <span class="brand-wordmark" role="img" aria-label="llmx"></span>
      <span class="slash">
       /
      </span>

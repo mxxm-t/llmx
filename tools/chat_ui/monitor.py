@@ -8,6 +8,7 @@ DASHBOARD = Path(__file__).resolve().parents[1] / "health_dashboard"
 _spec = importlib.util.spec_from_file_location("llmx_health_collector", DASHBOARD / "server.py")
 health = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(health)
+ASSETS = health.ASSETS
 
 
 class Monitor:
@@ -26,8 +27,10 @@ class Monitor:
     def stream(self, handler, authorized):
         health.stream_history(handler, self.collector, authorized)
 
-    def theme(self):
-        return (DASHBOARD / "theme.css").read_bytes()
+    def asset(self, name):
+        if name not in ASSETS:
+            raise KeyError(name)
+        return (DASHBOARD / name).read_bytes(), ASSETS[name]
 
     def stop(self):
         self.collector.stop()

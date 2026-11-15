@@ -15,6 +15,21 @@
 **Left.** Coordinator landing. The current conversation was recovered through the existing branch-selection API with all 41 messages and 25 runs preserved. No service restart occurred; engine code is not yet active in the existing process.
 
 **Gotchas.** Do not alter saved messages, accepted image turns, partial replies, tool actions or a deliberate retry of the image. No inference code changes.
+## Shared llmx identity (2026-11-15, Ready)
+
+**Goal.** Give Chat and Monitor one lowercase llmx wordmark and matching favicon/app icons in flat monochrome.
+
+**Done.** The owner selected a wordmark after rejecting two symbol designs. The new vector lettering replaces the icon-plus-text header in both interfaces. The shared theme owns its CSS mask, and each use has an accessible label. The favicon and PNGs use the same lettering without distortion. Dashboard ASSETS and the existing Monitor bridge own fixed serving routes. No inference code changes or new helper/thread/allocator/kernel.
+
+**Checks.** Shared route tests pass (20 companion and 11 dashboard). Hosted run 43747029808 passed on Windows/Linux at 58b788c62. Only artwork, presentation and documentation have changed since then, so routing evidence is retained. Revised wordmark browser and docs/dead-code receipts are in scratch/brand.
+
+**Checks.** Wordmark Chrome run passes in 31.073 seconds, including SVG decoding, theme and responsive checks. Docs passes with 0 findings/21 planted checks and dead-code with 15 expected findings/20 planted faults. Desktop screenshot reviewed.
+
+**Done.** The owner selected the plain monochrome wordmark after previewing color treatments. All preview-only coloring was removed, and live theme/favicon bytes were verified against the selected design. No source changes followed the passing wordmark checks except this status record.
+
+**Left.** Coordinator fast-forward landing. The rejected symbol designs must not land. Local static preview is updated without restarting the service. Production is unchanged.
+
+**Gotchas.** The current preview process does not have the new shared asset routes loaded. Its theme temporarily embeds the exact SVG as a mask data URL. The committed source uses the single shared /logo.svg route. Preserve conversations and in-memory temporary chats.
 
 ## Attachment reads stay with their conversation (2026-11-15, Ready)
 

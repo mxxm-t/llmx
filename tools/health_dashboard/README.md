@@ -247,3 +247,12 @@ collector's shared polling, bounded history and event tracking. Preserving that
 behavior requires either a native shared collector in llmx, or browser-local
 polling and history, which is per-tab and lost on reload. This is a design
 option, not a current capability or planned rewrite.
+
+## Identity
+
+Chat and Monitor share the lowercase llmx wordmark in `tools/health_dashboard/`.
+`logo.svg` contains outlined lettering, with no font dependency or gradients.
+Both interfaces use it as a CSS mask with an accessible label, so the letters
+follow the selected theme. `favicon.svg` places the same lettering on a flat
+charcoal tile. `icon-192.png` and `icon-512.png` export that icon at app sizes.
+Both servers expose these fixed asset paths.

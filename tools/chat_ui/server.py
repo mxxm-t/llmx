@@ -22,7 +22,7 @@ from store import Store, encoded
 from temporary import TemporaryChats
 from tools import ToolRegistry
 from upstream import Connection
-from monitor import Monitor
+from monitor import ASSETS, Monitor
 from workspace import Workspace, WorkspaceTools
 
 
@@ -388,11 +388,11 @@ class Handler(BaseHTTPRequestHandler):
             self._headers(200, "text/html; charset=utf-8", len(data), policy=policy)
             return self.wfile.write(data)
         if not path.startswith("/api/"):
-            if path == "/theme.css" and method == "GET":
-                data = self.app.monitor.theme()
-                self._headers(200, "text/css; charset=utf-8", len(data))
+            if path.startswith("/") and path[1:] in ASSETS and method == "GET" and not parsed.query:
+                data, mime = self.app.monitor.asset(path[1:])
+                self._headers(200, mime, len(data))
                 return self.wfile.write(data)
-            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/favicon.svg", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js"):
+            if method != "GET" or path not in ("/", "/index.html", "/app.js", "/render.js", "/app.css", "/shell.js", "/shell.css", "/artifacts.js", "/monitor.css", "/workspace.js"):
                 raise KeyError()
             name = "index.html" if path == "/" else path[1:]
             file = ROOT / name

@@ -67,3 +67,12 @@
   --shadow: 0 16px 60px #10203018;
   color-scheme: light;
 }
+
+.brand-wordmark {
+  display: block;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 38px;
+  background: var(--text);
+  mask: url("/logo.svg") center / contain no-repeat;
+}

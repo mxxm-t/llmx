@@ -125,7 +125,7 @@ class BrowserTests(unittest.TestCase):
                    "timings": {"prompt_per_second": 240, "predicted_per_second": 25,
                                "prompt_ms": 500, "predicted_ms": 1600, "queued_ms": 0, "prepared_ms": 10},
                    "context": {"tokens": 160, "limit": 4096}}
-        first = [text_event(reasoning="Let me think carefully."), "WAIT",
+        first = [dict(text_event(reasoning="Let me think carefully."), id="r-browser-1"), "WAIT",
                  text_event(reasoning=" Compare the options."), "WAIT",
                  text_event(reasoning=" Choose a clear plan."), "WAIT",
                  text_event("A practical plan.\n\n```python\nprint('hello')\n```\n\n| Step | State |\n| --- | --- |\n| One | Ready |\n\n<script>window.injected=true</script>"), metrics]

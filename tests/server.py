@@ -57,7 +57,7 @@ class Server:
                 assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms",
                                      "queued_ms", "first_token_ms", "inter_token_ms", "steps", "verifies", "drafted", "kept"}, item
                 assert item["verifies"] <= item["steps"] <= item["published_tokens"] and item["kept"] <= item["drafted"], item
-                assert isinstance(item["id"], str) and re.fullmatch(r"r-[1-9][0-9]*", item["id"]), item
+                assert isinstance(item["id"], str) and re.fullmatch(r"[!-~]{1,128}", item["id"]), item
                 assert item["phase"] in ("queued", "paused", "prefill", "generate"), item
                 assert all(isinstance(item[key], int) and item[key] >= 0 for key in
                            ("prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms", "queued_ms", "first_token_ms")), item
@@ -159,6 +159,63 @@ class Server:
 
     def close(self):
         common.stop_server(self.proc, self.log)
+
+
+def check_request_identity(directory):
+    """An opening chat chunk identifies its exact live health row, across concurrent requests and server restarts."""
+    model = os.path.join(directory, "identity.gguf")
+    config = dict(f32.CONFIG, embedding_length=64, feed_forward_length=128, context_length=8192)
+    config["attention.key_length"] = 32
+    template = "{% for m in messages %}{{ m.content }}{% endfor %}"
+    f32.write_model(model, f32.tensors(False, config=config), template, config=config)
+    previous_ids = set()
+    for restart in range(2):
+        srv = Server(model, "--threads", "1", "--ubatch", "1", "--max-seqs", "2", "--kv-tokens", "16384")
+        connections, responses, ids = [], [], set()
+        try:
+            for prompt in ("a", "b"):
+                conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=10)
+                connections.append(conn)
+                body = {"messages": [{"role": "user", "content": prompt * 4096}],
+                        "max_tokens": 2048, "temperature": 0, "ignore_eos": True, "stream": True}
+                conn.request("POST", "/v1/chat/completions", json.dumps(body), {"Content-Type": "application/json"})
+                response = conn.getresponse()
+                responses.append(response)
+                assert response.status == 200, response.status
+                line = response.readline(4096)
+                assert line.startswith(b"data: "), line
+                first = json.loads(line[6:])
+                assert first["choices"][0]["delta"] == {"role": "assistant", "content": ""}, first
+                rid = first.get("id")
+                assert "llmx_request_id" not in first, first
+                assert isinstance(rid, str) and 1 <= len(rid) <= 128, first
+                assert rid not in ids | previous_ids, (restart, rid)
+                ids.add(rid)
+            srv.wait(lambda h: ids <= {i["id"] for i in h["requests"]["live"]["items"]},
+                     "opening identities did not match the concurrent health rows")
+            previous_ids.update(ids)
+            for response in responses:
+                response.close()
+            for conn in connections:
+                conn.close()
+            srv.wait(lambda h: h["requests"]["live"]["total"] == 0, "cancelled identities stayed live", 30)
+            body = {"messages": [{"role": "user", "content": "abc"}], "max_tokens": 3, "temperature": 0}
+            status, whole = srv.post("/v1/chat/completions", body)
+            assert status == 200, whole
+            events = srv.stream("/v1/chat/completions", dict(body, stream=True, stream_options={"include_usage": True}))
+            chunks = [e for e in events if e and e.get("choices")]
+            deltas = [e["choices"][0]["delta"] for e in chunks]
+            assert sum("role" in d for d in deltas) == 1, deltas
+            assert len({e["id"] for e in chunks}) == 1, chunks
+            assert not any("llmx_request_id" in e for e in events if e), events
+            assert "".join(d.get("content", "") for d in deltas) == whole["choices"][0]["message"]["content"], events
+            assert events[-2]["usage"] == whole["usage"] and events[-1] is None, events
+        finally:
+            for response in responses:
+                response.close()
+            for conn in connections:
+                conn.close()
+            srv.close()
 
 
 def cli_greedy_text(model, prompt, n, flags=()):
@@ -1681,8 +1738,8 @@ def check_no_turns_whole_block(model):
 
 
 def volatile(text):
-    """A reply with its id and timings blanked, the only bytes in which two runs of one compatible request may differ."""
-    text = re.sub(r'"id":"(chat)?cmpl-[0-9]+"', '"id":""', text)
+    """A reply with its completion/request IDs and timings blanked, the bytes in which repeated compatible requests may differ."""
+    text = re.sub(r'"id":"(chat)?cmpl-[0-9-]+"', '"id":""', text)
     return re.sub(r'"timings":\{[^{}]*\}', '"timings":{}', text)
 
 
@@ -2625,6 +2682,8 @@ def check_departed(model):
 def run_group():
     """Under a tensor width, the routes over a group: the synthetic model in the tensor-split fixtures' shape, which a group splits whole, held to the CLI on the same group as check_server holds the F32 model; the other checks' fixtures have shapes a group refuses."""
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
+        check_request_identity(directory)
+        print("server: opening chat identity, concurrent health correlation, restart separation, cancellation and unchanged streamed text/usage  [ok]")
         model = os.path.join(directory, "tiny-split.gguf")
         f32.write_model(model, f32.tensors(True, config=tensor_split.CONFIG, vocab=tensor_split.VOCAB),
                         config=dict(tensor_split.CONFIG, context_length=f32.CONFIG["context_length"]), tokens=tensor_split.TOKENS)
@@ -2722,6 +2781,8 @@ def run(require=False):
         else:
             print("server: SKIP Flash HTTP - build llmx-server-spec-test beside the executable")
     with tempfile.TemporaryDirectory(prefix="llmx_server_") as directory:
+        check_request_identity(directory)
+        print("server: opening completion id, concurrent health correlation, restart separation, cancellation and unchanged streamed text/usage  [ok]")
         # Every reply that names the model carries its file name, so the synthetic model's holds a byte that is not UTF-8 where the file system takes one (Linux), and characters beyond ASCII elsewhere.
         # On Windows a name read in the system code page instead of as UTF-8 fails only where one of its UTF-8 bytes has no mapping there, so U+00E1 brings 0xA1 for code page 1257, U+00E0 brings 0xA0 for 932, and U+4E2D breaks 936, 949 and 950.
         name = "tiny-f32-\udcff.gguf" if sys.platform.startswith("linux") else "tiny-f32-\u00e1\u00e9\u00e0\u4e2d.gguf"

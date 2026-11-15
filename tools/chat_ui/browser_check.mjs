@@ -165,7 +165,7 @@ try {
   socket.onmessage = event => {
     const data = JSON.parse(event.data);
     if (data.id && pending.has(data.id)) { const call = pending.get(data.id); pending.delete(data.id); clearTimeout(call.timeout); if (data.error) call.reject(new Error(JSON.stringify(data.error))); else call.resolve(data.result); }
-    if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
+    if (data.method === 'Runtime.exceptionThrown') { const detail = data.params.exceptionDetails; errors.push(detail.exception?.description || detail.text); }
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
     if (data.method === 'Fetch.requestPaused') {
@@ -323,14 +323,64 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   await evaluate("window.dispatchEvent(new Event('resize'));while(document.querySelector('#attachments [data-action=remove-attachment]'))document.querySelector('#attachments [data-action=remove-attachment]').click()");
   assert.equal(await evaluate("document.querySelector('#attachments').children.length"), 0, 'attachment cleanup left a size summary behind');
+  await evaluate(`{
+    const Original = window.EventSource;
+    window.healthStreams = [];
+    window.EventSource = function(url, options) {
+      if (url !== '/api/monitor/stream') return new Original(url, options);
+      const stream = new EventTarget(); stream.closed = false; stream.close = () => { stream.closed = true; };
+      window.healthStreams.push(stream); return stream;
+    };
+    window.healthSample = (clock, phase, prefilled, published, present = true, ok = true) => {
+      const item = {id:'r-browser-1',phase,prompt_tokens:200,reused_tokens:0,prefilled_tokens:prefilled,published_tokens:published};
+      const data = {collector_id:'browser-collector',ok,interval_s:2,samples:[],latest:{requests:{live:{sample_elapsed_ms:clock,items:present?[item]:[]}}}};
+      window.healthStreams.at(-1).dispatchEvent(new MessageEvent('history',{data:JSON.stringify(data)}));
+    };
+  }`);
   await send('Make a practical plan.');
   await wait("document.querySelector('.reasoning')!==null", 'streamed reasoning');
+  await wait('healthStreams.length===1', 'one shared collector subscription');
+  await evaluate("healthSample(1000,'prefill',0,0)");
+  assert.equal(await evaluate("document.querySelector('.live-phase').textContent"), 'Processing prompt');
+  assert(!(await evaluate("document.querySelector('.live-metrics').textContent")).includes('tok/s'), 'one sample invented a rate');
+  await evaluate("healthSample(3000,'prefill',200,0)");
+  assert((await evaluate("document.querySelector('.live-metrics').textContent")).includes('100 prompt tok/s'));
+  await evaluate("healthSample(3000,'prefill',200,0)");
+  assert(!(await evaluate("document.querySelector('.live-metrics').textContent")).includes('tok/s'), 'repeated snapshot held an old rate');
+  await evaluate("healthSample(5000,'generate',200,40)");
+  assert((await evaluate("document.querySelector('.live-metrics').textContent")).includes('20 generated tok/s'));
+  await evaluate("healthSample(6000,'generate',200,40,false)");
+  assert.equal(await evaluate("document.querySelector('.live-metrics').textContent"), 'Live rates unavailable');
+  await evaluate("healthSample(7000,'generate',200,60)");
+  assert(!(await evaluate("document.querySelector('.live-metrics').textContent")).includes('tok/s'), 'missing row was bridged');
+  await evaluate("healthSample(9000,'generate',200,60)");
+  assert((await evaluate("document.querySelector('.live-metrics').textContent")).includes('0 generated tok/s'), 'measured zero was lost');
+  await evaluate("healthStreams.at(-1).onerror()");
+  assert.equal(await evaluate("document.querySelector('.live-metrics').textContent"), 'Live rates unavailable');
+  await evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide',{persisted:true}));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}))");
+  await wait('healthStreams.length===2 && healthStreams[0].closed', 'back-forward cache restoration resubscribed');
+  await click('.global-nav [data-view="preferences"]');
+  assert.equal(await evaluate('healthStreams.every(stream=>stream.closed)'), true, 'leaving Chat kept its health subscription');
+  await click('.global-nav [data-view="chat"]');
+  await wait('healthStreams.length===3', 'chat return resubscribed');
+  await evaluate("healthSample(10000,'generate',200,60);healthSample(12000,'generate',200,100)");
+  await cdp('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await evaluate("window.dispatchEvent(new Event('resize'));document.querySelector('[data-action=close-drawers]').click()");
+  assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth"), true, 'live metrics overflow mobile');
+  await screenshot('live-metrics-mobile-dark.png');
+  await evaluate("document.documentElement.dataset.theme='light'");
+  await screenshot('live-metrics-mobile-light.png');
+  await evaluate("document.documentElement.dataset.theme='dark'");
+  await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
+  await evaluate("window.dispatchEvent(new Event('resize'))");
   await reasoningClickDuringDelta('Compare the options.', true);
   await reasoningClickDuringDelta('Choose a clear plan.', false);
   await pointerClick('.reasoning > summary');
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'reasoning did not reopen while streaming');
   assert.equal((await fetch(upstreamFixture + '/browser-step')).status, 204);
   await idle();
+  assert.equal(await evaluate('healthStreams.every(stream=>stream.closed)'), true, 'completion kept the health subscription');
+  assert.equal(await evaluate("document.querySelector('.live-metrics')"), null, 'completion kept a live rate');
   assert.equal(await evaluate("document.querySelector('.reasoning').open"), true, 'completion discarded open reasoning choice');
   const selectedBeforeDelayedCreate = await evaluate("localStorage.getItem('llmx-chat')");
   const navigationTarget = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Delayed create navigation target'})}).then(r=>r.json()).then(c=>c.id)");

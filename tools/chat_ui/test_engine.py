@@ -268,11 +268,12 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(answer["content"], "Hello world")
         self.assertEqual(answer["reasoning"], "thinking done")
         self.assertEqual(answer["usage"]["total_tokens"], 9)
+        self.assertNotIn("request", answer)
         self.assertEqual(len(FakeUpstream.requests), 1)
 
     def test_approved_tool_runs_once_then_model_finishes(self):
-        self.reply(tool_event())
-        self.reply(text_event("Finished"))
+        self.reply(dict(text_event(), id="r-first-1"), tool_event())
+        self.reply(dict(text_event(), id="r-first-2"), text_event("Finished"))
         run = self.start({"content": "use echo"}, self.settings(["echo"]))
         self.wait_approval(run["id"])
         call = next(call for message in self.snapshot()["messages"]
@@ -284,6 +285,52 @@ class EngineTests(unittest.TestCase):
         second_history = FakeUpstream.requests[1]["messages"]
         self.assertEqual(second_history[-1]["role"], "tool")
         self.assertIn("hello", second_history[-1]["content"])
+        answers = [m for m in self.snapshot()["messages"] if m["role"] == "assistant"]
+        self.assertEqual([m["request"]["id"] for m in answers], ["r-first-1", "r-first-2"])
+        self.assertTrue(all("request" not in m for m in second_history))
+
+    def test_request_identity_arrives_before_text_and_survives_reload(self):
+        FakeUpstream.gate = threading.Event()
+        self.reply(dict(text_event(), id="r-instance-7"), "WAIT", text_event("Done"))
+        run = self.start()
+        try:
+            end = time.monotonic() + 3
+            with self.store.changed:
+                while "request" not in self.store.message(run["message_id"]):
+                    left = end - time.monotonic()
+                    if left <= 0:
+                        self.fail("request identity did not arrive before text")
+                    self.store.changed.wait(left)
+            answer = self.store.message(run["message_id"])
+            self.assertEqual(answer["request"], {"id": "r-instance-7"})
+            self.assertEqual(answer["content"], "")
+            self.assertEqual(self.store.run(run["id"])["status"], "running")
+        finally:
+            FakeUpstream.gate.set()
+        self.assertEqual(self.wait_run(run["id"], {"completed", "failed"})["status"], "completed")
+        self.engine.shutdown()
+        self.store.close()
+        self.store = Store(self.db_path)
+        self.assertEqual(self.store.message(run["message_id"])["request"], {"id": "r-instance-7"})
+        metrics = [e["data"] for e in self.store.events(run["id"], 0) if e["kind"] == "metrics"]
+        self.assertEqual([m["request"] for m in metrics if "request" in m], [{"id": "r-instance-7"}])
+        exported = dict(self.snapshot(), version=1)
+        imported = self.store.import_chat(exported)
+        self.assertTrue(all("request" not in m for m in self.store.snapshot(imported["id"])["messages"]))
+
+    def test_request_identity_is_bounded_and_only_taken_from_opening_event(self):
+        for identity in (None, 3, {}, "", "a" * 129, "space id", "bad\nvalue", "\u00e4"):
+            with self.subTest(identity=identity):
+                self.reply(dict(text_event(), id=identity),
+                           dict(text_event("Done"), id="late-id"))
+                run = self.start()
+                self.assertEqual(self.wait_run(run["id"], {"completed", "failed"})["status"], "completed")
+                self.assertNotIn("request", self.store.message(run["message_id"]))
+        self.reply(dict(text_event(), id="a" * 128),
+                   dict(text_event("Done"), id="replacement-id"))
+        run = self.start()
+        self.assertEqual(self.wait_run(run["id"], {"completed", "failed"})["status"], "completed")
+        self.assertEqual(self.store.message(run["message_id"])["request"], {"id": "a" * 128})
 
     def test_denial_is_recorded_without_tool_execution(self):
         self.reply(tool_event())

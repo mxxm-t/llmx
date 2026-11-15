@@ -253,6 +253,7 @@ class HealthTests(unittest.TestCase):
 
     def test_shared_brand_assets_are_fixed_and_have_binary_mime_types(self):
         expected = {
+            "request_rates.js": (b"window.LLMXRates = {};", "text/javascript; charset=utf-8"),
             "favicon.svg": (b"<svg>favicon</svg>", "image/svg+xml"),
             "logo.svg": (b"<svg>logo</svg>", "image/svg+xml"),
             "icon-192.png": (b"\x89PNG\r\n\x1a\n192", "image/png"),

@@ -11,13 +11,18 @@ from pathlib import Path
 
 
 HTML_FILE = Path(__file__).resolve().with_name("index.html")
+RATES_FILE = Path(__file__).resolve().with_name("request_rates.js")
 
 
 def without_stream_start(source):
     marker = "connectStream();"
     if source.count(marker) != 1:
         raise AssertionError("expected exactly one dashboard stream startup")
-    return source.replace(marker, "")
+    source = source.replace(marker, "")
+    external = '<script src="/request_rates.js"></script>'
+    if source.count(external) != 1:
+        raise AssertionError("expected exactly one shared request rates script")
+    return source.replace(external, "<script>" + RATES_FILE.read_text(encoding="utf-8") + "</script>")
 
 
 CHROME_PATHS = (
@@ -25,12 +30,13 @@ CHROME_PATHS = (
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
 )
 CHROME_COMMANDS = ("google-chrome", "chromium", "chromium-browser", "chrome", "msedge")
-FUNCTIONS = ("consecutiveCounterRate", "sampleIntervalRate", "sampleIntervalMeasurement", "workRateMeasurement", "requestWindowRate", "runtimeSampleAge",
+FUNCTIONS = ("sampleIntervalRate", "sampleIntervalMeasurement", "workRateMeasurement", "runtimeSampleAge",
              "resetLiveRequestSample", "updateLiveRequests")
 PRELUDE = ("const state = {interval: 2, liveRequests: {available: null, items: []}}; "
            "let fakePerformanceNow = 0; const performance = {now: () => fakePerformanceNow}; "
            "let liveRequestSample = null, liveRequestHistory = [], liveRequestUptime = null; "
            "function number(v) { return typeof v === 'number' && Number.isFinite(v); } "
+           "const {consecutiveCounterRate, requestWindowRate} = globalThis.LLMXRates; "
            "function get(o, path) { return path.split('.').reduce((a,k)=>a&&typeof a==='object'?a[k]:undefined,o); }\n")
 CASES = r"""
 const outcomes = [];
@@ -1203,7 +1209,8 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
     def test_shared_runtime_and_request_windows(self):
         source = HTML_FILE.read_text(encoding="utf-8")
         helpers = "\n".join(function_source(source, name) for name in FUNCTIONS)
-        document = ("<!doctype html><html><body><script>" + PRELUDE + helpers + "\n" + CASES +
+        rates = RATES_FILE.read_text(encoding="utf-8")
+        document = ("<!doctype html><html><body><script>" + rates + "\n" + PRELUDE + helpers + "\n" + CASES +
                     "</script><pre id='rate-test-results'></pre><script>document.querySelector('#rate-test-results').textContent = "
                     "JSON.stringify(globalThis.rateTestResults)</script></body></html>")
         outcomes = self.run_browser(document)
@@ -1217,7 +1224,8 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         self.assertIn("config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null)", source)
         self.assertIn("workMode !== 'completed' && latestMeasured?.rate === 0", source)
         self.assertIn("zero active requests and valid counters shows zero throughput", source)
-        self.assertIn("requestWindowRate(liveRequestHistory", source)
+        self.assertIn("LLMXRates.requestWindowRate(liveRequestHistory", source)
+        self.assertIn('src="/request_rates.js"', source)
         self.assertIn("showing last measured sample interval as stale", source)
         self.assertIn("Runtime snapshot unchanged for", source)
         self.assertIn("Repeated snapshots while requests remain active show the last measured rate as stale", source)

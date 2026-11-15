@@ -22,6 +22,7 @@ const errors = [];
 const runStreams = [];
 let heldMonitorLoad = null;
 let heldRestoreRequest = null;
+let heldSendResponse = null;
 const nativeDialogs = [];
 const apiMutations = [];
 async function cdp(method, params = {}) {
@@ -123,7 +124,8 @@ try {
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
     if (data.method === 'Fetch.requestPaused') {
-      if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
+      if (data.params.request.method === 'POST' && /\/api\/chats\/[^/]+\/runs$/.test(new URL(data.params.request.url).pathname)) heldSendResponse = data.params;
+      else if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
       else heldMonitorLoad = data.params.requestId;
     }
     if (data.method === 'Page.javascriptDialogOpening') { nativeDialogs.push(data.params.type); cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {}); }
@@ -741,6 +743,47 @@ try {
   await reloadDocument();
   await wait("window.ChatShell?.config!=null && document.querySelector('#connection').textContent!=='Connecting' && sessionStorage.getItem('llmx-temporary-chat')===null && !document.querySelector('[data-action=\"new\"]').disabled", 'missing temporary chat handled after reload');
   assert.equal(await evaluate("document.querySelector('#temporary-notice').hidden"), true);
+  const submittedChat = await evaluate("localStorage.getItem('llmx-chat')");
+  const chatSettings = await evaluate("fetch('/api/chats/'+"+JSON.stringify(submittedChat)+").then(r=>r.json()).then(d=>d.chat.settings)");
+  const otherChat = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({settings:"+JSON.stringify(chatSettings)+"})}).then(r=>r.json()).then(d=>d.id)");
+  await reloadDocument();
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(submittedChat), 'restore submitted conversation before delayed send');
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'open the other conversation');
+  const otherSettings = await evaluate("fetch('/api/chats/'+"+JSON.stringify(otherChat)+").then(r=>r.json()).then(d=>d.chat.settings)");
+  const otherRun = await evaluate("fetch('/api/chats/'+"+JSON.stringify(otherChat)+"+'/runs',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({content:'Keep this other response active',settings:"+JSON.stringify(otherSettings)+"})}).then(r=>r.json()).then(d=>d.run.id)");
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("!document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The other chat is active.')", 'other conversation response is active');
+  await wait(() => runStreams.some(stream => new URL(stream).pathname === '/api/runs/' + otherRun + '/events'), 'other conversation event stream');
+  await click('[data-chat="'+submittedChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(submittedChat), 'return to submitted conversation');
+  await cdp('Fetch.enable', {patterns: [{urlPattern: url+'/api/chats/'+submittedChat+'/runs', requestStage: 'Response'}]});
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'submitted attachment chip');
+  await send('Submitted request snapshot');
+  await wait(() => heldSendResponse !== null, 'delayed run response from the actual server');
+  const sentBody = JSON.parse(heldSendResponse.request.postData);
+  assert.equal(sentBody.content, 'Submitted request snapshot', 'delayed send changed its captured text');
+  assert.equal(sentBody.attachments?.[0]?.name, 'notes.txt', 'delayed send changed its captured attachment');
+  assert.equal(heldSendResponse.responseStatusCode, 201, 'server did not successfully admit the held request');
+  const otherStreamsBeforeRelease = runStreams.filter(stream => new URL(stream).pathname === '/api/runs/' + otherRun + '/events').length;
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'switch chats while submission response is held');
+  await fill('#draft', 'New draft in the other conversation');
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'new attachment in the other conversation');
+  await cdp('Fetch.continueRequest', {requestId: heldSendResponse.requestId});
+  await cdp('Fetch.disable');
+  await wait("document.querySelector('#send').disabled===false", 'submitted request completion');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'New draft in the other conversation', 'old send cleared a newer draft in the selected chat');
+  assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'), 'old send cleared the selected chat attachment');
+  const otherStreamsAfterRelease = runStreams.filter(stream => new URL(stream).pathname === '/api/runs/' + otherRun + '/events').length;
+  assert.equal(otherStreamsAfterRelease, otherStreamsBeforeRelease, 'old send subscribed to the selected chat response again');
+  const submitted = await evaluate("fetch('/api/chats/'+"+JSON.stringify(submittedChat)+").then(r=>r.json()).then(d=>d.messages.find(m=>m.role==='user'&&m.content==='Submitted request snapshot'))");
+  assert.equal(submitted?.attachments?.[0]?.name, 'notes.txt', 'submitted request did not persist its original attachment');
+  const browserStep = await fetch(upstreamFixture + '/browser-step');
+  assert.equal(browserStep.status, 204, 'could not release the other conversation response');
+  await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The other chat completed.')", 'other conversation response completes');
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
   assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');

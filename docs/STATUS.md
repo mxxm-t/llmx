@@ -78,6 +78,17 @@
 **Review.** Store, workspace ordering and shared image payload changes received a bounded second-agent source review. Affected Markdown owners and their references were checked. The preceding full Markdown audit carries forward for unchanged files at the same main base. The earlier Linux failures remain recorded with the ordering reproduction and stale-pointer geometry; neither was waived. No runtime, inference, device, numerical or GPU performance paths changed.
 
 **Left.** Main remains 795dc3495. Send the exact qualified head to the coordinator for fast-forward landing, then remove this batch's superseded temporary GitHub branches. The separate pending-send draft-preservation work is not included.
+## Preserve composer changes during send admission (2026-11-15, In progress)
+
+**Goal.** Keep edits made while a send request is pending in the selected chat, and keep the request completion from changing another chat's composer or stream.
+
+**Done.** A browser fixture now delays the actual run POST response after the server has accepted the request, then switches conversations and enters a new draft with an attachment before releasing that response.
+
+**Checks.** The unfixed Chrome regression fails after the actual successful response is released: the request body retains its submitted text and notes.txt, but the old send handler clears the newer draft entered in another conversation (26.488 seconds). The fixture also keeps that other conversation's generation stream active to check the completion path does not reconnect it.
+
+**Left.** Preserve newer composer state and stop the old send completion from acting on the newly selected chat; rerun the focused browser check.
+
+**Gotchas.** UI-only state ordering. The submitted request must retain its original text and attachments; switching chats owns the visible composer.
 
 ## Standalone dashboard upstream key file (2026-11-15, Done)
 

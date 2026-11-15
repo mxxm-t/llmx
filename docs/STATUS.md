@@ -1,12 +1,14 @@
 # llmx - Development Status
 
-## Chat system theme (2026-11-15, In progress)
+## Chat system theme (2026-11-15, Done)
 
 **Goal.** Use the operating system color preference until the owner chooses a saved light or dark theme. Keep the monitor theme in sync.
 
-**Done.** Added a deterministic browser regression using emulated color-scheme media for unset preferences, OS changes, explicit choices and reload persistence.
+**Done.** The UI now defaults from `prefers-color-scheme`, follows changes while no valid saved preference exists, and preserves explicit light/dark choices across reloads. Theme assignment and the main control label share one UI owner; monitor propagation continues through the existing shell observer. The README documents the behavior.
 
-**Left.** Run the new browser check to record its expected failure, then implement centralized theme assignment and button labeling. Run focused companion checks and review desktop/mobile screenshots.
+**Checks.** The browser test first failed on main at the unset-light assertion (`dark` instead of `light`). After the fix, `python tools/chat_ui/test_ui.py` passes, including deterministic emulated-media changes, explicit toggle precedence and persistence, monitor propagation, seven responsive sizes and 200 percent zoom. `node --check` passes for app.js and browser_check.mjs. Desktop and mobile-light screenshots were reviewed.
+
+**Qualification.** Focused browser checks pass in 24.955 seconds, with code review and desktop/mobile screenshot review. Markdown and dead-code checks cover the landing tree. Documentation review covers the change's usage, roadmap and test claims across the tracked Markdown inventory. This static presentation change lands by fast-forward on main 0f571d1e9 as its failing regression and fix. It does not require unrelated hosted inference jobs.
 
 **Gotchas.** Static companion UI only. Existing browser flow explicitly emulates dark mode. No server, runtime or inference gates apply.
 

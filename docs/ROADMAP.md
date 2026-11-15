@@ -344,8 +344,7 @@ Prioritized follow-ups:
   container's existing isolation flags remain in force.
 - Extend dead-code analysis to nested `tools/` packages, including the
   companion and dashboard.
-- Default the theme from system preference, replace remaining native
-  `prompt()`/`confirm()` flows with accessible dialogs, and settle consistent
+- Replace remaining native `prompt()`/`confirm()` flows with accessible dialogs, and settle consistent
   user-facing names for Studio and Workspace.
 - When server authentication lands, let the standalone dashboard send its
   API key from a protected file.

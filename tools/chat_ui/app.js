@@ -4,6 +4,15 @@
   const {node, markdown, number, json} = window.ChatRender;
   const api = window.ChatShell.api;
   const $ = id => document.getElementById(id);
+  const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
+  const storedTheme = localStorage.getItem('llmx-theme');
+  let themeChosen = storedTheme === 'light' || storedTheme === 'dark';
+  function setTheme(theme, save = false) {
+    document.documentElement.dataset.theme = theme;
+    $('theme-button').textContent = theme === 'light' ? 'Dark theme' : 'Light theme';
+    if (save) { localStorage.setItem('llmx-theme', theme); themeChosen = true; }
+  }
+  systemTheme.addEventListener('change', event => { if (!themeChosen) setTheme(event.matches ? 'light' : 'dark'); });
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null;
@@ -415,7 +424,7 @@
     if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
     if (name === 'close-drawers') return closeDrawers();
     if (name === 'inspector' || name === 'settings') { if (name === 'settings') { $('app').classList.remove('inspector-closed'); showTab('settings'); } else $('app').classList.toggle('inspector-closed'); updateShade(); return; }
-    if (name === 'theme') { const light = document.documentElement.dataset.theme !== 'light'; document.documentElement.dataset.theme = light ? 'light' : 'dark'; localStorage.setItem('llmx-theme', light ? 'light' : 'dark'); $('theme-button').textContent = light ? 'Dark theme' : 'Light theme'; return; }
+    if (name === 'theme') { setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light', true); return; }
     if (name === 'archive-view') { S.archive = !S.archive; renderSidebar(); return; }
     if (name === 'attach') return $('file-input').click();
     if (name === 'remove-attachment') { S.attachments.splice(Number(el.dataset.id), 1); renderAttachments(); return; }
@@ -508,7 +517,7 @@
   });
   window.addEventListener('resize', updateShade);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && currentRun() && !S.stream) syncSnapshot(S.chat.id).then(() => { const run = currentRun(); if (run) subscribe(run); }).catch(error => toast(error.message)); });
-  const theme = localStorage.getItem('llmx-theme'); if (theme === 'light') { document.documentElement.dataset.theme = theme; $('theme-button').textContent = 'Dark theme'; }
+  setTheme(themeChosen ? storedTheme : systemTheme.matches ? 'light' : 'dark');
   if (window.innerWidth <= 1200) $('app').classList.add('inspector-closed');
   showTab('activity'); setInterval(tick, 1000); initialize();
 })();

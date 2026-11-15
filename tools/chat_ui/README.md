@@ -155,6 +155,8 @@ PLE placement and aggregate runtime throughput, embedded in Monitor. Its rendere
 collector and theme are reused directly. Light and dark mode apply to the monitor's
 panels, charts and labels as well as the surrounding workspace. One collector polls the configured
 upstream's `/v1/health` every two seconds, independent of the number of tabs.
+With no valid saved theme, the workspace follows the operating system's light or
+dark preference; the theme control saves an explicit choice across reloads.
 The browser receives those collected updates over SSE. This does not turn llmx's
 health endpoint into a push endpoint. Missing measurements stay unavailable.
 

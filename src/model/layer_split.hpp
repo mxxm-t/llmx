@@ -39,6 +39,7 @@ struct Footprint {
     std::vector<Matrix> head_aux;               // additional head matrices or norms, counted on the output device
     bool tied = false;                         // the head reads the embedding table, adopted once where both sit on one device
     std::vector<size_t> cache;                 // each layer's cache: a KV layer's for every position the budget allows, a state layer's for every slot; none for every layer when empty
+    std::vector<std::vector<size_t>> cache_buffers;   // the buffers of each layer's cache a device allocates on its own (K, V and auxiliary planes, the state), which it rounds (DeviceBudget::allocated)
     // Each layer's entry source (LayerPlan::entry_source) or -1, and its pooled rows, which a device running a reader of it and not it keeps again as a replica; empty where no layer reads another's.
     std::vector<int> reads;
     std::vector<size_t> pooled;
@@ -78,7 +79,18 @@ struct DeviceBudget {
     size_t collective_per_row = 0;                                    // on a tensor group, the most its members keep a row of a sum (group_budgets)
     bool argmax = false;                                              // the device keeps argmax passes' logits rows (not the CPU, and it implements argmax_rows)
     std::function<size_t(const backend::PassWidths&)> priced = nullptr;   // the scratch passes of those widths take there (Backend::scratch_bytes)
+    std::function<size_t(size_t)> allocated = nullptr;                    // what a buffer of so many bytes takes there (Backend::allocation_bytes)
 };
+
+// The activation arenas a device makes (Model::ensure): a pass's `rows`, the model's own context's rows and a server's replies' rows, each a buffer as `allocated` gives what it takes there.
+inline size_t arena_bytes(const Footprint& fp, size_t rows, size_t reply_rows, const std::function<size_t(size_t)>& allocated) {
+    size_t n = 0;
+    for (size_t r : {rows, fp.context_rows, reply_rows}) {
+        const size_t b = backend::size_mul(r, fp.activations_per_row);
+        if (b) n = backend::size_add(n, allocated ? allocated(b) : b);
+    }
+    return n;
+}
 
 // The widths a device's passes run its scratch at (Backend::scratch_bytes): the footprint's, at a pass's rows or the model's own context rows, whichever is more, and on the head's device its logits rows.
 inline backend::PassWidths pass_widths(const Footprint& fp, size_t rows, size_t logit_rows, bool head) {
@@ -102,6 +114,7 @@ inline std::vector<DeviceBudget> budgets_for(const std::vector<backend::BackendP
                                        [b](size_t members, size_t width) { return b->collective_bytes_per_row(members, width); }});
         budgets.back().argmax = !b->is_cpu() && b->implements(backend::Op::argmax_rows);
         budgets.back().priced = [b](const backend::PassWidths& w) { return b->scratch_bytes(w); };
+        budgets.back().allocated = [b](size_t bytes) { return b->allocation_bytes(bytes); };
     }
     return budgets;
 }
@@ -189,9 +202,15 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         lookup_host[l] = backend::size_add(ids, page_bytes(lookup.io_bytes));
         lookup_pass[l] = backend::size_add(host_capacity(rows), ids);
     }
-    // cached[i]: the cache of layers [0, i), the same on every device.
-    std::vector<size_t> cached(L + 1, 0);
-    for (size_t l = 0; l < L; ++l) cached[l + 1] = backend::size_add(cached[l], fp.cache.empty() ? 0 : fp.cache[l]);
+    // cached[d][i]: the cache of layers [0, i) on device d, each of a layer's buffers as the device allocates it.
+    std::vector<std::vector<size_t>> cached(N, std::vector<size_t>(L + 1, 0));
+    for (size_t d = 0; d < N; ++d)
+        for (size_t l = 0; l < L; ++l) {
+            size_t c = fp.cache.empty() ? 0 : fp.cache[l];
+            if (devices[d].allocated && l < fp.cache_buffers.size())
+                for (size_t b : fp.cache_buffers[l]) c = backend::size_add(c, devices[d].allocated(b) - b);
+            cached[d][l + 1] = backend::size_add(cached[d][l], c);
+        }
     // The replicas a device running layers [i, i + k) keeps: each source before i that a layer there reads, its pooled rows once.
     auto replicas = [&](size_t i, size_t k) {
         size_t n = 0;
@@ -265,11 +284,11 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     auto overhead = [&](size_t d, const Host& h, bool last) {
         const size_t copies = devices[d].host ? 0 : fp.tables;
         const size_t priced = devices[d].priced ? devices[d].priced(pass_widths(fp, rows, logit_rows.value_or(rows), last)) : 0;
-        return arena_rows * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
+        return arena_bytes(fp, rows, reply_rows, devices[d].allocated) + arena_rows * devices[d].collective_per_row + copies + devices[d].scratch + priced + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {
-        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[i + k] - cached[i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
+        return backend::size_add(backend::size_add(backend::size_add(prefix[d][i + k] - prefix[d][i], lookup_prefix[i + k] - lookup_prefix[i]), cached[d][i + k] - cached[d][i] + replicas(i, k) + (last ? fp.drafter_cache : 0)),
                                  backend::size_add(backend::size_add(end_weights(d, first, last), last ? logit_rows.value_or(rows) * fp.head_slice_per_row + (devices[d].argmax ? std::min(logit_rows.value_or(rows), fp.argmax_rows) * fp.argmax_per_row : 0) : 0), overhead(d, h, last)));
     };
     auto fits = [&](size_t d, size_t bytes) { return !devices[d].bytes || bytes <= *devices[d].bytes; };
@@ -414,7 +433,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         for (size_t e = 0; e < d; ++e) before += (size_t)drafts[e];
         st.weights = prefix[d][(size_t)(st.first + st.count)] - prefix[d][(size_t)st.first] + end_weights(d, d == used.front(), d == used.back()) +
                      stage_weights(d, before, (size_t)drafts[d], d == used.front(), d == used.back());
-        st.cache = cached[(size_t)(st.first + st.count)] - cached[(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0) +
+        st.cache = cached[d][(size_t)(st.first + st.count)] - cached[d][(size_t)st.first] + replicas((size_t)st.first, (size_t)st.count) + (d == used.back() ? fp.drafter_cache : 0) +
                    (drafts[d] ? fp.drafter_stage_cache : 0);
         st.other = backend::size_add(overhead(d, h, d == used.back()), lookup_prefix[(size_t)(st.first + st.count)] - lookup_prefix[(size_t)st.first]);
         const size_t held = st.weights + st.cache + st.other;

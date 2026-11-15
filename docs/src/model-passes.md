@@ -54,7 +54,7 @@ reads saved inputs and performs no table lookup.
 - The pass API, for a scheduler that keeps passes of different sequences
   in flight so that every stage of a pipelined split works on one while
   the host samples another (`docs/MULTI-DEVICE.md`); whether that can pay
-  is `Model::pipelined` ([runtime](model-runtime.md)). `reserve_passes(ctx, slots, rows,
+  is `Model::pipelined` ([runtime](model-runtime.md)). `reserve_prompt(rows)` makes the model's own context's arena for a prompt pass of `rows` rows as the model is built (`build_fitted`, [place](model-place.md)), so a command's first pass makes no arena; a perplexity run's first pass still makes its logits buffer (`ensure`'s `want`), which the fit prices. On a device that is memory the fit already took from the KV budget; on the CPU it is host memory a command takes at build even for a short prompt, `fitted_rows` rows of activations, about 200 MB on Qwen3.6-27B at 413696 bytes a row. `reserve_passes(ctx, slots, rows,
   logit_rows)` sizes a fresh context once: the arena for `rows` rows and,
   separately on each used device, host U32 lookup indices for `rows *
   plan.index_width` entries (no allocation when the width is zero).

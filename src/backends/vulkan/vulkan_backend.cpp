@@ -728,6 +728,7 @@ public:
     // The driver uploads a kernel's code to device memory when its pipeline is first made in a pass, which no fit can price (docs/src/backends-vulkan.md, Memory).
     size_t memory_kept(size_t) const override { return kPipelineCodeBytes; }
     size_t resident_bytes(uint32_t type, size_t nin, size_t rows, size_t bytes, bool product) const override;
+    size_t allocation_bytes(size_t bytes) const override { return alloc_bytes(bytes); }
     void prepare_matrix(WeightView weight, size_t nin, size_t rows) override;
     void drop_tags();
     void forget_written(VkBuffer buffer, VkDeviceSize begin, VkDeviceSize end);

@@ -1908,8 +1908,10 @@ void kv_auto_overstated() {
 }
 
 // A device that takes each allocation in whole units of `unit` bytes, as hipMalloc takes pages, and `hidden` bytes more at its first of a mebibyte or more, as a runtime maps a heap, and fails one past its room.
+// With `priced` it states its rounding to the fit (Backend::allocation_bytes); the hidden bytes it never states.
 struct PagedDevice : SizedDevice {
     size_t unit = 1, hidden = 0;
+    bool priced = false;
     mutable bool started = false;
     std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
     size_t taken(size_t bytes) const { return (bytes + unit - 1) / unit * unit; }
@@ -1922,6 +1924,8 @@ struct PagedDevice : SizedDevice {
         const size_t h = held();
         return room > h ? room - h : 0;
     }
+    size_t allocation_bytes(size_t bytes) const override { return priced ? taken(bytes) : bytes; }
+    size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return allocation_bytes(bytes); }
     // Room for the CPU's sum scratch, which its first product with an add takes (CpuBackend::matmul_add).
     size_t memory_kept(size_t) const override { return taken(size_t(64) << 10); }
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
@@ -1934,15 +1938,16 @@ struct PagedDevice : SizedDevice {
 };
 
 // A budget the fit cut to the device's memory runs its first prompt pass from the arena made with the model, rather than failing on memory the fit gave the KV cache.
-// A device whose runtime takes memory it never states is built again with fewer KV tokens (build_fitted).
+// A device that states how it rounds its buffers is fitted right at the first build, and one whose runtime takes memory it never states is built again with fewer KV tokens (build_fitted).
 void fit_cut_first_pass() {
     // Wide feed-forward rows give the 64-row arena megabytes, and a context of 2^20 tokens asks for more KV than the device holds, so the fit cuts the budget.
     const auto wide = tiny_qwen_shaped(2, uint64_t(1) << 20, true, 2, 1, 16384, 16);
-    for (const bool priced : {false}) {
+    for (const bool priced : {false, true}) {
         auto device = std::make_shared<PagedDevice>();
         device->room = 24 << 20;
         if (priced) device->unit = 256 << 10;
         else device->hidden = 3 << 20;
+        device->priced = priced;
         device->copying = true;
         device->set_threads(1);
         infer::PlacementRequest request;

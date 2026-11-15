@@ -46,6 +46,11 @@ inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, s
     ctx = std::move(reserved);
 }
 
+inline void Model::reserve_prompt(size_t rows) {
+    std::lock_guard<std::mutex> context(context_m_);
+    ensure(ctx_, rows, 1, handoffs(1));
+}
+
 // Plan a pass in `slot` of a reserved context, its tokens copied and its wanting rows written from logits row `logits_base` on, its sequences in flight until end_pass or abort_pass; what it refuses changes nothing.
 // A sequence in flight continues its prompt only in a pass of its own, each of its passes in flight holding it alone, past its first stage and not wanting its logits (docs/MULTI-DEVICE.md, phase 4).
 inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool replies) {

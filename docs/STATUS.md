@@ -638,6 +638,30 @@ Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, w
   Hosted run 43749013445 on `gate/kv-tokens-shared`.
 - **Gates (2d59b8e71, after F2DEV's review):** `cli`, `drafters`, `docs` and `dead-code` pass, and CTest passes 86 of 87 with `cache-scenario` failing once without a message, the pattern `server-resume-cache` showed at 11dc94a0c; hosted run 43756899077 passes all 8 jobs.
 - **Hand check (rig, 5x2, ROCm int8):** DeepSeek-V4.1-Flash MXFP4 on ten MI50s runs `generate --drafter` at `--kv-tokens 64k` on two prose prompts, 256 tokens each, with ids identical to the plain runs at 33.44 and 34.48 tok/s against 32.02 and 31.90 plain.
+## Fit: a budget the fit cut runs its first prompt pass (2026-11-15, CUDA26 to CUDA28, branch fix/fit-prompt-scratch on main 929f042c6; lands by fast-forward)
+
+**Goal.** A KV budget the fit cut to a device's memory runs a command's first long prompt pass: Qwen3.6-27B Q4_K_M with a 16k prompt ran out of device memory in its first 512-row pass on one MI50 (ROCm) and on a 24 GB CUDA card, found by CUDA25 in the CUDA step 5 card sessions.
+
+**Done.**
+- Cause: at 243648 tokens the fit left 3 MB of the MI50's 34133245952 free bytes beside the 211812352-byte prompt arena it priced, while the build took about 40 MiB more than the fit counted, nearly all the 48 recurrent state buffers of 3.1 MiB that hipMalloc takes as 4 MiB each; the arena, made at the first pass, then failed.
+- `Backend::allocation_bytes` gives what a buffer takes on the device (the GPU core's and Vulkan's `alloc_bytes`, the bytes elsewhere), `Footprint::cache_buffers` lists each layer's K, V and auxiliary planes and its state buffer, and `split_layers` counts each at what it takes on the device that holds it (`DeviceBudget::allocated`).
+- `build_fitted` measures a budget the fit cut (`PlannedModel::kv_cut`) as it measured the automatic one: a build that leaves a device below what it keeps free and the arenas the fit priced there (`reserve_scratch` returns them) is built again with fewer KV tokens, so memory a runtime takes unstated cuts the budget rather than a pass.
+- A command's context makes its prompt arena with the model (`Model::reserve_prompt`, where the caller keeps no passes of its own), so its first pass allocates none.
+- `placement`'s `fit_cut_first_pass` fails on main (the first commit) and passes here: a device that states its 256 KiB pages builds once, and one whose runtime takes 3 MiB unstated builds twice, and both run the first 64-row prompt pass.
+
+**Gates.** On one MI50 (ROCm) the 27B Q4_K_M 16k `generate` completes without `--kv-tokens` (pp 16383 tokens at 93.93 tok/s, f16), output is byte identical to main 929f042c6 on Qwen3-0.6B Q8_0, Qwen3.5-0.8B Q4_K_M and Qwen3.6-27B Q4_K_M at f16 and int8, and CTest passes 87 of 87.
+On the CPU output is byte identical to main on Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M and CTest passes 83 of 83.
+The suite on one MI50 (`--device rocm:0`) passes 30 components and skips 15; `version`, `reference-generator` and `raw-blocks` failed there only because the binary predated a comment edit and the image had no numpy, and pass on the rebuilt binary with numpy 2.5.4.
+The Radeon VII check (fresh Vulkan build, CTest and the suite on `vulkan:0`) passes, as does the hosted run 43676171832.
+
+Rerun on the reviewed head 935ef1b6f from fresh build directories (`/opt/claude-work/cuda27/g5.rc`): on the CPU output is byte identical to main on Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M, CTest passes 83 of 83, and `dead-code` and `docs` pass (`/opt/claude-work/cuda28/dc.log`); on one MI50 the 27B 16k `generate` completes without `--kv-tokens` (pp 16383 tokens at 98.36 tok/s, f16), and ROCm output is byte identical to main on Qwen3-0.6B Q8_0 and Qwen3.6-27B Q4_K_M at f16 and int8.
+On one RTX 3090 (CUDA) the fix's first form ran the same 16k `generate` without `--kv-tokens`, pp 122.0 tok/s at f16 and 174.5 at int8 (`/opt/claude-work/cuda26/results/20261115-0953-C`).
+Timing against main on one MI50 (`/opt/claude-work/cuda27/j6`, rocm:0, int8, `bench --p 512 --n 128 --r 3`, main then branch in each of two rounds, the branch built from dc6746636, whose delta to 935ef1b6f is fit arithmetic and no pass code), mean tok/s, main against branch: Qwen3-0.6B Q8_0 pp512 10852 against 10746 (-1.0%), tg128 292.5 against 343.4 (spread 4 to 44 tok/s a cell); Qwen3.6-27B Q4_K_M pp512 298.9 against 298.1 (-0.3%), tg128 29.22 against 29.46 (+0.8%).
+Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hostwait`, contended); no cell was dropped.
+
+**Left.** Nothing; F2DEV approved the change (devlog 09:37) and it lands by fast-forward.
+
+**Gotchas.** Rounding that a device does not state, and a budget given by number that the fit kept whole, are not measured: the first is cut only once a build shows it, and the second keeps its number.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

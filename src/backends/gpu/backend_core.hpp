@@ -350,7 +350,8 @@ public:
         return free;
     }
     // Each buffer as hipMalloc takes it (alloc_bytes), so a weight's fit counts its pages.
-    size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return alloc_bytes(bytes); }
+    size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return allocation_bytes(bytes); }
+    size_t allocation_bytes(size_t bytes) const override { return alloc_bytes(bytes); }
     size_t scratch_bytes(const PassWidths& w) const override {
         size_t n = 0;
         for (size_t b : scratch_sizes(w)) n = size_add(n, alloc_bytes(b));

@@ -1190,6 +1190,8 @@ public:
     void draft_end(Chain& c);
     // Room for every mark's rerun and for a chain of every mark's sequence at the most drafts a mark holds, taken now, so neither allocates while a stage's thread records (Scheduler).
     void reserve_drafting();
+    // The model's own context's arena for a prompt pass of up to `rows` rows, made as the model is built (build_fitted), so its first pass makes no arena.
+    void reserve_prompt(size_t rows);
     // The draft rows a chain of k drafts takes, k rounded up to whole calls of the drafter's block (ModelPlan::draft_block).
     size_t draft_span(size_t k) const { return draft_calls(plan_, k) * std::max<size_t>(plan_.draft_block, 1); }
     void draft(Sequence& s, uint32_t last, size_t k, std::vector<uint32_t>& out) {

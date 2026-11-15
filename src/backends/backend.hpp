@@ -594,6 +594,8 @@ public:
         (void)type; (void)nin; (void)rows; (void)product;
         return bytes;
     }
+    // The bytes alloc takes for a buffer of `bytes` as the device rounds it, so a fit counts what each cache buffer takes.
+    virtual size_t allocation_bytes(size_t bytes) const { return bytes; }
     // Makes the copy resident_bytes counts for a product matrix of `rows` rows of `nin`, once as the model is built, so no pass makes it; later writes into the matrix keep it current.
     virtual void prepare_matrix(WeightView weight, size_t nin, size_t rows) { (void)weight; (void)nin; (void)rows; }
 

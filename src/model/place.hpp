@@ -53,6 +53,9 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
                 for (size_t i = 0; i < fp.drafter_stages[t].size(); ++i) larger(fp.drafter_stages[t][i], o.drafter_stages[t][i]);
             fp.drafter_stage_cache = std::max(fp.drafter_stage_cache, o.drafter_stage_cache);
             for (size_t l = 0; l < fp.cache.size(); ++l) fp.cache[l] = std::max(fp.cache[l], o.cache[l]);
+            for (size_t l = 0; l < fp.cache_buffers.size(); ++l)
+                for (size_t b = 0; b < fp.cache_buffers[l].size() && b < o.cache_buffers[l].size(); ++b)
+                    fp.cache_buffers[l][b] = std::max(fp.cache_buffers[l][b], o.cache_buffers[l][b]);
             fp.drafter_cache = std::max(fp.drafter_cache, o.drafter_cache);
             fp.head_slice_per_row = std::max(fp.head_slice_per_row, o.head_slice_per_row);
         }
@@ -205,21 +208,31 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     const bool reads = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.entry_source >= 0; });
     for (const LayerPlan& layer : plan.layers) {
         size_t bytes = 0;
+        std::vector<size_t> buffers;
         // An entries layer takes its slots and its pooled rows, and saves nothing for a mark.
-        if (keeps_kv(layer)) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux_floats()));
+        if (keeps_kv(layer)) {
+            const size_t tokens = kv_tokens(plan, options), plane = backend::size_mul(tokens, backend::size_mul(kept.kv_heads, kept.head_dim));
+            bytes = backend::size_mul(tokens, kv_bytes_per_position(kept, options, layer.kv_aux_floats()));
+            const size_t k = backend::size_mul(plane, backend::kv_elem_bytes(options.kv_k)), v = backend::size_mul(plane, backend::kv_elem_bytes(options.kv_v));
+            for (size_t b : {k, v, bytes - k - v})
+                if (b) buffers.push_back(b);
+        }
         if (reads) {
             fp.reads.push_back(layer.entry_source);
             fp.pooled.push_back(layer.cache == Cache::entries ? bytes : 0);
         }
         if (keeps_slot(layer)) {
             const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-            bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float)));
+            const size_t state = backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float));
+            bytes = backend::size_add(bytes, state);
+            buffers.push_back(state);
         }
         if (layer.cache == Cache::state) {
             bytes = backend::size_add(bytes, backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), backend::size_mul(saved_max, sizeof(float))));
             if (options.mark_slots) bytes = backend::size_add(bytes, backend::size_mul(options.mark_rows, backend::size_mul(rerun_max, sizeof(float))));
         }
         fp.cache.push_back(bytes);
+        fp.cache_buffers.push_back(std::move(buffers));
         if (layer.token_history) {
             const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
             const size_t ids = backend::size_add(backend::size_mul(slots, layer.token_history), backend::size_mul(options.mark_slots, options.mark_rows));
@@ -461,6 +474,7 @@ struct PlannedModel {
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0;
     std::string kv_kept_context;
+    bool kv_cut = false;   // the fit cut the options' KV budget to the devices' memory, so a build that runs a device short is built again with fewer tokens (build_fitted)
 };
 
 // Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does before a device, or a layer split over devices, none of them the CPU.
@@ -885,8 +899,10 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     }
     // The fitted budget's reading of the devices is the one the split places its layers by, so both see the same settled memory.
     std::vector<DeviceBudget> budgets;
+    const size_t asked = kv_tokens(plan, options);
     options = fitted_kv(bounded ? *bounded : weights, plan, backends, request, options, &placed.checkpoint_kv_tokens, &budgets,
                         &placed.kv_kept_context, host_experts, resident ? &*resident : nullptr);
+    placed.kv_cut = kv_tokens(plan, options) < asked;
     backend::BackendPtr host;
     std::vector<backend::BackendPtr> all = backends;
     std::vector<std::string> names = request.names;
@@ -1046,7 +1062,8 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
 }
 
 // Each device that runs a role makes its scratch at the widths its fit priced, before the first pass (Backend::reserve_scratch).
-inline void reserve_scratch(const ModelWeights& weights, const PlannedModel& planned, const PlacementRequest& request) {
+// Returns the activation arenas the fit priced on each such device (arena_bytes), which the passes' contexts make (Model::ensure).
+inline std::vector<size_t> reserve_scratch(const ModelWeights& weights, const PlannedModel& planned, const PlacementRequest& request) {
     const Placement& pl = planned.placement;
     const size_t width = std::max<size_t>(1, pl.width), rows = fitted_rows(request);
     const Footprint fp = footprint(weights, planned.architecture, planned.options, width);
@@ -1059,9 +1076,14 @@ inline void reserve_scratch(const ModelWeights& weights, const PlannedModel& pla
     use(pl.embed_device);
     use(pl.output_device);
     const size_t head = size_t(pl.output_device);
-    for (size_t d = 0; d < planned.backends.size(); ++d)
-        if (used[d] && planned.backends[d])
-            planned.backends[d]->reserve_scratch(pass_widths(fp, rows, request.logit_rows ? request.logit_rows : rows, d >= head && d < head + width));
+    std::vector<size_t> arenas(planned.backends.size(), 0);
+    for (size_t d = 0; d < planned.backends.size(); ++d) {
+        const backend::BackendPtr& b = planned.backends[d];
+        if (!used[d] || !b) continue;
+        b->reserve_scratch(pass_widths(fp, rows, request.logit_rows ? request.logit_rows : rows, d >= head && d < head + width));
+        arenas[d] = arena_bytes(fp, rows, reply_rows(request), [&b](size_t n) { return b->allocation_bytes(n); });
+    }
+    return arenas;
 }
 
 // How many times build_fitted builds again with fewer KV tokens after a build ran a device short of what its reading stated.
@@ -1088,7 +1110,7 @@ inline std::vector<size_t> kv_block_bytes(const ModelWeights& weights, const Pla
 }
 
 // The model `planned` built, `allocating` running before the first build and as each build is given up, so the readings after it see none of what it recorded.
-// With an automatic budget, a build that runs a device short is given up and the same placement built again with fewer KV tokens (docs/src/model-place.md).
+// With an automatic or fit-cut budget, a build that leaves a device short is built again with fewer KV tokens, and a caller without passes of its own gets its prompt arena here (docs/src/model-place.md).
 inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planned, const PlacementRequest& request, const AdoptWeight& adopt = {},
                                 const std::function<void()>& allocating = {}) {
     const std::vector<backend::BackendPtr> backends = planned.backends;
@@ -1096,27 +1118,30 @@ inline PlacedModel build_fitted(const ModelWeights& weights, PlannedModel planne
     size_t block = 1;
     for (const backend::BackendPtr& b : backends)
         if (b) block = std::max(block, b->kv_layout().block_tokens);
-    const std::vector<size_t> per_block = request.kv_auto ? kv_block_bytes(weights, planned, block) : std::vector<size_t>{};
+    const bool recut = request.kv_auto || planned.kv_cut;
+    const std::vector<size_t> per_block = recut ? kv_block_bytes(weights, planned, block) : std::vector<size_t>{};
     if (allocating) allocating();
     for (int rebuild = 0;; ++rebuild) {
-        const bool again = request.kv_auto && rebuild < kShortRebuilds;
+        const bool again = recut && rebuild < kShortRebuilds;
         std::vector<std::optional<size_t>> before(backends.size());
         for (size_t d = 0; again && d < backends.size(); ++d)
             if (device(backends[d])) before[d] = backends[d]->memory_available();
-        // What each device holding KV was short by: what it keeps free (Backend::memory_kept) that a built model with its scratch made left it below, then how far its reading fell once the build was given up.
+        // What each device holding KV was short by: its arenas and what it keeps free (Backend::memory_kept) beside a built model with its scratch, then how far its reading fell once the build was given up.
         std::vector<size_t> short_by(backends.size(), 0);
         std::exception_ptr failed;
         try {
             PlacedModel placed = construct_model(weights, planned, request.ubatch, adopt);
-            reserve_scratch(weights, planned, request);
-            if (!again) return placed;
-            for (size_t d = 0; d < backends.size(); ++d) {
+            const std::vector<size_t> arenas = reserve_scratch(weights, planned, request);
+            for (size_t d = 0; again && d < backends.size(); ++d) {
                 if (!device(backends[d]) || !per_block[d]) continue;
                 const std::optional<size_t> free = backends[d]->memory_available();
-                const size_t kept = backends[d]->memory_kept(free.value_or(0));
-                if (free && *free < kept) short_by[d] = kept - *free;
+                const size_t need = backend::size_add(backends[d]->memory_kept(free.value_or(0)), arenas[d]);
+                if (free && *free < need) short_by[d] = need - *free;
             }
-            if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) return placed;
+            if (std::all_of(short_by.begin(), short_by.end(), [](size_t n) { return n == 0; })) {
+                if (!request.slots) placed.model->reserve_prompt(fitted_rows(request));
+                return placed;
+            }
         } catch (const std::bad_alloc&) {
             if (!again) throw;
             failed = std::current_exception();

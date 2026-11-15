@@ -11,6 +11,33 @@
 **Left.** None for this change.
 
 **Gotchas.** Presentation only. Internal view identifiers, routes, preferences and stored conversation data stay compatible.
+## Chat deployment Docker trust boundary (2026-11-15, Done)
+
+**Goal.** Document the privilege boundary between workspace command containers
+and the companion's Docker daemon, with deployment guidance grounded in Docker's
+official security documentation.
+
+**Done.** Read the current `DockerRunner` flags and existing Docker usage text.
+Verified rootful daemon, SSH endpoint and rootless-mode guidance against
+official Docker documentation. The README separates command-container
+controls from daemon authority if the companion process is compromised. It
+clarifies that this is not a demonstrated owner-cookie-to-host path and
+recommends a dedicated host or rootless daemon without claiming this exact
+setup has been qualified. Updated the Docker guidance item in ROADMAP. Only
+`tools/chat_ui/README.md`, this record and `docs/ROADMAP.md` changed.
+
+**Qualification.** Root checked the documentation against the current runner and
+Docker's official daemon-access, SSH and rootless pages. Final docs and dead-code
+checks cover the combined naming and deployment-documentation tree before
+fast-forward landing from main 98869de0d. No inference or deployment checks apply.
+
+**Left.** None for this documentation change. Rootless deployment itself remains
+unqualified, as the usage page states.
+
+**Gotchas.** Keep command-container controls distinct from companion-process
+compromise and daemon credentials. Do not claim a direct owner-cookie-to-host
+execution path or that this exact deployment has been tested with rootless
+Docker. No code, deployment, push or merge is in scope.
 
 ## Nested Python tool analysis (2026-11-15, Done)
 

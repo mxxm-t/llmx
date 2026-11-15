@@ -212,13 +212,29 @@ python tools/chat_ui/server.py --sandbox-image python:3-slim
 ```
 
 `--sandbox-docker-host ssh://user@host` selects a remote Docker service. The
-operator's Docker or SSH access is privileged and remains outside the container.
-The companion does not pull images. Each command receives a disposable container
-with no host mounts, no network, no capabilities, no privilege escalation, a
-read-only root filesystem, a non-root user, one CPU, 256 MiB of memory and 64
-processes. Project and temporary storage are bounded tmpfs mounts. Commands time
-out after 120 seconds; the output view retains the last 128 Ki characters.
-The service never substitutes host execution when Docker is unavailable.
+Docker CLI uses the operating-system account running the companion; for an SSH
+endpoint, SSH uses that account's configured identity and access to the remote
+daemon ([SSH socket access](https://docs.docker.com/engine/security/protect-access/)).
+Keep those credentials outside the workspace and treat the daemon as a separate
+trust boundary. Docker warns that control of a rootful daemon can grant
+host-root-equivalent access ([daemon attack surface](https://docs.docker.com/engine/security/));
+a compromised companion process could use whatever daemon authority its account
+has. Workspace commands use the fixed container options described below.
+
+Each workspace command receives a disposable container with no host mounts, no
+network, no capabilities, no privilege escalation, a read-only root filesystem,
+a non-root user, one CPU, 256 MiB of memory and 64 processes. Project and
+temporary storage are bounded tmpfs mounts. These controls constrain those
+command containers; they do not restrict daemon requests from a compromised
+companion process. The companion does not pull images. Commands time out after
+120 seconds; the output view retains the last 128 Ki characters. The service
+never substitutes host execution when Docker is unavailable.
+
+For deployments that enable workspace execution, prefer a dedicated daemon host
+to limit the impact of daemon access. Docker rootless mode can reduce daemon and
+container privileges to those of its unprivileged host user ([rootless mode](https://docs.docker.com/engine/security/rootless/));
+it is a mitigation, not a substitute for protecting companion access. The exact
+rootless configuration has not been qualified for this companion.
 
 Saved files are copied in and validated UTF-8 files copied back on completion,
 including nonzero command exits. A checkpoint is taken before every command.

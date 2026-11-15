@@ -340,10 +340,10 @@ the companion's existing transport owner; its usage page describes the limits.
 The Python dead-code check now includes the nested companion and dashboard
 modules, with directory-aware imports and declared discovery roots.
 
+The [workspace usage notes](../tools/chat_ui/README.md#code-and-workspace) explain
+Docker daemon access and container limits, with deployment guidance.
+
 Prioritized follow-ups:
-- Document the host privileges required by a local Docker daemon and prefer a
-  dedicated or rootless remote daemon where appropriate; the workspace
-  container's existing isolation flags remain in force.
 - When server authentication lands, let the standalone dashboard send its
   API key from a protected file.
 

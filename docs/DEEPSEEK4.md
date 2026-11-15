@@ -216,7 +216,7 @@ Every new op has a CPU form with a unit test against a reference written from th
 | Piece | Op | New or reused |
 |---|---|---|
 | mHC coefficients: 24 mixes as an F32 matmul, then the rsqrt, sigmoids and 20 Sinkhorn rounds per row in the reference's order | matmul, then `hc_coeffs` | new; one invocation per row, so batch-invariant |
-| collapse u = sum of pre_k X_k, then RMSNorm | `hc_collapse_norm` | new |
+| collapse u = sum of pre_k X_k, then RMSNorm | `hc_collapse_norm`, or with the coefficients in `hc_coeffs_collapse` | new |
 | expand X'_k = post_k F(u) + sum over j of comb[j][k] X_j, in j order | `hc_expand` | new; V4.1 carries `pre` in the arena |
 | query, window key, the shared vector's RMSNorm and rope on its last 64 dims, inverse rope on the output | `norm_rope_partial` with adjacent pairs and an offset, an inverse mode, and two tables | extended under a mode, existing SPIR-V unchanged by hash |
 | compressor: softmax pooling per channel over a group's slots, from the sequence's stored tail and this pass's rows, by absolute position | `compress_pool` | new; a group's entry never depends on where a pass cut it (F6) |

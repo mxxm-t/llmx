@@ -2686,11 +2686,10 @@ __device__ float cpu_squares(const float* x, unsigned n, float* lds) {
 }
 __device__ inline float sigmoid_of(float v) { return 1.0f / (1.0f + expf(-v)); }
 
-// A block a row: pre, post and comb from the row's (2 + hc) * hc mixes, the stream's squares summed by block_sum; a lane a comb entry forms each row and column sum in the CPU's order.
-extern "C" __global__ void llmx_hc_coeffs(float* pre, float* post, float* comb, const float* mixes, const float* x, const float* scale, const float* base, unsigned hc,
-                                          unsigned dim, float norm_eps, float eps, unsigned iters) {
+// Row r's pre, post and comb from its (2 + hc) * hc mixes, the stream's squares summed by block_sum; a lane a comb entry forms each row and column sum in the CPU's order.
+__device__ void hc_coeffs_row(unsigned long long r, float* pre, float* post, float* comb, const float* mixes, const float* x, const float* scale, const float* base,
+                              unsigned hc, unsigned dim, float norm_eps, float eps, unsigned iters) {
     __shared__ float lds[kThreads], c[256];
-    const unsigned long long r = blockIdx.x;
     const unsigned width = hc * dim, mix = (hc + 2u) * hc;
     const float* xr = x + r * width;
     float sq = 0.0f;
@@ -2769,19 +2768,18 @@ __device__ inline void collapse_scale(float* u, const float* us, const float* w,
             }
     }
 }
-// A row up to kCollapseStage wide is staged in LDS, so the squares' eight chains read it there; the block's kCollapseThreads lanes take kCollapseSteps channels each a round.
-constexpr unsigned kCollapseStage = 8192, kCollapseThreads = 1024, kCollapseSteps = 5;
+// A row up to kCollapseStage wide is staged in LDS, so the squares' eight chains read it there; the block's T lanes take S channels each a round.
 // With tlevel set, dim is whole twin blocks, so a block's 32 lanes write its twin together.
-extern "C" __global__ void __launch_bounds__(kCollapseThreads) llmx_hc_collapse_norm(float* __restrict__ dst, const float* __restrict__ x, const float* __restrict__ pre, const float* __restrict__ w, unsigned hc,
-                                                 unsigned dim, float eps, void* tq, float* td, int tlevel, TwinMap tm, int major) {
+constexpr unsigned kCollapseStage = 8192;
+template <unsigned S, unsigned T>
+__device__ void hc_collapse_row(unsigned long long r, float* __restrict__ dst, const float* __restrict__ x, const float* __restrict__ pre, const float* __restrict__ w, unsigned hc,
+                                unsigned dim, float eps, void* tq, float* td, int tlevel, const TwinMap& tm, int major) {
     __shared__ float lds[16], stage[kCollapseStage];
-    const unsigned long long r = blockIdx.x;
     const float* xr = x + r * hc * dim;
     const float* p = pre + r * hc;
     float* u = dst + r * dim;
     const bool staged = dim <= kCollapseStage;
     // A lane forms its channels' sums side by side, each in the order above, so their loads go out together.
-    constexpr unsigned S = kCollapseSteps, T = kCollapseThreads;
     for (unsigned d0 = threadIdx.x; d0 < dim; d0 += S * T) {
         unsigned dt[S];
         float sum[S];
@@ -2807,6 +2805,18 @@ extern "C" __global__ void __launch_bounds__(kCollapseThreads) llmx_hc_collapse_
     const float rs = 1.0f / sqrtf((staged ? cpu_squares(stage, dim, lds) : cpu_squares(u, dim, lds)) / (float)dim + eps);
     if (staged) collapse_scale<S, T>(u, stage, w, rs, dim, r * dim, tq, td, tlevel, tm, major);
     else collapse_scale<S, T>(u, u, w, rs, dim, r * dim, tq, td, tlevel, tm, major);
+}
+
+
+// Blocks below collapses each collapse and norm a row with pre_in, as hc_collapse_row, and the rest each form a row's coefficients, as hc_coeffs_row, so one launch runs both side by side.
+// A collapse block's kCollapseThreads lanes take kCollapseSteps channels each a round; a coefficient block runs on its first kThreads lanes and the rest leave at once.
+constexpr unsigned kCollapseSteps = 5, kCollapseThreads = 1024;
+extern "C" __global__ void __launch_bounds__(kCollapseThreads) llmx_hc_coeffs_collapse(float* pre, float* post, float* comb, const float* mixes, const float* x, const float* scale,
+                                                                               const float* base, unsigned iters, float hc_eps, float* dst, const float* pre_in,
+                                                                               const float* w, unsigned hc, unsigned dim, float eps, void* tq, float* td, int tlevel, TwinMap tm,
+                                                                               int major, unsigned collapses) {
+    if (blockIdx.x < collapses) hc_collapse_row<kCollapseSteps, kCollapseThreads>(blockIdx.x, dst, x, pre_in, w, hc, dim, eps, tq, td, tlevel, tm, major);
+    else if (threadIdx.x < (unsigned)kThreads) hc_coeffs_row(blockIdx.x - collapses, pre, post, comb, mixes, x, scale, base, hc, dim, eps, hc_eps, iters);
 }
 
 // A thread a (row, channel): X'_k = post[k] f + sum over j in order of comb[j][k] X_j with the CPU's multiply-adds, every old stream read before a new one is written, so dst may be the stream.
@@ -3079,7 +3089,7 @@ template <class T> __device__ inline void mark_blocks(T* seen, unsigned at, cons
 }
 // A block a run of positions of one row, a lane a (position, head) dot: sum over heads in order of w[h] w_scale ReLU(q_h dot key) with the CPU's multiply-add chains.
 // The key is the last dim floats of the pooled row, -inf where the row cannot see it; per positions a block, kThreads / heads at least one, and heads at most 1024.
-extern "C" __global__ void llmx_indexer_scores(float* out, const float* q, const float* aux, const unsigned* rows, const float* w, const unsigned* blocks, unsigned n,
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_indexer_scores(float* out, const float* q, const float* aux, const unsigned* rows, const float* w, const unsigned* blocks, unsigned n,
                                                unsigned heads, unsigned dim, float w_scale, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats,
                                                unsigned width, unsigned block_k, unsigned block_size, unsigned key_format, unsigned key_words, unsigned per) {
     __shared__ float dots[1024], lut[272];
@@ -3368,7 +3378,7 @@ extern "C" __global__ void llmx_pool_write(float* aux, const float* src, const u
 
 // Sparse attention with a sink runs as two kernels over a scratch row a call row from first_row: p by kept row then head, the denominators, the kept rows and their counts.
 // A block a (row, head): the kept rows, each kept row's dot on its own thread, the softmax over them and exp(sink - max) in the denominator; head 0 writes the kept rows.
-extern "C" __global__ void llmx_sparse_softmax(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_sparse_softmax(float* pt, float* den, const float** kept, unsigned* counts, const float* q, const float* kv, const unsigned* ids, const float* sink,
                                                const float* aux, const unsigned* rows, const unsigned* entries, unsigned heads, unsigned dim, unsigned k, unsigned entry_k,
                                                float scale, unsigned kv_rows, unsigned tokens, unsigned bt, unsigned long long block_floats, unsigned rows_floats, unsigned width,
                                                unsigned kv_format, unsigned entry_format, unsigned kv_words, unsigned first_row) {
@@ -3761,6 +3771,102 @@ extern "C" __global__ void __launch_bounds__(kRouteLanes) llmx_route_sqrt_softpl
         wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
     }
 }
+
+// llmx_route_sqrt_softplus's picks and weights for one row on one 64-lane wave (the host launches it only there) with the same bits, lane t holding experts t + 64 j as sorted keys of s + bias then the lower id.
+// A round takes the wave's largest key by cross-lane steps, the same pick the argmax makes, since equal floats have equal keys once both zeros read as +0.
+template <unsigned J>
+__device__ inline void route_sqrt_wave(const float* x, const float* bias, unsigned* id, float* wt, unsigned n_expert, unsigned k, int normalize, float scale) {
+    __shared__ float s_of[64 * J];
+    __shared__ unsigned chosen[256];
+    __shared__ float total_of;
+    const unsigned t = threadIdx.x % 64;
+    unsigned long long key[J];
+    bool finite = true;
+#pragma unroll
+    for (unsigned j = 0; j < J; ++j) {
+        const unsigned e = t + j * 64;
+        key[j] = 0;
+        if (e < n_expert) {
+            const float s = softplus_root(atomic_load_relaxed_device(x + e)), b = bias ? s + bias[e] : s;
+            s_of[e] = s;
+            finite = finite && isfinite(b);
+            const unsigned u = b == 0.0f ? 0u : __float_as_uint(b);
+            key[j] = ((unsigned long long)(u >> 31 ? ~u : u | 0x80000000u) << 32) | (0xffffffffu - e);
+        }
+    }
+    if (wave_ballot(!finite)) {
+        for (unsigned j = t; j < k; j += 64) id[j] = kNoExpert, wt[j] = 0.0f;
+        return;
+    }
+#pragma unroll
+    for (unsigned a = 0; a < J; ++a)
+#pragma unroll
+        for (unsigned b = 0; b + 1 < J - a; ++b)
+            if (key[b] < key[b + 1]) { const unsigned long long c = key[b]; key[b] = key[b + 1]; key[b + 1] = c; }
+    for (unsigned q = 0; q < k; ++q) {
+        unsigned long long m = key[0];
+#pragma unroll
+        for (int d = 32; d > 0; d >>= 1) {
+            const unsigned lo = rm_xlane((unsigned)m, d), hi = rm_xlane((unsigned)(m >> 32), d);
+            const unsigned long long o = ((unsigned long long)hi << 32) | lo;
+            m = o > m ? o : m;
+        }
+        if (key[0] == m) {
+#pragma unroll
+            for (unsigned j = 0; j + 1 < J; ++j) key[j] = key[j + 1];
+            key[J - 1] = 0;
+        }
+        if (t == 0) chosen[q] = 0xffffffffu - (unsigned)m, id[q] = 0xffffffffu - (unsigned)m;
+    }
+    __syncthreads();
+    if (t == 0) {
+        float total = 0.0f;
+        for (unsigned j = 0; j < k; ++j) total += s_of[chosen[j]];
+        total_of = total;
+    }
+    __syncthreads();
+    const float total = total_of;
+    const bool divide = normalize && k > 1u;
+    for (unsigned j = t; j < k; j += 64) {
+        const float s = s_of[chosen[j]];
+        wt[j] = (divide ? s / (total + 1e-20f) : s) * scale;
+    }
+}
+constexpr unsigned kRouteStepExperts = 512;   // the most experts route_step takes, J = 8 a lane (backend_core.hpp moe_router)
+// One token row's router in one launch (backend_core.hpp moe_router): a wave a router row as exact_row gives it, then the last block out picks on its first wave as route_sqrt_wave does.
+template <class D>
+__device__ inline void route_step(const unsigned char* W, const float* X, float* scores, unsigned long long nin, unsigned nout, const float* bias, unsigned* ids, float* weights,
+                                  unsigned k, int normalize, float scale, unsigned* counter) {
+    __shared__ unsigned last;
+    const unsigned long long o = 4ull * blockIdx.x + threadIdx.x / 64;
+    if (o < nout) exact_row<D>(W, X, scores, nin, o, 0);
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) last = atomicAdd(counter, 1u) == gridDim.x - 1;
+    __syncthreads();
+    if (!last || threadIdx.x >= 64) return;
+    __threadfence();
+    if (threadIdx.x == 0) *counter = 0;
+    static_assert(kRouteStepExperts == 8 * 64, "route_sqrt_wave's builds below take 1 to 8 keys a lane");
+    switch ((nout + 63) / 64) {
+    case 1: return route_sqrt_wave<1>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 2: return route_sqrt_wave<2>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 3: return route_sqrt_wave<3>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 4: return route_sqrt_wave<4>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 5: return route_sqrt_wave<5>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 6: return route_sqrt_wave<6>(scores, bias, ids, weights, nout, k, normalize, scale);
+    case 7: return route_sqrt_wave<7>(scores, bias, ids, weights, nout, k, normalize, scale);
+    default: return route_sqrt_wave<8>(scores, bias, ids, weights, nout, k, normalize, scale);
+    }
+}
+#define LLMX_ROUTE_STEP(t, ...)                                                                                                                               \
+    extern "C" __global__ void __launch_bounds__(kThreads) llmx_route_step_##t(const unsigned char* W, const float* X, float* scores, unsigned long long nin, \
+                                                                               unsigned nout, const float* bias, unsigned* ids, float* weights, unsigned k,   \
+                                                                               int normalize, float scale, unsigned* counter) {                               \
+        route_step<__VA_ARGS__>(W, X, scores, nin, nout, bias, ids, weights, k, normalize, scale, counter);                                                   \
+    }
+LLMX_ROUTE_STEP(f32, ExactF32)
+LLMX_ROUTE_STEP(bf16, ExactDecoded<rq::BF16>)
 
 // A block a (row, head) of norm_rope_partial's other forms: the head's RMS norm in the CPU's order when w is given, then each pair from `offset` on rotated by the CPU's multiply-adds, turning back when inverse.
 // A thread reads its values before the barrier and writes them after it, so dst may be src over contiguous heads.

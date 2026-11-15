@@ -908,13 +908,18 @@ public:
         matmul_experts({p}, X, nin, rows * groups, Routing{group_ids, {}, 1, groups}, {scratch.data(), scratch.size()}, dtype);
     }
 
+    // moe_step's routing: the router's F32 scores of each row, then the rule's picks and weights from them; a device may form both in one launch where it gives the same bits.
+    virtual void moe_router(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs) {
+        matmul(m.router.weight, h, m.router.out, nin, m.router.rows, rows, runs, Dtype::f32);
+        route_experts(m.router.out, rows, m.router.rows, m.k, m.rule, m.ids, m.weights);
+    }
+
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
     // The base runs those ops in that order; a device may fuse them where it gives the same bits.
     virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const size_t n_expert = m.router.rows, ff = m.gate.rows;
-        matmul(m.router.weight, h, m.router.out, nin, n_expert, rows, runs, Dtype::f32);
-        route_experts(m.router.out, rows, n_expert, m.k, m.rule, m.ids, m.weights);
+        moe_router(m, h, nin, rows, runs);
         const Routing routing{m.ids, m.weights, m.k, n_expert};
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
         // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
@@ -1077,6 +1082,13 @@ public:
     // The collapse of hc streams to one dim-wide row, u = sum over k in order of pre[k] X_k, then its RMSNorm with w; dst is disjoint from the inputs.
     virtual void hc_collapse_norm(Slice /*dst*/, CSlice /*stream*/, CSlice /*pre*/, CSlice /*w*/, size_t /*rows*/, size_t /*hc*/, size_t /*dim*/, float /*eps*/) {
         lacks(Op::hc_collapse_norm);
+    }
+
+    // hc_coeffs of the streams, then hc_collapse_norm of the same streams with pre_in, the pre an earlier sublayer left; neither reads what the other writes, so a backend may run them side by side.
+    virtual void hc_coeffs_collapse(Slice pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, float hc_eps, size_t iters, Slice dst,
+                                    CSlice pre_in, CSlice w, size_t rows, size_t hc, size_t dim, float eps) {
+        hc_coeffs(pre, post, comb, mixes, stream, scale, base, rows, hc, dim, eps, hc_eps, iters);
+        hc_collapse_norm(dst, stream, pre_in, w, rows, hc, dim, eps);
     }
 
     // The expansion of a sublayer's dim-wide output f back to hc streams, X'_k = post[k] f + sum over j in order of comb[j][k] X_j; dst may be the stream exactly, in place.

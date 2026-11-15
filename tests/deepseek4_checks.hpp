@@ -89,6 +89,14 @@ size_t check_mhc(Pair& p, const Exact& exact) {
         p.dev.hc_collapse_norm(u.vs(), xi.vs(), pi.vs(), wi.vs(), rows, hc, dim, 1e-6f);
         auto ur = p.results(u);
         values += meet(exact, "hc_collapse_norm", ur.first, ur.second, 1e-5, "hc_collapse_norm differs beyond 1e-5");
+        // The fused call gives each backend's bits of the two calls apart, its collapse reading the pre its coefficients do not write.
+        Pair::Out f_pre = p.out(rows * hc), f_post = p.out(rows * hc), f_comb = p.out(rows * hc * hc), f_u = p.out(rows * dim);
+        p.cpu.hc_coeffs_collapse(f_pre.cs(), f_post.cs(), f_comb.cs(), mi.cs(), xi.cs(), si.cs(), bi.cs(), 1e-6f, 20, f_u.cs(), pi.cs(), wi.cs(), rows, hc, dim, 1e-6f);
+        p.dev.hc_coeffs_collapse(f_pre.vs(), f_post.vs(), f_comb.vs(), mi.vs(), xi.vs(), si.vs(), bi.vs(), 1e-6f, 20, f_u.vs(), pi.vs(), wi.vs(), rows, hc, dim, 1e-6f);
+        for (const auto& [got, want] : {std::pair{p.results(f_pre), a}, {p.results(f_post), b}, {p.results(f_comb), c}, {p.results(f_u), ur}}) {
+            values += same(got.first, want.first, "hc_coeffs_collapse on the CPU differs from its two calls");
+            values += same(got.second, want.second, "hc_coeffs_collapse on the device differs from its two calls");
+        }
         Pair::Out e = p.out(rows * hc * dim);
         p.cpu.hc_expand(e.cs(), fi.cs(), xi.cs(), qi.cs(), ci.cs(), rows, hc, dim);
         p.dev.hc_expand(e.vs(), fi.vs(), xi.vs(), qi.vs(), ci.vs(), rows, hc, dim);

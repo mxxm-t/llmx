@@ -936,6 +936,19 @@ A follow-up branch measures Vulkan's `rms_norm_rows` chunk rule, ceil(4 CUs / ro
 - Landing as tests, tools and docs (the goldens, `--round int8` and these records): the docs, dead-code, reference-consumer and reference-generator components on the head, and the hosted run of the landing head, pending for COORD; it lands by fast-forward and leaves the two items above open.
 
 **Gotchas.** Over these 247-token texts the int8 class's NLL cost is a noise term about 0.01 wide whose sign differs between two correct implementations, since a rounding at 127 levels turns a small upstream difference into a whole step; compare int8 against its HF-only control, not against llmx's other classes.
+## DeepSeek-V4.1 router and hc coefficients fused (2026-11-15, DSDEV186, DSDEV192, DSDEV196, DSDEV198 then DSDEV199, branch ds4/route-fusion on main 929f042c6)
+
+Goal: DeepSeek-V4.1-Flash decode at one user toward the owner's 50 tok/s on ten MI50s (ROCm int8), with every output the bits main gives, by fusing small per-sublayer kernels.
+Done: `hc_coeffs` and `hc_collapse_norm` run as one launch, `llmx_hc_coeffs_collapse`, on every GPU backend, through the new `Backend::hc_coeffs_collapse` whose base calls the two in turn.
+One token row's sqrt_softplus router runs as one launch, `llmx_route_step_f32` or `_bf16`, through the new `Backend::moe_router`, which `moe_step` calls for its routing and whose base is the router's product and `route_experts`; it needs 64-lane waves, so CUDA's 32-lane waves and every other call take the base's two launches (27.9 to 19.3 us on one MI50 at 384 experts).
+`llmx_sparse_softmax` and `llmx_indexer_scores` take launch bounds of their block, which removes their register spills (sparse softmax 79 to 46 us at 640 named rows on one MI50).
+The step counter is one device word shared by `llmx_moe_step_route` and `llmx_route_step`, reset by each launch's last block, so it holds only while those launches sit on one in-order queue; a second queue needs a counter per launch site.
+Measured (DeepSeek-V4.1-Flash-1017 MXFP4, ten MI50s, ROCm `--dtype int8 --lookup-storage file`, `bench --p 128 --n 32 --r 3`, default clocks, hostwait flagging no cell contended): one user at 5x2 decodes at 37.93 and 36.94 tok/s against main 929f042c6's 34.27 and 34.26 in the clean ABAB round, with pp128 level at 346 and 16 streams at 135.54 and 135.65 against 133.16 and 133.60 (h2 built at da4d08d3b, whose kernels are this head's).
+A second round rebased on main read 34.54, 36.05 and 34.38 against 31.74, 33.00 and 26.86 at 5x2, and 27.28, 23.31 and 27.35 against 25.88, 23.16 and 25.67 on the layer split.
+Identity against main: 5x2 and the layer split give main's top-10 logits at 4 positions and main's 48 greedy ids, and Qwen3.6-35B-A3B Q4_K_M gives main's top-10 logits and greedy ids on the CPU and on ROCm at f16 and int8.
+Gates: dead-code and docs pass; CTest 87/87 on one MI50 and 104/104 on the Radeon VII; the suite passes on the CPU (deepseek4, moe, qwen35), on rocm:0 (every component but `version`, whose binary was built at 6912747f0 before a one-comment change to `kernels/f32.gpu`, the only delta to this head) and on the Radeon VII's vulkan:0 at this head; lands by fast-forward.
+Left: the hc fn product in the same launch (`llmx_hc_step`, on dsdev198/ds4-fusion), which lands only with a readable one-user gain over this branch; then the dense Q8_0 and routed MXFP4 one-row decode kernels toward bandwidth, one wave a row spread over the units, and launch fusion (devlog, F2DEV 05:58 review of the decode plan).
+Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and capped at 64 VGPRs; `tests/dead_code.py` sees kernel names, so a new kernel needs its id and name in `backend_core.hpp`.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

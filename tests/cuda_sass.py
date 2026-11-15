@@ -21,7 +21,7 @@ SPILL_ALLOWED = {
     "llmx_q8_0_routed": "step 8, the routed MoE operations",
     "llmx_group_": "step 6, tensor groups",
     "llmx_mxfp4_": "step 8, MXFP4",
-    "llmx_hc_": "step 8, the deepseek4 operations",
+    "llmx_route_step_": "step 8, the deepseek4 one-launch router, its eight sorted keys a lane on one wave: a few dozen bytes on sm_90 and sm_120",
     "llmx_indexer_": "step 8, the deepseek4 operations",
     "llmx_moe_": "step 8, the routed MoE operations",
     "llmx_q5_0_": "step 8, Q5_0",

@@ -1167,36 +1167,14 @@ public:
     // DeepSeek-V4.1's layer ops (docs/DEEPSEEK4.md, section 4.2), a kernel each (kernels/f32.gpu); the pooled-row ops read the auxiliary plane through pooled_table.
     void hc_coeffs(Slice pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, size_t rows, size_t hc, size_t dim, float norm_eps, float eps,
                    size_t iters) override {
-        if (!hc || hc > 16 || !dim || !iters || !std::isfinite(norm_eps) || norm_eps < 0.0f || !std::isfinite(eps) || eps < 0.0f)
-            throw std::runtime_error(Api::prefix + "invalid mHC coefficient dimensions or epsilon");
-        if (!rows) return;
-        const size_t mix = size_mul(hc + 2, hc), n = size_mul(rows, hc), nc = size_mul(n, hc), mn = size_mul(rows, mix), xn = size_mul(rows, size_mul(hc, dim));
-        for (const auto& [s, count] : {std::pair<CSlice, size_t>{pre, n}, {post, n}, {comb, nc}, {mixes, mn}, {stream, xn}, {scale, 3}, {base, mix}}) floats(s, count);
-        for (const auto& [o, on] : {std::pair<CSlice, size_t>{pre, n}, {post, n}, {comb, nc}})
-            if (overlaps(o, on, mixes, mn) || overlaps(o, on, stream, xn) || overlaps(o, on, scale, 3) || overlaps(o, on, base, mix))
-                throw std::runtime_error(Api::prefix + "mHC coefficient outputs overlap their inputs");
-        if (overlaps(pre, n, post, n) || overlaps(pre, n, comb, nc) || overlaps(post, n, comb, nc)) throw std::runtime_error(Api::prefix + "mHC coefficient outputs must be disjoint");
-        float *a = f32(pre), *b = f32(post), *c = f32(comb);
-        const float *m = f32(mixes), *x = f32(stream), *sc = f32(scale), *bs = f32(base);
-        unsigned h = (unsigned)hc, d = u32(dim), it = u32(iters);
-        u32(size_mul(hc, dim));
-        const Args args(a, b, c, m, x, sc, bs, h, d, norm_eps, eps, it);
-        launch(kHcCoeffs, u32(rows), 1, args);
+        hc_launch(&pre, post, comb, mixes, stream, scale, base, eps, iters, nullptr, {}, {}, rows, hc, dim, norm_eps);
     }
     void hc_collapse_norm(Slice dst, CSlice stream, CSlice pre, CSlice w, size_t rows, size_t hc, size_t dim, float eps) override {
-        if (!hc || !dim || !std::isfinite(eps) || eps <= 0.0f) throw std::runtime_error(Api::prefix + "invalid mHC collapse dimensions or epsilon");
-        if (!rows) return;
-        const size_t dn = size_mul(rows, dim), xn = size_mul(rows, size_mul(hc, dim)), pn = size_mul(rows, hc);
-        for (const auto& [s, count] : {std::pair<CSlice, size_t>{dst, dn}, {stream, xn}, {pre, pn}, {w, dim}}) floats(s, count);
-        if (overlaps(dst, dn, stream, xn) || overlaps(dst, dn, pre, pn) || overlaps(dst, dn, w, dim)) throw std::runtime_error(Api::prefix + "mHC collapse output must be disjoint from its inputs");
-        float* o = f32(dst);
-        const float *x = f32(stream), *p = f32(pre), *wp = f32(w);
-        unsigned h = u32(hc), d = u32(dim);
-        // The output's twin beside it where a product reads one next, as rms_norm_rows writes it.
-        StreamTwin t = stream_twin(dst, rows, dim, {}, dim % 32 == 0);
-        const Args args(o, x, p, wp, h, d, eps, t.q, t.d, t.level, t.map, t.major);
-        launch_writing({{o, dn}}, kHcCollapseNorm, u32(rows), 1, args, 1, 1024);   // kernels/f32.gpu, kCollapseThreads
-        keep(t.t, o, dn);
+        hc_launch(nullptr, {}, {}, {}, stream, {}, {}, 0.0f, 0, &dst, pre, w, rows, hc, dim, eps);
+    }
+    void hc_coeffs_collapse(Slice pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, float hc_eps, size_t iters, Slice dst, CSlice pre_in,
+                            CSlice w, size_t rows, size_t hc, size_t dim, float eps) override {
+        hc_launch(&pre, post, comb, mixes, stream, scale, base, hc_eps, iters, &dst, pre_in, w, rows, hc, dim, eps);
     }
     void hc_expand(Slice dst, CSlice f, CSlice stream, CSlice post, CSlice comb, size_t rows, size_t hc, size_t dim) override {
         if (!hc || hc > 16 || !dim) throw std::runtime_error(Api::prefix + "invalid mHC expansion dimensions");
@@ -1809,10 +1787,6 @@ public:
         span(*m.act.buffer, m.act.offset * sizeof(float), size_mul(size_mul(entries, ff), sizeof(float)));
         span(*s.act.buffer, s.act.offset * sizeof(float), size_mul(size_mul(rows, ff), sizeof(float)));
         for (const Slice& r : {m.ids, m.weights}) span(*r.buffer, r.offset * sizeof(float), size_mul(entries, sizeof(float)));
-        if (!step_counter_) {
-            step_counter_ = alloc(64, Memory::device);
-            hold_fill(as_gpu<Api>(*step_counter_).data(), 64);
-        }
         // The shared act's twin: rows ff-value rows of int8, then their block scales from the half.
         const size_t sact_half = step_twin_bytes(rows, ff) / 2;
         if (!step_twin_ || step_twin_->size() < 2 * sact_half) step_twin_ = alloc(2 * sact_half, Memory::device);
@@ -1836,7 +1810,7 @@ public:
         float* sd = (float*)(sq + sact_half);
         unsigned* ids = (unsigned*)f32(m.ids);
         const StepRoute r{bytes(m.router.weight.data), x, f32(m.router.out), nin, ne, bytes(s.row_gate.weight.data), f32(s.row_gate.out), hq, hd, h_kept ? 0 : rows * nin / 32,
-                          ids, f32(m.weights), (unsigned)ne, (unsigned)k, m.rule.normalize ? 1 : 0, (unsigned*)as_gpu<Api>(*step_counter_).data(), (unsigned)rows, 0};
+                          ids, f32(m.weights), (unsigned)ne, (unsigned)k, m.rule.normalize ? 1 : 0, step_counter(), (unsigned)rows, 0};
         launch_step(kMoeStepRoute, (unsigned)(ne / 4 + 1), 1, Args(r));
         const TypeKernels& gk = *type_kernels(gt);
         const Projection gu[2] = {m.gate, m.up};
@@ -1864,7 +1838,34 @@ public:
     }
     // The fused step kernels' own limits (kernels/f32.gpu mf_route, kernels/int16.gpu gate_up and down): experts, picks, the width of h and the routed width ff.
     static constexpr size_t kStepExperts = 512, kStepPicks = 10, kStepIn = 2560, kStepFf = 640;
+    static constexpr size_t kRouteStepExperts = 512;   // kernels/f32.gpu, route_step's keys of eight a lane
     // Whether a step has the shape the fused kernels hold (docs/src/backends-gpu.md, moe_step), h and every output in device memory.
+    // One token row's sqrt_softplus router on a 64-lane device runs as one launch, its rows as exact_row gives them and the last block out picking (kernels/f32.gpu, llmx_route_step).
+    void moe_router(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs) override {
+        const size_t ne = m.router.rows, k = m.k;
+        const uint32_t t = m.router.weight.type;
+        if (rows != 1 || m.rule.score != RouteRule::Score::sqrt_softplus || dev_.caps.subgroup_size != 64 || !ne || ne > kRouteStepExperts || !k || k > ne || k > 256 ||
+            (t != quant::GGML_TYPE_F32 && t != quant::GGML_TYPE_BF16) || !std::isfinite(m.rule.scale))
+            return Backend::moe_router(m, h, nin, rows, runs);
+        check_weight(m.router.weight, nin, "router matrix");
+        span(*m.router.weight.data.buffer, m.router.weight.data.offset * sizeof(float), quant::row_bytes(t, nin, ne));
+        floats(h, nin);
+        floats(m.router.out, ne);
+        for (const Slice& r : {m.ids, m.weights}) floats(r, k);
+        if (m.rule.bias.buffer) floats(m.rule.bias, ne);
+        float* sc = f32(m.router.out);
+        unsigned* id = (unsigned*)f32(m.ids);
+        float* w = f32(m.weights);
+        const unsigned char* wt = bytes(m.router.weight.data);
+        const float *x = f32(h), *bias = m.rule.bias.buffer ? f32(m.rule.bias) : nullptr;
+        unsigned long long n = nin;
+        unsigned o = (unsigned)ne, kk = (unsigned)k;
+        int norm = m.rule.normalize ? 1 : 0;
+        float scale = m.rule.scale;
+        const Args args(wt, x, sc, n, o, bias, id, w, kk, norm, scale, step_counter());
+        launch_writing({{sc, ne}, {id, k}, {w, k}}, t == quant::GGML_TYPE_F32 ? kRouteStepF32 : kRouteStepBF16, u32((ne + 3) / 4), 1, args);
+    }
+
     bool fused_step(const MoeStep& m, CSlice h, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const {
         if (!rows) return false;
         for (size_t i = 0; rows > 1 && i < runs.n; ++i)
@@ -1914,7 +1915,7 @@ private:
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
-                  kHcCoeffs, kHcCollapseNorm, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus,
+                  kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
                   kNormRopeForm, kDeltaStep, kMixRows,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
@@ -1940,7 +1941,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs", "llmx_hc_collapse_norm", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -3160,6 +3161,42 @@ private:
         default: return k;
         }
     }
+    // A row's mHC coefficients where pre is given and its collapse and norm with pre_in into dst where dst is given, in one launch whose roles run side by side (kernels/f32.gpu, llmx_hc_coeffs_collapse).
+    void hc_launch(const Slice* pre, Slice post, Slice comb, CSlice mixes, CSlice stream, CSlice scale, CSlice base, float hc_eps, size_t iters, const Slice* dst, CSlice pre_in,
+                   CSlice w, size_t rows, size_t hc, size_t dim, float eps) {
+        if (pre && (!hc || hc > 16 || !dim || !iters || !std::isfinite(eps) || eps < 0.0f || !std::isfinite(hc_eps) || hc_eps < 0.0f))
+            throw std::runtime_error(Api::prefix + "invalid mHC coefficient dimensions or epsilon");
+        if (dst && (!hc || !dim || !std::isfinite(eps) || eps <= 0.0f)) throw std::runtime_error(Api::prefix + "invalid mHC collapse dimensions or epsilon");
+        if (!rows) return;
+        const size_t mix = size_mul(hc + 2, hc), n = size_mul(rows, hc), nc = size_mul(n, hc), mn = size_mul(rows, mix), xn = size_mul(rows, size_mul(hc, dim)), dn = size_mul(rows, dim);
+        floats(stream, xn);
+        float *a = nullptr, *b = nullptr, *c = nullptr, *o = nullptr;
+        const float *m = nullptr, *sc = nullptr, *bs = nullptr, *p = nullptr, *wp = nullptr;
+        if (pre) {
+            for (const auto& [s, count] : {std::pair<CSlice, size_t>{*pre, n}, {post, n}, {comb, nc}, {mixes, mn}, {scale, 3}, {base, mix}}) floats(s, count);
+            for (const auto& [o, on] : {std::pair<CSlice, size_t>{*pre, n}, {post, n}, {comb, nc}})
+                if (overlaps(o, on, mixes, mn) || overlaps(o, on, stream, xn) || overlaps(o, on, scale, 3) || overlaps(o, on, base, mix) || (dst && overlaps(o, on, pre_in, n)))
+                    throw std::runtime_error(Api::prefix + "mHC coefficient outputs overlap their inputs");
+            if (overlaps(*pre, n, post, n) || overlaps(*pre, n, comb, nc) || overlaps(post, n, comb, nc)) throw std::runtime_error(Api::prefix + "mHC coefficient outputs must be disjoint");
+            a = f32(*pre), b = f32(post), c = f32(comb), m = f32(mixes), sc = f32(scale), bs = f32(base);
+            u32(size_mul(hc, dim));
+        }
+        if (dst) {
+            for (const auto& [s, count] : {std::pair<CSlice, size_t>{*dst, dn}, {pre_in, n}, {w, dim}}) floats(s, count);
+            if (overlaps(*dst, dn, stream, xn) || overlaps(*dst, dn, pre_in, n) || overlaps(*dst, dn, w, dim) ||
+                (pre && (overlaps(*dst, dn, *pre, n) || overlaps(*dst, dn, post, n) || overlaps(*dst, dn, comb, nc) || overlaps(*dst, dn, mixes, mn) || overlaps(*dst, dn, scale, 3) || overlaps(*dst, dn, base, mix))))
+                throw std::runtime_error(Api::prefix + "mHC collapse output must be disjoint from its inputs");
+            o = f32(*dst), p = f32(pre_in), wp = f32(w);
+        }
+        const float* x = f32(stream);
+        unsigned h = u32(hc), d = u32(dim), it = u32(iters), collapses = dst ? u32(rows) : 0u, blocks = u32((pre ? rows : 0) + collapses);
+        // The output's twin beside it where a product reads one next, as rms_norm_rows writes it.
+        StreamTwin t = dst ? stream_twin(*dst, rows, dim, {}, dim % 32 == 0) : StreamTwin{};
+        const Args args(a, b, c, m, x, sc, bs, it, hc_eps, o, p, wp, h, d, eps, t.q, t.d, t.level, t.map, t.major, collapses);
+        if (dst) launch_writing({{o, dn}}, kHcCoeffsCollapse, blocks, 1, args, 1, 1024);   // kernels/f32.gpu, kCollapseThreads
+        else launch(kHcCoeffsCollapse, blocks, 1, args);
+        if (dst) keep(t.t, o, dn);
+    }
     void keep(const TwinOut& t, const float* x, size_t values) {
         if (t.q) keep_twin({x, values, t.int8, t.map, t.slot});
     }
@@ -3343,7 +3380,14 @@ private:
     size_t twin_slot_ = 0;   // the slot of the twin the last product read
     BufferPtr moe_out_;   // a routed down projection's slots before they join the residual
     BufferPtr delta_counter_;   // llmx_delta_step's (view, K head) counters, zero between launches
-    BufferPtr step_counter_, step_twin_;   // the fused moe_step's finished route blocks, zero between launches, and its shared act's twin
+    BufferPtr step_counter_, step_twin_;   // the fused launches' finished blocks (moe_step's route, moe_router), zero between launches, and the fused moe_step's shared act's twin
+    unsigned* step_counter() {
+        if (!step_counter_) {
+            step_counter_ = alloc(64, Memory::device);
+            hold_fill(as_gpu<Api>(*step_counter_).data(), 64);
+        }
+        return (unsigned*)as_gpu<Api>(*step_counter_).data();
+    }
     int step_up_per_cu_[2] = {-1, -1};      // the wide gate+up builds' resident workgroups a compute unit, Q4_K then Q5_K, found at their first step
     BufferPtr moe_tab_;   // a grouped routed call's groups and entries (kernels/f32.gpu, llmx_moe_group)
     int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any

@@ -66,11 +66,12 @@ inline std::vector<size_t> slot_widths(const Config& c) {
 }
 
 // One sublayer's coefficients from the streams x entering it: the mixes as an F32 product of hc_fn, then hc_coeffs' rsqrt over the flattened streams, sigmoids and Sinkhorn rounds (model.py:948-957 at e5decd76).
-inline void hc_mix(backend::Backend& b, const Config& c, const Weight& fn, const Weight& scale, const Weight& base, backend::CSlice x,
-                   backend::Slice mixes, backend::Slice pre, backend::Slice post, backend::Slice comb, size_t rows, backend::RowRuns runs) {
+// The same call collapses x with pre_in, the pre the sublayer before left, and norms it with norm into collapsed.
+inline void hc_mix(backend::Backend& b, const Config& c, const Weight& fn, const Weight& scale, const Weight& base, backend::CSlice x, backend::Slice mixes, backend::Slice pre,
+                   backend::Slice post, backend::Slice comb, backend::Slice collapsed, backend::CSlice pre_in, const Weight& norm, size_t rows, backend::RowRuns runs) {
     const size_t HC = size_t(c.hc_count), E = size_t(c.n_embd);
     b.matmul(fn.operand(), x, mixes, fn.nin, fn.nout, rows, runs, backend::Dtype::f32);
-    b.hc_coeffs(pre, post, comb, mixes, x, scale.slice(), base.slice(), rows, HC, E, c.rms_eps, c.hc_eps, size_t(c.hc_iterations));
+    b.hc_coeffs_collapse(pre, post, comb, mixes, x, scale.slice(), base.slice(), c.hc_eps, size_t(c.hc_iterations), collapsed, pre_in, norm.slice(), rows, HC, E, c.rms_eps);
 }
 
 class DeepSeek41 final : public Architecture {
@@ -375,8 +376,8 @@ private:
 
     // The attention sublayer between its coefficients and its expansion back into the streams (model.py:982-986 at e5decd76).
     void attend(const Step& s, const Weight* w, Window at) const {
-        hc_mix(s.b, cfg_, w[hc_attn_fn], w[hc_attn_scale], w[hc_attn_base], s.x, s.slot(mixes), s.slot(pre_attn), s.slot(post), s.slot(comb), s.rows, s.runs);
-        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_ffn), w[attn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
+        hc_mix(s.b, cfg_, w[hc_attn_fn], w[hc_attn_scale], w[hc_attn_base], s.x, s.slot(mixes), s.slot(pre_attn), s.slot(post), s.slot(comb), s.slot(collapsed),
+               s.slot(pre_ffn), w[attn_norm], s.rows, s.runs);
         window_attention(s, w, at);
         if (s.width == 1) s.b.hc_expand(s.x, s.slot(block_out), s.x, s.slot(post), s.slot(comb), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
@@ -386,8 +387,8 @@ private:
     // The FFN's coefficients, its input collapsed with the attention's pre, and its output expanded back around the MoE, its pre the next block's (model.py:794-899 and 988-993 at e5decd76).
     // The roles are read from `w`, so a drafter's stage runs the body with its own roles, `used` experts and clamps (docs/src/model-arch-deepseek4.md).
     void ffn_body(const Step& s, const Weight* w, size_t used, float clamp_exp, float clamp_shexp) const {
-        hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.rows, s.runs);
-        s.b.hc_collapse_norm(s.slot(collapsed), s.x, s.slot(pre_attn), w[ffn_norm].slice(), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd), cfg_.rms_eps);
+        hc_mix(s.b, cfg_, w[hc_ffn_fn], w[hc_ffn_scale], w[hc_ffn_base], s.x, s.slot(mixes), s.slot(pre_ffn), s.slot(post), s.slot(comb), s.slot(collapsed),
+               s.slot(pre_attn), w[ffn_norm], s.rows, s.runs);
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, clamp_shexp};
         // The routed and shared products accumulate from zero into the output, a member's partial rows on a group.
         Step out = s;

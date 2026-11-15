@@ -43,6 +43,15 @@
 **Left.** Stack with the ready branding, image-history and readability branches for one scoped hosted workflow and coordinator landing. No live companion restart has occurred.
 
 **Gotchas.** Tests contact configured endpoints only, never execute tools or expose credential headers/URLs. A failed remote must not hide local tools or healthy connections. Probing must not reset a draft, chat settings or an active run. No model/runtime change or dependency on pending branding/image branches.
+## Chat reading hierarchy and model availability (2026-11-15, In Progress)
+
+**Goal.** Put Temporary chat in the conversation header, clarify reading hierarchy while retaining tool/reasoning/metrics access, align sidebar action hover with its row, and refuse sending with a saved model absent from upstream configuration.
+
+**Done.** The initial browser regression covers the header action, unavailable-model send guard, and menu hit-area alignment.
+
+**Left.** Land the failing regression first, then implement and qualify the static browser changes.
+
+**Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
 
 ## Attachment reads stay with their conversation (2026-11-15, Ready)
 

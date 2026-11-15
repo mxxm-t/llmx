@@ -172,6 +172,7 @@ try {
   await wait("document.querySelector('#login-error').textContent.includes('Incorrect')", 'invalid-password error');
   await fill('#password', 'browser-test'); await evaluate("document.querySelector('#login-form').requestSubmit()");
   await wait("!document.querySelector('#login-dialog').open && document.querySelector('#model').value==='qwen3-local' && !document.querySelector('[data-action=\"new\"]').disabled", 'authenticated workspace');
+  assert.equal(await evaluate("document.querySelector('#temporary-button')?.closest('.topbar-actions')!==null"), true, 'Temporary chat is not in the conversation header');
   await evaluate("localStorage.removeItem('llmx-theme')");
   await cdp('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: 'light'}]});
   await reloadDocument();
@@ -457,14 +458,12 @@ try {
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="delete"]'); await closeAction('#conversation-submit');
   await wait("document.querySelector('#chat-title').textContent==='New conversation'", 'confirmed delete');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
-  const createGeometry = await evaluate(`Array.from(document.querySelectorAll('.new-chat')).map(button => {
+  const createGeometry = await evaluate(`Array.from(document.querySelectorAll('#sidebar .new-chat')).map(button => {
     const label = button.querySelector('.chat-create-label').getBoundingClientRect(); const box = button.getBoundingClientRect();
     return {labelX: label.x, height: box.height, weight: getComputedStyle(button).fontWeight};
   })`);
-  assert.equal(createGeometry.length, 2);
-  assert.equal(createGeometry[0].labelX, createGeometry[1].labelX, 'new and temporary labels are misaligned');
-  assert.equal(createGeometry[0].height, createGeometry[1].height, 'new and temporary buttons differ in height');
-  assert.equal(createGeometry[0].weight, createGeometry[1].weight, 'new and temporary text weights differ');
+  assert.equal(createGeometry.length, 1);
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('#temporary-button')).borderTopStyle"), 'dashed', 'temporary action lost its dashed style');
   const sidebarTarget = await evaluate(`fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Sidebar target'})}).then(r=>r.json()).then(c=>c.id)`);
   await reloadDocument();
   await wait("document.querySelector('.chat-row-menu')!==null && !document.querySelector('[data-action=\"new\"]').disabled", 'sidebar actions after reload');
@@ -473,6 +472,7 @@ try {
   const selectedBeforeMenu = await evaluate("document.querySelector('.chat-item.active').dataset.chat");
   assert.notEqual(selectedBeforeMenu, sidebarTarget);
   const targetMenu = '.chat-row-menu[data-id="' + sidebarTarget + '"]';
+  assert.equal(await evaluate(`(()=>{const m=document.querySelector(${JSON.stringify(targetMenu)}).getBoundingClientRect(),r=document.querySelector('[data-chat="${sidebarTarget}"]').parentElement.getBoundingClientRect();return Math.abs(m.top-r.top)<1&&Math.abs(m.bottom-r.bottom)<1})()`), true, 'sidebar menu target does not share the selected row height');
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');
   await click('#action-menu [data-action="rename"]');
@@ -905,6 +905,20 @@ try {
   const browserStep = await fetch(upstreamFixture + '/browser-step');
   assert.equal(browserStep.status, 204, 'could not release the other conversation response');
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The other chat completed.')", 'other conversation response completes');
+  const availableModel = await evaluate("document.querySelector('#model').value");
+  const invalidModelChat = await evaluate("fetch('/api/chats',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({settings:{model:'Qwen3.5-0.8B-Q8_0.gguf'}})}).then(r=>r.json()).then(d=>d.id)");
+  await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(invalidModelChat)})`); await reloadDocument();
+  await wait(`document.querySelector('#model').value==='Qwen3.5-0.8B-Q8_0.gguf'`, 'saved unavailable model restored');
+  assert.equal(await evaluate("document.querySelector('#model option:checked').textContent"), 'Qwen3.5-0.8B-Q8_0.gguf (unavailable)', 'saved unavailable model is not labeled');
+  assert.equal(await evaluate("document.querySelector('#model option:checked').disabled"), true, 'saved unavailable model remains selectable');
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), true, 'send remains available with an unavailable model');
+  assert((await evaluate("document.querySelector('#banner').textContent")).includes('Choose a model advertised'), 'unavailable model has no recovery guidance');
+  const savedUnavailableModel = await evaluate(`fetch('/api/chats/${invalidModelChat}').then(r=>r.json()).then(d=>d.chat.settings.model)`);
+  assert.equal(savedUnavailableModel, 'Qwen3.5-0.8B-Q8_0.gguf', 'opening an unavailable model erased saved settings');
+  await evaluate(`document.querySelector('#model').value=${JSON.stringify(availableModel)};document.querySelector('#model').dispatchEvent(new Event('change',{bubbles:true}))`);
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), false, 'advertised model did not restore sending');
+  await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(submittedChat)})`); await reloadDocument();
+  await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(submittedChat)}`, 'restore prior chat after unavailable-model check');
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
   assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');

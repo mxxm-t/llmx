@@ -256,6 +256,16 @@ try {
   await wait("document.querySelector('.approval')!==null", 'persisted approval after refresh');
   await click('[data-action="approve"]');
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The tool returned hello.')", 'tool continuation');
+  const chatBeforeSlowAttachment = await evaluate("localStorage.getItem('llmx-chat')");
+  await evaluate("window.__originalArrayBuffer=Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer=function(){return new Promise(resolve=>{window.__releaseFileRead=()=>resolve(window.__originalArrayBuffer.call(this));});}");
+  await upload('#file-input', fixture);
+  await wait('typeof window.__releaseFileRead==="function"', 'paused attachment read');
+  await click('[data-action="new"]');
+  await wait(() => evaluate("localStorage.getItem('llmx-chat') !== " + JSON.stringify(chatBeforeSlowAttachment)), 'new conversation selection');
+  await evaluate('window.__releaseFileRead()');
+  await delay(100);
+  assert.equal(await evaluate("document.querySelector('#attachments').innerText"), '', 'late attachment read crossed into the newly selected conversation');
+  await evaluate('Blob.prototype.arrayBuffer=window.__originalArrayBuffer');
   await upload('#file-input', fixture);
   await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'attachment chip');
   await upload('#file-input', imageFixture);

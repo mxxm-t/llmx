@@ -1,3 +1,13 @@
+## Attachment reads stay with their conversation (2026-11-15, In progress)
+
+**Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.
+
+**Done.** Added a deterministic Chrome regression that pauses a text-file read, opens a new conversation, then releases the read and checks the new composer.
+
+**Left.** Confirm the regression fails on the base, reject stale read results safely, rerun focused browser and JavaScript syntax checks, and update this record.
+
+**Gotchas.** Text reads use `Blob.arrayBuffer()` and image reads use `FileReader`; both paths share `attach()`. Preserve ordinary successful uploads and do not tie attachment ownership to draft text.
+
 # llmx - Development Status
 
 ## Chat backup branch validation (2026-11-15, Ready)

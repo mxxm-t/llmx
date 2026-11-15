@@ -1907,6 +1907,75 @@ void kv_auto_overstated() {
     checked += 2;
 }
 
+// A device that takes each allocation in whole units of `unit` bytes, as hipMalloc takes pages, and `hidden` bytes more at its first of a mebibyte or more, as a runtime maps a heap, and fails one past its room.
+struct PagedDevice : SizedDevice {
+    size_t unit = 1, hidden = 0;
+    mutable bool started = false;
+    std::vector<std::pair<std::weak_ptr<backend::Buffer>, size_t>> live;
+    size_t taken(size_t bytes) const { return (bytes + unit - 1) / unit * unit; }
+    size_t held() const {
+        size_t n = started ? hidden : 0;
+        for (const auto& [buffer, bytes] : live) n += buffer.expired() ? 0 : bytes;
+        return n;
+    }
+    std::optional<size_t> memory_available() const override {
+        const size_t h = held();
+        return room > h ? room - h : 0;
+    }
+    // Room for the CPU's sum scratch, which its first product with an add takes (CpuBackend::matmul_add).
+    size_t memory_kept(size_t) const override { return taken(size_t(64) << 10); }
+    backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+        started = started || bytes >= (size_t(1) << 20);
+        if (held() + taken(bytes) > room) throw std::bad_alloc();
+        backend::BufferPtr b = SizedDevice::alloc(bytes, where);
+        live.emplace_back(b, taken(bytes));
+        return b;
+    }
+};
+
+// A budget the fit cut to the device's memory runs its first prompt pass from the arena made with the model, rather than failing on memory the fit gave the KV cache.
+// A device whose runtime takes memory it never states is built again with fewer KV tokens (build_fitted).
+void fit_cut_first_pass() {
+    // Wide feed-forward rows give the 64-row arena megabytes, and a context of 2^20 tokens asks for more KV than the device holds, so the fit cuts the budget.
+    const auto wide = tiny_qwen_shaped(2, uint64_t(1) << 20, true, 2, 1, 16384, 16);
+    for (const bool priced : {false}) {
+        auto device = std::make_shared<PagedDevice>();
+        device->room = 24 << 20;
+        if (priced) device->unit = 256 << 10;
+        else device->hidden = 3 << 20;
+        device->copying = true;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.ubatch = 64;
+        std::vector<backend::BufferPtr> uploads;
+        const infer::ModelWeights model = infer::gguf_weights(wide);
+        const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
+            return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
+        };
+        std::string failed;
+        size_t tokens = 0, builds = 0, prompt = 0;
+        try {
+            infer::PlacedModel placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); ++builds; });
+            tokens = placed.model->kv_tokens_total();
+            const size_t before = device->held();
+            std::vector<uint32_t> ids(64);
+            for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t(i % 16);
+            placed.model->prefill(ids);
+            prompt = device->held() - before;
+        } catch (const std::bad_alloc&) {
+            failed = "out of memory";
+        } catch (const std::runtime_error& e) {
+            failed = e.what();
+        }
+        const std::string what = priced ? "a device that states its pages" : "a device whose runtime takes 3 MiB unstated";
+        require(failed.empty() && tokens && tokens < (size_t(1) << 20) && builds == (priced ? 1u : 2u) && prompt <= device->memory_kept(0),
+                ("a budget the fit cut to " + what + " (" + std::to_string(tokens) + " tokens, " + std::to_string(builds) + " builds, " + std::to_string(prompt) +
+                 " bytes taken by the first pass) did not run its first 64-row prompt pass from the arena made with the model: " + failed).c_str());
+        ++checked;
+    }
+}
+
 // A history recomputed in the classes that first computed it, over two CPU stages, as a paused request's resume does (docs/SERVER.md, pausing): a 40-token prompt in slices of 16, then 199 greedy tokens as entries of extent 1 of up to 64 rows.
 // The synthetic Q8_0 model's decode rows take the 8-bit dots, so the replay, whole and from a fork at the first block, must give the logits one backend gives after the prompt and 199 single decode steps.
 void replay_over_stages() {
@@ -2972,7 +3041,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits})
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         group_fits();

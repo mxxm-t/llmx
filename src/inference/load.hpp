@@ -72,7 +72,8 @@ struct LoadedModel {
     gguf::GGUFModel file;
     std::optional<bpe::Tokenizer> tok;
     chat::ChatFormat chat;
-    std::string plan;                // what each device of a split was given (LayerSplit::describe), empty otherwise
+    bool replaced_template = false;  // ModelOptions::chat_template took the place of a template the file carried
+    std::string plan;               // what each device of a split was given (LayerSplit::describe), empty otherwise
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0; // the KV tokens a server's fitted checkpoint slots took from its budget (PlacedModel)
     std::string kv_kept_context;     // why a server's automatic budget kept the model's context (PlacedModel)
@@ -653,6 +654,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     if (report) report({"metadata"});
     const bool directory = is_model_directory(path);
     loaded->file = directory ? read_directory(path) : gguf::read_gguf(path);
+    if (!options.chat_template.empty()) loaded->replaced_template = chat::replace_template(loaded->file, options.chat_template);
     PlacementRequest placing = request;
     if (!drafter_file.empty()) {
         gguf::GGUFModel side = gguf::read_gguf(drafter_file);

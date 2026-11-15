@@ -142,16 +142,40 @@ inline void validate_quant(const std::string& quant) {
               (c >= '0' && c <= '9') || c == '_')) throw std::runtime_error("pull: invalid quant");
 }
 
+// The commit the metadata resolved to and its sibling list.
+inline const jmini::Value& siblings_of(const jmini::Value& root, Manifest& result) {
+    result.revision = string_member(root, "sha");
+    if (!hex_digest(result.revision, 40)) throw std::runtime_error("pull: invalid resolved commit SHA");
+    const auto& siblings = member(root, "siblings");
+    if (!siblings.isArray()) throw std::runtime_error("pull: siblings array required");
+    return siblings;
+}
+
+// A sibling's file `name`: its size and the digest a download is verified by, the LFS SHA-256 or else the Git blob SHA-1.
+inline File sibling_file(const jmini::Value& sibling, const std::string& name) {
+    File file{name, size_member(sibling), {}, false};
+    if (!file.size) throw std::runtime_error("pull: empty file " + name);
+    const auto* lfs_value = optional_member(sibling, "lfs");
+    if (lfs_value && lfs_value->t != jmini::Value::T::Null) {
+        const auto& lfs = *lfs_value;
+        file.digest = string_member(lfs, "sha256");
+        file.lfs = true;
+        if (size_member(lfs) != file.size || !hex_digest(file.digest, 64))
+            throw std::runtime_error("pull: invalid LFS size or SHA256");
+    } else {
+        file.digest = string_member(sibling, "blobId");
+        if (!hex_digest(file.digest, 40)) throw std::runtime_error("pull: invalid Git blob SHA1");
+    }
+    return file;
+}
+
 inline Manifest select(const std::string& metadata, const std::string& quant,
                        const std::string& filename = {}) {
     validate_quant(quant);
     if (!filename.empty()) validate_path(filename);
     const auto root = jmini::parse(metadata);
     Manifest result;
-    result.revision = string_member(root, "sha");
-    if (!hex_digest(result.revision, 40)) throw std::runtime_error("pull: invalid resolved commit SHA");
-    const auto& siblings = member(root, "siblings");
-    if (!siblings.isArray()) throw std::runtime_error("pull: siblings array required");
+    const auto& siblings = siblings_of(root, result);
     std::map<std::string, std::vector<File>> groups;
     std::set<std::string> paths;
     const std::string suffix = lower(quant) + ".gguf";
@@ -167,20 +191,7 @@ inline Manifest select(const std::string& metadata, const std::string& quant,
         shard_name(name);
         validate_path(name);
         if (!paths.insert(lower(name)).second) throw std::runtime_error("pull: duplicate or case-colliding GGUF paths");
-        File file{name, size_member(sibling), {}, false};
-        if (!file.size) throw std::runtime_error("pull: empty GGUF file");
-        const auto* lfs_value = optional_member(sibling, "lfs");
-        if (lfs_value && lfs_value->t != jmini::Value::T::Null) {
-            const auto& lfs = *lfs_value;
-            file.digest = string_member(lfs, "sha256");
-            file.lfs = true;
-            if (size_member(lfs) != file.size || !hex_digest(file.digest, 64))
-                throw std::runtime_error("pull: invalid LFS size or SHA256");
-        } else {
-            file.digest = string_member(sibling, "blobId");
-            if (!hex_digest(file.digest, 40)) throw std::runtime_error("pull: invalid Git blob SHA1");
-        }
-        groups[shard.base + '\0' + std::to_string(shard.count)].push_back(std::move(file));
+        groups[shard.base + '\0' + std::to_string(shard.count)].push_back(sibling_file(sibling, name));
     }
     if (groups.empty()) throw std::runtime_error("pull: no GGUF file matches quant " + quant);
     auto chosen = groups.begin();
@@ -205,6 +216,66 @@ inline Manifest select(const std::string& metadata, const std::string& quant,
                 throw std::runtime_error("pull: inconsistent GGUF shard set");
         }
     } else if (result.files.size() != 1) throw std::runtime_error("pull: mixed sharded and single GGUF files");
+    return result;
+}
+
+// The shard number and count of a root `model-NNNNN-of-NNNNN.safetensors`, or {0, 0} for any other name.
+inline std::pair<unsigned, unsigned> safetensors_shard(const std::string& name) {
+    static const std::string head = "model-", middle = "-of-", tail = ".safetensors";
+    if (name.size() != head.size() + 5 + middle.size() + 5 + tail.size() || name.compare(0, head.size(), head) ||
+        name.compare(head.size() + 5, middle.size(), middle) || name.compare(name.size() - tail.size(), tail.size(), tail)) return {0, 0};
+    for (size_t at : {head.size(), head.size() + 5 + middle.size()})
+        for (size_t j = at; j < at + 5; ++j)
+            if (name[j] < '0' || name[j] > '9') return {0, 0};
+    return {unsigned(std::stoul(name.substr(head.size(), 5))), unsigned(std::stoul(name.substr(head.size() + 5 + middle.size(), 5)))};
+}
+
+// The root files of a safetensors model directory, chosen from the sibling list alone, as docs/src/hub.md lists them.
+// Whether the index names exactly each shard's tensors is the loader's check (safetensors::read_directory).
+inline Manifest select_directory(const std::string& metadata) {
+    const auto root = jmini::parse(metadata);
+    Manifest result;
+    std::map<std::string, const jmini::Value*> files;
+    std::set<std::string> paths;
+    bool bin = false;
+    for (const auto& sibling : siblings_of(root, result).arr) {
+        const std::string name = string_member(sibling, "rfilename");
+        if (name.find('/') != std::string::npos) continue;
+        if (!paths.insert(lower(name)).second || !files.emplace(name, &sibling).second)
+            throw std::runtime_error("pull: duplicate or case-colliding repository file " + name);
+        bin = bin || (name.size() > 4 && lower(name.substr(name.size() - 4)) == ".bin");
+    }
+    auto take = [&](const std::string& name) {
+        validate_path(name);
+        result.files.push_back(sibling_file(*files.at(name), name));
+    };
+    if (!files.count("config.json")) throw std::runtime_error("pull: the repository has no config.json, so it is not a model directory; give a GGUF quant as owner/repo:quant");
+    std::vector<std::string> weights;
+    for (const auto& [name, sibling] : files)
+        if (name.size() > 12 && lower(name.substr(name.size() - 12)) == ".safetensors") weights.push_back(name);
+    if (weights.empty())
+        throw std::runtime_error(bin ? "pull: the repository holds its weights in .bin files only, which llmx does not read; it reads .safetensors"
+                                     : "pull: the repository has no .safetensors weights");
+    for (const char* name : {"config.json", "tokenizer.json", "tokenizer_config.json"}) {
+        if (!files.count(name)) throw std::runtime_error(std::string("pull: the repository has no ") + name);
+        take(name);
+    }
+    if (files.count("chat_template.jinja")) take("chat_template.jinja");
+    if (files.count("model.safetensors.index.json")) {
+        take("model.safetensors.index.json");
+        const unsigned count = safetensors_shard(weights.front()).second;
+        for (size_t i = 0; i < weights.size(); ++i) {
+            const auto [index, of] = safetensors_shard(weights[i]);
+            if (!index || of != count) throw std::runtime_error("pull: " + weights[i] + " is not a shard model-NNNNN-of-NNNNN.safetensors beside the index");
+            if (index != i + 1) throw std::runtime_error("pull: incomplete safetensors shard set");
+            take(weights[i]);
+        }
+        if (weights.size() != count) throw std::runtime_error("pull: incomplete safetensors shard set");
+    } else {
+        for (const std::string& name : weights)
+            if (name != "model.safetensors") throw std::runtime_error("pull: " + name + " has no model.safetensors.index.json to name its tensors");
+        take("model.safetensors");
+    }
     return result;
 }
 

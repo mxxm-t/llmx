@@ -198,6 +198,24 @@ std::string header_entry(const std::string& name, const std::vector<uint64_t>& n
     return e + "],\"data_offsets\":[" + std::to_string(begin) + "," + std::to_string(end) + "]}";
 }
 
+// A model loaded with a chat template given (ModelOptions::chat_template) renders with it and stores it as its own, saying whether it replaced one; a template that is not UTF-8 is refused.
+void template_checks(const std::string& path, bool carried) {
+    const std::string text = "{% for m in messages %}[{{ m['content'] }}]{% endfor %}";
+    infer::PlacementRequest request;
+    request.names = {"cpu"};
+    infer::ModelOptions options;
+    options.chat_template = text;
+    const auto loaded = infer::load_model(path, {backend::make_cpu_backend()}, request, options);
+    const gguf::MetaValue* stored = loaded->file.find("tokenizer.chat_template");
+    require(stored && stored->s == text && loaded->replaced_template == carried && loaded->chat.render({{"user", "x", std::nullopt}}, true, {}) == "[x]",
+            "a given chat template did not replace the model's");
+    options.chat_template = "{{ '\xff' }}";
+    std::string error;
+    try { infer::load_model(path, {backend::make_cpu_backend()}, request, options); }
+    catch (const std::runtime_error& e) { error = e.what(); }
+    require(error == "the chat template is not UTF-8 at byte 4", "a chat template that is not UTF-8 was taken");
+}
+
 // A Hugging Face directory of bf16_twin's weights, its vectors BF16 too, loads in each mode on the CPU and on copying backends to the twin's logits, its vectors widened into the loader's buffer.
 void directory_checks(const std::string& path) {
     namespace fs = std::filesystem;
@@ -274,6 +292,9 @@ void directory_checks(const std::string& path) {
                     "a directory's logits differ from its GGUF file's");
         }
     }
+    // A template given beside the directory takes the place of the one it carries, in its metadata and its format alike.
+    std::ofstream(dir / "chat_template.jinja", std::ios::binary) << "{{ messages[0]['content'] }}";
+    template_checks(dir.u8string(), true);
     fs::remove_all(dir);
 }
 
@@ -360,6 +381,7 @@ void loader_checks(const std::string& path) {
                 "the loader lost the tokenizer or the chat format");
         require(loaded->plan.empty(), "one device reported a split");
     }
+    template_checks(path, false);
 }
 
 // What a SourceArchitecture saw of its source, and whether its fill fails after reading it, as a model that fails as it is built does.

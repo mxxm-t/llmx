@@ -81,6 +81,7 @@ After 16384 tokens of context Qwen3.5-9B Q4_K_M chose another token than the HF 
 
 ```text
 llmx pull <owner/repo>:<quant> [flags...]
+llmx pull <owner/repo> [flags...]
 ```
 
 Download a GGUF model from Hugging Face and print its absolute local path on
@@ -100,6 +101,11 @@ of origin. Normal curl proxy and CA environment settings remain supported.
 
 | Flag | Meaning |
 |---|---|
+Without a quant, `pull` fetches a safetensors model directory and prints the snapshot directory, which the model commands take as a Hugging Face model directory (Global conventions, above).
+It chooses from the repository's file list alone, at its root: `config.json`, `tokenizer.json` and `tokenizer_config.json`, `chat_template.jinja` where present, and `model.safetensors` alone or `model.safetensors.index.json` with every `model-NNNNN-of-NNNNN.safetensors` shard.
+A repository without `config.json`, `tokenizer.json` or `tokenizer_config.json`, with its weights only in `.bin` files, with an incomplete shard set or with another `.safetensors` file at its root is refused, naming the file; whether the index names exactly each shard's tensors is checked as the directory loads.
+`--file` chooses among a quant's GGUF files, so it is refused without one.
+
 | `--revision <ref>` | Branch, tag or full commit SHA; default `main`. Metadata resolves it to a SHA before downloading. |
 | `--file <name>` | Exact repository-relative file when several models match the quant. Selecting any shard downloads the entire set. |
 | `--cache-dir <path>` | Cache root; default `<home>/.cache/llmx`. |
@@ -267,7 +273,7 @@ Print the top-N next-token logits for `text`, one `id value` pair per line after
 The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
-`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-tokens` read images into it as `generate` does, `--per-token` included.
+`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-tokens` read images into it as `generate` does, `--per-token` included, and `--chat-template-file` replaces the model's template (Chat template file, above).
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
@@ -580,6 +586,14 @@ So a smaller value shortens the longest gap between a request's tokens and costs
 Measured there: on tensor groups `--ubatch 128` cut the inter-token p99 at 32 and 64 users two to three times (946 to 335 ms at 32 users on 128-token prompts) for 1 to 4 percent of the output on short prompts and 8 to 11 on long ones, and raised it at 16 users (56 to 396 ms), where requests start decoding sooner and then ride more, shorter prompt passes; on a layer split it helped the closed loads the same way and, with long prompts arriving beside decoding users, made the p99 worse (94 to 546 ms) for a fifth of the output.
 The default of 512 is the setting for output and for a layer split; 128 is the setting for the steadiest tokens on tensor groups at 32 users and more; 64 was worse than 128 on every count. `docs/STATUS.md` has the tables.
 
+## Chat template file (`--chat-template-file`)
+
+`--chat-template-file PATH` gives `generate --chat`, `logits --chat`, `chat` and `serve` a chat template in place of the one the model carries, for a GGUF file and a Hugging Face directory alike.
+The file's text, which must be UTF-8 and not empty, replaces the model's `tokenizer.chat_template` as it loads, before the chat format is built, so every render, the server's routes and `/v1/tokenize` included, reads it as if the model carried it.
+Where the model carries a template of its own, the command says so on stderr in one line, `chat template: PATH replaces the template the model carries`.
+A template the renderer refuses stops the command as a stored one does, and `generate` and `logits` without `--chat`, which render no template, refuse the flag.
+A draft model beside the model (`--drafter`) keeps its own.
+
 ## `llmx generate`
 
 ```text
@@ -647,6 +661,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--draft-max N`         | most drafts a draft holds, verified up to 63 a pass, 1 to 1023 | 3 |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
+| `--chat-template-file PATH` | chat template file that replaces the model's own, with `--chat` (Chat template file, above) | (the model's) |
 | `--mmproj PATH`         | vision encoder file of the model's images, with `--chat` and `--image` | (none) |
 | `--image PATH`          | images, comma-separated, placed before the text of the one user message | (none) |
 | `--image-max-tokens N`  | most tokens of a resized image, 4k = 4096            | the encoder's |
@@ -690,7 +705,7 @@ llmx chat <in.gguf> [--system "<text>"] [flags...]
 
 Interactive chat loop reading lines from stdin.
 Uses the model's `tokenizer.chat_template` to format the conversation, rendered byte for byte as the Jinja template language defines it (`docs/src/inference-chat.md` lists what the renderer takes).
-Supports the same sampling and drafting flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`).
+Supports the same sampling and drafting flags as `generate`, plus `--system` to set the system message (default: `You are a helpful assistant.`), and `--chat-template-file` to replace the model's template (Chat template file, above).
 Messages come only from stdin, so a positional argument after the model is refused.
 A template that uses a part of the template language the renderer does not take is refused, with the reason, before the first turn; `generate` without `--chat` still runs on that file.
 A template can also refuse a conversation itself, and that ends the command with the template's message.
@@ -820,6 +835,7 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in a pass |
 | Images | `--mmproj PATH` | (none) | Vision encoder file beside the model; the chat routes then read `image_url` parts |
 | Images | `--image-max-tokens N` | the encoder's | At least 1, k or m suffix; most tokens of a resized image; needs `--mmproj` |
+| Chat | `--chat-template-file PATH` | the model's | Chat template file that replaces the model's own on every route (Chat template file, above) |
 
 `--host-cache-bytes` and `--disk-cache-*` configure the two prefix-cache tiers. The disk tier holds entries the host tier drops; it requires a host cache, so it is unavailable when all caches are on the CPU or the host cache is set to 0.
 

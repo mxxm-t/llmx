@@ -92,6 +92,7 @@ struct ExecOptions {
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
     infer::LookupStorage lookup_storage = infer::LookupStorage::automatic; // bounded lookup table storage policy
     bool verbose = false;         // the prompt token count, the thread counts, a split's plan, progress, generate's KV line and perplexity's per-window lines
+    std::string chat_template_file; // --chat-template-file of the commands that render a chat template, whose text replaces the model's (ModelOptions::chat_template)
 };
 
 // A command line the command cannot take: main prints the command's page on stderr and exits with status 2.
@@ -630,6 +631,10 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     }
     infer::ModelOptions options = model_options(exec);
     options.argmax_passes = argmax_passes;
+    if (!exec.chat_template_file.empty()) {
+        options.chat_template = read_text_file(exec.chat_template_file, "--chat-template-file");
+        if (options.chat_template.empty()) throw std::runtime_error("--chat-template-file: the file is empty: " + exec.chat_template_file);
+    }
     // A recurrent state is held by each sequence decoding at once: the command's own one, or the sequences a pass carries.
     if (decode_rows) options.state_slots = decode_rows;
     options.checkpoint_slots = checkpoints < 0 ? decode_rows : (size_t)checkpoints;
@@ -655,6 +660,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     };
     auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file);
     std::cerr << loaded->dtype.describe();
+    if (loaded->replaced_template) std::cerr << "chat template: " << exec.chat_template_file << " replaces the template the model carries\n";
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
     return loaded;
@@ -825,7 +831,10 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
     if (server)
         throw std::runtime_error("serve: " + file + " is a draft model, which drafts in generate and chat; the server drafts with lookup, embedded, or MTP blocks in a file beside the model");
     // A draft model that keeps a recurrent state keeps one where its drafts begin, so each draft goes back there (infer::spec::DraftModel); it shares the model's devices, so the two take turns on one queue a device.
-    beside = open_model(file, exec, progress, exec.threads, infer::spec::kVerifyRows, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
+    // The draft model renders no template, so the model's --chat-template-file stays the model's.
+    ExecOptions own = exec;
+    own.chat_template_file.clear();
+    beside = open_model(file, own, progress, exec.threads, infer::spec::kVerifyRows, 0, false, nullptr, 0, 0, false, 1, 0, false, {}, loaded.backends);
     proposer = std::make_unique<infer::spec::DraftModel>(*beside->model, lookup_first);
 }
 
@@ -1604,7 +1613,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  generate    <model> \"<prompt>\"       Generate from a raw text prompt\n"
             << "  serve       <model>                  Start the HTTP inference server\n\n"
             << "Manage models:\n"
-            << "  pull        <owner/repo>:<quant>     Download a GGUF from Hugging Face\n"
+            << "  pull        <owner/repo>[:<quant>]   Download a GGUF or a safetensors directory from Hugging Face\n"
             << "  info        <model>                  Show metadata and tensor layouts\n"
             << "  quantize    <json> <bin> <out.gguf>   Convert F32 tensors to Q8_0/Q4_0\n"
             << "  dequantize  <gguf> <json> <bin>       Export tensors as F32\n\n"
@@ -1680,6 +1689,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (!chat) page
             << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n"
             << "  --chat                  Send the prompt as one user message through the model's chat template\n";
+        page
+            << "  --chat-template-file PATH  Chat template file that replaces the model's own" << (chat ? "" : ", with --chat") << "\n";
         if (!chat) image_options();
         page
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
@@ -1767,7 +1778,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << " (default: " << Drafts{}.draft_max << ")\n"
             << "\nImages (on the chat routes, as image_url parts holding data: URLs of PNG or JPEG):\n"
             << "  --mmproj PATH           Vision encoder file of the model's images\n"
-            << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n";
+            << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n"
+            << "\nChat template:\n"
+            << "  --chat-template-file PATH  Chat template file that replaces the model's own on the chat routes\n";
         model_options(false);
         page << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
@@ -1782,8 +1795,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4\n";
     } else if (command == "pull") {
         const hub::PullOptions pull;
-        page << "Download and verify a GGUF model or complete shard set.\n\n"
-            << "Usage: llmx pull <owner/repo>:<quant> [options]\n\n"
+        page << "Download and verify a GGUF model or complete shard set, or without a quant a safetensors model directory.\n\n"
+            << "Usage: llmx pull <owner/repo>:<quant> [options]\n"
+            << "       llmx pull <owner/repo> [options]\n\n"
             << "Options:\n"
             << "  --revision REF          Branch, tag or commit SHA (default: " << pull.revision << ")\n"
             << "  --file NAME             Choose a file when several match the quant\n"
@@ -1791,7 +1805,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --parallel N            Streams per file, 1.." << hub::max_parallel_streams << " (default: " << pull.parallel << ")\n\n"
             << "Requires curl 8.4+. HF_TOKEN supplies gated-repo credentials.\n"
             << "The verified local path goes to stdout. Progress goes to stderr.\n\n"
-            << "Example: llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n";
+            << "Examples:\n"
+            << "  llmx pull Qwen/Qwen3-0.6B-GGUF:Q8_0 --parallel 4\n"
+            << "  llmx pull Qwen/Qwen3-0.6B\n";
     } else if (command == "logits" || command == "perplexity") {
         const bool ppl = command == "perplexity";
         page << (ppl ? "Score next-token likelihoods over text or bounded windows.\n\n"
@@ -1807,6 +1823,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --verbose               Show scoring phase, actual worker count and each window's NLL\n";
         else page
             << "  --chat                  Read the text as one user message through the model's chat template\n"
+            << "  --chat-template-file PATH  Chat template file that replaces the model's own, with --chat\n"
             << "  --top N                 Number of logits to print (default: " << kLogitsTop << ")\n"
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n"
@@ -1919,13 +1936,12 @@ int main(int argc, char** argv) {
         }
 
         if (cmd == "pull") {
-            if (argc < 3) throw UsageError("missing the <owner/repo>:<quant> to download");
+            if (argc < 3) throw UsageError("missing the <owner/repo> or <owner/repo>:<quant> to download");
             const std::string target = argv[2];
             const auto colon = target.find(':');
-            if (colon == std::string::npos) throw UsageError("expected <owner/repo>:<quant>, not '" + target + "'");
             hub::PullOptions options;
             options.repo = target.substr(0, colon);
-            options.quant = target.substr(colon + 1);
+            if (colon != std::string::npos) options.quant = target.substr(colon + 1);
 #ifdef _WIN32
             char* token = nullptr;
             size_t token_size = 0;
@@ -1947,6 +1963,8 @@ int main(int argc, char** argv) {
                 else throw UsageError("unknown flag: " + flag);
                 given.take(flag, i > at);
             }
+            // A colon asks for a GGUF quant, which an empty one does not name.
+            if (colon != std::string::npos) hub::validate_quant(options.quant);
             const auto path = hub::pull(options, [](const std::string& message) { std::cerr << message << '\n'; });
             std::cout << path.u8string() << '\n';
             return 0;
@@ -1991,6 +2009,7 @@ int main(int argc, char** argv) {
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (f == "--chat" && !chat) as_chat = true;
+                else if (f == "--chat-template-file") exec.chat_template_file = nonempty_value(argc, argv, i, a, "a path");
                 else if (!chat && images_flag(argc, argv, i, a, f, images)) {}
                 else if (f == "--verbose") exec.verbose = true;
                 else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
@@ -2001,6 +2020,7 @@ int main(int argc, char** argv) {
             }
             if (chat) return cmd_chat(argv[2], system, gp, exec, drafts);
             if (!have_prompt) throw UsageError("missing the prompt");
+            if (!as_chat && !exec.chat_template_file.empty()) throw UsageError("--chat-template-file renders the one user message --chat sends");
             images.check(as_chat);
             return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec, drafts, images);
         }
@@ -2050,12 +2070,14 @@ int main(int argc, char** argv) {
                 else if (f == "--last") last = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
                 else if (f == "--chat") as_chat = true;
+                else if (f == "--chat-template-file") exec.chat_template_file = nonempty_value(argc, argv, i, a, "a path");
                 else if (images_flag(argc, argv, i, a, f, images)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
             images.check(as_chat);
+            if (!as_chat && !exec.chat_template_file.empty()) throw UsageError("--chat-template-file renders the one user message --chat sends");
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_logits(argv[2], text, as_chat, topn, exec, then_ids, last, per_token, images);
         }
@@ -2121,6 +2143,7 @@ int main(int argc, char** argv) {
                 else if (f == "--ctx-size") cfg.ctx_size = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--image-max-tokens") images.max_tokens = count_arg<uint64_t>(argc, argv, i, a, 1);
+                else if (f == "--chat-template-file") exec.chat_template_file = nonempty_value(argc, argv, i, a, "a path");
                 else if (drafts_flag(argc, argv, i, a, f, drafts, true)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);

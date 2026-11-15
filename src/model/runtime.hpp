@@ -96,6 +96,8 @@ struct ModelOptions {
     std::vector<backend::Dtype> device_dtypes; // empty applies dtype to every device
     // The whole KV budget backed as the model is made rather than as passes write it, so no pass grows the cache (the budget every placement fits, fitted_kv in model/place.hpp).
     bool kv_backed = false;
+    // A chat template that replaces the one the model file carries, which infer::load_model alone reads (chat::replace_template); empty keeps the file's.
+    std::string chat_template;
     // What the host can still give, in place of core::host_memory_available, for tests of the host pool under pressure.
     std::function<std::optional<size_t>()> host_memory;
 };

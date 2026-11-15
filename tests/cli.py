@@ -135,7 +135,7 @@ def check_usage_errors():
         assert p.returncode == 2 and not p.stdout and b"unknown command: frobnicate" in p.stderr, (args, p)
     # Every refusal below happens while the command line is read, before the model file is opened, so a path that does not exist is enough.
     model = "missing.gguf"
-    for args, page in ((["--help", "chat"], "<command>"), (["serve"], "serve"), (["pull"], "pull"), (["pull", "Qwen/Qwen3-0.6B-GGUF"], "pull"),
+    for args, page in ((["--help", "chat"], "<command>"), (["serve"], "serve"), (["pull"], "pull"),
                        (["pull", "a/b:q8_0", "--parallel", "0"], "pull"), (["pull", "a/b:q8_0", "--parallel", "17"], "pull"),
                        (["pull", "a/b:q8_0", "--mirror", "x"], "pull"), (["pull", "a/b:q8_0", "--revision"], "pull"),
                        (["generate"], "generate"), (["generate", model], "generate"),
@@ -266,6 +266,7 @@ def check_usage_errors():
                              (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-tokens", "4q"], "--image-max-tokens"),
                              (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-pixels", "1024"], "unknown flag: --image-max-pixels")):
             usage_error(command + args, command[0], reason)
+        usage_error(command + ["--chat-template-file", "t.jinja"], command[0], "--chat-template-file renders the one user message --chat sends")
 
 
 def help_page(command, directory):
@@ -301,7 +302,7 @@ def listed_flags(page):
 PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "SIZE": "4gb", "M": "auto", "HOW": "refuse", "WHICH": "exact", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1", "S": "auto"}
 
 # The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
-UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")
+UNREACHED = re.compile(r"error: ([\w-]+: )?cannot open (file: )?missing\.|error: pull: quant is required$")
 
 
 def check_help():
@@ -340,6 +341,9 @@ def check_help():
         # A text file stands in place of the text, right after the model.
         if command in ("generate", "logits", "perplexity") and flag in ("--file", "-f"):
             return bases[command][:2] + args
+        # generate and logits render a template only with --chat.
+        if command in ("generate", "logits") and flag == "--chat-template-file":
+            return bases[command] + args + ["--chat"]
         return bases[command] + args + (serve_company if command == "serve" and flag in serve_company else company).get(flag, [])
 
     def accepted(args, directory):

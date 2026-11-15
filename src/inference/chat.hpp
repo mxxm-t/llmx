@@ -3396,6 +3396,26 @@ inline size_t own_end_tokens(const ChatFormat& format, const bpe::Tokenizer& tok
     }
 }
 
+// Store `text`, which must be UTF-8, as the model's chat template (`--chat-template-file`), in place of any it carries; returns whether it carried one.
+inline bool replace_template(gguf::GGUFModel& m, const std::string& text) {
+    for (size_t i = 0; i < text.size();) {
+        const size_t n = utf8::valid_length(text, i);
+        if (!n) throw std::runtime_error("the chat template is not UTF-8 at byte " + std::to_string(i));
+        i += n;
+    }
+    gguf::MetaValue value;
+    value.vtype = gguf::V_STRING;
+    value.s = text;
+    for (auto& [key, stored] : m.kv)
+        if (key == "tokenizer.chat_template") {
+            const bool own = stored.vtype == gguf::V_STRING && !stored.s.empty();
+            stored = std::move(value);
+            return own;
+        }
+    m.kv.emplace_back("tokenizer.chat_template", std::move(value));
+    return false;
+}
+
 // The template a file carries, or ChatML when it carries none, with its tokenizer's start and end text.
 inline ChatFormat chat_format(const gguf::GGUFModel& m, const bpe::Tokenizer& tok) {
     const gguf::MetaValue* stored = m.find("tokenizer.chat_template");

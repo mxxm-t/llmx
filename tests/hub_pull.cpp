@@ -20,6 +20,43 @@ static void write(const std::filesystem::path& path, const std::string& text) {
     output.write(text.data(), std::streamsize(text.size()));
 }
 
+// A pull without a quant fetches a safetensors directory's files into one snapshot, which it returns, and fetches nothing again from a verified cache; --file is a quant's and is refused without one.
+static void directory_pull(const std::filesystem::path& root) {
+    const std::map<std::string, std::string> files = {
+        {"config.json", "{\"model_type\":\"qwen3\"}"}, {"tokenizer.json", "{}"}, {"tokenizer_config.json", "{ }"}, {"model.safetensors", std::string(100, 's')}};
+    const std::string revision(40, 'd');
+    std::string siblings = "{\"rfilename\":\"README.md\",\"size\":3,\"blobId\":\"" + std::string(40, 'e') + "\"}";
+    for (const auto& [name, text] : files) {
+        auto hash = hub::pull_detail::file_hasher({name, text.size(), {}, false});
+        hash.update(text.data(), text.size());
+        siblings += ",{\"rfilename\":\"" + name + "\",\"size\":" + std::to_string(text.size()) + ",\"blobId\":\"" + hash.hex() + "\"}";
+    }
+    const std::string metadata = "{\"sha\":\"" + revision + "\",\"siblings\":[" + siblings + "]}";
+    std::vector<std::string> fetched;
+    auto fetch = [&](const std::string& url, const std::string&, const std::filesystem::path& partial, uint64_t, std::optional<hub::ByteRange>) -> hub::Response {
+        if (url.find("/api/models/") != std::string::npos) { write(partial, metadata); return {200, uint64_t(metadata.size())}; }
+        const std::string prefix = "https://huggingface.co/test/dir/resolve/" + revision + "/";
+        require(url.compare(0, prefix.size(), prefix) == 0 && files.count(url.substr(prefix.size())), "a directory pull fetched a file it does not take");
+        fetched.push_back(url.substr(prefix.size()));
+        const std::string& text = files.at(fetched.back());
+        write(partial, text);
+        return {200, uint64_t(text.size())};
+    };
+    hub::PullOptions options;
+    options.repo = "test/dir";
+    options.cache = root / "dir-cache";
+    const auto snapshot = hub::pull_detail::pull(options, {}, fetch);
+    require(snapshot == std::filesystem::canonical(options.cache) / "models--test--dir" / "snapshots" / revision && fetched.size() == files.size(), "directory pull layout");
+    for (const auto& [name, text] : files) {
+        std::ifstream input(snapshot / name, std::ios::binary);
+        require(std::string(std::istreambuf_iterator<char>(input), {}) == text, "a directory pull's file differs");
+    }
+    fetched.clear();
+    require(hub::pull_detail::pull(options, {}, fetch) == snapshot && fetched.empty(), "a cached directory was fetched again");
+    options.filename = "model.safetensors";
+    rejects([&] { hub::pull_detail::pull(options, {}, fetch); });
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc != 2) throw std::runtime_error("fixture root argument required");
@@ -131,7 +168,8 @@ int main(int argc, char** argv) {
         };
         rejects([&] { hub::pull_detail::request(long_wait, "https://example.test/model", "", git_file, 3); });
         require(refused_requests == 1, "retried before long server delay");
-        std::cout << "hub: four overlapping ranges, exact assembly, cache repair, failure cleanup, serial retry and Git digest pass\n";
+        directory_pull(fixture.path);
+        std::cout << "hub: four overlapping ranges, exact assembly, cache repair, failure cleanup, serial retry, Git digest and a safetensors directory pass\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

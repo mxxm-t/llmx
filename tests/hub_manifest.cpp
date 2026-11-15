@@ -27,6 +27,64 @@ static std::string metadata(const std::string& files) {
     return "{\"sha\":\"" + std::string(40, 'c') + "\",\"siblings\":[" + files + "]}";
 }
 
+// The refusal of `body`, which must name `text`.
+static void refuses(const std::function<void()>& body, const std::string& text) {
+    std::string error;
+    try { body(); } catch (const std::runtime_error& e) { error = e.what(); }
+    require(error.find(text) != std::string::npos, ("refusal without '" + text + "': " + error).c_str());
+}
+
+// The names a directory selection takes, in its order.
+static std::string names(const hub::Manifest& m) {
+    std::string out;
+    for (const auto& f : m.files) out += (out.empty() ? "" : ",") + f.name;
+    return out;
+}
+
+// select_directory on the sibling list the Hub gave for Qwen/Qwen3-0.6B at c1899de, recorded, and on lists made from it.
+static void directory_checks() {
+    const std::string qwen = R"({"sha":"c1899de289a04d12100db370d81485cdf75e47ca","siblings":[)"
+        R"({"rfilename":".gitattributes","size":1570,"blobId":"52373fe24473b1aa44333d318f578ae6bf04b49b"},)"
+        R"({"rfilename":"LICENSE","size":11343,"blobId":"6634c8cc3133b3848ec74b9f275acaaa1ea618ab"},)"
+        R"({"rfilename":"README.md","size":13965,"blobId":"a50b19e76f5274f9ec99f5a5d99873dca5bff25e"},)"
+        R"({"rfilename":"config.json","size":726,"blobId":"f5c3703b78ae2a478ae15b247e9f855e0ce2107b"},)"
+        R"({"rfilename":"generation_config.json","size":239,"blobId":"20a8a9156fc8c3f25295ca067f61fdf120d517c5"},)"
+        R"({"rfilename":"merges.txt","size":1671853,"blobId":"31349551d90c7606f325fe0f11bbb8bd5fa0d7c7"},)"
+        R"({"rfilename":"model.safetensors","size":1503300328,"blobId":"a0458bbfda764d86cf930900d5f0f933933da9a3",)"
+        R"("lfs":{"sha256":"f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b","size":1503300328,"pointerSize":135}},)"
+        R"({"rfilename":"tokenizer.json","size":11422654,"blobId":"cd71f61a15a522601badb3dc960d800d9cb3766c",)"
+        R"("lfs":{"sha256":"aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4","size":11422654,"pointerSize":133}},)"
+        R"({"rfilename":"tokenizer_config.json","size":9732,"blobId":"417d038a63fa3de29cfde265caedae14d1a58d92"},)"
+        R"({"rfilename":"vocab.json","size":2776833,"blobId":"4783fe10ac3adce15ac8f358ef5462739852c569"}]})";
+    const auto m = hub::select_directory(qwen);
+    require(m.revision == "c1899de289a04d12100db370d81485cdf75e47ca" && names(m) == "config.json,tokenizer.json,tokenizer_config.json,model.safetensors",
+            "the Qwen3-0.6B directory's files");
+    require(m.files[3].lfs && m.files[3].size == 1503300328 && m.files[3].digest == "f47f71177f32bcd101b7573ec9171e6a57f4f4d31148d38e382306f42996874b" &&
+            !m.files[0].lfs && m.files[0].digest == "f5c3703b78ae2a478ae15b247e9f855e0ce2107b", "the Qwen3-0.6B directory's digests");
+    const std::string common = file("config.json", false) + "," + file("tokenizer.json") + "," + file("tokenizer_config.json", false);
+    const std::string index = file("model.safetensors.index.json", false);
+    const std::string one = file("model-00001-of-00002.safetensors"), two = file("model-00002-of-00002.safetensors");
+    require(names(hub::select_directory(metadata(common + "," + index + "," + two + "," + one + "," + file("chat_template.jinja", false) + "," +
+                                                 file("onnx/model.safetensors") + "," + file("original/consolidated.safetensors")))) ==
+            "config.json,tokenizer.json,tokenizer_config.json,chat_template.jinja,model.safetensors.index.json,model-00001-of-00002.safetensors,model-00002-of-00002.safetensors",
+            "a sharded directory's files, its subfolders left out");
+    refuses([&] { hub::select_directory(metadata(common + "," + index + "," + one)); }, "incomplete safetensors shard set");
+    refuses([&] { hub::select_directory(metadata(common + "," + index + "," + two)); }, "incomplete safetensors shard set");
+    refuses([&] { hub::select_directory(metadata(common + "," + index + "," + one + "," + two + "," + file("consolidated.safetensors"))); }, "consolidated.safetensors is not a shard");
+    refuses([&] { hub::select_directory(metadata(common + "," + index + "," + one + "," + two + "," + file("model.safetensors"))); }, "model.safetensors is not a shard");
+    refuses([&] { hub::select_directory(metadata(common + "," + index + "," + file("model-00001-of-00001.safetensors") + "," + two)); }, "model-00002-of-00002.safetensors is not a shard");
+    refuses([&] { hub::select_directory(metadata(common + "," + one + "," + two)); }, "model-00001-of-00002.safetensors has no model.safetensors.index.json");
+    refuses([&] { hub::select_directory(metadata(common + "," + file("model.safetensors") + "," + file("adapter.safetensors"))); }, "adapter.safetensors has no model.safetensors.index.json");
+    refuses([&] { hub::select_directory(metadata(file("tokenizer.json") + "," + file("model.safetensors"))); }, "no config.json");
+    refuses([&] { hub::select_directory(metadata(common + "," + file("pytorch_model.bin"))); }, ".bin files only");
+    refuses([&] { hub::select_directory(metadata(common)); }, "no .safetensors weights");
+    refuses([&] { hub::select_directory(metadata(file("config.json", false) + "," + file("tokenizer_config.json", false) + "," + file("model.safetensors"))); }, "no tokenizer.json");
+    refuses([&] { hub::select_directory(metadata(common + "," + file("model.safetensors") + "," + file("model.safetensors"))); }, "duplicate or case-colliding repository file model.safetensors");
+    refuses([&] { hub::select_directory(metadata(common + "," + file("Config.json", false) + "," + file("model.safetensors"))); }, "case-colliding repository file Config.json");
+    refuses([&] { hub::select_directory(metadata(common + ",{\"rfilename\":\"model.safetensors\",\"size\":0,\"blobId\":\"" + std::string(40, 'b') + "\"}")); }, "empty file model.safetensors");
+    refuses([&] { hub::select_directory("{\"sha\":\"main\",\"siblings\":[]}"); }, "invalid resolved commit SHA");
+}
+
 int main() {
     try {
         struct Vector { std::string text, sha1, sha256; };
@@ -95,10 +153,11 @@ int main() {
             rejects([&] { hub::validate_path(path); });
         for (const std::string repo : {"owner", "/repo", "owner/", "a/b/c", "a/../b", "a/b--c", "a/b?c"})
             rejects([&] { hub::validate_repo(repo); });
+        directory_checks();
         hub::validate_repo("Qwen/Qwen3-0.6B-GGUF");
         require(hub::url_encode("refs/pr/1") == "refs%2Fpr%2F1", "revision URL quoting");
         require(hub::url_encode("folder/a b.gguf", true) == "folder/a%20b.gguf", "file URL quoting");
-        std::cout << "hub: SHA vectors, quant selection, shards, metadata and paths pass\n";
+        std::cout << "hub: SHA vectors, quant selection, shards, safetensors directories, metadata and paths pass\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

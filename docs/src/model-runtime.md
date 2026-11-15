@@ -76,6 +76,7 @@ delegated to a `backend::Backend`.
   [place](model-place.md)). Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
+  `chat_template` is a template that replaces the model file's (`--chat-template-file`), which only `infer::load_model` reads.
 - `MediaRun`: an image's rows in a history ([VISION](../VISION.md), sections 4 and 5), its first row, its rows, the encoder's merged grid they fill row by row, its digest (zero where no tier compares it, as in the CLI) and the encoder's rows, held until read, or only those from row `from` on where the history has read the rows before them; a `Sequence` keeps its images in history order (`Sequence::Media`), and a `HostHistory` the images below its length without rows.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per KV storage, the committed length

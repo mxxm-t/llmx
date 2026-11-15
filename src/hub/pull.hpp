@@ -229,7 +229,10 @@ inline void acquire(Fetch& fetch, const PullOptions& options, const Manifest& ma
 template<class Fetch>
 inline std::filesystem::path pull(PullOptions options, const PullProgress& progress, Fetch fetch) {
     validate_repo(options.repo);
-    validate_quant(options.quant);
+    // Without a quant the repository is a safetensors model directory (select_directory).
+    const bool directory = options.quant.empty();
+    if (!directory) validate_quant(options.quant);
+    if (directory && !options.filename.empty()) throw std::runtime_error("pull: --file chooses among a quant's GGUF files; give owner/repo:quant");
     if (!options.filename.empty()) validate_path(options.filename);
     if (options.revision.empty() || options.revision.size() > 256)
         throw std::runtime_error("pull: invalid revision");
@@ -245,7 +248,7 @@ inline std::filesystem::path pull(PullOptions options, const PullProgress& progr
                             url_encode(options.revision) + "?blobs=true";
     const auto metadata = temporary.path / "metadata.json";
     request(fetch, url, options.token, metadata, max_metadata_bytes);
-    const Manifest manifest = select(read_metadata(metadata), options.quant, options.filename);
+    const Manifest manifest = directory ? select_directory(read_metadata(metadata)) : select(read_metadata(metadata), options.quant, options.filename);
     if (hex_digest(options.revision, 40) && manifest.revision != options.revision)
         throw std::runtime_error("pull: Hub returned a different revision");
     if (progress) progress("Resolved commit " + manifest.revision);
@@ -257,7 +260,8 @@ inline std::filesystem::path pull(PullOptions options, const PullProgress& progr
         acquire(fetch, options, manifest, file, temporary.path, destination, progress);
         if (first.empty()) first = destination;
     }
-    return first;
+    // A directory's files all sit at its root, so the snapshot holds them; a GGUF pull gives its file, the first of a shard set.
+    return directory ? first.parent_path() : first;
 }
 
 } // namespace pull_detail

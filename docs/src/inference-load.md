@@ -13,7 +13,7 @@ The CLI's commands that run a model, `llmx-split-check`, `llmx-decode-probe`, `l
 - `LoadedModel`: what a load gives its caller.
   - `file` is the `gguf::GGUFModel` whose payload a host backend reads in place while the model lives, unless the load was direct.
   - `tok` is its tokenizer.
-  - `chat` is its `chat::ChatFormat` (`chat::chat_format`), which `chat` and the server render conversations with.
+  - `chat` is its `chat::ChatFormat` (`chat::chat_format`), which `chat` and the server render conversations with; where `ModelOptions::chat_template` gives a template, `load_model` stores it in `file` first (`chat::replace_template`), so the file's key and the format agree, and `replaced_template` says whether it took the place of one the file carried.
   - `plan` is what each device of a split was given (`LayerSplit::describe`), and is empty otherwise.
   - `checkpoint_kv_tokens` is the KV tokens a server's fitted checkpoint slots took from its budget (`PlacedModel`), which `serve` prints as it starts, and `kv_kept_context` why its automatic budget kept the model's context, which it prints too.
   - `drafter` is what the drafter file given beside the model is (`spec::DrafterKind`, [pair](inference-pair.md)), when one was given.

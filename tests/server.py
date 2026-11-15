@@ -693,6 +693,13 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert status == 400 and field in err["error"]["message"], (field, status, err)
         status, reply = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "temperature": 0, "top_k": 0, "top_p": 1, "penalty": 1})
         assert status == 200 and reply["ids"], (status, reply)
+        # Stop texts are bounded, 16 of at most 256 bytes each (infer::Sampling), refused past either bound with the field and the bound named, and the bounds themselves are accepted.
+        status, err = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "stop": ["x"] * 17})
+        assert status == 400 and "stop" in err["error"] and "16" in err["error"], (status, err)
+        status, err = srv.post("/v1/completions", {"prompt": "a", "max_tokens": 2, "stop": "x" * 257})
+        assert status == 400 and "stop" in err["error"]["message"] and "256" in err["error"]["message"], (status, err)
+        status, reply = srv.post("/v1/generate", {"prompt": "a", "max_tokens": 2, "stop": ["x" * 256] * 16})
+        assert status == 200 and reply["ids"], (status, reply)
 
         check_tokenize(srv, model, texts, replies, models["data"][0]["vocab"], chat)
 

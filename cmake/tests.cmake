@@ -5,6 +5,8 @@ target_include_directories(llmx-format-output-test PRIVATE ${CMAKE_CURRENT_SOURC
 list(APPEND LLMX_TARGETS llmx-format-output-test)
 add_test(NAME format-output COMMAND llmx-format-output-test ${CMAKE_CURRENT_BINARY_DIR}/format-output-test)
 set_tests_properties(format-output PROPERTIES TIMEOUT 30)
+add_test(NAME format-output-link COMMAND llmx-format-output-test ${CMAKE_CURRENT_BINARY_DIR}/format-output-link-test --link)
+set_tests_properties(format-output-link PROPERTIES TIMEOUT 30 SKIP_REGULAR_EXPRESSION "the link check is skipped")
 add_executable(llmx-hub-manifest-test tests/hub_manifest.cpp)
 target_include_directories(llmx-hub-manifest-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-hub-manifest-test)

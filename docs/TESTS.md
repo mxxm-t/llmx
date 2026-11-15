@@ -224,6 +224,7 @@ refusal of premature publication, a later publication failure after the first
 complete file was published, and temporary cleanup. The Python round-trip adds
 real child-only file-size-limit failures on POSIX, existing-file preservation,
 a failed second output open and aliased raw output refusal.
+`format-output-link` runs the same binary with `--link`: `format::FileWriter` refuses a dangling symbolic link at its path without creating the link's target; on Windows, where making a link needs developer mode or a privilege (`ERROR_PRIVILEGE_NOT_HELD`), the check says it is skipped and CTest reports the test skipped (`SKIP_REGULAR_EXPRESSION`), so a run's log shows whether the check ran.
 
 `gguf-validation` checks independent binary fixtures for field lengths/counts, array depth, tensor arithmetic, byte counts that overflow although the element count fits, in one row or across rows, file extents, tensor types and quantized row widths, each refused as such when the element count also overflows, custom alignment and a tensor name repeated in one file.
 Its independent layouts cover all 35 known storage types, including those without decoders, and refuse unknown and removed IDs even in empty tensors. It reads the type IDs and block declarations in `src/backends/vulkan/shaders/q.glsl` and holds them to `quant/types.hpp`, without running a shader. CTest supplies both arguments: `llmx-gguf-validation-test <fixture.gguf> <q.glsl>`.

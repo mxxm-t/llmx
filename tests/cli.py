@@ -169,6 +169,7 @@ def check_usage_errors():
                                (["pull", "a/b:q8_0", "--file", ""], "pull", "--file needs a file name"),
                                (["pull", "a/b:q8_0", "--cache-dir", ""], "pull", "--cache-dir needs a path"),
                                (["generate", model, "a", "--stop", ""], "generate", "--stop needs a text"),
+                               (["generate", model, "a", "--stop", "x" * 257], "generate", "--stop takes a text of at most 256 bytes"),
                                (["logits", model, "a", "--then-ids", ""], "logits", "--then-ids needs a path"),
                                (["generate", model, "a", "--layer-shares", ""], "generate", "--layer-shares needs a share for each device"),
                                (["bench", "--model", "", "--size", "32", "--iters", "1", "--p", "1", "--n", "1"], "bench", "--model needs a path"),

@@ -4,6 +4,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include "format/file_writer.hpp"
 #include "format/output_file.hpp"
 
 namespace {
@@ -107,12 +108,47 @@ void check(const std::filesystem::path& dir) {
     require(entries == 2, "destination removed during cleanup");
 }
 
+// A symbolic link at a writer's path, dangling here, must fail the open as an existing file does and never create the link's target.
+// On Windows a link needs developer mode or a privilege, so without one the check says it is skipped and CTest reports the test so.
+void check_writer(const std::filesystem::path& dir) {
+    const auto link = dir / "link", target = dir / "target";
+#if defined(_WIN32)
+#if !defined(SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)
+#define SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE 0x2
+#endif
+    if (!CreateSymbolicLinkW(link.c_str(), target.c_str(), SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)) {
+        if (GetLastError() == ERROR_PRIVILEGE_NOT_HELD) {
+            std::cout << "format-output: symbolic links need a privilege here, so the link check is skipped\n";
+            return;
+        }
+        require(false, "cannot create a symbolic link");
+    }
+#else
+    std::filesystem::create_symlink(target, link);
+#endif
+    bool caught = false;
+    try {
+        format::FileWriter writer(link.u8string(), false);
+    } catch (const std::runtime_error&) {
+        caught = true;
+    }
+    require(caught, "a dangling symbolic link at the writer's path was followed");
+    require(!std::filesystem::exists(target), "the writer created the link's target");
+    std::filesystem::remove(link);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) return 2;
+    const bool link = argc == 3 && std::string(argv[2]) == "--link";
+    if (argc != 2 && !link) return 2;
     try {
         Directory dir(argv[1]);
+        if (link) {
+            check_writer(dir.path);
+            std::cout << "format-output: the writer's link refusal passes\n";
+            return 0;
+        }
         check(dir.path);
         std::cout << "format-output: preparation, checked streams, publication and cleanup pass\n";
     } catch (const std::exception& e) {

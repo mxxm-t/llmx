@@ -1754,10 +1754,10 @@ extern "C" __global__ void llmx_causal_conv_silu(float* o, const float* x, const
     }
 }
 
-// The sum over the eight lanes of a column or of a row, each step adding the same two partials, so every lane gets the same bits.
+// The sum over the eight lanes of a column or of a row, each step adding the same two partials, so every lane gets the same bits; only those eight lanes need run it.
 __device__ float lanes8(float x) {
-    const float a = x + shuffle_xor(x, 1), b = a + shuffle_xor(a, 2);
-    return b + shuffle_xor(b, 4);
+    const float a = x + group_xor<8>(x, 1), b = a + group_xor<8>(a, 2);
+    return b + group_xor<8>(b, 4);
 }
 // log(1 + y) without the cancellation of 1 + y for a small y.
 __device__ float log1p_of(float y) {

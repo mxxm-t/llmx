@@ -1581,6 +1581,59 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
 
 **Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
 
+## CUDA backend step 5: the qwen35 operations on cuda:N (2026-11-14 and 15, CUDA23 to CUDA28, branch cuda/step5 on cuda/step4, rebased on main 929f042c6; step 4 lands first)
+
+**Goal.** Step 5 of docs/CUDA.md, Order of work: the qwen35 layers' operations on `cuda:N` for Qwen3.5-27B Q4_K_M, with Qwen3.5-0.8B against HF, held by the qwen35 baseline on 0.8B, 27B at 16k depth and drafts on and off.
+
+**Done.**
+- The hang of `drafters` on CUDA (step 4, Left): `lanes8`, the eight-lane sum of the gated delta rule and of `llmx_delta_step`, called the whole-warp `shuffle_xor(v, m)` inside `if (tok < n)`, which a warp's two tokens of sixteen lanes take apart whenever a stage holds an odd number of tokens, a decode's one token among them.
+  A `__shfl_xor_sync` naming lanes that do not run it waits for them, so a decode step of any qwen35 model hung on CUDA; under HIP the exchange reads its partner whatever the other lanes do.
+  `lanes8` takes `group_xor<8>` (port.h), which names the eight lanes alone under CUDA (`segment_lanes(8)`) and is the wave's `__shfl_xor` under HIP, the exchange it had.
+- Audit of the qwen35 path's other exchanges under 32-lane warps: `block_sum` runs its shuffles in the whole first warp; `exact_sum` (the alpha and beta products) a wave a product; `attention_vec` at 256 (qwen35's full attention) a stream a warp with 32-lane segments; `attention_chunk` and the tile segments of 4 and 8 that every lane of the segment runs; the twins' 32-lane maxima only on whole blocks; the int16 rows' exchanges were audited in step 4 (`pair_lane`). None needs a change.
+- `backend-cuda` runs the qwen35 ops `backend-rocm` runs (`q35::check_ops`, `q35::check_drafter_ops`), and `delta_step_bits` moved from `backend-rocm` to `tests/twin_checks.hpp` so both backends run the one check; `backend-cuda qwen35` runs only these.
+
+- Gates without a card (CUDA23, `/opt/claude-work/cuda23`): the ROCm build of the branch gives `f32`, `int16` and `int16dot` code objects byte identical to the step-4 base bd36e5496's (`cmp`, `hipfb.txt`); the CUDA build passes `gpu-port`, `gpu-core`, `cuda-driver` and `cuda-sass` with no new spill, and `backend-cuda` skips without a device; `docs` and `dead-code` pass.
+- `backend-rocm qwen35` and `backend-rocm delta` (the shared `twin_checks::delta_step_bits`) pass on one MI50 with the branch's ROCm build: 9001328 values against the CPU and 488 runs bit for bit (`/opt/claude-work/cuda23/rchk`).
+- The tall-tile check of `twin_products` (`tests/twin_checks.hpp`) failed on an RTX 3090 (82 SMs) and passed on the RTX 3060 (28 SMs): its four fixed shapes split alike with only the whole tall on 28 and 60 units but on none at 82, a property of the test, not of the selection, which scales with the device's units.
+  Where no fixed shape meets the condition, the check now adds the first slice and whole of each width that do on the device (82 SMs: 5220 by 512 against 100 rows), so devices the fixed shapes cover run what they ran.
+- Card sessions on one RTX 3090 (`/opt/claude-work/cuda23/results/20261114-2229-A` and `20261114-2351-B`): `backend-cuda` passes every check, its qwen35 ops among them; the suite's `qwen35` and `drafters` pass at the default dtype and int8; the baseline passes at f16 on CUDA and on Vulkan on the same card for every gate model CUDA runs (Q4_0 and UD-Q8_K_XL skip, no kernel), and on the Qwen3.5-0.8B Q8_0 at 4096-token windows; greedy ids with `--drafter lookup` equal those without on Qwen3.5-0.8B Q8_0 and Qwen3.6-27B Q4_K_M at int8 and f16 (0.8B int8: 37 of 48 first drafts kept); the 27B's 16384-token prompt with 512 greedy tokens at int8 gives the same tokens twice.
+  Part B's 27B is lmstudio-community's Q4_K_M at 58c6607d (SHA-256 33625d8d), downloaded on the card's machine: no file on Hugging Face has the test machine's copy's bytes.
+
+- `k45_scale_min` selects its scale byte's word rather than indexing the three-word array by a lane value: the index put each Q4_K and Q5_K lane state in local memory under CUDA, 96 bytes of stack in `llmx_q4_k_rows8_1` and `llmx_q4_k_rows16_1` and 128 in `llmx_q4_k_tile8` on sm_86, read by every 27B Q4_K_M decode and prompt product.
+  ptxas now reports no stack for the Q4_K and Q5_K rows and tiles on sm_86, and `cuda-sass` drops `llmx_q4_k_rows8_` and `llmx_q4_k_tile8` and lists `llmx_q5_k_rows`, which spill 12 to 60 bytes at sm_90 and sm_120; the integer arithmetic is the same, so every product keeps its bits.
+  Under HIP the gfx906 code objects change only in `llmx_q4_k_routed_stream8` and `llmx_q5_k_routed_stream8` (int16 and int16dot); the dense rows and tiles keep their instructions and their scratch and register counts.
+- The int8 baseline's one miss on Qwen3.5-0.8B Q8_0, chat-00, top-5 overlap 4 of 5, is the int8 class's and shared with ROCm, not a CUDA defect: HF's ranks 5 and 6 are 332 at 17.9594 and 9175 at 17.6558, CUDA int8 puts 9175 at 17.9913 above 332 at 17.6754, and ROCm int8 on one MI50 (branch build, `/opt/claude-work/cuda24/hfchk/r-rocm-int8`) puts 9175 at 17.853 above 332 at 17.586 and fails the same check, while the CPU and CUDA f16 keep 332 above 9175 by 0.04.
+  No bound or margin changed; it stays an int8 record for step 7's every-dtype gate on both backends.
+- `imma_tile` holds the fold (F2DEV's review of 47f75df89, item 1): its three fixed shapes split on the RTX 3060 and 3090, so a fourth takes the fewest outputs at which 64 rows of 1024 do not split on the device's units (`split_blocks`), and one call must run unsplit and match the host's fold bit for bit.
+  Its first card run (RTX 3090, `/opt/claude-work/cuda26/results/20261115-0953-C`) failed: the fourth shape, 2624 outputs, still split, since it priced 8 column tiles for 512 rows, while a call without row runs is one sequence of extent 2, which the tile splits for one column tile (`split_tiles_of`); the kernel's split is the row class's by design, so the fault was the test's expectation, not a numeric one.
+  The shape now prices one column tile, 20992 outputs on 82 SMs and 7168 on 28, at 64 rows to keep the host's fold short; every other check of the run passed, and the fixed check waits for the next card session.
+- ROCm landing round for the `k45_scale_min` change on one MI50 (CUDA26 and CUDA27, `/opt/claude-work/cuda26/j2` and `/opt/claude-work/cuda27/j3`): Qwen3.6-35B-A3B Q4_K_M greedy text of a 6000-character prompt, 64 tokens, is byte identical to step 4 at int8 and f16, and the disassembly of the gfx906 code objects differs only in `llmx_q4_k_routed_stream8` and `llmx_q5_k_routed_stream8` (int16, int16dot; f32 the same).
+  `llmx bench --p 512 --n 128 --r 3`, step 4 then step 5 at int8 then f16 in each of three rounds, mean of the rounds' means in tok/s, step 4 against step 5: pp512 int8 1556.40 against 1560.75 (+0.3%), f16 1132.94 against 1133.29 (+0.0%); tg128 int8 84.13 against 83.06 (-1.3%), f16 82.49 against 80.78 (-2.1%), within the runs' own spread of 1 to 14 tok/s and a drift of 9 tok/s from round 1 to 3 in both arms, so level.
+  Every run, both arms alike, recorded 62 to 139 s of host run-queue wait over its window, load included (`hostwait`, contended); no run was dropped.
+**Left.**
+- The 27B's 16k checks run out of device memory on CUDA (24 GB) and, with the same commands, on one MI50 (32 GB, ROCm, `/opt/claude-work/cuda25/gate6` and `dbg3run`): the first 512-row prompt pass grows its activation arena (`Model::ensure`, 211812352 bytes, 413696 a row) after the fit cut the KV budget to the device's memory.
+  At 243648 tokens the fit's parts (weights 15082717184 and head and embedding 1761640448 bytes, cache 16124608512, arena 211812352, tables 62373888, kept 10518528, priced scratch 875593728) leave 3 MB of the 34133245952 free, but after the build and `reserve_scratch` the device holds 178 MiB where the fit leaves 275 MiB before the tables, about 38 MiB the fit does not see, so the arena fails; a short prompt never grows a 512-row arena, which is why every short check and the CUDA int8 16k `generate` ran.
+  The fix is the fit owner's, on its own branch (`fix/fit-prompt-scratch`, `model/place.hpp`, `build_fitted`), and this step does not wait for it; until it lands `--kv-tokens` near the prompt runs the 16k checks.
+  With the fix's first form in part C, the 27B's 16k generate ran without `--kv-tokens` on the RTX 3090: 16383 prompt tokens at 122.0 tok/s f16 and 174.5 int8, 8 tokens at 30.3 and 32.6 tok/s.
+- `bench --depth 16384` refills the 16k history before each of its six tests (a warm-up and two rounds of each), and the 16k int8 prompt took about 100 s of `generate`'s 129.7 s, so the cell needs about 600 s of fills: the depth's prompt rate, not a hang.
+- Timing on one RTX 3090 at default clocks (part C, `/opt/claude-work/cuda26/results/20261115-0953-C`, the branch's sources with the fit fix's first form), `llmx bench --p 512 --n 128 --r 3` against the reference's `llama-bench` with flash attention, tok/s:
+
+| model, cell | llmx CUDA int8 | llmx CUDA f16 | reference CUDA |
+|---|---|---|---|
+| Qwen3-0.6B Q8_0 pp512 | 14117 | 7641 | 24115 +- 3771 |
+| Qwen3-0.6B Q8_0 tg128 | 578.0 | 504.8 | 146.3, suspect |
+| Qwen3.6-27B Q4_K_M pp512 | 411.2 | 205.2 | 1335.5 |
+| Qwen3.6-27B Q4_K_M tg128 | 37.34 | 34.67 | 33.92 |
+| Qwen3.6-27B Q4_K_M pp512 at depth 16384 | 111.9 | not run | 1134.6 |
+| Qwen3.6-27B Q4_K_M tg128 at depth 16384 | 32.69 | not run | 32.15 |
+
+  The reference's 0.6B tg128 (`-ngl 99 -fa 1`, default threads) is far below what the card decodes and is held as suspect until the next card session reruns it with the host's load recorded; no comparison is drawn from it.
+  The `k45_scale_min` fix, `backend-cuda bench` of step 4 and step 5 interleaved twice, mean of two medians: the Q4_K int8 decode rows run 2.3x to 2.4x faster at the 27B's shapes (gate_up 327.1 to 144.2 us) and the f16 rows 1.6x to 1.8x (gate_up 257.4 to 147.9 us), the int8 tiles 1.2x to 1.4x, the f16 tiles within 0 to 13 percent; the Q8_0 cells, which the change does not reach, move by a median of -1.3 percent.
+  The 27B decode now beats the reference at int8 and f16, with int8 above f16 on Q4_K as the step-4 gap asked; the prefill gaps stay an open speed gate on first support: 3.2x at pp512 int8 and 10.1x at depth 16384, where `llmx_attention_tile` runs F32 on the CUDA cores, and 1.7x on Qwen3-0.6B, with the 120-byte stack frames of the twin, norm and major-attention kernels on sm_86 and the f16 class on the tensor cores (step 4, Left) after it.
+- The embedded MTP drafter on a real file: the test machine's qwen35 MTP files are Q4_1, NVFP4 and a 29 GB Q8_0, none of which CUDA runs on a 24 GB card before step 8, so only the tiny fixtures' `drafters` hold `--drafter embedded` on CUDA.
+
+**Gotchas.** A kernel exchange that runs inside a branch or loop not every lane of the warp takes needs the mask of the lanes that do under CUDA; the width form `shuffle_xor(v, m, W)` would also name them but changes the HIP code objects, so the exchanges whose HIP form must stay take `pair_lane` or `group_xor<W>`.
+
 ## CUDA backend step 4: the int8 class on cuda:N, four-way dot rows and the integer tensor-core prompt tile (2026-11-14, CUDA17 to CUDA21, rebased by CUDA25 on 2026-11-15, branch cuda/step4 on main 929f042c6; lands by fast-forward)
 
 **Goal.** Step 4 of docs/CUDA.md, Order of work: the block-int8 rows on `__dp4a` and the Q8_0 prompt tile on the 8-bit integer tensor cores, first tuning on real shapes, held by product timings at Qwen3-0.6B and 27B shapes, the int8 budget (docs/PRECISION.md) and a short screen against the reference runtime.

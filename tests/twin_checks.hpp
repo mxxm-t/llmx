@@ -1,9 +1,10 @@
 #pragma once
-// The twin products' witnesses shared by the GPU backends' tests: each type's builds by their launches, each output against a double sum over the twin, and a column or row of a call its bits alone.
+// The GPU core's witnesses shared by the GPU backends' tests: each type's builds by their launches, each output against a double sum over the twin, a call's column or row its bits alone, and the fused delta step.
 // A test passes its own types, classes, wave width, launches reader and require, so each keeps its own reporting.
 #include "backends/backend.hpp"
 #include "backends/device_profile.hpp"
 #include "backends/gpu/kernels/shapes.h"
+#include "core/bf16.hpp"
 #include "core/fp16.hpp"
 #include "quant/types.hpp"
 #include "row_classes.hpp"
@@ -16,8 +17,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -635,8 +638,19 @@ inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Re
     const auto tall_of = [&](size_t n, size_t tw, size_t tr) {
         return backend::tile_rows_for(caps, prof, 64, 64, 128, n, tiles_of(tr), tw, dt == Dtype::int8 ? prof.qtile_tall_from_8bit : prof.qtile_tall_from) == 128;
     };
+    const auto meets = [&](const std::array<size_t, 4>& s) { return kper_of(s[2], s[0], s[1]) == kper_of(s[3], s[0], s[1]) && tall_of(s[2], s[0], s[1]) != tall_of(s[3], s[0], s[1]); };
+    std::vector<std::array<size_t, 4>> shapes = {{512, 70, 3940, 100}, {512, 70, 3000, 100}, {4096, 520, 5860, 3840}, {4128, 520, 5860, 3840}};
+    // The fixed shapes meet that only on some numbers of compute units, so where none does, each width adds the first slice and whole, both ending inside a tile, that meet it on this device.
+    for (const std::array<size_t, 2> base : {std::array<size_t, 2>{512, 70}, {4096, 520}}) {
+        if (std::any_of(shapes.begin(), shapes.end(), meets)) break;
+        size_t tall = 2;
+        while (tall <= 8192 && !tall_of(tall * 128 - 28, base[0], base[1])) ++tall;
+        for (size_t ms = 1; ms < tall && tall <= 8192 && !meets(shapes.back()); ++ms)
+            for (size_t m = tall; m < tall + 64 && !meets(shapes.back()); ++m)
+                if (meets({base[0], base[1], m * 128 - 28, ms * 128 - 28})) shapes.push_back({base[0], base[1], m * 128 - 28, ms * 128 - 28});
+    }
     bool tall_met = false;
-    for (const std::array<size_t, 4> shape : {std::array<size_t, 4>{512, 70, 3940, 100}, {512, 70, 3000, 100}, {4096, 520, 5860, 3840}, {4128, 520, 5860, 3840}}) {
+    for (const std::array<size_t, 4>& shape : shapes) {
         const size_t tw = shape[0], tr = shape[1], tn = shape[2], slice = shape[3];
         if (kper_of(tn, tw, tr) != kper_of(slice, tw, tr)) continue;
         tall_met = tall_met || tall_of(tn, tw, tr) != tall_of(slice, tw, tr);
@@ -714,6 +728,134 @@ inline void twin_products(Backend& g, const DeviceCaps& caps, Dtype dt, const Re
         out.push_back(read(g, *ys, nout * four));
     }
     require(row_classes::same_within_classes(g, out, "a Q8_0 product, " + form) > 0, "the row-class check compared pairs, " + form);
+}
+
+
+// delta_step of a linear-attention layer against the base calls (Backend::delta_step), bit for bit in every slot both write but the conv, both state slots and the output product.
+// It covers the tensor-width shard shapes and other head widths, 1 to 8 rows a view over histories of 0, 1, 2 and 100, one view and three, f16 and int8, and which launches ran.
+inline void delta_step_bits(Backend& g, const Launches& launches, const Require& require) {
+    using namespace backend;
+    const auto same = [](const std::vector<float>& a, const std::vector<float>& b) { return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(float)) == 0; };
+    const auto throws = [](const std::function<void()>& f) {
+        try {
+            f();
+        } catch (const std::exception&) {
+            return true;
+        }
+        return false;
+    };
+    struct Shape {
+        size_t hk, hv, kd, vd, nin;
+    };
+    const Shape shapes[] = {{16, 48, 128, 128, 2560}, {8, 24, 128, 128, 2560}, {4, 12, 128, 128, 640}, {2, 6, 128, 128, 640}, {4, 4, 64, 64, 512},
+                            {2, 6, 128, 64, 512},     {2, 4, 96, 128, 512},     {3, 6, 4, 4, 256},    {1, 2, 36, 8, 256},   {2, 4, 132, 64, 256},
+                            {2, 4, 64, 130, 256},     {2, 4, 64, 66, 256}};
+    // Each case is its views' (rows, history) pairs; the last view of a case of several reads slot 0 and writes slot 2, as a verify does.
+    const std::vector<std::vector<std::pair<size_t, size_t>>> cases = {{{1, 100}}, {{1, 0}}, {{2, 1}}, {{3, 2}}, {{4, 100}}, {{5, 0}}, {{8, 100}}, {{9, 100}},
+                                                                     {{1, 100}, {8, 2}, {3, 0}}, {{6, 1}, {7, 100}, {2, 2}}, {{1, 0}, {1, 0}, {1, 0}}};
+    for (const Shape& sp : shapes) {
+        const StateShape sh{sp.hk, sp.hv, sp.kd, sp.vd};
+        const size_t C = sh.channels(), V = sp.hv * sp.vd, E = sp.nin, slots = 6;
+        const bool width = sp.kd <= 128 && sp.kd % 4 == 0 && sp.vd <= 128 && sp.vd % 4 == 0;
+        // The base refuses K heads past 128 itself, so a step at that width is refused either way.
+        const bool base_runs = sp.kd <= 128;
+        const std::vector<uint8_t> wqkv = q8_matrix(E, C, 301), wgate = q8_matrix(E, V, 302), wout = q8_matrix(V % 32 ? 32 : V, 64, 303);
+        const std::vector<float> wa = row_classes::values(sp.hv * E, 304, 0.02f), wb = row_classes::values(sp.hv * E, 305, 0.02f);
+        std::vector<float> a = row_classes::values(sp.hv, 306, 1.0f), dt = row_classes::values(sp.hv, 307, 0.5f), nw = row_classes::values(sp.vd, 308, 1.0f),
+                           cw = row_classes::values(C * kConvTaps, 309, 0.5f), state = row_classes::values(slots * sh.slot_floats(), 310, 0.1f);
+        for (float& v : a) v = -std::fabs(v) - 0.05f;
+        auto qb = g.adopt(wqkv.data(), wqkv.size()), gb = g.adopt(wgate.data(), wgate.size()), ob = g.adopt(wout.data(), wout.size());
+        auto ab = g.adopt(wa.data(), wa.size() * 4), bb = g.adopt(wb.data(), wb.size() * 4), ap = g.adopt(a.data(), a.size() * 4), db = g.adopt(dt.data(), dt.size() * 4),
+             nb = g.adopt(nw.data(), nw.size() * 4), cb = g.adopt(cw.data(), cw.size() * 4);
+        const std::string shape = std::to_string(sp.hv) + "/" + std::to_string(sp.hk) + " heads " + std::to_string(sp.kd) + "x" + std::to_string(sp.vd) + ", " + std::to_string(E) + " wide";
+        for (const auto& views_at : cases)
+            for (Dtype dt_ : {Dtype::f16, Dtype::int8}) {
+                size_t rows = 0;
+                for (const auto& [nq, len] : views_at) rows += nq;
+                std::string at = shape + ", rows";
+                for (const auto& [nq, len] : views_at) at += " " + std::to_string(nq) + "@" + std::to_string(len);
+                at += std::string(", ") + dtype_name(dt_);
+                const std::vector<float> mixed = row_classes::values(rows * E, 311 + (uint32_t)rows, 1.0f);
+                auto mb = g.adopt(mixed.data(), mixed.size() * 4);
+                struct Arm {
+                    std::unique_ptr<StateStorage> st;
+                    BufferPtr raw, conv, gate, ab, out, y;
+                };
+                Arm arm[2];
+                std::vector<StateView> views[2];
+                DeltaStep step[2];
+                for (int k = 0; k < 2; ++k) {
+                    arm[k] = Arm{g.state_alloc(1, slots, sh), g.alloc(rows * C * 4), g.alloc(rows * C * 4), g.alloc(rows * V * 4), g.alloc(2 * rows * sp.hv * 4),
+                                 g.alloc(rows * V * 4), g.alloc(rows * 64 * 4)};
+                    g.write(arm[k].st->layer(0), 0, state.data(), state.size() * 4);
+                    size_t v = 0;
+                    for (const auto& [nq, len] : views_at) {
+                        const bool verify = views_at.size() > 1 && v + 1 == views_at.size();
+                        views[k].push_back(StateView{arm[k].st.get(), verify ? 0 : v + 1, verify ? 5 : v + 1, len, nq});
+                        ++v;
+                    }
+                    const Slice alpha{arm[k].ab.get(), 0}, beta{arm[k].ab.get(), rows * sp.hv};
+                    step[k] = DeltaStep{Projection{{quant::GGML_TYPE_Q8_0, {qb.get(), 0}}, {arm[k].raw.get(), 0}, C},
+                                        Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {arm[k].gate.get(), 0}, V},
+                                        Projection{{quant::GGML_TYPE_F32, {ab.get(), 0}}, alpha, sp.hv},
+                                        Projection{{quant::GGML_TYPE_F32, {bb.get(), 0}}, beta, sp.hv},
+                                        {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {arm[k].conv.get(), 0}, {arm[k].out.get(), 0}, 1e-6f};
+                }
+                // A run a view, its extent the view's history and rows, as a decode step or a verify gives them.
+                std::vector<RowRun> runs;
+                for (const auto& [nq, len] : views_at) runs.push_back(RowRun{(runs.empty() ? 0 : runs.back().end) + nq, len + nq});
+                const RowRuns rr{runs.data(), runs.size()};
+                const auto call = [&](int k) {
+                    if (k == 0) g.Backend::delta_step(step[0], {mb.get(), 0}, E, rows, 0, views[0].data(), views[0].size(), rr, dt_);
+                    else g.delta_step(step[1], {mb.get(), 0}, E, rows, 0, views[1].data(), views[1].size(), rr, dt_);
+                    if (V % 32 == 0) g.matmul({quant::GGML_TYPE_Q8_0, {ob.get(), 0}}, {arm[k].out.get(), 0}, {arm[k].y.get(), 0}, V, 64, rows, rr, dt_);
+                };
+                launches(g);
+                if (!base_runs) {
+                    require(throws([&] { call(1); }), "a step past the base's K heads is refused, " + at);
+                    launches(g);
+                    continue;
+                }
+                call(0);
+                const auto base = launches(g);
+                call(1);
+                const auto fused = launches(g);
+                bool holds = width && views_at.size() <= 64;
+                for (const auto& [nq, len] : views_at) holds = holds && nq <= 8;
+                require(!base.count("llmx_delta_step"), "the base's delta_step launches no fused kernel, " + at);
+                require(fused.count("llmx_delta_step") == (holds ? 1u : 0u), std::string(holds ? "delta_step is one fused launch, " : "a step outside the limits runs the base's ops, ") + at);
+                if (holds) require(!fused.count("llmx_gated_delta_rule_short") && !fused.count("llmx_causal_conv_silu") && !fused.count("llmx_gated_rms_norm"), "the fused step runs no chain op, " + at);
+                require(same(read(g, *arm[0].raw, rows * C), read(g, *arm[1].raw, rows * C)), "the qkv rows are the base's, " + at);
+                require(same(read(g, *arm[0].gate, rows * V), read(g, *arm[1].gate, rows * V)), "the gate rows are the base's, " + at);
+                require(same(read(g, *arm[0].ab, 2 * rows * sp.hv), read(g, *arm[1].ab, 2 * rows * sp.hv)), "alpha and beta are the base's, " + at);
+                require(same(read(g, *arm[0].out, rows * V), read(g, *arm[1].out, rows * V)), "the output is the base's, " + at);
+                require(same(read(g, *arm[0].y, rows * 64), read(g, *arm[1].y, rows * 64)), "the product of the output is the base's, " + at);
+                require(same(read(g, arm[0].st->layer(0), state.size()), read(g, arm[1].st->layer(0), state.size())), "every state slot is the base's, " + at);
+            }
+        // A step of BF16 alpha and beta matrices, or of 65 views, runs the base's ops.
+        if (!width) continue;
+        const size_t rows = 65;
+        const std::vector<float> mixed = row_classes::values(rows * E, 399, 1.0f);
+        auto mb = g.adopt(mixed.data(), mixed.size() * 4);
+        auto st = g.state_alloc(1, 2 * rows, sh);
+        auto raw = g.alloc(rows * C * 4), conv = g.alloc(rows * C * 4), gate = g.alloc(rows * V * 4), abo = g.alloc(2 * rows * sp.hv * 4), out = g.alloc(rows * V * 4);
+        std::vector<uint16_t> wa16(wa.size());
+        for (size_t i = 0; i < wa.size(); ++i) wa16[i] = f32_to_bf16(wa[i]);
+        auto ab16 = g.adopt(wa16.data(), wa16.size() * 2);
+        std::vector<StateView> many;
+        std::vector<RowRun> each;
+        for (size_t v = 0; v < rows; ++v) many.push_back(StateView{st.get(), v, v, 3, 1}), each.push_back(RowRun{v + 1, 4});
+        for (const bool f16 : {false, true}) {
+            const size_t n = f16 ? 1 : rows;
+            const DeltaStep d{Projection{{quant::GGML_TYPE_Q8_0, {qb.get(), 0}}, {raw.get(), 0}, C}, Projection{{quant::GGML_TYPE_Q8_0, {gb.get(), 0}}, {gate.get(), 0}, V},
+                              Projection{{f16 ? quant::GGML_TYPE_BF16 : quant::GGML_TYPE_F32, {f16 ? ab16.get() : ab.get(), 0}}, {abo.get(), 0}, sp.hv},
+                              Projection{{quant::GGML_TYPE_F32, {bb.get(), 0}}, {abo.get(), n * sp.hv}, sp.hv},
+                              {cb.get(), 0}, {ap.get(), 0}, {db.get(), 0}, {nb.get(), 0}, {conv.get(), 0}, {out.get(), 0}, 1e-6f};
+            launches(g);
+            g.delta_step(d, {mb.get(), 0}, E, n, 0, many.data(), n, RowRuns{each.data(), n}, Dtype::int8);
+            require(!launches(g).count("llmx_delta_step"), std::string(f16 ? "a step of BF16 alpha runs the base's ops, " : "a step of 65 views runs the base's ops, ") + shape);
+        }
+    }
 }
 
 } // namespace twin_checks

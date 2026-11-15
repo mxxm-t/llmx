@@ -1,9 +1,10 @@
-// backend-cuda: CUDA device 0 as the driver reports it, buffers, a refused allocation named, the F32 matmul against the CPU backend, and the F16 and int8 classes' Q8_0, Q4_K, Q5_K and Q6_K products by their twin's rule and row class.
-// `backend-cuda types` runs only the type checks and `backend-cuda bench` only the product timings; it exits 77 where there is no driver or device.
+// backend-cuda: CUDA device 0 as the driver reports it, buffers, a refused allocation, the F32 matmul against the CPU, the F16 and int8 classes' Q8_0 and K-quant products by their twin's rule and row class, and the qwen35 layers' ops.
+// `backend-cuda types` runs only the type checks, `backend-cuda qwen35` only the qwen35 ops and `backend-cuda bench` only the product timings; it exits 77 where there is no driver or device.
 #include "backends/cuda/cuda_backend.hpp"
 #include "backends/cuda/cuda_device.hpp"
 #include "backends/devices.hpp"
 #include "quant/types.hpp"
+#include "qwen35_checks.hpp"
 #include "row_classes.hpp"
 #include "twin_checks.hpp"
 
@@ -97,9 +98,17 @@ void basics(const CudaDevice& d, Backend& g, Backend& cpu) {
 }
 
 // The int8 class's prompt tile against the host's fold of its order (docs/CUDA.md, step 4): each output sums its blocks as acc = fmaf(dw * dx, isum, acc), so the tensor-core tile matches the fold bit for bit where the call does not split.
-void imma_tile(Backend& g) {
+void imma_tile(Backend& g, const backend::DeviceCaps& caps) {
     struct Shape { size_t nin, nout, rows; };
-    for (Shape s : {Shape{1024, 3072, 64}, Shape{1024, 3072, 200}, Shape{2048, 1000, 512}}) {
+    std::vector<Shape> shapes = {{1024, 3072, 64}, {1024, 3072, 200}, {2048, 1000, 512}};
+    // Those split on every card run so far, so one shape takes the fewest outputs at which 64 rows of 1024 do not split on this device's units (split_blocks).
+    // A call without row runs is one sequence of the prompt class, which splits for one column tile (split_tiles_of of extent 2), whatever rows it holds.
+    const backend::DeviceProfile prof = backend::profile_for(caps);
+    size_t whole = 64;
+    while (whole < 65536 && backend::split_blocks(prof, caps, (whole + 63) / 64, 1024 / 32) != 1024 / 32) whole += 64;
+    shapes.push_back({1024, whole, 64});
+    bool unsplit = false;
+    for (Shape s : shapes) {
         const std::vector<uint8_t> w = twin_checks::q8_matrix(s.nin, s.nout, uint32_t(s.nout + s.rows));
         const std::vector<float> x = row_classes::values(s.nin * s.rows, uint32_t(s.rows));
         BufferPtr wb = g.alloc(w.size(), Memory::device), xb = g.alloc(x.size() * sizeof(float), Memory::device), yb = g.alloc(s.nout * s.rows * sizeof(float), Memory::device);
@@ -133,7 +142,9 @@ void imma_tile(Backend& g) {
         std::snprintf(what, sizeof(what), "int8 Q8_0 tile nin %zu nout %zu rows %zu: %zu of %zu outputs off the host fold%s, ran%s", s.nin, s.nout, s.rows, off, s.nout * s.rows,
                       split ? " (split: the parts' order is not folded, so only the tile's run is held)" : "", kernels.c_str());
         require(tile && (split || off == 0), what);
+        unsplit = unsplit || (tile && !split && off == 0);
     }
+    require(unsplit, "an int8 Q8_0 tile call that did not split matched the host fold bit for bit");
 }
 
 // Product timings at Qwen3-0.6B's and Qwen3.6-27B's widths, f16 against int8, decode and prompt row counts: `backend-cuda bench` prints one line a cell with the median of its runs and the kernels it ran.
@@ -178,11 +189,27 @@ void types(const CudaDevice& d, Backend& g, Backend& cpu) {
     guarded("exact_rows", [&] { twin_checks::exact_rows(g, {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}, cuda_take_launches, require); });
     guarded("twin_products", [&] { twin_checks::twin_products(g, d.caps, Dtype::f16, require); });
     guarded("twin_products int8", [&] { twin_checks::twin_products(g, d.caps, Dtype::int8, require); });
-    guarded("imma_tile", [&] { imma_tile(g); });
+    guarded("imma_tile", [&] { imma_tile(g, d.caps); });
     guarded("twin_types", [&] {
         twin_checks::twin_types(g, cpu, {quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}, {Dtype::f16, Dtype::int8}, d.caps.subgroup_size, cuda_take_launches, require);
     });
     guarded("row classes", [&] { require(row_classes::check(g, quants, twin_checks::typed_matrix, {Dtype::f32, Dtype::f16, Dtype::int8}, false) > 0, "every pair of extents of one class gives the same bits"); });
+}
+
+// The qwen35 layers' ops (docs/CUDA.md, step 5) by the checks backend-rocm shares: against the CPU and bit for bit across views and passes, the drafter ops, and the fused step against the base's.
+// The delta rule and the fused step sum a token's eight lanes in a branch other lanes of the warp skip, so these are the checks a full-warp exchange there fails or hangs.
+void qwen35(const CudaDevice& d, Backend& g) {
+    guarded("qwen35 ops", [&] {
+        q35::Pair p(g);
+        size_t runs = 0;
+        (void)cuda_take_launches(g);
+        size_t values = q35::check_ops(p, runs);
+        const auto ran = cuda_take_launches(g);
+        require(ran.count("llmx_gated_delta_rule") && ran.count("llmx_gated_delta_rule_short"), "the qwen35 checks run both delta rule builds");
+        values += q35::check_drafter_ops(p, d.profile.argmax_slice, twin_checks::typed_matrix);
+        require(values > 0, "qwen35 ops: " + std::to_string(values) + " values against the CPU, " + std::to_string(runs) + " device runs bit for bit across views, orders and passes");
+    });
+    guarded("delta_step", [&] { twin_checks::delta_step_bits(g, cuda_take_launches, require); });
 }
 
 } // namespace
@@ -209,7 +236,12 @@ int main(int argc, char** argv) {
         bench(*g);
         return 0;
     }
+    if (mode == "qwen35") {
+        qwen35(d, *g);
+        return failures ? 1 : 0;
+    }
     if (!only_types) basics(d, *g, *cpu);
     types(d, *g, *cpu);
+    if (!only_types) qwen35(d, *g);
     return failures ? 1 : 0;
 }

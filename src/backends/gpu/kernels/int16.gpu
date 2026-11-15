@@ -799,8 +799,9 @@ __device__ void f16_tile(const TileCall& c, const float* X) {
 // decode gives a run's values as bytes, four a word; a type's KRaw names its lane as Lane, so KRaw stays the type's one decoder for the tile and the rows.
 
 // Sub-block sub's 6-bit scale and min from a Q4_K or Q5_K block's 12 packed scale bytes, as rq::scale_min_k4 reads them.
+// A byte's word is selected rather than indexed: a register array indexed by a lane's value goes to local memory under CUDA, and with it the whole lane state that holds it.
 __device__ inline void k45_scale_min(const unsigned (&sc)[3], unsigned sub, unsigned& s, unsigned& m) {
-    const auto byte = [&](unsigned i) { return (sc[i >> 2] >> (8 * (i & 3))) & 0xffu; };
+    const auto byte = [&](unsigned i) { return ((i < 4 ? sc[0] : i < 8 ? sc[1] : sc[2]) >> (8 * (i & 3))) & 0xffu; };
     if (sub < 4) {
         s = byte(sub) & 63, m = byte(sub + 4) & 63;
     } else {

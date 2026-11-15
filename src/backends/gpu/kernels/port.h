@@ -37,6 +37,8 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_quad(T v) 
 }
 // The value of lane (this lane xor 1) where only that pair of lanes is known to run the exchange.
 template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return lane_xor_quad<1>(v); }
+// The value of lane (this lane xor m), m below W, where only this lane's group of W lanes is known to run the exchange; the partner is in the group, so the wave's exchange gives it.
+template <int W, typename T> __device__ __forceinline__ auto group_xor(T v, int m) { return __shfl_xor(v, m); }
 // The value of lane (this lane xor M) for M = 4, 8 or 16 by ds_swizzle's bit mode within groups of 32 lanes: offset 0x1F | (M << 10) is and-mask 0x1F, or-mask 0, xor-mask M.
 template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T v) {
     static_assert(M == 4 || M == 8 || M == 16, "swizzle exchanges cover xor 4, 8 and 16");
@@ -173,6 +175,8 @@ template <int M, typename T> __device__ __forceinline__ auto lane_xor_swizzle(T 
 // The pair's exchange names the pair alone: the 8-bit rows hand a block's scale to the odd lane in a loop whose trip count differs between pairs, and a full-warp mask there is undefined.
 // It waits for every named lane, so lanes already past the loop met it from the wave sum's shuffles and both exchanged wrong values (docs/STATUS.md, CUDA backend step 4).
 template <typename T> __device__ __forceinline__ auto pair_lane(T v) { return __shfl_xor_sync(segment_lanes(2), v, 1); }
+// A group's exchange names the group alone: the delta rule sums a token's eight lanes in a branch the other tokens' lanes of the warp skip (docs/STATUS.md, CUDA backend step 5).
+template <int W, typename T> __device__ __forceinline__ auto group_xor(T v, int m) { return __shfl_xor_sync(segment_lanes(W), v, m, W); }
 template <typename T> __device__ __forceinline__ auto first_lane(T v) { return __shfl_sync(LLMX_FULL_WARP, v, 0); }
 __device__ __forceinline__ unsigned long long wave_ballot(int p) { return __ballot_sync(LLMX_FULL_WARP, p); }
 

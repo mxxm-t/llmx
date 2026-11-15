@@ -949,6 +949,46 @@ Identity against main: 5x2 and the layer split give main's top-10 logits at 4 po
 Gates: dead-code and docs pass; CTest 87/87 on one MI50 and 104/104 on the Radeon VII; the suite passes on the CPU (deepseek4, moe, qwen35), on rocm:0 (every component but `version`, whose binary was built at 6912747f0 before a one-comment change to `kernels/f32.gpu`, the only delta to this head) and on the Radeon VII's vulkan:0 at this head; lands by fast-forward.
 Left: the hc fn product in the same launch (`llmx_hc_step`, on dsdev198/ds4-fusion), which lands only with a readable one-user gain over this branch; then the dense Q8_0 and routed MXFP4 one-row decode kernels toward bandwidth, one wave a row spread over the units, and launch fusion (devlog, F2DEV 05:58 review of the decode plan).
 Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and capped at 64 VGPRs; `tests/dead_code.py` sees kernel names, so a new kernel needs its id and name in `backend_core.hpp`.
+## MXFP4 routed prompt streams by range (2026-11-15, DSPP1, DSPP2 then DSPP3, branch dspp2/prefill rebased onto main 929f042c6; lands by fast-forward)
+
+- **Goal:** DeepSeek-V4.1-Flash's routed MXFP4 expert products in a 16k prompt run faster with every output the bits main gives, toward the owner's 2000 tok/s gate at pp16384 on the ten-card layer split and on 5x2.
+- **Done:** on ROCm and CUDA (the shared GPU module), MXFP4's 8-bit routed groups of 9 to 16 and 17 to 32 entries of one expert take `routed_stream` at 16 and 32 rows (`llmx_mxfp4_routed_stream16_8`, `llmx_mxfp4_routed_stream32_8`, `TwinKernels::range_streams`), a wave a block and a lane an output, in place of the narrow and mid tiles, which read the expert's weights at 120 to 150 GB/s on an MI50; groups of up to 8 keep the 8-row stream, and the other types and the f16 builds keep their tiles.
+  `routed_stream` takes the group range as `<KT, LO, HI>`, whose default is main's 8-row stream; each entry takes the tile's integer block sums and float terms in block order, so an entry's bits do not depend on the build.
+  `k_tile` leaves out the activation sums for a type without a min (`KNoMin`, MXFP4), taking `ds * isum`, which is `k_term`'s value with a zero min, so the 64-row tile keeps its bits.
+  `backend-rocm`'s `experts_tile`, `experts_quads` and `routed_builds_witness` name the 16- and 32-row streams for MXFP4 at int8, each build launched alone writing only the groups of its range with the bits of the full call.
+- **Measured, one MI50** (microbenchmark of one layer's routed gate+up and down at DeepSeek-V4.1-Flash's shapes, 384 experts of 5120 by 2304, 6 a row, main 9724cd436 against the branch, /opt/claude-work/dspp2/rb9.out and rb8.out on the rig; skew 0 spreads rows evenly over the experts, 1 and 2 concentrate them):
+
+| rows, skew | main (ms a layer) | branch | change | outputs differing |
+|---|---:|---:|---:|---:|
+| 256, 1 | 17.67 | 16.20 | -8.3% | 0 |
+| 512, 0 | 31.98 | 23.81 | -25.5% | 0 |
+| 512, 1 | 27.68 | 23.97 | -13.4% | 0 |
+| 1024, 1 | 45.67 | 37.88 | -17.1% | 0 |
+| 1024, 2 | 39.47 | 33.82 | -14.3% | 0 |
+
+- **Not kept** (same microbenchmark): the 8-row groups split into streams of 4 and 8 rows (slower), one stream at 32 rows for all groups up to 32 (slower), `waves_per_eu` 3 (spills), and the stream loading its next weight load ahead of the dot (VGPRs 123 to 142, 1024 rows skew 1 37.5 to 48.7 ms a layer, rb11.out).
+- **Measured, ten MI50s, before the rebase** (DeepSeek-V4.1-Flash-1017 MXFP4, ROCm `--dtype int8 --lookup-storage file`, `bench --p 16384 --n 16 --r 1 --ubatch 512`, default clocks, ABAB over 2 rounds, tok/s, the mean with the cells in brackets, branch 21635e00e against main 9724cd436; hostwait flags no cell contended, 2 to 40 ms of run-queue wait):
+
+| ROCm int8 cell | main | branch | change |
+|---|---:|---:|---:|
+| layer split pp16384 | 1866.9 (1903.0, 1830.7) | 1973.7 (2032.3, 1915.0) | +5.7% |
+| 5x2 pp16384 | 1627.1 (1636.2, 1618.0) | 1703.7 (1678.2, 1729.2) | +4.7% |
+
+- **Identity before the rebase** (same model and flags, branch 21635e00e against main 9724cd436, /opt/claude-work/dspp2/out on the rig): the 48 greedy tokens of a 2649-token prompt are main's on the layer split and on 5x2, and the top-8 logits at the last 512 positions of a 15032-token prompt are main's on the layer split; the 5x2 logits cell of the branch hit the 400 s wrapper limit and is rerun at the head below.
+- **Landing gates** (head rebased on main 929f042c6 as 9c4103895, `llmx 0.1.0+g9c4103895de7` sha256 9f2a5f4531cbeeb8 against main's `0.1.0+g929f042c6b2a` d66e49fe85973d73, both built by the rig's build-branch.sh from committed trees; /opt/claude-work/dspp2/out and /opt/claude-work/dspp3 on the rig; the landing commit adds only this block, the wording of the kernel comment at the `LLMX_KTYPE` forms and the witness's comment on its drawn edge sizes):
+  identity over ten MI50s, ROCm int8, DeepSeek-V4.1-Flash-1017 MXFP4: the 48 greedy tokens of the 2649-token prompt and the top-8 logits at the last 512 positions of the 15032-token prompt are main's on the layer split and on 5x2, 4 of 4 SAME, compared over the token and logit lines with the version, device, dtype, timing and hostwait lines and the interleaved stderr report left out.
+  One layer-split greedy cell of main printed a repeated begin-of-sentence token once; main and the branch gave the same text in two further runs each, so it is recorded as a main flake, not as a difference.
+  No source the CPU build compiles changed; CTest on one MI50 87 of 87; the suite on rocm:0 30 PASS and 16 SKIP, with `docs` failing only on this block's heading, which the head adds, and `half-weights` once on a "double free or corruption" in `llmx-model-logits`, which passed twice on main and twice on the branch when rerun alone; the Vulkan, CPU and CUDA (llmx-cuda-vk-dev:12.9.1) builds compile all targets.
+  The Radeon VII check does not apply: no Vulkan or CPU source changed.
+- **Timing at the head** (same cells and flags as above, ABAB over 4 rounds, tok/s, the mean with the cells in brackets; hostwait flags one cell contended, 324 ms, the branch's second 5x2 cell, and 6 to 52 ms elsewhere; the first round's main layer-split cell, 1494.6, sits well below main's others):
+
+| ROCm int8 cell | main 929f042c6 | head | change |
+|---|---:|---:|---:|
+| layer split pp16384 | 1732.5 (1494.6, 1804.3, 1816.4, 1814.9) | 1877.2 (1877.4, 1829.4, 1904.6, 1897.2) | +8.3% |
+| 5x2 pp16384 | 1519.6 (1425.0, 1520.0, 1566.9, 1566.4) | 1572.8 (1460.8, 1576.0, 1705.8, 1548.6) | +3.5% |
+
+- **Left:** the hosted run; the layer split and 5x2 below the 2000 tok/s gate (5x2 analysis in DSPP3's proposal on the devlog).
+- **Gotchas:** a range stream's bits rest on each entry taking the tile's terms in block order, which `routed_builds_witness` checks build by build; a change to the stream's entry loop must keep that order.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

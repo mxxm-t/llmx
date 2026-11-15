@@ -3265,7 +3265,7 @@ void experts_tile(Backend& g, Backend& c) {
         auto xb = g.adopt(x.data(), x.size() * 4), tb = g.adopt(wts.data(), wts.size() * 4);
         for (Dtype dt : {Dtype::f16, Dtype::int8}) {
             const std::string at = name + " " + std::to_string(nin) + ", " + dtype_name(dt);
-            const std::string tile = "llmx_" + tname + "_routed_tile" + (dt == Dtype::int8 ? "8" : "16"), narrow = "llmx_" + tname + "_routed_narrow" + (dt == Dtype::int8 ? "8" : "16");
+            const std::string tile = "llmx_" + tname + "_routed_tile" + (dt == Dtype::int8 ? "8" : "16"), narrow = "llmx_" + tname + (dt == Dtype::int8 ? (tname == "mxfp4" ? "_routed_stream16_8" : "_routed_narrow8") : "_routed_narrow16");
             for (bool down : {false, true}) {
                 const size_t from = tile_from_at(type, dt, down);
                 require(g.row_class(from - 1) != g.row_class(from), at + (down ? ", down" : ", gate and up") + ": extents " + std::to_string(from - 1) + " and " + std::to_string(from) + " are different row classes");
@@ -3489,10 +3489,11 @@ void experts_quads(Backend& g) {
             };
             std::string ran;
             const std::vector<float> all = call(ids, ran);
-            require(ran.find("_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos && (ran.find("_routed_stream") != std::string::npos) == (dt == Dtype::int8),
-                    at + ": a " + std::to_string(rows) + "-row prompt takes both routed tile builds, and the stream in int8 only, ran " + ran);
-            require(type == quant::GGML_TYPE_Q8_0 || (ran.find("_routed_mid") != std::string::npos && (ran.find("_routed_thin") != std::string::npos) == (dt == Dtype::f16 && type == quant::GGML_TYPE_MXFP4)),
-                    at + ": a K-type's groups of 17 to 32 entries take its mid tile, and MXFP4's of up to 8 its thin build in f16, ran " + ran);
+            const bool streams = dt == Dtype::int8 && type == quant::GGML_TYPE_MXFP4;
+            require(ran.find(streams ? "_routed_stream16_8" : "_routed_narrow") != std::string::npos && ran.find("_routed_tile") != std::string::npos && (ran.find("_routed_stream8") != std::string::npos) == (dt == Dtype::int8),
+                    at + ": a " + std::to_string(rows) + "-row prompt takes the routed tile and the narrow build, the stream in int8 only, ran " + ran);
+            require(type == quant::GGML_TYPE_Q8_0 || (ran.find(streams ? "_routed_stream32_8" : "_routed_mid") != std::string::npos && (ran.find("_routed_thin") != std::string::npos) == (dt == Dtype::f16 && type == quant::GGML_TYPE_MXFP4)),
+                    at + ": a K-type's groups of 17 to 32 entries take its mid build, and MXFP4's of up to 8 its thin build in f16, ran " + ran);
             bool same = true;
             for (size_t i = 0; i < std::size(sizes); ++i)
                 for (size_t r : of[i]) {
@@ -3507,10 +3508,11 @@ void experts_quads(Backend& g) {
 }
 
 // Which routed build computes a group: each build launched alone over a sentinel output writes the groups its range holds and no other, each the bits of the call with every build.
-// A group of up to 8 entries takes the stream in int8 and MXFP4's thin build in f16, then the narrow tile up to 16, a K-type's mid tile up to 32 and the 64-row tile past.
+// A group of up to 8 entries takes the stream in int8 and MXFP4's thin build in f16, then the narrow tile up to 16, a K-type's mid tile up to 32 and the 64-row tile past; MXFP4's int8 groups of up to 16 and 32 take the stream at those rows.
 void routed_builds_witness(Backend& g) {
+    // The drawn sizes 8/9, 16/17 and 32/33 sit on each range's edges.
     const size_t n_expert = 20, ff = 128, sizes[] = {4, 5, 8, 9, 16, 17, 32, 33}, rows = 256;
-    const char* builds[] = {"thin", "stream", "narrow", "mid", "tile"};
+    const char* builds[] = {"thin", "stream8", "stream16", "stream32", "narrow", "mid", "tile"};
     const uint32_t sentinel = 0x7fc0deadu;
     for (const auto& [type, nin] : std::vector<std::pair<uint32_t, size_t>>{{quant::GGML_TYPE_MXFP4, 2048}, {quant::GGML_TYPE_Q4_K, 2560}, {quant::GGML_TYPE_Q8_0, 1024}}) {
         const bool ktype = type != quant::GGML_TYPE_Q8_0;
@@ -3530,7 +3532,8 @@ void routed_builds_witness(Backend& g) {
         for (Dtype dt : {Dtype::f16, Dtype::int8}) {
             require(tile_from_at(type, dt, false) <= rows, name + " " + dtype_name(dt) + ": a prompt of " + std::to_string(rows) + " rows takes the routed tile");
             const auto expect = [&](size_t n) -> std::string {
-                return n <= 8 ? (dt == Dtype::int8 ? "stream" : type == quant::GGML_TYPE_MXFP4 ? "thin" : "narrow") : n <= 16 ? "narrow" : n <= 32 && ktype ? "mid" : "tile";
+                const bool streams = dt == Dtype::int8 && type == quant::GGML_TYPE_MXFP4;
+                return n <= 8 ? (dt == Dtype::int8 ? "stream8" : type == quant::GGML_TYPE_MXFP4 ? "thin" : "narrow") : n <= 16 ? (streams ? "stream16" : "narrow") : n <= 32 && ktype ? (streams ? "stream32" : "mid") : "tile";
             };
             const auto call = [&](const std::string& only) {
                 const std::vector<uint32_t> fill(rows * ff, sentinel);

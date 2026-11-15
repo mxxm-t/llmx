@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Continue after a rejected image turn (2026-11-15, In progress)
+
+**Goal.** Let a text follow-up continue after an older persisted image turn was refused by the template, without deleting history or removing images from accepted turns.
+
+**Done.** Live metadata confirms the active branch ends in an image-only user message and an empty failed assistant with the template refusal. Engine history includes that rejected image again, so preflight refuses every follow-up. Engine owns prompt-history selection. This dependent fix builds on the qualified companion batch at 5d2a394ad, whose image admission exposes the old persisted failure.
+
+**Left.** Reproduce with a stored rejected turn, fix prompt-history selection, verify retries and partial replies remain intact, and update the local preview.
+
+**Gotchas.** Do not alter saved messages, accepted image turns, partial replies, tool actions or a deliberate retry of the image. No inference code changes.
+
 ## Attachment reads stay with their conversation (2026-11-15, Ready)
 
 **Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.

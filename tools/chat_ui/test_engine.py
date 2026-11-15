@@ -122,6 +122,31 @@ class EngineTests(unittest.TestCase):
             self.store.close()
         self.temp.cleanup()
 
+    def test_rejected_image_turn_allows_text_followup(self):
+        self.reply(text_event("Earlier answer"))
+        earlier = self.start({"content": "Earlier question"})
+        self.wait_run(earlier["id"], {"completed"})
+        image = {"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}
+        rejected = self.store.start(self.chat["id"], {"content": "Describe this", "attachments": [image]}, self.settings())
+        assistant = self.store.message(rejected["message_id"])
+        assistant["status"] = "failed"
+        self.store.publish(rejected["id"], "message", assistant)
+        self.store.publish(rejected["id"], "state", {"status": "failed", "error": "llmx returned HTTP 400: the chat template refused the messages: can only concatenate str (not list) to str"})
+        image_user = self.store.message(assistant["parent_id"])
+        self.reply(text_event("Text works"))
+        with mock.patch("engine.Connection.json", side_effect=ValueError("Images are unsupported")) as probe:
+            run = self.start({"content": "Continue with text"})
+            self.assertEqual(self.wait_run(run["id"], {"completed", "failed"})["status"], "completed")
+            probe.assert_not_called()
+            with self.assertRaisesRegex(ValueError, "images"):
+                self.engine.start(self.chat["id"], {"regenerate": True, "parent_id": image_user["id"]}, self.settings())
+        self.assertEqual(FakeUpstream.requests[-1]["messages"], [
+            {"role": "user", "content": "Earlier question"},
+            {"role": "assistant", "content": "Earlier answer"},
+            {"role": "user", "content": "Continue with text"}])
+        self.assertEqual(self.store.message(image_user["id"]), image_user)
+        self.assertEqual(self.store.message(assistant["id"]), assistant)
+
     def test_image_rejection_keeps_conversation_unchanged(self):
         body = {"content": "Describe this", "attachments": [{"name": "picture.png", "data": "data:image/png;base64,aGVsbG8="}]}
         before = self.store.snapshot(self.chat["id"])

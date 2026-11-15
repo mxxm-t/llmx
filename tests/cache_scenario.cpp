@@ -1184,7 +1184,7 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     struct Gate {
         std::mutex m;
         std::condition_variable cv;
-        bool writes = false, waiting = false;
+        bool writes = false, waiting = false, ended = false;
         size_t retires = std::numeric_limits<size_t>::max();
     };
     auto gate = std::make_shared<Gate>();
@@ -1209,6 +1209,10 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
     options.fault = [gate](const char* step) {
         std::unique_lock<std::mutex> lk(gate->m);
         if (std::string(step) == "write") gate->cv.wait(lk, [&] { return !gate->writes; });
+        if (std::string(step) == "write-ended") {
+            gate->ended = true;
+            gate->cv.notify_all();
+        }
         return false;
     };
     const Req turn{prompt_of(44, 700, v), 20}, other{prompt_of(45, 500, v), 20};
@@ -1266,7 +1270,12 @@ void last_block(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint3
             at_retire("the spared job's next pass held");
             require(!count(server::Move::job_gave_way), "cache-scenario" + on_what + ": the job gave way while the write was held");
             set(false, 0);
-            within_a_minute([&] { return !disk.files(".kv").empty(); }, "the last-block leg: the turn's files written");
+            // The store's report, not the file: a file renamed into place is not yet a write the tier has seen end.
+            {
+                std::unique_lock<std::mutex> lk(gate->m);
+                require(gate->cv.wait_for(lk, std::chrono::minutes(1), [&] { return gate->ended; }), "cache-scenario" + on_what + ": the turn's write never ended");
+            }
+            require(!disk.files(".kv").empty(), "cache-scenario" + on_what + ": the turn's write ended without its file");
         }
         set(held, std::numeric_limits<size_t>::max());
         within_a_minute([&] { return count(server::Move::job_done) + count(server::Move::job_gave_way) >= 1; }, "the last-block leg: the job ended or gave way");

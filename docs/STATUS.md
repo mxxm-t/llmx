@@ -579,6 +579,14 @@ Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, w
 - **Cause:** hosted run 43647639734, attempt 1, failed `server-resume` on windows-2022 with `exists: Access is denied.` on `entry-1.tmp`: the held-write case polls the cancelled write's temporary file with the throwing `fs::exists` while the store deletes it, and Windows refuses that question for a file whose deletion is pending.
 - **Done:** `present` in `tests/server_harness.hpp` takes a refused question for a file still there, as the deletion case of `server-resume` already did inline; the held-write case's three questions and the deletion case use it, and what each case requires is unchanged.
 - **Not reproduced by hand:** Linux has no pending deletion, so the rig cannot fail it; the hosted Windows job runs the case.
+## The last-block case waits for the store's report of the write's end, not its file (2026-11-15, FLAKE1, branch flake/cache-scenario-write-end on main 929f042c6; lands by fast-forward as one commit)
+
+- **Goal:** `cache-scenario`'s case "a job with its last block left, the write ending while the job is spared" passes at any load; under load it failed with "1 jobs done and 0 gave way, against 0 and 1" (VKDEV4, QWEN33, SEC3, 1 in 3 on main c0d13585c at load 34 to 54).
+- **Cause:** the case let the passes go once the turn's `.kv` file existed, but `DiskStore::write` renames the file into place and syncs the directory before the tier hears that the write ended, so a round between the two still finds the donor's write in flight (`Cache::awaited_write`), spares the job, and the job reads its last block and completes.
+  The code does what it should: a write not yet reported is in flight, and sparing the job one more block is the rule (A21); the case assumed what it could not see.
+- **Reproduced:** a 300 ms sleep after the rename on main failed the leg 4 of 4 runs; on main without it, the leg alone, repeated in one process at a host load of 38 to 42, failed 4 of 4 runs, at its first or second repetition.
+- **Done:** the store tells its existing test hook, `DiskStore::Options::fault`, `write-ended` once a write's end has reached the tier, and the case waits for that, then requires the file; every check the case made is kept.
+  With the fix and the 300 ms sleep, the leg run five times in one process passed 4 of 4 runs.
 - **Gates (rig, 2026-11-15):** main 929f042c6 is `llmx 0.1.0+g929f042c6b2a` and flake/stack e9d6c3916, the three branches stacked in landing order, is `llmx 0.1.0+ge9d6c391680a`, both numerics 1147553042f68f72 and both builds rc 0.
   Qwen3-0.6B Q8_0 on the CPU gives identical output on 6 files, 0 differ.
   The Vulkan build is rc 0 and the suite's `server` component passes on one MI50 (vulkan:0), its real-model pass skipped because the fixture is not on disk.

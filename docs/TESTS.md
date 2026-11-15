@@ -2,6 +2,13 @@
 
 What each native test (CTest) and each suite component checks, and the real-model checks run by hand.
 
+The standalone [health dashboard](../tools/health_dashboard/README.md) runs with
+`python -X utf8 -m unittest discover -s tools/health_dashboard -v`. Its local HTTP
+fixtures cover health collection, startup, recovery, shared history and streams.
+Key-file checks cover anonymous and authenticated startup, file validation before
+listening, ready and startup bearer requests, rejected keys, redirect refusal and
+credentials excluded from browser snapshots. They do not require a model.
+
 The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 `python -X utf8 -m unittest discover -s tools/chat_ui -v`. Temporary local HTTP
 fixtures exercise stream accumulation and usage, approval and denial, tool

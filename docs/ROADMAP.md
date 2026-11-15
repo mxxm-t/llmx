@@ -343,9 +343,10 @@ modules, with directory-aware imports and declared discovery roots.
 The [workspace usage notes](../tools/chat_ui/README.md#code-and-workspace) explain
 Docker daemon access and container limits, with deployment guidance.
 
-Prioritized follow-ups:
-- When server authentication lands, let the standalone dashboard send its
-  API key from a protected file.
+The standalone dashboard can read an upstream bearer key from `--api-key-file`,
+through the same collector headers as the companion. This optional client
+support leaves anonymous polling available; it does not enable runtime auth or
+add browser authentication to the standalone dashboard.
 
 ## Non-goals (for now)
 - Training / fine-tuning in-tree

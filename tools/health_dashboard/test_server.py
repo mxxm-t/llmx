@@ -1,10 +1,13 @@
 import http.client
 import gzip
+import io
 import json
 import os
 import threading
+import tempfile
 import time
 import unittest
+from unittest import mock
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -390,6 +393,153 @@ class HealthTests(unittest.TestCase):
             web.shutdown()
             web.server_close()
             thread.join()
+
+
+class ApiKeyFileTests(unittest.TestCase):
+    def _write_key(self, directory, data):
+        path = os.path.join(directory, "api-key")
+        with open(path, "wb") as stream:
+            stream.write(data)
+        return path
+
+    def test_cli_supplies_optional_key_before_starting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for contents, expected in ((None, {}),
+                                       (b" \tsecret-key\r\n", {"Authorization": "Bearer secret-key"}),
+                                       (b"x" * 4096, {"Authorization": "Bearer " + "x" * 4096})):
+                with self.subTest(size=None if contents is None else len(contents)):
+                    args = ["--port", "0"]
+                    if contents is not None:
+                        args += ["--api-key-file", self._write_key(directory, contents)]
+                    with mock.patch.object(server, "Collector") as collector, \
+                            mock.patch.object(server, "ThreadingHTTPServer") as bind, \
+                            mock.patch.object(server.signal, "signal"):
+                        bind.return_value.serve_forever.side_effect = KeyboardInterrupt
+                        server.main(args)
+                        collector.assert_called_once_with("http://127.0.0.1:8090/v1/health",
+                                                          2.0, 3600.0, headers=expected)
+                        collector.return_value.start.assert_called_once_with()
+                        collector.return_value.stop.assert_called_once_with()
+                        bind.return_value.server_close.assert_called_once_with()
+
+    def test_invalid_key_files_are_argparse_errors_without_echoing_contents(self):
+        invalid = (
+            ("missing", None),
+            ("nonascii", b"secr\xc3\xa9t"),
+            ("empty", b" \t\r\n"),
+            ("internal-space", b"secret key"),
+            ("control", b"secret\x00key"),
+            ("tab", b"secret\tkey"),
+            ("delete", b"secret\x7fkey"),
+            ("multiline", b"first\nsecond"),
+            ("oversize", b"x" * 4097),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            for name, contents in invalid:
+                with self.subTest(name=name):
+                    path = os.path.join(directory, name)
+                    if contents is not None:
+                        self._write_key(directory, contents)
+                        os.replace(os.path.join(directory, "api-key"), path)
+                    stderr = io.StringIO()
+                    with mock.patch.object(server, "ThreadingHTTPServer") as bind, \
+                            mock.patch("sys.stderr", stderr), self.assertRaises(SystemExit) as error:
+                        server.main(["--api-key-file", path])
+                    self.assertEqual(error.exception.code, 2)
+                    self.assertFalse(bind.called)
+                    self.assertNotIn("secret", stderr.getvalue())
+                    self.assertNotIn("first", stderr.getvalue())
+
+    def test_key_is_sent_to_health_upstream_and_not_redirected_or_exposed(self):
+        key = "dashboard-secret"
+        seen = []
+
+        class Target(BaseHTTPRequestHandler):
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                seen.append(("target", self.headers.get("Authorization")))
+                self.send_response(200)
+                self.end_headers()
+
+        target = ThreadingHTTPServer(("127.0.0.1", 0), Target)
+        target_thread = threading.Thread(target=target.serve_forever, daemon=True)
+        target_thread.start()
+
+        class Upstream(BaseHTTPRequestHandler):
+            mode = "ready"
+
+            def log_message(self, fmt, *args):
+                pass
+
+            def do_GET(self):
+                seen.append((self.path, self.headers.get("Authorization")))
+                if self.mode == "redirect":
+                    self.send_response(302)
+                    self.send_header("Location", "http://127.0.0.1:%d/redirect-target" % target.server_port)
+                    self.end_headers()
+                    return
+                if self.mode == "unauthorized":
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                status, value = ((503, startup_health()) if self.mode == "starting" else (200, health()))
+                body = json.dumps(value).encode()
+                self.send_response(status)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+        upstream_thread = threading.Thread(target=upstream.serve_forever, daemon=True)
+        upstream_thread.start()
+        collector = server.Collector("http://127.0.0.1:%d/health" % upstream.server_port,
+                                     headers={"Authorization": "Bearer " + key})
+        handler = server.make_handler(collector, os.path.join(os.path.dirname(__file__), "index.html"))
+        web = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        web_thread = threading.Thread(target=web.serve_forever, daemon=True)
+        web_thread.start()
+        try:
+            for mode, expected_status in (("ready", 200), ("starting", 503)):
+                Upstream.mode = mode
+                self.assertTrue(collector.poll_once())
+                self.assertEqual(seen[-1], ("/health", "Bearer " + key))
+                snapshot = collector.snapshot()
+                if expected_status == 503:
+                    self.assertEqual(snapshot["startup"]["status"], "starting")
+                else:
+                    self.assertEqual(snapshot["latest"]["status"], "ok")
+
+            Upstream.mode = "unauthorized"
+            self.assertFalse(collector.poll_once())
+            snapshot = collector.snapshot()
+            self.assertIn("HTTP 401", snapshot["error"])
+            self.assertNotIn(key, json.dumps(snapshot))
+
+            seen.clear()
+            Upstream.mode = "redirect"
+            self.assertFalse(collector.poll_once())
+            self.assertIn("HTTP 302", collector.snapshot()["error"])
+            self.assertEqual(seen, [("/health", "Bearer " + key)])
+
+            conn = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=2)
+            conn.request("GET", "/api/history")
+            response = conn.getresponse()
+            body = response.read().decode("utf-8")
+            conn.close()
+            self.assertEqual(response.status, 200)
+            self.assertNotIn(key, body)
+        finally:
+            web.shutdown()
+            web.server_close()
+            web_thread.join()
+            upstream.shutdown()
+            upstream.server_close()
+            upstream_thread.join()
+            target.shutdown()
+            target.server_close()
+            target_thread.join()
 
 
 if __name__ == "__main__":

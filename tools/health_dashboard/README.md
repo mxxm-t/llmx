@@ -38,9 +38,23 @@ python tools/health_dashboard/server.py --upstream http://127.0.0.1:8090/v1/heal
 ```
 
 Open `http://127.0.0.1:8182`. Use `--host` to select a trusted LAN address.
-This separate tool has no authentication and exposes the same aggregate
+This separate tool has no browser authentication and exposes the same aggregate
 operational data as the configured health endpoint. It does not expose prompts
 or responses, modify llmx, or start a model.
+
+For an authenticated upstream, add `--api-key-file /run/secrets/dashboard-key`.
+The file holds one raw bearer key, not the server's key database. Restrict its
+permissions to the account running the dashboard. It is read once before the
+dashboard starts listening; restart the dashboard after replacing the key.
+The file may contain at most 4096 bytes. Surrounding ASCII whitespace is removed;
+the key must be nonempty printable ASCII without spaces or embedded newlines.
+Invalid or unreadable files stop startup without printing their contents.
+
+The collector sends the key only in the configured upstream request header.
+It does not include it in browser data or follow redirects. Use HTTPS when the
+upstream crosses an untrusted network. Supplying a key does not restrict access
+to the dashboard itself; use the owner-authenticated chat companion or a
+separately protected endpoint when those metrics must be private.
 
 `--interval` selects 1 to 60 seconds between polls; `--history` selects at most
 3,600 seconds of retained data. Data is lost when the dashboard restarts.
@@ -216,6 +230,9 @@ python -m unittest discover -s tools/health_dashboard -v
 ```
 
 These local mock-endpoint tests do not need a model or contact production.
+Collector checks cover optional key-file startup, malformed and oversized files,
+bearer headers on ready and startup responses, rejected keys, redirect refusal
+and absence of credentials from browser snapshots.
 Browser checks cover desktop/mobile rendering, range selection, pause/resume,
 metrics search, stale data and recovery. They are recorded at the feature
 checkpoint; focused lookup-storage cases also cover empty, older-API and

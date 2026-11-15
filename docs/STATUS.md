@@ -1,5 +1,23 @@
 # llmx - Development Status
 
+## Standalone dashboard upstream key file (2026-11-15, Done)
+
+**Goal.** Let the standalone collector authenticate its health requests using an operator-owned key file, through the existing Collector headers.
+
+**Done.** The standalone CLI reads `--api-key-file` before binding and supplies the existing Collector headers. Reads are bounded to 4096 file bytes, invalid files fail without echoing contents, and rotation requires a restart. The collector remains the only owner of upstream requests. Usage and test coverage are documented.
+
+**Checks.** Ten focused collector tests pass in 5.361 seconds, covering anonymous and authenticated CLI startup, the 4096-byte boundary, invalid files before bind, ready/starting HTTP responses, 401, redirect refusal and browser snapshot exclusion. Docs reports 0 findings and 21 planted faults in 25.8 seconds; dead-code reports 15 expected findings and 20 planted faults in 30.9 seconds. Python compilation, help output and whitespace checks pass. These are local protocol fixtures, not a released authenticated runtime integration.
+
+**Runtime integration.** The actual standalone CLI collected ready health history from an isolated tiny-model server using the existing Windows auth build `llmx 0.1.0+g93bad89bfe6a`, binary SHA-256 `894e666a37e1da984b468208443eae5a98dacdef6bceeee3cea6265f34d22e5d`. Missing and incorrect keys returned 401; the right key and the dashboard history endpoint returned 200, with samples and no credential in browser output. The check completed in 0.562 seconds and stopped both isolated processes. This is an auth-branch control, not released-main qualification or the newer auth head `9975de8e8`. The first harness attempt requested context 128 from a 16-token fixture; the next reached the assertions but cleaned up the mapped model before stopping the process. Both harness failures are retained beside the corrected result under `scratch/dashboard-key-file-checkpoint` in the worktree.
+
+**Dependency review.** This optional client flag can land independently of server auth: omitted credentials preserve anonymous polling, Collector already supplies bearer headers for the companion, and the auth header implementation is unchanged between the tested control and the local auth head `9975de8e8`. The earlier hold for the runtime merge was unnecessary. The runtime auth feature and its qualification remain with that owner.
+
+**Qualification.** [Hosted run 43723813393](https://github.com/mxxm-t/llmx/actions/runs/43723813393) passes the dashboard and companion checks on Windows and Linux at `655e080866ad17e897cadccae0b859ce21e04bec`. The landing tree changes only this qualification record after that tested head. The 167-file Markdown inventory was reviewed for affected claims; the relevant usage, protocol, test and roadmap pages remain consistent. Final docs checks cover the landing record. The branch lands by fast-forward from main `74f01e5f1`, without an inference gate or production restart.
+
+**Left.** None for the optional standalone client flag. Runtime authentication remains a separate feature.
+
+**Gotchas.** Client file holds one raw key, not the server's key database. No runtime auth implementation, browser credentials, hot-path change or production restart. Keep secrets out of errors and refuse redirects.
+
 ## Companion naming (2026-11-15, Done)
 
 **Goal.** Use llmx for the application and reserve Workspace for project files and commands; keep Chat, Monitor and Settings as navigation labels.

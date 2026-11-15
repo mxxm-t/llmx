@@ -476,6 +476,7 @@ def make_handler(collector, html_path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Serve a read-only dashboard for an llmx health endpoint")
     parser.add_argument("--upstream", default="http://127.0.0.1:8090/v1/health")
+    parser.add_argument("--api-key-file", help="Read the upstream bearer key from this file at startup")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8182)
     parser.add_argument("--interval", type=lambda s: _positive_float(s, "interval", 1.0, 60.0), default=2.0)
@@ -489,7 +490,18 @@ def main(argv=None):
         parser.error("--upstream must be an absolute HTTP(S) URL without credentials")
     if not 0 <= args.port <= 65535:
         parser.error("--port must be between 0 and 65535")
-    collector = Collector(args.upstream, args.interval, args.history)
+    headers = {}
+    if args.api_key_file is not None:
+        try:
+            with open(args.api_key_file, "rb") as source:
+                raw = source.read(4097)
+        except OSError:
+            parser.error("cannot read --api-key-file")
+        key = raw.strip()
+        if len(raw) > 4096 or not key or any(byte < 33 or byte > 126 for byte in key):
+            parser.error("--api-key-file must contain one printable ASCII key without spaces, in at most 4096 bytes")
+        headers["Authorization"] = "Bearer " + key.decode("ascii")
+    collector = Collector(args.upstream, args.interval, args.history, headers=headers)
     server = ThreadingHTTPServer((args.host, args.port), make_handler(collector, os.path.join(os.path.dirname(__file__), "index.html")))
     server.daemon_threads = True
 

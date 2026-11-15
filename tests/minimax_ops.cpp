@@ -253,6 +253,61 @@ void raw_index_scores() {
             for (size_t b = 0; b < 40; ++b) require(std::isnan(got[(r * heads + h) * 200 + b]) == (b == 2), "a NaN key makes only its block NaN");
 }
 
+// candidate_blocks over the raw block maxima, block size 1 and lengths in blocks, against HF's selection: the row's own block pinned, the K best by score then lower index, -inf dropped, ascending ids.
+// At B 128 and K 16 a row keeps every block through position 2047 and drops one first at 2048; B 4 and K 3 is the tiny fixture's shape.
+void block_selection() {
+    const size_t heads = 2, dim = 8, bt = 128, total = 2049, short_nq = 5;
+    const float inf = std::numeric_limits<float>::infinity();
+    CpuBackend cpu;
+    std::unique_ptr<backend::KVStorage> owner = cpu.kv_alloc(2, 1, 2, 18 * bt, backend::KVType::f32, backend::KVType::f32, {0, dim});
+    std::vector<int32_t> a_ids(17);
+    for (size_t i = 0; i < a_ids.size(); ++i) a_ids[i] = int32_t((i * 5 + 3) % 17);
+    const int32_t b_ids[] = {17};
+    const backend::KVView fill[] = {{owner.get(), a_ids.data(), 17, 0, total}, {owner.get(), b_ids, 1, 0, short_nq}};
+    std::vector<float> keys((total + short_nq) * dim), kv((total + short_nq) * 2, 0.0f);
+    for (float& x : keys) x = float(int(draw() % 4001) - 2000) / 512.0f;
+    BufferPtr kb = upload(cpu, kv), keyb = upload(cpu, keys);
+    cpu.kv_write(1, fill, 2, {kb.get(), 0}, {kb.get(), 0}, {keyb.get(), 0});
+    const backend::KVView views[] = {{owner.get(), a_ids.data(), 17, total - 3, 3}, {owner.get(), b_ids, 1, 0, short_nq}};
+    const size_t rows = 3 + short_nq;
+    std::vector<float> q(rows * heads * dim);
+    for (float& x : q) x = float(int(draw() % 4001) - 2000) / 1024.0f;
+    BufferPtr qb = upload(cpu, q);
+    for (const std::pair<size_t, size_t> shape : {std::make_pair(size_t(128), size_t(16)), std::make_pair(size_t(4), size_t(3))}) {
+        const size_t block = shape.first, k = shape.second, n = (total + block - 1) / block + 1;
+        const std::string name = "block selection at B " + std::to_string(block) + " and K " + std::to_string(k);
+        BufferPtr sb = cpu.alloc(rows * heads * n * 4, backend::Memory::device), pb = cpu.alloc(rows * heads * k * 4, backend::Memory::device);
+        cpu.indexer_scores({sb.get(), 0}, {qb.get(), 0}, 1, views, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, n, {}, 0, block, backend::IndexForm::raw_blocks);
+        const std::vector<float> scores = download(cpu, *sb, rows * heads * n);
+        std::vector<float> lens(rows * heads);
+        for (size_t r = 0; r < rows; ++r) {
+            const uint32_t len = uint32_t((r < 3 ? total - 3 + r : r - 3) / block + 1);
+            for (size_t h = 0; h < heads; ++h) std::memcpy(&lens[r * heads + h], &len, 4);
+        }
+        BufferPtr lb = upload(cpu, lens);
+        cpu.candidate_blocks({pb.get(), 0}, {sb.get(), 0}, {lb.get(), 0}, rows * heads, n, 1, k);
+        const std::vector<float> picks = download(cpu, *pb, rows * heads * k);
+        for (size_t r = 0; r < rows; ++r) {
+            const size_t pos = r < 3 ? total - 3 + r : r - 3, own = pos / block;
+            for (size_t h = 0; h < heads; ++h) {
+                std::vector<std::pair<float, uint32_t>> order;
+                for (size_t b = 0; b < n; ++b) order.push_back({b == own ? inf : scores[(r * heads + h) * n + b], uint32_t(b)});
+                std::stable_sort(order.begin(), order.end(), [](const std::pair<float, uint32_t>& x, const std::pair<float, uint32_t>& y) { return x.first > y.first; });
+                std::vector<uint32_t> want;
+                for (size_t i = 0; i < k && i < order.size(); ++i)
+                    if (order[i].first > -inf) want.push_back(order[i].second);
+                std::sort(want.begin(), want.end());
+                require(want.size() == std::min(k, own + 1), name + ": position " + std::to_string(pos) + " keeps min(K, its blocks)");
+                for (size_t i = 0; i < k; ++i) {
+                    uint32_t got;
+                    std::memcpy(&got, &picks[(r * heads + h) * k + i], 4);
+                    require(got == (i < want.size() ? want[i] : UINT32_MAX), name + ": position " + std::to_string(pos) + " head " + std::to_string(h) + " pick " + std::to_string(i));
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -260,6 +315,7 @@ int main() {
         sigmoid_routing();
         quick_gelu();
         raw_index_scores();
+        block_selection();
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << std::endl;
         return 1;

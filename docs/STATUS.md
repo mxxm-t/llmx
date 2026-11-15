@@ -1027,11 +1027,12 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
   `minimax-ops` holds the form to its math in double and `backend-group` the CPU decode step in it to the base step's bits.
 - Step 4c: `indexer_scores` takes `IndexForm::raw_blocks`, per head the maximum F32 dot of each block of positions over the `kv_aux` rows `kv_write` stores, -inf past a row, a loop body of its own on the CPU (`raw_index_scores`) beside deepseek41's unchanged one; the mode `raw_index_scores` every layer's mixer names with `indexer_scores`, which Vulkan and the GPU core refuse at load and by name in the call.
   `minimax-ops` holds it to the block maxima in double; `kv-selection` passes with `pool_view` now reading token rows through `CpuKVStorage::auxiliary_row`.
+- Step 4d: `candidate_blocks` is unchanged (picks min(k, blocks), the pin inside k, -inf dropped); `minimax-ops` holds it over the raw maxima, block size 1 and lengths in blocks, to HF's selection at B 128, K 16, with the first drop at position 2048, and at the tiny fixture's B 4, K 3; every layer's mixer names it.
 
 **Left** (one numbering for this block, the proposal of 02:36 and [MINIMAX](MINIMAX.md); each step reviewed before the next):
 2. Text: pretokenizer `minimax-m2` and NFC, ids against HF; chat render with tool calls against transformers.
    Waits for fix/tokenizer-nfc to land on main and slides after steps 3 to 5, which need no ids.
-4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: 4a sigmoid routing, 4b the GLU form and 4c the raw index scores (done); 4d `candidate_blocks` as it is; 4e `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
+4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: 4a sigmoid routing, 4b the GLU form and 4c the raw index scores and 4d `candidate_blocks` as it is (done); 4e `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
    An op landing before its caller takes a `known_findings` line naming this step.
 5. CPU math against tiny fixtures (block 4, top 3, F2DEV's conditions (a) to (d)), one of them at the real head widths (D 128, Di 128) so the device sparse builds get an HF-held check.
 6. Real file against a file-exact layered HF reference: the CPU covers the 512-token windows and one prompt past 2048 for device identity; the raw and chat 16k sequences and decode after them run on the devices, with block-pick agreement per layer.

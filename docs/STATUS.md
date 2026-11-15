@@ -30,6 +30,15 @@
 **Left.** Coordinator fast-forward landing. The rejected symbol designs must not land. Local static preview is updated without restarting the service. Production is unchanged.
 
 **Gotchas.** The current preview process does not have the new shared asset routes loaded. Its theme temporarily embeds the exact SVG as a mask data URL. The committed source uses the single shared /logo.svg route. Preserve conversations and in-memory temporary chats.
+## Tool connections in the companion (2026-11-15, In progress)
+
+**Goal.** Make configured MCP connections, discovery status and approval policy visible, with a bounded connection test and clearer per-chat tool selection.
+
+**Done.** Independent branch from main 5d2a394ad. ToolRegistry remains the owner of MCP transport, discovery and status. WorkspaceTools combines local tools with remote tools. Server routes authenticate and dispatch only. Existing Settings and conversation selection remain the UI owners.
+
+**Left.** Per-connection status and probe API, grouped Settings, selection preservation, focused transport/server/browser checks and scoped landing checks.
+
+**Gotchas.** Tests contact configured endpoints only, never execute tools or expose credential headers/URLs. A failed remote must not hide local tools or healthy connections. Probing must not reset a draft, chat settings or an active run. No model/runtime change or dependency on pending branding/image branches.
 
 ## Attachment reads stay with their conversation (2026-11-15, Ready)
 

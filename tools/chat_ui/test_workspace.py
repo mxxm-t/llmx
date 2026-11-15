@@ -220,6 +220,14 @@ class WorkspaceTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         runner.run({}, "true", lambda _: None, threading.Event())
 
+    def test_unavailable_remote_does_not_hide_workspace_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            remote = FakeRemote()
+            with patch.object(remote, "list_tools", side_effect=RuntimeError("connection unavailable")):
+                tools = WorkspaceTools(remote, Workspace(directory)).list_tools()
+            self.assertEqual([tool["name"] for tool in tools],
+                             ["workspace_list", "workspace_read", "workspace_write"])
+
     def test_workspace_tools_list_read_write_and_remote_passthrough(self):
         workspace = Workspace(self.temp.name)
         workspace.write("src/main.py", "one\ntwo\nthree", 0)

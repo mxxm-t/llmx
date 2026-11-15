@@ -86,7 +86,7 @@ struct ExecOptions {
     int ubatch = 0;               // prompt tokens a pass takes; 0 is infer::kDefaultUbatch
     std::string cache_type_k;     // each cache side's type as its flag gives it; empty keeps the model's default (ModelOptions)
     std::string cache_type_v;
-    int kv_tokens = 0;            // the KV pool's total token budget, serve's --kv-tokens; 0 is the model context, or for serve what the devices hold
+    int kv_tokens = 0;            // the KV pool's total token budget, --kv-tokens; 0 is the model context, or for serve what the devices hold
     int cpu_moe = 0;              // routed layers whose experts run on the CPU beside a device: the first N, -1 all
     int moe_stream_from = 0;      // prompt length from which those experts are copied to the device for a pass; 0 never
     infer::LoadMode load_mode{};  // how weights are read; the default is the loader's first mode
@@ -547,6 +547,7 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (f == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
     else if (batch_threads && f == "--threads-batch") exec.threads_batch = int_arg(argc, argv, i, a, 0);
     else if (f == "--ubatch") exec.ubatch = count_arg(argc, argv, i, a, 1);
+    else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
     else if (f == "--cache-type-k") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
     else if (f == "--cache-type-v") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
     else if (f == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
@@ -1633,6 +1634,9 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --threads-batch N, -tb  CPU prefill workers. Default follows --threads\n";
         page
             << "  --ubatch N              Prompt tokens read in one pass. A longer prompt is read in slices (default: " << infer::kDefaultUbatch << ")\n"
+            << "  --kv-tokens N           Tokens of conversation memory (KV cache), in whole blocks, backed at load.\n"
+            << "                          A server's requests share them (default: the model context; for serve,\n"
+            << "                          what the devices' free memory holds)\n"
             << "  --cache-type-k T, -ctk  Key cache: " << cache_types(caches.kv_k) << "\n"
             << "  --cache-type-v T, -ctv  Value cache: " << cache_types(caches.kv_v) << "\n"
             << "  --n-cpu-moe N           Keep the experts of the first N mixture-of-experts layers on the CPU (default: " << defaults.cpu_moe << ")\n"
@@ -1697,8 +1701,6 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --port N                Listen port. 0 picks a free one (default: " << cfg.port << ")\n"
             << "  --ctx-size N, -c        Tokens one request may hold, prompt and reply, at most the\n"
             << "                          model's context (default: model context)\n"
-            << "  --kv-tokens N           Tokens of conversation memory (KV cache) shared by all requests,\n"
-            << "                          fitted to the devices at load (default: what their free memory holds)\n"
             << "  --timing                Time the rounds and each device's work for /v1/health. This slows serving\n"
             << "\nLimits:\n"
             << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
@@ -2088,7 +2090,6 @@ int main(int argc, char** argv) {
                     cfg.context_shift = v == "shift";
                 }
                 else if (f == "--ctx-size") cfg.ctx_size = (size_t)count_arg(argc, argv, i, a, 1);
-                else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
                 else if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
                 else if (f == "--image-max-tokens") images.max_tokens = count_arg<uint64_t>(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts, true)) {}

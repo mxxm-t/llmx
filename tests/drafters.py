@@ -1,6 +1,6 @@
 """Drafter files beside a model (docs/SPECULATIVE.md, step 6), on tiny fixtures.
 
-The tiny qwen35 model's MTP block split into a file of its own by llmx-drafter-pack drafts from beside the model as it drafts embedded, bit for bit, and embedded back gives the file it came from; with it, generate, chat, bench and serve give what they give without drafts.
+The tiny qwen35 model's MTP block split into a file of its own by llmx-drafter-pack drafts from beside the model as it drafts embedded, bit for bit, and embedded back gives the file it came from; with it, generate, chat, bench and serve give what they give without drafts, and generate does at a one-block --kv-tokens.
 Draft models, a qwen35 and a qwen3 model sharing the target's tokenizer, give generate's and chat's output without drafts too, and the server and bench refuse them.
 Every pairing check (infer::spec::pair) refuses its case by name, as it does a DFlash drafter, whose architecture llmx does not run, and a file cut short.
 """

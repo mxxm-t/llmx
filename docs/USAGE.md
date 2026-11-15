@@ -271,7 +271,7 @@ That tool takes `--dtype auto|f16|bf16|f32` to select the same request for promp
 `--per-token` reads every token one at a time through decode steps, the path a generated token takes, instead of the batched passes a prompt takes, as `perplexity --per-token` does; on a device the two paths run different kernels, so a reply's `--then-ids` read this way gives the logits its decode steps gave.
 `--top` and `--last` are at least 1.
 
-Shared execution options for `logits` are `--threads`, `--ubatch`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage` and `--dtype`; their meanings and defaults are in the shared execution sections above.
+Shared execution options for `logits` are `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage` and `--dtype`; their meanings and defaults are in the shared execution sections above.
 
 This exists for the correctness gate. Comparing llmx against a reference
 through sampled text hides everything except argmax flips, so
@@ -334,6 +334,7 @@ Flags:
 | `--threads N`   | worker thread count (0 = auto)                 |
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
+| `--kv-tokens N` | KV cache tokens, in whole blocks, backed at load (default the model context; fitted as `llmx serve`, below, gives) |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32`, or `native` where the model declares a format (its default there) |
 | `--device D`    | backend: `cpu`, or `vulkan:N`, `rocm:N` or `cuda:N` in a build with it |
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
@@ -624,6 +625,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--dtype T`             | activation precision: `auto`, `f16`, `bf16`, `f32` or `int8` (Precision, above) | `auto` |
 | `--threads N`           | worker thread count (0 = auto)                       | 0       |
 | `--ubatch N`            | prefill physical batch                       | 512     |
+| `--kv-tokens N`         | KV cache tokens, in whole blocks, backed at load, fitted as `llmx serve`, below, gives | model context |
 | `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16`, `f32` or `native` | `f16`, `native` where declared |
 | `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16`, `f32` or `native` | `f16`, `native` where declared |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
@@ -781,7 +783,9 @@ The server fits the budget as it loads: where the devices cannot hold a given
 `--kv-tokens` beside all that, it takes the most whole blocks they hold, and
 it backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server serves.
-Every other model command fits its budget the same way, the model's context or the sequences `bench --model` holds, and backs it whole at load, so no pass grows the cache past what the devices hold.
+Every other model command takes `--kv-tokens` with the same meaning and fits its budget the same way, by default the model's context or the sequences `bench --model` holds, and backs it whole at load, so no pass grows the cache past what the devices hold.
+A drafter fits beside the budget and never changes it (docs/SPECULATIVE.md), so where the devices hold a model's whole context and no drafter beside it, `generate --drafter` runs with a smaller `--kv-tokens`.
+A `generate`, `chat`, `logits` or `perplexity` run given a budget below its prompt plus `-n` ends at the pass that runs out, with `KV cache: block budget exhausted; the run needs more tokens than --kv-tokens gives`.
 A budget the devices hold is taken at once; one the fit cuts first waits for their free memory to settle, about 5 s on a device and up to 30 s on the CPU, whose free memory moves between reads.
 On the CPU the backed cache is the operating system's zero pages, so it takes memory only as passes fill it.
 A request holds at most the smallest of `--ctx-size`, the model's context and
@@ -794,14 +798,13 @@ request may hold: with 16 sequences over a 40k-token budget that is 2.5k
 tokens each on average, and a request whose prompt plus `max_tokens` exceeds
 what a request may hold is refused with 413, or cut under `--context-overflow shift` (below).
 
-The server-only flags accepted by `llmx serve` are listed below. Each row gives the default and the main range or interaction; the paragraphs after the tables explain the behavior in detail. Shared flags are `--device`, `--dtype`, `--layer-shares`, `--tensor-width`, `--threads`, `--ubatch`, `--cache-type-k`, `--cache-type-v`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--load-mode` and `--lookup-storage`; their meanings and defaults are in the `generate` table above and the sections on precision, threads, devices, cache types, loading and lookup storage. `llmx serve --help` prints the same server-only groups. [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
+The server-only flags accepted by `llmx serve` are listed below. Each row gives the default and the main range or interaction; the paragraphs after the tables explain the behavior in detail. Shared flags are `--device`, `--dtype`, `--layer-shares`, `--tensor-width`, `--threads`, `--ubatch`, `--kv-tokens` (its serve default is above), `--cache-type-k`, `--cache-type-v`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--load-mode` and `--lookup-storage`; their meanings and defaults are in the `generate` table above and the sections on precision, threads, devices, cache types, loading and lookup storage. `llmx serve --help` prints the same server-only groups. [OPERATING](OPERATING.md) has setups to copy and what to do when a server misbehaves.
 
 | Group | Flag | Default | Scope, range or interaction |
 |---|---|---|---|
 | Server | `--host H` | `127.0.0.1` | Listen address |
 | Server | `--port N` | `8080` | Port 0 to 65535; 0 asks the system for a free port |
 | Server | `--ctx-size N`, `-c` | model context | At least 1 (`k` and `m` suffixes work) and no more than the model context; per-request prompt plus reply limit |
-| Server | `--kv-tokens N` | fitted to device free memory; model context on CPU or when memory cannot size the fit | At least 1 (`k` and `m` suffixes work); shared KV pool, rounded to whole blocks |
 | Server | `--timing` | off | Times rounds and device work for `/v1/health`; slows serving |
 | Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
 | Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted |
@@ -1154,7 +1157,7 @@ llmx bench --model <in.gguf> [flags...]
 | Group | Flags | Reference |
 |---|---|---|
 | Model run | `--model`, `--p`, `--n`, `--r`, `--seqs`, `--depth` | Prompt tokens, decode tokens, repeats, concurrent sequences and optional draft depth |
-| Device execution | `--threads`, `--ubatch`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
+| Device execution | `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
 | Measurement and drafts | `--profile`, `--drafter`, `--draft-max` | Time Vulkan kernels or measure draft chain and verify work |
 
 The matched real-model measurement: a warm-up of each test, then `--r`

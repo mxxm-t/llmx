@@ -718,7 +718,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
                 throw std::runtime_error("placement: drafting does not fit beside the model and " + std::to_string(kept) + " state checkpoints even at one KV block of " +
                                          std::to_string(block) + " tokens (" + why + ")");
             throw std::runtime_error("placement: drafting needs room beyond the KV budget of " + std::to_string(tokens) + " tokens and " + std::to_string(kept) +
-                                     " state checkpoints, which leave none for it (" + why + "); a smaller budget or fewer checkpoints leaves the room");
+                                     " state checkpoints, which leave none for it (" + why + "); a smaller budget (--kv-tokens) or fewer checkpoints leaves the room");
         }
     }
     // Then the marks past the first, by bisection, the most at which the budget and the checkpoint slots still fit.

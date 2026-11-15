@@ -627,6 +627,17 @@ Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, w
 - **Removal:** the hook goes with the first ROCm release whose teardown waits for its queued async handlers; the hand check above shows when that holds (main's arm stops showing late handlers).
   A report for ROCm/clr with the reproduction and the proposed fix is drafted at `/opt/claude-work/membug3/rocm-clr-issue.md` on the rig, not filed, awaiting the owner.
 - **Left:** XDEV's review of the diff, then the landing, which waits on the owner's decision for main.
+## --kv-tokens is an execution flag of every model command (2026-11-15, DSDEV206, branch fix/kv-tokens-shared on main 929f042c6; F2DEV's review of DSDEV205's proposal, 20:35, option (a); lands by fast-forward as two commits, the failing tests and then the fix)
+
+- **Goal:** `generate --drafter` runs a model whose whole context the devices hold with no drafter beside it, DeepSeek-V4.1-Flash on ten MI50s, by taking a smaller budget as `serve` does.
+- **Fixed:** `--kv-tokens` was read only by `serve`'s loop, though `ExecOptions::kv_tokens` already reached placement for every command, so `generate`'s budget was the 1M-token context, which a drafter never lowers (docs/SPECULATIVE.md), and the refusal's advice of a smaller budget named a flag `generate` could not take.
+  `exec_flag` now reads it for `generate`, `chat`, `logits`, `perplexity`, `bench --model` and `serve` with one meaning; each command's default is unchanged (the context, the run's histories for `bench`, the automatic fit for `serve`), `fitted_kv` is untouched, and the refusal names `--kv-tokens`.
+  A `generate`, `chat`, `logits` or `perplexity` run whose budget falls below its prompt plus `-n` now ends with the cache's exhaustion error naming `--kv-tokens`, which USAGE.md gives beside the flag; the cache stays the one owner of the block count, since a check before the first pass would count the blocks a second time and refuse runs that end early at an end token.
+  `tests/cli.py` refuses `--kv-tokens 0.1k` on `generate` and `chat` by the flag's reason, and `tests/drafters.py` runs `generate --drafter` on the MTP sidecar at `--kv-tokens 1`, one block, with the ids of the context-sized run and a smaller cache; both land first and fail on main.
+- **Gates (11dc94a0c, ROCm build `bin-h` on the rig, CPU only):** the tests commit against main's binary fails `cli` and `drafters` on "unknown flag: --kv-tokens"; at the head the CPU suite with `--require-tools` passes all 48 components, CTest passes 86 of 87 with `server-resume-cache` failing once while it ran beside the suite and passing alone twice on the head and once on main, and Qwen3-0.6B Q8_0 greedy text and ids (128 tokens) and logits (`--last 64 --top 8` over docs/ROADMAP.md) are byte identical to main 929f042c6.
+  Hosted run 43749013445 on `gate/kv-tokens-shared`.
+- **Gates (2d59b8e71, after F2DEV's review):** `cli`, `drafters`, `docs` and `dead-code` pass, and CTest passes 86 of 87 with `cache-scenario` failing once without a message, the pattern `server-resume-cache` showed at 11dc94a0c; hosted run 43756899077 passes all 8 jobs.
+- **Hand check (rig, 5x2, ROCm int8):** DeepSeek-V4.1-Flash MXFP4 on ten MI50s runs `generate --drafter` at `--kv-tokens 64k` on two prose prompts, 256 tokens each, with ids identical to the plain runs at 33.44 and 34.48 tok/s against 32.02 and 31.90 plain.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

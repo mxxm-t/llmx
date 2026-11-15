@@ -36,7 +36,7 @@ public:
             refs_[(size_t)id] = 1;
             return id;
         }
-        if (next_ >= max_) throw std::runtime_error("KV cache: block budget exhausted");
+        if (next_ >= max_) throw std::runtime_error("KV cache: block budget exhausted; the run needs more tokens than --kv-tokens gives");
         refs_.push_back(1);
         return (int32_t)next_++;
     }

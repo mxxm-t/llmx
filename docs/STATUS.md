@@ -587,6 +587,15 @@ Initial deployment snapshot: `http://127.0.0.1:8183` pointed to rig port 8090, w
 - **Reproduced:** a 300 ms sleep after the rename on main failed the leg 4 of 4 runs; on main without it, the leg alone, repeated in one process at a host load of 38 to 42, failed 4 of 4 runs, at its first or second repetition.
 - **Done:** the store tells its existing test hook, `DiskStore::Options::fault`, `write-ended` once a write's end has reached the tier, and the case waits for that, then requires the file; every check the case made is kept.
   With the fix and the 300 ms sleep, the leg run five times in one process passed 4 of 4 runs.
+## The quick-newcomer case gives its stages' times (2026-11-15, FLAKE1, branch flake/server-passes-cpu-prices on main 929f042c6; lands by fast-forward as one commit)
+
+- **Goal:** `server-passes-cpu`'s `short_newcomer` passes on any runner; on the hosted macos-15-intel runner it failed "a short newcomer under an unmet objective beside a long prompt missed 129 (run 43560197653) and 5 (run 43676171832) replies' passes in a row between its rides, against the passes in flight", the item TDEV's block of 2026-10-30 below left open.
+- **Cause:** the case counts passes, but whether the newcomer is quick is decided by measured prices against the step gap's 500 ms cap (`quick_prompt`); a stage measured while the test's process was descheduled prices the newcomer's remaining rows past the cap, and since a prompt that is not quick does not ride, its price is not measured again, so it waits for the 10 s bound.
+  The rule does what it says for prices that high; the case assumed prices it did not control.
+- **Reproduced (rig, CPU, the case alone, an instrumented build of main):** with the process stopped 0.6 s every 0.3 s, the newcomer's remaining 5 rows priced at 544.3 ms beside a 79 to 104 ms replies' pass, not quick in every round, and the case failed "missed 57 replies' passes"; at a host load of 35 to 47 without stops, 0 failures and every price under 3 ms.
+- **Done:** `Scheduler::stage_ms`, set before `run`, gives each stage's time for its work in place of the measured one (`ServiceRecord::priced`); the case gives 70 ms, its devices' sleep, and 0.05 ms a row, and checks what it did.
+  With the same stops it passes, and prints the same counts as main unstopped: at most 2 other passes and 16 rows of the long prompt between two steps of a reply beside it, 1 and 0 alone.
+- **Finding for the service rule's owner:** a slice price measured once past the cap holds that prompt off the replies' pass until the wait bound, since only a ride would measure it again; on a server a descheduled moment does the same to a short prompt for up to 10 s.
 - **Gates (rig, 2026-11-15):** main 929f042c6 is `llmx 0.1.0+g929f042c6b2a` and flake/stack e9d6c3916, the three branches stacked in landing order, is `llmx 0.1.0+ge9d6c391680a`, both numerics 1147553042f68f72 and both builds rc 0.
   Qwen3-0.6B Q8_0 on the CPU gives identical output on 6 files, 0 differ.
   The Vulkan build is rc 0 and the suite's `server` component passes on one MI50 (vulkan:0), its real-model pass skipped because the fixture is not on disk.

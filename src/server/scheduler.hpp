@@ -664,6 +664,7 @@ public:
     // The loop, in the caller's thread, until stop(): rounds over the model's pass API with up to slots_.size() passes in flight (docs/SERVER.md, the round).
     // The only thread that calls the model.
     void run() {
+        if (stage_ms) record_.priced = stage_ms;
         std::vector<std::shared_ptr<Request>> active;   // in order of first admission
         for (;;) {
             {
@@ -862,6 +863,7 @@ public:
     // Called on the scheduler thread with each pass that retires, before its rows are sampled; set before run.
     std::function<void(const Retired&)> on_retire;
     size_t turn_steps = 0;   // for tests: the growth steps of a turn at the pool's edge, in place of the measured ones; set before run
+    std::function<double(size_t stage, const PassWork& work)> stage_ms;   // for tests: ServiceRecord::priced; set before run
 
 private:
     using Clock = std::chrono::steady_clock;

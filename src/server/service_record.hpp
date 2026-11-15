@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <cmath>
 #include <map>
 #include <mutex>
@@ -84,6 +85,8 @@ class ServiceRecord {
 public:
     using Clock = std::chrono::steady_clock;
     explicit ServiceRecord(size_t stages) : stages_(stages), pending_(stages), last_done_(stages) {}
+    // For tests: a stage's time for its work in place of the measured one, so a decision by prices does not follow the test machine's speed; set before the first post.
+    std::function<double(size_t stage, const PassWork& work)> priced;
     ~ServiceRecord() {
         {
             std::lock_guard<std::mutex> lk(m_);
@@ -276,7 +279,7 @@ private:
         while (!upstream_.empty() && upstream_.begin()->first + 4 * StageRecord::kRecentPasses < r.pass) upstream_.erase(upstream_.begin());
         // A pass recorded between the stage's groups retires inside it and moves that start past them, so the time is the device time of its own submissions where the device keeps times, or its recording past the start if longer.
         const double host = std::max(0.0, std::chrono::duration<double, std::milli>(r.recorded - from).count());
-        const double ms = busy >= 0 ? std::max(busy, host) : std::max(0.0, std::chrono::duration<double, std::milli>(end - from).count());
+        const double ms = priced ? priced(r.stage, r.work) : busy >= 0 ? std::max(busy, host) : std::max(0.0, std::chrono::duration<double, std::milli>(end - from).count());
         StageRecord& st = stages_[r.stage];
         ++st.passes;
         st.measured_ms += ms;

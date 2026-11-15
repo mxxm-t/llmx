@@ -1255,6 +1255,13 @@ void short_newcomer(const gguf::GGUFModel& weights, uint32_t vocab) {
         const std::string where = beside ? " beside a long prompt" : " alone";
         auto model = (beside ? split : wide)(pool, 512);
         server::Scheduler sched(*model, tok, kSeqs, 64, 0);
+        // Each stage's time is given, its device's 70 ms and a little a row, so the rule prices the newcomer alike on any runner.
+        // Measured, a stage the test's process was descheduled in priced it past the step gap's cap, and it waited for the wait bound.
+        sched.stage_ms = [](size_t, const server::PassWork& w) {
+            size_t rows = w.decode_rows;
+            for (const auto& c : w.chunks) rows += c.rows;
+            return 70.0 + 0.05 * (double)rows;
+        };
         // The scheduler thread counts retired passes, and once the newcomer is sent, the replies' passes without its rows before its first rows and between its rides, and its rides; the newcomer is the only prompt of its length.
         std::atomic<size_t> retired{0};
         std::atomic<bool> sent{false};

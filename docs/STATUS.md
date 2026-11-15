@@ -11,6 +11,16 @@
 **Qualification.** Focused browser checks pass in 24.955 seconds, with code review and desktop/mobile screenshot review. Markdown and dead-code checks cover the landing tree. Documentation review covers the change's usage, roadmap and test claims across the tracked Markdown inventory. This static presentation change lands by fast-forward on main 0f571d1e9 as its failing regression and fix. It does not require unrelated hosted inference jobs.
 
 **Gotchas.** Static companion UI only. Existing browser flow explicitly emulates dark mode. No server, runtime or inference gates apply.
+## Companion HTTP admission limits (2026-11-15, in progress)
+
+**Goal.** Keep the single-owner companion responsive under invalid login requests and bounded connection load. Non-loopback deployment requires an HTTPS public origin.
+
+**Done.** Source review confirms the shared 16 MiB login-body limit, global failed-login bucket and unbounded handler threads in `tools/chat_ui/server.py`. This independent branch is rebased onto published main 0f571d1e9. The first focused run has four expected failures: oversized login headers wait for a body, another client's failed logins block the owner, HTTP public origin reaches binding, and excess connections reach handlers. Ordinary login and the HTTPS setup control pass. The cap test checks recovery on the same server after its held handler threads finish.
+
+**Left.** Add failing focused transport tests, then fix admission in the existing Server/Handler and login owner. Check a small login-body cap, client-isolated bounded failure records, a finite handler count with slot release on disconnect/error, and HTTPS validation before binding. Keep loopback development working. Run focused protocol tests during development and applicable standalone companion checks at landing.
+
+**Gotchas.** No inference code, production restart, firewall changes or other developer's server/auth edits. Do not trust forwarded client headers. Password policy and resource limits remain service-owned rather than new tuning flags.
+
 
 ## Chat controls and streaming reasoning (2026-11-15, Done)
 

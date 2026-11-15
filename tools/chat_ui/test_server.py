@@ -1,12 +1,16 @@
 import http.client
 import json
 import os
+import queue
+import socket
 import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import server as chat_server
 from server import Application, Server
 
 
@@ -31,6 +35,85 @@ class FakeUpstream(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+
+class ServerAdmissionTests(unittest.TestCase):
+    def test_nonloopback_http_public_origin_is_rejected_before_bind_and_https_is_accepted(self):
+        secure_app = mock.MagicMock()
+        secure_app.password = "password-hash"
+        https_server = Server(("0.0.0.0", 0), secure_app, "https://chat.example")
+        try:
+            self.assertTrue(https_server.secure)
+            secure_app.monitor.collector.start.assert_called_once_with()
+        finally:
+            https_server.server_close()
+
+        app = mock.MagicMock()
+        app.password = "password-hash"
+        with mock.patch.object(ThreadingHTTPServer, "__init__", autospec=True,
+                               side_effect=AssertionError("binding attempted")) as init:
+            with self.assertRaisesRegex(ValueError, "HTTPS"):
+                Server(("0.0.0.0", 0), app, "http://chat.example")
+            init.assert_not_called()
+        app.monitor.collector.start.assert_not_called()
+
+    def test_connection_cap_closes_excess_socket_and_recovers_after_slots_free(self):
+        entered = queue.Queue()
+        release = threading.Event()
+
+        def hold_handler(_handler):
+            entered.put(threading.current_thread())
+            release.wait(3)
+
+        app = mock.MagicMock()
+        server = None
+        thread = None
+        clients = []
+        workers = []
+        third_closed = False
+        try:
+            with mock.patch.object(chat_server, "MAX_CONNECTIONS", 2, create=True), \
+                    mock.patch.object(chat_server.Handler, "handle", hold_handler):
+                server = Server(("127.0.0.1", 0), app)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                for _ in range(2):
+                    client = socket.create_connection(server.server_address, timeout=1)
+                    clients.append(client)
+                    client.settimeout(1)
+                    workers.append(entered.get(timeout=1))
+
+                excess = socket.create_connection(server.server_address, timeout=1)
+                clients.append(excess)
+                excess.settimeout(0.75)
+                try:
+                    third_closed = excess.recv(1) == b""
+                except ConnectionResetError:
+                    third_closed = True
+                except TimeoutError:
+                    third_closed = False
+
+                release.set()
+                for worker in workers:
+                    worker.join(timeout=1)
+                    self.assertFalse(worker.is_alive(), "handler did not release its connection slot")
+
+            connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=1)
+            connection.request("GET", "/unknown")
+            recovery = connection.getresponse()
+            self.assertEqual(recovery.status, 404)
+            recovery.read()
+            connection.close()
+        finally:
+            release.set()
+            for client in clients:
+                client.close()
+            if thread is not None:
+                server.shutdown()
+                thread.join(timeout=2)
+            if server is not None:
+                server.server_close()
+        self.assertTrue(third_closed, "excess connection remained open instead of being refused")
 
 
 class RouteTests(unittest.TestCase):
@@ -64,8 +147,9 @@ class RouteTests(unittest.TestCase):
         self.app.store.close()
         self.temp.cleanup()
 
-    def request(self, method, path, body=None, cookie=None, headers=None, host=None):
-        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
+    def request(self, method, path, body=None, cookie=None, headers=None, host=None, source_address=None):
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3,
+                                                source_address=source_address)
         request_headers = dict(headers or {})
         if body is not None:
             request_headers["Content-Type"] = "application/json"
@@ -105,6 +189,35 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(cleared[0], 200)
         self.assertIn("Max-Age=0", dict((key.lower(), value) for key, value in cleared[1])["set-cookie"])
         self.assertEqual(self.request("GET", "/api/chats", cookie=cookie)[0], 401)
+
+    def test_oversized_login_is_rejected_before_body_read_or_password_hash(self):
+        with mock.patch.object(self.app, "digest", wraps=self.app.digest) as digest:
+            with socket.create_connection(("127.0.0.1", self.port), timeout=1.5) as client:
+                client.settimeout(1.5)
+                request = (
+                    f"POST /api/login HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{self.port}\r\n"
+                    "Content-Type: application/json\r\n"
+                    "X-Chat-Request: 1\r\n"
+                    "Content-Length: 16385\r\n"
+                    "Connection: close\r\n\r\n"
+                ).encode("ascii")
+                client.sendall(request)
+                try:
+                    response = client.recv(4096)
+                except TimeoutError:
+                    response = b""
+        digest.assert_not_called()
+        self.assertTrue(response.startswith(b"HTTP/1.1 400"), response[:200])
+
+    def test_failed_logins_from_another_loopback_address_do_not_lock_out_owner(self):
+        for _ in range(10):
+            response = self.request("POST", "/api/login", {"password": "wrong"},
+                                    source_address=("127.0.0.2", 0))
+            self.assertIn(response[0], (400, 403))
+        owner_login = self.request("POST", "/api/login", {"password": "correct horse"},
+                                   source_address=("127.0.0.1", 0))
+        self.assertEqual(owner_login[0], 200, self.json_body(owner_login))
 
     def test_cross_origin_host_and_request_header_are_rejected(self):
         cookie = self.login()

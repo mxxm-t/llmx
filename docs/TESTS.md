@@ -54,6 +54,7 @@ and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.
 The chat companion engine checks image admission before a reply is persisted, including preservation of the conversation when the upstream refuses images. It also checks that an older empty image turn rejected by the template does not block a text follow-up, while preserving saved records, image retries, partial answers, reasoning, tool actions and unrelated failures.
 The companion browser check also delays a successful Send response while editing its original draft or switching to another active conversation. It verifies captured request content, branch parent and files, preservation of newer composer state, and no duplicate subscription to the other reply.
+It also checks Activity navigation to two distinct tool-call identities, keyboard activation, the corresponding arguments and results, safe text rendering, and closing the narrow inspector before focusing the selected details.
 The optional `tools/chat_ui/check_sandbox.py` integration check uses an existing
 Docker image to verify actual container isolation, returned files and cancellation.
 How to run them, the project's two gates and the merge gates are in `AGENTS.md` (`AGENTS.md`, Tests).

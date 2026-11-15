@@ -247,7 +247,7 @@
     return node('span', 'attachment-pill', attachment.name || 'Text attachment');
   }
   function toolRow(call, message) {
-    const wrap = node('div', 'tool-call'); const detail = node('details'); const summary = node('summary');
+    const wrap = node('div', 'tool-call'); wrap.dataset.toolCall = call.id || ''; const detail = node('details'); const summary = node('summary'); summary.tabIndex = 0;
     summary.append(node('span', '', '>_'), node('span', '', call.name || 'Tool call'), node('span', 'badge' + (call.error ? ' error' : ''), call.status || 'pending'));
     const body = node('div', 'tool-body'); body.append(node('div', 'section-label', 'ARGUMENTS'), node('pre', '', json(call.arguments ?? {})));
     if (call.result !== undefined) {
@@ -322,16 +322,34 @@
         const replacement = messageView(message);
         replacement.querySelectorAll('details[data-disclosure]').forEach(detail => { detail.open = open.get(detail.dataset.disclosure) || false; });
         if (old) {
+          const preserved = [];
           const reasoning = old.querySelector('.reasoning'); const nextReasoning = replacement.querySelector('.reasoning');
-          if (reasoning && nextReasoning) {
-            // Keep the summary connected so a delta between pointer down and up cannot cancel its click.
-            reasoning.querySelector('.markdown').replaceWith(nextReasoning.querySelector('.markdown'));
-            Array.from(old.children).forEach(child => { if (child !== reasoning) child.remove(); });
-            let beforeReasoning = true;
+          if (reasoning && nextReasoning) { reasoning.querySelector('.markdown').replaceWith(nextReasoning.querySelector('.markdown')); preserved.push([nextReasoning, reasoning]); }
+          const focused = document.activeElement?.matches('.tool-call details[data-disclosure^="tool:"][data-disclosure$=":0"] > summary') ? document.activeElement.parentElement : null;
+          const keepDetail = focused && old.contains(focused) ? focused : null;
+          if (keepDetail) {
+            const next = Array.from(replacement.querySelectorAll('details[data-disclosure^="tool:"]')).find(item => item.dataset.disclosure === keepDetail.dataset.disclosure);
+            const body = next?.querySelector(':scope > .tool-body');
+            const nextWrap = next?.closest('.tool-call');
+            const nextSummary = next?.querySelector(':scope > summary'); const summary = keepDetail.querySelector(':scope > summary');
+            if (nextWrap && body && nextSummary && summary) {
+              keepDetail.querySelector(':scope > .tool-body')?.replaceWith(body);
+              summary.children[1].textContent = nextSummary.children[1].textContent;
+              summary.children[2].textContent = nextSummary.children[2].textContent;
+              summary.children[2].classList.toggle('error', nextSummary.children[2].classList.contains('error'));
+              preserved.push([nextWrap, keepDetail.closest('.tool-call')]);
+            }
+          }
+          if (preserved.length) {
+            const keep = new Set(preserved.map(([, stable]) => stable)); const stableFor = new Map(preserved);
+            Array.from(old.children).forEach(child => { if (!keep.has(child)) child.remove(); });
+            let cursor = old.firstChild;
             Array.from(replacement.children).forEach(child => {
-              if (child === nextReasoning) beforeReasoning = false;
-              else if (beforeReasoning) old.insertBefore(child, reasoning);
-              else old.append(child);
+              const stable = stableFor.get(child);
+              if (stable) {
+                if (stable !== cursor) old.insertBefore(stable, cursor);
+                cursor = stable.nextSibling;
+              } else old.insertBefore(child, cursor);
             });
           } else old.replaceChildren(...replacement.childNodes);
         } else { container.append(replacement); old = replacement; }
@@ -373,7 +391,11 @@
     entries.forEach((m, i) => {
       const card = node('div', 'activity-card'); const title = node('div', 'activity-title'); title.append(node('span', '', 'Model call ' + (i + 1)), node('span', 'badge', m.status || 'completed')); card.append(title);
       const u = usage(m); card.append(node('small', '', number(u.input) + ' input / ' + number(u.output) + ' output'));
-      (m.tool_calls || []).forEach(call => { const row = node('div', 'stat-row'); row.append(node('span', '', call.name), node('strong', '', call.status || 'pending')); card.append(row); }); activity.append(card);
+      (m.tool_calls || []).forEach(call => {
+        const row = node('button', 'stat-row activity-tool-link'); row.type = 'button'; row.dataset.action = 'tool-detail'; row.dataset.message = m.id; row.dataset.call = call.id || '';
+        row.setAttribute('aria-label', 'Show ' + (call.name || 'tool call') + ' arguments and result in conversation');
+        row.append(node('span', '', call.name || 'Tool call'), node('strong', '', call.status || 'pending')); card.append(row);
+      }); activity.append(card);
     });
     S.runs.filter(r => r.error).forEach(r => activity.append(node('p', 'error-text', r.error)));
     S.runs.forEach(r => { const duration = ((terminal(r.status) ? timestamp(r.updated).getTime() : Date.now()) - timestamp(r.created).getTime()) / 1000; if (Number.isFinite(duration)) statRow(activity, r.status + ' run', number(Math.max(0, duration), ' s')); });
@@ -529,11 +551,24 @@
   function showTab(name) { S.tab = name; document.querySelectorAll('[data-tab]').forEach(el => { el.setAttribute('aria-selected', String(el.dataset.tab === name)); el.tabIndex = el.dataset.tab === name ? 0 : -1; }); for (const tab of ['activity', 'stats', 'settings']) $('panel-' + tab).hidden = tab !== name; }
   function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); }
   function closeDrawers() { $('app').classList.remove('sidebar-open'); if (document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200) $('app').classList.add('inspector-closed'); updateShade(); }
+  function showToolCall(messageId, callId) {
+    const message = path().find(item => item.id === messageId && item.role === 'assistant');
+    if (!message || !(message.tool_calls || []).some(call => call.id === callId)) throw new Error('This tool call is no longer on the selected branch.');
+    if (window.innerWidth <= 1200 || document.documentElement.dataset.compact === 'true') closeDrawers();
+    const article = $('messages').querySelector('[data-message="' + CSS.escape(messageId) + '"]');
+    const wrap = Array.from(article?.querySelectorAll('.tool-call') || []).find(item => item.dataset.toolCall === callId);
+    const detail = wrap?.querySelector(':scope > details'); const summary = detail?.querySelector(':scope > summary');
+    if (!summary) throw new Error('Tool details are not available in this conversation view.');
+    detail.open = true;
+    summary.focus({preventScroll: true});
+    summary.scrollIntoView({block: 'center', behavior: 'instant'});
+  }
   async function action(name, el) {
     if (name !== 'chat-menu') window.ChatShell.closeMenu();
     if (name === 'new') return newChat();
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
+    if (name === 'tool-detail') return showToolCall(el.dataset.message, el.dataset.call);
     if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
     if (name === 'close-drawers') return closeDrawers();
     if (name === 'inspector' || name === 'settings') { if (name === 'settings') { $('app').classList.remove('inspector-closed'); showTab('settings'); } else $('app').classList.toggle('inspector-closed'); updateShade(); return; }

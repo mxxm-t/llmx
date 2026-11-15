@@ -168,7 +168,8 @@ names keeps aliases stable across refreshes in one process; reaching that limit
 requires restarting the companion before discovering renamed tools.
 
 A model call that requests tools ends before those tools execute. Each call
-has separate arguments, status, duration and results. Approval is required by
+has separate arguments, status, duration and results. Activity entries open the
+matching call's existing arguments and result in the conversation. Approval is required by
 default. Remembering approval applies only to the named tool for the current
 run. An operator's `approval: false` allows its selected tools automatically.
 Approvals expire after 30 minutes. Up to four calls from one model reply can

@@ -67,6 +67,19 @@
 **Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
 
 ## Attachment reads stay with their conversation (2026-11-15, Done)
+## Navigate from Activity to tool details (2026-11-15, Ready)
+
+**Goal.** Let Activity entries reveal the matching tool arguments and result in the selected conversation, including on narrow screens.
+
+**Done.** Activity tool entries are accessible buttons keyed by both assistant message and call ID. They open and focus the existing tool summary, close the inspector on narrow layouts, and leave result rendering in the existing bounded text renderer. A focused summary stays connected as its arguments, result and status update; reasoning disclosure nodes also stay in place during streaming.
+
+**Checks.** The required real-Chrome check passes, covering repeated provider call IDs across assistant messages, distinct calls, Enter activation, matching arguments and results, untrusted result text, mobile drawer closure, and focus/open/status preservation through an approved live tool update. JavaScript syntax checks and `git diff --check` pass. Docs reports 0 findings and 21 planted checks; dead-code reports 15 expected findings and 20 planted checks.
+
+**Left.** Coordinator review and fast-forward integration.
+
+**Gotchas.** Keep result rendering in `toolRow()`; navigate only within the currently selected branch. No API, server, inference or execution semantics changes.
+
+## Attachment reads stay with their conversation (2026-11-15, Ready)
 
 **Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.
 

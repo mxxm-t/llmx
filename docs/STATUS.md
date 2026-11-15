@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Chat system theme (2026-11-15, In progress)
+
+**Goal.** Use the operating system color preference until the owner chooses a saved light or dark theme. Keep the monitor theme in sync.
+
+**Done.** Added a deterministic browser regression using emulated color-scheme media for unset preferences, OS changes, explicit choices and reload persistence.
+
+**Left.** Run the new browser check to record its expected failure, then implement centralized theme assignment and button labeling. Run focused companion checks and review desktop/mobile screenshots.
+
+**Gotchas.** Static companion UI only. Existing browser flow explicitly emulates dark mode. No server, runtime or inference gates apply.
+
 ## Chat controls and streaming reasoning (2026-11-15, Done)
 
 **Goal.** Compact anchored grouped conversation actions, accessible rename/folder/delete dialogs, duplicate and Open Workspace tool links. Reasoning disclosures stay interactive while text streams.

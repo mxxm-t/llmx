@@ -213,10 +213,10 @@ Nothing links against the driver, the CUDA runtime or a vendor library: llmx ope
 
 `docker/Dockerfile` builds a Debian trixie image with everything the Vulkan backend needs: the compiler, CMake, git, `glslc`, the headers, the loader, Mesa's drivers, Python and curl.
 The host needs only Docker and the kernel driver for its cards, which reach the container through `/dev/dri`, so its own packages stay untouched.
-From the repository root, build the image, then start a shell in it with the repository mounted at `/llmx` and the host's `render` group added so the container may open the render nodes:
+From the repository root, build the image with your own user and group ids, then start a shell in it with the repository mounted at `/llmx` and the host's `render` group added so the container may open the render nodes:
 
 ```sh
-docker build -t llmx-dev docker
+docker build --build-arg UID="$(id -u)" --build-arg GID="$(id -g)" -t llmx-dev docker
 docker run --rm -it --device /dev/dri \
   --group-add "$(getent group render | cut -d: -f3)" \
   -v "$PWD:/llmx" -w /llmx llmx-dev
@@ -231,7 +231,7 @@ ctest --test-dir build --output-on-failure
 ./build/llmx bench --model <model.gguf> --device vulkan:0
 ```
 
-The container runs as root, so the build directory it writes into the mounted tree belongs to root on the host.
+The container runs as the user `llmx` with the ids the build arguments give (1000 without them; a group the base image already has under that id is used as it is), not as root, so the build directory it writes into the mounted tree belongs to you on the host, and `llmx pull` keeps its cache under that user's home.
 The image carries no ROCm SDK or runtime, so it does not build the ROCm backend.
 
 ## macOS

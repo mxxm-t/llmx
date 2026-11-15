@@ -699,6 +699,18 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 - **Gotchas:** Python 3.12's `unicodedata` is at 15.0.0; the test leaves out the code points it does not assign, which normalization stability makes sufficient.
   `tests/baseline_qwen35.py` pins the qwen35 golden's SHA-256, now `795c8c9fd839a542d17ed8826a1322dbbd78e107fb12ab969587c252dcde8d67`.
   The goldens were regenerated with `tokenizers` 0.23.2 under Python 3.12.3 (the rig's `/opt/claude-work/convenv` packages); every earlier text kept its ids.
+## The Docker image runs as an ordinary user (2026-11-15, SEC2, branch sec/docker-user on main 929f042c6)
+
+**Goal.** `docker/Dockerfile` had no `USER`, so builds, `llmx pull` and `llmx serve` in the documented image ran as root with `/dev/dri` and the repository bind-mounted, and what they wrote into the mount was root-owned on the host: finding 15 (LOW) of the security scan (SEC1 RESULT of 2026-11-14 23:05), its own branch as F2DEV's REVIEW of 02:58 item 5 asked.
+
+**Done.**
+- The image creates the user `llmx` with the ids the build arguments `UID` and `GID` give (1000 without them) and a home for `llmx pull`'s cache, and runs as that user; a gid the base image already has (`users` is 100 in debian:trixie) is taken as it is, so `groupadd` does not fail the build on such a host (F2DEV's REVIEW of 09:19, item 4), checked by the user line in debian:trixie with gid 100 (`uid=1000(llmx) gid=100(users)`) and with 1000; the render group still comes from the host at run time (`--group-add`), so the documented `docker run` line is unchanged.
+- docs/BUILD.md (Docker) gives the build line with `--build-arg UID="$(id -u)" --build-arg GID="$(id -g)"` and says what the container runs as.
+
+- The hand check, since no hosted runner builds the image or has a render node, on the Linux MI50 machine (Debian trixie-slim pulled 2026-11-15): the image built with `UID=1000 GID=1000`; run with `--device /dev/dri --group-add 993` (the host's `render`) and a directory owned by 1000:1000 mounted at `/llmx`, `id` gives `uid=1000(llmx) gid=1000(llmx) groups=1000(llmx),993`, `HOME=/home/llmx` is writable, a file touched in the mount is owned by 1000:1000 on the host, and `vulkaninfo --summary` lists the ten `AMD Instinct MI60 / MI50 (RADV VEGA20)` devices under `radv` beside llvmpipe.
+
+**Left.**
+- The `docs` and `dead-code` components on the head that lands; lands by fast-forward as one commit.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

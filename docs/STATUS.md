@@ -1007,6 +1007,28 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 
 - **Left:** the hosted run; the layer split and 5x2 below the 2000 tok/s gate (5x2 analysis in DSPP3's proposal on the devlog).
 - **Gotchas:** a range stream's bits rest on each entry taking the tile's terms in block order, which `routed_builds_witness` checks build by build; a change to the stream's entry loop must keep that order.
+## MiniMax-M3.1 (2026-11-15, MMX1 then MMX2, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
+
+**Goal.** MiniMax-M3.1-Flash (`minimax-m3`, unsloth UD-Q8_K_XL, NVFP4 experts) runs on the CPU, Vulkan and ROCm, held to HF and at or above the reference's speed on ten MI50s ([MINIMAX](MINIMAX.md)).
+
+**Done.**
+- Design page [MINIMAX](MINIMAX.md): shapes, the forward pass with MiniMax sparse attention on every layer, the file's conventions (the Gemma `1 + w` folded into every norm, checked against the checkpoint), what a layer keeps, the ops planned.
+- HF reference environment: Python 3.12.13 in the `python:3.12.13-slim` image, torch 2.11.0+cpu and transformers 5.23.0 (`modeling_minimax_m3_vl.py` SHA-256 52b4860c...), offline from kept wheels; a tiny random model's full and token-by-token cached logits differ by 5.3e-6.
+- Reference: the mx fork (b11757-cdc81dae4) refuses the file (`wrong number of tensors; expected 1359, got 1347`, the index tensors of the dense layers), and llama.cpp master at e574a17b0 has the same loader.
+  The reference is llama.cpp pull request 31192 at 6b95a9908, the converter that wrote the file, built for HIP gfx906 and Vulkan.
+
+**Left** (each step reviewed before the next):
+1. Text: pretokenizer `minimax-m2` and NFC (after VLLM1's fix/tokenizer-nfc), ids against HF; chat render with tool calls against transformers.
+2. Configuration, plan and refusals with `tests/arch_minimax_m3.cpp`; the plan refuses the architecture by name until the math runs.
+3. Ops on the CPU with unit tests from the math: sigmoid routing, the GLU form, the raw per-head index scores as block maxima, block-granular per-group `sparse_attention`.
+4. CPU math against the tiny fixture (block 4, top 3, F2DEV's conditions (a) to (d)).
+5. Real file against a file-exact layered HF reference: 512-token windows, the raw and chat 16k sequences and decode after them, block-pick agreement per layer.
+6. Vulkan, then ROCm with NVFP4 as its own step; identity, 16k and speed on ten MI50s.
+7. CUDA after the CUDA stream's MoE and BF16, on a rented card through COORD; DSpark, serving, tensor groups and vision later.
+
+**Gotchas.**
+- Top-k counts the pinned block, so selection drops a block first at position 2048; every check shorter than that runs dense attention.
+- The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 
@@ -9661,6 +9683,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | CPU/Vulkan text inference and serving are implemented, including state checkpoints, prefix reuse and tensor groups; on ROCm `qwen35` is checked against HF on Qwen3.5-0.8B Q4_K_M and `qwen35moe`: their tiny HF fixtures pass on rocm:0 (STATUS, ROCm step 3) and no real model of theirs has been checked there. Model-specific qualification, remaining performance cells and later work stay in the dated Qwen records and [QWEN35](QWEN35.md). |
 | Image input ([VISION](VISION.md)) | CPU/Vulkan encoder, CLI prompts, compatible chat routes, media-aware cache identity and paced encoding are implemented. Model-specific qualification and performance records remain in the dated image blocks above. |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above); on ROCm checked against HF on the UD-Q4_K_XL at f32 over four MI50s, as a layer split and as two groups of two ([ROCM](ROCM.md), Scope on main, 2026-11-05) |
+| MiniMax-M3.1 (`minimax-m3`) | In progress (design and reference; block "MiniMax-M3.1" above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | In progress: safetensors directories, branch formats/safetensors; AWQ, branch formats/quant-awq (blocks above) |
 | JSON syntax and Unicode validation      | Done |

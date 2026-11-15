@@ -64,6 +64,7 @@ Generalize to an architecture registry keyed by `general.architecture` (done: `m
   Their released sizes exceed the hardware here; the gate is a tiny random-weight model of the real architecture built by DeepSeek's own inference code, and a layered reference on the real file's weights (the owner's gate revision of 2026-09-26).
   Planned in [DEEPSEEK4](DEEPSEEK4.md): DeepSeek-V4.1-Flash-1017 (`deepseek41`) first, then DeepSeek-V4-Flash (`deepseek4`) as a variant of the same module.
   Qwen3.8-Flash-Next (`qwen4exp`), with gated residual streams, sparse attention with a compressed indexer and host-backed hashed n-gram embeddings, runs with its MTP drafter ([QWEN38-FLASH](QWEN38-FLASH.md)); its decode speed on split placements is the open follow-up.
+- In progress: MiniMax-M3.1-Flash (`minimax-m3`), mixture of experts with NVFP4 experts and block-sparse attention selected by an indexer on every layer, designed in [MINIMAX](MINIMAX.md) and planned in `docs/STATUS.md`.
 - Each architecture is a module under `model/arch/` on the shared runtime, selected by the registry from `general.architecture`; qwen35 is a module beside qwen3, as `docs/ADDING-AN-ARCHITECTURE.md` describes.
 
 ## 3. More formats

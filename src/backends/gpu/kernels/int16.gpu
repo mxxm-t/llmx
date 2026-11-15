@@ -2116,15 +2116,14 @@ LLMX_GROUPED(llmx_q8_0_routed_half8_g8, signed char, 8, q8_0_rows_half<8, 2, 4, 
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile16, KT, short, kTileRows)                                  \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_tile8, KT, signed char, kTileRows)                             \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow16, KT, short, kNarrowRows)                              \
-    LLMX_NARROW8_##form(t, KT)                                                                         \
+    LLMX_NARROW8(t, KT)                                                                                \
     LLMX_STREAM(llmx_##t##_routed_stream8, KT)                                                         \
     LLMX_KTILE_ROUTED(llmx_##t##_routed_mid16, KT, short, kMidRows)                                    \
     LLMX_MID8_##form(t, KT)
-// A type's 8-bit groups of 9 to 16 and of 17 to 32 entries in the narrow and mid tiles, or, for MXFP4, in the stream at 16 and 32 rows.
-// MXFP4's narrow and mid tiles read its weights at 120 to 150 GB/s on an MI50, slower than the stream (docs/STATUS.md, MXFP4 routed prompt streams by range).
-#define LLMX_NARROW8_tiles(t, KT) LLMX_KTILE_ROUTED(llmx_##t##_routed_narrow8, KT, signed char, kNarrowRows)
+// A type's 8-bit groups of 9 to 16 entries in the stream at 16 rows, and of 17 to 32 in the mid tile, or, for MXFP4 (form streams), in the stream at 32 rows.
+// The narrow tiles ran a layer's routed products 3 to 13 percent slower at 256 rows on every type, and the mid tile only MXFP4's (docs/STATUS.md, Routed prompt streams by type).
 #define LLMX_MID8_tiles(t, KT) LLMX_KTILE_ROUTED(llmx_##t##_routed_mid8, KT, signed char, kMidRows)
-#define LLMX_NARROW8_streams(t, KT) \
+#define LLMX_NARROW8(t, KT) \
     extern "C" __global__ void __launch_bounds__(kStreamLanes) llmx_##t##_routed_stream16_8(TileCall c, TileGroups g, const signed char* q, const float* dx) { routed_stream<KT, kStreamRows, kNarrowRows>(c, g, q, dx); }
 #define LLMX_MID8_streams(t, KT) \
     extern "C" __global__ void __launch_bounds__(kStreamLanes) llmx_##t##_routed_stream32_8(TileCall c, TileGroups g, const signed char* q, const float* dx) { routed_stream<KT, kNarrowRows, kMidRows>(c, g, q, dx); }

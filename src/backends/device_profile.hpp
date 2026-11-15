@@ -68,7 +68,8 @@ struct DeviceProfile {
     uint32_t q8_decode_four_steps_from = 256;
     // Output rows below which such a chunk over 16-bit activations takes the build of one row and four steps, and from which it keeps two rows and one step.
     uint32_t q8_decode_one_row_below_16bit = 1024;
-    // Waves per compute unit a ROCm decode row call must launch at four rows a wave before its two- to eight-column builds take four rows rather than two (docs/STATUS.md, ROCm many users).
+    // Waves per compute unit a decode row call must launch at four rows a cluster before it takes four (rows_a_cluster).
+    // ROCm's two- to sixteen-column builds take it as is, Vulkan's one-column builds times their kernel's class (docs/VULKAN.md, Kernels).
     uint32_t row_four_waves_per_cu = 8;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
@@ -202,6 +203,14 @@ inline uint32_t tile_rows_for(const DeviceCaps& caps, const DeviceProfile& profi
     if (nin >= tall_from && groups(rows_tall) >= tall_per_cu * caps.compute_units) return rows_tall;
     const size_t fill = nin < profile.tile_narrow_nin ? caps.compute_units : (caps.compute_units + 1) / 2;
     return groups(rows_short) >= fill ? rows_short : rows_small;
+}
+
+// Rows a cluster of `lanes` lanes takes in a row call of `rows` output rows: the most of 4, 2 and 1, up to the kernel's `cap`, whose clusters still give each compute unit `waves_per_cu` subgroups.
+// The count divides by the rows first and then scales by the lanes, so a cluster of a whole subgroup at four rows is ROCm's row_build test exactly.
+inline uint32_t rows_a_cluster(const DeviceCaps& caps, size_t rows, uint32_t lanes, uint32_t cap, uint32_t waves_per_cu) {
+    for (uint32_t r = 4; r > 1; r /= 2)
+        if (r <= cap && rows / r * lanes / std::max(1u, caps.subgroup_size) >= size_t(waves_per_cu) * caps.compute_units) return r;
+    return 1;
 }
 
 // Whether a shared-memory tile of tile_rows by tile_cols takes a call of rows by cols over a kernel a row: a tile block costs about a wave however few rows fill it.

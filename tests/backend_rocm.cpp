@@ -1049,6 +1049,11 @@ float mxfp4_row_host(const uint8_t* row, const std::vector<float>& d, const int1
 // Sixteen columns take the half-block build of four rows a wave once its waves give each compute unit row_four_waves_per_cu, from the rule's edge on, and the two-row build below it; 9 to 15 columns keep their own builds.
 void q8_columns_bits(Backend& g) {
     const size_t nin = 1024, edge = size_t(4) * rocm_profile(g).row_four_waves_per_cu * rocm_device(0).caps.compute_units;
+    const DeviceCaps caps = rocm_device(0).caps;
+    const uint32_t waves = rocm_profile(g).row_four_waves_per_cu;
+    // The rule is rows_a_cluster at a whole subgroup and a cap of four.
+    require(rows_a_cluster(caps, edge - 1, caps.subgroup_size, 4, waves) < 4 && rows_a_cluster(caps, edge, caps.subgroup_size, 4, waves) == 4,
+            "rows_a_cluster at a whole subgroup takes four rows from row_build's edge on and fewer one row below it");
     const size_t big = std::max<size_t>(edge, 4097);
     const std::vector<uint8_t> w = q8_matrix(nin, big, 27);
     auto wb = g.adopt(w.data(), w.size());

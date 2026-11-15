@@ -31,6 +31,9 @@ std::string vulkan_device_name(const Backend& backend);
 // The test reads it so that it predicts the same kernel the backend will pick, rather than assuming the numbers a particular device happens to want.
 DeviceProfile vulkan_device_profile(const Backend& backend);
 
+// What the device reports about itself, which the test reads beside the profile; empty for another backend.
+DeviceCaps vulkan_device_caps(const Backend& backend);
+
 // Has a test's backend take the integer-dot kernels, as a profile preferring them would, on a device whose profile does not; false where the device lacks the integer dot.
 // It is called before the backend's first matmul, so the test reaches on any such device the kernels an integer-dot profile picks.
 bool vulkan_prefer_integer_dot(Backend& backend);

@@ -3049,7 +3049,7 @@ private:
     // The build of a form and column count for a call of `total` rows: the four-row build once its waves give each compute unit row_four_waves_per_cu, else the two-row one.
     // A row keeps its lanes and order in every build, so the choice changes no bits; the sweep behind it is in docs/STATUS.md (ROCm many users).
     RowBuild row_build(const TwinKernels& tk, int form, int build, size_t total) const {
-        if (tk.four[form][build] != kKernels && total / 4 >= size_t(dev_.profile.row_four_waves_per_cu) * dev_.caps.compute_units) return {tk.four[form][build], 4};
+        if (tk.four[form][build] != kKernels && rows_a_cluster(dev_.caps, total, dev_.caps.subgroup_size, 4, dev_.profile.row_four_waves_per_cu) == 4) return {tk.four[form][build], 4};
         return {tk.two[form][build], tk.two_rows[form][build]};
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.

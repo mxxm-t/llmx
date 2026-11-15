@@ -313,8 +313,11 @@ inline size_t VulkanBackend::column_builds(KernelId id, size_t nin, size_t rows,
         return n;
     }
     const uint32_t tree = row_tree_cluster(id, kRowByWidth[0], dev_->profile, dev_->caps.subgroup_size);
-    // Where the transposed reduction holds the cluster, a one-column chunk takes the build of the rows a cluster its kernel gives (one_column_variant).
-    if (row_kernel_builds_one_column(id)) out[n++] = tree && tree == cluster ? one_column_variant(id) : 1;
+    // Where the transposed reduction holds the cluster, a one-column chunk takes the rows a cluster the call's rows give its kernel (cluster_rows, rows_a_cluster).
+    if (row_kernel_builds_one_column(id)) {
+        const ClusterRows cr = cluster_rows(id);
+        out[n++] = tree && tree == cluster ? one_column_variant(rows_a_cluster(dev_->caps, rows, cluster, cr.cap, dev_->profile.row_four_waves_per_cu * cr.waves)) : 1;
+    }
     if (row_kernel_builds_two_rows(id) && dev_->profile.row_decode_cols >= kRowBuilds[kRowByWidth[0]].cols && (tree == 0 || tree == cluster)) {
         for (int v : kRowByWidth)
             if (kRowBuilds[v].cols <= dev_->profile.row_decode_cols) out[n++] = v;

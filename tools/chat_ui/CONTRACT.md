@@ -8,7 +8,7 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/login` with `{password}` sets an HttpOnly session cookie. `POST /api/logout` clears it.
 - `GET /api/config`: `{models: [{id}], tools: [{name, description, inputSchema, server, approval}], upstream_available, upstream_error, tools_error}`. No credentials are returned. A tool discovery failure does not disable a reachable model.
 - `GET /api/chats`: `{chats: [{id,title,pinned,archived,folder,created,updated,active_leaf,settings}]}`.
-- `POST /api/chats` with optional `{title,settings,folder}` creates and returns a chat.
+- `POST /api/chats` with optional `{title,settings,folder,temporary}` creates and returns a chat. `temporary` defaults to false and must be a boolean.
 - `GET /api/chats/{id}`: `{chat, messages: [...], runs: [...]}`. Messages include all branches. Follow `parent_id` backward from `chat.active_leaf` for the selected path.
 - `PATCH /api/chats/{id}` accepts `title,pinned,archived,folder,active_leaf,settings`. Selecting a branch while a run is active is refused.
 - `DELETE /api/chats/{id}` deletes an idle chat.
@@ -19,6 +19,22 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/runs/{id}/cancel` requests cancellation. It does not promise to undo an external tool action.
 - `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
 - `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
+
+## Temporary conversation lifetime
+
+`config.temporary` advertises `enabled`, `ttl_seconds`, `max_chats` and `tools`.
+Temporary chats and runs use `tmp_` identifiers and the same conversation routes,
+store implementation and generation engine. `TemporaryChats` owns their separate
+in-memory SQLite store, capacity and expiry; no temporary records enter the durable
+store, history listing or backup. The browser keeps only the current identifier in
+session storage. A missing or expired identifier returns 404.
+
+Temporary chats return `temporary: true`. Creation, settings changes and runs refuse
+a nonempty tool selection; the temporary engine has no callable tools. Explicit
+export is supported. Importing an export intentionally creates a normal saved chat.
+Idle records expire after 3600 seconds without API access, checked every minute;
+active runs refresh that lifetime. DELETE requires an idle chat. Server shutdown
+cancels active temporary runs and closes their memory store.
 
 ## Workspace and monitor routes
 

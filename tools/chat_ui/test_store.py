@@ -126,6 +126,9 @@ class StorePersistenceTests(unittest.TestCase):
         mutations = [
             ("chat-json", "UPDATE chats SET data='not json'"),
             ("chat-array", "UPDATE chats SET data='[]'"),
+            ("temporary-flag", "UPDATE chats SET data=json_set(data,'$.temporary',json('true'))"),
+            ("temporary-truthy", "UPDATE chats SET data=json_set(data,'$.temporary','true')"),
+            ("temporary-object", "UPDATE chats SET data=json_set(data,'$.temporary',json('{}'))"),
             ("chat-id-mismatch", "UPDATE chats SET data=json_set(data,'$.id','wrong')"),
             ("message-id-mismatch", "UPDATE messages SET data=json_set(data,'$.id','wrong')"),
             ("run-chat-mismatch", "UPDATE runs SET data=json_set(data,'$.chat_id','wrong')"),
@@ -149,6 +152,33 @@ class StorePersistenceTests(unittest.TestCase):
                         destination.restore(candidate_path)
                     self.assertEqual(destination.snapshot(chat_id), baseline)
                     self.assertEqual(destination.events(run_id, 0), baseline_events)
+        finally:
+            destination.close()
+
+    def test_restore_rejects_reserved_temporary_chat_and_run_identifiers(self):
+        destination, cid, _ = self.populated(self.path("reserved-destination"), "keep me")
+        baseline = destination.snapshot(cid)
+        try:
+            for table in ("chats", "runs"):
+                with self.subTest(table=table):
+                    path = self.path("reserved-" + table)
+                    candidate = Store(path)
+                    chat = candidate.create_chat({})
+                    if table == "runs":
+                        run = candidate.start(chat["id"], {"content": "candidate"}, self.settings())
+                        candidate.publish(run["id"], "state", dict(run, status="completed"))
+                    candidate.close()
+                    connection = sqlite3.connect(path)
+                    try:
+                        connection.execute(f"UPDATE {table} SET id='tmp_reserved',data=json_set(data,'$.id','tmp_reserved')")
+                        if table == "runs":
+                            connection.execute("UPDATE events SET run='tmp_reserved'")
+                        connection.commit()
+                    finally:
+                        connection.close()
+                    with self.assertRaises(ValueError):
+                        destination.restore(path)
+                    self.assertEqual(destination.snapshot(cid), baseline)
         finally:
             destination.close()
 

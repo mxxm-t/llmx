@@ -940,3 +940,79 @@
 :root .artifact-dialog {
   max-height: var(--studio-height, 100dvh);
 }
+
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.chat-row .chat-item {
+  flex: 1;
+  min-width: 0;
+}
+.chat-row-menu {
+  flex: 0 0 32px;
+  height: 36px;
+  border-radius: var(--ui-control-radius);
+  color: var(--muted);
+  font-size: 18px;
+}
+.chat-row-menu:hover, .chat-row-menu:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.new-chat {
+  gap: 8px;
+  text-align: left;
+}
+.new-chat svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.chat-create-label {
+  flex: 1;
+}
+.temporary-button {
+  margin: 6px 0 4px;
+  background: transparent;
+  border-style: dashed;
+}
+.new-chat:hover {
+  background: var(--hover);
+}
+.temporary-notice {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--brand-bg);
+  border-bottom: 1px dashed var(--brand-line);
+  font-size: 12px;
+}
+.temporary-notice div {
+  flex: 1;
+  min-width: 0;
+}
+.temporary-notice p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.temporary-notice button {
+  flex-shrink: 0;
+}
+.workspace:not([data-view=chat]) .temporary-notice {
+  display: none;
+}
+
+#action-dialog-title {
+  overflow-wrap: anywhere;
+}
+
+.workspace[data-temporary=true] .composer {
+  border-style: dashed;
+  border-color: var(--brand-line);
+}

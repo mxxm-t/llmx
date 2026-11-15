@@ -60,9 +60,14 @@
           </button>
         </nav>
         <div class="chat-library-heading">CONVERSATIONS</div>
-        <button class="new-chat" data-action="new">
-          <span>+ New conversation</span>
+        <button class="new-chat" data-action="new" disabled aria-busy="true">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span class="chat-create-label">New conversation</span>
           <kbd>Ctrl K</kbd>
+        </button>
+        <button type="button" id="temporary-button" data-action="temporary" class="new-chat temporary-button" disabled aria-busy="true">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+          <span class="chat-create-label">Temporary chat</span>
         </button>
         <label class="search-box"><span aria-hidden="true">&#8981;</span><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"></label>
         <div class="library-heading">
@@ -115,6 +120,10 @@
             </button>
           </div>
         </header>
+        <aside id="temporary-notice" class="temporary-notice" hidden aria-label="Temporary chat">
+          <div><strong>Temporary chat</strong><p id="temporary-description"></p></div>
+          <button type="button" data-action="end-temporary" class="text-button">End chat</button>
+        </aside>
         <div id="banner" class="banner" role="status" hidden></div>
         <div id="scroll-region" class="scroll-region">
           <section id="messages" class="messages" aria-label="Messages"></section>
@@ -273,9 +282,9 @@
         <button class="primary-button" type="submit">Unlock workspace</button>
       </form>
     </dialog>
-    <dialog id="action-dialog">
+    <dialog id="action-dialog" aria-labelledby="action-dialog-title">
       <form method="dialog" class="dialog-content">
-        <h2>Conversation</h2>
+        <h2 id="action-dialog-title">Conversation</h2>
         <button type="button" data-action="rename">Rename</button>
         <button type="button" data-action="pin">Pin / unpin</button>
         <button type="button" data-action="folder">Move to folder</button>

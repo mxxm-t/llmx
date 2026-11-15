@@ -71,7 +71,8 @@ class BrowserTests(unittest.TestCase):
                 [text_event("An edited branch."), metrics], [tool_event(name="echo"), metrics],
                 [text_event("The tool returned hello."), metrics], [text_event("The attached file is readable."), metrics],
                 [text_event("Incomplete response"), "TRUNCATE"],
-                [text_event(reasoning="Cancellation test"), "WAIT", text_event("Should be cancelled")]]
+                [text_event(reasoning="Cancellation test"), "WAIT", text_event("Should be cancelled")],
+                [text_event("Temporary response."), metrics]]
             BrowserUpstream.requests = []
         BrowserUpstream.gate = threading.Event()
         BrowserUpstream.stream_opened = threading.Event()

@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from engine import Engine, TERMINAL
 from store import Store, encoded
+from temporary import TemporaryChats
 from tools import ToolRegistry
 from upstream import Connection
 from monitor import Monitor
@@ -112,6 +113,7 @@ class Application:
         self.workspace = Workspace(Path(database).parent / "workspace", sandbox_image, docker_host)
         self.tools = WorkspaceTools(ToolRegistry(tool_config), self.workspace)
         self.engine = Engine(self.store, upstream, self.tools, api_key)
+        self.temporary = TemporaryChats(upstream, api_key)
         self.salt = secrets.token_bytes(32)
         self.password = self.digest(password) if password else None
         self.sessions, self.failures = {}, []
@@ -174,6 +176,8 @@ class Application:
             result["authentication"] = "owner-password" if self.password else "local-only"
             result["upstream"] = self.upstream
             result["backup_max_bytes"] = MAX_BACKUP
+            result["temporary"] = dict(enabled=True, ttl_seconds=self.temporary.TTL_SECONDS,
+                                       tools=False, max_chats=self.temporary.MAX_CHATS)
             result["workspace"] = self.workspace.snapshot()["execution"]
             try:
                 models = Connection(self.upstream, timeout=8, key=self.api_key).json("/models")
@@ -208,6 +212,7 @@ class Server(ThreadingHTTPServer):
         app.monitor.collector.start()
 
     def server_close(self):
+        self.app.temporary.close()
         self.app.monitor.stop()
         self.app.workspace.close()
         super().server_close()
@@ -414,7 +419,13 @@ class Handler(BaseHTTPRequestHandler):
             if method == "GET":
                 return self._json({"chats": self.app.store.chats()})
             if method == "POST":
-                return self._json(self.app.store.create_chat(chat_values(self._body())), 201)
+                body = self._body()
+                temporary = body.pop("temporary", False)
+                if not isinstance(temporary, bool):
+                    raise ValueError("Invalid temporary flag")
+                values = chat_values(body)
+                create = self.app.temporary.create if temporary else self.app.store.create_chat
+                return self._json(create(values), 201)
         if path == "/api/tokenize" and method == "POST":
             text = self._body().get("text")
             if not isinstance(text, str) or len(text) > 1000000:
@@ -436,16 +447,22 @@ class Handler(BaseHTTPRequestHandler):
         bits = path.strip("/").split("/")
         if len(bits) >= 3 and bits[:2] == ["api", "chats"]:
             cid = bits[2]
+            temporary = cid.startswith("tmp_")
+            store, engine = self.app.temporary.access(cid) if temporary else (self.app.store, self.app.engine)
             if len(bits) == 3:
                 if method == "GET":
-                    return self._json(self.app.store.snapshot(cid))
+                    return self._json(store.snapshot(cid))
                 if method == "PATCH":
-                    return self._json(self.app.store.update_chat(cid, chat_values(self._body(), True)))
+                    values = chat_values(self._body(), True)
+                    if temporary:
+                        self.app.temporary.check_settings(values.get("settings", {}))
+                    return self._json(store.update_chat(cid, values))
                 if method == "DELETE":
-                    self.app.store.delete_chat(cid)
+                    delete = self.app.temporary.delete if temporary else store.delete_chat
+                    delete(cid)
                     return self._json({"ok": True})
             if len(bits) == 4 and bits[3] == "export" and method == "GET":
-                snapshot = self.app.store.snapshot(cid)
+                snapshot = store.snapshot(cid)
                 return self._json(dict(version=1, chat=snapshot["chat"], messages=snapshot["messages"]), extra={"Content-Disposition": 'attachment; filename="conversation.json"'})
             if len(bits) == 4 and bits[3] == "runs" and method == "POST":
                 body = self._body()
@@ -461,25 +478,28 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("Invalid parent message")
                 if "regenerate" in body and not isinstance(body["regenerate"], bool):
                     raise ValueError("Invalid regenerate flag")
-                chat = self.app.store.chat(cid)
+                chat = store.chat(cid)
                 settings = settings_of(body.get("settings", chat["settings"]))
-                return self._json({"run": self.app.engine.start(cid, body, settings)}, 201)
+                if temporary:
+                    self.app.temporary.check_settings(settings)
+                return self._json({"run": engine.start(cid, body, settings)}, 201)
         if len(bits) == 4 and bits[:2] == ["api", "runs"]:
             rid, action = bits[2:]
+            store, engine = self.app.temporary.access(rid, run=True) if rid.startswith("tmp_") else (self.app.store, self.app.engine)
             if action == "events" and method == "GET":
                 cursor = self.headers.get("Last-Event-ID", parse_qs(parsed.query).get("after", ["0"])[0])
                 if not cursor.isdecimal():
                     raise ValueError("Invalid event cursor")
-                return self._events(rid, int(cursor))
+                return self._events(rid, int(cursor), store)
             if action == "cancel" and method == "POST":
                 self._body()
-                self.app.engine.cancel(rid)
+                engine.cancel(rid)
                 return self._json({"ok": True})
             if action == "approve" and method == "POST":
                 body = self._body()
                 if not isinstance(body.get("call_id"), str) or not isinstance(body.get("allow"), bool) or not isinstance(body.get("remember", False), bool):
                     raise ValueError("Invalid approval")
-                self.app.engine.approve(rid, body["call_id"], body["allow"], body.get("remember", False))
+                engine.approve(rid, body["call_id"], body["allow"], body.get("remember", False))
                 return self._json({"ok": True})
         raise KeyError()
 
@@ -514,17 +534,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"job": workspace.cancel(parts[1])})
         raise KeyError()
 
-    def _events(self, rid, after):
-        self.app.store.run(rid)
+    def _events(self, rid, after, store):
+        store.run(rid)
         self.close_connection = True
         self._headers(200, "text/event-stream", extra={"Connection": "close", "X-Accel-Buffering": "no"})
         try:
             while True:
-                with self.app.store.changed:
-                    events = self.app.store.events(rid, after)
-                    run = self.app.store.run(rid)
+                with store.changed:
+                    events = store.events(rid, after)
+                    run = store.run(rid)
                     if not events and run["status"] not in TERMINAL:
-                        self.app.store.changed.wait(10)
+                        store.changed.wait(10)
                 for event in events:
                     self.wfile.write(f"id: {event['seq']}\nevent: update\ndata: {encoded(event)}\n\n".encode())
                     after = event["seq"]
@@ -532,7 +552,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
                 if run["status"] in TERMINAL and after >= run["last_seq"]:
                     break
-        except (OSError, TimeoutError):
+        except (OSError, TimeoutError, KeyError):
             pass
 
 

@@ -11,6 +11,10 @@ Store checks cover schema upgrades, online backup and validated restore. Workspa
 checks cover revision conflicts, file limits, checkpoint restore, bounded output,
 cancellation, container isolation flags and unsafe returned files. HTTP checks
 also cover authenticated monitoring, preview CSP and backup/restore routes.
+Temporary-chat HTTP checks exercise real generation and replay in memory, absence
+from durable history, database files and backups, tool refusal, capacity, expiry,
+cancellation and restart cleanup. Browser checks cover actions on unselected
+sidebar rows, temporary reply reload, explicit discard and a missing temporary ID.
 Its optional installed-browser check exercises the actual interface, theme toggles
 and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.

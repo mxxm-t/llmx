@@ -55,7 +55,9 @@ conversations and tools. There is no multi-user account or role system.
   have performed an action, so Stop cannot promise to undo it.
 - Edit a user message or retry an answer to create an alternative branch. The
   original branch stays available through the message's branch controls.
-- The sidebar supports search, pins, folders and an archive. Export and import
+- Each sidebar row has an actions button for rename, pin/unpin, move to folder,
+  archive/restore, export and delete. Actions target that row without opening it.
+  The sidebar also supports search. Export and import
   preserve messages and their branches. Imported chats do not restart runs.
 - Settings are per conversation. System instructions and generation settings
   apply to subsequent calls, including subsequent calls after a tool result.
@@ -69,6 +71,26 @@ conversations and tools. There is no multi-user account or role system.
   LaTeX, executable artifacts and knowledge-base retrieval are not implemented.
 - A companion process restart marks unfinished runs interrupted. It never
   retries a tool automatically after losing its outcome.
+
+## Temporary chats
+
+Temporary chat in the sidebar opens a conversation held only in companion memory.
+It is absent from saved history and SQLite backups. Messages, attachments, settings
+and replay events share the normal conversation engine in a separate in-memory
+store. Reloading the page recovers the current temporary chat through an identifier
+in the tab's session storage; no transcript is saved in browser local storage.
+
+End chat, New conversation or selecting another conversation discards the temporary
+chat after confirmation if it has messages or an unsent draft. Stop an active reply
+first. Switching to Monitor, Workspace or Settings leaves the chat open. Closing
+the tab does not guarantee immediate deletion: abandoned idle chats expire after
+one hour, checked once a minute. Active replies remain until stopped or finished.
+A companion restart removes all temporary chats. At most 16 can be open.
+
+Tools are disabled in temporary chats, including workspace writes and external MCP
+calls. This is a conversation-history option, not anonymous inference: the model
+server can retain logs or caches, and manually copying or exporting a conversation
+creates a separate copy. Workspace files remain independent of chat mode.
 
 ## Tools
 
@@ -96,7 +118,8 @@ default. Remembering approval applies only to the named tool for the current
 run. An operator's `approval: false` allows its selected tools automatically.
 Approvals expire after 30 minutes. Up to four calls from one model reply can
 execute concurrently; at most 16 tool calls per model reply and 16 model/tool
-rounds per run are accepted. At most eight runs are active in the companion.
+rounds per run are accepted. The companion permits at most eight saved-chat
+runs and eight temporary-chat runs at once.
 
 The activity view keeps the full bounded tool result. A result larger than
 64 KiB is explicitly shortened before it enters the next model prompt; the

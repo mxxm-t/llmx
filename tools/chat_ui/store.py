@@ -22,10 +22,11 @@ def encoded(value):
 
 
 class Store:
-    def __init__(self, path):
+    def __init__(self, path, id_prefix=""):
         self.lock = threading.RLock()
         self.changed = threading.Condition(self.lock)
         self.database_path = os.fspath(path)
+        self.id_prefix = id_prefix
         self.file_path = None if self.database_path == ":memory:" else os.path.realpath(self.database_path)
         self.db = sqlite3.connect(self.database_path, check_same_thread=False)
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
@@ -33,6 +34,8 @@ class Store:
             self.db.close()
             raise ValueError("Database schema is newer than this chat service supports.")
         self.db.execute("PRAGMA journal_mode=WAL")
+        if self.file_path is None:
+            self.db.execute("PRAGMA temp_store=MEMORY")
         self.db.execute("PRAGMA foreign_keys=ON")
         self._migrate(version)
         self._recover_runs()
@@ -117,11 +120,15 @@ class Store:
                 expected_id = row[0]
                 if value.get("id") != expected_id:
                     raise ValueError("Backup record identity does not match its row.")
+                if table in ("chats", "runs") and (not isinstance(expected_id, str) or expected_id.startswith("tmp_")):
+                    raise ValueError("Backup contains a reserved temporary identifier.")
                 if table in ("messages", "runs") and value.get("chat_id") != row[1]:
                     raise ValueError("Backup record identity does not match its row.")
                 if any(field not in value for field in fields):
                     raise ValueError("Backup contains incomplete record data.")
                 if table == "chats":
+                    if "temporary" in value:
+                        raise ValueError("Backup contains reserved temporary chat metadata.")
                     if not isinstance(value["title"], str):
                         raise ValueError("Backup contains invalid record data.")
                 elif table == "messages":
@@ -269,7 +276,7 @@ class Store:
 
     def create_chat(self, values):
         now = time.time()
-        chat = dict(id=identity(), title=values.get("title", "New conversation"), folder=values.get("folder", ""),
+        chat = dict(id=self.id_prefix + identity(), title=values.get("title", "New conversation"), folder=values.get("folder", ""),
                     pinned=False, archived=False, created=now, updated=now, active_leaf=None, settings=values.get("settings", {}))
         with self.lock, self.db:
             self.db.execute("INSERT INTO chats VALUES(?,?)", (chat["id"], encoded(chat)))
@@ -282,9 +289,13 @@ class Store:
                         runs=[json.loads(r[0]) for r in self.db.execute("SELECT data FROM runs WHERE chat=? ORDER BY rowid", (key,))])
 
     def _idle(self, key):
-        if any(json.loads(r[0])["status"] in ("running", "approval") for r in
-               self.db.execute("SELECT data FROM runs WHERE chat=?", (key,))):
-            raise ValueError("Stop the active reply before changing this conversation.")
+        updated = 0
+        for row in self.db.execute("SELECT data FROM runs WHERE chat=?", (key,)):
+            run = json.loads(row[0])
+            if run["status"] in ("running", "approval"):
+                raise ValueError("Stop the active reply before changing this conversation.")
+            updated = max(updated, run["updated"])
+        return updated
 
     def update_chat(self, key, values):
         with self.lock, self.db:
@@ -325,7 +336,7 @@ class Store:
                 raise ValueError("The parent belongs to another conversation.")
             if body.get("regenerate") and (not parent or self.message(parent)["role"] != "user"):
                 raise ValueError("Regeneration needs a user message.")
-            rid, now = identity(), time.time()
+            rid, now = self.id_prefix + identity(), time.time()
             run = dict(id=rid, chat_id=chat_id, status="running", message_id=None, created=now,
                        updated=now, error=None, last_seq=0, settings=settings)
             self.db.execute("INSERT INTO runs VALUES(?,?,?)", (rid, chat_id, encoded(run)))

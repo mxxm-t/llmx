@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## Chat menus and temporary conversations (2026-11-15, Done)
+
+**Goal.** Each sidebar conversation has its own actions. Temporary chats use memory only and stay out of saved history and backups.
+
+**Done.** Per-row rename, pin, folder, archive, export and delete reuse the existing actions without changing the selected chat. Temporary chat uses the existing Store and Engine behind a bounded memory-only owner, with a one-hour idle expiry and 16-chat cap. It disables tools server-side, survives a page reload through a tab-only identifier, and is discarded on explicit exit or service restart. Durable backup validation rejects the temporary namespace and marker.
+
+**Checks.** 62 companion backend checks passed before the final restore-namespace guard; its focused store and temporary checks then passed 18 cases. The browser check passes sidebar actions on unselected rows, mobile pointer interactions, temporary generation/reload/discard, missing IDs, responsive layout and existing workspace flows. Screenshots were reviewed. This is standalone companion behavior, not inference code; no numerical or inference performance gates apply.
+
+The first hosted run, [43709634310](https://github.com/mxxm-t/llmx/actions/runs/43709634310), passed Windows; Linux exposed the browser clicking Temporary chat while a new saved chat was still opening. Both creation buttons now expose a disabled/busy state through that transition, and the browser waits for that real readiness signal. The two buttons share label alignment, height and typography and are visible during initialization. New empty chats use the actual create response instead of fetching the same empty snapshot again. Focused browser checks pass with these corrections. [Run 43710128023](https://github.com/mxxm-t/llmx/actions/runs/43710128023) passed Windows and exposed an existing browser-test race: a completed workspace job is rendered before its subsequent file-list refresh. The test now awaits that refresh as well as completion. Temporary controls and the composer retain dashed borders, and their rendered alignment is checked.
+
+**Qualification.** [Hosted run 43710792654](https://github.com/mxxm-t/llmx/actions/runs/43710792654) passed Windows and Linux on source/test tree abfbf3350. Only this qualification record changes after that tested tree. Final Markdown and dead-code checks cover the landing tree. The feature lands by fast-forward as one commit on main 2e54a6ebd. The local application at port 8183 connects to a six-thread CPU Qwen3-0.6B Q8 server at port 8091; its real tool test completed one workspace_list call and a final answer. The 0.8B comparison repeated calls and was stopped, not treated as a pass. Process receipts are under ignored scratch/chat-ui-browser.
+
+**Gotchas.** Temporary is a companion history option, not anonymous inference. The upstream can retain logs or caches. Workspace state remains independent. Closing a tab leaves its memory-only conversation until idle expiry; changing to another chat discards it after confirmation. The feature lands as one commit by fast-forward after the applicable checks pass.
+
 ## Chat light theme (2026-11-15, Done)
 
 Monitor panels, topology, lookup storage, labels and existing chart strokes now use the shared theme palette. Light mode no longer mixes dark cards with the light page. Five reusable palette roles replace fixed colors, with readable light accents and the dark gradient retained. Workspace console warnings use the same amber token.

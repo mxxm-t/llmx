@@ -6,7 +6,7 @@
   const $ = id => document.getElementById(id);
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
-  let toastTimer, creatingChat = false;
+  let toastTimer, creatingChat = false, menuId = null;
   const objectIds = new WeakMap(); let nextObjectId = 0;
   function identity(value) { if (!value || typeof value !== 'object') return value; if (!objectIds.has(value)) objectIds.set(value, ++nextObjectId); return objectIds.get(value); }
   function messageKey(m, text = false) { return [m.id, m.role, m.status, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
@@ -31,7 +31,7 @@
       if (!input.checkValidity() || input.value.trim() === '') throw new Error('Check the ' + key.replaceAll('_', ' ') + ' setting.');
       value[key] = Number(input.value);
     }
-    value.tools = Array.from($('tool-settings').querySelectorAll('input:checked')).map(el => el.value);
+    value.tools = S.chat?.temporary ? [] : Array.from($('tool-settings').querySelectorAll('input:checked')).map(el => el.value);
     return value;
   }
   function loadSettings() {
@@ -45,6 +45,7 @@
     const defaults = {system: '', temperature: 0.7, top_p: 0.95, top_k: 40, max_tokens: 4096};
     Object.keys(defaults).forEach(key => { $('setting-' + key).value = value[key] ?? defaults[key]; });
     $('tool-settings').replaceChildren();
+    if (S.chat?.temporary) { $('tool-settings').append(node('p', 'muted fine-print', 'Tools are disabled in temporary chats.')); return; }
     (S.config.tools || []).forEach(tool => {
       const label = node('label', 'tool-setting'); const input = node('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = (value.tools || []).includes(tool.name);
       const detail = node('span', '', tool.name); detail.append(node('small', '', tool.description || tool.server || 'Connected tool')); label.append(input, detail); $('tool-settings').append(label);
@@ -66,32 +67,80 @@
         if (S.chat?.id === chat.id) button.setAttribute('aria-current', 'page');
         button.append(node('span', 'chat-glyph', '#'), node('span', 'chat-name', chat.title || 'Untitled conversation'));
         if (chat.pinned) button.append(node('span', 'pin-mark', '*'));
-        out.append(button);
+        const row = node('div', 'chat-row');
+        const menu = node('button', 'chat-row-menu', '...'); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
+        menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'dialog'); menu.title = 'Conversation actions';
+        row.append(button, menu); out.append(row);
       });
     });
     if (!chats.length) out.append(node('p', 'empty-history', search ? 'No matching conversations.' : S.archive ? 'Your archive is empty.' : 'Your next good idea starts here. Create a conversation to get going.'));
     $('archive-toggle').textContent = S.archive ? 'Back to chats' : 'Show archive';
   }
-  async function openChat(id) {
+  async function openChat(id, snapshot = null) {
+    if (S.chat?.temporary && S.chat.id !== id && !await leaveTemporary()) return;
     const generation = ++S.generation; closeStream(); banner(configurationWarning());
-    const data = await api('/chats/' + encodeURIComponent(id)); if (generation !== S.generation) return;
+    const data = snapshot || await api('/chats/' + encodeURIComponent(id)); if (generation !== S.generation) return;
     S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; S.edit = null; S.fingerprint.clear(); S.inspectorKey = '';
     snapshotBanner();
     S.searchText.set(id, S.messages.map(m => m.content || '').join(' '));
     S.attachments = []; $('draft').value = ''; resizeDraft(); renderAttachments(); $('edit-note').hidden = true;
-    localStorage.setItem('llmx-chat', id); loadSettings(); renderSidebar(); render(); closeDrawers();
+    if (S.chat.temporary) sessionStorage.setItem('llmx-temporary-chat', id); else localStorage.setItem('llmx-chat', id);
+    loadSettings(); renderSidebar(); render(); closeDrawers();
     requestAnimationFrame(() => bottom());
     const run = currentRun(); if (run) subscribe(run);
   }
+  function chatCreating(value) {
+    creatingChat = value;
+    document.querySelectorAll('[data-action="new"],[data-action="temporary"]').forEach(control => { control.disabled = value; control.setAttribute('aria-busy', String(value)); });
+  }
   async function newChat() {
     if (creatingChat || S.busy) return;
-    if (S.chat && !S.chat.archived && !S.messages.length && !S.runs.length) {
+    if (S.chat && !S.chat.temporary && !S.chat.archived && !S.messages.length && !S.runs.length) {
       closeDrawers(); $('draft').focus(); return;
     }
-    creatingChat = true;
+    chatCreating(true);
     try {
-      const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats(); await openChat(chat.id); $('draft').focus();
-    } finally { creatingChat = false; }
+      if (S.chat?.temporary && !await leaveTemporary()) return;
+      const chat = await api('/chats', 'POST', {settings: settings()}); await refreshChats(); await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
+    } finally { chatCreating(false); }
+  }
+  function clearChat() {
+    const old = S.chat; closeStream(); ++S.generation;
+    if (old?.temporary) sessionStorage.removeItem('llmx-temporary-chat'); else localStorage.removeItem('llmx-chat');
+    if (old) S.searchText.delete(old.id);
+    S.chat = null; S.messages = []; S.runs = []; S.edit = null; S.attachments = []; S.fingerprint.clear(); S.inspectorKey = '';
+    $('draft').value = ''; $('edit-note').hidden = true; resizeDraft(); renderAttachments(); loadSettings(); render();
+  }
+  async function leaveTemporary() {
+    if (!S.chat?.temporary) return true;
+    if (currentRun() || S.busy) throw new Error('Stop the response before ending this temporary chat.');
+    if ((S.messages.length || $('draft').value.trim() || S.attachments.length) && !confirm('End this temporary chat? Its messages will be discarded.')) return false;
+    try { await api('/chats/' + encodeURIComponent(S.chat.id), 'DELETE'); }
+    catch (error) { if (error.status !== 404) throw error; }
+    clearChat(); await refreshChats(); return true;
+  }
+  async function temporaryChat() {
+    if (creatingChat || S.busy) return;
+    if (!S.config.temporary?.enabled) throw new Error('Temporary chats are unavailable on this server.');
+    if (S.chat?.temporary) { closeDrawers(); $('draft').focus(); return; }
+    chatCreating(true);
+    try {
+      const values = settings(); values.tools = [];
+      const chat = await api('/chats', 'POST', {temporary: true, settings: values});
+      await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
+    } finally { chatCreating(false); }
+  }
+  function showChatMenu(id) {
+    const chat = S.chats.find(item => item.id === id) || (S.chat?.id === id ? S.chat : null);
+    if (!chat) throw new Error('Create a conversation to manage it.');
+    menuId = chat.id;
+    $('action-dialog-title').textContent = chat.temporary ? 'Temporary chat' : chat.title || 'Conversation';
+    for (const name of ['pin', 'folder', 'archive']) $('action-dialog').querySelector('[data-action="' + name + '"]').hidden = Boolean(chat.temporary);
+    $('action-dialog').querySelector('[data-action="pin"]').textContent = chat.pinned ? 'Unpin' : 'Pin';
+    $('action-dialog').querySelector('[data-action="archive"]').textContent = chat.archived ? 'Restore from archive' : 'Archive';
+    $('action-dialog').querySelector('[data-action="delete"]').textContent = chat.temporary ? 'End temporary chat' : 'Delete';
+    $('action-dialog').showModal();
+    $('action-dialog').querySelector('[data-action="rename"]').focus();
   }
   function path() {
     const map = new Map(S.messages.map(m => [m.id, m])); const selected = []; const seen = new Set();
@@ -183,6 +232,10 @@
     if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', '', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'run-elapsed')); container.append(live); }
     $('welcome').hidden = selected.length > 0; $('messages').hidden = selected.length === 0 && !run;
     $('chat-title').textContent = S.chat?.title || 'New conversation';
+    $('temporary-notice').hidden = !S.chat?.temporary;
+    $('app').dataset.temporary = String(Boolean(S.chat?.temporary));
+    const lifetime = S.config.temporary?.ttl_seconds;
+    $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
     $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || !S.config.upstream_available;
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
     renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
@@ -297,9 +350,11 @@
     await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {regenerate: true, parent_id: message.id, settings: settings()});
     await syncSnapshot(chatId); const run = currentRun(); if (run) subscribe(run); bottom();
   }
-  async function patchChat(changes) {
-    if (!S.chat) return;
-    const chatId = S.chat.id; await api('/chats/' + encodeURIComponent(chatId), 'PATCH', changes); await syncSnapshot(chatId); await refreshChats();
+  async function patchChat(changes, chatId = S.chat?.id) {
+    if (!chatId) return;
+    await api('/chats/' + encodeURIComponent(chatId), 'PATCH', changes);
+    if (S.chat?.id === chatId) await syncSnapshot(chatId);
+    await refreshChats();
   }
   async function branch(id) {
     if (currentRun()) throw new Error('Stop the current response before changing branches.');
@@ -332,6 +387,8 @@
   async function action(name, el) {
     if (name !== 'chat-menu' && $('action-dialog').open) $('action-dialog').close();
     if (name === 'new') return newChat();
+    if (name === 'temporary') return temporaryChat();
+    if (name === 'end-temporary') return leaveTemporary();
     if (name === 'sidebar') { $('app').classList.toggle('sidebar-open'); updateShade(); return; }
     if (name === 'close-drawers') return closeDrawers();
     if (name === 'inspector' || name === 'settings') { if (name === 'settings') { $('app').classList.remove('inspector-closed'); showTab('settings'); } else $('app').classList.toggle('inspector-closed'); updateShade(); return; }
@@ -344,15 +401,26 @@
     if (name === 'logout') { await api('/logout', 'POST', {}); closeStream(); location.reload(); return; }
     if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; renderAttachments(); resizeDraft(); return; }
     if (name === 'save-settings') { if (S.chat) await patchChat({settings: settings()}); toast('Settings saved for the next response.'); return; }
-    if (name === 'chat-menu') { if (!S.chat) throw new Error('Create a conversation to manage it.'); $('action-dialog').showModal(); return; }
+    if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id);
+    if (['rename', 'pin', 'archive', 'folder', 'delete', 'export'].includes(name)) {
+      const chat = S.chats.find(item => item.id === menuId) || (S.chat?.id === menuId ? S.chat : null);
+      if (!chat) throw new Error('This conversation is no longer available.');
+      if (name === 'rename') { const title = prompt('Conversation name', chat.title); if (title?.trim()) await patchChat({title: title.trim()}, chat.id); }
+      if (name === 'pin') await patchChat({pinned: !chat.pinned}, chat.id);
+      if (name === 'archive') await patchChat({archived: !chat.archived}, chat.id);
+      if (name === 'folder') { const folder = prompt('Folder name (leave empty for no folder)', chat.folder || ''); if (folder !== null) await patchChat({folder: folder.trim()}, chat.id); }
+      if (name === 'delete') {
+        if (chat.temporary) return leaveTemporary();
+        if (confirm('Delete "' + chat.title + '" and all its branches? This cannot be undone.')) {
+          await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
+          S.searchText.delete(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
+        }
+      }
+      if (name === 'export') { const response = await fetch('/api/chats/' + encodeURIComponent(chat.id) + '/export'); if (!response.ok) throw new Error('Export failed.'); const url = URL.createObjectURL(await response.blob()); const a = node('a'); a.href = url; a.download = (chat.title || 'conversation').replace(/[^a-z0-9_-]/gi, '_') + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      return;
+    }
     if (!S.chat) return;
     if (name === 'stop') { const run = currentRun(); if (run) { await api('/runs/' + encodeURIComponent(run.id) + '/cancel', 'POST', {}); toast('Stop requested.'); } }
-    if (name === 'rename') { const title = prompt('Conversation name', S.chat.title); if (title?.trim()) await patchChat({title: title.trim()}); }
-    if (name === 'pin') await patchChat({pinned: !S.chat.pinned});
-    if (name === 'archive') await patchChat({archived: !S.chat.archived});
-    if (name === 'folder') { const folder = prompt('Folder name (leave empty for no folder)', S.chat.folder || ''); if (folder !== null) await patchChat({folder: folder.trim()}); }
-    if (name === 'delete' && confirm('Delete this conversation and all its branches? This cannot be undone.')) { await api('/chats/' + encodeURIComponent(S.chat.id), 'DELETE'); closeStream(); S.chat = null; S.messages = []; S.runs = []; localStorage.removeItem('llmx-chat'); await refreshChats(); render(); }
-    if (name === 'export') { const response = await fetch('/api/chats/' + encodeURIComponent(S.chat.id) + '/export'); if (!response.ok) throw new Error('Export failed.'); const url = URL.createObjectURL(await response.blob()); const a = node('a'); a.href = url; a.download = (S.chat.title || 'conversation').replace(/[^a-z0-9_-]/gi, '_') + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
     if (name === 'copy') { const message = S.messages.find(m => m.id === el.dataset.id); await navigator.clipboard.writeText(message.content || ''); toast('Message copied.'); }
     if (name === 'edit') { if (currentRun()) throw new Error('Stop the current response before editing.'); const message = S.messages.find(m => m.id === el.dataset.id); S.edit = message; $('draft').value = message.content || ''; S.attachments = [...(message.attachments || [])]; renderAttachments(); $('edit-note').hidden = false; resizeDraft(); $('draft').focus(); }
     if (name === 'retry') await retry(el.dataset.id);
@@ -360,6 +428,7 @@
     if (name === 'approve' || name === 'deny') { await api('/runs/' + encodeURIComponent(el.dataset.run || currentRun()?.id) + '/approve', 'POST', {call_id: el.dataset.id, allow: name === 'approve', remember: el.closest('.approval').querySelector('.remember-approval').checked}); el.closest('.approval').querySelectorAll('button').forEach(b => { b.disabled = true; }); }
   }
   async function initialize() {
+    chatCreating(true);
     try {
       const session = await api('/session'); $('logout-button').hidden = !session.password_required;
       if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
@@ -367,9 +436,16 @@
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
       if (S.config.tools_error) banner([S.config.upstream_error, 'Tools unavailable: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();
+      $('temporary-button').hidden = !S.config.temporary?.enabled;
+      const temporary = sessionStorage.getItem('llmx-temporary-chat');
+      if (temporary) {
+        try { await openChat(temporary); return; }
+        catch (error) { if (error.status !== 404) throw error; sessionStorage.removeItem('llmx-temporary-chat'); toast('Your temporary chat has ended or expired.'); }
+      }
       const previous = localStorage.getItem('llmx-chat');
       if (previous && S.chats.some(c => c.id === previous)) await openChat(previous); else render();
     } catch (error) { connection('Offline', true); banner(error.message + ' Reload the page to reconnect.'); }
+    finally { chatCreating(false); }
   }
   document.addEventListener('click', event => {
     const el = event.target.closest('[data-action],[data-chat],[data-tab],[data-prompt]'); if (!el) return;

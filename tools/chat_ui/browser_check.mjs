@@ -583,6 +583,7 @@ try {
   }
   await click('#drawer-shade');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
+  await wait("document.documentElement.dataset.compact==='false' && getComputedStyle(document.querySelector('.sidebar')).visibility==='visible'", 'wide sidebar restored');
   await pointerClick(targetMenu);
   assert.equal(await evaluate("document.querySelector('#action-menu-title').textContent"), 'Sidebar target');
   await click('#action-menu [data-action="rename"]');

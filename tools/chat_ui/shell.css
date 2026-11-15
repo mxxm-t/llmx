@@ -985,6 +985,15 @@
   background: var(--surface);
   color: var(--text);
 }
+.chat-row:not(.active):focus-within {
+  background: var(--hover);
+  border-radius: 8px;
+}
+.chat-row:not(.active):focus-within .chat-item,
+.chat-row:not(.active):focus-within .chat-row-menu {
+  background: transparent;
+  color: var(--text);
+}
 .chat-row-menu:focus-visible {
   position: relative;
   z-index: 1;

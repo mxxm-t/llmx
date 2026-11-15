@@ -1,12 +1,14 @@
 # llmx - Development Status
 
-## Chat sidebar keyboard focus fill (2026-11-16, in progress)
+## Chat sidebar keyboard focus fill (2026-11-16, Done)
 
 **Goal.** Keep keyboard focus on a chat row visually consistent with its active and hover shapes at narrow and wide widths and across themes.
 
-**Done.** Baseline browser check at `bd876444` did not reproduce an active/hover size mismatch: both states measure 223 by 42 px, with a 187 px chat button and a contiguous 36 px menu button. Pixel samples at both row edges match in light and dark themes. A new focus regression fails on the baseline: its pixels show the surface color where the full row should use the selected color.
+**Done.** Baseline browser check at `bd876444` did not reproduce the reported active/hover size mismatch. The measured row is 223 by 42 px, split into a 187 px chat button and a contiguous 36 px menu button. Active and hover edge pixels match in both themes. The new keyboard-focus pixel regression failed on the baseline: all four samples were `rgb(232, 238, 245)` while the selected row color was `rgb(220, 232, 241)`. The focused CSS change paints the unselected row and clears its child fills; it adds no size or spacing rules and keeps the same 8 px outer corner radius.
 
-**Left.** Make focus paint cover the full row; pass the focused browser check on desktop and narrow layouts in light and dark themes; run syntax, docs and dead-code checks.
+**Results.** The focused browser check passes on desktop and at 390 px width in light and dark themes (35.032 s after the corner-radius review fix). Node syntax checks pass. `python tests/run_tests.py --only docs,dead-code --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/chat-batch-landed-20261115/llmx.exe` passes: docs 0 findings/21 planted checks; dead-code 15 expected findings/20 planted checks. The exact-base executable is `0.1.0+gbd876444b581` (SHA256 `d234f622ec16e4dc94e87f7a27391c08a4cc76d245ef3379a92901b5f3a5b56a`). Screenshots are `scratch/chat-ui-browser/sidebar-chat-row-focus-desktop.png` and `scratch/chat-ui-browser/sidebar-chat-row-focus-mobile.png`.
+
+**Review and landing.** Root review confirmed the static-only scope and added the matching 8 px parent radius so keyboard focus keeps the rounded shape. This change lands by fast-forward after its focused browser, syntax, docs and dead-code checks pass. The existing main Markdown audit is carried forward for unchanged runtime/build/CLI pages; the changed sidebar contract and STATUS were checked against the source. No collector, API, server or runtime code changes, so inference gates and unrelated hosted jobs do not apply. The original pointer-hover size mismatch remains unreproduced and is separate from this keyboard-focus correction.
 
 **Gotchas.** Sidebar markup is emitted by `tools/chat_ui/app.js`; layout is in `tools/chat_ui/shell.css`; `.chat-item` states are in `tools/chat_ui/app.css`. Do not alter `browser_check.mjs`'s Chrome launch block.
 

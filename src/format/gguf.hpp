@@ -446,6 +446,8 @@ inline uint64_t read_header(Reader& reader, GGUFModel& m) {
         reader.read((char*)&t.offset, 8);
         m.tensors.push_back(std::move(t));
     }
+    // A file of metadata alone may end at its header, before the padding to a data section it does not have.
+    if (m.tensors.empty()) return reader.position();
     const uint64_t data_start = aligned_size(reader.position(), alignment);
     if (data_start > reader.size()) throw std::ios_base::failure("GGUF data section exceeds file extent");
     const uint64_t available = reader.size() - data_start;

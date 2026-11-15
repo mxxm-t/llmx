@@ -21,7 +21,9 @@ const pending = new Map();
 const errors = [];
 const runStreams = [];
 let heldMonitorLoad = null;
+let heldRestoreRequest = null;
 const nativeDialogs = [];
+const apiMutations = [];
 async function cdp(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
@@ -66,6 +68,7 @@ async function reloadDocument() {
   const previous = await documentIdentity(); await cdp('Page.reload'); await waitForDocument(previous, 'reload');
 }
 const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+const closeAction = selector => evaluate(`new Promise(resolve=>{const dialog=document.querySelector('#action-dialog');dialog.addEventListener('close',()=>resolve(true),{once:true});document.querySelector(${JSON.stringify(selector)}).click();})`);
 async function pointerClick(selector) {
   const point = await evaluate(`{const e=document.querySelector(${JSON.stringify(selector)});e.scrollIntoView({block:'nearest'});const r=e.getBoundingClientRect();const x=r.x+r.width/2,y=r.y+r.height/2;const hit=document.elementFromPoint(x,y);({x,y,hit:e.contains(hit),target:hit?.outerHTML.slice(0,200),classes:document.querySelector('#app').className,sidebar:document.querySelector('#sidebar').getBoundingClientRect().toJSON(),transform:getComputedStyle(document.querySelector('#sidebar')).transform,viewport:{x:visualViewport.offsetLeft,y:visualViewport.offsetTop,width:visualViewport.width},rootScroll:document.documentElement.scrollLeft,main:document.querySelector('.main').getBoundingClientRect().toJSON()})}`);
   assert(point.hit, 'Pointer blocked for '+selector+': '+JSON.stringify(point));
@@ -106,7 +109,11 @@ try {
     if (data.id && pending.has(data.id)) { const call = pending.get(data.id); pending.delete(data.id); clearTimeout(call.timeout); if (data.error) call.reject(new Error(JSON.stringify(data.error))); else call.resolve(data.result); }
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
-    if (data.method === 'Fetch.requestPaused') heldMonitorLoad = data.params.requestId;
+    if (data.method === 'Network.requestWillBeSent' && data.params.request.method !== 'GET') apiMutations.push({url: data.params.request.url, method: data.params.request.method});
+    if (data.method === 'Fetch.requestPaused') {
+      if (data.params.request.url.endsWith('/api/restore')) heldRestoreRequest = data.params.requestId;
+      else heldMonitorLoad = data.params.requestId;
+    }
     if (data.method === 'Page.javascriptDialogOpening') { nativeDialogs.push(data.params.type); cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {}); }
   };
   await cdp('Page.enable'); await cdp('Runtime.enable'); await cdp('DOM.enable'); await cdp('Network.enable');
@@ -252,7 +259,7 @@ try {
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="pin"]');
   await wait("document.querySelector('.chat-item.active .pin-mark')!==null", 'pin conversation');
   await click('.topbar [data-action="chat-menu"]'); await click('[data-action="folder"]');
-  await fill('#conversation-value', 'Research'); await click('#conversation-submit');
+  await fill('#conversation-value', 'Research'); await closeAction('#conversation-submit');
   await wait("fetch('/api/chats/'+localStorage.getItem('llmx-chat')).then(r=>r.json()).then(d=>d.chat.folder==='Research')", 'persisted folder mutation');
   await send('Trigger a failed upstream response.');
   await wait("document.querySelector('#stop').hidden && !document.querySelector('#banner').hidden", 'upstream failure banner');
@@ -290,7 +297,7 @@ try {
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2});
   await wait("document.querySelectorAll('.message').length===0 && !document.querySelector('#welcome').hidden", 'keyboard new conversation');
-  await click('.topbar [data-action="chat-menu"]'); await click('[data-action="delete"]'); await click('#conversation-submit');
+  await click('.topbar [data-action="chat-menu"]'); await click('[data-action="delete"]'); await closeAction('#conversation-submit');
   await wait("document.querySelector('#chat-title').textContent==='New conversation'", 'confirmed delete');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
   const createGeometry = await evaluate(`Array.from(document.querySelectorAll('.new-chat')).map(button => {
@@ -314,7 +321,7 @@ try {
   await click('#action-menu [data-action="rename"]');
   await wait("document.querySelector('#action-dialog').open", 'styled rename dialog');
   assert.equal(await evaluate("document.activeElement.id"), 'conversation-value');
-  await fill('#conversation-value', 'Research'); await click('#conversation-submit');
+  await fill('#conversation-value', 'Research'); await closeAction('#conversation-submit');
   await wait(`document.querySelector('[data-chat="${sidebarTarget}"] .chat-name').textContent==='Research'`, 'rename unselected sidebar chat');
   assert.equal(await evaluate("document.querySelector('.chat-item.active').dataset.chat"), selectedBeforeMenu, 'menu switched the active chat');
   await wait(`document.activeElement?.dataset.id===${JSON.stringify(sidebarTarget)}`, 'rename restores focus to refreshed row');
@@ -332,12 +339,12 @@ try {
   assert.equal(await evaluate("document.querySelector('#action-menu').matches(':popover-open')"), false, 'outside click did not close menu');
   await pointerClick(targetMenu); await click('#action-menu [data-action="folder"]');
   assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 200, 'folder maximum differs from server');
-  await fill('#conversation-value', 'Projects'); await click('#conversation-submit');
+  await fill('#conversation-value', 'Projects'); await closeAction('#conversation-submit');
   await wait(`document.querySelector('#chat-list').textContent.includes('Projects')`, 'move target to folder');
   await pointerClick(targetMenu); await click('#action-menu [data-action="rename"]');
   assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 200, 'rename maximum differs from server');
   const maximumTitle = 'R'.repeat(200);
-  await fill('#conversation-value', maximumTitle); await click('#conversation-submit');
+  await fill('#conversation-value', maximumTitle); await closeAction('#conversation-submit');
   await wait(`document.querySelector('[data-chat="${sidebarTarget}"] .chat-name').textContent===${JSON.stringify(maximumTitle)}`, 'maximum-length original title');
   const countBeforeDuplicate = await evaluate("document.querySelectorAll('.chat-row').length");
   await pointerClick(targetMenu); await click('#action-menu [data-action="duplicate"]');
@@ -362,10 +369,10 @@ try {
   await click('#action-menu [data-action="rename"]'); await fill('#conversation-value', '   ');
   await evaluate("document.querySelector('#conversation-form').requestSubmit()");
   assert.equal(await evaluate("document.querySelector('#conversation-value').validity.customError"), true);
-  await click('#conversation-cancel'); await pointerClick(targetMenu);
+  await closeAction('#conversation-cancel'); await pointerClick(targetMenu);
   await click('#action-menu [data-action="delete"]');
   assert.equal(await evaluate("document.querySelector('#conversation-value').disabled && !document.querySelector('#conversation-value').validity.customError"), true, 'delete retained invalid rename state');
-  await wait("document.querySelector('#action-dialog').open", 'styled delete dialog'); await click('#conversation-submit');
+  await wait("document.querySelector('#action-dialog').open", 'styled delete dialog'); await closeAction('#conversation-submit');
   await wait(`document.querySelector('[data-chat="${sidebarTarget}"]')===null`, 'delete target from mobile sidebar');
   assert.equal(await evaluate("document.querySelector('.chat-item.active').dataset.chat"), selectedBeforeMenu);
   await click('[data-action="close-drawers"]');
@@ -441,22 +448,71 @@ try {
   let backup; for(let i=0;i<30;i++){try{backup=await readFile(backupFile);if(backup.length)break;}catch{}await delay(100);}
   assert(backup?.subarray(0,16).toString().startsWith('SQLite format 3'), 'backup is not SQLite');
   const invalidBackup = path.join(profile, 'invalid.sqlite3'); await writeFile(invalidBackup, 'Invalid backup');
+  await cdp('Fetch.enable', {patterns: [{urlPattern: new URL('/api/restore', url).href}]});
   await upload('#backup-file', invalidBackup);
-  await wait("document.querySelector('#backup-status').classList.contains('error-text')", 'invalid backup error');
+  await wait("document.querySelector('#action-dialog').open", 'invalid backup confirmation');
+  await pointerClick('#conversation-submit');
+  await wait(() => heldRestoreRequest !== null, 'held backup restore request');
+  await evaluate("window.restoreCancelProbe=[];document.querySelector('#action-dialog').addEventListener('cancel',e=>restoreCancelProbe.push({cancelable:e.cancelable,prevented:e.defaultPrevented,busy:document.querySelector('#conversation-submit').disabled}),{once:true})");
+  assert.equal(await evaluate("document.querySelector('#conversation-submit').disabled && document.querySelector('#conversation-cancel').disabled && document.querySelector('#conversation-submit').getAttribute('aria-busy')==='true'"), true, 'restore dialog is not busy during its request');
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  assert.equal(await evaluate("document.querySelector('#action-dialog').open"), true, 'Escape closed a busy restore dialog: '+JSON.stringify(await evaluate('restoreCancelProbe')));
+  await cdp('Fetch.continueRequest', {requestId: heldRestoreRequest}); await cdp('Fetch.disable');
+  await wait("document.querySelector('#backup-status').classList.contains('error-text') && document.querySelector('#conversation-error').textContent.length>0 && !document.querySelector('#conversation-cancel').disabled", 'invalid backup error');
+  await closeAction('#conversation-cancel');
+  await upload('#backup-file', backupFile);
+  await wait("document.querySelector('#action-dialog').open", 'backup restore dialog');
+  const cancelledRestoreMutations = apiMutations.filter(item => item.url.endsWith('/api/restore')).length;
+  await closeAction('#conversation-cancel');
+  assert.equal(await evaluate("document.querySelector('#action-dialog').open"), false, 'cancel did not close backup restore dialog');
+  assert.equal(apiMutations.filter(item => item.url.endsWith('/api/restore')).length, cancelledRestoreMutations, 'cancelled backup restore sent a request');
   const beforeRestore = await documentIdentity(); await upload('#backup-file', backupFile);
+  await wait("document.querySelector('#action-dialog').open", 'confirmed backup restore dialog');
+  await click('#conversation-submit');
   await waitForDocument(beforeRestore, 'backup restore');
   await wait("document.querySelector('#app').dataset.view==='chat' && window.ChatShell && window.ChatShell.config!==null", 'backup restore reload');
   await click('.global-nav [data-view="workbench"]');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision 0'", 'workspace load');
+  const modalOwner = await evaluate("(async()=>{const first=window.ChatShell.conversationForm({title:'Dialog owner probe',label:'Name',value:'first'});document.querySelector('#action-dialog').close();const second=window.ChatShell.conversationForm({title:'Overlapping form',label:'Name',value:'second'});await first;return {settled:true,secondAccepted:(await second)!==undefined};})()");
+  assert.deepEqual(modalOwner, {settled: true, secondAccepted: false}, 'shared dialog allowed overlapping ownership');
   await click('.workbench-view .primary-button');
   await wait("document.querySelector('#action-dialog').open", 'accessible new-file dialog', 700);
   assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'New workspace file');
-  await click('#conversation-cancel');
+  assert.equal(await evaluate("document.activeElement.id"), 'conversation-value', 'new-file dialog did not focus its field');
+  await screenshot('studio-new-file-dialog-desktop.png');
+  const longestWorkspacePath = 'p'.repeat(236) + '.txt';
+  await cdp('Input.insertText', {text: longestWorkspacePath});
+  assert.equal(await evaluate("document.querySelector('#conversation-value').value"), longestWorkspacePath, 'new-file field shortened a valid 240-character path');
+  const escapedForm = evaluate("new Promise(resolve=>document.querySelector('#action-dialog').addEventListener('close',()=>resolve(true),{once:true}))");
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27});
+  await escapedForm;
+  assert.equal(await evaluate("document.querySelector('#action-dialog').open"), false, 'Escape cancels new-file dialog');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), '', 'cancel changed editor contents');
   await click('.workbench-view .primary-button');
+  await wait("document.querySelector('#action-dialog').open", 'reopened new-file dialog');
+  await fill('#conversation-value', 'Research'); await closeAction('#conversation-submit');
+  await wait("!document.querySelector('#action-dialog').open && !document.querySelector('#workspace-editor').disabled && document.querySelector('.workspace-file-path').textContent==='Research'", 'new workspace file ready');
   await fill('#workspace-editor', 'first version\n'); await click('#workspace-save');
   await wait("document.querySelector('.workspace-file-name')?.textContent==='Research' && document.querySelector('#workspace-save').disabled", 'workspace file save');
   await click('[aria-label="Create checkpoint"]');
+  await wait("document.querySelector('#action-dialog').open", 'checkpoint label dialog');
+  assert.equal(await evaluate("document.querySelector('#conversation-value').maxLength"), 120, 'checkpoint field exceeds server limit');
+  const checkpointMutations = apiMutations.filter(item => item.url.endsWith('/api/workspace/checkpoints')).length;
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/checkpoints')).length, checkpointMutations, 'cancelled checkpoint creation sent a request');
+  await click('[aria-label="Create checkpoint"]'); await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint label dialog');
+  await fill('#conversation-value', 'Workspace checkpoint'); await closeAction('#conversation-submit');
   await wait("document.querySelectorAll('.workspace-checkpoint').length===1", 'checkpoint creation');
+  const fileWritesBeforeArtifactCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length;
+  await evaluate("document.dispatchEvent(new CustomEvent('companion:artifact-edit',{detail:{name:'generated.py',source:'print(1)'}}))");
+  await wait("document.querySelector('#action-dialog').open", 'generated-file edit dialog');
+  assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'Edit generated file');
+  assert.equal(await evaluate("document.querySelector('#conversation-value').value"), 'generated.py');
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length, fileWritesBeforeArtifactCancel, 'cancelled generated-file edit wrote a file');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'Research', 'cancelled generated-file edit changed the selected file');
   await fill('#workspace-editor', 'second version\n');
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 's', code: 'KeyS', modifiers: 2});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 's', code: 'KeyS', modifiers: 2});
@@ -466,7 +522,17 @@ try {
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes('+second version'));
   assert.equal(await evaluate("document.querySelector('.artifact-source .syntax-add')!==null"), true, 'diff highlighting missing');
   await click('#artifact-dialog [aria-label="Close artifact"]');
-  await click('.checkpoint-actions button:last-child');
+  await evaluate("Array.from(document.querySelectorAll('.workspace-checkpoint')).find(card=>card.querySelector('strong').textContent==='Workspace checkpoint').querySelector('.checkpoint-actions button:last-child').click()");
+  await wait("document.querySelector('#action-dialog').open", 'checkpoint restore dialog');
+  assert.equal(await evaluate("document.activeElement.id"), 'conversation-cancel', 'confirmation dialog did not focus its safe action');
+  const checkpointRestoreMutations = apiMutations.filter(item => item.url.includes('/api/workspace/checkpoints/') && item.url.endsWith('/restore')).length;
+  const checkpointEditorBeforeCancel = await evaluate("document.querySelector('#workspace-editor').value");
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.url.includes('/api/workspace/checkpoints/') && item.url.endsWith('/restore')).length, checkpointRestoreMutations, 'cancelled checkpoint restore sent a request');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), checkpointEditorBeforeCancel, 'cancelled checkpoint restore changed the editor');
+  await evaluate("Array.from(document.querySelectorAll('.workspace-checkpoint')).find(card=>card.querySelector('strong').textContent==='Workspace checkpoint').querySelector('.checkpoint-actions button:last-child').click()");
+  await wait("document.querySelector('#action-dialog').open", 'reopened checkpoint restore dialog');
+  await closeAction('#conversation-submit');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'checkpoint restore');
   await fill('#workspace-editor', 'unsaved local edit');
   await evaluate("fetch('/api/workspace').then(r=>r.json()).then(s=>fetch('/api/workspace/file',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({path:'external.txt',content:'Concurrent change',revision:s.revision})}))");
@@ -474,6 +540,23 @@ try {
   await wait("!document.querySelector('.workspace-error').hidden", 'revision conflict');
   assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'unsaved local edit', 'conflict discarded local text');
   await click('.workspace-file');
+  await wait("document.querySelector('#action-dialog').open", 'unsaved edit confirmation');
+  const unsavedTextBeforeCancel = await evaluate("document.querySelector('#workspace-editor').value");
+  const readsBeforeCancel = apiMutations.filter(item => item.url.includes('/api/workspace/file?')).length;
+  const savesBeforeShortcut = apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length;
+  const chatBeforeShortcut = await evaluate("document.querySelector('.chat-item.active')?.dataset.chat");
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 's', code: 'KeyS', modifiers: 2});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 's', code: 'KeyS', modifiers: 2});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'k', code: 'KeyK', modifiers: 2});
+  await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 'k', code: 'KeyK', modifiers: 2});
+  assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length, savesBeforeShortcut, 'Ctrl+S saved while discard dialog was open');
+  assert.equal(await evaluate("document.querySelector('.chat-item.active')?.dataset.chat"), chatBeforeShortcut, 'Ctrl+K changed chats while a dialog was open');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), unsavedTextBeforeCancel, 'keyboard shortcut changed the dirty buffer');
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.url.includes('/api/workspace/file?')).length, readsBeforeCancel, 'cancelled unsaved edit confirmation opened another file');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), unsavedTextBeforeCancel, 'cancelled unsaved edit confirmation discarded text');
+  await click('.workspace-file'); await wait("document.querySelector('#action-dialog').open", 'reopened unsaved edit confirmation');
+  await closeAction('#conversation-submit');
   await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload after conflict');
   await fill('#workspace-command', 'printf browser-job');
   await evaluate("document.querySelector('.workspace-command').requestSubmit()");
@@ -485,6 +568,12 @@ try {
   await wait("document.querySelector('.workspace-job-status').textContent==='running'", 'cancellable container fixture');
   await evaluate("Array.from(document.querySelectorAll('.workspace-command button')).find(b=>b.textContent==='Stop').click()");
   await wait("document.querySelector('.workspace-job-status').textContent.includes('cancelled')", 'cancelled container fixture');
+  await click('#view-workbench .workspace-editor-actions .danger');
+  await wait("document.querySelector('#action-dialog').open", 'workspace delete dialog');
+  const deletesBeforeCancel = apiMutations.filter(item => item.url.endsWith('/api/workspace/delete')).length;
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/delete')).length, deletesBeforeCancel, 'cancelled workspace delete sent a request');
+  assert.equal(await evaluate("document.querySelector('.workspace-file-list').textContent.includes('Research')"), true, 'cancelled workspace delete removed the file');
   await screenshot('studio-workspace-desktop.png');
   const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await evaluate(`window.ChatArtifacts.open({name:'preview.html',language:'html',source:${JSON.stringify(previewSource)}})`);
@@ -509,6 +598,7 @@ try {
       if(section==='chat')assert.equal(await evaluate("document.querySelector('.composer').getBoundingClientRect().bottom<=innerHeight"), true, 'composer clipped at '+width+'x'+height);
     }
     await screenshot('studio-settings-'+width+'x'+height+'.png');
+    if(width===390){await evaluate("window.ChatShell.show('workbench')");await click('.workbench-view .primary-button');await wait("document.querySelector('#action-dialog').open",'mobile new-file dialog');await screenshot('studio-new-file-dialog-mobile.png');await closeAction('#conversation-cancel');}
     if(width===390 || width===768 || width===1024){await evaluate("window.ChatShell.show('workbench')");await screenshot('studio-workspace-'+width+'x'+height+'.png');}
   }
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
@@ -551,6 +641,13 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
 
   await click('[data-action="new"]');
+  await wait("document.querySelector('#action-dialog').open", 'temporary chat exit confirmation');
+  const temporaryDeletes = apiMutations.filter(item => item.method === 'DELETE' && item.url.includes('/api/chats/' + temporaryId)).length;
+  await closeAction('#conversation-cancel');
+  assert.equal(apiMutations.filter(item => item.method === 'DELETE' && item.url.includes('/api/chats/' + temporaryId)).length, temporaryDeletes, 'cancelled temporary exit sent a delete request');
+  assert.equal(await evaluate("sessionStorage.getItem('llmx-temporary-chat')"), temporaryId, 'cancelled temporary exit discarded the chat');
+  await click('[data-action="new"]'); await wait("document.querySelector('#action-dialog').open", 'reopened temporary chat exit confirmation');
+  await closeAction('#conversation-submit');
   await wait("document.querySelector('#temporary-notice').hidden && sessionStorage.getItem('llmx-temporary-chat')===null", 'leaving discards temporary chat');
   assert.equal(await evaluate(`fetch('/api/chats/${temporaryId}').then(r=>r.status)`), 404, 'temporary transcript retained after exit');
   await wait("!document.querySelector('#temporary-button').disabled && document.querySelector('.chat-item.active')!==null", 'new saved chat finishes before switching again');
@@ -562,6 +659,7 @@ try {
   assert.equal(await evaluate("document.querySelector('#temporary-notice').hidden"), true);
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
+  assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');
   console.log('PASS: chat regressions, shared monitor/theme, code/diff/HTML isolation, workspace/checkpoints/conflicts/jobs, backup/restore, responsive geometry and CSS 200% zoom. Screenshots: ' + artifacts);
   }
 } catch (error) {

@@ -103,6 +103,14 @@ the tab does not guarantee immediate deletion: abandoned idle chats expire after
 one hour, checked once a minute. Active replies remain until stopped or finished.
 A companion restart removes all temporary chats. At most 16 can be open.
 
+Text entry and destructive confirmations use the shared accessible action dialog,
+including ending a temporary chat. Cancelling before submission leaves the chat
+and workspace unchanged. Focus returns to the invoking control when it is still
+available; keyboard shortcuts such
+as Ctrl+K and Ctrl+S do not run behind an open dialog. Async actions keep the dialog
+busy until they finish and show failures there. The browser's native
+`beforeunload` warning remains for unsaved workspace edits.
+
 Tools are disabled in temporary chats, including workspace writes and external MCP
 calls. This is a conversation-history option, not anonymous inference: the model
 server can retain logs or caches, and manually copying or exporting a conversation
@@ -191,6 +199,9 @@ Each file is limited to 1 MiB, the project to 8 MiB and 256 files. Revision chec
 refuse stale edits. Up to 20 checkpoints and 20 command records are retained.
 Restoring a checkpoint first saves the current files. These are file snapshots,
 not process snapshots or a promise to undo actions made by external MCP tools.
+Creating or deleting a file, naming or restoring a checkpoint, editing a generated
+file and discarding unsaved edits use the same accessible action dialog. Cancelling before submission
+does not write, delete or discard files; revision checks still reject stale writes.
 
 Optional execution requires Docker and an existing Linux image with `/bin/sh`,
 `tar` and `sleep`, plus the languages or tools the operator needs:

@@ -33,7 +33,7 @@
   function bytes(value) { const units = ['B', 'KiB', 'MiB', 'GiB']; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return number(value) + ' ' + units[index]; }
   function seconds(value) { return value >= 60 && value % 60 === 0 ? number(value / 60) + ' min' : number(value) + ' s'; }
   function dirty() { return !editor.disabled && (state.isNew || editor.value !== state.original); }
-  function canReplace() { return !dirty() || confirm('Discard the unsaved changes in ' + state.path + '?'); }
+  async function canReplace() { return !dirty() || Boolean(await window.ChatShell.conversationForm({title: 'Discard unsaved changes?', description: 'Discard the unsaved changes in ' + state.path + '?', destructive: true, submit: 'Discard'})); }
   function fileLanguage(path) { const ext = path.split('.').pop().toLowerCase(); return ({htm: 'html', py: 'python', js: 'javascript', ts: 'typescript', sh: 'bash', rs: 'rust', md: 'markdown', patch: 'diff'})[ext] || ext; }
   function updateEditor() {
     dirtyLabel.hidden = !dirty(); const enabled = Boolean(state.path); for (const button of [preview, download, save, remove]) button.disabled = !enabled; save.disabled = !enabled || !dirty();
@@ -80,11 +80,13 @@
     finally { state.loading = false; }
   }
   async function openFile(path) {
-    if (!canReplace()) return; clearError();
+    if (!await canReplace()) return; clearError();
     const file = await api('/workspace/file?path=' + encodeURIComponent(path)); state.path = file.path; state.original = file.content; state.isNew = false; state.revision = file.revision; editor.value = file.content; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
   async function createFile() {
-    if (!canReplace()) return; const path = prompt('New file path, relative to the managed workspace', 'untitled.txt'); if (!path?.trim()) return;
+    if (!await canReplace()) return;
+    const path = await window.ChatShell.conversationForm({title: 'New workspace file', description: 'Enter a path relative to the managed workspace.', label: 'File path', maxLength: 240, value: 'untitled.txt', submit: 'Create'});
+    if (!path?.trim()) return;
     if (state.snapshot?.files.some(file => file.path === path.trim())) return openFile(path.trim());
     state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot?.revision || 0; editor.value = ''; editor.disabled = false; updateEditor(); renderFiles(); editor.focus();
   }
@@ -94,16 +96,25 @@
     catch (problem) { updateEditor(); throw problem; }
   }
   async function deleteFile() {
-    if (!state.path || !confirm('Delete ' + state.path + ' from the managed workspace?')) return;
-    await api('/workspace/delete', 'POST', {path: state.path, revision: state.revision}); state.path = ''; state.original = ''; state.isNew = false; editor.value = ''; editor.disabled = true; await load(); updateEditor();
+    const path = state.path, revision = state.revision;
+    if (!path) return;
+    await window.ChatShell.conversationForm({title: 'Delete workspace file?', description: 'Delete ' + path + ' from the managed workspace?', destructive: true, submit: 'Delete'}, async () => {
+      await api('/workspace/delete', 'POST', {path, revision}); state.path = ''; state.original = ''; state.isNew = false; editor.value = ''; editor.disabled = true; await load(); updateEditor();
+    });
   }
   function openArtifact() { if (state.path) window.ChatArtifacts.open({name: state.path, source: editor.value, language: fileLanguage(state.path)}); }
-  async function createCheckpoint() { const label = prompt('Checkpoint label (saved files only)', 'Workspace checkpoint'); if (!label?.trim()) return; await api('/workspace/checkpoints', 'POST', {label: label.trim()}); await load(); }
+  async function createCheckpoint() {
+    await window.ChatShell.conversationForm({title: 'Create checkpoint', description: 'Save a named checkpoint of the current saved files.', label: 'Checkpoint name', maxLength: 120, value: 'Workspace checkpoint', submit: 'Create'}, async label => {
+      await api('/workspace/checkpoints', 'POST', {label}); await load();
+    });
+  }
   async function viewDiff(checkpoint) { const result = await api('/workspace/diff?checkpoint=' + encodeURIComponent(checkpoint.id)); window.ChatArtifacts.open({name: checkpoint.label + '.diff', source: result.diff || 'No differences from the current saved files.\n', language: 'diff'}); }
   async function restoreCheckpoint(checkpoint) {
-    if (!confirm('Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.')) return;
-    await api('/workspace/checkpoints/' + encodeURIComponent(checkpoint.id) + '/restore', 'POST', {revision: state.snapshot.revision}); state.original = editor.value; state.isNew = false; await load();
-    if (state.snapshot.files.some(file => file.path === state.path)) await openFile(state.path); else { state.path = ''; editor.value = ''; state.original = ''; editor.disabled = true; updateEditor(); }
+    const revision = state.snapshot.revision;
+    await window.ChatShell.conversationForm({title: 'Restore checkpoint?', description: 'Restore "' + checkpoint.label + '"? This replaces the managed workspace files and discards unsaved editor changes.', destructive: true, submit: 'Restore'}, async () => {
+      await api('/workspace/checkpoints/' + encodeURIComponent(checkpoint.id) + '/restore', 'POST', {revision}); state.original = editor.value; state.isNew = false; await load();
+      if (state.snapshot.files.some(file => file.path === state.path)) await openFile(state.path); else { state.path = ''; editor.value = ''; state.original = ''; editor.disabled = true; updateEditor(); }
+    });
   }
   async function startJob(event) {
     event.preventDefault(); if (!command.value.trim() || run.disabled) return; clearError(); run.disabled = true;
@@ -118,12 +129,12 @@
   }
   editor.addEventListener('input', updateEditor); editor.addEventListener('keyup', updateEditor); editor.addEventListener('click', updateEditor); commandForm.addEventListener('submit', startJob);
   editor.addEventListener('keydown', event => { if (event.key === 'Tab') { event.preventDefault(); editor.setRangeText('  ', editor.selectionStart, editor.selectionEnd, 'end'); updateEditor(); } });
-  document.addEventListener('keydown', event => { if (document.getElementById('app').dataset.view === 'workbench' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
+  document.addEventListener('keydown', event => { if (document.querySelector('dialog[open]')) return; if (document.getElementById('app').dataset.view === 'workbench' && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!save.disabled) saveFile().catch(showError); } });
   document.addEventListener('companion:view', event => { if (event.detail === 'workbench') load().catch(showError); else { clearTimeout(state.timer); state.timer = null; } });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('app').dataset.view === 'workbench') load().catch(showError); });
   document.addEventListener('companion:artifact-edit', async event => {
-    if (!canReplace()) return; window.ChatShell.show('workbench');
-    try { await load(); const artifact = event.detail; const path = prompt('Edit generated file in workspace', artifact.name); if (!path?.trim()) return; state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot.revision; editor.value = artifact.source; editor.disabled = false; updateEditor(); renderFiles(); editor.focus(); }
+    if (!await canReplace()) return; window.ChatShell.show('workbench');
+    try { await load(); const artifact = event.detail; const path = await window.ChatShell.conversationForm({title: 'Edit generated file', description: 'Choose where to save this generated file in the managed workspace.', label: 'File path', maxLength: 240, value: artifact.name, submit: 'Edit'}); if (!path?.trim()) return; state.path = path.trim(); state.original = ''; state.isNew = true; state.revision = state.snapshot.revision; editor.value = artifact.source; editor.disabled = false; updateEditor(); renderFiles(); editor.focus(); }
     catch (problem) { showError(problem); }
   });
   window.addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });

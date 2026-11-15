@@ -22,7 +22,11 @@ cancellation and restart cleanup. Browser checks cover anchored grouped
 conversation actions on unselected rows, rename/folder/delete dialogs, duplicate
 and Open Workspace tool links; reasoning disclosure pointer clicks during
 streamed updates and reload replay of the same run; temporary reply reload,
-explicit discard and a missing temporary ID.
+explicit discard and a missing temporary ID. The browser check also covers shared
+dialogs for workspace files, checkpoints, generated-file editing, unsaved edits,
+temporary-chat exit and backup restore; cancel-without-request behavior, keyboard
+shortcuts while a dialog is open, focus return, async busy/error handling, and
+desktop/mobile dialog layout.
 Its optional installed-browser check exercises the actual interface, theme toggles
 and persistence, and rendered light-mode monitor panel colors and text contrast.
 It reports when browser prerequisites are unavailable. These checks make no inference calls.

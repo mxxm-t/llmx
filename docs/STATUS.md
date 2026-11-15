@@ -46,15 +46,19 @@
 **Gotchas.** No inference code, production restart, firewall changes or other developer's server/auth edits. Forwarded client headers are ignored, so users behind a proxy or NAT share its limit. Password policy and resource limits remain service-owned rather than new tuning flags. SSE connections occupy slots. This bounds resources, not all denial-of-service attacks: slow clients can retain slots, and password hashing still serializes on the application's existing lock.
 
 
-## Chat companion dialogs (2026-11-15, In progress)
+## Chat companion dialogs (2026-11-15, Done)
 
-**Goal.** Replace remaining native prompt and confirm flows in the owner chat companion with the existing accessible action dialog, preserving cancellation, focus, busy and stale-revision behavior. Keep the browser beforeunload guard.
+**Goal.** Replace native prompt and confirm flows in the owner chat companion with the existing accessible action dialog, preserving cancellation, focus, busy and stale-revision behavior. Keep the browser beforeunload guard.
 
-**Done.** Status opened before implementation. Isolated worktree `worktrees/chat-dialogs-20261115` on `feat/chat-dialogs`, based on published main `f0d444c6d`.
+**Done.** The existing shell dialog now serves workspace file create/delete, checkpoint name/restore, generated-file editing, unsaved-edit discard, temporary-chat exit and backup restore. Callers await its result; cancelling before submission performs no mutation. Async mutations run while the dialog is busy and show failures there. The shell prevents overlapping dialog ownership and restores focus after close. Ctrl+S and Ctrl+K are ignored while a dialog is open. The browser's native `beforeunload` warning remains for dirty workspace files. Worktree `worktrees/chat-dialogs-20261115`, branch `feat/chat-dialogs`, is based on published main `5f49ecb3c`; the failing browser regression is commit `efb6b3fb3`.
 
-**Left.** Add failing browser regressions first, then convert each caller to the shared dialog, qualify desktop/mobile/keyboard flows and screenshots, and update companion usage notes.
+**Checks.** Syntax checks pass for all changed browser files. The focused Chrome run passes in 25.487 seconds, including a held restore request with busy/Escape/error checks, cancellation request counts, dialog ownership through close, protected background shortcuts, workspace and temporary-chat flows, seven responsive sizes and 200 percent zoom. Desktop and mobile dialog screenshots were reviewed. File paths retain the server's 240-character input capacity and checkpoint names use its 120-character limit. Tests await actual dialog close events and caller readiness rather than assuming synchronous native-dialog behavior.
 
-**Gotchas.** Static browser UI only. Do not import pending HTTP branch changes to `browser_check.mjs`; root will integrate them separately.
+**Qualification.** The 167-file Markdown inventory was reviewed for affected UI and test claims; README, TESTS and ROADMAP were updated. Markdown and dead-code checks cover the landing tree. This static UI change stacks after the qualified nested-Python analyzer feature, and the four-commit stack lands by fast-forward from main 5f49ecb3c. Browser assets and fixtures are identical to the locally tested dialog head 9be87b72a; analyzer source, Python fixtures and workflow are identical to hosted head cafe656cf. Only documentation integration differs. Final Markdown and dead-code checks cover the combined tree; unrelated hosted inference checks do not apply.
+
+**Left.** None for this change. Static assets can be served by the existing companion without restarting its Python process.
+
+**Gotchas.** Static browser UI only. The HTTP admission changes are already in the feature base; do not re-copy their browser harness changes.
 
 ## Chat controls and streaming reasoning (2026-11-15, Done)
 

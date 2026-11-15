@@ -123,10 +123,14 @@
   async function leaveTemporary() {
     if (!S.chat?.temporary) return true;
     if (currentRun() || S.busy) throw new Error('Stop the response before ending this temporary chat.');
-    if ((S.messages.length || $('draft').value.trim() || S.attachments.length) && !confirm('End this temporary chat? Its messages will be discarded.')) return false;
-    try { await api('/chats/' + encodeURIComponent(S.chat.id), 'DELETE'); }
-    catch (error) { if (error.status !== 404) throw error; }
-    clearChat(); await refreshChats(); return true;
+    const end = async () => {
+      try { await api('/chats/' + encodeURIComponent(S.chat.id), 'DELETE'); }
+      catch (error) { if (error.status !== 404) throw error; }
+      clearChat(); await refreshChats();
+    };
+    if (S.messages.length || $('draft').value.trim() || S.attachments.length)
+      return Boolean(await window.ChatShell.conversationForm({title: 'End temporary chat?', description: 'Its messages will be discarded.', destructive: true, submit: 'End chat'}, end));
+    await end(); return true;
   }
   async function temporaryChat() {
     if (creatingChat || S.busy) return;
@@ -506,9 +510,10 @@
   $('login-dialog').addEventListener('cancel', event => event.preventDefault());
   $('login-form').addEventListener('submit', async event => { event.preventDefault(); const submit = event.target.querySelector('button'); submit.disabled = true; try { await api('/login', 'POST', {password: $('password').value}); $('password').value = ''; $('login-error').textContent = ''; $('login-dialog').close(); await initialize(); } catch (error) { $('login-error').textContent = error.message; } finally { submit.disabled = false; } });
   document.addEventListener('keydown', event => {
+    if (document.querySelector('dialog[open]')) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); newChat().catch(error => toast(error.message)); }
     if (event.key === 'Escape') closeDrawers();
-    if (event.key === 'Tab' && !$('drawer-shade').hidden && !document.querySelector('dialog[open]')) {
+    if (event.key === 'Tab' && !$('drawer-shade').hidden) {
       const drawer = $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed') ? $('inspector') : $('sidebar');
       const controls = Array.from(drawer.querySelectorAll('button,input,textarea,select,[href]')).filter(el => !el.disabled && el.getClientRects().length);
       if (controls.length && (!drawer.contains(document.activeElement) || event.shiftKey && document.activeElement === controls[0] || !event.shiftKey && document.activeElement === controls.at(-1))) { event.preventDefault(); (event.shiftKey ? controls.at(-1) : controls[0]).focus(); }

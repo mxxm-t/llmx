@@ -69,6 +69,7 @@ window.ChatShell = (() => {
   new MutationObserver(themeMonitor).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
   window.addEventListener('resize', fitViewport); fitViewport();
   let menuAnchor = null;
+  let actionFormOpen = false;
   function restoreMenuFocus(origin) {
     const target = origin?.isConnected ? origin : origin?.dataset.id ? document.querySelector('.chat-row-menu[data-id="' + CSS.escape(origin.dataset.id) + '"]') : null;
     (target || document.querySelector('.topbar [data-action="chat-menu"]'))?.focus();
@@ -108,26 +109,32 @@ window.ChatShell = (() => {
   });
   document.addEventListener('pointerdown', event => { if (!$('action-menu').contains(event.target) && !menuAnchor?.contains(event.target)) closeMenu(false); }, true);
   window.addEventListener('resize', () => closeMenu());
-  function conversationForm({title, description = '', label = '', value = '', folders = [], destructive = false, submit = 'Save'}, save) {
+  function conversationForm({title, description = '', label = '', value = '', maxLength = 200, folders = [], destructive = false, submit = 'Save'}, save) {
+    if (actionFormOpen) return Promise.resolve(undefined);
+    actionFormOpen = true;
     closeMenu(); const dialog = $('action-dialog'), origin = document.activeElement;
+    if (dialog.open) { actionFormOpen = false; return Promise.resolve(undefined); }
     $('action-dialog-title').textContent = title; $('action-dialog-description').textContent = description;
     $('conversation-field').hidden = !label; $('conversation-label').textContent = label;
-    const input = $('conversation-value'); input.value = value; input.setCustomValidity(''); input.disabled = !label; input.required = label === 'Conversation name';
+    const input = $('conversation-value'); input.value = value; input.maxLength = maxLength; input.setCustomValidity(''); input.disabled = !label; input.required = Boolean(label && label !== 'Folder');
     $('conversation-folders').replaceChildren(...folders.map(folder => { const option = node('option'); option.value = folder; return option; }));
     input.setAttribute('list', label === 'Folder' ? 'conversation-folders' : '');
     const confirm = $('conversation-submit'), cancel = $('conversation-cancel'); confirm.textContent = submit; confirm.className = destructive ? 'primary-button danger' : 'primary-button';
     $('conversation-error').textContent = ''; confirm.disabled = false; cancel.disabled = false;
     dialog.oncancel = event => { if (confirm.disabled) event.preventDefault(); };
-    dialog.onclose = () => restoreMenuFocus(origin);
-    cancel.onclick = () => dialog.close();
-    $('conversation-form').onsubmit = async event => {
-      event.preventDefault(); if (input.required && !input.value.trim()) { input.setCustomValidity('Enter a conversation name.'); input.reportValidity(); return; }
-      confirm.disabled = true; cancel.disabled = true; confirm.setAttribute('aria-busy', 'true');
-      try { await save(input.value.trim()); dialog.close(); }
-      catch (error) { $('conversation-error').textContent = error.message; }
-      finally { confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy'); }
-    };
-    input.oninput = () => input.setCustomValidity(''); dialog.showModal(); if (label) { input.focus(); input.select(); } else cancel.focus();
+    let result;
+    return new Promise(resolve => {
+      dialog.onclose = () => { restoreMenuFocus(origin); actionFormOpen = false; resolve(result); };
+      cancel.onclick = () => dialog.close();
+      $('conversation-form').onsubmit = async event => {
+        event.preventDefault(); if (input.required && !input.value.trim()) { input.setCustomValidity('Enter a value for this field.'); input.reportValidity(); return; }
+        confirm.disabled = true; cancel.disabled = true; confirm.setAttribute('aria-busy', 'true');
+        try { const next = input.value.trim(); if (save) await save(next); result = label ? next : true; dialog.close(); }
+        catch (error) { $('conversation-error').textContent = error.message; }
+        finally { confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy'); }
+      };
+      input.oninput = () => input.setCustomValidity(''); dialog.showModal(); if (label) { input.focus(); input.select(); } else cancel.focus();
+    });
   }
   function backupStatus(text, failed = false) { $('backup-status').textContent = text; $('backup-status').hidden = false; $('backup-status').classList.toggle('error-text', failed); }
   $('backup-download').addEventListener('click', async () => {
@@ -140,18 +147,19 @@ window.ChatShell = (() => {
     const file = event.target.files[0]; event.target.value = ''; if (!file) return;
     const maximum = config?.backup_max_bytes;
     if (typeof maximum === 'number' && file.size > maximum) { backupStatus('Choose a SQLite backup of at most ' + window.ChatRender.number(maximum / (1024 * 1024)) + ' MiB.', true); return; }
-    if (!confirm('Replace every conversation and branch with this backup? Current conversation data will be replaced. Workspace files and checkpoints are not affected.')) return;
-    $('backup-restore').disabled = true;
-    try {
-      const response = await fetch('/api/restore', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/vnd.sqlite3', 'X-Chat-Request': '1'}, body: file});
-      if (!response.ok) {
-        if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized'));
-        let data; try { data = await response.json(); } catch (_) { data = {}; }
-        throw new Error(data?.error || 'Backup restore failed (' + response.status + ').');
+    await conversationForm({title: 'Restore conversation backup?', description: 'Replace every conversation and branch with this backup. Workspace files and checkpoints are not affected.', destructive: true, submit: 'Restore'}, async () => {
+      $('backup-restore').disabled = true;
+      try {
+        const response = await fetch('/api/restore', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/vnd.sqlite3', 'X-Chat-Request': '1'}, body: file});
+        if (!response.ok) {
+          if (response.status === 401) document.dispatchEvent(new CustomEvent('companion:unauthorized'));
+          let data; try { data = await response.json(); } catch (_) { data = {}; }
+          throw new Error(data?.error || 'Backup restore failed (' + response.status + ').');
+        }
+        backupStatus('Backup restored. Reloading conversations...'); location.reload();
       }
-      backupStatus('Backup restored. Reloading conversations...'); location.reload();
-    }
-    catch (error) { backupStatus(error.message, true); } finally { $('backup-restore').disabled = false; }
+      catch (error) { backupStatus(error.message, true); throw error; } finally { $('backup-restore').disabled = false; }
+    });
   });
   return {show, api, menu, closeMenu, conversationForm, get config() { return config; }};
 })();

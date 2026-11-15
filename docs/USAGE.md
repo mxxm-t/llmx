@@ -807,7 +807,7 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Server | `--ctx-size N`, `-c` | model context | At least 1 (`k` and `m` suffixes work) and no more than the model context; per-request prompt plus reply limit |
 | Server | `--timing` | off | Times rounds and device work for `/v1/health`; slows serving |
 | Limits | `--max-seqs N` | `16` | At least 1; active requests, including prompt and generation work |
-| Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted |
+| Limits | `--max-queue N` | `64` | At least 1; waiting requests before a new request gets 503; paused requests are not counted; connections whose request is not yet with the scheduler, past `--max-seqs` plus `--max-queue` plus 16 for the other routes, get 503 before their request is read |
 | Limits | `--passes N` | one per stage for a layer split, otherwise `1` | At least 1; values above 1 require a multi-device layer split |
 | Prefix reuse | `--state-checkpoints N` | fitted, up to `--max-seqs` | At least 0; saved recurrent states for follow-up turns; 0 disables them |
 | Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit |

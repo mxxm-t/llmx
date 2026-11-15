@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <map>
 #include <memory>
@@ -75,6 +76,11 @@ struct Config {
     infer::Vision* vision = nullptr;
     std::array<uint8_t, 32> vision_identity{};
 };
+
+// The connections held before their request reaches the scheduler, which bounds the rest: a seat's and a queue place's each, so a burst the queue would take is not refused first, and a reserve for the routes without a queue.
+// Past it a connection is answered 503 and closed before its request is read, so clients that send nothing or read nothing hold at most this many threads.
+inline constexpr size_t kConnectionReserve = 16;
+inline size_t connection_limit(const Config& cfg) { return cfg.max_seqs + cfg.max_queue + kConnectionReserve; }
 
 // The most bytes an image of a request decodes to from its data URL (docs/VISION.md, section 6).
 inline constexpr size_t kMaxImageBytes = size_t(20) << 20;
@@ -314,25 +320,17 @@ public:
         cfg_.model_name = utf8_sanitize(cfg_.model_name);
     }
 
-    void handle(http::Connection& c) {
-        http::Request req;
-        int status = 0;
-        http::Limits limits;
-        const bool read = c.read_request(req, limits, status);
-        // The compatible routes report errors in their clients' shape, a request refused while it is read included; the path is known unless the head itself was refused.
+    // A request Front has read and admitted, answered on its route, `admitted` told once the scheduler holds it; the compatible routes report errors in their clients' shape.
+    void handle(http::Connection& c, const http::Request& req, const std::function<void()>& admitted) {
         const std::optional<Route> route = route_of(req.path);
         const bool shape = route && compat(*route);
-        if (!read) {
-            if (status) c.respond(status, "application/json", error_json(http::reason(status), shape));
-            return;
-        }
         try {
             if (req.method == "GET" && req.path == "/v1/health") return health(c);
             if (req.method == "GET" && req.path == "/v1/live") return c.respond(200, "application/json", "{\"status\":\"ok\"}");
             if (req.method == "GET" && req.path == "/v1/models") return models(c);
             if (req.method == "POST" && req.path == "/v1/tokenize") return tokenize(c, req);
             if (req.method == "POST" && req.path == "/v1/detokenize") return detokenize(c, req);
-            if (req.method == "POST" && route) return generate(c, req, *route);
+            if (req.method == "POST" && route) return generate(c, req, *route, admitted);
             c.respond(404, "application/json", error_json("no such route", shape));
         } catch (const BadRequest& e) {
             c.respond(e.status, "application/json", error_json(e.what(), shape));
@@ -362,6 +360,11 @@ private:
     }
     // The routes that speak the OpenAI clients' shape.
     static bool compat(Route route) { return route == Route::chat_completions || route == Route::completions; }
+    // Whether an error on `path` is reported in that shape, which is known as soon as the head is, before a request is admitted.
+    static bool compat_shape(const std::string& path) {
+        const std::optional<Route> route = route_of(path);
+        return route && compat(*route);
+    }
 
     struct BadRequest : std::runtime_error {
         int status;
@@ -1433,7 +1436,7 @@ private:
         return c + "}";
     }
 
-    void generate(http::Connection& c, const http::Request& req, Route route) {
+    void generate(http::Connection& c, const http::Request& req, Route route, const std::function<void()>& admitted) {
         // The time to first token counts from here, so the render, the tokenizer and a cut are in it.
         const Request::Clock::time_point received = Request::Clock::now();
         jmini::Value body = body_of(req);
@@ -1479,6 +1482,7 @@ private:
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
+        admitted();
         const std::string id = request_id(r->id());
         // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
         const bool split = route == Route::chat_completions;
@@ -1742,10 +1746,10 @@ struct StopOnSignal {
 } // namespace detail
 
 // The server's accept loop from the moment it listens, on a thread of its own: until the routes are published, health answers 503 with the start's record and every other route 503.
-// It ends when the listener closes; destroyed, it closes the listener and waits for its connections.
+// It holds at most `connections` not yet with the scheduler, answers the rest 503 unread, ends when the listener closes, and destroyed, closes the listener and waits for them.
 class Front {
 public:
-    Front(http::Listener& listener, Startup& startup) : listener_(listener), startup_(startup) {
+    Front(http::Listener& listener, Startup& startup, size_t connections) : listener_(listener), startup_(startup), limit_(connections), lingering_(connections) {
         thread_ = std::thread([this] { loop(); });
     }
     ~Front() {
@@ -1772,31 +1776,69 @@ public:
 private:
     void loop() {
         for (;;) {
-            http::Connection c = listener_.accept();
-            if (!c.open()) break;
+            auto conn = std::make_shared<http::Connection>(listener_.accept());
+            if (!conn->open()) break;
+            if ((size_t)pending_.load() >= limit_) {
+                refuse(*conn, "too many connections");
+                continue;
+            }
             ++open_;
-            std::thread([this](http::Connection conn) {
-                try {
-                    if (Api* api = api_.load()) api->handle(conn);
-                    else starting(conn);
-                } catch (...) {
-                }
+            ++pending_;
+            // The connection stays whole when the thread cannot be made, so it is refused rather than dropped, and the failure never leaves the loop.
+            try {
+                std::thread([this, conn] {
+                    try {
+                        serve_one(*conn);
+                    } catch (...) {
+                    }
+                    --open_;
+                }).detach();
+            } catch (const std::system_error&) {
                 --open_;
-            }, std::move(c)).detach();
+                --pending_;
+                refuse(*conn, "no thread for the connection");
+            }
         }
     }
-    // A request while the server starts: health gives the record with 503, so a readiness check on 200 keeps its meaning, liveness answers as ever, and every other route is refused with 503 in its clients' shape.
-    void starting(http::Connection& c) {
+    // A connection answered 503 unread, on the accept thread, which cannot wait for the client: Lingering drains and closes it, so a request arriving after the answer meets an open socket and the client reads the 503 rather than a reset.
+    void refuse(http::Connection& c, const char* why) {
+        try { c.respond(503, "application/json", error_json(why, false)); } catch (...) {}
+        lingering_.add(std::move(c), http::Limits{}.linger_ms);
+    }
+    // One connection: its request answered, and its place among the pending connections given back once the scheduler holds the request, or at the end.
+    void serve_one(http::Connection& c) {
+        bool pending = true;
+        const auto admitted = [&] {
+            if (pending) --pending_;
+            pending = false;
+        };
+        try { answer(c, admitted); } catch (...) {}
+        admitted();
+    }
+    // The request: its head read within the limits and refused where malformed, then its body, and the routes, or the start until they are published, answer.
+    void answer(http::Connection& c, const std::function<void()>& admitted) {
         http::Request req;
         int status = 0;
         const http::Limits limits;
-        const bool read = c.read_request(req, limits, status);
-        const std::optional<Api::Route> route = Api::route_of(req.path);
-        const bool shape = route && Api::compat(*route);
-        if (!read) {
-            if (status) c.respond(status, "application/json", error_json(http::reason(status), shape));
+        if (!c.read_head(req, limits, status)) {
+            if (status) refuse_unread(c, status, Api::compat_shape(req.path));
             return;
         }
+        if (!c.read_body(req, limits, status)) {
+            if (status) refuse_unread(c, status, Api::compat_shape(req.path));
+            return;
+        }
+        if (Api* api = api_.load()) api->handle(c, req, admitted);
+        else starting(c, req);
+    }
+    // A refusal before the request was read in full: the answer, then the connection lingers (Connection::linger), so the client reads the status rather than a reset.
+    static void refuse_unread(http::Connection& c, int status, bool shape) {
+        c.respond(status, "application/json", error_json(http::reason(status), shape));
+        c.linger();
+    }
+    // A request while the server starts: health gives the record with 503, so a readiness check on 200 keeps its meaning, liveness answers as ever, and every other route is refused with 503 in its clients' shape.
+    void starting(http::Connection& c, const http::Request& req) {
+        const bool shape = Api::compat_shape(req.path);
         if (req.method == "GET" && req.path == "/v1/health") return c.respond(503, "application/json", startup_.starting());
         if (req.method == "GET" && req.path == "/v1/live") return c.respond(200, "application/json", "{\"status\":\"ok\"}");
         c.respond(503, "application/json", error_json("the server is starting", shape));
@@ -1805,7 +1847,10 @@ private:
     http::Listener& listener_;
     Startup& startup_;
     std::atomic<Api*> api_{nullptr};
-    std::atomic<int> open_{0};
+    std::atomic<int> open_{0};      // connections with a thread
+    std::atomic<int> pending_{0};   // of them, those whose request the scheduler does not hold yet
+    const size_t limit_;            // the most pending at once
+    http::Lingering lingering_;     // the connections refused on the accept thread, draining until closed, at most limit_ of them
     std::thread thread_;
 };
 

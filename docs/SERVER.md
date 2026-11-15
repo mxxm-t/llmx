@@ -82,7 +82,7 @@ is measured against the single-sequence path and the reference.
 ```
 server/
   http.hpp       listen, accept, parse one request, write a response or a
-                 chunked stream; blocking sockets, one thread per connection
+                 chunked stream; non-blocking sockets, one thread per connection
   scheduler.hpp  the request queue, admission, batch assembly, the rounds
                  over the model's pass API, sampling, token channels
   cache.hpp      the cache behind one owner the scheduler calls: device
@@ -458,8 +458,10 @@ The `precision` object in `/v1/health` is the placement record passed at startup
 The model's name in `/v1/health`, `/v1/models` and every compatible reply is its file name, which on Linux can hold bytes that are not UTF-8, and an error message can carry text from outside the request, such as a chat template's from the model file or a backend's failure.
 Both get the same U+FFFD repair as generated text, so every reply is UTF-8.
 A non-streaming request gets one JSON object with the text, the ids and the counts.
-Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt and its `max_tokens` past what one request may hold, unless `--context-overflow shift` cuts it as A prompt larger than the context, above, has it (the model context or the KV pool, whichever is smaller) or a body past 64 MiB, 503 when the queue is full.
+Errors are JSON with an HTTP status: 400 for a bad request (a text the tokenizer cannot encode and a token id outside the vocabulary included), 413 for a prompt and its `max_tokens` past what one request may hold, unless `--context-overflow shift` cuts it as A prompt larger than the context, above, has it (the model context or the KV pool, whichever is smaller) or a body past 64 MiB, 408 for a head that has not arrived whole within 15 s or a body within 30 s and 4 s a MiB (`http::Limits`), 503 when the queue is full or the connections whose request the scheduler does not hold yet are past the seats, the queue places and a reserve of 16 for the other routes (`server::connection_limit`), the last answered before the request is read.
 A 500 is the server's own failure, a pass that failed or an exception a route did not expect: its body is the fixed message `the server failed to answer the request` in the route's shape, and the failure's text goes to stderr as a `server:` line (`failure_json`), so a client learns nothing of the server's internals; a stream whose pass fails ends with that message as its last event.
+A client whose reads do not take a response, or one chunk of its stream, within 30 s is dropped as one that left, so it holds no seat.
+A refusal before the request is read in full, a 408, 413, 431 or 503, is followed by the connection shutting its sending side and draining what the client still sends for up to 2 s, so a client that sends its whole request before it reads gets the status rather than a reset.
 A conversation the chat template raises on is a bad request, answered 400 with the template's message; a template the renderer refuses stops `serve` before it serves, since no chat request could be answered.
 A model whose layers keep a recurrent state, a `qwen35` file, has a state only at the end of what it has read, so its prefix reuse goes through checkpoints, states kept at a position in slots of their own ([SPECULATIVE](SPECULATIVE.md), section 2): each request keeps one where its prompt's last whole block ends within what a follow-up turn would begin with, the conversation rendered without the generation prompt for a chat route and the whole prompt for a text, the slice that reaches it ending there.
 A finished request's donor is its history back to that checkpoint, which a follow-up turn forks, reading the state in place; a paused request keeps its whole history as its checkpoint where a slot is free, taking it back on resuming, and its prompt's checkpoint otherwise.

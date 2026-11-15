@@ -1435,7 +1435,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // The server listens before it loads, so /v1/health tells how its start goes (docs/SERVER.md, Startup).
     http::Listener listener(cfg.host, cfg.port);
     server::Startup startup(std::filesystem::u8path(model_path).filename().u8string());
-    server::Front front(listener, startup);
+    server::Front front(listener, startup, server::connection_limit(cfg));
     try {
         serve_loaded(model_path, cfg, exec, drafts, images, slots, front);
     } catch (const std::exception& e) {
@@ -1704,7 +1704,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --timing                Time the rounds and each device's work for /v1/health. This slows serving\n"
             << "\nLimits:\n"
             << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
-            << "  --max-queue N           Requests waiting for a place, paused ones not counted. More get a 503 (default: " << cfg.max_queue << ")\n"
+            << "  --max-queue N           Requests waiting for a place, paused ones not counted. More get a 503, as do\n"
+            << "                          connections not yet admitted past the seats, the queue and " << server::kConnectionReserve << " more (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Batches the devices work on at once. Above 1 needs the model\n"
             << "                          split over several devices (default: one more than the stages of a layer\n"
             << "                          split, else 1)\n"

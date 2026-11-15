@@ -1896,6 +1896,17 @@ The Windows zip and the workflow itself are not run yet.
 
 **Gotchas:** the workflow runs only on a tag, so its Windows SDK install, image pushes and signing steps are first exercised by the release itself; a tag pushed to a fork or a test repository exercises it without a release, and gives the Linux job's hosted time, which its 180-minute limit only estimates.
 
+## A metadata-only first shard ends at its header (2026-11-15, GGUF1, branch fix/gguf-metadata-shard on main 929f042c6, rebased onto main a274cfd62; F2DEV's review of 06:41; lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** `llmx` reads the split MiniMax-M3.1-Flash UD-Q8_K_XL set, whose first shard holds metadata alone and ends 2 bytes short of its 32-byte boundary.
+- **Done:** `read_header` in `src/format/gguf.hpp` returns the header's end for a file with no tensors, and every file with tensors keeps its checks.
+  `tests/gguf_shards.cpp` writes the unpadded shard and failed on main first.
+  Gates, both arms built from git archives of main 929f042c6 and of this branch's code with ROCm on in one container of 12 GB, `--version` `llmx 0.1.0+unknown` for both (numerics id main 1147553042f68f72, branch d551893c2e75291d, binary hashes 61b9bd5115d34690 and c990203cde07b226):
+  CTest 87 of 87 on the branch (the ROCm tests skip without a device); suite components `roundtrip` and `shards` pass on the CPU and on one MI50 (`--device rocm:0`), the shards HF max logit error 0.00000063 on the CPU and 0.00000062 on the device against bounds of 2e-05;
+  Qwen3-0.6B Q8_0 greedy `generate --temp 0 -n 128` gives the same 128 tokens on main and the branch on the CPU and on one MI50 (the pp and tg timing lines left out; the single-file path is the only one the change reaches, so no timing round);
+  `llmx info` on the real set /zpool1/models/MiniMax-M3.1-Flash-UD-Q8_K_XL-00001-of-00007.gguf reads 1359 tensors on the branch, the `split.tensors.count` of its first shard (which holds 0 tensors and ends at byte 8243070, 30 past a multiple of 32), and main refuses it with `GGUF data section exceeds file extent`.
+- **Left:** nothing; the hosted run at the head that lands.
+
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 
 **Goal.** Qwen3 files in F16, Q4_0 and Q4_1 run on ROCm at or above the mx fork's ROCm speed, through the shared GPU core and its existing type families.

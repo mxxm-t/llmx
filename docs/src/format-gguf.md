@@ -128,7 +128,7 @@ set holds no descriptor on POSIX and two handles per shard on Windows.
 
 All shards share one offset space and one aggregate progress total; each is
 mapped in place, with no copy, and a shard holding metadata alone has no
-segment. Each file's extent is checked when its header is read and its size
+segment and may end at its header, before the padding to a data section. Each file's extent is checked when its header is read and its size
 again when it is mapped, so a shard truncated before loading, or between
 reading and mapping, is refused before any progress. A mapped model
 requires its files to stay unchanged while it is loaded: a file truncated

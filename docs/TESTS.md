@@ -352,7 +352,7 @@ The loader's checks run in `direct` too where the file system takes direct reads
 `file-reader` also checks `format::file_sha256` against `core::Sha` over a file past one 64 MiB piece and an empty one, and `format::cached_file_sha256`, which returns a planted digest while the file's stamp holds and reads the file again once it changes.
 `hub-manifest` checks SHA-1 and SHA-256 against standard vectors and, where the CPU has the SHA extensions, their compression against the portable code's over 1 to 33 random blocks.
 
-`gguf-shards` covers complete shard sets, metadata-only first shards, exact
+`gguf-shards` covers complete shard sets, metadata-only first shards (one ending at its header, unpadded), exact
 payloads and the shard each tensor's span names (a zero-sized tensor that ends
 a shard included), inconsistent metadata,
 duplicate tensor names, truncation before reading, a size that changes between reading and

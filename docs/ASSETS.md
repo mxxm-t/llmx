@@ -666,6 +666,16 @@ The seed is the first from 312026 whose router and index cuts and greedy picks a
 The same weights keeping every block give rows past the first drop 0.92 and 0.10 away, recorded as the witness that the selection ran.
 It also writes each fixture's GGUF and records its SHA-256, so the suite's writer is held to the reference's file; a second run gives the same bytes.
 
+#### The minimax-m3 file-exact reference
+
+`tools/minimax_file_reference.py` runs transformers' own `MiniMaxM3VLForCausalLM` on a GGUF's stored weights, in the minimax tiny reference's pinned environment (above), float32 with eager attention and eager experts.
+`rows --hf DIR --output-dir OUT` tokenizes the rows offline with the checkpoint's own tokenizer and chat template (`config.json`, `tokenizer.json` and `chat_template.jinja` in DIR) and writes `rows.json` and each row's ids: `raw`, tokens [0, 512) of `tests/data/wiki.test.raw`; `chat`, one user message (an instruction to summarize and characters from 200000 of the same text) rendered with the generation prompt to 512 ids; `long`, tokens [512, 2816), which crosses the first sparse drop at position 2048.
+`run --hf DIR --gguf SHARD... --output-dir OUT` writes `hf-NAME.npy`, the logits of each row's last 512 positions, and `hf.json`: each row's next-token NLL in float64, each layer's least router and index cut margin and its index cuts within 1e-3, the first position whose kept blocks are fewer than its visible ones, the shards' sizes and SHA-256, the decoded types and the peak RSS.
+Every module's weights are read by `tests/spec_decode.py` just before HF calls it and released after (`loaded_modules`), embedding rows as the ids select them and the head whole, and the expert loop indexes one expert at a time, decoded by a pool of threads ahead of the loop in the router's hit order, so the run holds about 7 GiB at 8 tokens.
+Every norm is stored as 1 + w; the reference takes the stored value less 1 and refuses a norm whose 1 does not add back exactly.
+`compare --output-dir OUT --name NAME --llmx FILE` reads `llmx logits --last 512 --top V` output over the whole vocabulary and reports the largest logit and target NLL errors, the window's mean NLL against HF's, top-1 agreement with HF's margin at each disagreement, and top-5 overlap, held to the file-exact bounds of `tests/baseline_qwen35.py` (`FILE_EXACT_BOUNDS`: window NLL 0.02, top-5 overlap 5 at the last position).
+`tests/reference_minimax_file.py` holds the adapter on both tiny fixtures' files to HF's model with eager experts bit for bit, first sparse position included; HF's default grouped expert products, which the tiny golden ran, sit 4.8e-7 from eager on `small` and 0 on `wide`.
+
 #### The qwen35 tokenizer reference
 
 `tokenizer-qwen35` writes `tests/data/baseline_tokenizer_qwen35.json` from the `tokenizer.json` of `Qwen/Qwen3.5-0.8B` at commit `2fc06364715b967f1860aea9cf38778875588b17` (SHA-256 `5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42`), read with the `tokenizers` library, and the `tokenizer_config.json` of the same commit (SHA-256 `49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c`).

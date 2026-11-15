@@ -150,7 +150,7 @@ def main():
                   ("nvfp4", nvfp4.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("deepseek4", lambda: deepseek4.run(require=args.require_tools)),
-                  ("minimax", minimax.run),
+                  ("minimax", lambda: minimax.run(require=args.require_tools)),
                   ("vision", lambda: vision.run(require=args.require_tools)),
                   ("image", image.run),
                   ("split", lambda: split.run(require=args.require_tools)),

@@ -2148,11 +2148,13 @@ def run(require=False):
     import reference_deepseek4
     import reference_qwen4exp
     import reference_qwen4exp_file
+    import reference_minimax_file
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (NVFP4Companions, ReferenceGenerator, LayeredReference, DtypeCalibration))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(reference_qwen4exp))
     reference_deepseek4.REQUIRE["numpy"] = require
     suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(reference_deepseek4))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(reference_qwen4exp_file.ShardStorage))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(reference_minimax_file.Rows))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)
     return result.wasSuccessful()
 

@@ -117,6 +117,7 @@ At width 256 it then runs prompts of 2, 3 and 4 query heads a KV head with selec
 With `--tensor-width 2` it runs a group of two CPU backends, or `--device vulkan:0,vulkan:1`, against the same HF rows, the fixture's shared expert padded from width 7 to 8.
 `reference-consumer` also checks its tiny GGUF mapper and inverse weight transforms without Torch, ordinary server replies, a raw-prompt edit reusing 256 tokens, chat-template suffix edits and a whole-message cut against fresh servers, two requests active at once on a width-two group, and on POSIX a saved history restarted and continued from disk, after a clean stop and after SIGKILL, against independent HF rows within 2e-5.
 The file-exact companion (`tools/qwen4exp_file_reference.py`) holds `FileReference.sequence_nll` to full-forward F64 scoring within 4e-7 across head chunk tails, and releases its hooks after a failed callback or a nonfinite output.
+`tests/reference_minimax_file.py` checks the MiniMax file-exact reference's reading of `llmx logits` rows in `reference-generator`; its pinned case, run by hand in the minimax reference environment, holds the adapter on the tiny fixtures' files to HF's model with eager experts bit for bit (docs/ASSETS.md, The minimax-m3 file-exact reference).
 
 `q5-1` builds dense, tied and MoE fixtures from independently packed Q5_1 blocks,
 compares full logits and NLL with the pinned file-exact HF reference, and checks

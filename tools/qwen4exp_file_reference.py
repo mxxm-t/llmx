@@ -40,7 +40,7 @@ def environment():
 class Shards:
     """Header-only shard index; every payload read uses the independent packed span decoder."""
 
-    def __init__(self, paths, max_decoded_bytes):
+    def __init__(self, paths, max_decoded_bytes, architecture="qwen4exp"):
         if not paths or len(set(map(str, paths))) != len(paths):
             raise ValueError("reference requires distinct GGUF shard paths")
         self.files = sorted((spec_decode.GGUF(path) for path in paths), key=lambda file: file.value("split.no", 0))
@@ -67,8 +67,8 @@ class Shards:
         total = self.files[0].value("split.tensors.count", len(self.tensors))
         if total != len(self.tensors):
             raise ValueError("GGUF shard tensor count differs")
-        if self.value("general.architecture") != "qwen4exp":
-            raise ValueError("file-exact Qwen4Exp reference needs qwen4exp GGUF")
+        if self.value("general.architecture") != architecture:
+            raise ValueError("file-exact reference needs a %s GGUF" % architecture)
 
     def value(self, key, default=None):
         return self.files[0].value(key, default)

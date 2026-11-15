@@ -4,12 +4,15 @@ Each fixture of tests/fixture_minimax.py is written from the committed golden's 
 `llmx logits` reads the golden's sequence through --then-ids, and every position's logits must be HF's within 2e-5 and each target's NLL within 1e-5: whole at lengths either side of the first sparse drop, token by token (--per-token), at ubatch 1, 3 and 16 and at one and three threads.
 Greedy `generate` after the golden's prompt gives HF's ids, and no selection or greedy pick of the golden sits within 2e-5 of a tie.
 On a configured device whose backend lacks one of the model's ops the file is refused at load by the op's name, and the component reports SKIP.
+On the CPU, llmx-route-probe found beside the executable prints the rows `logits` prints at its settings byte for byte, and each routed layer's picks at every position are the top k of the router scores it wrote.
 """
 import hashlib
 import json
 import math
 import os
 import re
+import subprocess
+import sys
 import tempfile
 
 import common
@@ -86,7 +89,44 @@ def gate(name, path, directory, golden, floor):
           % (name, len(runs), len(sequence), first, golden["dense_max_abs_diff"], worst[0], LOGIT_BOUND, worst[1], NLL_BOUND, mean, golden["mean_nll"], len(ids), closest))
 
 
-def run():
+def probe_path():
+    return os.path.join(os.path.dirname(common.exe_path()), "llmx-route-probe" + (".exe" if os.name == "nt" else ""))
+
+
+def routes(tool, name, path, directory, golden, state, ubatch):
+    """llmx-route-probe's rows against `logits` at its settings, byte for byte, and its picks against the top k of sigmoid(score) + bias, which no golden selection holds within 2e-5 of a tie."""
+    sys.path.insert(0, os.path.join(common.ROOT, "tools"))
+    import minimax_file_reference
+    config, sequence = golden["config"], golden["sequence"]
+    ids = os.path.join(directory, "probe.ids")
+    with open(ids, "w") as f:
+        f.write(" ".join(str(i) for i in sequence))
+    prefix = os.path.join(directory, "probe")
+    p = subprocess.run([tool, path, ids, prefix, str(len(sequence)), str(ubatch)], capture_output=True, encoding="utf-8", errors="replace", timeout=300)
+    assert p.returncode == 0, "minimax: llmx-route-probe gave exit %d: %s" % (p.returncode, p.stderr[-400:])
+    empty = os.path.join(directory, "empty.txt")
+    open(empty, "w").close()
+    p = common.run_process(["logits", path, "--file", empty, "--then-ids", ids, "--last", str(len(sequence)), "--top", str(config["vocab_size"]), "--device", "cpu",
+                            "--dtype", "f32", "--load-mode", "mapped", "--ubatch", str(ubatch)] + F32, text=True)
+    assert p.returncode == 0, "minimax: logits gave exit %d" % p.returncode
+    with open(prefix + ".txt", encoding="utf-8") as f:
+        assert f.read() == p.stdout, "minimax: %s: llmx-route-probe's rows at ubatch %d are not those logits prints" % (name, ubatch)
+    got = minimax_file_reference.read_routes(prefix + ".routes")
+    routed = [i for i, kind in enumerate(config["mlp_layer_types"]) if kind == "sparse"]
+    assert sorted(got) == routed, "minimax: %s: routes of layers %s, the model routes %s" % (name, sorted(got), routed)
+    k, n = config["num_experts_per_tok"], config["num_local_experts"]
+    for layer in routed:
+        picks, scores, k_got, n_got = got[layer]
+        assert (k_got, n_got, len(picks)) == (k, n, len(sequence) * k), "minimax: %s layer %d: %s" % (name, layer, (k_got, n_got, len(picks)))
+        bias = state["model.layers.%d.mlp.gate.e_score_correction_bias" % layer][1]
+        for t in range(len(sequence)):
+            row = [1.0 / (1.0 + math.exp(-scores[t * n + e])) + bias[e] for e in range(n)]
+            best = sorted(range(n), key=lambda e: (-row[e], e))[:k]
+            assert sorted(picks[t * k:(t + 1) * k]) == sorted(best), "minimax: %s layer %d position %d picked %s, the scores' top %d %s" % (name, layer, t, list(picks[t * k:(t + 1) * k]), k, best)
+    return len(routed)
+
+
+def run(require=False):
     if common.tensor_width_skip("minimax") or common.f32_cache_skip("minimax"):
         return common.SKIPPED
     with open(GOLDEN, encoding="utf-8") as f:
@@ -105,4 +145,15 @@ def run():
                     print("minimax: SKIP - the device refuses the model at load (%s), so nothing was compared" % p.stderr.strip().splitlines()[-1])
                     return common.SKIPPED
             gate(name, path, directory, golden, document["margin_floor"])
+            if os.environ.get("LLMX_DEVICE", "cpu") != "cpu":
+                continue
+            tool = probe_path()
+            if not os.path.exists(tool):
+                assert not require, "minimax: %s not found beside the executable" % tool
+                print("minimax: route probe SKIP - %s not found beside the executable" % tool)
+                continue
+            for ubatch in (3, len(golden["sequence"])):
+                layers = routes(tool, name, path, directory, golden, state, ubatch)
+            print("minimax: %s: llmx-route-probe's rows are logits' byte for byte at ubatch 3 and %d, and its picks in %d routed layers the top %d of its scores"
+                  % (name, len(golden["sequence"]), layers, golden["config"]["num_experts_per_tok"]))
     return True

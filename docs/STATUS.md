@@ -1039,8 +1039,12 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 2. Text: pretokenizer `minimax-m2` and NFC, ids against HF; chat render with tool calls against transformers.
    Waits for fix/tokenizer-nfc to land on main and slides after steps 3 to 5, which need no ids.
 6. Real file against a file-exact layered HF reference: the CPU covers the 512-token windows and one prompt past 2048 for device identity; the raw and chat 16k sequences and decode after them run on the devices, with block-pick agreement per layer.
+   In progress (MMX7): `tools/minimax_file_reference.py` (docs/ASSETS.md, The minimax-m3 file-exact reference) runs HF on the file's own weights, its adapter held bit for bit to HF with eager experts on both tiny fixtures (`tests/reference_minimax_file.py`); the CPU rows `raw`, `chat` and `long` (2304 tokens past the first drop) run at `--dtype f32` with f32 caches, mapped, against it, held to the file-exact class's bounds (window NLL 0.02, top-5 overlap 5), set before the run.
+   The file's first shard holds metadata alone and ends 2 bytes before its alignment, which llmx refused (`GGUF data section exceeds file extent`): fixed on fix/gguf-metadata-shard, its failing test first, a dependency of this step until it lands.
+   Until step 2, llmx refuses the pretokenizer `minimax-m2` at load, so the runs read a copy of that metadata shard naming `qwen2`, the other six shards linked to the file's; the ids come from HF's tokenizer through `--then-ids` and no text is tokenized.
 7. Vulkan: the step 4 ops, identity against the CPU, the 16k pair, speed cells against the reference's Vulkan and HIP columns.
    The first landing follows this step, with the ROCm NVFP4 deficit recorded.
+   Before a device path lands (F2DEV's step 5 review of 05:35): the block lengths, filled on the host from `s.pos` and written every layer though they depend only on the pass's positions, are filled once a pass or read by the device from the positions it holds; and `tests/minimax.py`, which would hold a device at dtype auto (16-bit inputs) to the F32 bounds, runs devices at `--dtype f32` or under a budget calibrated for the device's class, never a widened bound.
 8. ROCm: NVFP4 as its own step under the ROCm backend owner, then the step 4 ops; the int8 arm matched to the reference's 8-bit activations, auto beside it.
 9. CUDA after the CUDA stream's MoE and BF16, on a rented card through COORD; DSpark, serving, tensor groups and vision later.
 

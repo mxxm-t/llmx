@@ -7,11 +7,13 @@ on:
       - 'tools/chat_ui/**'
       - 'tools/health_dashboard/**'
       - '.github/workflows/chat-workspace.yml'
+      - 'tests/dead_code.py'
   pull_request:
     paths:
       - 'tools/chat_ui/**'
       - 'tools/health_dashboard/**'
       - '.github/workflows/chat-workspace.yml'
+      - 'tests/dead_code.py'
   workflow_dispatch:
 
 permissions:
@@ -40,6 +42,8 @@ jobs:
           node-version: '22'
       - name: Compile Python
         run: python -X utf8 -m compileall -q tools/chat_ui tools/health_dashboard
+      - name: Dead code and analyzer regressions
+        run: python -X utf8 tests/dead_code.py
       - name: Workspace and browser tests
         run: python -X utf8 -m unittest discover -s tools/chat_ui -v
       - name: Existing dashboard tests

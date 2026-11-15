@@ -1,12 +1,16 @@
 # llmx - Development Status
 
-## Nested Python tool analysis (2026-11-15, in progress)
+## Nested Python tool analysis (2026-11-15, Done)
 
 **Goal.** Extend the existing Python dead-code owner to nested tools, including chat and dashboard, without conflating same-named modules.
 
-**Done.** Source review confirms the depth-one inventory skips both packages. Existing AST analysis remains the owner.
+**Done.** The failing fixture commit 2afc34a50 reproduces missing nested dead functions and an unrun test module. The existing AST owner now inventories nested Python with directory-specific identities, resolves local/qualified/relative imports, and follows direct script and unittest-discovery roots from workflows and live documentation. Discovery respects platform filename matching and package boundaries, matching the standard-library loader on Windows and Linux. Standard-library HTTP handler and redirect callbacks are recognized rather than suppressed through allowances. Focused regression and real-tree Python analysis pass with no Python findings.
 
-**Left.** Add failing coverage for nested dead definitions, directory-local and package imports, direct command roots and unittest discovery. Implement scoped resolution, inspect newly exposed findings, and run focused analyzer checks and applicable hosted qualification.
+**Checks.** Source review found no blocker. The complete analyzer passes with its 15 existing findings and 20 planted checks (27.1 seconds); documentation checks pass with no findings and 21 planted checks (22.1 seconds). The 167-file Markdown inventory was checked for analysis claims; TESTS, CI and ROADMAP describe the updated scope. The standalone companion workflow now runs the same analyzer on Windows and Linux, including changes to the checker itself.
+
+**Qualification.** [Hosted run 43718792136](https://github.com/mxxm-t/llmx/actions/runs/43718792136) passes the analyzer and companion/dashboard workflow on Windows and Linux at cafe656cfad79f02a5484ab19ef7bef26325c660. The final correction uses the standard-library filename matcher and its fixture covers Windows and Linux casing. The landing record is the only change to this feature after that tested head. The independent static dialog feature stacks after it; its JavaScript and browser regression changes do not alter the Python analyzer, its fixtures, imported helpers or hosted workflow. Final docs and dead-code checks cover the combined tree, which lands by fast-forward from 5f49ecb3c. No inference checks apply.
+
+**Left.** None for this change.
 
 **Gotchas.** Static analysis is conservative around instance attributes and dynamic imports. This change must not claim complete runtime reachability or execute the scanned code. No UI, inference or production change.
 

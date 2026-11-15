@@ -8,17 +8,20 @@ import argparse
 import ast
 import collections
 import functools
+import fnmatch
 import http.client
 import http.server
 import io
 import os
 import re
 import shutil
+import shlex
 import tempfile
 import socket
 import subprocess
 import sys
 import threading
+import urllib.request
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -817,11 +820,11 @@ def flag_findings(texts):
 
 # Methods a standard library caller reaches by name: handler and test hooks, and every method of the objects tests stand in for.
 PY_HOOKS = {"setUp", "tearDown", "setUpClass", "tearDownClass", "run", "handle", "log_message", "log_request", "log_error",
-            "do_GET", "do_POST", "do_HEAD", "do_PUT", "do_DELETE", "do_OPTIONS", "default", "handle_starttag", "handle_endtag",
+            "do_GET", "do_POST", "do_HEAD", "do_PUT", "do_DELETE", "do_OPTIONS", "do_PATCH", "default", "handle_starttag", "handle_endtag",
             "handle_data", "finish", "setup", "server_bind", "handle_error", "send_error", "address_string", "emit", "format"}
 PY_PROTOCOLS = set()
 for _cls in (socket.socket, io.RawIOBase, io.BufferedReader, io.TextIOWrapper, http.client.HTTPResponse, subprocess.Popen,
-             threading.Thread, http.server.BaseHTTPRequestHandler):
+             threading.Thread, http.server.BaseHTTPRequestHandler, http.server.ThreadingHTTPServer, urllib.request.HTTPRedirectHandler):
     PY_PROTOCOLS |= {a for a in dir(_cls) if not a.startswith("_")}
 
 
@@ -833,14 +836,23 @@ def python_findings(texts):
     """`python`: a function, class, method or module constant in tests/ or tools/ that nothing reaches, an argparse option that neither its module nor a module its parsed namespace goes to reads, and a test module no suite import, CTest, workflow step or live doc's command line runs."""
     modules = {}
     for p in sorted(texts):
-        if p.endswith(".py") and p.count("/") == 1 and p.split("/")[0] in ("tests", "tools"):
-            modules[(p.split("/")[0], p.split("/")[1][:-3])] = (p, parse_python(texts[p], p))
+        if p.endswith(".py") and p.split("/")[0] in ("tests", "tools"):
+            directory, filename = p.rsplit("/", 1)
+            modules[(directory, filename[:-3])] = (p, parse_python(texts[p], p))
+    paths = {p: mod for mod, (p, _) in modules.items()}
 
-    def module(top, name):
-        # Scripts put their own directory on sys.path, and tools reach tests through a path insert.
-        for t in (top, "tests" if top == "tools" else "tools"):
-            if (t, name) in modules:
-                return (t, name)
+    def module(directory, name, level=0):
+        relative = name.replace(".", "/")
+        if level:
+            for _ in range(level - 1):
+                directory = directory.rsplit("/", 1)[0] if "/" in directory else ""
+            candidates = [directory + ("/" + relative if relative else "")]
+        else:
+            candidates = [directory + "/" + relative, relative, "tests/" + relative, "tools/" + relative]
+        for path in candidates:
+            for filename in (path + ".py", path + "/__init__.py"):
+                if filename in paths:
+                    return paths[filename]
         return None
 
     imports = collections.defaultdict(dict)
@@ -848,13 +860,17 @@ def python_findings(texts):
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for a in node.names:
-                    m = module(mod[0], a.name.split(".")[0])
+                    m = module(mod[0], a.name)
                     if m:
                         imports[mod][a.asname or a.name] = ("module", m)
-            elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
-                m = module(mod[0], node.module.split(".")[0])
-                if m:
-                    for a in node.names:
+            elif isinstance(node, ast.ImportFrom):
+                name = node.module or ""
+                m = module(mod[0], name, node.level)
+                for a in node.names:
+                    child = module(mod[0], (name + "." if name else "") + a.name, node.level)
+                    if child:
+                        imports[mod][a.asname or a.name] = ("module", child)
+                    elif m:
                         imports[mod][a.asname or a.name] = ("name", m, a.name)
 
     defs, by_name, top_defs, node_def = {}, collections.defaultdict(set), collections.defaultdict(dict), {}
@@ -965,10 +981,11 @@ def python_findings(texts):
             self.generic_visit(node)
             attrs[self.mod][node.attr] += 1
             base = node.value
-            if isinstance(base, ast.Name) and imports[self.mod].get(base.id, ("",))[0] == "module":
-                other = imports[self.mod][base.id][1]
-                if node.attr in top_defs[other]:
-                    edges[self.stack[-1]].add(top_defs[other][node.attr])
+            target = callee(imports[self.mod], node)
+            if target:
+                other, name = target
+                if name in top_defs[other]:
+                    edges[self.stack[-1]].add(top_defs[other][name])
                 return
             if isinstance(node.ctx, ast.Store) and not (isinstance(base, ast.Name) and base.id == "self"):
                 return
@@ -1031,16 +1048,17 @@ def python_findings(texts):
                 if not any(attrs[r].get(dest) or dest in attr_strings[r] or "vars(" in texts[modules[r][0]] for r in readers[mod]):
                     found[("python", p, max(opts, key=len))] = ["%s:%d, an option nothing reads" % (p, node.lineno)]
     # A test module is run by the suite, through run_tests.py's imports, by a workflow step, or by a command line in a live section of a doc.
-    run, work = set(), [("tests", "run_tests")]
+    commands = script_commands(texts)
+    run, work = set(), [("tests", "run_tests")] + [paths[p] for p in commands if p in paths]
     while work:
         mod = work.pop()
         if mod in run or mod not in modules:
             continue
         run.add(mod)
         work += [v[1] for v in imports[mod].values()]
-    commands = script_commands(texts)
     for (top, name), (p, _) in sorted(modules.items()):
-        if top == "tests" and (top, name) not in run and p not in commands:
+        is_test = top.split("/")[0] == "tests" or name.startswith("test")
+        if is_test and name != "__init__" and (top, name) not in run:
             found[("python", p, "module")] = ["%s: no suite import, CTest, workflow step or live doc's command line runs it" % p]
     return found
 
@@ -1052,27 +1070,62 @@ def parses(node):
 
 def callee(imports, f):
     """(module, function) for a call's function from another module of tests/ or tools/, by the calling module's `imports`: `module.function` or a function imported by name; None for any other."""
-    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name):
-        imp = imports.get(f.value.id)
-        return (imp[1], f.attr) if imp and imp[0] == "module" else None
+    if isinstance(f, ast.Attribute):
+        parts, base = [], f.value
+        while isinstance(base, ast.Attribute):
+            parts.append(base.attr)
+            base = base.value
+        if isinstance(base, ast.Name):
+            imp = imports.get(".".join([base.id] + list(reversed(parts))))
+            return (imp[1], f.attr) if imp and imp[0] == "module" else None
     if isinstance(f, ast.Name):
         imp = imports.get(f.id)
         return (imp[1], imp[2]) if imp and imp[0] == "name" else None
     return None
 
 
-CTEST_SCRIPT = re.compile(r"add_test\(NAME [\w-]+ COMMAND \$\{Python3_EXECUTABLE\} \$\{CMAKE_CURRENT_SOURCE_DIR\}/((?:tests|tools)/\w+\.py)")
-SCRIPT_RUN = re.compile(r"\bpy(?:thon3?)?(?:\s+-[A-Za-z]+(?:\s+utf8)?)*\s+((?:tests|tools)/\w+\.py)\b")
+CTEST_SCRIPT = re.compile(r"add_test\(NAME [\w-]+ COMMAND \$\{Python3_EXECUTABLE\} \$\{CMAKE_CURRENT_SOURCE_DIR\}/((?:tests|tools)/(?:[\w-]+/)*\w+\.py)")
+SCRIPT_RUN = re.compile(r"\bpy(?:thon3?)?(?:\s+-[A-Za-z]+(?:\s+utf8)?)*\s+((?:tests|tools)/(?:[\w-]+/)*\w+\.py)\b")
 
 
 def script_commands(texts):
     """The scripts of tests/ and tools/ that a CTest, a workflow step, or a command line in a live section of a doc, runs with Python; a record or a plan naming one runs nothing."""
     lines = [line for p, t in texts.items() if p.startswith(".github/") for line in t.split("\n")]
-    for doc in docs_check.doc_files(texts):
+    docs = set(docs_check.doc_files(texts)) | {p for p in texts if p.startswith("tools/") and p.endswith(".md")}
+    for doc in sorted(docs):
         for _, line, region, fence in docs_check.doc_lines(doc, texts[doc]):
             if region == "live":
                 lines += [line] if fence else [m.group(2) for m in docs_check.SPAN.finditer(line)]
-    return {m.group(1) for line in lines for m in SCRIPT_RUN.finditer(line)} | set(CTEST_SCRIPT.findall(cmake_text(texts)))
+    commands = {m.group(1) for line in lines for m in SCRIPT_RUN.finditer(line)} | set(CTEST_SCRIPT.findall(cmake_text(texts)))
+    for line in lines:
+        match = re.search(r"\bpython[3]?(?:\s+-X\s+utf8)?\s+-m\s+unittest\s+discover\b(.*)", line)
+        if not match:
+            continue
+        try:
+            args = shlex.split(match.group(1))
+        except ValueError:
+            continue
+        start, pattern = ".", "test*.py"
+        for i, arg in enumerate(args):
+            if arg in ("-s", "--start-directory") and i + 1 < len(args):
+                start = args[i + 1].rstrip("/")
+            elif arg in ("-p", "--pattern") and i + 1 < len(args):
+                pattern = args[i + 1]
+        for path in texts:
+            if not path.endswith(".py") or (start != "." and not path.startswith(start + "/")):
+                continue
+            parent, name = path.rsplit("/", 1) if "/" in path else (".", path)
+            relative = parent[len(start) + 1:] if start != "." and parent != start else parent if start == "." else ""
+            directory = start if start != "." else ""
+            packages = True
+            for part in relative.split("/") if relative else []:
+                directory = (directory + "/" if directory else "") + part
+                if directory + "/__init__.py" not in texts:
+                    packages = False
+                    break
+            if packages and fnmatch.fnmatch(name, pattern):
+                commands.add(path)
+    return commands
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1415,12 +1468,26 @@ def python_nested_self_test():
         "tools/one/deep/__init__.py": "",
         "tools/two/qualified.py": "def reach(): return 5\n",
         "tools/one/test_qualified.py": "import tools.two.qualified as q\nassert q.reach() == 5\n",
+        "tools/case/test_case.py": "import unittest\n",
+        ".github/workflows/case.yml": "run: python -m unittest discover -s tools/case -p test_CASE.py\n",
         "tools/two/test_direct.py": "import unittest\n",
+        "tools/one/test_dotted.py": "import tools.two.dotted\nassert tools.two.dotted.used() == 6\n",
+        "tools/two/dotted.py": "def used(): return 6\n",
+        "tools/one/test_package.py": "from tools.two import package_helper\nassert package_helper.used_package() == 7\n",
+        "tools/two/package_helper.py": "def used_package(): return 7\n",
+        "tools/one/no_package/test_not_discovered.py": "import unittest\n",
+        "tools/one/testFiltered.py": "import unittest\n",
+        "tools/one/test_protocol.py": "from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer\nfrom urllib.request import HTTPRedirectHandler\nclass Handler(BaseHTTPRequestHandler):\n    def do_PATCH(self): pass\nclass Server(ThreadingHTTPServer):\n    def process_request_thread(self): pass\nclass Redirect(HTTPRedirectHandler):\n    def redirect_request(self): pass\nHandler(); Server(); Redirect()\n",
+
         "tools/two/README.md": "```\npython tools/two/test_direct.py\n```\n",
     }
     expected = {("python", "tools/one/helper.py", "dead"),
                 ("python", "tools/two/helper.py", "live"),
-                ("python", "tools/two/test_unrun.py", "module")}
+                ("python", "tools/two/test_unrun.py", "module"),
+                ("python", "tools/one/no_package/test_not_discovered.py", "module"),
+                ("python", "tools/one/testFiltered.py", "module")}
+    if os.name != "nt":
+        expected.add(("python", "tools/case/test_case.py", "module"))
     got = set(python_findings(tree))
     if got != expected:
         print("  self-test: nested Python findings differ: missing=%s extra=%s" % (sorted(expected - got), sorted(got - expected)))

@@ -337,13 +337,13 @@ replace the inference server's authentication and scheduling owners.
 Non-loopback deployment requires an HTTPS public origin. Login bodies,
 per-client failure records and handler connections have bounded admission in
 the companion's existing transport owner; its usage page describes the limits.
+The Python dead-code check now includes the nested companion and dashboard
+modules, with directory-aware imports and declared discovery roots.
 
 Prioritized follow-ups:
 - Document the host privileges required by a local Docker daemon and prefer a
   dedicated or rootless remote daemon where appropriate; the workspace
   container's existing isolation flags remain in force.
-- Extend dead-code analysis to nested `tools/` packages, including the
-  companion and dashboard.
 - Replace remaining native `prompt()`/`confirm()` flows with accessible dialogs, and settle consistent
   user-facing names for Studio and Workspace.
 - When server authentication lands, let the standalone dashboard send its

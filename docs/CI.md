@@ -1,11 +1,12 @@
 # Continuous integration
 
 The dedicated `Chat workspace` workflow runs the standalone companion and
-existing dashboard checks on Windows and Linux. It requires the real-browser
+existing dashboard checks on Windows and Linux, plus the dead-code analyzer
+and its planted regressions. It requires the real-browser
 check with `LLMX_CHAT_REQUIRE_BROWSER=1`; local runs may explicitly skip it if
 Chrome/Chromium and Node are absent. The tests use local HTTP fixtures and
 temporary storage, not inference or external tools. The workflow runs for the
-companion/dashboard paths on main, pull requests and temporary
+companion/dashboard paths and changes to `tests/dead_code.py` on main, pull requests and temporary
 `ci/chat-workspace-*` qualification branches. This keeps standalone workspace
 qualification independent of the inference build matrix. See the
 [companion documentation](../tools/chat_ui/README.md) for commands and the manual

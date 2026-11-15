@@ -3,6 +3,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -74,6 +75,39 @@ class BrowserRunner:
 
 
 class BrowserTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "Chrome launch diagnostics are Linux-specific")
+    def test_browser_launch_timeout_reports_live_process_state(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node is unavailable")
+        with tempfile.TemporaryDirectory(prefix="llmx-browser-launch-") as temporary:
+            root = Path(temporary)
+            fake_chrome = root / "fake-chrome"
+            fake_chrome.write_text(
+                "#!/usr/bin/env python3\n"
+                "import sys, time\n"
+                "print('fake browser started', file=sys.stderr, flush=True)\n"
+                "time.sleep(2.5)\n",
+                encoding="utf-8",
+            )
+            fake_chrome.chmod(0o755)
+            result = subprocess.run(
+                [node, str(Path(__file__).with_name("browser_check.mjs")),
+                 "http://127.0.0.1:1", str(fake_chrome), str(root / "profile"),
+                 str(root / "artifacts"), "--startup-timeout-ms=150"],
+                capture_output=True, text=True, timeout=8,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        timeout = re.search(
+            r"Chrome did not open DevTools within (\d+) ms \(limit 150 ms\)",
+            result.stderr,
+        )
+        self.assertIsNotNone(timeout, result.stderr)
+        self.assertGreaterEqual(int(timeout.group(1)), 150)
+        self.assertIn("Chrome process:", result.stderr)
+        self.assertIn("still running", result.stderr)
+        self.assertIn("fake browser started", result.stderr)
+
     def test_workspace_in_chrome(self):
         node = shutil.which("node")
         chrome = next((str(p) for p in [

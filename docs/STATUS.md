@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Chat model selection explanation (2026-11-16, Done)
+
+**Goal.** Explain what the companion's model selector controls when connected to llmx serve.
+
+**Done.** Source review confirms the catalogue comes from the configured upstream `/models`; the selected ID is sent with model requests. The current llmx server accepts and ignores the compatible request `model` field and serves its startup-loaded model. The companion disables saved selections absent from the current catalogue and blocks sending until an available selection is made.
+
+**Checks.** `python tests/run_tests.py --only docs,dead-code --exe C:/Users/Marko/Desktop/Projects/llmx/worktrees/chat-request-key-landing-20261116/llmx.exe` passes: docs 0 findings/21 planted checks in 19.1 s; dead-code 15 expected findings/20 planted checks in 26.2 s. Both checks inspect source and Markdown directly and do not execute the supplied binary. `git diff --check` passes. Output: `scratch/model-selection-docs-check.txt`.
+
+**Review and landing.** Root checked the explanation against the current catalogue, request and saved-selection paths. The change lands as one docs-only commit with the live-metrics batch after final docs/dead-code checks on the combined tree. No inference behavior changes, and its unchanged runtime evidence is carried forward from the hosted source identified below.
+
+**Gotchas.** Do not imply that the selector routes requests to another model or reloads model files.
+
 ## Chat sidebar keyboard focus fill (2026-11-16, Done)
 
 **Goal.** Keep keyboard focus on a chat row visually consistent with its active and hover shapes at narrow and wide widths and across themes.

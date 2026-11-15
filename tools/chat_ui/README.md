@@ -60,6 +60,16 @@ limits at the reverse proxy for a public deployment.
 This is one owner workspace. Everyone who knows its password can access its
 conversations and tools. There is no multi-user account or role system.
 
+## Model selection
+
+The selector lists model IDs reported by the connected upstream server. Chat sends
+the selected ID with each request, but the current `llmx serve` process keeps
+the model file loaded at startup. It does not route a request to another model
+or load a different file from this selector. To use another model, connect to an
+upstream serving that model. If a saved conversation refers to a model ID the
+connected upstream does not report, that choice is marked unavailable and
+sending stays disabled until you select an available model.
+
 ## Conversations
 
 - New conversation reuses the current empty conversation and keeps its unsent

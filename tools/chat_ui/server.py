@@ -384,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
         if protected_document and method == "GET":
             if path == "/monitor/view":
                 data = self.app.monitor.document()
-                policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
+                policy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'none'"
             else:
                 with self.app.lock:
                     created, data = self.app.previews[path[len('/preview/'):]]

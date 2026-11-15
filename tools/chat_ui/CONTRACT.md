@@ -107,18 +107,31 @@ Settings: `{model,system,temperature,top_p,top_k,max_tokens,tools:[]}`. Omitted 
 
 Attachment: `{name,type,text}` for UTF-8 text, or `{name,type,data}` for PNG/JPEG base64 data URLs. The browser accepts text up to 2 MiB, images up to 8 MiB and 10 MiB total across at most eight files. It shows each file size and the combined size before send. The service validates the same decoded byte limits and stores attachments in the message. Other formats are refused explicitly. No URL fetching or hidden retrieval occurs.
 
-Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
+Message: `{id,chat_id,parent_id,role,content,reasoning,attachments,tool_calls,tool_call_id,run_id,status,created,usage,timings,context,request}`. Optional fields may be absent. Tool call records have `{id,name,arguments,status,result,duration_ms,error}`. Status can be `pending`, `approval`, `running`, `completed`, `denied`, `failed`, `cancelled` or `interrupted`. Tool outputs remain independent messages for model history.
 
 Run: `{id,chat_id,status,message_id,created,updated,error,last_seq}`. Run statuses are `running`, `approval`, `completed`, `cancelled`, `failed` and `interrupted`.
 
 Events:
 - `message`: complete message record, insert or replace by id.
 - `delta`: `{message_id,content,reasoning}`, append supplied text only.
-- `metrics`: `{message_id,usage,timings,context}`, merge available objects.
+- `metrics`: `{message_id,usage,timings,context,request}`, merge available objects.
 - `tool`: `{message_id,call}`, replace the matching call by id.
 - `state`: full run record. Terminal states stop streaming.
 
-A snapshot contains persisted text and the matching run cursor. Subscribe from `last_seq`, not zero, after loading that snapshot. Usage is stored once per model call, not added for each event. A turn can contain several model calls. Cached input is a subset of input. Live chunks are never counted as tokens. The UI shows measured server rates only when provided, and an elapsed timer while live. It must not invent per-request health rates.
+A snapshot contains persisted text and the matching run cursor. Subscribe from `last_seq`, not zero, after loading that snapshot. Usage is stored once per model call, not added for each event. A turn can contain several model calls. Cached input is a subset of input. Live chunks are never counted as tokens. The UI shows final rates from server timings and derives live rates only from matching health counters. It shows elapsed time while the run is active.
+
+When the opening upstream event provides `id`, the companion stores
+`request: {id}` on that model call's assistant message. The identity is an opaque
+string of 1 to 128 visible ASCII characters, without spaces. Missing or malformed
+metadata leaves generation usable without correlation. Later events cannot set
+or replace it. Reload and event replay preserve the identity. Chat imports drop
+it and model history never includes it. An upstream must use the same opaque key
+in health for correlation. Chat joins it exactly against the existing monitor SSE
+feed, using the shared dashboard counter-rate implementation. Repeated snapshots
+do not provide a new rate. Missing rows, collection errors and stale data clear
+the visible rates. Subscription lifetime follows the visible active model call,
+including tool follow-ups and browser page restoration. Final metrics remain
+separate from live rates.
 
 ## UI behavior
 

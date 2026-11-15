@@ -1035,11 +1035,15 @@ kbd {
 }
 .live-state {
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   gap:9px;
   font-size:11px;
   color:var(--muted);
   padding:5px 0 20px
+}
+.live-metrics {
+  font-variant-numeric:tabular-nums
 }
 .live-state .status-dot {
   animation:breathe 1.7s ease-in-out infinite

@@ -655,6 +655,18 @@ A message boundary's state forked with a request (`Model::fork` with a state) is
 
 ## Live work counters
 
+Each live request ID combines an API-instance random nonce with its admitted
+scheduler number, in the opaque namespace `cmpl-<nonce>-<number>`. Health rows
+and the `id` of both compatible completion routes use exactly that same key.
+There is no second completion counter or correlation extension. Treat the full
+value as opaque; do not parse its parts. Streaming `/v1/chat/completions` sends
+an opening assistant-role chunk after admission and before the token wait, so
+the key is available during prefill and queueing. This is one extra early write
+per call, not a scheduler wait or per-token change. The role is not repeated
+with the first token. Rejection before admission has no key; admitted requests
+may still fail or be cancelled later. A new API instance creates a new random
+nonce to separate its requests from earlier instances.
+
 `work.since_start.prefilled_tokens` counts client prompt positions in successfully retired passes, including prompt rows recomputed after a pause. A cached prefix contributes no rows; background read-again jobs, generated history replay, drafter calls and speculative verification rows contribute none. `work.since_start.generated_tokens` counts output tokens successfully pushed to clients' request channels, including the first output token and accepted speculative tokens, each once. EOS and rejected drafts contribute none; output already published before a later error stays counted. Both counters start at zero with each scheduler and are available without `--timing`.
 
 The scheduler owns both: `retire` intersects each non-decoding client entry's rows with its prompt positions after `Model::end_pass`, and `step` increments its counter after each successful `Request::push`, so a later exception preserves the count of tokens already published. `Scheduler::Stats` reads their atomics and `Api::health` serializes them. The request counters under `requests.since_start` retain their separate meaning: admitted requests that ended, with their whole prompt including reused tokens.

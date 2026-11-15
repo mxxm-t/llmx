@@ -8,6 +8,12 @@ scheduler are the runtime's own.
 
 The API serializes Model::topology once at construction and reuses the immutable
 JSON for the /v1/health topology group.
+It also owns a random instance prefix for public request IDs. The scheduler's
+immutable admitted request number is exposed through `Request::id()` and combined
+with that prefix by the API for both health rows and compatible completion `id`
+fields. Both compatible routes use the same opaque namespace, with no separate
+completion counter. The opening chat role chunk precedes the token wait and is
+not repeated with the first generated text.
 Its backend indices map to the resolved dtype device names, its stages and
 layer groups come from the model's validated placement, and its expert-stream
 target means eligible for prompts at the reported threshold rather than active

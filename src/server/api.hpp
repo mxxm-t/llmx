@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -389,7 +390,7 @@ private:
         std::string devices, positions, sources, live;
         for (size_t i = 0; i < s.live.count; ++i) {
             const auto& r = s.live.items[i];
-            live += (i ? "," : "") + std::string("{\"id\":") + jmini::quote("r-" + n(r.id)) +
+            live += (i ? "," : "") + std::string("{\"id\":") + jmini::quote(request_id(r.id)) +
                     ",\"phase\":" + jmini::quote(r.phase) + ",\"prompt_tokens\":" + n(r.prompt_tokens) +
                     ",\"reused_tokens\":" + n(r.reused_tokens) + ",\"prefilled_tokens\":" + n(r.prefilled_tokens) +
                     ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) + ",\"steps\":" + n(r.steps) + ",\"verifies\":" + n(r.verifies) +
@@ -1221,6 +1222,7 @@ private:
         return "{\"id\":" + jmini::quote(id) + ",\"object\":\"" + object + "\",\"created\":" + std::to_string(started_) +
                ",\"model\":" + jmini::quote(cfg_.model_name);
     }
+    std::string request_id(uint64_t id) const { return request_prefix_ + std::to_string(id); }
     // One streamed chunk of a compatible route: a chat delta or a text piece, with the finish reason on the last, and the chunk's logprobs when the request asked for them.
     // A chat delta carries `reasoning` as reasoning_content beside its content when a reply's reasoning is split off, and `calls`, pieces of tool calls (deltas_json), where it has any.
     std::string chunk(Route route, const std::string& id, const std::string& piece, bool first, const std::string* finish, const std::string& logprobs = "",
@@ -1450,7 +1452,7 @@ private:
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
-        const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
+        const std::string id = request_id(r->id());
         // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
         const bool split = route == Route::chat_completions;
         chat::ReplySplit splitter(chat::opens_reasoning(prompt));
@@ -1483,7 +1485,13 @@ private:
             following = false;
         };
         try {
-            if (stream) c.begin_stream(200, "text/event-stream");
+            if (stream) {
+                c.begin_stream(200, "text/event-stream");
+                if (split) {
+                    c.write_chunk("data: " + chunk(route, id, "", true, nullptr, no_logprobs) + "\n\n");
+                    first = false;
+                }
+            }
             Request::Token tok;
             Request::Clock::time_point probe = Request::Clock::now() + kProbe;
             for (;;) {
@@ -1646,8 +1654,13 @@ private:
     const std::string cached_topology_json_;
     const Startup* startup_;   // the start's record, which health keeps, where the server has one
     const int64_t started_;
+    const std::string request_prefix_ = [] {
+        std::random_device random;
+        std::string prefix = "cmpl-";
+        for (int i = 0; i < 4; ++i) prefix += std::to_string(random()) + "-";
+        return prefix;
+    }();
     std::atomic<uint64_t> shifts_{0}, shifted_tokens_{0};   // since start, the requests whose prompt a shift cut, and the tokens those cuts dropped
-    std::atomic<uint64_t> next_id_{1};
 };
 
 namespace detail {

@@ -197,9 +197,15 @@ first token is preparation plus queue plus prompt time. Its generation rate
 counts tokens after the first, using the time after that first token. These are
 different from end-to-end elapsed time and browser delivery speed.
 
-The live display shows state and elapsed time. It does not invent live token
-rates from chunks or join unrelated health IDs to a reply. A backend contract
-for correlating live request metrics is needed before adding that information.
+The live display shows state and elapsed time. When the upstream uses the
+opening completion `id` for its health row, Chat matches that exact ID in the existing Monitor
+feed to show prompt work and measured prompt or generation tokens per second.
+Both views share `request_rates.js` and one collector. No extra upstream polling
+is started. Rates need two distinct samples and include time between scheduler
+snapshots, not just kernel execution. Repeated, missing, failed or stale samples
+show no current rate. A measured zero remains zero. Leaving Chat, hiding the tab
+or finishing the model call closes Chat's subscription. Older upstreams keep
+state and elapsed time without live rates. No rates are inferred from text chunks.
 Context reports the server's effective limit, not the model's advertised maximum.
 Raw context metadata preserves any dropped-message and dropped-token counts.
 

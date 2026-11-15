@@ -168,6 +168,7 @@ class Engine:
             raise Cancelled()
         calls, chunks, thought = {}, [], []
         last, chars, first = time.monotonic(), 0, True
+        opening = True
 
         def flush():
             nonlocal last
@@ -182,6 +183,11 @@ class Engine:
                 if control.cancel.is_set():
                     raise Cancelled()
                 metrics = {k: event[k] for k in ("usage", "timings", "context") if isinstance(event.get(k), dict)}
+                if opening:
+                    request_id = event.get("id")
+                    if isinstance(request_id, str) and 1 <= len(request_id) <= 128 and all("!" <= c <= "~" for c in request_id):
+                        metrics["request"] = {"id": request_id}
+                    opening = False
                 if metrics:
                     self.store.publish(rid, "metrics", dict(message_id=message["id"], **metrics))
                 for choice in event.get("choices", []):

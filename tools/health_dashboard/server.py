@@ -22,6 +22,7 @@ MAX_BODY = 1024 * 1024
 MAX_SAMPLES = 3601
 MAX_EVENTS = 128
 ASSETS = {
+    "request_rates.js": "text/javascript; charset=utf-8",
     "theme.css": "text/css; charset=utf-8",
     "favicon.svg": "image/svg+xml",
     "logo.svg": "image/svg+xml",

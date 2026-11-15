@@ -2946,6 +2946,7 @@ button[hidden] {
     </span>
    </div>
   </main>
+  <script src="/request_rates.js"></script>
   <script>
 
 
@@ -3140,9 +3141,9 @@ function updateLiveRequests(raw, alignedWindows = null, alignWindows = false) {
           piecesDone: item.image.pieces_done,
           piecesTotal: item.image.pieces_total
         } : null,
-      pp: requestWindowRate(liveRequestHistory, item.id, 'prefilled_tokens', state.interval,
+      pp: LLMXRates.requestWindowRate(liveRequestHistory, item.id, 'prefilled_tokens', state.interval,
         alignWindows ? (alignedWindows?.prefilled_tokens || {}) : null),
-      tg: requestWindowRate(liveRequestHistory, item.id, 'published_tokens', state.interval,
+      tg: LLMXRates.requestWindowRate(liveRequestHistory, item.id, 'published_tokens', state.interval,
         alignWindows ? (alignedWindows?.generated_tokens || {}) : null)
     }
   });
@@ -3271,47 +3272,6 @@ function fill(id, a, b) {
   $(id).style.width = v === null ? '0%': Math.min(100, Math.max(0, v * 100)) + '%';
   $(id).parentElement.setAttribute('aria-label', v === null ? 'Occupancy unavailable': fmt(a) + ' of ' + fmt(b));
 }
-function consecutiveCounterRate(samples, endIndex, options) {
-  const clockAt = options.clock;
-  const wallAt = options.wall;
-  const valueAt = options.value;
-  const resetAt = options.reset || (sample => sample.reset === true);
-  const scale = options.scale || 1;
-  const maxGap = options.maxGap;
-  const staleAfter = options.staleAfter;
-  if (endIndex < 1) return null;
-  const observedClock = clockAt(samples[endIndex]);
-  if (!number(observedClock) || resetAt(samples[endIndex])) return null;
-  let end = endIndex;
-  while (end > 0 && clockAt(samples[end - 1]) === observedClock) end--;
-  if (end < 1) return null;
-  const endSample = samples[end];
-  const endClock = clockAt(endSample);
-  if (!number(endClock)) return null;
-  let base = end - 1;
-  const previousClock = clockAt(samples[base]);
-  while (base > 0 && clockAt(samples[base - 1]) === previousClock) base--;
-  const startClock = clockAt(samples[base]);
-  const age = wallAt(samples[endIndex]) - wallAt(endSample);
-  if (age < 0 || age > staleAfter || resetAt(samples[base]) || !number(startClock) || endClock <= startClock) return null;
-  const elapsed = (endClock - startClock) * scale;
-  const firstValue = valueAt(samples[base]);
-  const lastValue = valueAt(endSample);
-  if (elapsed <= 0 || !number(firstValue) || !number(lastValue) || lastValue < firstValue) return null;
-  let checkedClock = startClock;
-  let previousValue = firstValue;
-  for (let i = base + 1; i <= endIndex; i++) {
-    const clock = clockAt(samples[i]);
-    const value = valueAt(samples[i]);
-    const wallGap = wallAt(samples[i]) - wallAt(samples[i - 1]);
-    if (resetAt(samples[i]) || !number(clock) || clock < checkedClock || wallGap < 0 || wallGap > maxGap ||
-        !number(value) || value < previousValue || (clock === previousClock && value !== previousValue)) return null;
-    checkedClock = clock;
-    previousValue = value;
-  }
-  return {rate: (lastValue - firstValue) / elapsed, elapsed, age,
-    startClock, endClock}
-}
 function sampleIntervalRate(samples, i, path, clockField) {
   const result = sampleIntervalMeasurement(samples, i, path, clockField);
   return result ? result.rate : null
@@ -3319,7 +3279,7 @@ function sampleIntervalRate(samples, i, path, clockField) {
 function sampleIntervalMeasurement(samples, i, path, clockField) {
   const gapLimit = Math.max(15, state.interval * 3);
   const metric = sample => sample.metrics[path];
-  return consecutiveCounterRate(samples, i, {
+  return LLMXRates.consecutiveCounterRate(samples, i, {
     clock: sample => clockField ? sample.metrics[clockField] : sample.t,
     wall: sample => sample.t,
     value: metric,
@@ -3355,25 +3315,6 @@ function rateUnavailableReason(samples, i, path, clockField) {
   if (b.t - a.t > gapLimit || b.t <= a.t) return 'Collection gap / waiting for a continuous sample interval';
   if (!number(a.metrics[path]) || !number(clock(a))) return 'Missing counter in sample interval';
   return 'Waiting for a distinct sample';
-}
-function requestWindowRate(history, id, key, interval, alignedWindow = null) {
-  let startIndex = history.length - 1;
-  while (startIndex > 0 && history[startIndex - 1].items.has(id)) startIndex--;
-  if (startIndex === history.length - 1 || !history[startIndex].items.has(id)) return null;
-  const requestHistory = history.slice(startIndex);
-  const gapLimit = Math.max(15, interval * 3);
-  const measured = consecutiveCounterRate(requestHistory, requestHistory.length - 1, {
-    clock: sample => sample.timestamp,
-    wall: sample => sample.observedAt,
-    value: sample => sample.items.get(id)?.[key],
-    scale: 0.001,
-    maxGap: gapLimit,
-    staleAfter: gapLimit,
-    reset: () => false
-  });
-  if (!measured) return null;
-  if (alignedWindow && (measured.startClock !== alignedWindow.startClock || measured.endClock !== alignedWindow.endClock)) return null;
-  return measured.rate
 }
 function runtimeSampleAge(samples, clockField) {
   if (!clockField || !samples.length) return null;

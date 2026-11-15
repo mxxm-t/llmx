@@ -128,6 +128,7 @@ public:
     }
     // Set by the connection thread when the client goes away; at its next round the scheduler drops the request from the queue or from the batch, once no pass in flight holds it.
     void cancel() { cancel_.store(true); }
+    uint64_t id() const { return id_; }
     // The client's prompt tokens.
     size_t prompt_tokens() const { return prompt_.size(); }
     // Prompt tokens taken from a donor's cache rather than prefilled.

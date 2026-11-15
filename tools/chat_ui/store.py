@@ -403,7 +403,7 @@ class Store:
                 for key in ("content", "reasoning"):
                     m[key] += data.get(key, "")
             elif kind == "metrics":
-                for key in ("usage", "timings", "context"):
+                for key in ("usage", "timings", "context", "request"):
                     if key in data:
                         m[key] = data[key]
             else:

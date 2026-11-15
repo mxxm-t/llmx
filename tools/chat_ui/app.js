@@ -16,6 +16,7 @@
   const terminal = status => ['completed', 'failed', 'cancelled', 'interrupted'].includes(status);
   const S = {chats: [], chat: null, messages: [], runs: [], config: {models: [], tools: []}, attachments: [], edit: null, stream: null, cursor: 0, archive: false, tab: 'activity', scheduled: false, fingerprint: new Map(), searchText: new Map(), inspectorKey: '', generation: 0, busy: false};
   let toastTimer, creatingChat = false, menuId = null, composerRevision = 0;
+  const liveMetrics = {id: null, stream: null, history: [], row: null, received: 0, collector: null};
   const objectIds = new WeakMap(); let nextObjectId = 0;
   function identity(value) { if (!value || typeof value !== 'object') return value; if (!objectIds.has(value)) objectIds.set(value, ++nextObjectId); return objectIds.get(value); }
   function messageKey(m, text = false) { return [m.id, m.role, m.status, text ? m.content : undefined, text ? m.reasoning : undefined, identity(m.usage), identity(m.timings), identity(m.context), (m.tool_calls || []).map(identity), (m.attachments || []).map(identity)]; }
@@ -360,7 +361,7 @@
     if (tooltipTarget && !tooltipTarget.isConnected) hideActionTooltip();
     container.querySelector('.live-state')?.remove();
     const run = currentRun();
-    if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', '', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'run-elapsed')); container.append(live); }
+    if (run) { const live = node('div', 'live-state'); live.append(node('span', 'status-dot'), node('span', 'live-phase', run.status === 'approval' ? 'Waiting for your approval' : 'Working'), node('span', 'live-metrics'), node('span', 'run-elapsed')); container.append(live); }
     $('welcome').hidden = selected.length > 0; $('messages').hidden = selected.length === 0 && !run;
     $('chat-title').textContent = S.chat?.title || 'New conversation';
     $('temporary-notice').hidden = !S.chat?.temporary;
@@ -371,7 +372,57 @@
     $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || !S.config.upstream_available || modelUnavailable;
     if (!run && modelUnavailable && S.config.upstream_available) banner('This model is not available on the connected server. Choose another model before sending.');
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
-    renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
+    syncLiveMetrics(); renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);
+  }
+  function syncLiveMetrics() {
+    const run = currentRun();
+    const message = run?.status === 'running' ? path().findLast(m => m.role === 'assistant' && m.status === 'running' && m.run_id === run.id) : null;
+    const id = $('app').dataset.view === 'chat' && !document.hidden ? message?.request?.id || null : null;
+    if (id === liveMetrics.id) return;
+    liveMetrics.stream?.close();
+    Object.assign(liveMetrics, {id, stream: null, history: [], row: null, received: 0, collector: null});
+    if (!id) return;
+    const stream = new EventSource('/api/monitor/stream'); liveMetrics.stream = stream;
+    stream.addEventListener('history', event => {
+      if (liveMetrics.stream !== stream) return;
+      try {
+        const data = JSON.parse(event.data), live = data.latest?.requests?.live;
+        if (data.collector_id !== liveMetrics.collector || data.samples?.some(sample => sample.reset)) liveMetrics.history = [];
+        liveMetrics.collector = data.collector_id;
+        if (!data.ok || !Number.isFinite(live?.sample_elapsed_ms) || !Array.isArray(live.items)) {
+          liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); return;
+        }
+        const item = live.items.find(row => row.id === id);
+        if (!item) { liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); return; }
+        const previous = liveMetrics.history.at(-1);
+        if (previous && live.sample_elapsed_ms < previous.timestamp) liveMetrics.history = [];
+        const sample = {timestamp: live.sample_elapsed_ms, observedAt: performance.now() / 1000, items: new Map([[id, item]])};
+        liveMetrics.history.push(sample); liveMetrics.history = liveMetrics.history.slice(-64);
+        const interval = Number.isFinite(data.interval_s) && data.interval_s > 0 ? data.interval_s : 2;
+        const rate = key => previous?.timestamp === sample.timestamp ? null : window.LLMXRates.requestWindowRate(liveMetrics.history, id, key, interval);
+        liveMetrics.row = {...item, pp: rate('prefilled_tokens'), tg: rate('published_tokens')};
+        liveMetrics.received = performance.now();
+        renderLiveMetrics();
+      } catch (_) { liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); }
+    });
+    stream.onerror = () => { if (liveMetrics.stream === stream) { liveMetrics.history = []; liveMetrics.row = null; renderLiveMetrics(); } };
+  }
+  function renderLiveMetrics() {
+    const phase = document.querySelector('.live-phase'), metrics = document.querySelector('.live-metrics');
+    if (!phase || !metrics) return;
+    const run = currentRun();
+    const row = performance.now() - liveMetrics.received <= 15000 ? liveMetrics.row : null;
+    const labels = {queued: 'Queued', paused: 'Paused', encode: 'Processing image', prefill: 'Processing prompt', generate: 'Generating'};
+    phase.textContent = run?.status === 'approval' ? 'Waiting for your approval' : row ? labels[row.phase] || 'Working' : 'Working';
+    metrics.textContent = '';
+    if (!liveMetrics.id) return;
+    if (!row) { metrics.textContent = 'Live rates unavailable'; return; }
+    const parts = [];
+    if (row.phase === 'prefill' && Number.isSafeInteger(row.prefilled_tokens) && row.prefilled_tokens >= 0)
+      parts.push(number(row.prefilled_tokens) + ' prompt tokens processed');
+    if (row.phase === 'prefill' && Number.isFinite(row.pp)) parts.push(number(row.pp) + ' prompt tok/s');
+    if (row.phase === 'generate' && Number.isFinite(row.tg)) parts.push(number(row.tg) + ' generated tok/s');
+    metrics.textContent = parts.join(' / ') || 'Waiting for a measured interval';
   }
   function scheduleRender() { if (S.scheduled) return; S.scheduled = true; requestAnimationFrame(() => { S.scheduled = false; render(); }); }
   function valueAt(object, keys) { for (const key of keys) { const value = key.split('.').reduce((o, k) => o?.[k], object); if (typeof value === 'number' && Number.isFinite(value)) return value; } return undefined; }
@@ -446,7 +497,7 @@
           const message = S.messages.find(m => m.id === data.message_id);
           if (message) { if (data.content) message.content = (message.content || '') + data.content; if (data.reasoning) message.reasoning = (message.reasoning || '') + data.reasoning; }
         } else if (update.kind === 'metrics') {
-          const message = S.messages.find(m => m.id === data.message_id); if (message) for (const key of ['usage', 'timings', 'context']) if (data[key]) message[key] = {...message[key], ...data[key]};
+          const message = S.messages.find(m => m.id === data.message_id); if (message) for (const key of ['usage', 'timings', 'context', 'request']) if (data[key]) message[key] = {...message[key], ...data[key]};
         } else if (update.kind === 'tool') {
           const message = S.messages.find(m => m.id === data.message_id); if (message) { message.tool_calls ||= []; const index = message.tool_calls.findIndex(c => c.id === data.call.id); if (index < 0) message.tool_calls.push(data.call); else message.tool_calls[index] = data.call; }
         } else if (update.kind === 'state') {
@@ -459,6 +510,7 @@
   }
   async function syncSnapshot(chatId) { const data = await api('/chats/' + encodeURIComponent(chatId)); if (S.chat?.id !== chatId) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
   function tick() {
+    renderLiveMetrics();
     const run = currentRun(); if (!run) { $('run-caption').textContent = 'Enter to send / Shift + Enter for a new line'; return; }
     const seconds = Math.max(0, Math.floor((Date.now() - timestamp(run.created).getTime()) / 1000));
     const elapsed = Number.isFinite(seconds) ? (seconds >= 60 ? Math.floor(seconds / 60) + 'm ' : '') + seconds % 60 + 's elapsed' : 'In progress';
@@ -694,6 +746,10 @@
     if (event.target.matches('[role=tab]') && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); const tabs = ['activity', 'stats', 'settings']; const index = (tabs.indexOf(S.tab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3; showTab(tabs[index]); $('tab-' + tabs[index]).focus(); }
   });
   window.addEventListener('resize', updateShade);
+  document.addEventListener('companion:view', () => { syncLiveMetrics(); renderLiveMetrics(); });
+  document.addEventListener('visibilitychange', () => { syncLiveMetrics(); renderLiveMetrics(); });
+  window.addEventListener('pagehide', () => { liveMetrics.stream?.close(); liveMetrics.stream = null; liveMetrics.id = null; });
+  window.addEventListener('pageshow', syncLiveMetrics);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && currentRun() && !S.stream) syncSnapshot(S.chat.id).then(() => { const run = currentRun(); if (run) subscribe(run); }).catch(error => toast(error.message)); });
   setTheme(themeChosen ? storedTheme : systemTheme.matches ? 'light' : 'dark');
   if (window.innerWidth <= 1200) $('app').classList.add('inspector-closed');

@@ -507,6 +507,7 @@ struct StepWitness : backend::CpuBackend {
 // Steps of decode rows on the decode dots must take it and every other step the base, which the witness's routed products tell apart.
 static size_t check_moe_decode_step(const moe::Matrix& matrix) {
     const uint32_t f32 = quant::GGML_TYPE_F32, q4k = quant::GGML_TYPE_Q4_K, q6k = quant::GGML_TYPE_Q6_K, q8 = quant::GGML_TYPE_Q8_0, mx = quant::GGML_TYPE_MXFP4;
+    const backend::RouteRule::Score softplus = backend::RouteRule::Score::sqrt_softplus, sigmoid = backend::RouteRule::Score::sigmoid;
     struct Case { moe::Shape s; bool decode; const char* what; };
     const Case cases[] = {
         {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false}, true, "Q4_K and Q6_K with a gated shared expert"},
@@ -514,8 +515,11 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
         {{256, 16, 4, 64, {mx, mx, mx, mx}, false}, true, "MXFP4 with a gated shared expert"},
         {{256, 16, 4, 256, {q6k, q4k, q4k, mx}, true, 7.0f}, true, "mixed types under a SwiGLU limit"},
         {{256, 16, 4, 256, {q4k, q6k, q6k, q4k}, false, 0.0f, f32, f32, false}, true, "a shared expert without a row gate"},
-        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, true}, true, "DeepSeek's step: MXFP4, an ungated shared expert, a limit and sqrt_softplus routing with a bias"},
-        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, true, backend::GluForm::quick_gelu}, true, "MiniMax's GLU: quick_gelu under a limit, an ungated shared expert"},
+        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, softplus}, true, "DeepSeek's step: MXFP4, an ungated shared expert, a limit and sqrt_softplus routing with a bias"},
+        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, sigmoid, backend::GluForm::quick_gelu}, true,
+         "MiniMax's step: sigmoid routing with a bias, scaled by 2 and normalized, quick_gelu under a limit, an ungated shared expert"},
+        {{256, 16, 4, 64, {f32, f32, f32, f32}, false, 7.0f, f32, f32, false, sigmoid, backend::GluForm::quick_gelu}, false,
+         "MiniMax's step on F32 experts, which have no packed dot"},
         {{256, 16, 4, 64, {mx, mx, 0, 0}, false, 0.0f, q8}, false, "a quantized router"},
         {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false, 0.0f, f32, q8}, false, "a quantized row gate"},
         {{256, 16, 4, 64, {f32, f32, f32, f32}, false}, false, "F32 experts"},

@@ -197,7 +197,7 @@ void plan() {
     const gguf::GGUFModel m = tiny();
     const infer::ModelWeights w = infer::gguf_weights(m);
     const infer::TensorIndex index(w.tensors);
-    const infer::ModelPlan p = module_of(w).layout(index);
+    const infer::ModelPlan p = module_of(w).plan(index);
     size_t roles = p.pass.size();
     for (const infer::Role& role : p.pass)
         require(infer::role_fits(role, index.view(index.at(role.name)).shape, index.view(index.at(role.name)).type), role.name + " fits its role");
@@ -220,7 +220,9 @@ void plan() {
                 mixer(backend::Op::sparse_attention) && mixer(backend::Op::sparse_attention_blocks), "layer " + std::to_string(l) + "'s ops");
     }
     require(roles == w.tensors.size(), "the plan reads every tensor of the file");
-    require(p.slots.size() == 14 && p.slots[8] == std::max(F, (K + 1) * FE) && p.slots[12] == HKV * DI && p.slots[13] == DI, "arena slots");
+    // The fixture's context of 4096 holds 1024 blocks of 4, and a row keeps 3 of them an index head.
+    require(p.slots.size() == 17 && p.slots[8] == std::max(F, (K + 1) * FE) && p.slots[12] == HKV * DI && p.slots[13] == DI && p.slots[14] == HKV * 1024 &&
+            p.slots[15] == HKV && p.slots[16] == HKV * 3 && p.index_width == HKV, "arena slots");
     require(p.widths.shared_ff == FE && p.widths.routed == K && p.table_steps[0] == R / 2, "pass widths and rope tables");
 }
 
@@ -229,7 +231,7 @@ void widths() {
     const auto of = [](const std::function<void(gguf::GGUFModel&)>& edit) {
         const gguf::GGUFModel m = tiny(edit);
         const infer::ModelWeights w = infer::gguf_weights(m);
-        return module_of(w).layout(infer::TensorIndex(w.tensors)).widths;
+        return module_of(w).plan(infer::TensorIndex(w.tensors)).widths;
     };
     const uint64_t wide = 4 * HQ * D;
     const backend::PassWidths a = of([&](gguf::GGUFModel& m) { put(m, P + "expert_feed_forward_length", u32(wide)); });
@@ -252,25 +254,18 @@ void tensors() {
         const std::string full = "blk." + std::to_string(layer) + "." + name;
         const gguf::GGUFModel m = tiny([&](gguf::GGUFModel& f) { add_tensor(f, full, {E, F}); });
         const infer::ModelWeights w = infer::gguf_weights(m);
-        refuses(full, "inference: a tensor its layer's kind does not read " + full, [&] { module_of(w).layout(infer::TensorIndex(w.tensors)); });
+        refuses(full, "inference: a tensor its layer's kind does not read " + full, [&] { module_of(w).plan(infer::TensorIndex(w.tensors)); });
     }
     const gguf::GGUFModel m = tiny();
     const infer::ModelWeights w = infer::gguf_weights(m);
-    const infer::ModelPlan p = module_of(w).layout(infer::TensorIndex(w.tensors));
+    const infer::ModelPlan p = module_of(w).plan(infer::TensorIndex(w.tensors));
     const auto& roles = p.layers[0].roles;
     require(std::any_of(roles.begin(), roles.end(), [](const infer::Role& r) { return r.name == "blk.0.indexer.k_proj.weight"; }), "a dense layer reads its index");
 }
 
-// The registry names the module, and its plan, so a model of it, is refused by name until its math runs.
+// The registry names the module.
 void named() {
-    const std::string text = "inference: minimax-m3 does not run yet; its plan is in docs/MINIMAX.md";
-    const gguf::GGUFModel m = tiny();
-    require(std::string(infer::architecture_of(m).name) == "minimax-m3", "the registry's entry");
-    refuses("the plan", text, [&] {
-        const infer::ModelWeights w = infer::gguf_weights(m);
-        w.arch->plan(infer::TensorIndex(w.tensors));
-    });
-    refuses("a model", text, [&] { infer::Model model(infer::gguf_weights(m)); });
+    require(std::string(infer::architecture_of(tiny()).name) == "minimax-m3", "the registry's entry");
 }
 
 } // namespace

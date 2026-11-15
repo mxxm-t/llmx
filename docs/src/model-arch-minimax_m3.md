@@ -1,17 +1,18 @@
 # `src/model/arch/minimax_m3.hpp` - the MiniMax-M3.1 architecture
 
 MiniMax-M3.1's text model in namespace `infer::minimax_m3`, reached through the registry's `minimax-m3` entry ([registry](model-arch-registry.md)); the design is [MINIMAX](../MINIMAX.md).
-It implements the architecture contract ([architecture](model-architecture.md)); its plan is refused by name ("inference: minimax-m3 does not run yet; its plan is in docs/MINIMAX.md") until the ops of the design page run on the CPU.
+It implements the architecture contract ([architecture](model-architecture.md)) and runs on the CPU; a device whose backend lacks one of its ops refuses the model at load by the op's name.
 
 - `Config`, `read_config(file, prefix)`: the configuration under `minimax-m3.`, through [metadata](model-arch-metadata.md).
   Every key that changes the math is required: the layer counts (`block_count`, `leading_dense_block_count`), the widths, the attention and rotary shape, `rope.freq_base`, the RMS epsilon, the experts and the index (`attention.indexer.head_count`, `key_length`, `top_k`, `block_size`, `local_blocks`).
   Held to one value, refused as `unsupported metadata` otherwise: sigmoid gating (`expert_gating_func` 2), normalized weights, one shared expert as wide as the routed ones, index heads equal to KV heads, one local block, value width equal to key width; `expert_weights_scale` is kept as the router's scale.
 - `check_config`: a routed layer after the dense lead, whole query heads per KV head, an even rotation no wider than the head and the index key, at most 256 experts a token and no more than a layer has, and a cache row (K, V and the index key) whose context fits an allocation.
-- `MinimaxM3::layout(tensors)`: the plan of a file's tensors.
+- `MinimaxM3::plan(tensors)`: the plan of a file's tensors.
   Every layer has attention with per-head q and k norms, the index projections and their norms, and keeps its index key a position (`LayerPlan::kv_aux`, the index key width); layers below `leading_dense_block_count` run the dense GLU block, the rest the router with its bias (`exp_probs_b.bias`), the expert stacks and one shared expert without a gate, their feed-forward part naming `routed_experts` and `sigmoid_routing`; every layer's feed-forward part names `silu_mul_clamp` and `glu_quick_gelu`, the GLU's limit and form.
   The product widths count the shared expert's (Fe in, 2 Fe out) and the dense block's only where a dense layer exists.
   A tensor the layer's kind does not read (a router or expert stack on a dense layer, a dense matrix on a routed one) is refused by name.
-  Arena slots 0 to 13 are those of `slot_widths`; the slots of the selection come with its ops.
-  `plan` builds this and refuses the architecture by name.
+  Arena slots are `Slot`'s, their widths `slot_widths`': the selection's are a row's block maxima, an index head's over the context's blocks, its block lengths and its kept block ids, `top_k` an index head; `index_width` gives the host one length an index head a row.
 - `fill_tables`: NeoX RoPE over the first `rope.dimension_count` values of a head, its frequencies over that width.
-- `embed` and `head` are the shared blocks ([blocks](model-arch-blocks.md)) over `token_embd`, `output_norm` and an untied `output`; `mixer` and `ffn` refuse by name until their ops land.
+- `embed` and `head` are the shared blocks ([blocks](model-arch-blocks.md)) over `token_embd`, `output_norm` and an untied `output`.
+- `mixer`: the attention of docs/MINIMAX.md (The forward pass): the q, k, v and index projections in one `matmul_group`, each normed and turned by `norm_rope_partial`, `kv_write` storing the index key beside K and V, `indexer_scores` in `IndexForm::raw_blocks` over the blocks the pass's longest view covers, each row's length in blocks written from the host, `candidate_blocks` keeping `top_k` blocks an index head with the row's own pinned, and `sparse_attention` over those ids, one group an index head and an id naming `block_size` positions, then the output projection joining the residual.
+- `ffn`: a dense layer's `swiglu` and a routed layer's `moe_step` under `RouteRule::sigmoid` with the router bias, the scale and normalized weights, the shared expert ungated, all in `GluForm::quick_gelu` under the GLU's limit of 7 (`glu_limit`), which the GGUF does not carry.

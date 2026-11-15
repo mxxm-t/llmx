@@ -652,6 +652,20 @@ It runs DeepSeek's `forward_spec` on the F32 kernel port, the window's FP8 cast 
 `arch-deepseek4`'s `--dspark` mode, run by the suite's `deepseek4` component, holds llmx's drafts and draft logits to it (docs/TESTS.md).
 The layered file-exact reference on the real file is a later branch.
 
+#### The minimax-m3 tiny reference
+
+`python tools/gen_baseline.py minimax-tiny --output-dir DIR` runs `tools/minimax_reference.py`, which writes `minimax_m3_reference.json`, the golden of the suite's `minimax` component (docs/TESTS.md), from transformers' own `MiniMaxM3VLForCausalLM`.
+The environment is the HF reference venv of [MINIMAX](MINIMAX.md): Python 3.12.13 in the `python:3.12.13-slim` image, torch 2.11.0+cpu and transformers 5.23.0, on the test machine `/opt/claude-work/mmx2/hfenv`, run with no network; the tool refuses another Python, torch or transformers, or transformers sources other than the pinned ones (the minimax_m3_vl modeling and configuration modules and the cache utilities, each by SHA-256), and keeps the Hub offline.
+The mode is not part of `all` and downloads nothing.
+
+Each fixture of `tests/fixture_minimax.py` (`small` and `wide`, docs/MINIMAX.md, Classes and checks) is built from its seed by that module's generator, torch-free, loaded into HF's model with every parameter and buffer, the router bias among them, checked by name and shape, and run in float32 with eager attention on one CPU thread.
+Norm weights are Gemma offsets on a grid of 2^-19 below 1/8, so the file's folded `1 + w` is HF's scale exactly.
+The scored sequence is 64 or 272 ids from 2 to 127, run whole and token by token through HF's cache, whose rows must agree within 1e-5 (7.8e-7 and 1.9e-6); the golden keeps the whole run's logits and next-token NLL.
+Greedy decoding takes 24 ids after the prompt `the quick brown fox`, its bytes as ids, the fixture's vocabulary being the 128 byte-level characters.
+The seed is the first from 312026 whose router and index cuts and greedy picks all clear 2e-5, the per-logit bound: 312026 for both, least margins 1.9e-4 (router), 2.6e-3 (index) and 4.0e-3 (greedy) for `small`, 3.2e-4, 6.0e-2 and 1.0e-2 for `wide`.
+The same weights keeping every block give rows past the first drop 0.92 and 0.10 away, recorded as the witness that the selection ran.
+It also writes each fixture's GGUF and records its SHA-256, so the suite's writer is held to the reference's file; a second run gives the same bytes.
+
 #### The qwen35 tokenizer reference
 
 `tokenizer-qwen35` writes `tests/data/baseline_tokenizer_qwen35.json` from the `tokenizer.json` of `Qwen/Qwen3.5-0.8B` at commit `2fc06364715b967f1860aea9cf38778875588b17` (SHA-256 `5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42`), read with the `tokenizers` library, and the `tokenizer_config.json` of the same commit (SHA-256 `49e2b6e395f959f077f1e992b338919c0d4a9732fc6e613995e06557f843500c`).

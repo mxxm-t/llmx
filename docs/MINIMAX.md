@@ -2,7 +2,7 @@
 
 Design for MiniMax-M3.1-Flash, written before the code (`docs/ADDING-AN-ARCHITECTURE.md`, The order of the work, step 1).
 The steps, their gates and the decisions are in [STATUS](STATUS.md), in the block "MiniMax-M3.1".
-Nothing of it runs yet; the files and ops it adds are under "The ops (planned)", below.
+The model runs on the CPU, held to HF on tiny fixtures (Classes and checks, below); the devices refuse it at load until their ops land, and its text path waits for step 2.
 
 Sources, read on 2026-11-15:
 
@@ -80,9 +80,9 @@ The tokenizer is byte-level BPE with pretokenizer `minimax-m2` and an NFC normal
 Per position and layer: K and V, Hkv x D each, and the index key ki, Di F32 values (`LayerPlan::kv_aux`).
 At f16 K and V that is 2 KiB plus 0.5 KiB a position a layer, 150 KiB a position over 60 layers.
 
-## The ops (planned)
+## The ops
 
-The module is `src/model/arch/minimax_m3.hpp`, reached through the registry name `minimax-m3`; it reads the configuration and plans the file's tensors, and refuses its plan by name until the ops below run.
+The module is `src/model/arch/minimax_m3.hpp`, reached through the registry name `minimax-m3`; it reads the configuration, plans the file's tensors and runs the forward pass above with the ops below.
 Each op change goes under its existing owner (F2DEV's reviews of 2026-11-14 22:45 and 2026-11-15 02:46), and each new form is an `Op` mode entry the plan names, so a backend lacking it refuses the model at load:
 
 - Done in step 4a: `RouteRule::Score::sigmoid` beside softmax and sqrt_softplus, the mode `sigmoid_routing`.
@@ -94,4 +94,6 @@ Each op change goes under its existing owner (F2DEV's reviews of 2026-11-14 22:4
 ## Classes and checks
 
 - Below position K B every selection keeps every block, so short checks never reach the sparse path: the tiny fixture uses B 4 and K 3, and the real-file checks include the raw and the chat-rendered 16k sequences and decode after them.
+- The tiny fixtures (`tests/fixture_minimax.py`, their goldens from HF's own model through `tools/minimax_reference.py`, docs/ASSETS.md) are `small`, 3 layers at B 4 and K 3 over 64 tokens, first dropping a block at position 12, and `wide`, 2 layers at the file's head, rotary and index widths (D 128, R 64, Di 128) and block (B 128, K 2) over 272 tokens, first dropping at 256.
+  The suite's `minimax` component holds llmx on the CPU to 2e-5 a logit and 1e-5 a target's NLL, the F32 class's bounds, since the fixtures are F32 with F32 caches; HF's rows past the first drop sit 0.92 and 0.10 from dense attention's on the same weights, so rows within the bound took the selection.
 - Scores are compared in F32 and a flipped block pick is not rounding: the layered real-file check reports per layer how many picks agree with HF beside the logit bound.

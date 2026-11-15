@@ -16,7 +16,7 @@
 #include "model/arch/blocks.hpp"
 
 // MiniMax-M3.1's text model (docs/MINIMAX.md): GQA attention with block-sparse selection by an index on every layer, dense lead layers, then sigmoid-routed experts with one shared expert.
-// The registry reaches it as minimax-m3; its plan is refused by name until the CPU math of docs/MINIMAX.md, step 5, runs.
+// The registry reaches it as minimax-m3; a backend lacking one of its ops refuses the model at load by the op's name.
 
 namespace infer::minimax_m3 {
 
@@ -113,20 +113,23 @@ enum Role : uint16_t {
 };
 enum Kind : uint8_t { dense, routed };
 
-// Arena slots: 0 x, 1 h, 2 q, 3 k, 4 v, 5 attn, 6 gate, 7 up, 8 ffn, 9 router scores, 10 expert ids, 11 expert weights, 12 index queries, 13 index keys.
+// Arena slots after slot 0, the residual.
+enum Slot : size_t { h_rows = 1, q_rows, k_rows, v_rows, attn_rows, gate_rows, up_rows, act_rows, router_scores, expert_ids, expert_weights, index_q_rows, index_k_rows, block_scores, block_lens, block_ids };
+
 // The feed-forward slots hold a dense layer's hidden rows or a routed layer's k expert rows and the shared expert's after them, whichever is wider.
+// A row's block scores are each index head's over the context's blocks, its block lengths one per index head, and its kept block ids top_k per index head.
 inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t E = size_t(c.n_embd), Q = size_t(c.n_head) * size_t(c.head_dim), KV = size_t(c.n_head_kv) * size_t(c.head_dim);
     const size_t F = std::max(size_t(c.n_ff), size_t(c.n_expert_used + 1) * size_t(c.n_ff_exp)), k = size_t(c.n_expert_used);
-    return {E, E, Q, KV, KV, Q, F, F, F, size_t(c.n_expert), k, k, size_t(c.index_heads) * size_t(c.index_dim), size_t(c.index_dim)};
+    const size_t IH = size_t(c.index_heads), blocks = (size_t(c.context_length) + size_t(c.index_block) - 1) / size_t(c.index_block);
+    return {E, E, Q, KV, KV, Q, F, F, F, size_t(c.n_expert), k, k, IH * size_t(c.index_dim), size_t(c.index_dim), IH * blocks, IH, IH * size_t(c.index_top_k)};
 }
 
 class MinimaxM3 final : public Architecture {
 public:
     explicit MinimaxM3(const Config& cfg) : cfg_(cfg) {}
 
-    // The plan of a file's tensors, which plan() refuses by name until the module's math runs.
-    ModelPlan layout(const TensorIndex& tensors) const {
+    ModelPlan plan(const TensorIndex& tensors) const override {
         const Config& c = cfg_;
         const TensorView& embedding = tensors.view(tensors.at("token_embd.weight"));
         if (embedding.shape.size() < 2 || !embedding.shape[1] || embedding.shape[1] > uint64_t(std::numeric_limits<int>::max()))
@@ -193,6 +196,7 @@ public:
         }
         p.context_length = size_t(c.context_length);
         p.slots = slot_widths(c);
+        p.index_width = size_t(c.index_heads);
         p.residual = size_t(c.n_embd);
         p.kv_heads = size_t(c.n_head_kv);
         p.head_dim = size_t(c.head_dim);
@@ -215,11 +219,6 @@ public:
         return p;
     }
 
-    ModelPlan plan(const TensorIndex& tensors) const override {
-        layout(tensors);
-        not_yet();
-    }
-
     // NeoX RoPE over the first rope_dim values of a head, its frequencies over that width: cos and sin at [pos * rope_dim / 2 + i].
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<TensorView>&) const override {
         const size_t half = size_t(cfg_.rope_dim / 2);
@@ -233,13 +232,60 @@ public:
     }
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
-    void mixer(const Step&) const override { not_yet(); }
-    void ffn(const Step&) const override { not_yet(); }
-    void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }
 
+    // Attention over each KV head's kept blocks (docs/MINIMAX.md, The forward pass): the index keys stored beside K and V, each index head's block maxima and its top_k blocks with the row's own pinned, then GQA over their positions.
+    void mixer(const Step& s) const override {
+        backend::Backend& b = s.b;
+        const Weight* w = s.w;
+        const Config& c = cfg_;
+        const size_t E = size_t(c.n_embd), D = size_t(c.head_dim), H = size_t(c.n_head), HK = size_t(c.n_head_kv), R = size_t(c.rope_dim);
+        const size_t I = size_t(c.index_dim), IH = size_t(c.index_heads), B = size_t(c.index_block), K = size_t(c.index_top_k);
+        const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
+        b.rms_norm_rows(s.slot(h_rows), s.x, w[attn_norm].slice(), s.rows, E, E, c.rms_eps, s.runs);
+        b.matmul_group({blocks::projection(w[attn_q], s.slot(q_rows)), blocks::projection(w[attn_k], s.slot(k_rows)), blocks::projection(w[attn_v], s.slot(v_rows)),
+                        blocks::projection(w[index_q], s.slot(index_q_rows)), blocks::projection(w[index_k], s.slot(index_k_rows))},
+                       s.slot(h_rows), E, s.rows, s.runs, s.dtype);
+        b.norm_rope_partial(s.slot(q_rows), s.slot(q_rows), s.rows, H * D, D, H, D, R, w[attn_q_norm].slice(), c.rms_eps, cos, sin, s.pos, backend::RopeForm{});
+        b.norm_rope_partial(s.slot(k_rows), s.slot(k_rows), s.rows, HK * D, D, HK, D, R, w[attn_k_norm].slice(), c.rms_eps, cos, sin, s.pos, backend::RopeForm{});
+        b.norm_rope_partial(s.slot(index_q_rows), s.slot(index_q_rows), s.rows, IH * I, I, IH, I, R, w[index_q_norm].slice(), c.rms_eps, cos, sin, s.pos,
+                            backend::RopeForm{});
+        b.norm_rope_partial(s.slot(index_k_rows), s.slot(index_k_rows), s.rows, I, I, 1, I, R, w[index_k_norm].slice(), c.rms_eps, cos, sin, s.pos,
+                            backend::RopeForm{});
+        b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(k_rows), s.slot(v_rows), s.slot(index_k_rows));
+        size_t n = 0;
+        for (size_t e = 0; e < s.n_views; ++e) n = std::max(n, (s.views[e].length + s.views[e].nq + B - 1) / B);
+        b.indexer_scores(s.slot(block_scores), s.slot(index_q_rows), s.kv_layer, s.views, s.n_views, {}, 1.0f, IH, I, backend::ModelFormat::f32, n, {}, 0, B,
+                         backend::IndexForm::raw_blocks);
+        // Each index head of a row keeps its blocks up to the row's own, whose count candidate_blocks reads as the row's length.
+        if (!s.indices || s.indices_size < backend::size_mul(s.rows, IH)) throw std::runtime_error("inference: the minimax-m3 block lengths' scratch is too small");
+        for (size_t r = 0; r < s.rows; ++r)
+            for (size_t i = 0; i < IH; ++i) s.indices[r * IH + i] = uint32_t(size_t(s.pos[r]) / B + 1);
+        b.write(*s.arena, s.offsets[block_lens], s.indices, s.rows * IH * sizeof(uint32_t));
+        b.candidate_blocks(s.slot(block_ids), s.slot(block_scores), s.slot(block_lens), s.rows * IH, n, 1, K);
+        b.sparse_attention(s.slot(q_rows), s.kv_layer, s.views, s.n_views, s.slot(block_ids), K, s.slot(attn_rows), int(H), int(HK), int(D), IH, B);
+        blocks::join(s, w[attn_output], s.slot(attn_rows));
+    }
+
+    // A dense layer's GLU block, or the sigmoid-routed experts and the shared expert, all in the quick_gelu form under the architecture's limit.
+    void ffn(const Step& s) const override {
+        const Weight* w = s.w;
+        const size_t E = size_t(cfg_.n_embd);
+        s.b.rms_norm_rows(s.slot(h_rows), s.x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
+        if (s.kind == dense) {
+            blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], s.slot(h_rows), s.slot(gate_rows), s.slot(up_rows), s.slot(act_rows), glu_limit, backend::GluForm::quick_gelu);
+            return;
+        }
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], nullptr, glu_limit, backend::GluForm::quick_gelu};
+        blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used),
+                         backend::RouteRule::sigmoid(w[exp_probs_b].slice(), cfg_.expert_scale, true), s.slot(h_rows), s.slot(gate_rows), s.slot(up_rows), s.slot(act_rows),
+                         s.slot(router_scores), s.slot(expert_ids), s.slot(expert_weights), &shared, {}, nullptr, glu_limit, backend::GluForm::quick_gelu);
+    }
+
+    void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(h_rows)); }
 
 private:
-    [[noreturn]] static void not_yet() { throw std::runtime_error("inference: minimax-m3 does not run yet; its plan is in docs/MINIMAX.md"); }
+    // The GLU's clamp, which the GGUF does not carry (docs/MINIMAX.md, The model).
+    static constexpr float glu_limit = 7.0f;
     Config cfg_;
 };
 

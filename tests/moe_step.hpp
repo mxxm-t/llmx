@@ -57,14 +57,15 @@ const Types k35b{quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_
 const Types k30b{quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q8_0, 0, 0};
 
 // A step's widths: the residual E, experts, picks a token, an expert's hidden rows (the shared expert's too), and whether y starts from a zero row.
-// Then its SwiGLU limit, the router's type, the shared expert's row gate type, whether it has one, whether the routing is DeepSeek's (sqrt_softplus with a bias), and the GLU's form.
+// Then its SwiGLU limit, the router's type, the shared expert's row gate type, whether it has one, the routing's score (sqrt_softplus as DeepSeek's and sigmoid as MiniMax's, each with a bias and its scale), and the GLU's form.
 struct Shape {
     size_t E, n_expert, k, ff;
     Types t;
     bool zero;
     float limit = 0.0f;
     uint32_t router = quant::GGML_TYPE_F32, row_gate = quant::GGML_TYPE_F32;
-    bool gated = true, sqrt_softplus = false;
+    bool gated = true;
+    backend::RouteRule::Score score = backend::RouteRule::Score::softmax;
     backend::GluForm form = backend::GluForm::silu;
 };
 
@@ -99,7 +100,7 @@ inline Weights weights(backend::Backend& b, const Shape& s, const Matrix& matrix
     w.zero = copy_in(b, zeros.data(), zeros.size() * sizeof(float));
     std::vector<float> bias(s.n_expert);
     for (size_t e = 0; e < s.n_expert; ++e) bias[e] = 0.125f * float(int(e % 5) - 2);
-    if (s.sqrt_softplus) w.bias = copy_in(b, bias.data(), bias.size() * sizeof(float));
+    if (s.score != backend::RouteRule::Score::softmax) w.bias = copy_in(b, bias.data(), bias.size() * sizeof(float));
     return w;
 }
 
@@ -154,7 +155,9 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
                                 {{s.t.sh_gate, {w.sh_up.get(), 0}}, {u.get(), routed}, s.ff},
                                 {s.t.sh_down, {w.sh_down.get(), 0}}, {act.get(), routed},
                                 {{s.row_gate, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}, s.limit, s.form};
-    const backend::RouteRule rule = s.sqrt_softplus ? backend::RouteRule::sqrt_softplus({w.bias.get(), 0}, 1.5f, true) : backend::RouteRule::softmax(true);
+    const backend::RouteRule rule = s.score == backend::RouteRule::Score::sqrt_softplus ? backend::RouteRule::sqrt_softplus({w.bias.get(), 0}, 1.5f, true)
+                                    : s.score == backend::RouteRule::Score::sigmoid       ? backend::RouteRule::sigmoid({w.bias.get(), 0}, 2.0f, true)
+                                                                                          : backend::RouteRule::softmax(true);
     const backend::MoeStep m{{{s.router, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, rule,
                              {ids.get(), 0}, {wts.get(), 0}, {{s.t.gate, {w.gate.get(), 0}}, {g.get(), 0}, s.ff},
                              {{s.t.gate, {w.up.get(), 0}}, {u.get(), 0}, s.ff}, {s.t.down, {w.down.get(), 0}},

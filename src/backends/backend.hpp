@@ -148,18 +148,19 @@ struct RowRuns {
     size_t n = 0;
 };
 
-// How route_experts ranks a row's logits and weighs its picks (docs/src/backends-backend.md); bias and scale belong to sqrt_softplus alone.
+// How route_experts ranks a row's logits and weighs its picks (docs/src/backends-backend.md); bias and scale belong to the sqrt_softplus and sigmoid scores.
 struct RouteRule {
-    enum class Score : uint8_t { softmax, sqrt_softplus };
+    enum class Score : uint8_t { softmax, sqrt_softplus, sigmoid };
     Score score;
     bool normalize;
     CSlice bias;
     float scale;
     static RouteRule softmax(bool normalize) { return {Score::softmax, normalize, {}, 1.0f}; }
     static RouteRule sqrt_softplus(CSlice bias, float scale, bool normalize) { return {Score::sqrt_softplus, normalize, bias, scale}; }
+    static RouteRule sigmoid(CSlice bias, float scale, bool normalize) { return {Score::sigmoid, normalize, bias, scale}; }
     // The normalize flag of a softmax rule, for a backend that refuses the other scores by name.
     bool softmax_only(const char* backend) const {
-        if (score != Score::softmax || bias.buffer || scale != 1.0f) throw std::runtime_error(std::string(backend) + ": route_experts has no sqrt_softplus scores");
+        if (score != Score::softmax || bias.buffer || scale != 1.0f) throw std::runtime_error(std::string(backend) + ": route_experts has no " + (score == Score::sigmoid ? "sigmoid" : "sqrt_softplus") + " scores");
         return normalize;
     }
 };
@@ -408,12 +409,12 @@ enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-// The last three are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp and norm_rope_partial's adjacent, offset and inverse forms.
+// The last four are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms and route_experts's sigmoid scores.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
-                          sqrt_softplus_routing, silu_mul_clamp, rope_forms };
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -453,6 +454,7 @@ inline const char* op_name(Op op) {
         case Op::sqrt_softplus_routing: return "sqrt_softplus_routing";
         case Op::silu_mul_clamp: return "silu_mul_clamp";
         case Op::rope_forms: return "rope_forms";
+        case Op::sigmoid_routing: return "sigmoid_routing";
     }
     return "an unknown op";
 }
@@ -880,7 +882,7 @@ public:
 
 
     // For each of `rows` rows of `scores` (n_expert floats each), the k experts the rule ranks highest, the highest first and ties to the lower id, with their weights.
-    // A row without a candidate gives k picks of kNoExpert with weights 0: under softmax its probabilities are not finite, under sqrt_softplus a score + bias is not.
+    // A row without a candidate gives k picks of kNoExpert with weights 0: under softmax its probabilities are not finite, under sqrt_softplus and sigmoid a score + bias is not.
     virtual void route_experts(CSlice /*scores*/, size_t /*rows*/, size_t /*n_expert*/, size_t /*k*/, const RouteRule& /*rule*/,
                                Slice /*ids*/, Slice /*weights*/) {
         lacks(Op::routed_experts);

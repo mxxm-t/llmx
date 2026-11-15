@@ -1,4 +1,4 @@
-// The minimax-m3 module (model/arch/minimax_m3.hpp) on a tiny file built in memory: the configuration it reads, every required key and held value refused with its text, the plan of each layer kind, and the refusal of the architecture by name.
+// The minimax-m3 module (model/arch/minimax_m3.hpp) on a tiny file in memory: the configuration it reads, every required key and held value refused with its text, the plan of each layer kind, and the refusal of the architecture by name.
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -212,15 +212,37 @@ void plan() {
             require(infer::role_fits(role, index.view(index.at(role.name)).shape, index.view(index.at(role.name)).type), role.name + " fits its role");
         roles += layer.roles.size();
         const bool rope = std::any_of(layer.ops.begin(), layer.ops.end(), [](const infer::OpUse& u) { return u.op == backend::Op::norm_rope_partial; });
-        const bool experts = std::any_of(layer.ops.begin(), layer.ops.end(), [](const infer::OpUse& u) { return u.op == backend::Op::routed_experts; });
-        require(rope && experts == routed, "layer " + std::to_string(l) + "'s ops");
+        const auto declares = [&](backend::Op op) { return std::any_of(layer.ops.begin(), layer.ops.end(), [&](const infer::OpUse& u) { return u.op == op && u.part == infer::Part::ffn; }); };
+        require(rope && declares(backend::Op::routed_experts) == routed && declares(backend::Op::sigmoid_routing) == routed, "layer " + std::to_string(l) + "'s ops");
     }
     require(roles == w.tensors.size(), "the plan reads every tensor of the file");
     require(p.slots.size() == 14 && p.slots[8] == std::max(F, (K + 1) * FE) && p.slots[12] == HKV * DI && p.slots[13] == DI, "arena slots");
     require(p.widths.shared_ff == FE && p.widths.routed == K && p.table_steps[0] == R / 2, "pass widths and rope tables");
 }
 
-// A tensor the layer's kind does not read is refused, and a missing index tensor fails the role that names it.
+// The products' widths count the shared expert's, and the dense block's only where a dense layer exists.
+void widths() {
+    const auto of = [](const std::function<void(gguf::GGUFModel&)>& edit) {
+        const gguf::GGUFModel m = tiny(edit);
+        const infer::ModelWeights w = infer::gguf_weights(m);
+        return module_of(w).layout(infer::TensorIndex(w.tensors)).widths;
+    };
+    const uint64_t wide = 4 * HQ * D;
+    const backend::PassWidths a = of([&](gguf::GGUFModel& m) { put(m, P + "expert_feed_forward_length", u32(wide)); });
+    require(a.product_in == wide && a.product_out == 2 * wide, "the shared expert's product widths");
+    const backend::PassWidths b = of([&](gguf::GGUFModel& m) {
+        put(m, P + "leading_dense_block_count", u32(0));
+        put(m, P + "feed_forward_length", u32(wide));
+        for (const char* n : {"ffn_gate.weight", "ffn_up.weight", "ffn_down.weight"}) {
+            const auto t = std::find_if(m.tensors.begin(), m.tensors.end(), [&](const gguf::TensorInfo& i) { return i.name == std::string("blk.0.") + n; });
+            m.offsets.erase(m.offsets.begin() + (t - m.tensors.begin()));
+            m.tensors.erase(t);
+        }
+    });
+    require(b.product_in == HQ * D && b.product_out == HQ * D + 2 * HKV * D, "no dense block's widths without a dense layer");
+}
+
+// A tensor the layer's kind does not read is refused, and a dense layer's plan names its index projections, so plan_model refuses a file without them.
 void tensors() {
     for (const auto& [layer, name] : {std::pair{0, "ffn_gate_inp.weight"}, std::pair{0, "ffn_gate_exps.weight"}, std::pair{1, "ffn_gate.weight"}, std::pair{2, "ffn_up.weight"}}) {
         const std::string full = "blk." + std::to_string(layer) + "." + name;
@@ -255,6 +277,7 @@ int main() {
         removed_keys();
         held_values();
         plan();
+        widths();
         tensors();
         named();
     } catch (const std::exception& e) {

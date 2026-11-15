@@ -2641,7 +2641,7 @@ public:
                        Slice ids_s, Slice weights_s) override {
         if (!k || k > n_expert) throw std::runtime_error("backend: routing selects no expert or more than exist");
         if (k > 256) throw std::runtime_error("backend: more than 256 experts per token");
-        if (rule.score == RouteRule::Score::sqrt_softplus) return route_sqrt_softplus(scores_s, rows, n_expert, k, rule, ids_s, weights_s);
+        if (rule.score != RouteRule::Score::softmax) return route_biased(scores_s, rows, n_expert, k, rule, ids_s, weights_s);
         const bool normalize = rule.softmax_only("backend");
         if (!rows) return;
         span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
@@ -2686,8 +2686,8 @@ public:
         });
     }
 
-    // route_experts' sqrt_softplus rule in the reference's order (model.py:811-829 at e5decd76): the score, the pick by score + bias, the weight s / (sum + 1e-20), then times scale.
-    void route_sqrt_softplus(CSlice scores_s, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids_s, Slice weights_s) {
+    // route_experts' biased rules: the score, the pick by score + bias, then times scale the weight s / (sum + 1e-20) for sqrt_softplus (model.py:811-829 at e5decd76) and s / sum for sigmoid (docs/MINIMAX.md).
+    void route_biased(CSlice scores_s, size_t rows, size_t n_expert, size_t k, const RouteRule& rule, Slice ids_s, Slice weights_s) {
         if (!std::isfinite(rule.scale)) throw std::runtime_error("backend: a routing scale that is not finite");
         if (!rows) return;
         span(*scores_s.buffer, scores_s.offset * sizeof(float), size_mul(rows, n_expert) * sizeof(float));
@@ -2698,13 +2698,14 @@ public:
         const float* bias = rule.bias.buffer ? at(rule.bias) : nullptr;
         float* ids = at(ids_s);
         float* weights = at(weights_s);
+        const bool sigmoid = rule.score == RouteRule::Score::sigmoid;
         spread(rows, [&](size_t r) {
             const float* x = scores + r * n_expert;
             std::vector<float> s(n_expert), b(n_expert);
             std::vector<char> taken(n_expert, 0);
             bool finite = true;
             for (size_t e = 0; e < n_expert; ++e) {
-                s[e] = std::sqrt(x[e] > 20.0f ? x[e] : std::log1p(std::exp(x[e])));
+                s[e] = sigmoid ? 1.0f / (1.0f + std::exp(-x[e])) : std::sqrt(x[e] > 20.0f ? x[e] : std::log1p(std::exp(x[e])));
                 b[e] = bias ? s[e] + bias[e] : s[e];
                 finite = finite && std::isfinite(b[e]);
             }
@@ -2726,8 +2727,9 @@ public:
                 const uint32_t id = (uint32_t)best;
                 std::memcpy(ids + r * k + j, &id, sizeof(id));
             }
-            const bool divide = rule.normalize && k > 1;
-            for (size_t j = 0; j < k; ++j) weights[r * k + j] = (divide ? chosen[j] / (total + 1e-20f) : chosen[j]) * rule.scale;
+            const bool divide = rule.normalize && (sigmoid || k > 1);
+            const float sum = sigmoid ? total : total + 1e-20f;
+            for (size_t j = 0; j < k; ++j) weights[r * k + j] = (divide ? chosen[j] / sum : chosen[j]) * rule.scale;
         });
     }
 

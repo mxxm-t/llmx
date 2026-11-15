@@ -714,6 +714,12 @@ list(APPEND LLMX_TARGETS llmx-arch-minimax-m3-test)
 add_test(NAME arch-minimax-m3 COMMAND llmx-arch-minimax-m3-test)
 set_tests_properties(arch-minimax-m3 PROPERTIES TIMEOUT 30)
 
+add_executable(llmx-minimax-ops-test tests/minimax_ops.cpp)
+target_include_directories(llmx-minimax-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-minimax-ops-test)
+add_test(NAME minimax-ops COMMAND llmx-minimax-ops-test)
+set_tests_properties(minimax-ops PROPERTIES TIMEOUT 30)
+
 add_executable(llmx-deepseek4-ops-test tests/deepseek4_ops.cpp)
 target_include_directories(llmx-deepseek4-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-deepseek4-ops-test)

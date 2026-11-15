@@ -1008,6 +1008,7 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - **Left:** the hosted run; the layer split and 5x2 below the 2000 tok/s gate (5x2 analysis in DSPP3's proposal on the devlog).
 - **Gotchas:** a range stream's bits rest on each entry taking the tile's terms in block order, which `routed_builds_witness` checks build by build; a change to the stream's entry loop must keep that order.
 ## MiniMax-M3.1 (2026-11-15, MMX1 then MMX2, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
+## MiniMax-M3.1 (2026-11-15, MMX1 to MMX4, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
 
 **Goal.** MiniMax-M3.1-Flash (`minimax-m3`, unsloth UD-Q8_K_XL, NVFP4 experts) runs on the CPU, Vulkan and ROCm, held to HF and at or above the reference's speed on ten MI50s ([MINIMAX](MINIMAX.md)).
 
@@ -1018,11 +1019,14 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
   The reference is llama.cpp pull request 31192 at 6b95a9908, the converter that wrote the file, built for HIP gfx906 and Vulkan.
 - Step 3: `src/model/arch/minimax_m3.hpp` reads the configuration with its refusals and builds the plan of the file's tensors (every layer's index projections and its index key kept a position, the dense lead, the routed layers with the router bias and one shared expert); the registry names `minimax-m3`, whose plan is refused by name until step 5.
   `arch-minimax-m3` holds every key and refusal by its text and the plan against a tiny file built in memory.
+- Step 4a: `RouteRule::sigmoid` scores sigmoid(x), picks by score + bias and weighs the scores over their sum times `expert_weights_scale` on the CPU (`route_biased`, shared with sqrt_softplus); `Op::sigmoid_routing` is named by every routed layer's feed-forward part, so Vulkan and ROCm, which lack it, refuse the model at load, and `softmax_only` names the score it refuses.
+  The plan's product widths count the shared expert's and the dense block's only where a dense layer exists (F2DEV's step 3 review, 1).
+  `minimax-ops` holds the rule to its math in double.
 
 **Left** (one numbering for this block, the proposal of 02:36 and [MINIMAX](MINIMAX.md); each step reviewed before the next):
 2. Text: pretokenizer `minimax-m2` and NFC, ids against HF; chat render with tool calls against transformers.
    Waits for fix/tokenizer-nfc to land on main and slides after steps 3 to 5, which need no ids.
-4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: sigmoid routing; the GLU form as a field beside the clamp limit; the raw per-head index scores over the `kv_aux` rows `kv_write` stores, written as block maxima, a loop body of its own beside deepseek41's; `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
+4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: 4a sigmoid routing (done); 4b the GLU form as a field beside the clamp limit; the raw per-head index scores over the `kv_aux` rows `kv_write` stores, written as block maxima, a loop body of its own beside deepseek41's (4c); 4d `candidate_blocks` as it is; 4e `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
    An op landing before its caller takes a `known_findings` line naming this step.
 5. CPU math against tiny fixtures (block 4, top 3, F2DEV's conditions (a) to (d)), one of them at the real head widths (D 128, Di 128) so the device sparse builds get an HF-held check.
 6. Real file against a file-exact layered HF reference: the CPU covers the 512-token windows and one prompt past 2048 for device identity; the raw and chat 16k sequences and decode after them run on the devices, with block-pick agreement per layer.
@@ -9688,7 +9692,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | CPU/Vulkan text inference and serving are implemented, including state checkpoints, prefix reuse and tensor groups; on ROCm `qwen35` is checked against HF on Qwen3.5-0.8B Q4_K_M and `qwen35moe`: their tiny HF fixtures pass on rocm:0 (STATUS, ROCm step 3) and no real model of theirs has been checked there. Model-specific qualification, remaining performance cells and later work stay in the dated Qwen records and [QWEN35](QWEN35.md). |
 | Image input ([VISION](VISION.md)) | CPU/Vulkan encoder, CLI prompts, compatible chat routes, media-aware cache identity and paced encoding are implemented. Model-specific qualification and performance records remain in the dated image blocks above. |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above); on ROCm checked against HF on the UD-Q4_K_XL at f32 over four MI50s, as a layer split and as two groups of two ([ROCM](ROCM.md), Scope on main, 2026-11-05) |
-| MiniMax-M3.1 (`minimax-m3`) | In progress (design and reference; block "MiniMax-M3.1" above) |
+| MiniMax-M3.1 (`minimax-m3`) | In progress (configuration and plan done, CPU ops; block "MiniMax-M3.1" above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | In progress: safetensors directories, branch formats/safetensors; AWQ, branch formats/quant-awq (blocks above) |
 | JSON syntax and Unicode validation      | Done |

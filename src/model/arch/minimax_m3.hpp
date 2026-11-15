@@ -175,6 +175,7 @@ public:
                     {ffn_up_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_up_shexp.weight", "", E, F, 0, Stream::copy},
                     {ffn_down_shexp, Part::ffn, RoleKind::matrix, pre + "ffn_down_shexp.weight", "", F, E, 0, Stream::copy}});
                 blocks::routed_ops(layer, tensors, ffn_gate_exps, ffn_up_exps);
+                layer.ops.push_back({Part::ffn, backend::Op::sigmoid_routing});
             } else {
                 const uint64_t F = uint64_t(c.n_ff);
                 layer.roles.insert(layer.roles.end(), {
@@ -190,7 +191,8 @@ public:
         p.head_dim = size_t(c.head_dim);
         {
             backend::PassWidths& w = p.widths;
-            const size_t e = size_t(c.n_embd), q = size_t(Q), f = size_t(c.n_ff);
+            // The dense block's widths count only where a dense layer exists; the shared expert is as wide as a routed one.
+            const size_t e = size_t(c.n_embd), q = size_t(Q), f = c.n_dense > 0 ? size_t(c.n_ff) : 0, fe = size_t(c.n_ff_exp);
             w.heads = size_t(c.n_head);
             w.head_dim = size_t(c.head_dim);
             w.dense_attention = true;
@@ -198,8 +200,8 @@ public:
             w.expert_in = size_t(c.n_ff_exp);
             w.expert_out = e;
             w.shared_ff = size_t(c.n_ff_exp);
-            w.product_in = std::max({e, q, f});
-            w.product_out = std::max({q + 2 * size_t(KV), size_t(IQ + I), e, 2 * f});
+            w.product_in = std::max({e, q, f, fe});
+            w.product_out = std::max({q + 2 * size_t(KV), size_t(IQ + I), e, 2 * f, 2 * fe});
         }
         p.tables.assign(2, 0);
         p.table_steps.assign(2, size_t(c.rope_dim / 2));

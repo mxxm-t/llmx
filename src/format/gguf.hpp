@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <unordered_set>
 
 #include "format/format.hpp"
@@ -113,6 +114,14 @@ struct GGUFModel {
     };
     std::vector<Segment> segments;
     std::vector<size_t> offsets;
+    // A tensor made at load from parts of the payload (format/hf_quant.hpp), which has no bytes of its own: tensor_data is null for it and span refuses it.
+    // It keeps the index and offset of its first part, so the tensor table stays in file order.
+    struct Composite {
+        uint32_t kind = 0;
+        uint32_t group = 0;                                   // inputs per scale
+        std::vector<std::pair<TensorInfo, size_t>> parts;     // each part and its offset among `offsets`, in the order `kind` reads them
+    };
+    std::map<size_t, Composite> composites;
 
     // Drop the tensor bytes, keeping the metadata and the tensor table, for a caller whose model no longer reads them in place, which is any model whose every weight a copying backend took.
     // tensor_data is invalid afterwards.
@@ -126,6 +135,7 @@ struct GGUFModel {
 
     // Tensor i's bytes, or null while its file is not mapped.
     const uint8_t* tensor_data(size_t i) const {
+        if (composites.count(i)) return nullptr;
         if (segments.empty()) return blob.data() + offsets[i];
         const Segment& s = segment_of(i);
         return s.file ? s.file->data() + s.start + (offsets[i] - s.base) : nullptr;
@@ -133,12 +143,46 @@ struct GGUFModel {
     // Where tensor i's bytes lie in its file, mapped or not; the loader streams a copied weight from there. A model built in memory has no file to name.
     format::FileSpan span(size_t i) const {
         if (segments.empty()) throw std::logic_error("GGUF model has no file: " + tensors[i].name);
+        if (composites.count(i)) throw std::logic_error("GGUF tensor is made at load: " + tensors[i].name);
         const Segment& s = segment_of(i);
         return {s.path, uint64_t(s.start + (offsets[i] - s.base)), tensor_bytes(i)};
     }
+    // Where `bytes` at `offset` among `offsets` lie in their file: a composite's part, found by offset, since a part has no index of its own.
+    format::FileSpan part_span(size_t offset, size_t bytes) const {
+        auto it = std::upper_bound(segments.begin(), segments.end(), offset, [](size_t o, const Segment& s) { return o < s.base; });
+        if (it == segments.begin() || offset - (it - 1)->base > (it - 1)->size || bytes > (it - 1)->size - (offset - (it - 1)->base))
+            throw std::logic_error("GGUF part outside the payload");
+        --it;
+        return {it->path, uint64_t(it->start + (offset - it->base)), bytes};
+    }
+    // Drop the tensors `drop` (ascending) from the table; each file keeps the tensors it still holds, and a file left with none and holding no composite's part is no longer a segment.
+    void erase_tensors(const std::vector<size_t>& drop) {
+        std::vector<Segment> kept;
+        for (size_t k = 0; k < segments.size(); ++k) {
+            const size_t first = segments[k].first, end = k + 1 < segments.size() ? segments[k + 1].first : tensors.size();
+            size_t before = 0, inside = 0;
+            for (size_t d : drop) before += d < first, inside += d >= first && d < end;
+            const Segment& s = segments[k];
+            const bool parts = std::any_of(composites.begin(), composites.end(), [&](const auto& c) {
+                return std::any_of(c.second.parts.begin(), c.second.parts.end(), [&](const auto& p) { return p.second >= s.base && p.second - s.base < s.size; });
+            });
+            if (inside == end - first && !parts) continue;
+            kept.push_back(std::move(segments[k]));
+            kept.back().first = first - before;
+        }
+        for (auto it = drop.rbegin(); it != drop.rend(); ++it) {
+            if (composites.count(*it)) throw std::logic_error("GGUF composite tensor dropped: " + tensors[*it].name);
+            tensors.erase(tensors.begin() + std::ptrdiff_t(*it));
+            offsets.erase(offsets.begin() + std::ptrdiff_t(*it));
+        }
+        segments = std::move(kept);
+        std::map<size_t, Composite> moved;
+        for (auto& [i, c] : composites) moved.emplace(i - size_t(std::lower_bound(drop.begin(), drop.end(), i) - drop.begin()), std::move(c));
+        composites = std::move(moved);
+    }
     // A mapped tensor no host reads in place: its pages leave the host's working set first (MappedFile::drop). Nothing for an in-memory model or a file not mapped.
     void drop_pages(size_t i) const {
-        if (segments.empty()) return;
+        if (segments.empty() || composites.count(i)) return;
         const Segment& s = segment_of(i);
         if (s.file) s.file->drop(tensor_data(i), tensor_bytes(i));
     }

@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <exception>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -19,6 +20,7 @@
 #include "core/host_memory.hpp"
 #include "format/file_reader.hpp"
 #include "format/gguf.hpp"
+#include "format/hf_quant.hpp"
 #include "inference/read_ring.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "inference/chat.hpp"
@@ -82,6 +84,7 @@ struct LoadedModel {
     LoadTimes times;
     std::vector<std::shared_ptr<core::HostPages>> host;   // direct copies, shared with any immutable table that reads them
     std::vector<float> widened;     // a directory's 16-bit vectors as F32 (inference/directory.hpp), which a host reads in place
+    std::map<size_t, std::vector<uint8_t>> made;   // a directory's repacked tensors a host reads in place (format/hf_quant.hpp), by tensor
     std::unique_ptr<Model> model;
 
     LoadedModel() = default;
@@ -125,17 +128,27 @@ struct WeightPlan {
     std::vector<char> host_reads;
     std::vector<Upload> uploads;
     std::vector<char> resident;   // per tensor, whether its bytes are the loader's own host data rather than the file's, adopted at once and never streamed; empty for none
+    std::vector<char> composite;  // per tensor, whether its bytes are made at load (format/hf_quant.hpp) rather than read; empty for none
+    std::vector<char> made_host;  // per composite, whether a host took the bytes made for it, which then stay
 };
 
 // load_model's adoption hook: a backend that reads in place adopts a weight where it lies, and one that copies adopts it at once unless `defer` gives a weight not plan.resident storage to stream into (plan.uploads).
 // The model hands each tensor to each of `backends` about once whole and once as a shard, which sizes the records; a record that cannot be kept drains the backend before its storage goes, as a failed write does.
-inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer) {
+inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, WeightPlan& plan, bool defer, std::function<void(size_t)> make,
+                                  std::function<void(size_t)> release) {
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
     plan.uploads.reserve(defer ? 2 * weights.tensors.size() * backends : 0);
-    return [&weights, &plan, defer](size_t i, backend::Backend& b, const shard::Held* held) {
+    return [&weights, &plan, defer, make, release](size_t i, backend::Backend& b, const shard::Held* held) {
         const TensorView& t = weights.tensors[i];
         const bool resident = i < plan.resident.size() && plan.resident[i], later = defer && !resident;
+        const bool composite = i < plan.composite.size() && plan.composite[i];
+        if (composite && !t.data && (!later || (!held && b.reads_in_place()))) make(i);
+        if (composite && !held && b.reads_in_place()) plan.made_host[i] = 1;
+        const auto copied = [&](backend::BufferPtr buffer) {
+            if (composite && !plan.made_host[i]) release(i);
+            return buffer;
+        };
         const auto record = [&](const backend::BufferPtr& buffer, std::optional<shard::Held> part) {
             try {
                 plan.uploads.push_back({i, &b, buffer, std::move(part)});
@@ -163,13 +176,13 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
                 throw;
             }
             if (later) record(buffer, *held);
-            return buffer;
+            return later ? buffer : copied(std::move(buffer));
         }
         if (b.reads_in_place()) {
-            plan.host_reads[i] = !resident;
+            plan.host_reads[i] = !resident && !composite;
             return b.adopt(t.data, t.bytes);
         }
-        if (!later) return b.adopt(t.data, t.bytes);
+        if (!later) return copied(b.adopt(t.data, t.bytes));
         backend::BufferPtr buffer = b.alloc_weight(t.bytes);
         record(buffer, std::nullopt);
         return buffer;
@@ -217,7 +230,7 @@ inline std::unique_ptr<format::FileReader> open_reader(const std::string& path, 
 }
 
 // One read of the stream: `bytes` from `offset` in file `file`, both on the file's granule, and the parts of tensors it holds.
-// A piece with `into` is read straight there, into a direct load's copy of the file the host reads in place, and nothing is written from it.
+// A piece with `into` is read straight there, into a direct load's copy of the file the host reads in place, and nothing is written from it; one with `make` is one composite tensor, which `make` writes into its slot on a reader thread.
 struct Piece {
     struct Part {
         size_t tensor = 0, tensor_offset = 0, piece_offset = 0, bytes = 0;
@@ -227,7 +240,36 @@ struct Piece {
     size_t bytes = 0;
     std::vector<Part> parts;
     uint8_t* into = nullptr;
+    std::function<void(uint8_t*)> make{};
 };
+
+// Composite `i`'s bytes made at `out`: its parts read whole from their files, each through `reader_of` in one read on its granule into one buffer, then repacked (format/hf_quant.hpp).
+// It holds no state of its own, so the stream's readers run it at once on several tensors, each with its parts' buffer.
+inline void make_composite(const gguf::GGUFModel& file, size_t i, const std::function<const format::FileReader&(const std::string&)>& reader_of, uint8_t* out) {
+    const gguf::GGUFModel::Composite& c = file.composites.at(i);
+    struct Read {
+        const format::FileReader* reader;
+        uint64_t from;
+        size_t lead, bytes, request, at;
+    };
+    std::vector<Read> reads;
+    size_t total = 0;
+    for (const auto& part : c.parts) {
+        const format::FileSpan span = file.part_span(part.second, size_t(part.first.data_size()));
+        const format::FileReader& reader = reader_of(span.file);
+        const size_t g = reader.direct() ? reader.granule() : 1, lead = size_t(span.offset % g);
+        const size_t request = (lead + span.bytes + g - 1) / g * g;
+        reads.push_back({&reader, span.offset - lead, lead, span.bytes, request, total});
+        total += (request + core::page_size() - 1) / core::page_size() * core::page_size();
+    }
+    core::HostPages buffer(total);
+    std::vector<const uint8_t*> parts;
+    for (const Read& r : reads) {
+        if (r.reader->read(r.from, buffer.data() + r.at, r.request) < r.lead + r.bytes) throw std::runtime_error("loading: short file read");
+        parts.push_back(buffer.data() + r.at + r.lead);
+    }
+    hf_quant::repack(c, file.tensors[i], parts, out);
+}
 
 // The reads that bring `tensors` (distinct, in file order, tensor t at spans[t] in file file_of[t]) into memory.
 // A read starts on its file's granule and holds at most `limit` bytes, rounded down to whole granules, and carries on over the tensors that follow in the same file while no gap between them is longer than a granule.
@@ -274,6 +316,10 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shar
     for (const Piece& p : pieces) slot_bytes = std::max(slot_bytes, p.bytes);
     ReadRing ring(pieces.size(), slot_bytes, [&](size_t k, uint8_t* into) {
         const Piece& p = pieces[k];
+        if (p.make) {
+            p.make(into);
+            return p.bytes;
+        }
         return readers[p.file]->read(p.offset, p.into ? p.into : into, p.bytes);
     }, kStreamSlots, kStreamReaders);
     const size_t slots = ring.slots();
@@ -437,6 +483,20 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             at += n;
         }
     }
+    // A directory's repacked tensors (format/hf_quant.hpp) are made as they are adopted when wanted at once, and on the stream's readers otherwise.
+    std::vector<char> composite(file.tensors.size(), 0);
+    for (const auto& item : file.composites) composite[item.first] = 1;
+    const auto reader_at = [&](const std::string& path) -> const format::FileReader& { return reader_of(file_index(path)); };
+    const auto make = [&](size_t i) {
+        std::vector<uint8_t>& bytes = loaded->made[i];
+        bytes.resize(file.tensor_bytes(i));
+        make_composite(file, i, reader_at, bytes.data());
+        weights.tensors[i].data = bytes.data();
+    };
+    const auto release = [&](size_t i) {
+        weights.tensors[i].data = nullptr;
+        loaded->made.erase(i);
+    };
     std::vector<LookupCandidate> lookups;
     const ModelPlan architecture = plan_model(weights, request.drafter);
     for (const LayerPlan& layer : architecture.layers) {
@@ -469,12 +529,13 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             loaded->host.push_back(std::make_shared<core::HostPages>(core::HostPages::reserved(size_t(gguf::aligned_size(gguf::file_size(file, paths[f]), g)))));
         }
         for (size_t i : every) {
-            if (resident[i]) continue;
+            if (resident[i] || composite[i]) continue;
             const format::FileSpan s = file.span(i);
             weights.tensors[i].data = loaded->host[file_index(s.file)]->data() + s.offset;
         }
     }
     std::vector<char> external = resident;
+    for (size_t i : every) external[i] |= composite[i];
     for (size_t n = 0; n < lookups.size(); ++n) {
         const size_t i = lookups[n].tensor;
         TensorView& t = weights.tensors[i];
@@ -492,6 +553,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             if (role.kind != RoleKind::source || !role.tensor) continue;
             const size_t i = *role.tensor;
             if (resident[i]) throw std::runtime_error("loading: a widened vector is a source role: " + file.tensors[i].name);
+            if (composite[i]) throw std::runtime_error("loading: a repacked tensor is a source role: " + file.tensors[i].name);
             if (external[i]) continue;
             sources.emplace_back(file.span(i).bytes);
             read_span(i, sources.back().data());
@@ -510,11 +572,13 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     }
     WeightPlan plan;
     plan.resident = resident;
+    plan.composite = composite;
+    plan.made_host.assign(file.tensors.size(), 0);
     const size_t devices = backends.size();
     loaded->backends = backends;
     const auto built = std::chrono::steady_clock::now();
     // The mapped mode copies each weight as the model resolves its role; the streamed ones give every copied weight storage first and stream the copies after.
-    const AdoptWeight adopt = planning_adopt(weights, devices, plan, mode != LoadMode::mapped);
+    const AdoptWeight adopt = planning_adopt(weights, devices, plan, mode != LoadMode::mapped, make, release);
     // The fit, then the model built: a model with lookup tables was fitted above, beside its tables, and any other is fitted here.
     // Each build starts on an empty upload plan: a build given up for fewer KV tokens drops its records before the devices' memory is read again (build_fitted).
     const auto allocating = [&] {
@@ -542,9 +606,13 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         auto in_file_order = [&](std::vector<size_t>& v) {
             std::sort(v.begin(), v.end(), [&](size_t a, size_t b) { return file.offsets[a] != file.offsets[b] ? file.offsets[a] < file.offsets[b] : a < b; });
         };
-        std::vector<size_t> streamed, hosted, warmed;
+        std::vector<size_t> streamed, hosted, warmed, made;
         for (size_t i : every) {
             if (resident[i]) continue;
+            if (composite[i]) {
+                if (copied[i]) made.push_back(i);
+                continue;
+            }
             if (plan.host_reads[i] && mode == LoadMode::direct) hosted.push_back(i);
             else if (copied[i]) streamed.push_back(i);
             else if (plan.host_reads[i]) warmed.push_back(i);
@@ -558,7 +626,7 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
                 throw std::runtime_error("--load-mode direct: the host reads " + detail::gib(bytes) + " of weights in place and has " + detail::gib(*available) +
                                          " available; auto and mapped map them instead");
         }
-        const size_t total = gguf::bytes_of(file, streamed) + gguf::bytes_of(file, hosted) + gguf::bytes_of(file, warmed);
+        const size_t total = gguf::bytes_of(file, streamed) + gguf::bytes_of(file, hosted) + gguf::bytes_of(file, warmed) + gguf::bytes_of(file, made);
         size_t done = 0;
         if (progress && total) progress(0, total);
         // auto reads around the file cache only when the load would not fit in it and the file system takes direct reads.
@@ -570,6 +638,15 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             for (size_t i : *list) {
                 spans[i] = file.span(i);
                 const size_t f = file_of[i] = file_index(spans[i].file);
+                if (streamed_file[f]) continue;
+                streamed_file[f] = 1;
+                if (!readers[f] || (around && !readers[f]->direct())) readers[f] = detail::open_reader(paths[f], around);
+                gguf::check_size(file, paths[f], readers[f]->size());
+            }
+        // A composite's parts are read by the stream's readers, so their files' readers open here.
+        for (size_t i : made)
+            for (const auto& part : file.composites.at(i).parts) {
+                const size_t f = file_index(file.part_span(part.second, size_t(part.first.data_size())).file);
                 if (streamed_file[f]) continue;
                 streamed_file[f] = 1;
                 if (!readers[f] || (around && !readers[f]->direct())) readers[f] = detail::open_reader(paths[f], around);
@@ -594,8 +671,18 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
             }
             p.into = loaded->host[p.file]->data() + p.offset;
         }
-        // One pass front to back over each file, the host's reads among the devices'.
+        // One pass front to back over each file, the host's reads among the devices', and each composite a piece of its own at its first part, its slot sized by the bytes made.
         pieces.insert(pieces.end(), into_host.begin(), into_host.end());
+        for (size_t i : made) {
+            const auto& first = file.composites.at(i).parts.front();
+            const format::FileSpan at = file.part_span(first.second, size_t(first.first.data_size()));
+            const size_t bytes = file.tensor_bytes(i);
+            detail::Piece p{file_index(at.file), at.offset, bytes, {{i, 0, 0, bytes}}};
+            p.make = [&file, &readers, &file_index, i](uint8_t* into) {
+                detail::make_composite(file, i, [&](const std::string& path) -> const format::FileReader& { return *readers[file_index(path)]; }, into);
+            };
+            pieces.push_back(std::move(p));
+        }
         std::stable_sort(pieces.begin(), pieces.end(), [](const detail::Piece& a, const detail::Piece& b) {
             return a.file != b.file ? a.file < b.file : a.offset < b.offset;
         });

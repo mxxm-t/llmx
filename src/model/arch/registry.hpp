@@ -72,8 +72,8 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
         if (t.ne.size() > 4)
             throw std::runtime_error("inference: invalid tensor rank " + t.name);
         const uint64_t bytes = t.data_size();
-        if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() ||
-            bytes > m.payload_size() - m.offsets[i])
+        // A composite's bytes are made at load (format/hf_quant.hpp), so only its parts lie in the payload.
+        if (!m.composites.count(i) && (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() || bytes > m.payload_size() - m.offsets[i]))
             throw std::runtime_error("inference: invalid tensor storage " + t.name);
         w.tensors.push_back({t.name, t.ne, t.type, m.tensor_data(i), (size_t)bytes});
         w.tensors.back().scale = scales[i];

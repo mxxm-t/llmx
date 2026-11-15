@@ -18,12 +18,12 @@ inline std::vector<float> step_row(infer::Model& model, int id) {
     return std::vector<float>(p, p + model.n_vocab());
 }
 
-// A Qwen3-shaped F32 model with deterministic weights, 8 wide with `heads` query heads of 4 over `kv_heads` KV heads, `ff` hidden rows and `vocab` tokens, for the native tests that run a forward pass.
+// A Qwen3-shaped F32 model with deterministic weights, `width` wide with `heads` query heads of 4 over `kv_heads` KV heads, `ff` hidden rows and `vocab` tokens, for the native tests that run a forward pass.
 // Without `tied` it has an output projection of its own.
-inline gguf::GGUFModel tiny_qwen_shaped(int layers, uint64_t context, bool tied, uint64_t heads, uint64_t kv_heads, uint64_t ff, uint64_t vocab) {
+inline gguf::GGUFModel tiny_qwen_shaped(int layers, uint64_t context, bool tied, uint64_t heads, uint64_t kv_heads, uint64_t ff, uint64_t vocab, uint64_t width = 8) {
     gguf::GGUFModel m;
     for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
-            {"block_count", uint64_t(layers)}, {"embedding_length", 8}, {"feed_forward_length", ff},
+            {"block_count", uint64_t(layers)}, {"embedding_length", width}, {"feed_forward_length", ff},
             {"attention.head_count", heads}, {"attention.head_count_kv", kv_heads},
             {"attention.key_length", 4}, {"context_length", context}}) {
         gguf::MetaValue v; v.vtype = gguf::V_UINT32; v.u = kv.second;
@@ -41,21 +41,21 @@ inline gguf::GGUFModel tiny_qwen_shaped(int layers, uint64_t context, bool tied,
         m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
         m.offsets.push_back(offset);
     };
-    add("token_embd.weight", {8, vocab});
-    add("output_norm.weight", {8}, true);
+    add("token_embd.weight", {width, vocab});
+    add("output_norm.weight", {width}, true);
     for (int l = 0; l < layers; ++l) {
         const std::string pre = "blk." + std::to_string(l) + ".";
-        for (const char* name : {"attn_norm", "ffn_norm"}) add(pre + name + ".weight", {8}, true);
+        for (const char* name : {"attn_norm", "ffn_norm"}) add(pre + name + ".weight", {width}, true);
         for (const char* name : {"attn_q_norm", "attn_k_norm"}) add(pre + name + ".weight", {4}, true);
-        add(pre + "attn_q.weight", {8, 4 * heads});
-        add(pre + "attn_k.weight", {8, 4 * kv_heads});
-        add(pre + "attn_v.weight", {8, 4 * kv_heads});
-        add(pre + "attn_output.weight", {4 * heads, 8});
-        add(pre + "ffn_gate.weight", {8, ff});
-        add(pre + "ffn_up.weight", {8, ff});
-        add(pre + "ffn_down.weight", {ff, 8});
+        add(pre + "attn_q.weight", {width, 4 * heads});
+        add(pre + "attn_k.weight", {width, 4 * kv_heads});
+        add(pre + "attn_v.weight", {width, 4 * kv_heads});
+        add(pre + "attn_output.weight", {4 * heads, width});
+        add(pre + "ffn_gate.weight", {width, ff});
+        add(pre + "ffn_up.weight", {width, ff});
+        add(pre + "ffn_down.weight", {ff, width});
     }
-    if (!tied) add("output.weight", {8, vocab});
+    if (!tied) add("output.weight", {width, vocab});
     return m;
 }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -7,6 +8,7 @@
 
 #include "core/json.hpp"
 #include "format/gguf.hpp"
+#include "format/hf_quant.hpp"
 #include "format/safetensors.hpp"
 #include "model/arch/registry.hpp"
 #include "tokenizer/hf_tokenizer.hpp"
@@ -26,11 +28,16 @@ inline gguf::GGUFModel read_directory(const std::string& dir) {
     const std::filesystem::path config_path = std::filesystem::u8path(dir) / "config.json";
     std::ifstream stream(config_path, std::ios::binary);
     if (!stream) throw std::runtime_error("cannot open file: " + config_path.u8string());
-    const jmini::Value config = jmini::parse(std::string((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()));
+    jmini::Value config = jmini::parse(std::string((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>()));
     const jmini::Value* type = config.isObject() ? config.get("model_type") : nullptr;
     if (!type || !type->isString()) throw std::runtime_error("config.json gives no model_type");
+    const std::string model_type = type->str;
     gguf::GGUFModel m = safetensors::read_directory(dir);
-    const ArchEntry& entry = hf_architecture(type->str);
+    // hf_quant owns quantization_config: it makes the quantized linears composites, and the key goes before the architecture's table reads the rest.
+    const auto quantization = std::find_if(config.obj.begin(), config.obj.end(), [](const auto& item) { return item.first == "quantization_config"; });
+    hf_quant::apply(quantization == config.obj.end() ? nullptr : &quantization->second, m);
+    if (quantization != config.obj.end()) config.obj.erase(quantization);
+    const ArchEntry& entry = hf_architecture(model_type);
     hf::apply(entry.hf_table(), entry.name, config, m);
     // hf::apply has held vocab_size to the embedding's rows.
     const uint64_t rows = uint64_t(config.get("vocab_size")->num);

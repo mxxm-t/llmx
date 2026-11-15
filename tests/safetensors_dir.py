@@ -1,10 +1,12 @@
 import json
 import os
+import random
 import struct
 import tempfile
 
 import common
 import f32
+import spec_decode as sd
 from common import run_f32_cache as cli
 from tokenizer import build_byte_vocab
 
@@ -12,25 +14,30 @@ from tokenizer import build_byte_vocab
 QWEN2_PATTERN = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
 
 
-def write_safetensors(path, weights):
-    """One safetensors file of F32 `weights`, (gguf name, hf name, gguf shape, values) each, under their HF names with the slowest dimension first."""
+def write_entries(path, entries):
+    """One safetensors file of `entries`, (hf name, dtype, gguf shape, bytes) each, with the slowest dimension first."""
     header, offset = {}, 0
-    for _, name, shape, values in weights:
-        header[name] = {"dtype": "F32", "shape": list(reversed(shape)), "data_offsets": [offset, offset + 4 * len(values)]}
-        offset += 4 * len(values)
+    for name, dtype, shape, data in entries:
+        header[name] = {"dtype": dtype, "shape": list(reversed(shape)), "data_offsets": [offset, offset + len(data)]}
+        offset += len(data)
     text = json.dumps(header).encode()
     # Spaces pad the header so the tensors start at a multiple of 8, as writers pad it.
     text += b" " * (-(8 + len(text)) % 8)
     with open(path, "wb") as f:
         f.write(struct.pack("<Q", len(text)) + text)
-        for _, _, _, values in weights:
-            f.write(struct.pack("<%df" % len(values), *values))
+        for _, _, _, data in entries:
+            f.write(data)
 
 
-def write_directory(path, weights, tied, files=1):
-    """The tiny Qwen3 model as a Hugging Face directory: config.json, its weights in `files` safetensors files (an index above one), and a byte-level tokenizer whose ids are the bytes, then <|endoftext|>."""
+def write_safetensors(path, weights):
+    """One safetensors file of F32 `weights`, (gguf name, hf name, gguf shape, values) each, under their HF names."""
+    write_entries(path, [(name, "F32", shape, struct.pack("<%df" % len(values), *values)) for _, name, shape, values in weights])
+
+
+def write_directory(path, weights, tied, files=1, c=f32.CONFIG, extra=None):
+    """The tiny Qwen3 model of config `c` as a Hugging Face directory: config.json with `extra`'s keys, its weights in `files` safetensors files (an index above one), and a byte-level tokenizer whose ids are the bytes, then <|endoftext|>.
+    `weights` are F32 weights, or with `extra` the entries of one file (write_entries)."""
     os.makedirs(path)
-    c = f32.CONFIG
     config = {"architectures": ["Qwen3ForCausalLM"], "model_type": "qwen3", "vocab_size": f32.VOCAB,
               "hidden_size": c["embedding_length"], "intermediate_size": c["feed_forward_length"],
               "num_hidden_layers": c["block_count"], "num_attention_heads": c["attention.head_count"],
@@ -38,9 +45,12 @@ def write_directory(path, weights, tied, files=1):
               "max_position_embeddings": c["context_length"], "rope_theta": 10000.0, "rms_norm_eps": 1e-6,
               "tie_word_embeddings": tied, "attention_bias": False, "hidden_act": "silu", "rope_scaling": None,
               "eos_token_id": f32.VOCAB - 1, "torch_dtype": "float32"}
+    config.update(extra or {})
     with open(os.path.join(path, "config.json"), "w") as f:
         json.dump(config, f)
-    if files == 1:
+    if extra:
+        write_entries(os.path.join(path, "model.safetensors"), weights)
+    elif files == 1:
         write_safetensors(os.path.join(path, "model.safetensors"), weights)
     else:
         weight_map = {}
@@ -65,6 +75,63 @@ def write_directory(path, weights, tied, files=1):
     with open(os.path.join(path, "tokenizer_config.json"), "w") as f:
         json.dump({"eos_token": "<|endoftext|>"}, f)
     return path
+
+
+# A 64-wide model whose every linear has whole AWQ groups of 32 inputs and outputs in whole words of eight.
+AWQ_CONFIG = {"block_count": 2, "embedding_length": 64, "feed_forward_length": 96, "attention.head_count": 2,
+              "attention.head_count_kv": 1, "attention.key_length": 32, "context_length": 16}
+AWQ_QUANTIZATION = {"quant_method": "awq", "bits": 4, "group_size": 32, "zero_point": True, "version": "gemm", "modules_to_not_convert": None}
+LINEARS = ("attn_q", "attn_k", "attn_v", "attn_output", "ffn_gate", "ffn_up", "ffn_down")
+
+
+def awq_fixture(seed=7):
+    """The AWQ directory's safetensors entries, and its GGUF twin's F32 weights and Q5_0 tensors (spec_decode.awq_q5_0).
+    Codes and zero points are random; scales are F16 on layer 0 and BF16 on layer 1, of up to eight significant bits from F16's subnormals up, so F16 holds both exactly."""
+    rng = random.Random(seed)
+    entries, weights, quantized = [], [], []
+    for name, hf, shape, values in f32.tensors(True, config=AWQ_CONFIG):
+        layer, _, rest = name[4:].partition(".") if name.startswith("blk.") else ("", "", "")
+        if rest.split(".")[0] not in LINEARS:
+            entries.append((hf, "F32", shape, struct.pack("<%df" % len(values), *values)))
+            weights.append((name, hf, shape, values))
+            continue
+        cols, rows = shape
+        bf16 = layer == "1"
+        scales = [[rng.choice((-1, 1)) * rng.randint(1, 255) * 2.0 ** -rng.randint(14, 22) for _ in range(rows)] for _ in range(cols // 32)]
+        qweight = sd.awq_pack([[rng.randrange(16) for _ in range(rows)] for _ in range(cols)])
+        qzeros = sd.awq_pack([[rng.randrange(16) for _ in range(rows)] for _ in range(cols // 32)])
+        flat = [x for line in scales for x in line]
+        scale_bytes = b"".join(struct.pack("<f", x)[2:] for x in flat) if bf16 else struct.pack("<%de" % len(flat), *flat)
+        base = hf[:-len(".weight")]
+        entries += [(base + ".qweight", "I32", [rows // 8, cols], words_of(qweight)),
+                    (base + ".qzeros", "I32", [rows // 8, cols // 32], words_of(qzeros)),
+                    (base + ".scales", "BF16" if bf16 else "F16", [rows, cols // 32], scale_bytes)]
+        quantized.append((name, shape, sd.Q5_0, sd.awq_q5_0(qweight, qzeros, scales, 32)))
+    return entries, weights, quantized
+
+
+def words_of(lines):
+    """Lines of int32 words as little-endian bytes."""
+    flat = [w for line in lines for w in line]
+    return struct.pack("<%di" % len(flat), *flat)
+
+
+def awq_checks(directory):
+    """The AWQ directory reads as its Q5_0 twin: info lists each linear as Q5_0, and ids, text and logits match the twin's byte for byte."""
+    entries, weights, quantized = awq_fixture()
+    extra = {"torch_dtype": "float16", "quantization_config": AWQ_QUANTIZATION}
+    model = write_directory(os.path.join(directory, "awq"), entries, True, c=AWQ_CONFIG, extra=extra)
+    twin = f32.write_model(os.path.join(directory, "awq-twin.gguf"), weights, config=AWQ_CONFIG, quantized=quantized)
+    rc, out = cli(["info", model])
+    listed = [line for line in out.splitlines() if any(".%s.weight " % name in line for name in LINEARS)]
+    assert rc == 0 and len(listed) == 14 and all("Q5_0" in line for line in listed), "info on the AWQ directory: " + out
+    text = f32.TEXTS[-1]
+    for args in (["tokenize", "{}", text], ["logits", "{}", text, "--top", str(f32.VOCAB)],
+                 ["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos"]):
+        outs = [common.run_process([a.replace("{}", m) for a in args], cache="f32") for m in (model, twin)]
+        text_of = common.generate_text if args[0] == "generate" else common.cli_stdout
+        same = outs[0].returncode == 0 == outs[1].returncode and text_of(outs[0].stdout) == text_of(outs[1].stdout)
+        assert same, "%s on the AWQ directory differs from its Q5_0 twin: %r" % (args[0], [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
 
 
 def run():
@@ -92,7 +159,8 @@ def run():
             assert rc == 0 and out.strip() == text, "detokenize on the directory: " + out
             rc, out = cli(["info", model])
             assert rc == 0 and "qwen3.rope.freq_base" in out and (" output.weight " in out) != tied, "info on the directory: " + out
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; max error %.8f  [ok]" % worst)
+        awq_checks(directory)
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales as its Q5_0 twin's ids, text and logits; max error %.8f  [ok]" % worst)
     return True
 
 

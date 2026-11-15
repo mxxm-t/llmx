@@ -149,6 +149,16 @@ inline void dequantize_row_q5_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// One Q5_0 block from its F16 scale bits and 32 codes in 0..31, the layout dequantize_row_q5_0 reads; a repack of exact values writes these (format/hf_quant.hpp).
+inline void write_block_q5_0(uint16_t d, const uint8_t* codes, uint8_t* out) {
+    out[0] = uint8_t(d & 255);
+    out[1] = uint8_t(d >> 8);
+    uint32_t high = 0;
+    for (size_t j = 0; j < Q5_0_BLOCK; ++j) high |= uint32_t((codes[j] >> 4) & 1) << j;
+    for (size_t j = 0; j < 4; ++j) out[2 + j] = uint8_t(high >> (8 * j));
+    for (size_t j = 0; j < 16; ++j) out[6 + j] = uint8_t((codes[j] & 15) | (codes[j + 16] & 15) << 4);
+}
+
 // Q5_1 adds one high bit per value to Q4_1's affine codes, before the packed nibbles.
 inline void dequantize_row_q5_1(const uint8_t* src, float* dst, size_t nblocks) {
     for (size_t b = 0; b < nblocks; ++b) {

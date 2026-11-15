@@ -134,6 +134,42 @@ def check_q5_0(rng):
     print("raw-blocks: Q5_0 %d values, signed-zero/scale edges, every code and isolated high bits  [ok]" % len(expected))
 
 
+# AWQ GEMM linears: the interleave from its literal word, every code at every nibble position against every zero, F16 scales from HALVES (subnormals, negatives and both zeros), and the exact Q5_0 repack decoding to the same bits.
+def check_awq(rng):
+    assert sd.awq_pack([list(range(8))]) == [[0x75316420]] and sd.awq_codes([[0x75316420]], 8) == [list(range(8))]
+    assert sd.awq_pack([[15] * 8]) == [[-1]] and sd.awq_codes([[-1]], 8) == [[15] * 8]
+    rows, total = 16, 0
+    for group in (32, 128):
+        cols = 2 * group
+        codes = [[rng.randrange(16) for _ in range(rows)] for _ in range(cols)]
+        for k in range(16):
+            for n in range(rows):
+                codes[k][n] = (k + n) % 16
+        zeros = [[(g * 7 + n) % 16 for n in range(rows)] for g in range(cols // group)]
+        halves = [[HALVES[(g * rows + n) % len(HALVES)] for n in range(rows)] for g in range(cols // group)]
+        scales = [[half_float(h) for h in line] for line in halves]
+        qweight, qzeros = sd.awq_pack(codes), sd.awq_pack(zeros)
+        assert sd.awq_codes(qweight, rows) == codes and sd.awq_codes(qzeros, rows) == zeros
+        got = [v for line in sd.awq_dequantize(qweight, qzeros, scales, group) for v in line]
+        expected = [cell(lambda h, d=halves[k // group][n], c=codes[k][n] - zeros[k // group][n]: h(d) * c) for n in range(rows) for k in range(cols)]
+        assert_values("AWQ group %d" % group, expected, got)
+        repacked = sd.awq_q5_0(qweight, qzeros, scales, group)
+        assert sd.pack_f32(sd.decode(sd.Q5_0, repacked, rows * cols)) == sd.pack_f32(got)
+        if sd.np is not None:
+            arrays = [sd.np.array(qweight, dtype=sd.np.int32), sd.np.array(qzeros, dtype=sd.np.int32), sd.np.array(scales, dtype=sd.np.float16)]
+            assert sd.awq_dequantize_numpy(*arrays, group).tobytes() == sd.pack_f32(got)
+        total += rows * cols
+    # Below F16's smallest subnormal, BF16 1.1000001b * 2^-20 (an F16 subnormal with 4 fraction bits there, which rounds) and BF16 65536 (past F16's range).
+    for scale in (1e-9, 193 * 2.0 ** -27, 65536.0):
+        try:
+            sd.awq_q5_0(sd.awq_pack([[0] * 8] * 32), sd.awq_pack([[0] * 8]), [[scale] * 8], 32)
+        except ValueError as error:
+            assert "not exact in F16" in str(error)
+        else:
+            raise AssertionError("an inexact scale %r was repacked" % scale)
+    print("raw-blocks: AWQ %d values, the interleave, every code and zero, scale edges and the exact Q5_0 repack  [ok]" % total)
+
+
 def check_q5_1(rng):
     payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
     for d, m in itertools.product(HALVES, HALVES):
@@ -979,6 +1015,7 @@ def run(require=False):
     check_16bit()
     check_low_bits()
     check_q5_0(random.Random(20261020))
+    check_awq(random.Random(20261115))
     check_q5_1(rng)
     check_iq4(rng)
     check_iq3_s()

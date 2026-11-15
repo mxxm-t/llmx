@@ -317,7 +317,7 @@ void reader_checks() {
         std::vector<const backend::Backend*> ids;
         for (const auto& b : backends) ids.push_back(b.get());
         infer::WeightPlan plan;
-        const infer::AdoptWeight record = infer::planning_adopt(weights, backends.size(), plan, true);
+        const infer::AdoptWeight record = infer::planning_adopt(weights, backends.size(), plan, true, {}, {});
         const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b, const infer::shard::Held* held) {
             ++r.takes[i];
             const size_t id = size_t(std::find(ids.begin(), ids.end(), &b) - ids.begin());
@@ -1033,7 +1033,7 @@ void hook_checks() {
         auto device = std::make_shared<LoadingBackend>();
         device->set_threads(1);
         infer::WeightPlan plan;
-        { infer::Model model(weights, {device}, infer::Placement{}, {}, infer::planning_adopt(weights, 1, plan, defer)); }
+        { infer::Model model(weights, {device}, infer::Placement{}, {}, infer::planning_adopt(weights, 1, plan, defer, {}, {})); }
         const int n = (int)weights.tensors.size();
         if (defer) tables = device->state->adoptions;
         require(tables > 0 && (defer ? plan.uploads.size() == weights.tensors.size() && device->state->weights == n
@@ -1052,7 +1052,7 @@ void hook_checks() {
         const infer::ModelWeights& w = cache ? weights : partial;
         std::string caught;
         infer::WeightPlan plan;
-        try { infer::Model model(w, {device}, infer::Placement{}, {}, infer::planning_adopt(w, 1, plan, true)); }
+        try { infer::Model model(w, {device}, infer::Placement{}, {}, infer::planning_adopt(w, 1, plan, true, {}, {})); }
         catch (const std::runtime_error& e) { caught = e.what(); }
         require(caught == (cache ? "injected cache allocation failure" : "inference: missing tensor blk.0.ffn_down.weight"),
                 "a model that cannot be built lost its error");
@@ -1071,7 +1071,7 @@ void hook_checks() {
         LoadingBackend device;
         device.fail_write = 2;
         infer::WeightPlan plan;
-        const infer::AdoptWeight hook = infer::planning_adopt(shard, 1, plan, defer);
+        const infer::AdoptWeight hook = infer::planning_adopt(shard, 1, plan, defer, {}, {});
         // Rows of 16 bytes on the row axis: streamed, a row owned between two zero rows; from the mapping, a zero row between two owned rows.
         infer::shard::Held held;
         held.axis = infer::Axis::rows;
@@ -1273,7 +1273,7 @@ void row_run_checks() {
     { infer::Model model(runs, {cpu()}); same(run(model), "roles over runs of rows adopted in place changed the logits"); }
     {
         infer::WeightPlan plan;
-        infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, false));
+        infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, false, {}, {}));
         same(run(model), "roles over runs of rows written by the hook changed the logits");
     }
     {
@@ -1298,7 +1298,7 @@ void row_run_checks() {
     // A streamed load records each run as a part of its tensor's rows, the key run after the query rows.
     {
         infer::WeightPlan plan;
-        { infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, true)); }
+        { infer::Model model(runs, {cpu()}, infer::Placement{}, {}, infer::planning_adopt(runs, 1, plan, true, {}, {})); }
         size_t parts = 0;
         for (const infer::Upload& u : plan.uploads) {
             if (runs.tensors[u.tensor].name.find("attn_qk") == std::string::npos) continue;

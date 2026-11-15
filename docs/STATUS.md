@@ -712,6 +712,52 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 **Left.**
 - The `docs` and `dead-code` components on the head that lands; lands by fast-forward as one commit.
 ## vLLM formats, step 2: `--chat-template-file` and `llmx pull owner/repo` (2026-11-15, VLLM5, branch formats/step2-pull stacked on formats/safetensors ef91364aa, which lands first; proposal `vllm5-formats-step2-quant-20261115.md`, awaiting F2DEV's and XDEV's review)
+## vLLM formats, quant step 1: AWQ directories as exact Q5_0 (2026-11-15, VLLM7 then VLLM8, branch formats/quant-awq stacked on formats/step2-pull, which lands first; review conditions in the step 2 block below)
+## vLLM formats, quant step 1: AWQ directories as exact Q5_0 (2026-11-15, VLLM7, VLLM8 then VLLM9, branch formats/quant-awq stacked on formats/step2-pull, which lands first; review conditions in the step 2 block below)
+
+- **Goal:** a Hugging Face directory of 4-bit AWQ GEMM linears with zero points (Qwen/Qwen3-4B-AWQ and the like) loads with each linear repacked exactly into Q5_0, so every weight is the checkpoint's value and the existing Q5_0 kernels run it on every backend.
+- **Dependency:** formats/step2-pull, then formats/safetensors, land first; this branch is rebased onto main after them.
+- **Done:** `format/hf_quant.hpp` (`docs/src/format-hf_quant.md`) owns `quantization_config`: `infer::read_directory` hands it the key and erases it before `hf::apply`, so the table never sees it (F2DEV's item 1); every key is read, checked or refused by name, and integer tensors no rule consumed are refused.
+  `safetensors.hpp` reads I32 and I64 always (item 2). Each AWQ linear becomes one Q5_0 tensor, a `GGUFModel::Composite` of its three parts at `qweight`'s place; `GGUFModel::erase_tensors` is the one table edit, which `hf_config`'s tied-head drop now uses too.
+  `hf_quant::repack` writes d = s in F16 and code q - z + 16; a BF16 scale is taken only through an F16 round trip, subnormals included, and refused naming tensor, scale, output and group (item 3). `kRepackVersion` is a line of the disk tier's identity (item 4).
+  The loader makes a composite at adoption when a host reads it or a mapped load copies it, keeping a host's bytes in `LoadedModel::made`; the streamed modes make a copy's bytes on the stream's readers, one Piece per composite at its first part, its slot sized by the bytes made, and a composite copied at once is released as soon as its copy returns, so a mapped load holds one made tensor at a time (F2DEV's AWQ review, item 1). `inference-load.md` gives the slot cost on a 32B AWQ model (90.1 MB per slot, 1.44 GB over sixteen) and beside it the parts each reader holds while it makes one, at most 0.55 GB at eight readers (item 3), and states that a host's repack is private per process (item 8).
+  `make_composite` reads each part in one read widened to its reader's granule into one page-aligned buffer, not through a one-granule window (item 4); a tied quantized head is refused by name (item 5); `version` is read without case, since AutoAWQ writes `GEMM` (item 7).
+  `tests/spec_decode.py` decodes AWQ GEMM linears and their Q5_0 repack from the packing description, and `raw-blocks` holds the interleave, every code at every nibble against every zero, F16 scale edges and the repack's decoding to the AWQ values bit for bit.
+  CTest `load-progress` loads a 32-wide AWQ directory (layer 0 F16 scales, layer 1 BF16, both signs and an F16 subnormal, and `version` `GEMM`) in each load mode on the CPU and on both copying backends to the logits of a Q5_0 twin the test writes from the block layout: the CPU keeps each repacked linear as the twin's bytes, a streamed copying backend's weights hold them and a copying backend keeps nothing made; BF16 scales F16 cannot hold (2^-26 below its subnormals, 1.1000001b * 2^-20 which it rounds, and 65536 past its range; `raw-blocks` holds the same three), a quantized tied head, an unknown key, gemv packing, AWQ without zero points and GPTQ are refused by name.
+  The suite's `safetensors` component writes a 64-wide AWQ directory with random codes, zero points and scales beside its twin from `spec_decode.awq_q5_0`: `info` lists the 14 linears as Q5_0, and tokenize, logits and greedy text equal the twin's byte for byte.
+- **Measured (2026-11-15, Qwen/Qwen3-4B-AWQ 74d4bd2, 4B, AWQ 4-bit group 128, as Q5_0; one MI50, ROCm; identity and load times at 41e8e6fe, timing at 95d7ad55, whose device path is the same):**
+  Identity, directory against its Q5_0 twin `Qwen3-4B-AWQ-Q5_0-twin.gguf` (`vllm7/twin.py`, all 252 linears decoded bit for bit as `spec_decode.awq_dequantize_numpy`), logits of the last 256 positions of a 6000-byte wikitext prompt, 48 per-token decode positions and 64 greedy ids (the greedy text compared without its timing line):
+
+  | arm | MI50 f16 | MI50 int8 | CPU auto |
+  |---|---|---|---|
+  | directory, auto load | identical | identical | identical |
+  | directory, `--load-mode mapped` | identical | identical | identical |
+
+  HF file-exact (`tools/gen_baseline.py file-exact` on the twin, Qwen/Qwen3-4B 1cfa9a72 with the checkpoint's AWQ values; the directory is the twin's bytes above), observed error against the file-exact bound:
+
+  | run | top-1 (of 6) | top-5 set, bound >= 5 | max top-10 logit error | worst NLL delta, batched and per-token, against its bound |
+  |---|---|---|---|---|
+  | CPU, f32 | 6 | 6 | 0.00915 | 0.000175 of 0.020 (c=64, 2 chunks, batched); 0.000152 of 0.010 at full context |
+  | MI50, f16 | 6 | 6 | 0.01619 | 0.000189 of 0.020 (c=64, 2 chunks, per-token); 0.000076 of 0.010 at full context |
+  | MI50, int8 (opt-in) | 6 | 6 | 0.65231 | 0.01066 over the full-context 0.010; the run stopped there |
+
+  int8 is held to no budget here: it is the existing Q5_0 int8 path, since the directory's bytes are its twin's, and it exceeds the file-exact NLL bound on this 4B as main's own Q5_1 int8 does on 0.6B; it does not decide this branch (AGENTS.md, Traps the gates exist for).
+
+  Timing, `llmx bench` pp512/tg128 at `--ubatch 512`, f16 KV, direct load, one MI50, median of three ABAB runs of one repetition each (tok/s; the reference fork's `llama-bench` at `-fa 1 -ub 512`, which reads no directory); one of 33 runs' host-wait records contended (load-t2 below), none in this table:
+
+  | model | llmx auto (f16) pp512 | tg128 | llmx int8 pp512 | tg128 | mx pp512 | tg128 |
+  |---|---|---|---|---|---|---|
+  | AWQ directory (Q5_0 repack) | 1241.0 | 86.0 | 1954.0 | 107.4 | - | - |
+  | its Q5_0 twin | 1226.6 | 88.7 | 1950.2 | 90.1 | 1533.7 | 102.9 |
+  | Qwen3-4B Q4_K_M (Qwen bc64014) | 1306.7 | 103.3 | 1898.6 | 116.6 | 1374.4 | 99.2 |
+  | Qwen3-4B Q4_0 (unsloth 22c9fc8) | 1299.9 | 114.4 | 2053.4 | 119.7 | 1887.5 | 126.9 |
+
+  Single runs spread widely here (tg128 77 to 109 tok/s on one arm), so the directory and its twin are the same weights within that spread; Q4_0 decodes 11 to 33 percent faster than the Q5_0 repack across the arms, which is the measured case for a native 4-bit-with-zero type, recorded as a follow-up, not a gate of this step.
+  Load (`--p 16 --n 4`, three runs each, s): directory direct read 3.3 to 6.6 against the twin's 0.7, auto 3.6 to 5.9 against 0.8 to 1.0, mapped construct 11.0 to 12.1 against 0.8 to 1.0; before item 4 the directory's direct read was 5.05 to 5.65, and the repack on the readers, not the reads, now dominates.
+- **Left:** XDEV's code review and F2DEV's recheck of items 1 to 3 (F2DEV's AWQ review of 11:18: GO with changes, items 1 to 7 fixed); after landing, a faster repack on the readers (the directory loads 4 to 6 times slower than its twin) and a native 4-bit-with-zero type, both on measured need; at landing, the gates of a loader change (AGENTS.md, Merge gates).
+- **Gotchas:** a composite has no bytes in the payload: `tensor_data` is null, `span` throws and `gguf_weights` skips its extent check; a part is found by its offset (`part_span`), since the parts are no longer in the table.
+  Q5_0 is about 29 percent larger than AWQ's parts, so a repacked load holds more device memory than the checkpoint's size suggests; a native 4-bit-with-zero type waits for a measured need in the timing round (F2DEV's Q2).
+
 ## vLLM formats, step 2: `--chat-template-file` and `llmx pull owner/repo` (2026-11-15, VLLM5, branch formats/step2-pull stacked on formats/safetensors ef91364aa, which lands first; proposal `vllm5-formats-step2-quant-20261115.md`, F2DEV's review of 09:22: GO with changes; step 2 and each quant step return for code review)
 
 - **Goal:** `--chat-template-file PATH` replaces a model's stored chat template for GGUF files and directories alike, and `llmx pull owner/repo` without a quant fetches a safetensors directory into the verified cache through hub/'s one acquisition path, so the hosted CPU job can run the real Qwen/Qwen3-0.6B directory.
@@ -9408,7 +9454,7 @@ Step 6, the head split, was measured on 2, 3, 4 and 8 cards and not merged (the 
 | Image input ([VISION](VISION.md)) | CPU/Vulkan encoder, CLI prompts, compatible chat routes, media-aware cache identity and paced encoding are implemented. Model-specific qualification and performance records remain in the dated image blocks above. |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above); on ROCm checked against HF on the UD-Q4_K_XL at f32 over four MI50s, as a layer split and as two groups of two ([ROCM](ROCM.md), Scope on main, 2026-11-05) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
-| More formats (safetensors, ...)          | In progress: safetensors directories, branch formats/safetensors (block above) |
+| More formats (safetensors, ...)          | In progress: safetensors directories, branch formats/safetensors; AWQ, branch formats/quant-awq (blocks above) |
 | JSON syntax and Unicode validation      | Done |
 | GGUF reader size and tensor extent validation | Done |
 | Checked conversion output publication | Done: merged at `4b0ec6a5`; checked write/close before replacement |

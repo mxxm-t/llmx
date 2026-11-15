@@ -13,7 +13,7 @@ Refused, each with the file and tensor named:
 - a header length over 100 MiB (the parsed JSON takes many times its size) or past the end of the file;
 - a header that is not an object, repeats a key, or whose `__metadata__` is not an object of strings;
 - a tensor entry with keys other than exactly `dtype`, `shape` and `data_offsets`, a shape of rank over 4, or a shape or offset that is not a non-negative integer up to 2^53;
-- a dtype other than `F32`, `F16` and `BF16`, by name, until the step that reads it;
+- a dtype other than `F32`, `F16`, `BF16`, `I32` and `I64`, by name; what an integer tensor means is the quantization rule's, and one no rule consumes is refused there ([hf_quant](format-hf_quant.md));
 - offsets that end before they begin or do not span the shape's bytes, tensors that overlap, leave a gap or do not end where the file does;
 - a tensor at a file offset that is not a multiple of 4, which the loader's alignment rule needs and which is refused rather than copied;
 - an index that repeats a tensor, names a file by a path rather than a name beside it, or does not name exactly the tensors a file holds.

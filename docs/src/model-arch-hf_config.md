@@ -10,5 +10,5 @@ Each architecture module that reads directories has one `hf::Table` (`qwen3::hf_
 - `names`: each HF tensor name and the GGUF name it becomes, `{N}` standing for a layer number below the block count; a tensor no row names, or a layer past the count, is refused.
 - `embedding` and `head`: the GGUF names of the token embedding and the head, which the tie and `vocab_size` checks below read, so the shared code names no tensor.
 
-A tied head (`tie_word_embeddings: true`) stored beside the embedding as `lm_head.weight` is dropped, with a file it held alone, since the HF model ties the head to the embedding and ignores it; Qwen/Qwen3-0.6B stores one.
+A tied head (`tie_word_embeddings: true`) stored beside the embedding as `lm_head.weight` is dropped, with a file it held alone (`GGUFModel::erase_tensors`), since the HF model ties the head to the embedding and ignores it; Qwen/Qwen3-0.6B stores one. A tied head that is a quantized linear (a composite, [hf_quant](format-hf_quant.md)) is refused by name instead.
 An untied head must be present, and `vocab_size` must equal the embedding's rows.

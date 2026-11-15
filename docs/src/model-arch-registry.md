@@ -28,7 +28,9 @@ which variant it reads and under which prefix.
   configuration is read once and, before any backend storage exists, a
   view per tensor, refusing a tensor table whose storage count does not
   match its tensors, with a rank above four, or an offset or extent outside
-  the payload, which includes a payload its owner released. A view's data
+  the payload, which includes a payload its owner released; a composite
+  ([hf_quant](format-hf_quant.md)) has no bytes in the payload and is not
+  held to that extent. A view's data
   is null while its tensor's file is not mapped (`gguf::map_payload`). The
   views point into the model, so a call on a temporary model is deleted and
   does not compile. The loader, the tests and the synthetic bench call it.

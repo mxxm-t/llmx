@@ -42,6 +42,8 @@ check their own type support; unknown and retired storage IDs are refused.
   host's working set. On Windows a mapped model keeps its file handles open,
   preventing another writer from rewriting or removing the files while loaded.
   POSIX closes each descriptor after mapping; the files must still remain unchanged.
+  `composites` holds the tensors made at load from parts of the payload (`Composite {kind, group, parts}`, [hf_quant](format-hf_quant.md)), keyed by index: such a tensor keeps the index and offset of its first part so the table stays in file order, has no bytes of its own (`tensor_data` is null, `span` throws, `drop_pages` does nothing), and each part is a `TensorInfo` and its offset, whose file `part_span(offset, bytes)` finds by offset.
+  `erase_tensors(drop)` removes tensors from the table and the composites' keys with them; a file left with no tensor and no composite's part stops being a segment, and dropping a composite is a logic error.
 - `find(key)`: the metadata value under `key`, or null. Every reader of
   metadata looks keys up through it. `read_gguf` refuses a file that repeats
   a key, so the first match is the only one.

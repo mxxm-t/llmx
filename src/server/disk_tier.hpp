@@ -21,6 +21,7 @@
 #include "core/sha.hpp"
 #include "format/file_digest.hpp"
 #include "format/gguf.hpp"
+#include "format/hf_quant.hpp"
 #include "format/safetensors.hpp"
 #include "inference/directory.hpp"
 #include "inference/read_ring.hpp"
@@ -66,7 +67,7 @@ inline std::string disk_identity(const std::string& digest, const std::string& l
     std::string flat = layout;
     for (char& c : flat)
         if (c == '\n') c = '|';
-    return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nentries: " + std::to_string(DiskStore::kVersion) + "\nlayout: " + flat + "\n";
+    return "model: " + digest + "\nnumerics: " + build.numerics + "\ncompiler: " + build.compiler + "\nflags: " + build.flags + "\nshaders: " + build.shaders + "\nlibm: " + build.libm + "\nrepack: " + std::to_string(hf_quant::kRepackVersion) + "\nentries: " + std::to_string(DiskStore::kVersion) + "\nlayout: " + flat + "\n";
 }
 
 // Every file of the model at `path` whose bytes its weights are: the path, or a directory's metadata files, and each file the reader finds tensors in.

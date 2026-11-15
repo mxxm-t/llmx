@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
+#include <optional>
 #include <thread>
 #include "format/gguf.hpp"
 #include "inference/load.hpp"
@@ -191,11 +192,65 @@ gguf::GGUFModel bf16_twin() {
     return m;
 }
 
-// The safetensors header entry of a tensor of `ne` (fastest first) at [begin, end).
-std::string header_entry(const std::string& name, const std::vector<uint64_t>& ne, size_t begin, size_t end) {
-    std::string e = "\"" + name + "\":{\"dtype\":\"BF16\",\"shape\":[";
+// The safetensors header entry of a `dtype` tensor of `ne` (fastest first) at [begin, end).
+std::string header_entry(const std::string& name, const std::string& dtype, const std::vector<uint64_t>& ne, size_t begin, size_t end) {
+    std::string e = "\"" + name + "\":{\"dtype\":\"" + dtype + "\",\"shape\":[";
     for (size_t d = ne.size(); d-- > 0;) e += std::to_string(ne[d]) + (d ? "," : "");
     return e + "],\"data_offsets\":[" + std::to_string(begin) + "," + std::to_string(end) + "]}";
+}
+
+// The Hugging Face name of tiny_qwen's tensor `name` without its ".weight", such as model.layers.0.self_attn.q_proj.
+std::string hf_name(const std::string& name) {
+    static const std::vector<std::pair<std::string, std::string>> names = {
+        {"token_embd", "model.embed_tokens"}, {"output_norm", "model.norm"}, {"attn_norm", "input_layernorm"}, {"ffn_norm", "post_attention_layernorm"},
+        {"attn_q_norm", "self_attn.q_norm"}, {"attn_k_norm", "self_attn.k_norm"}, {"attn_q", "self_attn.q_proj"}, {"attn_k", "self_attn.k_proj"},
+        {"attn_v", "self_attn.v_proj"}, {"attn_output", "self_attn.o_proj"}, {"ffn_gate", "mlp.gate_proj"}, {"ffn_up", "mlp.up_proj"}, {"ffn_down", "mlp.down_proj"}};
+    std::string base = name.substr(0, name.size() - 7), layer;
+    if (base.rfind("blk.", 0) == 0) {
+        const size_t dot = base.find('.', 4);
+        layer = "model.layers." + base.substr(4, dot - 4) + ".";
+        base = base.substr(dot + 1);
+    }
+    for (const auto& [gguf_name, hf] : names)
+        if (gguf_name == base) return layer + hf;
+    throw std::runtime_error("a tiny_qwen tensor has no HF name");
+}
+
+// One tensor of a safetensors file: its name, dtype, shape (fastest first) and bytes.
+struct StEntry {
+    std::string name, dtype;
+    std::vector<uint64_t> ne;
+    std::vector<uint8_t> bytes;
+};
+
+// `entries` written as the safetensors file `file`, in their order.
+void write_safetensors(const std::filesystem::path& file, const std::vector<StEntry>& entries) {
+    std::string header = "{";
+    std::vector<uint8_t> data;
+    for (size_t i = 0; i < entries.size(); ++i) {
+        header += (i ? "," : "") + header_entry(entries[i].name, entries[i].dtype, entries[i].ne, data.size(), data.size() + entries[i].bytes.size());
+        data.insert(data.end(), entries[i].bytes.begin(), entries[i].bytes.end());
+    }
+    header += "}";
+    while (header.size() % 8) header += ' ';
+    std::ofstream out(file, std::ios::binary);
+    uint8_t length[8];
+    for (int k = 0; k < 8; ++k) length[k] = uint8_t(uint64_t(header.size()) >> (8 * k));
+    out.write(reinterpret_cast<const char*>(length), 8);
+    out << header;
+    out.write(reinterpret_cast<const char*>(data.data()), std::streamsize(data.size()));
+}
+
+// The tokenizer files of a directory of tiny_qwen's sixteen one-letter tokens.
+void write_tokenizer(const std::filesystem::path& dir) {
+    std::string vocab;
+    for (int k = 0; k < 16; ++k) vocab += std::string(k ? "," : "") + "\"" + char('a' + k) + "\":" + std::to_string(k);
+    std::ofstream(dir / "tokenizer.json", std::ios::binary) << R"({"added_tokens":[],"normalizer":{"type":"NFC"},)"
+        R"("pre_tokenizer":{"type":"Sequence","pretokenizers":[{"type":"Split","pattern":{"Regex":")"
+        R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+)"
+        R"("},"behavior":"Isolated","invert":false},{"type":"ByteLevel","add_prefix_space":false,"use_regex":false}]},)"
+        R"("decoder":{"type":"ByteLevel"},"model":{"type":"BPE","vocab":{)" << vocab << R"(},"merges":[]}})";
+    std::ofstream(dir / "tokenizer_config.json", std::ios::binary) << "{}";
 }
 
 // A model loaded with a chat template given (ModelOptions::chat_template) renders with it and stores it as its own, saying whether it replaced one; a template that is not UTF-8 is refused.
@@ -222,24 +277,10 @@ void directory_checks(const std::string& path) {
     const gguf::GGUFModel twin = bf16_twin();
     const fs::path dir = fs::u8path(path + ".dir");
     fs::create_directories(dir);
-    const std::vector<std::pair<std::string, std::string>> names = {
-        {"token_embd", "model.embed_tokens"}, {"output_norm", "model.norm"}, {"attn_norm", "input_layernorm"}, {"ffn_norm", "post_attention_layernorm"},
-        {"attn_q_norm", "self_attn.q_norm"}, {"attn_k_norm", "self_attn.k_norm"}, {"attn_q", "self_attn.q_proj"}, {"attn_k", "self_attn.k_proj"},
-        {"attn_v", "self_attn.v_proj"}, {"attn_output", "self_attn.o_proj"}, {"ffn_gate", "mlp.gate_proj"}, {"ffn_up", "mlp.up_proj"}, {"ffn_down", "mlp.down_proj"}};
-    std::string header = "{";
-    std::vector<uint8_t> data;
+    std::vector<StEntry> entries;
     size_t vector_floats = 0;
     for (size_t i = 0; i < twin.tensors.size(); ++i) {
         const gguf::TensorInfo& t = twin.tensors[i];
-        std::string name = t.name.substr(0, t.name.size() - 7), layer, hf;
-        if (name.rfind("blk.", 0) == 0) {
-            const size_t dot = name.find('.', 4);
-            layer = "model.layers." + name.substr(4, dot - 4) + ".";
-            name = name.substr(dot + 1);
-        }
-        for (const auto& [gguf_name, hf_name] : names)
-            if (gguf_name == name) hf = layer + hf_name + ".weight";
-        require(!hf.empty(), "a tiny_qwen tensor has no HF name");
         std::vector<uint8_t> bytes(twin.tensor_data(i), twin.tensor_data(i) + twin.tensor_bytes(i));
         if (t.ne.size() == 1) {
             const size_t n = bytes.size() / 4;
@@ -247,30 +288,13 @@ void directory_checks(const std::string& path) {
             for (size_t k = 0; k < n; ++k) std::memmove(bytes.data() + 2 * k, bytes.data() + 4 * k + 2, 2);
             bytes.resize(n * 2);
         }
-        header += (i ? "," : "") + header_entry(hf, t.ne, data.size(), data.size() + bytes.size());
-        data.insert(data.end(), bytes.begin(), bytes.end());
+        entries.push_back({hf_name(t.name) + ".weight", "BF16", t.ne, std::move(bytes)});
     }
-    header += "}";
-    while (header.size() % 8) header += ' ';
-    {
-        std::ofstream out(dir / "model.safetensors", std::ios::binary);
-        uint8_t length[8];
-        for (int k = 0; k < 8; ++k) length[k] = uint8_t(uint64_t(header.size()) >> (8 * k));
-        out.write(reinterpret_cast<const char*>(length), 8);
-        out << header;
-        out.write(reinterpret_cast<const char*>(data.data()), std::streamsize(data.size()));
-    }
+    write_safetensors(dir / "model.safetensors", entries);
     std::ofstream(dir / "config.json", std::ios::binary) << R"({"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","num_hidden_layers":2,)"
         R"("hidden_size":8,"intermediate_size":12,"num_attention_heads":2,"num_key_value_heads":1,"head_dim":4,)"
         R"("max_position_embeddings":256,"vocab_size":16,"tie_word_embeddings":true,"eos_token_id":15,"torch_dtype":"bfloat16"})";
-    std::string vocab;
-    for (int k = 0; k < 16; ++k) vocab += std::string(k ? "," : "") + "\"" + char('a' + k) + "\":" + std::to_string(k);
-    std::ofstream(dir / "tokenizer.json", std::ios::binary) << R"({"added_tokens":[],"normalizer":{"type":"NFC"},)"
-        R"("pre_tokenizer":{"type":"Sequence","pretokenizers":[{"type":"Split","pattern":{"Regex":")"
-        R"((?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+)"
-        R"("},"behavior":"Isolated","invert":false},{"type":"ByteLevel","add_prefix_space":false,"use_regex":false}]},)"
-        R"("decoder":{"type":"ByteLevel"},"model":{"type":"BPE","vocab":{)" << vocab << R"(},"merges":[]}})";
-    std::ofstream(dir / "tokenizer_config.json", std::ios::binary) << "{}";
+    write_tokenizer(dir);
     gguf::write_gguf(twin, path);
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(infer::gguf_weights(twin), backend::make_cpu_backend()).prefill(ids);
@@ -295,6 +319,188 @@ void directory_checks(const std::string& path) {
     // A template given beside the directory takes the place of the one it carries, in its metadata and its format alike.
     std::ofstream(dir / "chat_template.jinja", std::ios::binary) << "{{ messages[0]['content'] }}";
     template_checks(dir.u8string(), true);
+    fs::remove_all(dir);
+}
+
+// One AWQ linear [in, out] of layer `layer` in groups of 32: the checkpoint's qweight, qzeros and scales (F16 on layer 0, BF16 on layer 1), and the Q5_0 rows holding each (q - z) * s, written here from the block layout.
+// `last` replaces the bits of the last scale.
+struct AwqLinear {
+    std::vector<uint32_t> qweight, qzeros;
+    std::vector<uint16_t> scales;
+    std::vector<uint8_t> q5_0;
+};
+
+AwqLinear awq_linear(size_t in, size_t out, size_t layer, std::optional<uint16_t> last = std::nullopt) {
+    // Output 8j + order[s] is nibble s of word j.
+    static constexpr size_t order[8] = {0, 2, 4, 6, 1, 3, 5, 7};
+    const auto nibble = [](size_t n) { return uint32_t(4 * size_t(std::find(order, order + 8, n % 8) - order)); };
+    // Powers of two of both signs, the last an F16 subnormal, so each is exact in F16 and BF16 alike.
+    static const float powers[5] = {1.0f / 64, -1.0f / 128, 1.0f / 256, -1.0f / 32, 1.0f / 1048576};
+    const auto code = [&](size_t k, size_t n) { return uint32_t((n * 7 + k * 3 + layer) % 16); };
+    const auto zero = [&](size_t g, size_t n) { return uint32_t((n + g + layer) % 16); };
+    const size_t groups = in / 32, words = out / 8;
+    AwqLinear a;
+    a.qweight.assign(in * words, 0);
+    a.qzeros.assign(groups * words, 0);
+    a.scales.resize(groups * out);
+    std::vector<uint16_t> d(groups * out);
+    for (size_t g = 0; g < groups; ++g)
+        for (size_t n = 0; n < out; ++n) {
+            const float s = powers[(n + g + layer) % 5];
+            uint32_t bits;
+            std::memcpy(&bits, &s, 4);
+            d[g * out + n] = f32_to_f16(s);
+            a.scales[g * out + n] = layer ? uint16_t(bits >> 16) : d[g * out + n];
+            a.qzeros[g * words + n / 8] |= zero(g, n) << nibble(n);
+        }
+    if (last) a.scales.back() = *last;
+    for (size_t k = 0; k < in; ++k)
+        for (size_t n = 0; n < out; ++n) a.qweight[k * words + n / 8] |= code(k, n) << nibble(n);
+    // A Q5_0 block of 32 inputs: F16 d, a word of each code's fifth bit, then the low nibbles of codes j and j + 16 in byte j.
+    a.q5_0.assign(out * groups * 22, 0);
+    for (size_t n = 0; n < out; ++n)
+        for (size_t g = 0; g < groups; ++g) {
+            uint8_t* block = a.q5_0.data() + (n * groups + g) * 22;
+            block[0] = uint8_t(d[g * out + n]);
+            block[1] = uint8_t(d[g * out + n] >> 8);
+            for (size_t j = 0; j < 32; ++j) {
+                const uint32_t q = code(32 * g + j, n) + 16 - zero(g, n);
+                if (q & 16) block[2 + j / 8] |= uint8_t(1u << (j % 8));
+                block[6 + j % 16] |= uint8_t((q & 15) << (j < 16 ? 0 : 4));
+            }
+        }
+    return a;
+}
+
+template <class T> std::vector<uint8_t> bytes_of(const std::vector<T>& v) {
+    std::vector<uint8_t> b(v.size() * sizeof(T));
+    std::memcpy(b.data(), v.data(), b.size());
+    return b;
+}
+
+// An AWQ directory of a 32-wide model, whose linears are AwqLinear and whose other tensors are BF16, loads in each mode on the CPU and on copying backends to its Q5_0 twin's logits.
+// The CPU keeps each repacked tensor in the loader's buffer as the twin's bytes, a copying backend keeps none, and a BF16 scale F16 cannot hold and quantization_config values llmx does not read are refused by name.
+void awq_checks(const std::string& path) {
+    namespace fs = std::filesystem;
+    const gguf::GGUFModel base = with_tokens(tiny_qwen_shaped(2, 2 * 128, true, 8, 2, 32, 16, 32));
+    const fs::path dir = fs::u8path(path + ".awq");
+    fs::create_directories(dir);
+    gguf::GGUFModel twin;
+    size_t linears = 0;
+    const auto write_dir = [&](std::optional<uint16_t> last, const std::string& quantization, bool head = false) {
+        std::vector<StEntry> entries;
+        twin = gguf::GGUFModel{};
+        twin.kv = base.kv;
+        linears = 0;
+        for (size_t i = 0; i < base.tensors.size(); ++i) {
+            gguf::TensorInfo t = base.tensors[i];
+            const uint8_t* values = base.tensor_data(i);
+            const size_t n = size_t(t.n_elements());
+            const std::string hf = hf_name(t.name);
+            if (t.ne.size() == 2 && t.name != "token_embd.weight") {
+                const size_t layer = size_t(t.name[4] - '0');
+                const AwqLinear a = awq_linear(size_t(t.ne[0]), size_t(t.ne[1]), layer, t.name == "blk.1.ffn_down.weight" ? last : std::nullopt);
+                entries.push_back({hf + ".qweight", "I32", {t.ne[1] / 8, t.ne[0]}, bytes_of(a.qweight)});
+                entries.push_back({hf + ".qzeros", "I32", {t.ne[1] / 8, t.ne[0] / 32}, bytes_of(a.qzeros)});
+                entries.push_back({hf + ".scales", layer ? "BF16" : "F16", {t.ne[1], t.ne[0] / 32}, bytes_of(a.scales)});
+                t.type = quant::GGML_TYPE_Q5_0;
+                twin.tensors.push_back(t);
+                twin.add_tensor_data(a.q5_0);
+                ++linears;
+                continue;
+            }
+            // tiny_qwen's values are multiples of 1/64, exact in BF16: each keeps the high half of its F32 bits.
+            std::vector<uint8_t> high(n * 2);
+            for (size_t k = 0; k < n; ++k) std::memcpy(high.data() + 2 * k, values + 4 * k + 2, 2);
+            entries.push_back({hf + ".weight", "BF16", t.ne, high});
+            if (t.ne.size() == 2) t.type = quant::GGML_TYPE_BF16;
+            twin.tensors.push_back(t);
+            twin.add_tensor_data(t.ne.size() == 2 ? high : std::vector<uint8_t>(values, values + n * 4));
+        }
+        if (head) {
+            // A quantized lm_head beside the tied embedding, [32, 16] as the embedding is.
+            const AwqLinear a = awq_linear(32, 16, 0, std::nullopt);
+            entries.push_back({"lm_head.qweight", "I32", {2, 32}, bytes_of(a.qweight)});
+            entries.push_back({"lm_head.qzeros", "I32", {2, 1}, bytes_of(a.qzeros)});
+            entries.push_back({"lm_head.scales", "F16", {16, 1}, bytes_of(a.scales)});
+        }
+        write_safetensors(dir / "model.safetensors", entries);
+        std::ofstream(dir / "config.json", std::ios::binary) << R"({"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","num_hidden_layers":2,)"
+            R"("hidden_size":32,"intermediate_size":32,"num_attention_heads":8,"num_key_value_heads":2,"head_dim":4,)"
+            R"("max_position_embeddings":256,"vocab_size":16,"tie_word_embeddings":true,"eos_token_id":15,"torch_dtype":"float16","quantization_config":{)"
+            << quantization << "}}";
+    };
+    const std::string awq = R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"gemm","modules_to_not_convert":null)";
+    write_dir(std::nullopt, awq);
+    write_tokenizer(dir);
+    const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
+    const std::vector<float> expected = infer::Model(infer::gguf_weights(twin), backend::make_cpu_backend()).prefill(ids);
+    const gguf::GGUFModel read = infer::read_model(dir.u8string());
+    require(read.tensors.size() == twin.tensors.size() && read.composites.size() == linears && linears == 14,
+            "an AWQ directory did not read as its twin's tensors, each linear one made of its parts");
+    gguf::write_gguf(twin, path);
+    for (const infer::LoadMode mode : load_modes(path)) {
+        for (const int arm : {0, 1, 2}) {
+            const auto copier = std::make_shared<CopyingBackend>();
+            copier->wraps = arm == 1;
+            const backend::BackendPtr b = arm ? backend::BackendPtr(copier) : backend::make_cpu_backend();
+            infer::PlacementRequest request;
+            request.names = {"cpu"};
+            const auto loaded = infer::load_model(dir.u8string(), {b}, request, {}, {}, mode);
+            if (arm == 0) {
+                bool same = loaded->made.size() == linears;
+                for (const auto& [i, bytes] : loaded->made) {
+                    const std::string& name = loaded->file.tensors[i].name;
+                    const auto t = size_t(std::find_if(twin.tensors.begin(), twin.tensors.end(), [&](const gguf::TensorInfo& x) { return x.name == name; }) - twin.tensors.begin());
+                    same = same && t < twin.tensors.size() && bytes.size() == twin.tensor_bytes(t) && std::memcmp(bytes.data(), twin.tensor_data(t), bytes.size()) == 0;
+                }
+                require(same, "an AWQ directory on the CPU did not keep its twin's Q5_0 bytes in the loader's buffer");
+            } else {
+                // A streamed load makes each linear on the stream's readers into the weights it allocated; a mapped one copies what it made at adoption.
+                require(loaded->made.empty() && (mode == infer::LoadMode::mapped ? copier->weights.empty() : holds_tensors(copier->weights, twin)),
+                        "an AWQ directory on a copying backend kept made bytes, or its weights are not its twin's");
+            }
+            const std::vector<float> logits = loaded->model->prefill(ids);
+            require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                    "an AWQ directory's logits differ from its Q5_0 twin's");
+        }
+    }
+    const auto refused = [&](const std::string& expected_error, const char* message) {
+        std::string error;
+        try {
+            infer::PlacementRequest request;
+            request.names = {"cpu"};
+            infer::load_model(dir.u8string(), {backend::make_cpu_backend()}, request);
+        } catch (const std::runtime_error& e) { error = e.what(); }
+        if (error.find(expected_error) == std::string::npos) throw std::runtime_error(std::string(message) + ": " + error);
+    };
+    // As the last scale of layer 1's down projection: 2^-26, below F16's smallest subnormal; 1.1000001b * 2^-20, an F16 subnormal with 4 fraction bits there, which rounds; and 65536, which overflows.
+    write_dir(uint16_t(0x3280), awq);
+    refused("tensor blk.1.ffn_down.weight: BF16 scale 1.49011612e-08 of output 31, group 0 is not exact in F16", "an inexact BF16 scale was taken");
+    write_dir(uint16_t(0x35C1), awq);
+    refused("tensor blk.1.ffn_down.weight: BF16 scale 1.43796206e-06 of output 31, group 0 is not exact in F16", "a BF16 scale F16 rounds was taken");
+    write_dir(uint16_t(0x4780), awq);
+    refused("tensor blk.1.ffn_down.weight: BF16 scale 65536 of output 31, group 0 is not exact in F16", "a BF16 scale past F16's range was taken");
+    write_dir(std::nullopt, awq, true);
+    refused("tensor lm_head.weight is quantized, and config.json ties the head to the embedding", "a quantized tied head was taken");
+    // AutoAWQ's own files write the packing in capitals.
+    write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"GEMM")");
+    {
+        infer::PlacementRequest request;
+        request.names = {"cpu"};
+        const auto loaded = infer::load_model(dir.u8string(), {backend::make_cpu_backend()}, request);
+        const std::vector<float> logits = loaded->model->prefill(ids);
+        require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                "an AWQ directory whose version is GEMM did not load as its twin");
+    }
+    write_dir(std::nullopt, awq + R"(,"exllama":1)");
+    refused("quantization_config exllama is not one llmx reads for awq", "an unknown quantization_config key was taken");
+    write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"gemv")");
+    refused("quantization_config version: llmx reads AWQ's gemm packing only", "AWQ's gemv packing was taken");
+    write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":false,"version":"gemm")");
+    refused("quantization_config zero_point: llmx reads AWQ with zero points only", "AWQ without zero points was taken");
+    write_dir(std::nullopt, R"("quant_method":"gptq","bits":4,"group_size":32)");
+    refused("quantization_config quant_method gptq is not one llmx reads", "a GPTQ directory was taken as AWQ");
     fs::remove_all(dir);
 }
 
@@ -451,7 +657,7 @@ void source_checks(const std::string& path) {
         // The loader's hook records no upload of it and no host read of it, deferred or not.
         for (const bool defer : {true, false}) {
             infer::WeightPlan plan;
-            { infer::Model hooked(with, {std::make_shared<LoadingBackend>()}, infer::Placement{}, {}, infer::planning_adopt(with, 1, plan, defer)); }
+            { infer::Model hooked(with, {std::make_shared<LoadingBackend>()}, infer::Placement{}, {}, infer::planning_adopt(with, 1, plan, defer, {}, {})); }
             require(plan.host_reads[last] == 0 && std::none_of(plan.uploads.begin(), plan.uploads.end(), [&](const infer::Upload& u) { return u.tensor == last; }),
                     "the loader's hook recorded the source");
         }
@@ -1033,6 +1239,7 @@ int main(int argc, char** argv) {
         require(empty_calls == 1, "empty model completion missing");
         loader_checks(path);
         directory_checks(path);
+        awq_checks(path);
         stream_checks(path);
         ring_checks();
         experts_checks(path);
@@ -1042,7 +1249,7 @@ int main(int argc, char** argv) {
         plan_checks();
         choice_checks(path);
         std::filesystem::remove(path);
-        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, a Hugging Face directory, experts on the CPU, a table's source, splits, shards, the planned reads, the read choice and the stream\n";
+        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, a Hugging Face directory, an AWQ directory, experts on the CPU, a table's source, splits, shards, the planned reads, the read choice and the stream\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

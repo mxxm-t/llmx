@@ -1095,6 +1095,86 @@ def decode_numpy(type_id, payload, count):
     return out
 
 
+# An AWQ GEMM linear of `rows` outputs and `cols` inputs stores qweight int32 [cols, rows / 8] and qzeros int32 [cols / group, rows / 8], 4-bit codes of 8 outputs a word, and scales 16-bit [cols / group, rows].
+# Nibble i of a word (bits 4i to 4i + 3) holds output AWQ_ORDER[i] of the word's 8, and the weight at output n and input k is (q - z) * s of its group k // group.
+AWQ_ORDER = (0, 2, 4, 6, 1, 3, 5, 7)
+
+
+def awq_codes(words, rows):
+    """The 4-bit codes of a row-major list of `rows / 8`-word lines of AWQ-packed int32 words, as lines of `rows` codes in output order."""
+    out = []
+    for line in words:
+        codes = [0] * rows
+        for j, word in enumerate(line):
+            for i in range(8):
+                codes[8 * j + AWQ_ORDER[i]] = (word >> (4 * i)) & 15
+        out.append(codes)
+    return out
+
+
+def awq_pack(codes):
+    """The AWQ-packed int32 words of lines of 4-bit codes in output order, signed as torch stores them; the inverse of awq_codes."""
+    out = []
+    for line in codes:
+        words = []
+        for j in range(len(line) // 8):
+            word = 0
+            for i in range(8):
+                word |= line[8 * j + AWQ_ORDER[i]] << (4 * i)
+            words.append(word - (1 << 32) if word >= 1 << 31 else word)
+        out.append(words)
+    return out
+
+
+def awq_dequantize(qweight, qzeros, scales, group):
+    """The F32 weight [rows][cols] of an AWQ linear: qweight and qzeros as lists of int32 word lines, scales as lines of floats; each value is (q - z) * s, exact in f32."""
+    rows = len(scales[0])
+    q, z = awq_codes(qweight, rows), awq_codes(qzeros, rows)
+    return [[to_f32((q[k][n] - z[k // group][n]) * scales[k // group][n]) for k in range(len(q))] for n in range(rows)]
+
+
+def f16_bits_exact(x):
+    """The F16 bits of `x` when F16 holds it exactly, subnormals included, else None."""
+    try:
+        bits = struct.unpack("<H", struct.pack("<e", x))[0]
+    except OverflowError:
+        return None
+    back = struct.unpack("<e", struct.pack("<H", bits))[0]
+    return bits if back == x or (math.isnan(x) and math.isnan(back)) else None
+
+
+def awq_q5_0(qweight, qzeros, scales, group):
+    """An AWQ linear as Q5_0 rows: d is the group's scale in F16, exactly, and the code q - z + 16 in 1..31, so every value decodes to the AWQ value bit for bit."""
+    rows = len(scales[0])
+    q, z = awq_codes(qweight, rows), awq_codes(qzeros, rows)
+    cols = len(q)
+    out = bytearray()
+    for n in range(rows):
+        for b in range(cols // 32):
+            g = 32 * b // group
+            d = f16_bits_exact(scales[g][n])
+            if d is None:
+                raise ValueError("scale %r is not exact in F16" % scales[g][n])
+            codes = [q[32 * b + i][n] - z[g][n] + 16 for i in range(32)]
+            high = sum(((c >> 4) & 1) << i for i, c in enumerate(codes))
+            out += struct.pack("<HI", d, high) + bytes((codes[j] & 15) | (codes[j + 16] & 15) << 4 for j in range(16))
+    return bytes(out)
+
+
+def awq_dequantize_numpy(qweight, qzeros, scales, group):
+    """awq_dequantize on arrays: qweight int32 [cols, rows / 8], qzeros int32 [cols / group, rows / 8], scales float [cols / group, rows]; the float32 weight [rows, cols]."""
+    def codes(words):
+        w = words.astype(np.uint32)
+        out = np.empty((w.shape[0], w.shape[1] * 8), dtype=np.int32)
+        for i in range(8):
+            out[:, AWQ_ORDER[i]::8] = (w >> np.uint32(4 * i)) & np.uint32(15)
+        return out
+    q, z = codes(qweight), codes(qzeros)
+    s = scales.astype(np.float32)
+    groups = np.arange(q.shape[0]) // group
+    return ((q - z[groups]).astype(np.float32) * s[groups]).T.copy()
+
+
 # GGUF files: the magic, a version (2 or 3), the tensor and metadata counts, the metadata, the tensor descriptions, then the data at the next multiple of general.alignment (32 when absent).
 # Strings are a u64 byte count and UTF-8 bytes; each tensor has a name, a rank, its dimensions (the first varies fastest), a type and an offset into the data.
 

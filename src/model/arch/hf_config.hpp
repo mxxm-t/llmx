@@ -147,6 +147,7 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
     std::vector<size_t> drop;
     for (size_t i = 0; i < m.tensors.size(); ++i) {
         auto& t = m.tensors[i];
+        const std::string hf_name = t.name;
         bool renamed = false;
         for (const Name& n : table.names) {
             uint64_t layer = 0;
@@ -160,23 +161,12 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
             break;
         }
         if (!renamed) throw std::runtime_error("tensor " + t.name + " is not one llmx reads for " + table.model_type);
-        if (tied && t.name == table.head) drop.push_back(i);
+        if (tied && t.name == table.head) {
+            if (m.composites.count(i)) throw std::runtime_error("tensor " + hf_name + " is quantized, and config.json ties the head to the embedding");
+            drop.push_back(i);
+        }
     }
-    // Each file keeps the tensors it still holds, and a file left with none is no longer one of the model's segments.
-    std::vector<gguf::GGUFModel::Segment> segments;
-    for (size_t k = 0; k < m.segments.size(); ++k) {
-        const size_t first = m.segments[k].first, end = k + 1 < m.segments.size() ? m.segments[k + 1].first : m.tensors.size();
-        size_t before = 0, inside = 0;
-        for (size_t d : drop) before += d < first, inside += d >= first && d < end;
-        if (inside == end - first) continue;
-        segments.push_back(std::move(m.segments[k]));
-        segments.back().first = first - before;
-    }
-    for (auto it = drop.rbegin(); it != drop.rend(); ++it) {
-        m.tensors.erase(m.tensors.begin() + std::ptrdiff_t(*it));
-        m.offsets.erase(m.offsets.begin() + std::ptrdiff_t(*it));
-    }
-    m.segments = std::move(segments);
+    m.erase_tensors(drop);
     const gguf::TensorInfo* embedding = nullptr;
     bool head = false;
     for (const auto& t : m.tensors) {

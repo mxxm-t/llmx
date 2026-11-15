@@ -831,9 +831,10 @@ Every other file must match every top-1.
 - the MTP block left out, since HF has no module for it.
 
 A file whose `dt_bias` does not come back as the checkpoint's is refused, since that F32 tensor matches bit for bit only in the tiled order.
-It writes the logit and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds; until that file has bounds, the run measures every check and fails.
+It writes the logit, chat and 512-token perplexity goldens, and `tests/baseline_qwen35.py --file-exact DIR` holds the file to them at the Q8_0 file's bounds; until that file has bounds, the run measures every check and fails.
 Undone and compared with the checkpoints tensor by tensor, the 0.8B and 4B Q4_K_M files give back every F32 tensor bit for bit except `A_log`, within 1.9e-8 relative from the rounding of -exp, and one value in each of three of the 4B's layer norms, a w under 4e-6 that float32(1 + w) rounds; the quantized tensors differ by their formats' loss, at most 0.0062 relative for Q8_0, 0.020 for Q6_K, 0.041 for Q5_K and 0.090 for Q4_K.
-The Q4_K_M's are committed in `tests/data/qwen35-0.8b-q4_k_m-file-exact`, pinned by SHA-256 in `tests/baseline_qwen35.py` as its correctness gate (above), and a run of the tool at `feat/qwen35-model` in 119 s wrote them byte for byte as the earlier runs had; the Q8_0's are not committed.
+The Q4_K_M's are committed in `tests/data/qwen35-0.8b-q4_k_m-file-exact`, pinned by SHA-256 in `tests/baseline_qwen35.py` as its correctness gate (above), and a run of the tool at `feat/qwen35-model` in 119 s wrote them byte for byte as the earlier runs had, before file-exact wrote a chat golden, so that directory has none.
+The Q8_0's, chat included, are committed in `tests/data/qwen35-0.8b-q8_0-file-exact` and pinned the same way, and the Q8_0 file runs them before its model's goldens (STATUS, int8 HF overruns): the file's quantization brings chat-00's 5th and 6th tokens, 332 and 9175, from 0.30 apart on the checkpoint to 0.04 apart, within `common.top5_overlap`'s tie margin.
 
 | 0.8B file-exact goldens | mean NLL, 1,216 tokens whole | windows of 512 |
 |---|---:|---:|

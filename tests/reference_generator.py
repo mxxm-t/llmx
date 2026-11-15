@@ -1101,7 +1101,9 @@ class ReferenceGenerator(unittest.TestCase):
             spec = next(spec for spec in baseline.PINNED if spec["sha256"] == sha256)
             model = next(model for model in generator.QWEN35_MODELS.values() if spec["file"] in model["gguf_files"])
             docs = {path.name: json.loads(path.read_text(encoding="utf-8")) for path in (Path(generator.OUT_DIR) / directory).glob("*.json")}
-            self.assertEqual(sorted(docs), ["baseline_logits.json", baseline_qwen35.PPL_GOLDENS[512]])
+            self.assertIn(sorted(docs), (["baseline_logits.json", baseline_qwen35.PPL_GOLDENS[512]], ["baseline_chat.json", "baseline_logits.json", baseline_qwen35.PPL_GOLDENS[512]]))
+            if "baseline_chat.json" in docs:
+                self.assertEqual([(case["name"], case["messages"]) for case in docs["baseline_chat.json"]["cases"]], [(name, messages) for name, messages in generator.QWEN35_CHATS])
             pinned.update(directory + "/" + name for name in docs)
             for name, doc in docs.items():
                 with self.subTest(golden=directory + "/" + name):

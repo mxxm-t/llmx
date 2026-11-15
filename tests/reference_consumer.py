@@ -437,6 +437,20 @@ class Qwen35Consumer(unittest.TestCase):
         cls.template = next(t["template"] for t in templates if t["sha256"] == cls.docs["baseline_chat.json"]["template_sha256"])
         cls.spec = baseline.pinned_fixture(cls.FILE)
 
+    def test_file_exact_chat_keeps_the_files_own_tie(self):
+        # The file's quantization brings chat-00's 5th and 6th tokens within the tie margin, so a ranking that swaps them keeps a top-5 overlap of 5 against its file-exact goldens and 4 against its model's.
+        exact = baseline_qwen35.file_exact_goldens(self.spec)
+        self.assertIn("baseline_chat.json", exact)
+        bounds = dict(baseline_qwen35.BOUNDS[baseline_qwen35.FILE_EXACT_BOUNDS], max_abs_logit=baseline_qwen35.MAX_PLAUSIBLE_LOGIT)
+        case = exact["baseline_chat.json"]["cases"][0]
+        ids, values = list(case["top_ids"]), list(case["top_logits"])
+        self.assertEqual(ids[4:6], [332, 9175])
+        ids[4:6], values[4:6] = [9175, 332], [17.853, 17.586]
+        swapped = logits_text(dict(case, top_ids=ids, top_logits=values))
+        self.assertEqual(common.check_logits(swapped, case, baseline_qwen35.VOCAB_SIZE, bounds)["top5_overlap"], 5)
+        with self.assertRaisesRegex(ValueError, "top-5 overlap 4/5"):
+            common.check_logits(swapped, self.docs["baseline_chat.json"]["cases"][0], baseline_qwen35.VOCAB_SIZE, bounds)
+
     def double(self, refuse=None):
         """llmx simulated on the pinned file, given a command with the executable first: every text tokenized as the goldens say, and logits and perplexity as HF's, unless `refuse`, one of the refusals, refuses the model."""
         ids = {case["text"]: case["ids"] for case in self.tokenizer["cases"]}
@@ -478,7 +492,7 @@ class Qwen35Consumer(unittest.TestCase):
         with patch.object(baseline_qwen35, "file_sha256", return_value=digest or self.spec["sha256"]), \
              patch.object(baseline_qwen35, "check_ids_digest", return_value={"tokens": doc["n_tokens"]}), \
              patch.object(baseline_qwen35.spec_decode, "GGUF", gguf), patch.object(baseline_qwen35, "BOUNDS", bounds or {}), \
-             patch.object(baseline_qwen35.subprocess, "run", side_effect=llmx), \
+             patch.object(baseline_qwen35, "FILE_EXACT", {}), patch.object(baseline_qwen35.subprocess, "run", side_effect=llmx), \
              contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             code = baseline_qwen35.main(args)
         return code, json.loads((root / "result/report.json").read_text())
@@ -560,7 +574,7 @@ class Qwen35Consumer(unittest.TestCase):
              patch.object(baseline_qwen35, "file_sha256", return_value=self.spec["sha256"]), \
              patch.object(baseline_qwen35, "check_ids_digest", return_value={"tokens": self.docs[baseline_qwen35.PPL_GOLDENS[512]]["n_tokens"]}), \
              patch.object(baseline_qwen35.spec_decode, "GGUF", gguf), patch.object(baseline_qwen35, "BOUNDS", bounds or {}), \
-             patch.object(baseline_qwen35.common, "run", side_effect=run), contextlib.redirect_stdout(printed):
+             patch.object(baseline_qwen35, "FILE_EXACT", {}), patch.object(baseline_qwen35.common, "run", side_effect=run), contextlib.redirect_stdout(printed):
             os.environ.pop("LLMX_BASELINE_GGUF", None)
             ok = baseline_qwen35.run_hosted()
         return ok, printed.getvalue()
@@ -662,7 +676,7 @@ class Qwen35QualityConsumer(unittest.TestCase):
         for doc in self.exact.values():
             self.assertEqual(doc["weights"]["sha256"], self.spec["sha256"])
         self.assertEqual(baseline_qwen35.goldens_for(self.FILE)[0], "qwen35-0.8b")
-        self.assertIsNone(baseline_qwen35.file_exact_goldens(baseline.pinned_fixture("Qwen3.5-0.8B-Q8_0.gguf")))
+        self.assertIsNone(baseline_qwen35.file_exact_goldens(dict(self.spec, sha256="0" * 64)))
 
     def test_quality_bounds_are_this_files_alone(self):
         self.assertEqual(baseline_qwen35.bounds_for(self.spec), baseline_qwen35.QWEN35_08B_Q4_K_M_QUALITY)

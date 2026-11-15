@@ -915,6 +915,24 @@ The rule's 7 parts at 8 rows was not timed: it lies between 6 parts (10.17 us) a
 A follow-up branch measures Vulkan's `rms_norm_rows` chunk rule, ceil(4 CUs / rows) at 256 values, against the same cliff at more blocks than compute units (pp32: 32 rows by 8 chunks is 256 workgroups on 60 CUs); the two rules stay separate until that measurement says otherwise.
 
 **Gotchas.** The CUDA build shares `kernels/f32.gpu` and the launch; it compiles the same kernel and was not run on a device.
+## int8 HF overruns on Qwen3-0.6B Q5_1 and Qwen3.5-0.8B Q8_0 (2026-11-15, ROCQ51, branch rocm/q51-int8 on main 929f042c6)
+
+**Goal.** Find why `--dtype int8` on ROCm (and CUDA, the same GPU core) misses two real-model HF checks on main, and fix the cause or, if the class itself costs that much, propose an int8 budget for the owner to decide (AGENTS.md, Traps the gates exist for).
+
+**Done.**
+- The HF-only int8 control: the HF model holding each file's own weights (`tools/gen_baseline.py file-exact`), with the input of every matrix product but the routers' rounded per block of 32 at 127 levels by `calibrate_dtype.rounding`, the frozen int8 calibration's own hook, and F32 sums; no llmx code runs in it.
+- Qwen3-0.6B, NLL delta of the control against plain HF on the same file, in the file-exact cases (whole text, 64x4, 64x2, 123x2 windows): Q5_1 -0.0042, -0.0216, -0.0194, -0.0076; Q5_0 +0.0070, +0.0051, +0.0108, -0.0012; Q8_0 -0.0014, +0.0020, -0.0010, -0.0109.
+  ROCm int8 on main reads Q5_1 -0.0007, -0.0248, -0.0207, -0.0081 (batched): the reference with exact weights and rounded inputs is over the 0.020 window bound in the same window by itself.
+- Qwen3.5-0.8B Q8_0 chat-00, last-position logits of tokens 332 and 9175 (HF's 5th and 6th): HF on the checkpoint 17.96 and 17.66, with int8 inputs 18.08 and 17.64; HF on the Q8_0 file's weights 17.84 and 17.80, with int8 inputs 17.65 and 17.82, the swap ROCm int8 shows (17.59 and 17.85); top-1 (760) agrees everywhere.
+  Against the file's own goldens, now committed with a chat golden (`tests/data/qwen35-0.8b-q8_0-file-exact`), the two are 0.04 apart, within `common.top5_overlap`'s tie margin, so that swap overlaps 5 of 5; against the checkpoint's goldens, 0.30 apart, it overlaps 4 of 5, and since `check_pinned` runs those after the file-exact ones at the Q8_0 bounds, the int8 run of the file stays a recorded int8 fail (F2DEV, as the 912894ca record decided), with no bound changed.
+  The CPU default path passes all 118 checks of `tests/baseline_qwen35.py` on the file, 59 of them file-exact.
+- The kernels are held to the same rounding by `backend-rocm` `twin_types`, which checks every Q5_1 int8 product, named by its launch, against a double sum over the rounded twin.
+
+**Left.**
+- The control over three wiki excerpts and the Q8_0, Q5_0, Q5_1, F16 and pinned Q4_0 files, beside the Q4_0 and Q4_1 files ROCm was gated on, committed with their pins before llmx runs on the new texts; ROCm int8 with an f32 cache and Vulkan int8 against it.
+- A per-precision int8 record budget, per case kind, as a PROPOSAL to the reviewers and then the owner's decision; nothing is widened before that and the default path's bounds stay as they are.
+
+**Gotchas.** Over these 247-token texts the int8 class's NLL cost is a noise term about 0.01 wide whose sign differs between two correct implementations, since a rounding at 127 levels turns a small upstream difference into a whole step; compare int8 against its HF-only control, not against llmx's other classes.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 
@@ -1017,7 +1035,7 @@ Radeon VII: not reached. The branch changes `CMakeLists.txt` (ROCm and CUDA rule
   - Qwen3-14B Q4_1 int8 prompts: 646 against 650, a tie within the spread, not a win; Q4_0 int8 is 666 against 643. Recovery: the Q4 block-int8 tile's decode against Q8_0's at the 14B shapes.
   - The default arm's Q4_0 and Q4_1 prompts: auto 383 and 412 against mx 643 and 650 (40 and 37 percent below) and llmx int8 666 and 646 (42 and 36 percent below). Their decode in auto, the 16-bit rows, is 50.6 and 50.3 against mx 56.6 and 57.7 (11 and 13 percent below), where int8 decodes at 62.8 and 65.5. Recovery: the block-int16 Q4 tile and the 16-bit Q4 rows, which auto takes, profiled and brought toward the int8 forms' rates; the mx fork's figures are its 8-bit activations, which `--dtype int8` matches.
 - Whether Q4_0 and Q4_1 streams take scalar loads (they follow Q5_0 and Q5_1, unmeasured).
-- Qwen3-0.6B Q5_1 at int8 is over the Q8_0 fixture's file-exact bounds in 64-token windows on main already (prompt 0.02476, per token 0.02250 on main and 0.02153 here, bound 0.020), the prompt tile identical to main: an int8-calibrated budget for the 32-value types (AGENTS.md, Traps the gates exist for), or the cause in the int8 Q5_1 tile and rows, is open on main and not this branch's change.
+- Qwen3-0.6B Q5_1 at int8 is over the Q8_0 fixture's file-exact bounds in 64-token windows on main already (prompt 0.02476, per token 0.02250 on main and 0.02153 here, bound 0.020), the prompt tile identical to main: the HF-only int8 control is over the same bound in the same window, so the cause is the class, not the tile or rows; the int8 HF overruns block above holds the evidence.
 - Pending for COORD: the hosted run of the landing head; the change lands by fast-forward.
 
 **Gotchas.** A one-column int8 Q5_0 or Q5_1 row now has the one-lane bits where main had the quarter form's. `baseline.py --file-exact` stops at the first case out of bounds, so a file over its bound in one window says nothing of the others; run every case when reading headroom.

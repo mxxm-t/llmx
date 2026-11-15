@@ -35,6 +35,9 @@ GOLDEN_SHA256 = {
     "qwen35-4b/baseline_perplexity_4096.json": "e19d2510d6acccb10fb292c530899e47843d7caff97915e1a93cb9d544af01e4",
     "qwen35-0.8b-q4_k_m-file-exact/baseline_logits.json": "28535cbbebbcf561e90a7e92ae57edacaae479d29a5e14d4d7fc4b8ac8014720",
     "qwen35-0.8b-q4_k_m-file-exact/baseline_perplexity.json": "d723cbe8fc1a2eff5cac8b81d35dd0fa03ffeda182ceaf86b2fa82e38c9aafa7",
+    "qwen35-0.8b-q8_0-file-exact/baseline_chat.json": "189b51585c63e0891419bc176d635d0093635621fa95ac3ed273b531ec4edd92",
+    "qwen35-0.8b-q8_0-file-exact/baseline_logits.json": "81a2b68279d33607144730d64641e793d885fd7ba0740aeabbc202dd99d026ff",
+    "qwen35-0.8b-q8_0-file-exact/baseline_perplexity.json": "49dadc76a5c8c30fd3b1d2316074b5da7641e380db31ae9745670d4646c8ba1f",
 }
 
 # Each file's bounds against its model's goldens, set from llmx's first measurement on it plus a margin (docs/ASSETS.md); a file without them is measured and fails.
@@ -51,7 +54,8 @@ FILE_EXACT_BOUNDS = "Qwen3.5-0.8B-Q8_0.gguf"
 QWEN35_08B_Q4_K_M_SHA256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
 QWEN35_08B_Q4_K_M_QUALITY = {"top1_matches": 6, "top5_overlap": 4, "continuous_nll": 0.021, "window_nll": 0.025}
 # Each file's committed file-exact goldens, by its SHA-256, a directory under tests/data whose goldens GOLDEN_SHA256 pins.
-FILE_EXACT = {QWEN35_08B_Q4_K_M_SHA256: "qwen35-0.8b-q4_k_m-file-exact"}
+QWEN35_08B_Q8_0_SHA256 = "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c"
+FILE_EXACT = {QWEN35_08B_Q4_K_M_SHA256: "qwen35-0.8b-q4_k_m-file-exact", QWEN35_08B_Q8_0_SHA256: "qwen35-0.8b-q8_0-file-exact"}
 MAX_PLAUSIBLE_LOGIT = 100.0
 # What a file without bounds is measured at: every rule of the validators except the bounds themselves.
 MEASURE_ONLY = {"top5_overlap": 0, "max_abs_logit": MAX_PLAUSIBLE_LOGIT, "continuous_nll": math.inf, "window_nll": math.inf}
@@ -116,11 +120,13 @@ def bounds_for(spec):
 
 
 def file_exact_goldens(spec, directory=None):
-    """The logit and 512-token perplexity goldens tools/gen_baseline.py file-exact made from the pinned file `spec` itself: those in `directory`, or the committed ones of FILE_EXACT, pinned by SHA-256; None where it has none."""
+    """The logit, chat where made, and 512-token perplexity goldens tools/gen_baseline.py file-exact made from the pinned file `spec` itself: those in `directory`, or the committed ones of FILE_EXACT, pinned by SHA-256; None where it has none."""
     names = ("baseline_logits.json", PPL_GOLDENS[512])
     if directory:
+        names += ("baseline_chat.json",) if Path(directory, "baseline_chat.json").exists() else ()
         docs = {name: json.loads(Path(directory, name).read_text(encoding="utf-8")) for name in names}
     elif spec["sha256"] in FILE_EXACT:
+        names += ("baseline_chat.json",) if FILE_EXACT[spec["sha256"]] + "/baseline_chat.json" in GOLDEN_SHA256 else ()
         docs = {name: load_golden(FILE_EXACT[spec["sha256"]] + "/" + name) for name in names}
     else:
         return None

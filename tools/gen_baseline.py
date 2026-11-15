@@ -13,7 +13,7 @@ Another model requires --repo, --revision (full commit SHA), --output-dir, --ggu
 The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
-file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
+file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds; for a qwen35 file it also writes the chat golden.
 Qwen3 and Qwen3MoE file-exact construction reads only the pinned HF config and tokenizer, with checkpoint equality recorded as null; qwen35 retains its pinned checkpoint checks.
 The independent synthetic f32, moe, mxfp4, q2-k, q3-k, iq4-nl, iq4-xs, iq2-xxs, iq2-xs and iq3-xxs fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
@@ -2061,6 +2061,7 @@ def main(argv=None):
         loaded = load_reference(args)
         gen_logits(args, loaded)
         if args.family == "qwen35":
+            gen_chat_qwen35(args, loaded)
             gen_perplexity_qwen35(args, loaded, 512)
         else:
             gen_perplexity(args, loaded)

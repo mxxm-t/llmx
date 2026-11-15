@@ -469,7 +469,8 @@
     $('attachments').replaceChildren(); S.attachments.forEach((a, i) => { const pill = node('span', 'attachment-pill', a.name); const remove = button('x', 'remove-attachment', String(i)); remove.setAttribute('aria-label', 'Remove ' + a.name); pill.append(remove); $('attachments').append(pill); });
   }
   async function attach(files) {
-    if (S.attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
+    const chatId = S.chat?.id, generation = S.generation, attachments = S.attachments;
+    if (attachments.length + files.length > 8) throw new Error('Attach up to 8 files per message.');
     const pending = [];
     for (const file of files) {
       if (file.size > 8 * 1024 * 1024) throw new Error(file.name + ' is larger than 8 MB.');
@@ -480,6 +481,11 @@
         if (text.includes('\u0000')) throw new Error(file.name + ' looks like a binary file.'); pending.push({name: file.name, type: file.type || 'text/plain', text});
       } else throw new Error('Unsupported file: ' + file.name + '. Attach UTF-8 text, PNG or JPEG.');
     }
+    if (chatId !== S.chat?.id || generation !== S.generation || attachments !== S.attachments)
+      throw new Error(chatId !== S.chat?.id || generation !== S.generation
+        ? 'Attachment read cancelled because the selected conversation changed.'
+        : 'The draft changed while the attachment was being read. Attach the file again.');
+    if (S.attachments.length + pending.length > 8) throw new Error('Attach up to 8 files per message.');
     S.attachments.push(...pending); composerRevision++; renderAttachments(); $('draft').focus();
   }
   function bottom() { const region = $('scroll-region'); region.scrollTop = region.scrollHeight; $('jump-bottom').hidden = true; }

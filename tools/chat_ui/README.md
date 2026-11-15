@@ -86,6 +86,7 @@ conversations and tools. There is no multi-user account or role system.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
   in full with its file name, not retrieved from an embedding index. Limits are
   2 MiB per text file, 8 MiB per image and 10 MiB total decoded attachments.
+  A read that finishes after switching conversations is discarded with a notice.
   The upstream model and server must support images. Image-bearing prompts are
   checked through llmx tokenization before a reply starts, including images in
   conversation history. A rejection keeps your draft and attachments. PDF extraction, audio, OCR, rendered

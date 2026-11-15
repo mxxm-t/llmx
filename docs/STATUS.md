@@ -1,14 +1,18 @@
-## Attachment reads stay with their conversation (2026-11-15, In progress)
+# llmx - Development Status
+
+## Attachment reads stay with their conversation (2026-11-15, Ready)
 
 **Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.
 
-**Done.** Added a deterministic Chrome regression that pauses a text-file read, opens a new conversation, then releases the read and checks the new composer.
+**Done.** Added a deterministic Chrome regression that pauses a text-file read, opens a new conversation, then releases the read and checks the new composer. `attach()` now captures the chat generation and attachment-list identity and rejects stale completions with a scoped toast; it rechecks the eight-file limit after reads complete.
 
-**Left.** Confirm the regression fails on the base, reject stale read results safely, rerun focused browser and JavaScript syntax checks, and update this record.
+**Checks.** On base `795dc3495`, the deterministic Chrome regression failed as expected: `notes.txt` appeared in the new conversation after releasing the delayed read. With the fix, `node --check` passed for `app.js` and `browser_check.mjs`, and `python -m unittest test_ui.BrowserTests.test_workspace_in_chrome` passed in 27.526 seconds, including normal text and image uploads. The project-wide docs and dead-code components remain for integration qualification.
+
+**Checks.** Integrated over the qualified companion batch, the Chrome check passes in 29.028 seconds, including a delayed read after same-chat Edit that leaves the new draft intact, normal text/image uploads, delayed Send and responsive layouts. JavaScript syntax and diff checks pass. Docs reports 0 findings and 21 planted checks; dead-code passes with the expected findings and planted checks. Logs are in scratch/attachment-qualification. The integration retains the Send fix's composer revision increment. The affected Markdown and companion references were reviewed against this change, carrying forward the unchanged main-base documentation review. Static browser code only: no collector, API, server or runtime changes, so no additional HF, GPU or hosted inference gate applies.
+
+**Left.** Coordinator fast-forward landing. Local preview serves the updated static asset without a service restart. The first five fixes remain independently qualified at 37a19ae2b.
 
 **Gotchas.** Text reads use `Blob.arrayBuffer()` and image reads use `FileReader`; both paths share `attach()`. Preserve ordinary successful uploads and do not tie attachment ownership to draft text.
-
-# llmx - Development Status
 
 ## Chat backup branch validation (2026-11-15, Ready)
 

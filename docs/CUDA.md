@@ -128,6 +128,7 @@ Steps 1 to 5 may share a branch; steps 6 and 8 are branches of their own.
 In step 8 `backend-cuda` runs `ds4::check_ops({"mix_rows"})`: `mix_rows`, which the DeepSeek-V4.1 DSpark drafter takes, is claimed on CUDA through the shared core and untested there until then.
 
 Every card session is one scripted batch with a deadline; the first runs step 1 as a smoke tier and continues to step 2 only if it passes.
+A session reads where a prompt's device time goes with `llmx bench --model FILE --device cuda:0 --profile`, which the shared core times by events around each kernel ([USAGE](USAGE.md)), so it needs no system profiler on the card's image.
 The checks that need no card run on every change: nvcc builds of every kernel for every target, SASS witnesses (the integer dot and tensor-core instructions present where declared, no local-memory spills), host-core tests against a fake `Api`, and a host model of each `port.h` mapping.
 The shared kernels keep running on ROCm, so most kernel logic is exercised on every ROCm change.
 A hosted job installs the toolkit without a GPU, builds with the CUDA option on and runs the host-only tests and the SASS witnesses.

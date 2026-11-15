@@ -120,13 +120,14 @@ int main(int argc, char** argv) {
         std::cout << "}\n";
 #if LLMX_HAS_BACKEND_VULKAN
         if (profile) {
-            backend::vulkan_kernel_times(*backends[0]);
+            backends[0]->kernel_times();
             encoder.encode(prepared);
-            auto times = backend::vulkan_kernel_times(*backends[0]);
+            const backend::Backend::KernelTimes reading = backends[0]->kernel_times();
+            auto times = reading.kernels;
             std::sort(times.begin(), times.end(), [](const auto& x, const auto& y) { return x.second > y.second; });
             double total = 0.0;
             for (const auto& t : times) total += t.second;
-            std::cout << "profile: " << total << " ms of device time over " << backend::vulkan_timed_dispatches(*backends[0]) << " dispatches sampled\n";
+            std::cout << "profile: " << total << " ms of device time over " << reading.dispatches << " dispatches sampled\n";
             for (const auto& t : times) std::cout << "profile:   " << t.first << " " << t.second << " ms (" << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
         }
 #endif

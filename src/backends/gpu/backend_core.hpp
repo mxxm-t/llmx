@@ -268,7 +268,8 @@ private:
 template <class Api>
 class GpuBackend final : public Backend {
 public:
-    explicit GpuBackend(int index) : dev_(Api::device(index)) {
+    // With `timing` (make_backend's diagnostics), flush times each kernel, copy and fill for kernel_times.
+    GpuBackend(int index, bool timing) : dev_(Api::device(index)), timing_(timing) {
         graves_->tickets = &tickets_;
         Api::check(Api::set_device(index), "set_device");
         Api::check(Api::stream_create(&stream_), "stream_create");
@@ -340,6 +341,7 @@ public:
         if (dot_module_) (void)Api::module_unload(dot_module_);
         for (auto e : events_) if (e) (void)Api::event_destroy(e);
         for (auto e : starts_) if (e) (void)Api::event_destroy(e);
+        for (auto e : timed_events_) (void)Api::event_destroy(e);
         if (stream_) (void)Api::stream_destroy(stream_);
         if (fault_) (void)Api::host_free(fault_);
     }
@@ -478,6 +480,27 @@ public:
         return sum;
     }
     Ticket last_ticket() const noexcept override { return tickets_.last(); }
+    // The ops timed since the last reading, the first kTimedOps of them, read after the stream drains.
+    KernelTimes kernel_times() override {
+        KernelTimes out;
+        if (!timing_) return out;
+        sync();
+        (void)Api::set_device(dev_.index);
+        std::map<std::string, double> ms;
+        for (size_t i = 0; i < timed_.size(); ++i) {
+            float t = 0, gap = 0;
+            if (Api::event_elapsed(&t, timed_events_[2 * i], timed_events_[2 * i + 1]) != Api::kSuccess) {
+                ++out.unresolved;
+                continue;
+            }
+            ms[std::string(timed_[i].name) + (timed_[i].head ? " head" : "")] += t;
+            out.dispatches += timed_[i].kernel;
+            if (i && Api::event_elapsed(&gap, timed_events_[2 * i - 1], timed_events_[2 * i]) == Api::kSuccess) out.gaps.push_back(std::max(gap, 0.0f));
+        }
+        out.kernels.assign(ms.begin(), ms.end());
+        timed_.clear();
+        return out;
+    }
     void wait(Ticket t) noexcept override {
         if (tickets_.settled(t)) return;
         if (t + kEvents <= tickets_.last()) return tickets_.retired(t);
@@ -570,6 +593,17 @@ public:
 
     void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
         product(weight, X, Y, nin, nout, nbatch, false, runs, dtype, true);
+    }
+    // The output head's products, which kernel_times names with " head" after their kernel's.
+    void matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
+        head_ = timing_;
+        try {
+            matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
+        } catch (...) {
+            head_ = false;
+            throw;
+        }
+        head_ = false;
     }
     void matmul_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
         product(weight, X, Y, nin, nout, nbatch, true, runs, dtype, true);
@@ -3633,6 +3667,7 @@ private:
         const void* src;
         size_t bytes;   // a copy's or fill's bytes, a wait's or write's value, a kernel's dynamic shared memory
         typename Api::CopyKind dir;
+        bool head = false;   // a kernel of the output head's products (matmul_logits)
     };
     void hold(const Held& op) {
         materialize();
@@ -3649,7 +3684,7 @@ private:
         const size_t at = (op_bytes_.size() + 15) & ~size_t(15);
         op_bytes_.resize(at + args.size);
         std::memcpy(op_bytes_.data() + at, args.bytes, args.size);
-        hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, shared, Api::kAnyCopy});
+        hold({Held::kernel, f, gx, gy, gz, threads, name, at, args.size, nullptr, nullptr, shared, Api::kAnyCopy, head_});
     }
     void hold_copy(void* dst, const void* src, size_t bytes, typename Api::CopyKind dir) { hold({Held::copy, nullptr, 0, 0, 0, 0, "copy_async", 0, 0, dst, src, bytes, dir}); }
     void hold_fill(void* dst, size_t bytes) { hold({Held::fill, nullptr, 0, 0, 0, 0, "zero_async", 0, 0, dst, nullptr, bytes, Api::kAnyCopy}); }
@@ -3675,6 +3710,8 @@ private:
                     Api::check(Api::event_record(starts_[(tickets_.last() + 1) % kEvents], stream_), "event_record");
                     started_ = true;
                 }
+                const bool timed = timing_ && op.kind <= Held::fill && timed_.size() < kTimedOps;
+                if (timed) Api::check(Api::event_record(timed_event(2 * timed_.size()), stream_), "event_record");
                 if (op.kind == Held::kernel) {
                     launch_check(Api::launch(op.f, op.gx, op.gy, op.gz, op.threads, (unsigned)op.bytes, stream_, bytes.data() + op.at, op.size), op.name);
                 } else if (op.kind == Held::copy) {
@@ -3686,6 +3723,10 @@ private:
                 } else {
                     launch_check(Api::zero_async(op.dst, op.bytes, stream_), op.name);
                 }
+                if (timed) {
+                    Api::check(Api::event_record(timed_event(2 * timed_.size() + 1), stream_), "event_record");
+                    timed_.push_back({op.kind == Held::kernel ? op.name : op.kind == Held::copy ? "copy" : "fill", op.head, op.kind == Held::kernel});
+                }
             }
         } catch (...) {
             if (take) host_store(take, 1u);
@@ -3696,6 +3737,15 @@ private:
         bytes.clear();
         ops_.swap(ops);
         bytes.swap(op_bytes_);
+    }
+    // A timing backend's i-th timing event of the reading interval, made the first time an interval reaches it and kept for the next.
+    typename Api::Event timed_event(size_t i) {
+        while (timed_events_.size() <= i) {
+            typename Api::Event e{};
+            Api::check(Api::event_create(&e, true), "event_create");
+            timed_events_.push_back(e);
+        }
+        return timed_events_[i];
     }
     template <class> friend class GpuCollective;
     template <class> friend class GpuHandoff;
@@ -3747,6 +3797,16 @@ private:
     size_t chunk_ = kFirstChunk;   // the held operations the open submission issues at, kFirstChunk while its device had nothing running
     std::vector<Held> ops_;   // the stream operations held since the last flush
     std::vector<uint8_t> op_bytes_;   // their kernels' arguments
+    const bool timing_;   // made for diagnostics, so flush times its kernels, copies and fills (kernel_times)
+    bool head_ = false;   // on a timing backend, the products being issued are the output head's
+    struct TimedOp {
+        const char* name;
+        bool head, kernel;
+    };
+    // A reading times the first kTimedOps ops of its interval, each between a start and an end event, which bounds the events a long interval takes.
+    static constexpr size_t kTimedOps = 4096;
+    std::vector<TimedOp> timed_;   // the ops timed since the last reading
+    std::vector<typename Api::Event> timed_events_;   // their start and end events, two an op
     size_t launched_[kKernels] = {};   // launches of each kernel since rocm_take_launches last read them
     std::string route_only_;   // rocm_route_only's filter of the routed tile builds, empty for all of them
     std::mutex failed_mu_;

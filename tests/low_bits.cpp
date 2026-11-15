@@ -184,8 +184,9 @@ std::string low_bit_decode_row_name(const Format& f, size_t width, size_t rows,
 
 void check_low_bit_decode_row_witness(backend::Backend& device, const Format& f, size_t width,
                                       size_t rows, const char* message) {
-    const auto times = backend::vulkan_kernel_times(device);
-    if (!backend::vulkan_timed_dispatches(device)) return;
+    const backend::Backend::KernelTimes reading = device.kernel_times();
+    const auto& times = reading.kernels;
+    if (!reading.dispatches) return;
     const auto profile = backend::vulkan_device_profile(device);
     const std::string expected = low_bit_decode_row_name(f, width, rows, profile);
     const bool seen = std::any_of(times.begin(), times.end(), [&](const auto& entry) {
@@ -372,7 +373,7 @@ void check_q2_decode_widths(backend::Backend& device, const Format& f) {
         require(width % f.block == 0, "Q2 decode width is not a whole format block");
         const size_t blocks = width / f.block;
         for (size_t rows : {size_t(4), size_t(5)}) {
-            (void)backend::vulkan_kernel_times(device);
+            device.kernel_times();
             std::array<std::vector<float>, 3> combined;
             check_products(device, f, backend::Dtype::f16, 1, blocks, rows, &combined);
             check_low_bit_decode_row_witness(device, f, width, rows,
@@ -417,7 +418,7 @@ void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& 
     auto yother = device.adopt(grouped_other.data(), grouped_other.size() * sizeof(float));
 
     (void)testq::take_matrix_paths(device);
-    (void)backend::vulkan_kernel_times(device);
+    device.kernel_times();
     device.matmul_group({{wa, {ya.get(), 1}, rows_a}, {wother, {yother.get(), 1}, rows_other}, {wb, {yb.get(), 1}, rows_b}},
                         {x.get(), 0}, width, 1, {}, backend::Dtype::f16);
     device.read(*ya, 0, grouped_a.data(), grouped_a.size() * sizeof(float));
@@ -438,8 +439,9 @@ void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& 
     for (size_t r = 0; r < rows_other; ++r)
         require(close(grouped_other[1 + r], dot(other, raw_other, r, oracle_input.data(), width)),
                 "mixed low-bit projection differs from the existing double-dot oracle");
-    const auto grouped_times = backend::vulkan_kernel_times(device);
-    if (backend::vulkan_timed_dispatches(device)) {
+    const backend::Backend::KernelTimes grouped = device.kernel_times();
+    const auto& grouped_times = grouped.kernels;
+    if (grouped.dispatches) {
         const auto saw = [&](const char* name) {
             return std::any_of(grouped_times.begin(), grouped_times.end(), [&](const auto& entry) { return entry.first == name; });
         };
@@ -452,7 +454,7 @@ void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& 
     std::vector<float> grouped_c(3, guard);
     auto yc = device.adopt(grouped_c.data(), grouped_c.size() * sizeof(float));
     (void)testq::take_matrix_paths(device);
-    (void)backend::vulkan_kernel_times(device);
+    device.kernel_times();
     device.matmul_group({{wa, {ya.get(), 1}, rows_a}, {wb, {yb.get(), 1}, rows_b}, {wc, {yc.get(), 1}, 1}},
                         {x.get(), 0}, width, 1, {}, backend::Dtype::f16);
     device.read(*ya, 0, grouped_a.data(), grouped_a.size() * sizeof(float));
@@ -472,8 +474,9 @@ void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& 
                 "homogeneous grouped low-bit projection with an odd tail differs from the existing double-dot oracle");
     require(close(grouped_c[1], dot(primary, raw_c, 0, oracle_input.data(), width)),
             "single-row member of homogeneous low-bit group differs from the existing double-dot oracle");
-    const auto homogeneous_times = backend::vulkan_kernel_times(device);
-    if (backend::vulkan_timed_dispatches(device)) {
+    const backend::Backend::KernelTimes homogeneous = device.kernel_times();
+    const auto& homogeneous_times = homogeneous.kernels;
+    if (homogeneous.dispatches) {
         const bool two_row = std::any_of(homogeneous_times.begin(), homogeneous_times.end(), [&](const auto& entry) {
             return entry.first == primary_rows_kernel;
         });
@@ -489,14 +492,15 @@ void check_low_bit_grouped_two_row_bits(backend::Backend& device, const Format& 
         std::vector<float> alone(rows + 2, guard);
         auto y = device.adopt(alone.data(), alone.size() * sizeof(float));
         (void)testq::take_matrix_paths(device);
-        (void)backend::vulkan_kernel_times(device);
+        device.kernel_times();
         device.matmul(weight, {x.get(), 0}, {y.get(), 1}, width, rows, 1, {}, backend::Dtype::f16);
         device.read(*y, 0, alone.data(), alone.size() * sizeof(float));
         require(alone.front() == guard && alone.back() == guard, "isolated projection output crossed guards");
         require(testq::take_matrix_paths(device) == std::vector<std::string>{"block-int16"},
                 "low-bit isolated two-row call left block-int16");
-        const auto alone_times = backend::vulkan_kernel_times(device);
-        if (backend::vulkan_timed_dispatches(device))
+        const backend::Backend::KernelTimes alone_reading = device.kernel_times();
+        const auto& alone_times = alone_reading.kernels;
+        if (alone_reading.dispatches)
             require(std::any_of(alone_times.begin(), alone_times.end(), [&](const auto& entry) {
                         return entry.first == expected_kernel;
                     }), "isolated projection missed its expected row kernel");
@@ -555,7 +559,8 @@ void check_integer_witness(backend::Backend& device, const Format& f, bool mixed
     const std::vector<std::string> expected = mixed ? std::vector<std::string>{"f32", "block-int16"}
                                                    : std::vector<std::string>{"block-int16"};
     require(testq::take_matrix_paths(device) == expected, "low-bit integer matrix-path witness differs");
-    const auto times = backend::vulkan_kernel_times(device);
+    const backend::Backend::KernelTimes reading = device.kernel_times();
+    const auto& times = reading.kernels;
     const std::string kernel = !tile && two_rows && width != 0
                                    ? low_bit_decode_row_name(f, width, 4, backend::vulkan_device_profile(device))
                                    : std::string(tile ? "matmul_tile_" : "matmul_row_") + (f.one_bit ? "q1_0_dot" : "q2_0_dot") +
@@ -563,7 +568,7 @@ void check_integer_witness(backend::Backend& device, const Format& f, bool mixed
     const bool executed = std::any_of(times.begin(), times.end(), [&](const auto& entry) {
         return two_rows ? entry.first == kernel : entry.first.find(kernel) == 0;
     });
-    if (backend::vulkan_timed_dispatches(device)) {
+    if (reading.dispatches) {
         require(executed, "low-bit call did not execute its expected integer row/tile kernel");
         for (const auto& entry : times)
             if (entry.first.find(kernel) == 0)
@@ -595,9 +600,7 @@ void check_grouped_routed(backend::Backend& device, const Format& f, size_t colu
     auto begin = [&] {
         if (!integer) return;
         (void)testq::take_matrix_paths(device);
-#if LLMX_HAS_BACKEND_VULKAN
-        (void)backend::vulkan_kernel_times(device);
-#endif
+        device.kernel_times();
     };
     auto witness = [&](bool mixed, const char* operation) {
         if (!integer) return;
@@ -853,10 +856,11 @@ void check_q1_four_rows(backend::Backend& device, const Format& f) {
         std::vector<float> single(rows + 2, guard), pair(2 * rows + 2, guard);
         auto y1 = device.adopt(single.data(), single.size() * sizeof(float));
         auto y2 = device.adopt(pair.data(), pair.size() * sizeof(float));
-        (void)backend::vulkan_kernel_times(device);
+        device.kernel_times();
         device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y1.get(), 1}, width, rows, 1, {&one, 1}, backend::Dtype::f16);
-        const auto times = backend::vulkan_kernel_times(device);
-        if (backend::vulkan_timed_dispatches(device)) {
+        const backend::Backend::KernelTimes reading = device.kernel_times();
+        const auto& times = reading.kernels;
+        if (reading.dispatches) {
             const std::string want = rows == edge ? "matmul_row_q1_0_dot_1col_4row_tree" : "matmul_row_q1_0_dot_1col_2row";
             require(std::any_of(times.begin(), times.end(), [&](const auto& entry) { return entry.first == want; }),
                     ("Q1 one-column call at " + std::to_string(rows) + " rows missed " + want).c_str());
@@ -897,7 +901,7 @@ void check_integer_range(backend::Backend& device, const Format& f, size_t exten
             std::vector<float> result(rows + 2, guard);
             auto y = device.adopt(result.data(), result.size() * sizeof(float));
             (void)testq::take_matrix_paths(device);
-            (void)backend::vulkan_kernel_times(device);
+            device.kernel_times();
             device.matmul({f.type, {weights.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, 1,
                           {&run, 1}, dtype);
             device.read(*y, 0, result.data(), result.size() * sizeof(float));
@@ -955,8 +959,9 @@ void check_vulkan_paths(backend::Backend& device, const Format& f) {
     const char* tile_name = f.type == quant::GGML_TYPE_Q1_0 ? "matmul_tile_q1_0" : "matmul_tile_q2_0";
     bool row = false, tile = false, timed = false;
     auto collect = [&] {
-        const auto entries = backend::vulkan_kernel_times(device);
-        timed |= backend::vulkan_timed_dispatches(device) != 0;
+        const backend::Backend::KernelTimes reading = device.kernel_times();
+        const auto& entries = reading.kernels;
+        timed |= reading.dispatches != 0;
         for (const auto& entry : entries) {
             row |= entry.first.find("matmul_row") == 0;
             tile |= entry.first.find(tile_name) == 0;
@@ -977,12 +982,13 @@ void check_vulkan_paths(backend::Backend& device, const Format& f) {
     if (profile.prefer_integer_dot) {
         for (size_t blocks : {size_t(3), size_t(16), size_t(48)})
         for (size_t rows : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(5), size_t(7), size_t(33)}) {
-            (void)backend::vulkan_kernel_times(device);
+            device.kernel_times();
             std::array<std::vector<float>, 3> combined;
             check_products(device, f, backend::Dtype::f16, 1, blocks, rows, &combined);
-            const auto entries = backend::vulkan_kernel_times(device);
+            const backend::Backend::KernelTimes reading = device.kernel_times();
+            const auto& entries = reading.kernels;
             const std::string expected = low_bit_decode_row_name(f, blocks * f.block, rows, profile);
-            if (backend::vulkan_timed_dispatches(device)) {
+            if (reading.dispatches) {
                 const bool expected_seen = std::any_of(entries.begin(), entries.end(), [&](const auto& entry) {
                     return entry.first == expected;
                 });

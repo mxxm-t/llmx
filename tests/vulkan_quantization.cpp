@@ -521,7 +521,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                     output.front() = output.back() = 19.0f;
                     b.write(*y, 0, output.data(), output.size() * sizeof(float));
                     testq::take_matrix_paths(b);
-                    if (prompt || dtype == backend::Dtype::f32) backend::vulkan_kernel_times(b);
+                    if (prompt || dtype == backend::Dtype::f32) b.kernel_times();
                     switch (op) {
                     case 0: b.matmul({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
                     case 1: b.matmul_logits({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
@@ -535,7 +535,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                     const auto paths = testq::take_matrix_paths(b);
                     require(!paths.empty(), "offset range check has no matrix path witness");
                     if (prompt) {
-                        const auto kernels = backend::vulkan_kernel_times(b);
+                        const auto kernels = b.kernel_times().kernels;
                         require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
                             return k.first.find("matmul_tile") == 0;
                         }), "prompt range check did not witness a tile dispatch");
@@ -543,7 +543,7 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                     if (dtype == backend::Dtype::f32) {
                         require(paths == std::vector<std::string>{"f32"}, "explicit F32 call used rounded activations");
                         if (!prompt) {
-                            const auto kernels = backend::vulkan_kernel_times(b);
+                            const auto kernels = b.kernel_times().kernels;
                             require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
                                 return k.first.find("matmul_row") == 0;
                             }), "explicit F32 decode did not use a row kernel");

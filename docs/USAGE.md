@@ -457,7 +457,7 @@ device may be listed once. Expert offload (`--n-cpu-moe`, `--cpu-moe`)
 works over a list too (Expert offload, below), and is refused where the
 CPU is one of several listed devices. `bench` without `--model` measures the
 first device listed.
-`--profile` takes Vulkan devices, one or a list, and is refused where a listed device is the CPU.
+`--profile` takes Vulkan, ROCm and CUDA devices, one or a list, and is refused where a listed device is the CPU.
 Every command that takes `--device` takes a list.
 
 ### Tensor split (`--tensor-width N`)
@@ -1209,7 +1209,7 @@ llmx bench --model <in.gguf> [flags...]
 |---|---|---|
 | Model run | `--model`, `--p`, `--n`, `--r`, `--seqs`, `--depth` | Prompt tokens, decode tokens, repeats, concurrent sequences and optional draft depth |
 | Device execution | `--threads`, `--ubatch`, `--kv-tokens`, `--device`, `--layer-shares`, `--tensor-width`, `--n-cpu-moe`, `--cpu-moe`, `--moe-stream-from`, `--cache-type-k`, `--cache-type-v`, `--load-mode`, `--lookup-storage`, `--dtype` | Shared execution options described above |
-| Measurement and drafts | `--profile`, `--drafter`, `--draft-max` | Time Vulkan kernels or measure draft chain and verify work |
+| Measurement and drafts | `--profile`, `--drafter`, `--draft-max` | Time device kernels or measure draft chain and verify work |
 
 The matched real-model measurement: a warm-up of each test, then `--r`
 repeats (default 3) of prompt-processing `--p` tokens in one batch into an
@@ -1245,8 +1245,10 @@ time each kernel spent (`profile pp`, then `profile tg` or
 `profile batched tg`, which starts after its sequences' prompts).
 The output head's products are timed apart from the layers', under their kernel's name with ` head` after it.
 With `--drafter` it first runs one more round of the draft timing and gives each count's chain and verify the same way (`profile draft chain K`, `profile verify K`), so a draft row's read of the head and a verify's cost by kernel are measured rather than inferred.
-It takes Vulkan devices and is refused where a listed device is the CPU; with several, a layer split or a tensor group, each section is printed for each device (`profile tg, device vulkan:1`).
+It takes Vulkan, ROCm and CUDA devices and is refused where a listed device is the CPU; with several, a layer split or a tensor group, each section is printed for each device (`profile tg, device vulkan:1`).
 Copies between buffers and a write's copy into device memory are timed beside the kernels as `copy` and `write`, and each device's line ends with its idle time between timed ops and the part of it in gaps of a millisecond or more.
+On ROCm and CUDA each kernel, copy and zero fill is timed by a pair of events around it, kernels under their `llmx_` names and the others as `copy` and `fill`; a section times the first 4096 of them, and its first line counts the kernels among them as the dispatches sampled, followed by the ops whose events gave no time as unresolved where there are any, and the events add a little device time between ops, so the idle time there is an upper bound.
+The driver's statistics after the sections are Vulkan's alone.
 Each stage then gets a line of its recordings in the run (`profile pp, stage 1`): how often one started, how many received the residual behind a device-side wait with no host wait or write (MULTI-DEVICE.md, Execution structure), and the host's time in each, apart its wait for the residual's sending stage, its write of the residual into its device and the rest, recording and submitting, with when the residual reached it after the pass's first stage began.
 
 After the `pp` line, `bench: ppN slices` gives the slices each timed prompt was read in, each with that prompt's rate; a pipelined layer split chooses them by the period it measured on its earlier prompts, so the first prompts may take other slices than later ones.

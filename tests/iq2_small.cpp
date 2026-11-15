@@ -520,9 +520,11 @@ size_t check_range(backend::Backend& backend, const Format& format) {
 }
 
 #if LLMX_HAS_BACKEND_VULKAN
-bool has_timed_kernel(backend::Backend& device, const std::string& prefix) {
-    const auto times = backend::vulkan_kernel_times(device);
-    if (!backend::vulkan_timed_dispatches(device)) return false;
+bool has_timed_kernel(backend::Backend& device, const std::string& prefix, bool& timing) {
+    const backend::Backend::KernelTimes reading = device.kernel_times();
+    const auto& times = reading.kernels;
+    timing = reading.dispatches != 0;
+    if (!timing) return false;
     return std::any_of(times.begin(), times.end(), [&](const auto& entry) {
         return entry.first.rfind(prefix, 0) == 0;
     });
@@ -577,7 +579,7 @@ size_t check_tile_threshold(backend::Backend& device, const Format& format) {
             const auto& oracle_input = dtype == backend::Dtype::bf16 ? rounded
                                      : integer ? reconstructed : input;
             device.write(*output, 0, guard.data(), guard.size() * sizeof(float));
-            (void)backend::vulkan_kernel_times(device);
+            device.kernel_times();
             (void)take_matrix_paths(device);
             device.matmul({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                           {output.get(), 1}, width, rows, columns, {&run, 1}, dtype);
@@ -590,10 +592,11 @@ size_t check_tile_threshold(backend::Backend& device, const Format& format) {
                 : dtype == backend::Dtype::bf16 ? "matmul_tile_iq2_" + type_suffix + "_bf16"
                 : integer ? "matmul_tile_iq2_" + type_suffix + "_dot"
                           : "matmul_tile_iq2_" + type_suffix;
-            const bool timed = has_timed_kernel(device, expected_kernel);
+            bool timing = false;
+            const bool timed = has_timed_kernel(device, expected_kernel, timing);
             if (columns < threshold) saw_row_timestamp |= timed;
             else saw_tile_timestamp |= timed;
-            if (backend::vulkan_timed_dispatches(device))
+            if (timing)
                 require(timed, "tile threshold edge did not timestamp the expected IQ2 kernel family");
 
             for (size_t column = 0; column < columns; ++column)

@@ -156,18 +156,18 @@ int main(int argc, char** argv) {
     for (const auto& c : cases) {
         for (int i = 0; i < 5; ++i) c.run();
         b.sync();
-        backend::vulkan_kernel_times(b);
+        b.kernel_times();
         c.run();
         b.sync();
-        backend::vulkan_kernel_times(b);
-        const size_t per_call = backend::vulkan_timed_dispatches(b);
+        const size_t per_call = b.kernel_times().dispatches;
         const auto t0 = std::chrono::steady_clock::now();
         for (int i = 0; i < iters; ++i) c.run();
         b.sync();
         const double wall = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
-        const auto times = backend::vulkan_kernel_times(b);
+        const backend::Backend::KernelTimes reading = b.kernel_times();
+        const auto& times = reading.kernels;
         // The pool samples an interval's first dispatches, so a call's device time is scaled from the calls sampled.
-        const double calls = per_call ? (double)backend::vulkan_timed_dispatches(b) / per_call : 1.0;
+        const double calls = per_call ? (double)reading.dispatches / per_call : 1.0;
         std::string kernels;
         double dev = 0.0;
         for (const auto& t : times) {

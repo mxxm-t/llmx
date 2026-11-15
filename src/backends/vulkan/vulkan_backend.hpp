@@ -18,7 +18,7 @@ struct VulkanUnavailable : std::runtime_error {
 };
 
 // The backend over physical device `device`, counted as the loader lists them; it throws VulkanUnavailable when there is nothing usable to open.
-// With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`, and on a queue that timestamps the dispatches are timed for `vulkan_kernel_times`.
+// With `diagnostics`, the driver's internal representations of the kernels are captured for `vulkan_kernel_representations`, and on a queue that timestamps the dispatches are timed for `Backend::kernel_times`.
 BackendPtr make_vulkan_backend(int device, bool diagnostics = false);
 
 // The ids one workgroup reduces of a row whose argmax is taken in slices (Backend::argmax_rows); a row of at most this many ids is reduced whole.
@@ -56,17 +56,7 @@ std::string vulkan_kernel_statistics(const Backend& backend);
 // two-row row builds start with `; row_build cols=C rows=R tree=T repair=P` (docs/VULKAN.md).
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 
-// Device time per kernel in milliseconds since the last call, for a diagnostics backend on a queue that timestamps, the output head's dispatches (Backend::matmul_logits) under their kernel's name with " head" after it.
-// Reading it waits for the queue, so it is a diagnostic and not something a pass does.
-std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend);
-
 // Each kernel's bindings, true for one it writes, as the backend derives them from the kernel's SPIR-V to drop the twins a dispatch overwrites; the test holds them to the shaders' qualifiers.
 std::vector<std::pair<std::string, std::vector<bool>>> vulkan_kernel_writes();
-
-// How many dispatches the last reading covered. The query pool bounds it, so a long interval is sampled from its first dispatches.
-size_t vulkan_timed_dispatches(const Backend& backend);
-
-// The last reading's device time between each timed op's end and the next one's start, copies included, in milliseconds, 0 where they overlap.
-std::vector<double> vulkan_timed_gaps(const Backend& backend);
 
 } // namespace backend

@@ -28,7 +28,7 @@ float rounded(float value) {
 }
 std::set<std::string> dispatched, matrix_paths;
 bool record_dispatches(backend::Backend& b) {
-    for (const auto& item : backend::vulkan_kernel_times(b)) dispatched.insert(item.first);
+    for (const auto& item : b.kernel_times().kernels) dispatched.insert(item.first);
     const auto paths = testq::take_matrix_paths(b);
     matrix_paths.insert(paths.begin(), paths.end());
     return std::find(paths.begin(), paths.end(), "block-int16") != paths.end();
@@ -157,7 +157,7 @@ void split_range(backend::Backend& b) {
         b.matmul({type, input(wb)}, input(xb), {yb.get(), 0}, width, 1, columns, {&run, 1}, policy);
         b.read(*yb, 0, y.data(), y.size() * 4);
         bool tile = false, reduce = false;
-        for (const auto& item : backend::vulkan_kernel_times(b)) {
+        for (const auto& item : b.kernel_times().kernels) {
             dispatched.insert(item.first);
             tile |= item.first == "matmul_tile_q8mx_small" || item.first == "matmul_tile_q8mx";
             reduce |= item.first == "matmul_reduce_mxfp4";

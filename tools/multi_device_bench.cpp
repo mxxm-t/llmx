@@ -101,14 +101,15 @@ int stages(const std::string& path, const std::vector<int>& devices, const Stage
         Reading r{std::vector<double>(n, 0.0), std::vector<double>(n, 0.0), 0.0};
         for (size_t g = 0; g < warm + o.steps; ++g) {
             setup(g);
-            for (auto& b : backends) backend::vulkan_kernel_times(*b);
+            for (auto& b : backends) b->kernel_times();
             const auto t0 = Clock::now();
             pass(g);
             if (g < warm) continue;
             r.host += ms_since(t0) / (double)o.steps;
             for (size_t d = 0; d < n; ++d) {
-                for (const auto& k : backend::vulkan_kernel_times(*backends[d])) r.device[d] += k.second / (double)o.steps;
-                r.dispatches[d] += (double)backend::vulkan_timed_dispatches(*backends[d]) / (double)o.steps;
+                const backend::Backend::KernelTimes reading = backends[d]->kernel_times();
+                for (const auto& k : reading.kernels) r.device[d] += k.second / (double)o.steps;
+                r.dispatches[d] += (double)reading.dispatches / (double)o.steps;
             }
         }
         if (std::all_of(r.dispatches.begin(), r.dispatches.end(), [](double v) { return v == 0; }))

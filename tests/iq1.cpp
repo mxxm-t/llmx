@@ -165,8 +165,9 @@ void witness(backend::Backend& b, backend::Dtype dtype, bool integer) {
 
 #if LLMX_HAS_BACKEND_VULKAN
 void kernel_witness(backend::Backend& b, bool medium, bool tile, bool integer) {
-    const auto times = backend::vulkan_kernel_times(b);
-    if (!backend::vulkan_timed_dispatches(b)) {
+    const backend::Backend::KernelTimes reading = b.kernel_times();
+    const auto& times = reading.kernels;
+    if (!reading.dispatches) {
         std::cout << "IQ1 timestamp witness unavailable\n";
         return;
     }
@@ -264,7 +265,7 @@ size_t products(backend::Backend& b, bool medium, size_t rows, size_t cols, size
             b.write(*output, 0, initial.data(), initial.size() * sizeof(float));
             testq::take_matrix_paths(b);
 #if LLMX_HAS_BACKEND_VULKAN
-            if (!b.is_cpu()) backend::vulkan_kernel_times(b);
+            if (!b.is_cpu()) b.kernel_times();
 #endif
             const backend::CSlice w{weights.get(), 1}, in{x.get(), 0};
             const backend::Slice out{output.get(), 1};

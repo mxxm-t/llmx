@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
         });
 #if LLMX_HAS_BACKEND_VULKAN
         if (argc == 2) {
-            const auto kernels = backend::vulkan_kernel_times(*b);
+            const auto kernels = b->kernel_times().kernels;
             bool row = false, tile = false, rounded = false, integer_tile = false, integer_row = false;
             for (const auto& kernel : kernels) {
                 const auto& name = kernel.first;

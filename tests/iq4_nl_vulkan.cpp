@@ -269,7 +269,7 @@ int main() {
             return packed;
         });
         std::cout << "iq4-nl-vulkan: " << pairs << " row-class bitwise pairs pass\n";
-        const auto kernels = backend::vulkan_kernel_times(*b);
+        const auto kernels = b->kernel_times().kernels;
         bool row = false, tile = false, rounded = false, integer = false, integer_tile = false, xs_row = false, xs_tile = false;
         for (const auto& kernel : kernels) {
             integer_tile = integer_tile || kernel.first.find("matmul_tile_iq4") != std::string::npos;

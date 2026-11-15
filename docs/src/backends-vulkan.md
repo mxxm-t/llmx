@@ -111,12 +111,11 @@ The first three come before the class; the others define members the class decla
   and of one row's weight operations where their rows differ and no row repair is declared,
   as the first line of each build's representation states its shape (docs/TESTS.md). On a queue that
   timestamps it the backend also times the
-  dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
-  since the last reading, waiting for the queue, and
-  `vulkan_timed_dispatches` how many dispatches that reading covered, every
+  dispatches: `kernel_times` (`Backend::kernel_times`) returns device milliseconds per kernel
+  since the last reading, waiting for the queue, and how many dispatches that reading covered, every
   one since the reading before, in as many query pools as the interval needs
   (`bench --profile`, `serve --timing`).
-  Its buffer copies and its writes' copies out of staging are timed beside the kernels, as `copy` and `write`, and `vulkan_timed_gaps` gives that reading's device time between each timed op's end and the next one's start, which `bench --profile` sums into the device's idle time.
+  Its buffer copies and its writes' copies out of staging are timed beside the kernels, as `copy` and `write`, and the reading's gaps give the device time between each timed op's end and the next one's start, which `bench --profile` sums into the device's idle time.
   `matmul_logits` is `matmul`; on a backend that times its dispatches it names that call's apart, under the kernel's name with ` head` after it, so a profile shows the output head's read on its own, and without timestamps it calls `matmul` and keeps nothing.
   `wait(t)` of a returned ticket may come from another thread while the
   owning one records: the last ticket and the confirmed-completion ticket are

@@ -414,9 +414,10 @@ void backend_checks(backend::Backend& b) {
 #if LLMX_HAS_BACKEND_VULKAN
     if (!b.is_cpu()) {
         bool tiled_dispatch = false;
-        for (const auto& entry : backend::vulkan_kernel_times(b))
+        const backend::Backend::KernelTimes reading = b.kernel_times();
+        for (const auto& entry : reading.kernels)
             tiled_dispatch |= entry.first.find("matmul_tile_iq3_xxs") != std::string::npos;
-        if (backend::vulkan_timed_dispatches(b))
+        if (reading.dispatches)
             require(tiled_dispatch, "IQ3_XXS tile-sized matrix did not dispatch a tile kernel");
         std::cout << "IQ3_XXS device: " << backend::vulkan_device_name(b)
                   << "; tile timestamp witness " << (tiled_dispatch ? "present" : "unavailable") << '\n';

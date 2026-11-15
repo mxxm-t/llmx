@@ -203,6 +203,42 @@ This test-only correction lands by fast-forward with the companion workflow.
 - **Checks:** The independent Chrome regression failed in 59.797 seconds before the fix and passed in 54.855 seconds after it. The combined browser fixture over public main `2ea30d410` passed in 66.845 seconds, including both themes at 1440, 390 and 320 pixels and 200 percent CSS zoom. Desktop preference, transient Settings access, mobile drawer state and toggle geometry passed. JavaScript syntax, whitespace and independent integration review passed. Dead-code passed with 17 expected findings and 20 planted faults in 34.8 seconds; docs passed with zero findings and 29 planted faults in 31.8 seconds and runs once more after this record.
 - **Landing:** Fast-forward from `2ea30d410` after final documentation validation and a fresh main check. This is static presentation only, with no server, runtime, API or numerical changes. The existing docs CLI remains applicable because native source and build inputs are unchanged. Full Markdown review checks references to details, temporary labels and layout; the companion README and TESTS own the updated behavior. Receipts are in `scratch/reading-landing/`, with independent matched screenshots in the main workspace's `scratch/chat-reading-layout/`.
 - **Gotchas:** Composer Settings and the narrow drawer are transient. Only explicit docked Details actions save the preference. Long titles can still truncate. Chrome emulation does not establish physical phone or Safari coverage. Settings semantics and history search remain separate audit work.
+## bench --profile on ROCm and CUDA (2026-11-19, CUDA95 then CUDA97, branch cuda97/profile on fix/tile256-denominator af07396ff; F2DEV's approval of cuda/profile 434ca4546 with items 1 and 2)
+
+**Goal.** `bench --profile` times a prompt's kernels on ROCm and CUDA devices as it does on Vulkan, so a rented CUDA card whose image has no system profiler can still be profiled.
+
+**Done.**
+- `Backend::kernel_times` (backend.hpp) returns each kernel's device time, the kernels timed, the gaps between timed ops and the timed ops whose events gave no time (`unresolved`, F2DEV item 2), and replaces `vulkan_kernel_times`, `vulkan_timed_dispatches` and `vulkan_timed_gaps`; Vulkan keeps its query pools, the GPU core of ROCm and CUDA records an event pair around each kernel, copy and fill of a diagnostics backend, the first 4096 of a reading.
+- `bench` prints the unresolved count after the dispatches sampled where it is nonzero, and refuses `--profile` only where the device list holds the CPU.
+- The Vulkan tests that came after the branch's base (`low_bits` Q1 one-column rows, `weight_scales` FP8, `backend_vulkan` row-cluster builds) read `kernel_times()` in place of the removed free functions.
+- gpu-core checks the timing over the fake Api, an op whose events give no time among them; backend-rocm and backend-cuda check that every launched kernel of an F32 product and an output head is named with positive time.
+- Earlier card evidence (F2DEV item 1): session D of 2026-11-15 ran backend-cuda with the kernel_times check on one RTX 3090, 12109 PASS and 0 FAIL, and session S (`/opt/claude-work/cuda33/s1/results/20261115-1719-S`) read `profile pp: 1188.51 ms of device time over 900 dispatches sampled` on Qwen3.6-27B Q4_K_M pp512 int8, `llmx_q4_k_tile8` first at 53 percent; D and F there were level on that model's pp512 (468 and 467 tok/s), which priced the profile's flush test at zero.
+- Without diagnostics the flush records no event, and ROCm pp512 and tg128 on Qwen3-0.6B Q8_0 were level with main over five ABAB rounds on one MI50 at 434ca4546.
+
+**CUDA results.**
+- CUDA session P (CUDA95, one RTX 3090 at 300 W, `/opt/claude-work/cuda95/p/results/20261119-1034-P/`) on this branch at 8cdeb3c7b, when it sat on land/20261118: A = land/20261118 `llmx 0.1.0+g57a932e49b0a`, C = this branch `llmx 0.1.0+g8cdeb3c7b97d`.
+
+| Check | A, stack | C, branch | Bound |
+|---|---|---|---|
+| Qwen3-0.6B Q8_0 64 greedy ids on the card, f16 and int8 | = CPU | = CPU | byte identity |
+| `backend-cuda moe` | - | PASS | PASS |
+| Qwen3-4B Q8_0 pp512 int8, three ABAB rounds, tok/s | 4867.7 / 4849.5 / 4828.0, median 4849.5 | 4876.6 / 4838.5 / 4844.4, median 4844.4 | level |
+| Same, tg128 int8, tok/s | 152.92 / 152.15 / 152.39, median 152.39 | 152.62 / 152.33 / 152.52, median 152.52 | level |
+| Qwen3-4B Q8_0 64 greedy ids, f16 and int8 | reference | identical to A | byte identity |
+| `bench --profile` pp512 int8 | - | 105.7 ms over 436 dispatches, `llmx_q8_0_tile8_tall` first at 70 percent | a reading |
+| `backend-cuda` default | - | FAIL only `check_long` at 16384 tokens, -2.47e-8 against 2e-8 | PASS |
+
+- The one failure is the stack's 256-wide tile drift, which fix/tile256-denominator removes, so the branch now sits on that fix and the re-check of `backend-cuda` default on the rebased head is in Left.
+- CUDA session Q (CUDA97 and CUDA98, one RTX 3090 at 300 W, driver 595.99.02, `/opt/claude-work/cuda97/p/results/20261119-2210-Q/`) on the rebased head, C = `llmx 0.1.0+g15dfedace273`: Qwen3-0.6B Q8_0 64 greedy ids at f16 and int8 equal the CPU's; `backend-cuda` default passed `kernel_times` on the card (every launched kernel of an F32 product and an output head named with positive time, the 2 launches counted, no kernels timed without diagnostics) and had no FAIL line when the session's budget ended it at 518 s in the type checks, before `check_long`.
+- CUDA session Q2 (CUDA98, one RTX 3090 at 300 W, `/opt/claude-work/cuda97/p/results/20261119-2334-Q/`), the same C binary: `backend-cuda` default ran to its end with 57916 PASS and 0 FAIL in 483 s, `check_long` at 16384 tokens among them, its drift -1.22e-8 against the 2e-8 bound with rms error 4.02e-7 against 1e-6, and `kernel_times` passing again.
+
+**Vulkan CTest on an MI50** (CUDA97, one MI50, renderD128, RADV; `llmx 0.1.0+g15dfedace273` from build-branch.sh V, `/opt/claude-work/cuda97/vout/`): `backend-vulkan`, `sparse-attention`, `low-bits-vulkan`, `low-bits` and `weight-scales-vulkan` pass, 5 of 5, the tests ported to `kernel_times` among them, and `llmx-sparse-attention-test --device vulkan:0` passes 408988 checks.
+
+**Left.**
+- CTest, a timing round against main on an MI50 and the hosted run at the head that lands, and the Radeon VII check, which no run has given yet.
+
+**Gotchas.** A reading waits for its device's queue and times only the first 4096 ops of its interval, and the events add a little device time between ops, so the idle line is an upper bound.
+
 ## Two shots and the chain wait for their data (2026-11-19, DRAFT84 to DRAFT88, branch fix/draft-divergence on land/20261118 57a932e49)
 
 - Goal: a tensor group's two-shot and chain sums never read a peer's slot before its data has landed. Under PCIe relaxed ordering, which is on for every MI50 and every port on the paths of the four-card test set, a meeting word or count can reach a reader before the stores it follows; two shots' gathered totals and the chain's ahead input then gave the previous sum's values at that offset with no error.

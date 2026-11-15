@@ -14,7 +14,8 @@
 namespace backend {
 
 // The backend over CUDA device `device`, the driver's ordinal; it throws CudaUnavailable (cuda_runtime.hpp) when there is nothing usable to open.
-BackendPtr make_cuda_backend(int device);
+// With `diagnostics`, its kernels, copies and fills are timed for `Backend::kernel_times`.
+BackendPtr make_cuda_backend(int device, bool diagnostics = false);
 
 // The kernels a CUDA backend launched since the last reading, by name, and how often: the witness of which kernel ran.
 std::map<std::string, size_t> cuda_take_launches(Backend& backend);

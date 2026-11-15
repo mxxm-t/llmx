@@ -154,7 +154,7 @@ namespace backend {
 
 using CudaBackend = GpuBackend<CudaApi>;
 
-BackendPtr make_cuda_backend(int device) { return std::make_shared<CudaBackend>(device); }
+BackendPtr make_cuda_backend(int device, bool diagnostics) { return std::make_shared<CudaBackend>(device, diagnostics); }
 
 std::map<std::string, size_t> cuda_take_launches(Backend& backend) { return dynamic_cast<CudaBackend&>(backend).take_launches(); }
 void cuda_route_only(Backend& backend, std::string build) { dynamic_cast<CudaBackend&>(backend).route_only(std::move(build)); }

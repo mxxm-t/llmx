@@ -3624,6 +3624,7 @@ int main(int argc, char** argv) {
         vec_bits(*g);
         sparse_grouped(*g);
         pass_args(*g);
+        twin_checks::kernel_times(*make_rocm_backend(0, true), *g, rocm_take_launches, require);
         records();
         failure();
         collective();

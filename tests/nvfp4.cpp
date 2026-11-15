@@ -315,9 +315,10 @@ void check_f16_input_boundaries(backend::Backend& device) {
         }
     }
     bool f16_tile = false;
-    for (const auto& entry : backend::vulkan_kernel_times(device))
+    const backend::Backend::KernelTimes reading = device.kernel_times();
+    for (const auto& entry : reading.kernels)
         f16_tile |= entry.first.find("matmul_tile_nvfp4_f16") == 0;
-    if (backend::vulkan_timed_dispatches(device))
+    if (reading.dispatches)
         require(f16_tile == half_inputs, "NVFP4 tile kernel differs from native F16 capability");
 
     std::fill(result.begin(), result.end(), guard);
@@ -343,11 +344,12 @@ void check_vulkan(backend::Backend& device) {
     check_products(device, 3, 1);
     check_products(device, 65, 128);
     bool row = false, tile = false;
-    for (const auto& entry : backend::vulkan_kernel_times(device)) {
+    const backend::Backend::KernelTimes products = device.kernel_times();
+    for (const auto& entry : products.kernels) {
         row |= entry.first.find("matmul_row") != std::string::npos;
         tile |= entry.first.find("matmul_tile") != std::string::npos;
     }
-    if (backend::vulkan_timed_dispatches(device))
+    if (products.dispatches)
         require(row && tile, "NVFP4 one-hot checks did not witness both row and tile kernels");
     std::cout << "NVFP4 Vulkan: " << backend::vulkan_device_name(device)
               << "; row/tile timestamp witnesses " << (row && tile ? "present" : "unavailable") << '\n';
@@ -356,12 +358,13 @@ void check_vulkan(backend::Backend& device) {
         for (float factor : {1.0f, .25f}) check_products(device, 2049, 128, dtype, factor);
         std::cout << "NVFP4 Vulkan 2049-row one-hot " << backend::dtype_name(dtype) << ":";
         bool witnessed = false;
-        for (const auto& entry : backend::vulkan_kernel_times(device)) {
+        const backend::Backend::KernelTimes reading = device.kernel_times();
+        for (const auto& entry : reading.kernels) {
             if (entry.first.find("matmul_tile_nvfp4") != 0) continue;
             std::cout << ' ' << entry.first;
             witnessed = true;
         }
-        if (backend::vulkan_timed_dispatches(device))
+        if (reading.dispatches)
             require(witnessed, "NVFP4 intermediate one-hot checks did not witness a tile kernel");
         std::cout << (witnessed ? " [ok]\n" : " timestamps unavailable [ok]\n");
     }
@@ -369,11 +372,12 @@ void check_vulkan(backend::Backend& device) {
     for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16})
         for (float factor : {1.0f, .25f}) check_products(device, 65537, 128, dtype, factor);
     bool tall = false, bf16_tall = false;
-    for (const auto& entry : backend::vulkan_kernel_times(device)) {
+    const backend::Backend::KernelTimes tiles = device.kernel_times();
+    for (const auto& entry : tiles.kernels) {
         tall |= entry.first.find("matmul_tile_nvfp4_tall") != std::string::npos;
         bf16_tall |= entry.first.find("matmul_tile_nvfp4_bf16_tall") != std::string::npos;
     }
-    if (backend::vulkan_timed_dispatches(device))
+    if (tiles.dispatches)
         require(tall && bf16_tall, "NVFP4 one-hot checks did not witness both tall tile policies");
     for (float scale : {1.0f, -.125f, 0.0f, -0.0f}) check_device_decode(device, scale);
     for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16}) {

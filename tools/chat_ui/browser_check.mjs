@@ -4,7 +4,8 @@ import {readFile, writeFile, mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 
-const [url, executable, profile, artifacts, fixture, imageFixture, originalDashboard, upstreamFixture] = process.argv.slice(2);
+const [url, executable, profile, artifacts, fixture, imageFixture, originalDashboard, upstreamFixture,
+  textMaxFixture, textOverFixture, imageMaxFixture, imageOverFixture, tinyFixture] = process.argv.slice(2);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const launchArgs = ['--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile,
@@ -103,6 +104,7 @@ async function fill(selector, text) { await evaluate(`{const e=document.querySel
 async function send(text) { await fill('#draft', text); await evaluate("document.querySelector('#composer').requestSubmit()"); }
 async function idle() { await wait("document.querySelector('#stop').hidden && document.querySelectorAll('.message.assistant').length>0", 'completed response'); }
 async function upload(selector, filename) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files: [filename]}); }
+async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
 
 try {
@@ -214,6 +216,15 @@ try {
   await evaluate("new Promise(resolve => setTimeout(resolve, 200))");
   assert.equal(await evaluate("fetch('/api/chats').then(r=>r.json()).then(d=>d.chats.length)"), 1, 'New on an empty conversation created another draft');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep my unsent draft');
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'valid attachment before an oversized batch');
+  await upload('#file-input', textOverFixture);
+  await delay(400);
+  assert.equal(await evaluate("document.querySelector('#attachments').innerText.includes('text-over.txt')"), false, 'oversized UTF-8 text attachment was added');
+  assert.match(await evaluate("document.querySelector('#toast').textContent"), /2 MiB/, 'oversized text refusal did not explain the limit');
+  assert.deepEqual(await evaluate("Array.from(document.querySelectorAll('#attachments .attachment-pill')).map(el=>el.firstChild.textContent)"), ['notes.txt'], 'text refusal discarded the valid attachment');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep my unsent draft', 'text refusal changed the draft');
+  await evaluate("document.querySelector('#attachments .remove-attachment').click()");
   await send('Make a practical plan.');
   await wait("document.querySelector('.reasoning')!==null", 'streamed reasoning');
   await reasoningClickDuringDelta('Compare the options.', true);

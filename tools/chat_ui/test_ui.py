@@ -130,11 +130,22 @@ class BrowserTests(unittest.TestCase):
                     fixture.write_text("A useful attached note.", encoding="utf-8")
                     image = Path(temporary) / "pixel.png"
                     image.write_bytes(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aBy0AAAAASUVORK5CYII="))
+                    text_max = Path(temporary) / "text-max.txt"
+                    text_max.write_bytes(b"x" * (2 * 1024 * 1024))
+                    text_over = Path(temporary) / "text-over.txt"
+                    text_over.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+                    image_max = Path(temporary) / "image-max.png"
+                    image_max.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * (8 * 1024 * 1024 - 8))
+                    image_over = Path(temporary) / "image-over.png"
+                    image_over.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * (8 * 1024 * 1024 - 7))
+                    text_tiny = Path(temporary) / "tiny.txt"
+                    text_tiny.write_bytes(b"x")
                     result = subprocess.run([node, str(Path(__file__).with_name("browser_check.mjs")),
                         "http://127.0.0.1:%d" % server.server_address[1], chrome,
                         str(Path(temporary) / "profile"), str(artifacts), str(fixture), str(image),
                         "http://127.0.0.1:%d" % dashboard.server_address[1],
-                        "http://127.0.0.1:%d" % upstream.server_address[1]],
+                        "http://127.0.0.1:%d" % upstream.server_address[1],
+                        str(text_max), str(text_over), str(image_max), str(image_over), str(text_tiny)],
                         capture_output=True, text=True, timeout=100)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertGreaterEqual(len(tools.calls), 1)

@@ -15,6 +15,17 @@
 **Left.** Hosted companion qualification, then READY to the coordinator for landing.
 
 **Gotchas.** Standalone Python companion only. No runtime, inference or GPU changes. Preserve valid alternative branches and SQLite row-order independence.
+## Workspace refresh ordering (2026-11-15, In progress)
+
+**Goal.** Keep a pending workspace refresh from hiding a completed save or restoring an older revision in the UI. The browser workspace owner holds snapshot ordering.
+
+**Done.** Hosted run 43728193752 failed at the existing keyboard-save assertion on Linux, with Revision 1 still displayed. Source review found load() drops a caller while another load is pending. A controlled delayed-refresh browser check is being added to verify the cause.
+
+**Checks.** A browser regression holds a real pre-save workspace response, sends Ctrl+S, verifies the server reached Revision 2, then delivers the old response. The unfixed UI remains at Revision 1 and fails after 29.648 seconds. This reproduces the ordering defect independently of CI timing.
+
+**Left.** Fix refresh ordering and run focused browser and documentation checks.
+
+**Gotchas.** No inference changes. Keep this independent of backup validation and message-action styling.
 
 
 ## Standalone dashboard upstream key file (2026-11-15, Done)

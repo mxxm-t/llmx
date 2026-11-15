@@ -513,10 +513,28 @@ try {
   await closeAction('#conversation-cancel');
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/file')).length, fileWritesBeforeArtifactCancel, 'cancelled generated-file edit wrote a file');
   assert.equal(await evaluate("document.querySelector('.workspace-file-path').textContent"), 'Research', 'cancelled generated-file edit changed the selected file');
+  await evaluate(`{
+    const originalFetch=window.fetch;
+    window.releaseWorkspaceRefresh=null;
+    window.workspaceRefreshDelivered=false;
+    window.fetch=async(...args)=>{
+      const response=await originalFetch(...args);
+      if(new URL(args[0],location.href).pathname==='/api/workspace'){
+        window.fetch=originalFetch;
+        await new Promise(resolve=>{window.releaseWorkspaceRefresh=resolve;});
+        window.workspaceRefreshDelivered=true;
+      }
+      return response;
+    };
+    document.querySelector('.workspace-actions .secondary-button').click();
+  }`);
+  await wait("typeof window.releaseWorkspaceRefresh==='function'", 'held stale workspace refresh');
   await fill('#workspace-editor', 'second version\n');
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 's', code: 'KeyS', modifiers: 2});
   await cdp('Input.dispatchKeyEvent', {type: 'keyUp', key: 's', code: 'KeyS', modifiers: 2});
-  await wait("document.querySelector('.workspace-revision').textContent==='Revision 2'", 'keyboard save');
+  await wait("fetch('/api/workspace').then(r=>r.json()).then(s=>s.revision===2)", 'keyboard save reached server');
+  await evaluate("window.releaseWorkspaceRefresh()");
+  await wait("window.workspaceRefreshDelivered && document.querySelector('.workspace-revision').textContent==='Revision 2'", 'saved revision survives delayed refresh');
   await click('.checkpoint-actions button:first-child');
   await wait("document.querySelector('#artifact-dialog').open", 'checkpoint diff');
   assert((await evaluate("document.querySelector('.artifact-source').textContent")).includes('+second version'));

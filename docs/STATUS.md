@@ -1,14 +1,10 @@
 # llmx - Development Status
 
-## Chat light theme (2026-11-15, in progress)
+## Chat light theme (2026-11-15, Done)
 
-**Goal.** Light mode renders readable Chat, Monitor and Workspace surfaces through the shared dashboard theme.
+Monitor panels, topology, lookup storage, labels and existing chart strokes now use the shared theme palette. Light mode no longer mixes dark cards with the light page. Five reusable palette roles replace fixed colors, with readable light accents and the dark gradient retained. Workspace console warnings use the same amber token.
 
-**Done.** Found fixed dark dashboard colors behind the light theme attribute. Existing browser checks assert the attribute but not rendered panel colors.
-
-**Left.** Add a failing rendered-color regression, replace fixed presentation colors at the shared theme owner, and check both themes and responsive layout.
-
-**Gotchas.** Presentation only. No collector, inference or production changes.
+The browser regression first failed on the original dark card gradient under light mode. It now checks six rendered panel surfaces and text contrast of at least 4.5:1, Settings toggles, iframe propagation and reload persistence. The complete companion browser check passes, including seven responsive sizes and 200 percent CSS zoom; 13 focused dashboard checks, JavaScript syntax, Markdown and dead-code checks pass. Light and dark screenshots were reviewed. This static presentation fix lands by fast-forward as a failing-test commit and its fix. No collector, server or inference logic changes, so no numerical or inference performance gates apply.
 
 ## Chat workspace (2026-11-15, Done)
 

@@ -264,6 +264,17 @@ try {
   assert.equal(await evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()===getComputedStyle(document.querySelector('#monitor-frame').contentDocument.documentElement).getPropertyValue('--bg').trim()"), true, 'shell does not reuse dashboard theme');
   await click('.global-nav [data-view="preferences"]');
   assert((await evaluate("document.querySelector('#view-preferences').innerText")).includes('qwen3-local'));
+  await pointerClick('#view-preferences [data-action="theme"]');
+  assert.equal(await evaluate('document.documentElement.dataset.theme'), 'dark');
+  await wait("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme==='dark'", 'monitor returns to dark');
+  await pointerClick('#view-preferences [data-action="theme"]');
+  assert(luminance(await evaluate('getComputedStyle(document.body).backgroundColor')) > 0.5, 'Settings toggle did not render a light page');
+  await reloadDocument();
+  await wait("window.ChatShell?.config!==null && document.querySelector('#connection').textContent!=='Connecting'", 'theme preference restored after reload');
+  assert.equal(await evaluate('document.documentElement.dataset.theme'), 'light', 'saved theme not restored');
+  assert(luminance(await evaluate('getComputedStyle(document.body).backgroundColor')) > 0.5, 'Reload left the page dark');
+  await click('.global-nav [data-view="preferences"]');
+
   await screenshot('studio-settings-desktop.png');
   const downloadPath = path.join(profile, 'downloads'); await mkdir(downloadPath, {recursive:true});
   await cdp('Browser.setDownloadBehavior', {behavior: 'allow', downloadPath});

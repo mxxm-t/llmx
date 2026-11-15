@@ -126,7 +126,8 @@ Raw context metadata preserves any dropped-message and dropped-token counts.
 
 The existing health dashboard remains the view for device topology, cache tiers,
 PLE placement and aggregate runtime throughput, embedded in Monitor. Its renderer,
-collector and theme are reused directly. One collector polls the configured
+collector and theme are reused directly. Light and dark mode apply to the monitor's
+panels, charts and labels as well as the surrounding workspace. One collector polls the configured
 upstream's `/v1/health` every two seconds, independent of the number of tabs.
 The browser receives those collected updates over SSE. This does not turn llmx's
 health endpoint into a push endpoint. Missing measurements stay unavailable.

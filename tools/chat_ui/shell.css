@@ -771,7 +771,7 @@
   color: var(--danger);
 }
 .console-warn {
-  color: #f0c58d;
+  color: var(--amber);
 }
 @media (min-width: 1600px) {
   .workspace:not([data-view=chat]),

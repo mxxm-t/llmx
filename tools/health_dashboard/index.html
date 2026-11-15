@@ -3,7 +3,7 @@
  <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width,initial-scale=1" name="viewport"/>
-  <meta content="dark" name="color-scheme"/>
+  <meta content="dark light" name="color-scheme"/>
   <title>
    llmx monitor
   </title>
@@ -46,7 +46,7 @@ svg {
 }
 header {
   border-bottom: 1px solid var(--line);
-  background: #0e151e
+  background: var(--header)
 }
 header .inner {
   max-width: 1560px;
@@ -65,9 +65,9 @@ header .inner {
 .mark {
   width: 34px;
   height: 34px;
-  border: 1px solid #37605e;
+  border: 1px solid var(--brand-line);
   border-radius: 10px;
-  background: #162f32;
+  background: var(--brand-bg);
   display: grid;
   place-items: center;
   color: var(--cyan)
@@ -77,14 +77,14 @@ header .inner {
   letter-spacing: -1px
 }
 .brand .slash {
-  color: #425166;
+  color: var(--muted);
   font-size: 23px;
   font-weight: 300;
   margin: 0 3px
 }
 .brand .sub {
   font-size: 13px;
-  color: #a4b1c3;
+  color: var(--secondary);
   letter-spacing: .02em
 }
 .header-right {
@@ -104,15 +104,15 @@ header .inner {
   width: 7px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 0 4px #f3c17e0c
+  box-shadow: 0 0 0 4px color-mix(in srgb,var(--amber) 5%,transparent)
 }
 .live.good .dot {
   background: var(--cyan);
-  box-shadow: 0 0 0 4px #66dfd110
+  box-shadow: 0 0 0 4px color-mix(in srgb,var(--cyan) 6%,transparent)
 }
 .live.bad .dot {
   background: var(--red);
-  box-shadow: 0 0 0 4px #f48d9910
+  box-shadow: 0 0 0 4px color-mix(in srgb,var(--red) 6%,transparent)
 }
 .external {
   display: flex;
@@ -157,7 +157,7 @@ h2 {
 h3 {
   font-size: 11px;
   font-weight: 600;
-  color: #a8b7ca;
+  color: var(--secondary);
   letter-spacing: .07em;
   text-transform: uppercase;
   margin: 0 0 14px
@@ -176,7 +176,7 @@ p {
 }
 .segmented {
   padding: 4px;
-  background: #111923;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 9px;
   display: flex;
@@ -191,7 +191,7 @@ p {
   border-radius: 5px
 }
 .segmented button[aria-pressed=true] {
-  background: #293746;
+  background: var(--selected);
   color: var(--text);
   box-shadow: 0 1px 3px #0003
 }
@@ -202,7 +202,7 @@ p {
   background: transparent;
   border: 1px solid var(--line);
   border-radius: var(--ui-control-radius);
-  color: #bdc9d9;
+  color: var(--secondary);
   padding: var(--ui-control-padding);
   font-size: 12px
 }
@@ -210,13 +210,13 @@ p {
   background: var(--raised)
 }
 .pause[aria-pressed=true] {
-  border-color: #6c573b;
+  border-color: color-mix(in srgb,var(--amber) 35%,var(--line));
   color: var(--amber)
 }
 .notice {
   display: none;
-  border: 1px solid #645036;
-  background: #282217;
+  border: 1px solid color-mix(in srgb,var(--amber) 35%,var(--line));
+  background: color-mix(in srgb,var(--amber) 9%,var(--panel));
   color: var(--amber);
   padding: 12px 16px;
   border-radius: 8px;
@@ -230,7 +230,7 @@ p {
 .startup-card {
   margin-bottom: 18px;
   padding: 18px 20px;
-  border-color: #514633
+  border-color: color-mix(in srgb,var(--amber) 35%,var(--line))
 }
 .startup-card[hidden] { display: none }
 .startup-head {
@@ -269,10 +269,10 @@ p {
   padding: 9px 11px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #0e151e;
+  background: var(--inset);
   font-size: 11px
 }
-.startup-phase-name { overflow-wrap: anywhere; color: #dce6f1 }
+.startup-phase-name { overflow-wrap: anywhere; color: var(--text) }
 .startup-phase-state { color: var(--muted) }
 .startup-phase-state.running { color: var(--amber) }
 .startup-phase-state.failed { color: var(--red) }
@@ -282,7 +282,7 @@ p {
   margin-top: 6px;
   overflow: hidden;
   border-radius: 4px;
-  background: #253140
+  background: var(--track)
 }
 .startup-progress span { display: block; height: 100%; background: var(--cyan) }
 .startup-files { display: grid; gap: 3px; margin-top: 6px; font-size: 10px }
@@ -309,7 +309,7 @@ p {
   margin-bottom: 18px
 }
 .card {
-  background: linear-gradient(145deg,#131c27,#101822);
+  background: var(--card-background);
   border: 1px solid var(--line);
   border-radius: var(--ui-card-radius);
   overflow: hidden;
@@ -320,7 +320,7 @@ p {
   position: relative
 }
 .card-label {
-  color: #a9b6c8;
+  color: var(--secondary);
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -328,7 +328,7 @@ p {
   gap: 8px
 }
 .card-label svg {
-  color: #567184
+  color: var(--muted)
 }
 .big {
   font-size: 33px;
@@ -360,11 +360,11 @@ p {
 .small-pill {
   font-size: 10px;
   letter-spacing: .03em;
-  border: 1px solid #294740;
+  border: 1px solid var(--brand-line);
   border-radius: 5px;
   padding: 3px 6px;
-  background: #16312b;
-  color: #86d4ba
+  background: var(--brand-bg);
+  color: var(--cyan)
 }
 .primary {
   grid-template-columns: 1.6fr 1fr;
@@ -416,7 +416,7 @@ p {
   overflow: visible
 }
 .chart text {
-  fill: #77899f;
+  fill: var(--muted);
   font-size: 11px;
   font-family: inherit
 }
@@ -426,7 +426,7 @@ p {
   right: 14px;
   color: var(--muted);
   font-size: 10px;
-  background: #202936;
+  background: var(--selected);
   padding: 2px 5px;
   border-radius: 3px
 }
@@ -440,11 +440,11 @@ p {
   gap: 9px;
   color: var(--muted);
   font-size: 12px;
-  background: linear-gradient(0deg,#111923d9,transparent)
+  background: linear-gradient(0deg,var(--panel),transparent)
 }
 .chart-empty small {
   font-size: 10px;
-  color: #63768d
+  color: var(--muted)
 }
 .tooltip {
   pointer-events: none;
@@ -452,9 +452,9 @@ p {
   z-index: 5;
   top: 8px;
   left: 60px;
-  background: #1b2838f5;
-  border: 1px solid #3a4d61;
-  box-shadow: 0 8px 24px #0005;
+  background: var(--tooltip-background);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 11px;
@@ -465,7 +465,7 @@ p {
   display: block;
   font-weight: 500;
   margin-bottom: 8px;
-  color: #c0cfe0
+  color: var(--secondary)
 }
 .tooltip div {
   display: flex;
@@ -475,7 +475,7 @@ p {
 }
 .chart-summary {
   font-size: 12px;
-  color: #74869c;
+  color: var(--muted);
   padding: 0 22px 16px;
   line-height: 1.5
 }
@@ -512,7 +512,7 @@ p {
 }
 .bar {
   height: 6px;
-  background: #253140;
+  background: var(--track);
   border-radius: 4px;
   overflow: hidden
 }
@@ -537,7 +537,7 @@ p {
   gap: 12px
 }
 .section-title>span {
-  color: #617388;
+  color: var(--muted);
   font-size: 11px;
   letter-spacing: .06em
 }
@@ -558,17 +558,17 @@ p {
 .topology-head p { margin-top: 5px }
 .topology-badges { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end }
 .topology-badge {
-  border: 1px solid #294740;
+  border: 1px solid var(--brand-line);
   border-radius: 6px;
   padding: 5px 8px;
-  color: #91d7c3;
-  background: #142923;
+  color: var(--cyan);
+  background: var(--brand-bg);
   font-size: 10px;
   white-space: nowrap
 }
-.topology-badge.mixed { color: var(--amber); border-color: #5a4930; background: #282217 }
+.topology-badge.mixed { color: var(--amber); border-color: color-mix(in srgb,var(--amber) 35%,var(--line)); background: color-mix(in srgb,var(--amber) 9%,var(--panel)) }
 .topology-layout { display: grid; grid-template-columns: minmax(0,1.4fr) minmax(220px,.8fr); gap: 14px }
-.topology-stages, .topology-roles { min-width: 0; border: 1px solid var(--line); border-radius: 9px; background: #0e151e; padding: 14px }
+.topology-stages, .topology-roles { min-width: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--inset); padding: 14px }
 .topology-stage-list { display: grid; gap: 9px }
 .topology-stage {
   display: grid;
@@ -576,30 +576,30 @@ p {
   gap: 12px;
   align-items: stretch
 }
-.topology-stage-index { color: #7b8da3; font: 10px ui-monospace,monospace; padding-top: 12px }
-.topology-stage-body { border-left: 2px solid var(--cyan); background: #131e29; border-radius: 0 7px 7px 0; padding: 10px 12px; min-width: 0 }
+.topology-stage-index { color: var(--muted); font: 10px ui-monospace,monospace; padding-top: 12px }
+.topology-stage-body { border-left: 2px solid var(--cyan); background: var(--raised); border-radius: 0 7px 7px 0; padding: 10px 12px; min-width: 0 }
 .topology-stage-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 12px }
 .topology-stage-range { color: var(--muted); font: 10px ui-monospace,monospace; white-space: nowrap }
 .topology-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px }
-.topology-member { color: #b9c8d9; background: #202d3b; border-radius: 4px; padding: 4px 7px; font-size: 10px }
-.topology-member.unused { color: #75849a; border: 1px dashed #354253; background: transparent }
+.topology-member { color: var(--secondary); background: var(--selected); border-radius: 4px; padding: 4px 7px; font-size: 10px }
+.topology-member.unused { color: var(--muted); border: 1px dashed var(--line); background: transparent }
 .topology-roles-grid { display: grid; gap: 10px }
-.topology-role { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; border-bottom: 1px solid #1e2a37; padding-bottom: 8px }
+.topology-role { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; border-bottom: 1px solid var(--line); padding-bottom: 8px }
 .topology-role span:first-child { color: var(--muted) }
 .topology-role span:last-child { text-align: right; overflow-wrap: anywhere }
 .topology-details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px }
-.topology-details summary { color: #a9b8ca; font-size: 11px; cursor: pointer }
+.topology-details summary { color: var(--secondary); font-size: 11px; cursor: pointer }
 .topology-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px }
-.topology-table th, .topology-table td { text-align: left; vertical-align: top; border-bottom: 1px solid #1e2a37; padding: 7px 8px }
-.topology-table th { color: #8293a8; font-weight: 500 }
+.topology-table th, .topology-table td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 7px 8px }
+.topology-table th { color: var(--muted); font-weight: 500 }
 .topology-empty { color: var(--muted); padding: 10px 0; font-size: 11px }
 .lookup-card { margin-bottom: 18px }
 .lookup-card .card-head { padding: 0 }
 .lookup-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11px }
 .lookup-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 9px; margin-top: 12px }
-.lookup-item { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #0e151e; padding: 12px 14px }
+.lookup-item { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--inset); padding: 12px 14px }
 .lookup-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px }
-.lookup-item strong { display: block; color: #e4edf8; font-size: 14px }
+.lookup-item strong { display: block; color: var(--text); font-size: 14px }
 .lookup-size { margin-top: 0; font-size: 26px; white-space: nowrap }
 .lookup-size .unit { display: inline; font-size: 11px }
 .lookup-item span { display: block; color: var(--muted); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere }
@@ -633,7 +633,7 @@ p {
   color: var(--cyan)
 }
 .tier-index {
-  color: #4c6279;
+  color: var(--muted);
   font-family: ui-monospace,monospace;
   font-size: 11px
 }
@@ -660,7 +660,7 @@ p {
 }
 .tier-note {
   font-size: 10px;
-  color: #72859a;
+  color: var(--muted);
   margin-top: 17px;
   line-height: 1.5
 }
@@ -707,7 +707,7 @@ p {
 }
 .ring circle {
   fill: none;
-  stroke: #263343;
+  stroke: var(--track);
   stroke-width: 5
 }
 .ring circle:last-child {
@@ -723,11 +723,11 @@ p {
   font-size: 12px;
   color: var(--muted);
   padding: 9px 0;
-  border-top: 1px solid #22304080;
+  border-top: 1px solid var(--line);
   gap: 10px
 }
 .detail-line span:last-child {
-  color: #d5dfec;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   text-align: right;
   overflow-wrap: anywhere
@@ -785,7 +785,7 @@ p {
   bottom: 0;
   left: 0;
   right: 0;
-  background: #5bc5ba;
+  background: var(--cyan);
   border-radius: 2px 2px 0 0
 }
 .position-depth {
@@ -835,7 +835,7 @@ p {
   margin-top: 8px
 }
 .position-label {
-  color: #6e8095;
+  color: var(--muted);
   font-size: 9px;
   display: block;
   height: 12px;
@@ -863,7 +863,7 @@ p {
   height: 12px;
   overflow: hidden;
   border-radius: 4px;
-  background: #263544
+  background: var(--track)
 }
 .own-history-track .kept {
   background: var(--cyan)
@@ -872,7 +872,7 @@ p {
   display: flex;
   justify-content: space-between;
   margin-top: 5px;
-  color: #77899f;
+  color: var(--muted);
   font-size: 11px
 }
 .own-history-legend {
@@ -896,7 +896,7 @@ p {
   display: block;
   font-size: 11px;
   font-weight: 400;
-  color: #b4c9d4;
+  color: var(--secondary);
   margin-bottom: 5px
 }
 .live-requests-card {
@@ -908,7 +908,7 @@ p {
   margin: 4px 0 12px
 }
 .live-request-summary {
-  color: #a9b8ca;
+  color: var(--secondary);
   font-size: 12px;
   margin: 0 0 10px
 }
@@ -926,7 +926,7 @@ p {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: #0e151e
+  background: var(--inset)
 }
 .live-request-head {
   display: flex;
@@ -935,7 +935,7 @@ p {
 }
 .live-request-id {
   font: 600 12px ui-monospace,SFMono-Regular,Consolas,monospace;
-  color: #e4edf8
+  color: var(--text)
 }
 .live-request-elapsed {
   margin-left: auto;
@@ -952,7 +952,7 @@ p {
 .live-request-rate {
   padding: 9px 11px;
   border-radius: 7px;
-  background: #151f2c
+  background: var(--raised)
 }
 .live-request-rate span {
   display: block;
@@ -986,7 +986,7 @@ p {
   text-overflow: ellipsis
 }
 .live-request-rate .live-rate-status.stale {
-  color: #f3c17e
+  color: var(--amber)
 }
 .live-request-details {
   margin-top: 8px;
@@ -1013,7 +1013,7 @@ p {
   height: 4px;
   overflow: hidden;
   border-radius: 4px;
-  background: #253343
+  background: var(--track)
 }
 .live-image-track > span {
   display: block;
@@ -1043,8 +1043,8 @@ p {
   font-variant-numeric: tabular-nums
 }
 .live-phase {
-  color: #b9c8d9;
-  background: #202d3b;
+  color: var(--secondary);
+  background: var(--selected);
   border-radius: 4px;
   display: inline-block;
   padding: 3px 6px;
@@ -1058,7 +1058,7 @@ p {
   color: var(--muted)
 }
 .no-data {
-  color: #6e8095;
+  color: var(--muted);
   font-size: 11px;
   padding: 10px 0
 }
@@ -1066,8 +1066,8 @@ p {
   display: inline-flex;
   font-size: 10px;
   color: var(--cyan);
-  border: 1px solid #2b514f;
-  background: #16302f;
+  border: 1px solid var(--brand-line);
+  background: var(--brand-bg);
   padding: 4px 7px;
   border-radius: 5px;
   margin: 14px 0
@@ -1113,7 +1113,7 @@ p {
 .metadata dd {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #c8d6e7
+  color: var(--text)
 }
 .metadata code {
   font-family: ui-monospace,SFMono-Regular,Consolas,monospace;
@@ -1121,7 +1121,7 @@ p {
 }
 .rope-details {
   margin-top: 16px;
-  border-top: 1px solid #22304080;
+  border-top: 1px solid var(--line);
   padding-top: 12px
 }
 .rope-details h3 {
@@ -1135,9 +1135,9 @@ p {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 6px;
-  border: 1px solid #8298b3;
+  border: 1px solid var(--muted);
   border-radius: 10px;
-  color: #dce8f7;
+  color: var(--text);
   font-size: 10px;
   vertical-align: 1px
 }
@@ -1153,7 +1153,7 @@ p {
 }
 .event {
   padding: 10px 0;
-  border-top: 1px solid #22304080;
+  border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: 59px 1fr;
   gap: 12px;
@@ -1161,7 +1161,7 @@ p {
   line-height: 1.5
 }
 .event time {
-  color: #6c829a;
+  color: var(--muted);
   font-variant-numeric: tabular-nums
 }
 .event .kind {
@@ -1174,7 +1174,7 @@ p {
 .event p {
   font-size: 11px;
   overflow-wrap: anywhere;
-  color: #adbdd0
+  color: var(--secondary)
 }
 .explorer {
   margin-top: 24px
@@ -1198,7 +1198,7 @@ p {
   font-weight: 500
 }
 .explorer summary svg {
-  color: #7c91a9;
+  color: var(--muted);
   transition: transform .15s
 }
 .explorer[open] summary svg {
@@ -1217,7 +1217,7 @@ p {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #0b131d;
+  background: var(--inset);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 10px 12px;
@@ -1248,8 +1248,8 @@ table {
 th {
   position: sticky;
   top: 0;
-  background: #111923;
-  color: #8da0b7;
+  background: var(--panel);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 500;
   padding: 10px 12px;
@@ -1257,8 +1257,8 @@ th {
 }
 td {
   padding: 10px 12px;
-  border-bottom: 1px solid #23304070;
-  color: #bacbdf;
+  border-bottom: 1px solid var(--line);
+  color: var(--secondary);
   overflow-wrap: anywhere
 }
 td:first-child {
@@ -1281,7 +1281,7 @@ td:last-child {
   justify-content: space-between;
   gap: 18px;
   margin-top: 24px;
-  color: #65788e;
+  color: var(--muted);
   font-size: 10px;
   line-height: 1.6
 }
@@ -1542,7 +1542,7 @@ td:last-child {
   font-size: 11px;
   letter-spacing: .08em;
   padding: 6px 9px;
-  border: 1px solid #2b484b;
+  border: 1px solid var(--brand-line);
   border-radius: 5px;
   white-space: nowrap;
 }
@@ -1568,9 +1568,9 @@ td:last-child {
   gap: 9px;
   align-items: baseline;
   padding: 12px 22px;
-  background: #15202b;
+  background: var(--raised);
   border-top: 1px solid var(--line);
-  color: #adbed0;
+  color: var(--secondary);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1592,7 +1592,7 @@ td:last-child {
 .inspection-toolbar strong {
   font-size: 12px;
   font-weight: 500;
-  color: #c4d4e6;
+  color: var(--secondary);
 }
 .inspection-toolbar p {
   font-size: 10px;
@@ -1612,7 +1612,7 @@ button[hidden] {
 .fold > summary {
   cursor: pointer;
   font-size: 11px;
-  color: #9cb1c6;
+  color: var(--secondary);
   padding: 13px 0 0;
   line-height: 1.6;
 }
@@ -1646,7 +1646,7 @@ button[hidden] {
   padding: 16px;
 }
 .movement-fold .moves .card {
-  background: #101822;
+  background: var(--inset);
 }
 .event-key {
   display: flex;
@@ -1668,7 +1668,7 @@ button[hidden] {
 }
 .event-key small {
   font-size: 9px;
-  color: #687c93;
+  color: var(--muted);
 }
 .compact main {
   padding-top: 22px;
@@ -1787,7 +1787,7 @@ button[hidden] {
   overflow: hidden;
   margin-top: 5px;
   font-size: 12px;
-  color: #8ba2b9;
+  color: var(--muted);
 }
 .rate-card .under-chart {
   grid-template-columns: 1fr 1fr;
@@ -3648,7 +3648,7 @@ function drawOwnHistory(raw) {
   const keptSwatch = element('i'); keptSwatch.style.background = 'var(--cyan)';
   keptLabel.append(keptSwatch, document.createTextNode('Kept ' + fmt(kept)));
   const missedLabel = element('span');
-  const missedSwatch = element('i'); missedSwatch.style.background = '#354657';
+  const missedSwatch = element('i'); missedSwatch.style.background = 'var(--track)';
   missedLabel.append(missedSwatch, document.createTextNode('Not kept ' + fmt(drafted - kept)));
   legend.append(keptLabel, missedLabel);
   target.append(legend)
@@ -4137,7 +4137,7 @@ const chartConfigurations = [{
   format: formatRate,
   fields: ['requests.since_start.prompt_tokens'],
   labels: ['Completed prompt tok/s'],
-  colors: ['#7aa9ff'],
+  colors: ['var(--blue)'],
   values: (samples, i, config) => config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null),
   note: 'Includes cached prompt tokens; counted at request completion. Gaps indicate unavailable rates.'
 },
@@ -4148,7 +4148,7 @@ const chartConfigurations = [{
   format: formatRate,
   fields: ['requests.since_start.generated_tokens'],
   labels: ['Completed generated tok/s'],
-  colors: ['#66dfd1'],
+  colors: ['var(--cyan)'],
   values: (samples, i, config) => config.fields.map(path => workRateMeasurement(samples, i, path, config.clockField, config.mode !== 'completed')?.rate ?? null),
   note: 'Completed-request counter deltas; gaps mark missing samples or counter resets.'
 },
@@ -4158,7 +4158,7 @@ const chartConfigurations = [{
   unit: 'requests',
   fields: ['requests.now.active', 'requests.now.queued', 'requests.now.paused'],
   labels: ['Active', 'Queued', 'Paused'],
-  colors: ['#66dfd1', '#7aa9ff', '#f3c17e'],
+  colors: ['var(--cyan)', 'var(--blue)', 'var(--amber)'],
   values: (samples, i, config) => config.fields.map(path => samples[i].metrics[path]),
   note: 'Current concurrent counts at each sample; gaps mark missing samples or restarts.'
 },
@@ -4168,7 +4168,7 @@ const chartConfigurations = [{
   unit: '% of configured limit',
   floor: 100,
   labels: ['Host %', 'Disk %'],
-  colors: ['#7aa9ff', '#b09aff'],
+  colors: ['var(--blue)', 'var(--violet)'],
   values: (samples, i) => ['host', 'disk'].map(tier => {
     const metrics = samples[i].metrics;
     const share = ratio(metrics['reuse.' + tier + '.now.bytes'], metrics['reuse.' + tier + '.now.limit_bytes']);
@@ -4431,7 +4431,7 @@ function renderChart(samples, stamp, config, events, motion = null, telemetryAva
       y1: yy,
       x2: W - R,
       y2: yy,
-      stroke: '#253343',
+      stroke: 'var(--track)',
       'stroke-dasharray': '3 5'
     }), label);
   }
@@ -4481,7 +4481,7 @@ function renderChart(samples, stamp, config, events, motion = null, telemetryAva
       const left = Math.max(start, points[Math.max(0, first - 1)].t);
       const right = Math.min(end, points[i + 1]?.t || end);
       if (right <= left) continue;
-      const band = svgNode('rect', {x: x(left), y: T, width: x(right) - x(left), height: H - T - B, fill: '#8390a5', opacity: '.12', 'data-rate-gap': 'true'});
+      const band = svgNode('rect', {x: x(left), y: T, width: x(right) - x(left), height: H - T - B, fill: 'var(--muted)', opacity: '.12', 'data-rate-gap': 'true'});
       band.append(svgNode('title', {}, points[first].reasons?.[0] || 'Missing samples or server reset'));
       plotMotion.append(band);
       shaded = true
@@ -4526,7 +4526,7 @@ function renderChart(samples, stamp, config, events, motion = null, telemetryAva
     format, top: T, bottom: H - B, height: H - T - B};
   updateChartScaleNode(scaleEntry, performance.now());
   if (motion?.animate && scale.startCap !== scale.targetCap) chartScaleNodes.add(scaleEntry);
-  const eventColors = { restart: '#f48d99', disconnect: '#f3c17e', recovery: '#66dfd1' };
+  const eventColors = { restart: 'var(--red)', disconnect: 'var(--amber)', recovery: 'var(--cyan)' };
   events.filter(event => event.t >= start && event.t <= end && eventColors[event.kind]).forEach(event => {
     const marker = svgNode('g');
     marker.append(svgNode('title', {}, event.kind + ': ' + event.message + ' / ' + new Date(event.t * 1000).toLocaleTimeString()),
@@ -4539,7 +4539,7 @@ function renderChart(samples, stamp, config, events, motion = null, telemetryAva
     x2: 0,
     y1: T,
     y2: H - B,
-    stroke: '#7f95ad',
+    stroke: 'var(--muted)',
     'stroke-dasharray': '3 3',
     visibility: 'hidden'
   });

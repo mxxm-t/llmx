@@ -8,15 +8,27 @@ const [url, executable, profile, artifacts, fixture, imageFixture, originalDashb
   textMaxFixture, textOverFixture, imageMaxFixture, imageOverFixture, tinyFixture, textRawOverFixture, textBomMaxFixture,
   textRaceAFixture, textRaceBFixture] = process.argv.slice(2);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const startupTimeoutArg = process.argv.find(arg => arg.startsWith('--startup-timeout-ms='));
+const startupTimeoutCandidate = startupTimeoutArg ? Number(startupTimeoutArg.slice('--startup-timeout-ms='.length)) : NaN;
+const startupTimeoutMs = Number.isSafeInteger(startupTimeoutCandidate) && startupTimeoutCandidate > 0
+  ? startupTimeoutCandidate : 30000;
 const launchArgs = ['--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile,
   '--window-size=1440,1000', 'about:blank'];
 if (process.platform === 'linux') launchArgs.unshift('--no-sandbox');
+const startupStarted = Date.now();
 const chrome = spawn(executable, launchArgs, {stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true});
 let launchError = null, launchStderr = '';
 chrome.on('error', error => { launchError = error; });
 chrome.stderr.on('data', chunk => { launchStderr = (launchStderr + chunk.toString()).slice(-8192); });
-function launchDiagnostic(reason) { return new Error(reason + '\nExecutable: ' + executable + '\nPlatform: ' + process.platform + '\nChrome stderr (last 8 KiB):\n' + (launchStderr || '[No stderr received]')); }
+function launchDiagnostic(reason) {
+  const processState = chrome.exitCode === null && chrome.signalCode === null
+    ? 'still running' : 'exited with code=' + chrome.exitCode + ', signal=' + chrome.signalCode;
+  return new Error(reason + '\nExecutable: ' + executable + '\nPlatform: ' + process.platform +
+    '\nChrome process: pid=' + chrome.pid + ', ' + processState +
+    '\nChrome argv: ' + JSON.stringify(launchArgs) +
+    '\nChrome stderr (last 8 KiB):\n' + (launchStderr || '[No stderr received]'));
+}
 let socket;
 let nextId = 0;
 const pending = new Map();
@@ -44,7 +56,11 @@ async function evaluate(expression) {
 async function wait(expression, description, timeout = 12000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) { if (typeof expression === 'function' ? await expression() : await evaluate(expression)) return; await delay(80); }
-  throw new Error('Timed out waiting for ' + description + '\n' + await evaluate('document.body.innerText'));
+  let detail = '';
+  if (description === 'saved theme after reload') {
+    try { detail = '\nTheme state: ' + JSON.stringify(await evaluate("({url:location.href,readyState:document.readyState,theme:document.documentElement.dataset.theme,storedTheme:localStorage.getItem('llmx-theme')})")); } catch {}
+  }
+  throw new Error('Timed out waiting for ' + description + '\n' + await evaluate('document.body.innerText') + detail);
 }
 async function documentIdentity() {
   const {frameTree} = await cdp('Page.getFrameTree');
@@ -117,17 +133,35 @@ async function sidebarFocusSamples(selector) {
 
 try {
   let port;
-  for (let i = 0; i < 100; i++) {
+  const startupDeadline = startupStarted + startupTimeoutMs;
+  while (Date.now() < startupDeadline) {
     if (launchError) throw launchDiagnostic('Chrome failed to spawn: ' + launchError.message);
     if (chrome.exitCode !== null || chrome.signalCode !== null) throw launchDiagnostic('Chrome exited before opening DevTools: exit=' + chrome.exitCode + ', signal=' + chrome.signalCode);
     try { port = Number((await readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); if (port) break; } catch {}
-    await delay(80);
+    await delay(Math.min(80, Math.max(0, startupDeadline - Date.now())));
   }
-  if (!port) throw launchDiagnostic('Chrome did not open DevTools within 8 seconds');
-  const targets = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
-  const target = targets.find(t => t.type === 'page');
+  const startupElapsedMs = Date.now() - startupStarted;
+  if (!port) throw launchDiagnostic('Chrome did not open DevTools within ' + startupElapsedMs + ' ms (limit ' + startupTimeoutMs + ' ms)');
+  const startupUrl = 'http://127.0.0.1:' + port + '/json/list';
+  let target;
+  while (!target && Date.now() < startupDeadline) {
+    const remaining = startupDeadline - Date.now();
+    try {
+      const response = await fetch(startupUrl, {signal: AbortSignal.timeout(Math.min(500, Math.max(1, remaining)))});
+      if (response.ok) target = (await response.json()).find(t => t.type === 'page');
+    } catch {}
+    if (!target) await delay(Math.min(80, Math.max(0, startupDeadline - Date.now())));
+  }
+  if (!target) throw launchDiagnostic('Chrome DevTools HTTP endpoint did not become ready within ' + (Date.now() - startupStarted) + ' ms (limit ' + startupTimeoutMs + ' ms)');
   socket = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+  await new Promise((resolve, reject) => {
+    const remaining = startupDeadline - Date.now();
+    if (remaining <= 0) { reject(launchDiagnostic('Chrome DevTools WebSocket did not open within ' + (Date.now() - startupStarted) + ' ms (limit ' + startupTimeoutMs + ' ms)')); return; }
+    const timeout = setTimeout(() => reject(launchDiagnostic('Chrome DevTools WebSocket did not open within ' + (Date.now() - startupStarted) + ' ms (limit ' + startupTimeoutMs + ' ms)')), remaining);
+    socket.onopen = () => { clearTimeout(timeout); resolve(); };
+    socket.onerror = () => { clearTimeout(timeout); reject(launchDiagnostic('Chrome DevTools WebSocket connection failed')); };
+  });
+  console.log('Chrome DevTools ready in ' + (Date.now() - startupStarted) + ' ms');
   socket.onmessage = event => {
     const data = JSON.parse(event.data);
     if (data.id && pending.has(data.id)) { const call = pending.get(data.id); pending.delete(data.id); clearTimeout(call.timeout); if (data.error) call.reject(new Error(JSON.stringify(data.error))); else call.resolve(data.result); }

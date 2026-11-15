@@ -12,6 +12,19 @@
 
 **Gotchas.** Sidebar markup is emitted by `tools/chat_ui/app.js`; layout is in `tools/chat_ui/shell.css`; `.chat-item` states are in `tools/chat_ui/app.css`. Do not alter `browser_check.mjs`'s Chrome launch block.
 
+## Linux Chat browser startup diagnostics (2026-11-16, Done)
+
+**Goal.** Resolve intermittent Linux Chrome startup failures before DevTools becomes available, with a bounded startup wait and actionable failure details.
+
+**Done.** Chrome launch diagnostics now report PID, exit or signal state, launch arguments and recent stderr. DevTools file, HTTP endpoint and WebSocket readiness share a configurable internal deadline that defaults to 30 seconds; successful launch logs measured elapsed time. Early spawn errors and process exits still fail immediately.
+
+**Checks.** The Linux fake-process regression uses a 150 ms deadline, asserts both that configured limit and measured elapsed time, and checks live-process diagnostics and captured stderr. Hosted Chat run [43768339216](https://github.com/mxxm-t/llmx/actions/runs/43768339216) passes on Linux and Windows for the browser startup change. The local Linux full fixture failed image loading with `ERR_INSUFFICIENT_RESOURCES` in the 64 MiB `/dev/shm` container on both base and candidate. A same-source control in a 1 GiB `/dev/shm` container passed in 39.841 seconds with DevTools ready in 273 ms, supporting a shared-memory resource cause; peak `/dev/shm` use was not sampled. Logs are retained in `worktrees/chat-browser-launch-20261115/scratch/chat-browser-startup-20261115/` and `worktrees/chat-theme-linux-diag-20261116/scratch/theme-reload-20261116/shm1g-exact.log`. The Windows browser fixture passes locally in 49.060 seconds with DevTools ready in 1.772 seconds. Node syntax, Python compilation and diff checks pass. The docs component passes with 0 findings and 21 planted checks using the exact-base executable; dead-code reports 15 expected findings and 20 planted checks. The amended test method was also executed in an isolated Linux container and passed in 2.712 seconds. The first extracted runner omitted the source module's re import; that runner failure is retained beside the corrected result in scratch/qualification. The hosted Linux run exercised the preceding assertion against the same timeout behavior.
+
+**Review and landing.** Root verified the three-file test-only scope, removed a stray STATUS heading left by the transplant and ran the updated Linux assertion. The existing main Markdown audit is carried forward for unchanged runtime/build/CLI pages; changed test and STATUS references were reviewed against source. This change lands by fast-forward with focused browser, syntax, docs/dead-code and hosted Chat checks passing. No inference gates apply. No application change is indicated by the shared-memory control.
+
+**Gotchas.** Hosted logs do not include process or I/O samples, so the local cold-start reproduction supports the longer deadline but does not establish the hosted runner's exact resource condition.
+
+
 ## Companion features landed (2026-11-15, Done)
 
 The six companion features below landed on main at `b2367461cdbc55c4e2bf31df3fa93b81f67162ee`.

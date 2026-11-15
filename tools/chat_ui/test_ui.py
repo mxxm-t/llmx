@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 
@@ -35,6 +36,8 @@ class BrowserUpstream(FakeUpstream):
 
     def do_GET(self):
         if self.path == "/browser-step":
+            # The browser observed the preceding chunk; exceed the engine's 50 ms coalescing window before releasing the next.
+            time.sleep(0.1)
             type(self).gate.set()
             self.send_response(204)
             self.end_headers()

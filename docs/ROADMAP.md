@@ -329,6 +329,27 @@ The Qwen image path reads a separate GGUF `mmproj`, decodes PNG and JPEG, and ru
 - **The chat routes** accept PNG and JPEG data URLs. They do not fetch remote image URLs; the exact limits and supported commands are in [USAGE](USAGE.md).
 - **Audio input and output remain planned**, with an audio encoder using the encoder contract, an in-tree decoder, and the omni models' output side after that.
 
+## 11. Owner chat and workspace companion [implemented; follow-ups]
+The standard-library companion is the lightweight self-hosted owner interface
+for chat, runtime monitoring, request inspection and managed workspace tasks.
+It complements other chat clients and does not add multi-user accounts or
+replace the inference server's authentication and scheduling owners.
+
+Prioritized follow-ups:
+- With the server/auth work, require HTTPS for non-loopback browser origins,
+  bound login request bodies, isolate failed-login limits by client and bound
+  concurrent handlers. Coordinate transport/auth changes with their owner.
+- Document the host privileges required by a local Docker daemon and prefer a
+  dedicated or rootless remote daemon where appropriate; the workspace
+  container's existing isolation flags remain in force.
+- Extend dead-code analysis to nested `tools/` packages, including the
+  companion and dashboard.
+- Default the theme from system preference, replace remaining native
+  `prompt()`/`confirm()` flows with accessible dialogs, and settle consistent
+  user-facing names for Studio and Workspace.
+- When server authentication lands, let the standalone dashboard send its
+  API key from a protected file.
+
 ## Non-goals (for now)
 - Training / fine-tuning in-tree
 - Dependencies - keep the "no external libs" property as long as practical

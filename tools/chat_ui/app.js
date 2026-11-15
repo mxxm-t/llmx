@@ -69,7 +69,7 @@
         if (chat.pinned) button.append(node('span', 'pin-mark', '*'));
         const row = node('div', 'chat-row');
         const menu = node('button', 'chat-row-menu', '...'); menu.type = 'button'; menu.dataset.action = 'chat-menu'; menu.dataset.id = chat.id;
-        menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'dialog'); menu.title = 'Conversation actions';
+        menu.setAttribute('aria-label', 'Actions for ' + (chat.title || 'Untitled conversation')); menu.setAttribute('aria-haspopup', 'menu'); menu.title = 'Conversation actions';
         row.append(button, menu); out.append(row);
       });
     });
@@ -130,17 +130,19 @@
       await openChat(chat.id, {chat, messages: [], runs: []}); $('draft').focus();
     } finally { chatCreating(false); }
   }
-  function showChatMenu(id) {
+  function showChatMenu(id, anchor) {
     const chat = S.chats.find(item => item.id === id) || (S.chat?.id === id ? S.chat : null);
     if (!chat) throw new Error('Create a conversation to manage it.');
     menuId = chat.id;
-    $('action-dialog-title').textContent = chat.temporary ? 'Temporary chat' : chat.title || 'Conversation';
-    for (const name of ['pin', 'folder', 'archive']) $('action-dialog').querySelector('[data-action="' + name + '"]').hidden = Boolean(chat.temporary);
-    $('action-dialog').querySelector('[data-action="pin"]').textContent = chat.pinned ? 'Unpin' : 'Pin';
-    $('action-dialog').querySelector('[data-action="archive"]').textContent = chat.archived ? 'Restore from archive' : 'Archive';
-    $('action-dialog').querySelector('[data-action="delete"]').textContent = chat.temporary ? 'End temporary chat' : 'Delete';
-    $('action-dialog').showModal();
-    $('action-dialog').querySelector('[data-action="rename"]').focus();
+    const items = chat.temporary ? [] : [
+      {action: 'rename', label: 'Rename'},
+      {action: 'pin', label: chat.pinned ? 'Unpin' : 'Pin'},
+      {action: 'folder', label: 'Move to folder'},
+      {action: 'duplicate', label: 'Duplicate', separator: true},
+      {action: 'archive', label: chat.archived ? 'Restore from archive' : 'Archive'}
+    ];
+    items.push({action: 'export', label: 'Export JSON', separator: true}, {action: 'delete', label: chat.temporary ? 'End temporary chat' : 'Delete conversation', danger: true, separator: true, disabled: Boolean(chat.temporary && (currentRun() || S.busy))});
+    window.ChatShell.menu(anchor, chat.temporary ? 'Temporary chat' : chat.title || 'Conversation', items, name => action(name, {dataset: {id: chat.id}}).catch(error => toast(error.message)));
   }
   function path() {
     const map = new Map(S.messages.map(m => [m.id, m])); const selected = []; const seen = new Set();
@@ -167,6 +169,9 @@
       const structured = node('details'); structured.append(node('summary', '', 'Structured result'), node('pre', '', full.slice(0, 16384) + (full.length > 16384 ? '\n[Preview truncated]' : ''))); body.append(structured);
       if (full.length > 16384 || preview.length > 16384) { const download = node('button', 'secondary-button', 'Download full result'); download.type = 'button'; download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([full], {type: 'application/json'})); const link = node('a'); link.href = url; link.download = 'tool-result.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }); body.append(download); }
     }
+    if (call.result !== undefined && ['workspace_list', 'workspace_read', 'workspace_write', 'workspace_run'].includes(call.name)) {
+      const open = node('button', 'secondary-button workspace-tool-open', 'Open Workspace'); open.type = 'button'; open.addEventListener('click', () => window.ChatShell.show('workbench')); wrap.append(open);
+    }
     if (call.error) body.append(node('p', 'error-text', json(call.error)));
     if (call.duration_ms !== undefined) body.append(node('small', 'muted', number(call.duration_ms, ' ms')));
     detail.append(summary, body); wrap.append(detail);
@@ -187,7 +192,11 @@
     if (message.attachments?.length) { const attachments = node('div', 'message-attachments'); message.attachments.forEach(a => attachments.append(renderAttachment(a))); el.append(attachments); }
     if (message.reasoning) { const reasoning = node('details', 'reasoning'); reasoning.dataset.disclosure = 'reasoning'; reasoning.append(node('summary', '', 'Reasoning'), markdown(message.reasoning)); el.append(reasoning); }
     if (message.content) el.append(markdown(message.content));
-    (message.tool_calls || []).forEach(call => el.append(toolRow(call, message)));
+    (message.tool_calls || []).forEach(call => {
+      const tool = toolRow(call, message);
+      tool.querySelectorAll('details').forEach((detail, index) => { detail.dataset.disclosure = 'tool:' + call.id + ':' + index; });
+      el.append(tool);
+    });
     if (!message.content && !message.reasoning && !message.tool_calls?.length && message.role === 'assistant' && !terminal(message.status)) el.append(node('span', 'muted fine-print', 'Preparing a response...'));
     const actions = node('div', 'message-actions');
     if (message.content) actions.append(button('Copy', 'copy', message.id));
@@ -220,10 +229,24 @@
       const fingerprint = JSON.stringify(messageKey(message, true)) + S.messages.filter(m => m.parent_id === message.parent_id && m.role === message.role).map(m => m.id).join();
       let old = container.querySelector('[data-message="' + CSS.escape(message.id) + '"]');
       if (S.fingerprint.get(message.id) !== fingerprint || !old) {
-        const open = old ? Array.from(old.querySelectorAll('details')).map(d => d.open) : [];
-        const replacement = messageView(message); replacement.querySelectorAll('details').forEach((d, i) => { d.open = open[i] || false; });
-        if (old) old.replaceWith(replacement); else container.append(replacement);
-        old = replacement; S.fingerprint.set(message.id, fingerprint);
+        const open = new Map(old ? Array.from(old.querySelectorAll('details[data-disclosure]'), detail => [detail.dataset.disclosure, detail.open]) : []);
+        const replacement = messageView(message);
+        replacement.querySelectorAll('details[data-disclosure]').forEach(detail => { detail.open = open.get(detail.dataset.disclosure) || false; });
+        if (old) {
+          const reasoning = old.querySelector('.reasoning'); const nextReasoning = replacement.querySelector('.reasoning');
+          if (reasoning && nextReasoning) {
+            // Keep the summary connected so a delta between pointer down and up cannot cancel its click.
+            reasoning.querySelector('.markdown').replaceWith(nextReasoning.querySelector('.markdown'));
+            Array.from(old.children).forEach(child => { if (child !== reasoning) child.remove(); });
+            let beforeReasoning = true;
+            Array.from(replacement.children).forEach(child => {
+              if (child === nextReasoning) beforeReasoning = false;
+              else if (beforeReasoning) old.insertBefore(child, reasoning);
+              else old.append(child);
+            });
+          } else old.replaceChildren(...replacement.childNodes);
+        } else { container.append(replacement); old = replacement; }
+        S.fingerprint.set(message.id, fingerprint);
       }
       if (container.children[index] !== old) container.insertBefore(old, container.children[index] || null);
     });
@@ -385,7 +408,7 @@
   function updateShade() { const compact = document.documentElement.dataset.compact === 'true'; $('drawer-shade').hidden = !(compact && $('app').classList.contains('sidebar-open') || (compact || window.innerWidth <= 1200) && $('app').dataset.view === 'chat' && !$('app').classList.contains('inspector-closed')); }
   function closeDrawers() { $('app').classList.remove('sidebar-open'); if (document.documentElement.dataset.compact === 'true' || window.innerWidth <= 1200) $('app').classList.add('inspector-closed'); updateShade(); }
   async function action(name, el) {
-    if (name !== 'chat-menu' && $('action-dialog').open) $('action-dialog').close();
+    if (name !== 'chat-menu') window.ChatShell.closeMenu();
     if (name === 'new') return newChat();
     if (name === 'temporary') return temporaryChat();
     if (name === 'end-temporary') return leaveTemporary();
@@ -401,20 +424,26 @@
     if (name === 'logout') { await api('/logout', 'POST', {}); closeStream(); location.reload(); return; }
     if (name === 'cancel-edit') { S.edit = null; $('edit-note').hidden = true; $('draft').value = ''; S.attachments = []; renderAttachments(); resizeDraft(); return; }
     if (name === 'save-settings') { if (S.chat) await patchChat({settings: settings()}); toast('Settings saved for the next response.'); return; }
-    if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id);
-    if (['rename', 'pin', 'archive', 'folder', 'delete', 'export'].includes(name)) {
-      const chat = S.chats.find(item => item.id === menuId) || (S.chat?.id === menuId ? S.chat : null);
+    if (name === 'chat-menu') return showChatMenu(el.dataset.id || S.chat?.id, el);
+    if (['rename', 'pin', 'archive', 'folder', 'delete', 'export', 'duplicate'].includes(name)) {
+      const id = el.dataset.id || (name === 'rename' ? S.chat?.id : menuId);
+      const chat = S.chats.find(item => item.id === id) || (S.chat?.id === id ? S.chat : null);
       if (!chat) throw new Error('This conversation is no longer available.');
-      if (name === 'rename') { const title = prompt('Conversation name', chat.title); if (title?.trim()) await patchChat({title: title.trim()}, chat.id); }
+      if (name === 'rename') return window.ChatShell.conversationForm({title: 'Rename conversation', label: 'Conversation name', value: chat.title}, title => patchChat({title}, chat.id));
       if (name === 'pin') await patchChat({pinned: !chat.pinned}, chat.id);
       if (name === 'archive') await patchChat({archived: !chat.archived}, chat.id);
-      if (name === 'folder') { const folder = prompt('Folder name (leave empty for no folder)', chat.folder || ''); if (folder !== null) await patchChat({folder: folder.trim()}, chat.id); }
+      if (name === 'folder') return window.ChatShell.conversationForm({title: 'Move to folder', description: 'Choose an existing folder or enter a new name. Leave empty to remove the folder.', label: 'Folder', value: chat.folder || '', folders: [...new Set(S.chats.map(item => item.folder).filter(Boolean))]}, folder => patchChat({folder}, chat.id));
       if (name === 'delete') {
         if (chat.temporary) return leaveTemporary();
-        if (confirm('Delete "' + chat.title + '" and all its branches? This cannot be undone.')) {
+        return window.ChatShell.conversationForm({title: 'Delete conversation?', description: 'Delete "' + chat.title + '" and all its branches permanently. This cannot be undone.', destructive: true, submit: 'Delete'}, async () => {
           await api('/chats/' + encodeURIComponent(chat.id), 'DELETE');
           S.searchText.delete(chat.id); if (S.chat?.id === chat.id) clearChat(); await refreshChats();
-        }
+        });
+      }
+      if (name === 'duplicate') {
+        const data = await api('/chats/' + encodeURIComponent(chat.id) + '/export');
+        data.chat.title = (chat.title || 'Conversation').slice(0, 193) + ' (copy)';
+        await api('/import', 'POST', data); await refreshChats(); toast('Conversation duplicated.');
       }
       if (name === 'export') { const response = await fetch('/api/chats/' + encodeURIComponent(chat.id) + '/export'); if (!response.ok) throw new Error('Export failed.'); const url = URL.createObjectURL(await response.blob()); const a = node('a'); a.href = url; a.download = (chat.title || 'conversation').replace(/[^a-z0-9_-]/gi, '_') + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
       return;

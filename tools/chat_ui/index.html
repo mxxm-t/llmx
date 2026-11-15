@@ -105,7 +105,7 @@
           <div class="topbar-actions">
             <button id="monitor-reload" class="secondary-button" aria-label="Reconnect runtime monitor">Reconnect</button>
             <span id="connection" class="connection"><span class="status-dot"></span>Connecting</span>
-            <button class="icon" data-action="chat-menu" aria-label="Conversation actions" title="Conversation actions">
+            <button class="icon" data-action="chat-menu" aria-haspopup="menu" aria-label="Conversation actions" title="Conversation actions">
               <svg viewBox="0 0 24 24">
                 <circle cx="5" cy="12" r="1"/>
                 <circle cx="12" cy="12" r="1"/>
@@ -282,16 +282,17 @@
         <button class="primary-button" type="submit">Unlock workspace</button>
       </form>
     </dialog>
-    <dialog id="action-dialog" aria-labelledby="action-dialog-title">
-      <form method="dialog" class="dialog-content">
-        <h2 id="action-dialog-title">Conversation</h2>
-        <button type="button" data-action="rename">Rename</button>
-        <button type="button" data-action="pin">Pin / unpin</button>
-        <button type="button" data-action="folder">Move to folder</button>
-        <button type="button" data-action="archive">Archive / restore</button>
-        <button type="button" data-action="export">Export conversation</button>
-        <button type="button" data-action="delete" class="danger">Delete conversation</button>
-        <button type="submit" class="secondary-button">Close</button>
+    <div id="action-menu" class="conversation-menu" popover="manual" role="menu" aria-labelledby="action-menu-title">
+      <div id="action-menu-title" class="conversation-menu-title"></div>
+    </div>
+    <dialog id="action-dialog" aria-labelledby="action-dialog-title" aria-describedby="action-dialog-description">
+      <form id="conversation-form" class="dialog-content">
+        <h2 id="action-dialog-title"></h2>
+        <p id="action-dialog-description" class="muted"></p>
+        <label id="conversation-field" class="field"><span id="conversation-label"></span><input id="conversation-value" maxlength="200" autocomplete="off" list="conversation-folders"></label>
+        <datalist id="conversation-folders"></datalist>
+        <p id="conversation-error" class="error-text" role="alert"></p>
+        <div class="conversation-form-actions"><button type="button" id="conversation-cancel" class="secondary-button">Cancel</button><button type="submit" id="conversation-submit" class="primary-button">Save</button></div>
       </form>
     </dialog>
   </body>

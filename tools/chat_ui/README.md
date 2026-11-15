@@ -55,13 +55,16 @@ conversations and tools. There is no multi-user account or role system.
   have performed an action, so Stop cannot promise to undo it.
 - Edit a user message or retry an answer to create an alternative branch. The
   original branch stays available through the message's branch controls.
-- Each sidebar row has an actions button for rename, pin/unpin, move to folder,
-  archive/restore, export and delete. Actions target that row without opening it.
+- Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
+  move to folder, duplicate, archive/restore, export and delete. Actions target
+  that row without opening it. Rename, folder and delete use accessible dialogs.
   The sidebar also supports search. Export and import
   preserve messages and their branches. Imported chats do not restart runs.
 - Settings are per conversation. System instructions and generation settings
   apply to subsequent calls, including subsequent calls after a tool result.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
+  You can open or close it while the reply is being generated. Reloading
+  reconnects to the same reply without cancelling or restarting generation.
   The renderer supports basic Markdown, code blocks, tables and safe links.
   It does not execute model HTML or JavaScript.
 - Attach up to eight UTF-8 text/code files or PNG/JPEG images. Text is included
@@ -166,6 +169,7 @@ Console messages are displayed as bounded text after checking the frame and its
 per-preview token. Preview documents expire after 30 minutes, with at most 16
 retained in memory. External scripts, packages and fonts are not loaded.
 
+Workspace tool results include an Open Workspace button to reach the saved files.
 Workspace owns managed UTF-8 project files, a source editor, unified diffs,
 command output and file checkpoints. It never opens arbitrary host paths.
 Each file is limited to 1 MiB, the project to 8 MiB and 256 files. Revision checks

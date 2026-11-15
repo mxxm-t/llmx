@@ -68,6 +68,67 @@ window.ChatShell = (() => {
   $('monitor-reload').addEventListener('click', () => loadMonitor(true)); $('monitor-frame').addEventListener('load', themeMonitor);
   new MutationObserver(themeMonitor).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
   window.addEventListener('resize', fitViewport); fitViewport();
+  let menuAnchor = null;
+  function restoreMenuFocus(origin) {
+    const target = origin?.isConnected ? origin : origin?.dataset.id ? document.querySelector('.chat-row-menu[data-id="' + CSS.escape(origin.dataset.id) + '"]') : null;
+    (target || document.querySelector('.topbar [data-action="chat-menu"]'))?.focus();
+  }
+  function closeMenu(restore = true) {
+    const menu = $('action-menu');
+    if (!menu.matches(':popover-open')) return;
+    menu.hidePopover(); menuAnchor?.setAttribute('aria-expanded', 'false');
+    if (restore) restoreMenuFocus(menuAnchor);
+  }
+  function menu(anchor, title, items, select) {
+    closeMenu(false); menuAnchor = anchor;
+    const panel = $('action-menu'); panel.replaceChildren(node('div', 'conversation-menu-title', title)); panel.firstChild.id = 'action-menu-title';
+    items.forEach(item => {
+      if (item.separator) { const line = node('div', 'conversation-menu-divider'); line.setAttribute('role', 'separator'); panel.append(line); }
+      const control = node('button', item.danger ? 'danger' : ''); control.type = 'button'; control.setAttribute('role', 'menuitem');
+      control.dataset.action = item.action; control.disabled = Boolean(item.disabled); control.tabIndex = -1;
+      const paths = {rename: 'm16 3 5 5-12 12-6 1 1-6Z M14 5l5 5', pin: 'm9 3 6 0-1 6 4 4H6l4-4Z M12 13v8', folder: 'M3 6h7l2 2h9v12H3Z', duplicate: 'M8 8h13v13H8Z M16 8V3H3v13h5', archive: 'M3 3h18v5H3Z M5 8v13h14V8 M9 12h6', export: 'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5', delete: 'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); icon.classList.add('conversation-menu-icon'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none'); icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '1.6'); icon.setAttribute('stroke-linecap', 'round'); icon.setAttribute('stroke-linejoin', 'round'); icon.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', paths[item.action]); icon.append(path); control.append(icon, node('span', '', item.label));
+      control.addEventListener('click', event => { event.stopPropagation(); closeMenu(); select(item.action); }); panel.append(control);
+    });
+    anchor?.setAttribute('aria-expanded', 'true'); panel.showPopover();
+    const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+    const box = anchor.getBoundingClientRect(), bounds = panel.getBoundingClientRect();
+    const width = innerWidth / zoom, height = innerHeight / zoom;
+    panel.style.left = Math.max(8, Math.min(box.right / zoom - bounds.width / zoom, width - bounds.width / zoom - 8)) + 'px';
+    panel.style.top = Math.max(8, Math.min(box.bottom / zoom + 6, height - bounds.height / zoom - 8)) + 'px';
+    panel.querySelector('button:not(:disabled)')?.focus();
+  }
+  $('action-menu').addEventListener('toggle', event => { if (event.newState === 'closed' && !$('action-menu').matches(':popover-open')) menuAnchor?.setAttribute('aria-expanded', 'false'); });
+  $('action-menu').addEventListener('keydown', event => {
+    const controls = Array.from($('action-menu').querySelectorAll('button:not(:disabled)'));
+    const index = controls.indexOf(document.activeElement);
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { event.preventDefault(); controls[event.key === 'Home' ? 0 : event.key === 'End' ? controls.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) % controls.length]?.focus(); }
+    if (event.key === 'Escape' || event.key === 'Tab') { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); } closeMenu(); }
+  });
+  document.addEventListener('pointerdown', event => { if (!$('action-menu').contains(event.target) && !menuAnchor?.contains(event.target)) closeMenu(false); }, true);
+  window.addEventListener('resize', () => closeMenu());
+  function conversationForm({title, description = '', label = '', value = '', folders = [], destructive = false, submit = 'Save'}, save) {
+    closeMenu(); const dialog = $('action-dialog'), origin = document.activeElement;
+    $('action-dialog-title').textContent = title; $('action-dialog-description').textContent = description;
+    $('conversation-field').hidden = !label; $('conversation-label').textContent = label;
+    const input = $('conversation-value'); input.value = value; input.setCustomValidity(''); input.disabled = !label; input.required = label === 'Conversation name';
+    $('conversation-folders').replaceChildren(...folders.map(folder => { const option = node('option'); option.value = folder; return option; }));
+    input.setAttribute('list', label === 'Folder' ? 'conversation-folders' : '');
+    const confirm = $('conversation-submit'), cancel = $('conversation-cancel'); confirm.textContent = submit; confirm.className = destructive ? 'primary-button danger' : 'primary-button';
+    $('conversation-error').textContent = ''; confirm.disabled = false; cancel.disabled = false;
+    dialog.oncancel = event => { if (confirm.disabled) event.preventDefault(); };
+    dialog.onclose = () => restoreMenuFocus(origin);
+    cancel.onclick = () => dialog.close();
+    $('conversation-form').onsubmit = async event => {
+      event.preventDefault(); if (input.required && !input.value.trim()) { input.setCustomValidity('Enter a conversation name.'); input.reportValidity(); return; }
+      confirm.disabled = true; cancel.disabled = true; confirm.setAttribute('aria-busy', 'true');
+      try { await save(input.value.trim()); dialog.close(); }
+      catch (error) { $('conversation-error').textContent = error.message; }
+      finally { confirm.disabled = false; cancel.disabled = false; confirm.removeAttribute('aria-busy'); }
+    };
+    input.oninput = () => input.setCustomValidity(''); dialog.showModal(); if (label) { input.focus(); input.select(); } else cancel.focus();
+  }
   function backupStatus(text, failed = false) { $('backup-status').textContent = text; $('backup-status').hidden = false; $('backup-status').classList.toggle('error-text', failed); }
   $('backup-download').addEventListener('click', async () => {
     $('backup-download').disabled = true;
@@ -92,5 +153,5 @@ window.ChatShell = (() => {
     }
     catch (error) { backupStatus(error.message, true); } finally { $('backup-restore').disabled = false; }
   });
-  return {show, api, get config() { return config; }};
+  return {show, api, menu, closeMenu, conversationForm, get config() { return config; }};
 })();

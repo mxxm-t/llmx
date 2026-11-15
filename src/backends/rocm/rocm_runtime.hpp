@@ -6,7 +6,10 @@
 #include <hip/hip_version.h>
 
 #include <dlfcn.h>
+#include <unistd.h>
 
+#include <cstdio>
+#include <cstdlib>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -82,6 +85,8 @@ inline HipFn& hip() {
         LLMX_HIP_FUNCTIONS(LLMX_HIP_LOAD)
 #undef LLMX_HIP_LOAD
         if (f.hipInit(0) != hipSuccess) throw RocmUnavailable("rocm: the HIP runtime did not initialise");
+        // The process ends here, before HIP's own teardown, which can free what a still-queued completion handler reads (docs/ROCM.md, Process exit).
+        on_exit([](int status, void*) { std::fflush(nullptr); _exit(status); }, nullptr);
         return f;
     }();
     return fn;

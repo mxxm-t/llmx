@@ -220,7 +220,7 @@ std::vector<double> oracle_row(const Data& data, size_t seq, size_t row,
 
 std::vector<float> run_batch(Backend& device, const Data& data,
                              const std::vector<uint32_t>& ids, size_t id_stride,
-                             const std::string& label) {
+                             const std::string& label, size_t groups = 1, size_t block_size = 1) {
     const size_t rows = 2 * kNq, width = kQHeads * data.dim;
     BufferPtr q = upload(device, data.queries), idsbuf = upload(device, ids);
     BufferPtr out = device.alloc((rows * width + 2) * sizeof(float), backend::Memory::device);
@@ -229,7 +229,7 @@ std::vector<float> run_batch(Backend& device, const Data& data,
     device.write(*out, 0, init.data(), init.size() * sizeof(float));
     device.sparse_attention({q.get(), 0}, 0, data.views.data(), data.views.size(),
                             {idsbuf.get(), 0}, id_stride, {out.get(), 1},
-                            int(kQHeads), int(kKVHeads), int(data.dim));
+                            int(kQHeads), int(kKVHeads), int(data.dim), groups, block_size);
     device.sync();
     const auto guarded = read<float>(device, *out, 0, init.size());
     require(guarded.front() == guard && guarded.back() == guard, label + " changed output guards");
@@ -497,6 +497,40 @@ void run_case(Backend& device, const std::string& name, size_t dim, backend::KVT
 }
 
 
+// Id groups and blocks (Op::sparse_attention_blocks): each KV head's query heads give the bits of the plain call over its own group's ids, each block spelled out as its positions.
+void id_blocks(Backend& device, size_t dim, backend::KVType k_type, backend::KVType v_type) {
+    Data data = make_data(device, dim, k_type, v_type);
+    const size_t block = 4, stride = 3, groups = kKVHeads, rows = 2 * kNq, width = kQHeads * dim, heads = kQHeads / groups;
+    const std::string label = "id blocks d" + std::to_string(dim) + "/K" + backend::kv_type_name(k_type) + "/V" + backend::kv_type_name(v_type);
+    // Each group keeps block 0, a block the group picks, and the row's own, which the causal end cuts; group 1 pads one slot on odd rows.
+    // Group 0 names a block past 2^30 on every third row, whose first position a 32-bit shift would wrap to the history's start.
+    std::vector<uint32_t> ids(rows * groups * stride, UINT32_MAX);
+    for (size_t r = 0; r < rows; ++r) {
+        const size_t own = (data.length + r % kNq) / block;
+        for (size_t g = 0; g < groups; ++g) {
+            uint32_t* row = ids.data() + (r * groups + g) * stride;
+            row[0] = 0;
+            row[1] = g == 0 && r % 3 == 2 ? uint32_t(0x40000000u + r) : uint32_t(1 + (r * 3 + g * 5) % (own - 1));
+            row[2] = g == 1 && r % 2 ? UINT32_MAX : uint32_t(own);
+        }
+    }
+    const auto grouped = run_batch(device, data, ids, stride, label, groups, block);
+    for (size_t g = 0; g < groups; ++g) {
+        std::vector<uint32_t> spelled(rows * stride * block, UINT32_MAX);
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t e = 0; e < stride; ++e)
+                for (size_t o = 0; o < block; ++o) {
+                    const uint32_t id = ids[(r * groups + g) * stride + e];
+                    spelled[(r * stride + e) * block + o] = id >= UINT32_MAX / block ? UINT32_MAX : uint32_t(id * block + o);
+                }
+        const auto plain = run_batch(device, data, spelled, stride * block, label + " group " + std::to_string(g));
+        for (size_t r = 0; r < rows; ++r)
+            require(std::memcmp(grouped.data() + r * width + g * heads * dim, plain.data() + r * width + g * heads * dim, heads * dim * sizeof(float)) == 0,
+                    label + " row " + std::to_string(r) + " group " + std::to_string(g) + " differs from the plain call over its positions");
+    }
+    std::cout << label << " matches the plain call per group\n";
+}
+
 // The kernels a device timed since it was last asked, by name; empty where it times none.
 std::vector<std::string> timed_kernels(Backend& device) {
     std::vector<std::string> names;
@@ -645,6 +679,14 @@ int main(int argc, char** argv) {
         for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
             for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
                 grouped_heads(*device, device_name, k_type, v_type);
+        if (device->implements(backend::Op::sparse_attention_blocks)) {
+            for (size_t dim : {size_t(8), size_t(128), size_t(256)})
+                for (backend::KVType k_type : {backend::KVType::f32, backend::KVType::f16})
+                    for (backend::KVType v_type : {backend::KVType::f32, backend::KVType::f16})
+                        id_blocks(*device, dim, k_type, v_type);
+        } else {
+            std::cout << "id blocks: " << device_name << " refuses sparse_attention_blocks\n";
+        }
         std::cout << "sparse-attention: PASS (" << checks << " checks) on " << device_name << '\n';
         return 0;
     } catch (const std::exception& error) {

@@ -88,6 +88,11 @@ inline std::vector<Span> spans(const Role& role, size_t width, size_t member) {
 inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& views, size_t width) {
     if (!width) throw std::logic_error("shard: a group of no members");
     if (width == 1) return;
+    // A group's members each run their shards of the layers' split roles, so layers that split none have nothing for a group to share.
+    bool split = false;
+    for (const LayerPlan& layer : plan.layers)
+        for (const Role& role : layer.roles) split = split || role.shard.axis != Axis::none;
+    if (!split) throw std::runtime_error("inference: a tensor width of " + std::to_string(width) + " needs layers that split a role over the group, and this model's split none");
     auto each = [&](const std::vector<Role>& roles) {
         for (const Role& role : roles) {
             if (!role.tensor || role.shard.axis == Axis::none) continue;

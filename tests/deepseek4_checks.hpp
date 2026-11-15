@@ -10,6 +10,7 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace ds4 {
@@ -176,6 +177,66 @@ size_t check_selections(Pair& p) {
                 auto r = p.results(o);
                 values += same(r.first, r.second, "candidate_blocks differs from the CPU at n " + std::to_string(n) + " block " + std::to_string(bs) + " k " + std::to_string(k));
             }
+    }
+    // Every block's maximum equal, so each pick but the pinned block is the earliest block, the CPU's rule (cpu_backend.hpp, candidate_blocks).
+    {
+        const size_t rows = 4, n = 512;
+        std::vector<float> s(rows * n, -1.0f);
+        for (size_t i = 0; i < s.size(); i += 3) s[i] = 2.0f;
+        const std::vector<uint32_t> lens = {uint32_t(n), uint32_t(n / 2), 0, 300};
+        Pair::In si = held(p, s), li = held(p, as_floats(lens));
+        for (size_t bs : {4, 128})
+            for (size_t k : {2, 3}) {
+                Pair::Out o = p.out(rows * k);
+                p.cpu.candidate_blocks(o.cs(), si.cs(), li.cs(), rows, n, bs, k);
+                p.dev.candidate_blocks(o.vs(), si.vs(), li.vs(), rows, n, bs, k);
+                auto r = p.results(o);
+                values += same(r.first, r.second, "candidate_blocks on equal block maxima differs from the CPU at block " + std::to_string(bs) + " k " + std::to_string(k));
+            }
+    }
+    return values;
+}
+
+// indexer_scores' raw form, MiniMax-M3.1's block maxima, over two views on reversed blocks whose rows share a tile: NaN and -inf where the CPU has them, the rest as indexer_scores is held.
+// Heads past a group of 4, a width past a step of 32, blocks of 1, 48 and 128, and a NaN key making its block NaN.
+size_t check_raw_index(Pair& p, const Exact& exact) {
+    size_t values = 0;
+    const size_t ha = 1000, na = 37, nb = 9, rows = na + nb, cap = ha + na + 256;
+    for (const auto& [heads, dim, block] : {std::tuple<size_t, size_t, size_t>{4, 128, 128}, {5, 40, 48}, {4, 64, 1}}) {
+        auto cs = p.cpu.kv_alloc(1, 1, 2, cap, backend::KVType::f32, backend::KVType::f32, {dim});
+        auto vs = p.dev.kv_alloc(1, 1, 2, cap, backend::KVType::f32, backend::KVType::f32, {dim});
+        std::vector<int32_t> tables[2][2];
+        for (int dev = 0; dev < 2; ++dev) {
+            const size_t bt = (dev ? p.dev : static_cast<backend::Backend&>(p.cpu)).kv_layout().block_tokens, blocks_a = (ha + na + bt - 1) / bt;
+            for (size_t i = 0; i < blocks_a; ++i) tables[dev][0].push_back(int32_t(blocks_a - 1 - i));
+            tables[dev][1].push_back(int32_t(blocks_a));
+        }
+        auto view = [&](bool dev, bool on_a, size_t length, size_t nq) {
+            const std::vector<int32_t>& t = tables[dev][on_a ? 0 : 1];
+            return backend::KVView{dev ? vs.get() : cs.get(), t.data(), t.size(), length, nq};
+        };
+        std::vector<float> keys = uniform((ha + na + nb) * dim, 91 + uint32_t(dim), -4.0f, 4.0f);
+        for (size_t d = 0; d < dim; ++d) keys[(ha - 3) * dim + d] = keys[(ha - 9) * dim + d];   // equal maxima inside a block
+        if (block == 128) keys[130 * dim + 7] = std::numeric_limits<float>::quiet_NaN();
+        const std::vector<float> kv((ha + na + nb) * 2, 0.0f);
+        Pair::In ki = held(p, keys), kvi = held(p, kv);
+        const backend::KVView cf[] = {view(false, true, 0, ha + na), view(false, false, 0, nb)}, vf[] = {view(true, true, 0, ha + na), view(true, false, 0, nb)};
+        p.cpu.kv_write(0, cf, 2, kvi.cs(), kvi.cs(), ki.cs());
+        p.dev.kv_write(0, vf, 2, kvi.vs(), kvi.vs(), ki.vs());
+        const backend::KVView cv[] = {view(false, true, ha, na), view(false, false, 0, nb)}, dv[] = {view(true, true, ha, na), view(true, false, 0, nb)};
+        Pair::In qi = held(p, uniform(rows * heads * dim, 93 + uint32_t(heads), -2.0f, 2.0f));
+        const size_t n = (ha + na + block - 1) / block + 2;
+        Pair::Out o = p.out(rows * heads * n);
+        p.cpu.indexer_scores(o.cs(), qi.cs(), 0, cv, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, n, {}, 0, block, backend::IndexForm::raw_blocks);
+        p.dev.indexer_scores(o.vs(), qi.vs(), 0, dv, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, n, {}, 0, block, backend::IndexForm::raw_blocks);
+        auto r = p.results(o);
+        if (block == 128) require(std::isnan(r.first[1]), "raw index scores: the NaN key reaches its block");
+        const std::string at = " at heads " + std::to_string(heads) + " dim " + std::to_string(dim) + " block " + std::to_string(block);
+        for (size_t i = 0; i < r.first.size(); ++i) {
+            require(std::isnan(r.first[i]) == std::isnan(r.second[i]), ("raw index scores: a NaN block differs" + at).c_str());
+            if (std::isnan(r.first[i])) r.first[i] = r.second[i] = 0.0f;
+        }
+        values += meet(exact, "indexer_scores", r.first, r.second, 1e-5, "raw index scores differ from the CPU beyond 1e-5" + at, true);
     }
     return values;
 }
@@ -819,6 +880,10 @@ size_t check_ops(Pair& p, const Exact& exact = {}) {
     else
         std::printf("deepseek4: model formats skipped: the device does not implement model_format_qdq\n");
     values += check_selections(p);
+    if (p.dev.implements(backend::Op::raw_index_scores))
+        values += check_raw_index(p, exact);
+    else
+        std::printf("deepseek4: raw index scores skipped: the device does not implement them\n");
     values += check_pool_and_routing(p, exact);
     values += check_rope_forms(p, exact);
     values += check_pooled(p, exact);

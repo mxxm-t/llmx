@@ -852,6 +852,17 @@ size_t check_kernels(backend::Backend& vk) {
         auto r = p.results(d);
         values += close(r.first, r.second, 1e-6, "silu_mul differs beyond 1e-6");
     }
+    // quick_gelu, with and without the limit and with and without the twin: the device's exp again, held to a budget measured on the device's silu at quick_gelu's arguments before this kernel existed (docs/PRECISION.md).
+    for (size_t n : {size_t(50001), size_t(4096)})
+        for (float limit : {0.0f, 7.0f}) {
+            const auto g = uniform(n, 5, -12.0f, 12.0f), u = uniform(n, 6, -12.0f, 12.0f);
+            Pair::In gi = p.in(g), ui = p.in(u);
+            Pair::Out d = p.out(n);
+            p.cpu.silu_mul(d.cs(), gi.cs(), ui.cs(), n, limit, {}, backend::GluForm::quick_gelu);
+            p.dev.silu_mul(d.vs(), gi.vs(), ui.vs(), n, limit, {}, backend::GluForm::quick_gelu);
+            auto r = p.results(d);
+            values += close(r.first, r.second, 1e-6, "silu_mul's quick_gelu differs beyond its budget");
+        }
     // gather_rows: copies, so exact; a row beyond the source is refused.
     {
         const size_t width = 37, rows = 5;

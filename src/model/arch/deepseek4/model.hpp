@@ -50,6 +50,15 @@ enum Slot : size_t {
 // The words a window row takes in the ring under native, its FP8 blocks.
 inline size_t window_words(uint64_t D) { return backend::format_words(backend::ModelFormat::fp8_power, size_t(D)); }
 
+// The index sources' compression ratios, ascending and each once: the pass's index lengths hold a row's length at each (DeepSeek41::pass_values).
+inline std::vector<size_t> index_ratios(const Config& c) {
+    std::vector<size_t> ratios;
+    for (int l : c.index_sources) ratios.push_back(size_t(c.compress_ratios.at(size_t(l))));
+    std::sort(ratios.begin(), ratios.end());
+    ratios.erase(std::unique(ratios.begin(), ratios.end()), ratios.end());
+    return ratios;
+}
+
 inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t E = size_t(c.n_embd), HC = size_t(c.hc_count), HD = size_t(c.n_head) * size_t(c.head_dim), G = size_t(c.out_groups);
     const size_t k = size_t(c.n_expert_used), FF = (k + 1) * size_t(c.n_ff_exp);
@@ -62,7 +71,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t groups = least ? size_t(c.context_length / least) : 0;
     return {HC * E, HC, HC, (2 + HC) * HC, HC, HC * HC, E, HC * E, HC, size_t(c.q_lora_rank), HD, size_t(c.head_dim), HD, size_t(c.window), G,
             G * size_t(c.out_rank), E, size_t(c.n_expert), k, k, FF, FF, FF, lookups * size_t(c.engram_head_dim), ER, engram ? E : 0, ER, ER,
-            D, D, D, ID, D + ID, IH * ID, IH, groups, 1, size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0)};
+            D, D, D, ID, D + ID, IH * ID, IH, groups, index_ratios(c).size(), size_t(c.index_top_k), size_t(c.candidate_source >= 0 ? c.candidate_top_k : 0)};
 }
 
 // One sublayer's coefficients from the streams x entering it: the mixes as an F32 product of hc_fn, then hc_coeffs' rsqrt over the flattened streams, sigmoids and Sinkhorn rounds (model.py:948-957 at e5decd76).
@@ -79,6 +88,7 @@ public:
     explicit DeepSeek41(const Config& cfg) : cfg_(cfg) {
         check_config(cfg_);
         layers_ = layer_table(cfg_);
+        ratios_ = index_ratios(cfg_);
         for (size_t i = 0; i < cfg_.engram_layers.size(); ++i) {
             hashes_.push_back(engram_hash(cfg_, i));
             blocks::ngram_rows(hashes_.back(), cfg_.vocab, nullptr, 0, nullptr, 0, nullptr, 0);
@@ -315,6 +325,17 @@ public:
             first += n;
         }
         if (first != s.rows) throw std::runtime_error("inference: the DeepSeek-V4.1 Engram's views do not cover the pass");
+    }
+
+    // Each row's compressed length at each index source's ratio, (position + 1) / ratio, which the indexer's selections read as the row's length (model.py:552-581).
+    void pass_values(const Step& s) const override {
+        const std::vector<size_t>& ratios = ratios_;
+        const size_t count = backend::size_mul(s.rows, ratios.size());
+        if (!count) return;
+        if (!s.indices || s.indices_size < count) throw std::runtime_error("inference: the DeepSeek-V4.1 index lengths' scratch is too small");
+        for (size_t j = 0; j < ratios.size(); ++j)
+            for (size_t r = 0; r < s.rows; ++r) s.indices[j * s.rows + r] = uint32_t((size_t(s.pos[r]) + 1) / ratios[j]);
+        s.b.write(*s.arena, s.offsets[index_lens], s.indices, count * sizeof(uint32_t));
     }
 
     // The attention's coefficients from the streams, its input collapsed with the pre the block before left, and its output expanded back (model.py:982-986 at e5decd76).
@@ -665,15 +686,16 @@ private:
         s.b.indexer_scores(s.slot(index_scores), s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(index_weights), weight_scale, IH, ID,
                            s.native ? backend::ModelFormat::fp4_power : backend::ModelFormat::f32, visible,
                            masked ? backend::CSlice(s.slot(candidate_ids)) : backend::CSlice{}, masked ? blocks : 0, masked ? block : 0);
-        for (size_t r = 0; r < rows; ++r) s.indices[r] = uint32_t((size_t(s.pos[r]) + 1) / ratio);
-        s.b.write(*s.arena, s.offsets[index_lens], s.indices, rows * sizeof(uint32_t));
-        if (s.kind & picks_candidates) s.b.candidate_blocks(s.slot(candidate_ids), s.slot(index_scores), s.slot(index_lens), rows, visible, block, blocks);
-        s.b.topk_rows(s.slot(index_picks), s.slot(index_scores), s.slot(index_lens), rows, visible, k, 0);
+        const size_t at = size_t(std::lower_bound(ratios_.begin(), ratios_.end(), ratio) - ratios_.begin());
+        const backend::CSlice lens{s.arena, s.offsets[index_lens] / sizeof(float) + at * rows};
+        if (s.kind & picks_candidates) s.b.candidate_blocks(s.slot(candidate_ids), s.slot(index_scores), lens, rows, visible, block, blocks);
+        s.b.topk_rows(s.slot(index_picks), s.slot(index_scores), lens, rows, visible, k, 0);
         return k;
     }
 
     Config cfg_;
     std::vector<Layer> layers_;
+    std::vector<size_t> ratios_; // index_ratios(cfg_), taken once
     std::vector<blocks::NgramHash> hashes_;
 };
 

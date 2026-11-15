@@ -617,6 +617,7 @@ public:
         std::copy(own.begin(), own.end(), tables.begin());
     }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override { base_->pass_values(s); }
     void mixer(const infer::Step& s) const override { base_->mixer(s); }
     void ffn(const infer::Step& s) const override { base_->ffn(s); }
     void head(const infer::HeadStep& s) const override { base_->head(s); }

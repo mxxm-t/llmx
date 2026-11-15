@@ -324,9 +324,12 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
 
 inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
                                             CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim, size_t groups, size_t block_size) {
-    if (groups != 1 || block_size != 1) throw std::runtime_error("vulkan: sparse_attention has no id groups or blocks");
-    if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || !id_stride ||
-        id_stride > UINT32_MAX / 2 || !attention_head_fits(size_t(head_dim), dev_->caps.subgroup_size))
+    // A block id names a power of two of positions, so a slot splits by shift and mask (shaders/sparse_slots.glsl).
+    if (!block_size || (block_size & (block_size - 1))) throw std::runtime_error("vulkan: sparse attention blocks of a size that is not a power of two");
+    uint32_t shift = 0;
+    while ((size_t(1) << shift) < block_size) ++shift;
+    if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || !id_stride || !groups || size_t(n_head_kv) % groups ||
+        shift > 16 || id_stride > (UINT32_MAX / 2) >> shift || !attention_head_fits(size_t(head_dim), dev_->caps.subgroup_size))
         throw std::runtime_error("vulkan: invalid sparse attention dimensions");
     const auto placed = place_views(views, n_views);
     if (placed.empty()) return;
@@ -335,7 +338,7 @@ inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KV
     VulkanKVStorage& storage = *table.storage;
     check_storage(storage, n_head_kv, head_dim);
     const size_t width = size_mul(size_t(n_head), size_t(head_dim));
-    const size_t count = size_mul(table.rows, width), selections = size_mul(table.rows, id_stride);
+    const size_t count = size_mul(table.rows, width), selections = size_mul(size_mul(table.rows, groups), id_stride);
     auto checked = [](CSlice s, size_t elements) {
         if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
         span(*s.buffer, size_mul(s.offset, sizeof(float)), size_mul(elements, sizeof(float)));
@@ -361,9 +364,9 @@ inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KV
                                                       : kv_variant(K_SPARSE_ATTENTION_VEC_D256, K_SPARSE_ATTENTION_VEC_D256_K16, storage))
                           : head_dim == 128 ? kv_variant(K_SPARSE_ATTENTION_VEC, K_SPARSE_ATTENTION_VEC_K16, storage)
                                            : kv_variant(K_SPARSE_ATTENTION, K_SPARSE_ATTENTION_K16, storage);
-    struct { uint32_t rows, heads, kv_heads, dim, bt; float scale; uint32_t splits, chunk, quant, max_parts, hg, stride; }
+    struct { uint32_t rows, heads, kv_heads, dim, bt; float scale; uint32_t splits, chunk, quant, max_parts, hg, stride, id_shift, id_groups; }
         pc{u32(table.rows), uint32_t(n_head), uint32_t(n_head_kv), uint32_t(head_dim), u32(kVkBlockTokens),
-           1.0f / std::sqrt(float(head_dim)), 1, 1, 0, 1, hg, u32(id_stride)};
+           1.0f / std::sqrt(float(head_dim)), 1, 1, 0, 1, hg, u32(id_stride), shift, u32(groups)};
     dispatch(kernel, {bind(query), bind(out), bind(CSlice{storage.k_buffer(layer).get(), 0}),
                       bind(CSlice{storage.v_buffer(layer).get(), 0}), args(table.words.data(), table.words.size() * sizeof(uint32_t)),
                       bind(out), bind(out), bind(ids)}, &pc, sizeof(pc), u32(gx), u32(gy));
@@ -498,7 +501,10 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
 
 inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads,
                                           size_t dim, ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form) {
-    if (form != IndexForm::weighted_relu) throw std::runtime_error("vulkan: indexer_scores has no raw form");
+    if (form == IndexForm::raw_blocks) {
+        if (w.buffer || blocks.buffer || block_k || key_format != ModelFormat::f32) throw std::runtime_error("vulkan: raw index scores take no weights, candidate blocks or key format but f32");
+        return raw_index_scores(out, q, layer, views, n_views, heads, dim, n, block_size);
+    }
     if (!heads || heads > 1024 || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
         throw std::runtime_error("vulkan: invalid index score dimensions");
     size_t rows = 0;
@@ -526,6 +532,28 @@ inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, con
     }
     dispatch(K_INDEXER_SCORES, {bind(out), bind(q), pooled.aux, tab, bind(w), bn ? bind(blocks) : bind(w)}, &pc, sizeof(pc),
              std::min<uint32_t>(groups(n, std::max<size_t>(1, 256 / heads)), 65535), u32(rows));
+}
+
+inline void VulkanBackend::raw_index_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, size_t heads, size_t dim, size_t n, size_t block_size) {
+    if (!heads || !dim || !block_size || n >= UINT32_MAX) throw std::runtime_error("vulkan: invalid index score dimensions");
+    if (!views && n_views) throw std::runtime_error("vulkan: raw index scores without views");
+    const ViewTable table = view_table(layer, place_views(views, n_views), false);
+    if (!table.rows) return;
+    const VulkanKVStorage& s = *table.storage;
+    if (s.auxiliary_width(layer) != dim || !s.auxiliary_buffer(layer)) throw std::runtime_error("vulkan: raw index scores read auxiliary rows its layer does not keep at their width");
+    for (size_t vi = 0; vi < n_views; ++vi)
+        if (views[vi].nq && (size_add(views[vi].length, views[vi].nq) + block_size - 1) / block_size > n) throw std::runtime_error("vulkan: raw index scores narrower than a row's blocks");
+    const size_t rows = table.rows, on = size_mul(rows, size_mul(heads, n)), qn = size_mul(rows, size_mul(heads, dim));
+    if (floats_from(out) < on || floats_from(q) < qn) throw std::runtime_error("vulkan: index scores operand outside its allocation");
+    if (overlaps(CSlice(out), on, q, qn)) throw std::runtime_error("vulkan: index scores output must be disjoint from its inputs");
+    if (!n) return;
+    if (n > dev_->props.limits.maxComputeWorkGroupCount[0] || (rows + 15) / 16 > dev_->props.limits.maxComputeWorkGroupCount[1])
+        throw std::runtime_error("vulkan: raw index scores of more blocks or rows than a dispatch holds");
+    u32(s.auxiliary_buffer(layer)->size() / sizeof(float));
+    const struct { uint32_t rows, heads, dim, n, block_size, bt, block_floats, width; }
+        pc{u32(rows), u32(heads), u32(dim), u32(n), u32(block_size), u32(kVkBlockTokens), u32(s.auxiliary_block_bytes(layer) / sizeof(float)), u32(dim)};
+    const VkDescriptorBufferInfo tab = args(table.words.data(), table.words.size() * sizeof(uint32_t));
+    dispatch(K_RAW_INDEX_SCORES, {bind(out), bind(q), bind(CSlice{s.auxiliary_buffer(layer).get(), 0}), tab}, &pc, sizeof(pc), u32(n), u32((rows + 15) / 16));
 }
 
 inline void VulkanBackend::pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) {

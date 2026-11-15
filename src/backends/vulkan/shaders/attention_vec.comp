@@ -10,7 +10,7 @@ layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
-    uint selected_stride;
+    uint selected_stride; uint id_shift; uint id_groups;
 #endif
 } p;
 #ifdef LLMX_G4
@@ -56,6 +56,7 @@ layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
 #ifdef LLMX_SPARSE
 layout(set = 0, binding = 7) readonly buffer I { uint ids[]; };
+#include "sparse_slots.glsl"
 #endif
 // Streams are the groups of lanes that each take one token at a time, 16 of them, or 8 at width 256; their accumulations fill 2048 floats.
 shared float qs[HG][256];
@@ -93,7 +94,8 @@ void main() {
     barrier();
     #ifdef LLMX_SPARSE
     uint visible = view_hist(v) + b + 1u;
-    uint start = 0u, end = p.selected_stride;
+    uint start = 0u, end = p.selected_stride << p.id_shift;
+    uint sb = slot_base(view_row0(v) + b, kvh);
 #else
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
     while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
@@ -149,7 +151,7 @@ void main() {
     // A selection's tokens sit anywhere in the history, so each stream takes four at a time, their ids and rows all loaded before the first is absorbed; the order is unchanged.
     for (; t + 3u * streams < end; t += 4u * streams) {
         uint sel[4], at[4];
-        [[unroll]] for (uint u = 0u; u < 4u; ++u) sel[u] = ids[(view_row0(v) + b) * p.selected_stride + t + u * streams];
+        [[unroll]] for (uint u = 0u; u < 4u; ++u) sel[u] = slot_token(sb, t + u * streams, visible);
         [[unroll]] for (uint u = 0u; u < 4u; ++u) {
             uint x = sel[u] < visible ? sel[u] : 0u;
             at[u] = view_block(v, x / p.bt) * bf + (kvh * p.bt + x % p.bt) * p.dim + d0;
@@ -165,7 +167,7 @@ void main() {
         uint t1 = t + streams;
 #ifdef LLMX_SPARSE
         // A selection slot past the row's visible tokens holds no token and is passed over, as in the single loop below.
-        uint s0 = ids[(view_row0(v) + b) * p.selected_stride + t], s1 = ids[(view_row0(v) + b) * p.selected_stride + t1];
+        uint s0 = slot_token(sb, t, visible), s1 = slot_token(sb, t1, visible);
         bool u0 = s0 < visible, u1 = s1 < visible;
         s0 = u0 ? s0 : 0u;
         s1 = u1 ? s1 : 0u;
@@ -192,7 +194,7 @@ void main() {
     // The one-head build takes one token at a time: its short histories gain nothing from the pair, and its registers stay those of a single token.
     for (; t < end; t += streams) {
         #ifdef LLMX_SPARSE
-        uint token = ids[(view_row0(v) + b) * p.selected_stride + t];
+        uint token = slot_token(sb, t, visible);
         if (token >= visible) continue;
         uint b0 = view_block(v, token / p.bt) * bf + (kvh * p.bt + token % p.bt) * p.dim + d0;
 #else

@@ -28,6 +28,14 @@ void require(bool ok, const std::string& what) {
     ++checked;
 }
 
+// The same bits at each element, or NaN at both: a NaN from NaN operands takes one operand's sign, and two inlined copies of one loop may order a product's operands apart.
+bool same_or_nan(const std::vector<float>& a, const std::vector<float>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::memcmp(&a[i], &b[i], 4) && !(std::isnan(a[i]) && std::isnan(b[i]))) return false;
+    return true;
+}
+
 void refused(const std::function<void()>& run, const std::string& what, const std::string& text) {
     try {
         run();
@@ -130,7 +138,7 @@ void sigmoid_routing() {
             "device: route_experts has no sigmoid scores");
 }
 
-// silu_mul's quick_gelu form against docs/MINIMAX.md (The forward pass) in double: g' = min(g, L), u' = clamp(u, -L, L), (u' + 1) * g' * sigmoid(1.702 g'), a limit of 0 clamping nothing and 1 to 8 threads bit for bit.
+// silu_mul's quick_gelu form against docs/MINIMAX.md (The forward pass) in double: g' = min(g, L), u' = clamp(u, -L, L), (u' + 1) * g' * sigmoid(1.702 g'), a limit of 0 clamping nothing and 1 to 8 threads bit for bit, a NaN's sign aside.
 void quick_gelu() {
     const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
     const float special[] = {-inf, -200.0f, -7.5f, -7.0f, -1.0f, -0.0f, 0.0f, 1e-30f, 0.5f, 6.999f, 7.0f, 7.25f, 90.0f, inf, nan};
@@ -168,7 +176,7 @@ void quick_gelu() {
         for (int t : kThreads) {
             cpu.set_threads(t);
             cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit, {}, backend::GluForm::quick_gelu);
-            require(!std::memcmp(download(cpu, *ob, n).data(), got.data(), n * 4), name + " at " + std::to_string(t) + " threads");
+            require(same_or_nan(download(cpu, *ob, n), got), name + " at " + std::to_string(t) + " threads");
         }
     }
 }

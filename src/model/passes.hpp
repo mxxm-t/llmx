@@ -742,6 +742,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, size_t lay
             p.receive_ms += waited;
             p.write_ms += wrote;
         }
+        if (st.first < st.end) arch_->pass_values(mixer_part(ctx, p, st.device, st.first));
         p.open = true;
     }
     size_t cur = p.cur;
@@ -877,6 +878,11 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, size_t laye
             }
         }
         for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
+        for (size_t m = 0; m < W && st.first < st.end; ++m) {
+            Step step = mixer_part(ctx, p, g + m, st.first);
+            step.width = W;
+            arch_->pass_values(step);
+        }
         p.open = true;
     }
     const int end = layers ? std::min(st.end, p.layer + (int)std::min<size_t>(layers, INT_MAX)) : st.end;

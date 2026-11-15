@@ -241,6 +241,7 @@ struct EditedPlan final : infer::Architecture {
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { arch->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { arch->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override { arch->pass_values(s); }
     void mixer(const infer::Step& s) const override { arch->mixer(s); }
     void ffn(const infer::Step& s) const override { arch->ffn(s); }
     void head(const infer::HeadStep& s) const override { arch->head(s); }
@@ -1216,6 +1217,7 @@ public:
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base_->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base_->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override { base_->pass_values(s); }
     void mixer(const infer::Step& s) const override { base_->mixer(s); }
     void ffn(const infer::Step& s) const override { base_->ffn(s); }
     void head(const infer::HeadStep& s) const override { base_->head(s); }

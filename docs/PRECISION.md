@@ -202,6 +202,7 @@ What each part of a forward pass computes in, on every backend; `--dtype` by bac
 | KV cache | `f16` by default, or `f32`, per side with `--cache-type-k` and `--cache-type-v`; read back exactly as stored; `native` only where the model declares a format (DeepSeek-V4.1, where it is the default); no quantized cache types |
 | Norms, RoPE, residuals, recurrent state | F32 |
 | Routers of mixture-of-experts models | F32 under every `--dtype` |
+| SiLU, quick_gelu and router sigmoids | F32, each backend with its own `exp` (the C library's on the CPU, GLSL's on Vulkan, `expf` on ROCm and CUDA); Vulkan is held to the CPU within 1e-6 for SiLU and within 1e-6 for quick_gelu, a budget of twice the device's SiLU deviation at quick_gelu's arguments (2.816e-07 measured) rounded up, with SiLU's floor; ROCm and CUDA hold both to the device tests' F32 bound, 1e-4 * (1 + |CPU|) |
 | `F16` and `BF16` weights | Widened exactly to F32 in the product |
 | `MXFP4` and the other quantized weight types | Decoded exactly; `MXFP4` has no 8-bit form, so `int8` runs it as `f16`; on Vulkan it needs a device with double-precision support |
 

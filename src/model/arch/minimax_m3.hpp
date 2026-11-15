@@ -233,6 +233,15 @@ public:
 
     void embed(const Step& s, const uint32_t* ids) const override { blocks::embed(s, s.w[token_embd], ids); }
 
+    // Each index head of a row keeps its blocks up to the row's own, whose count candidate_blocks reads as the row's length, the same in every layer.
+    void pass_values(const Step& s) const override {
+        const size_t IH = size_t(cfg_.index_heads), B = size_t(cfg_.index_block);
+        if (!s.indices || s.indices_size < backend::size_mul(s.rows, IH)) throw std::runtime_error("inference: the minimax-m3 block lengths' scratch is too small");
+        for (size_t r = 0; r < s.rows; ++r)
+            for (size_t i = 0; i < IH; ++i) s.indices[r * IH + i] = uint32_t(size_t(s.pos[r]) / B + 1);
+        s.b.write(*s.arena, s.offsets[block_lens], s.indices, s.rows * IH * sizeof(uint32_t));
+    }
+
     // Attention over each KV head's kept blocks (docs/MINIMAX.md, The forward pass): the index keys stored beside K and V, each index head's block maxima and its top_k blocks with the row's own pinned, then GQA over their positions.
     void mixer(const Step& s) const override {
         backend::Backend& b = s.b;
@@ -256,11 +265,6 @@ public:
         for (size_t e = 0; e < s.n_views; ++e) n = std::max(n, (s.views[e].length + s.views[e].nq + B - 1) / B);
         b.indexer_scores(s.slot(block_scores), s.slot(index_q_rows), s.kv_layer, s.views, s.n_views, {}, 1.0f, IH, I, backend::ModelFormat::f32, n, {}, 0, B,
                          backend::IndexForm::raw_blocks);
-        // Each index head of a row keeps its blocks up to the row's own, whose count candidate_blocks reads as the row's length.
-        if (!s.indices || s.indices_size < backend::size_mul(s.rows, IH)) throw std::runtime_error("inference: the minimax-m3 block lengths' scratch is too small");
-        for (size_t r = 0; r < s.rows; ++r)
-            for (size_t i = 0; i < IH; ++i) s.indices[r * IH + i] = uint32_t(size_t(s.pos[r]) / B + 1);
-        b.write(*s.arena, s.offsets[block_lens], s.indices, s.rows * IH * sizeof(uint32_t));
         b.candidate_blocks(s.slot(block_ids), s.slot(block_scores), s.slot(block_lens), s.rows * IH, n, 1, K);
         b.sparse_attention(s.slot(q_rows), s.kv_layer, s.views, s.n_views, s.slot(block_ids), K, s.slot(attn_rows), int(H), int(HK), int(D), IH, B);
         blocks::join(s, w[attn_output], s.slot(attn_rows));

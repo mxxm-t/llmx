@@ -674,7 +674,7 @@ public:
     }
 
     // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::glu_quick_gelu && op != Op::raw_index_scores && op != Op::sparse_attention_blocks && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
+    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1201,18 +1201,18 @@ public:
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}, GluForm form = GluForm::silu) override {
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("vulkan: a SwiGLU limit that is negative or not finite");
-        if (form != GluForm::silu) throw std::runtime_error("vulkan: silu_mul has no quick_gelu form");
         if (!n) return;
         const bool quant = n % 32 == 0;
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).
         const size_t rows = runs.n ? runs.runs[runs.n - 1].end : 0;
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
         const uint32_t major = tile ? x8_major(n / rows, rows) : 0;
-        // A limit takes the clamped build, whose push constants carry it (shaders/silu_mul.comp, LLMX_CLAMP).
-        struct { uint32_t n, quant, major; float limit; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, limit};
+        // A limit or the quick_gelu form takes the clamped build, whose push constants carry both (shaders/silu_mul.comp, LLMX_CLAMP).
+        const bool clamped = limit > 0.0f || form != GluForm::silu;
+        struct { uint32_t n, quant, major; float limit; uint32_t form; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, limit, form == GluForm::quick_gelu ? 1u : 0u};
         const size_t slot = quant ? take_twin(n) : 0;
-        dispatch(limit > 0.0f ? K_SILU_MUL_CLAMP : K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, &pc,
-                 limit > 0.0f ? sizeof(pc) : 3 * sizeof(uint32_t), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+        dispatch(clamped ? K_SILU_MUL_CLAMP : K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, &pc,
+                 clamped ? sizeof(pc) : 3 * sizeof(uint32_t), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
         if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
@@ -1521,6 +1521,8 @@ public:
                                ModelFormat entry_format) override;
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim,
                         ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form = IndexForm::weighted_relu) override;
+    // indexer_scores' raw form over the token rows of the layer's auxiliary plane, 16 rows by 4 heads and one block a workgroup (shaders/raw_index_scores.comp).
+    void raw_index_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, size_t heads, size_t dim, size_t n, size_t block_size);
     void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override;
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.

@@ -1,0 +1,103 @@
+#version 450
+#extension GL_EXT_control_flow_attributes : require
+// indexer_scores' raw form for 16 rows by 4 heads and one block a workgroup: out[r][h][b] is the largest dot of q[r][h] with the auxiliary row of a position of block b up to the row's own.
+// Each dot is the CPU's multiply-add chain in d order, staged 32 deep; the maximum keeps the first NaN, else the largest value and the earliest position among equals, as cpu_backend.hpp's raw_index_scores does.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint rows; uint heads; uint dim; uint n; uint block_size; uint bt; uint block_floats; uint width; } p;
+layout(set = 0, binding = 0) writeonly buffer O { float outv[]; };
+layout(set = 0, binding = 1) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 2) readonly buffer A { float aux[]; };
+layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+#define TR 16u
+#define TH 4u
+#define TQ 64u
+#define TT 128u
+#define TD 32u
+#define STRIDE 33u
+#define NONE 0xffffffffu
+shared float ks[TT * STRIDE];
+shared float qs[TQ * STRIDE];
+shared float red_v[TQ * 16u];
+shared uint red_t[TQ * 16u];
+// Whether (v, t) comes before the kept (bv, bt_) under the CPU's rule: a NaN before any number, the earlier of two NaNs, else the larger, the earlier among equals.
+bool before(float v, uint t, float bv, uint bt_) {
+    bool vn = isnan(v), bn = isnan(bv);
+    if (vn != bn) return vn;
+    if (vn || v == bv) return t < bt_;
+    return v > bv;
+}
+void main() {
+    uint tid = gl_LocalInvocationID.x, qg = tid % 16u, tg = tid / 16u;
+    uint b = gl_WorkGroupID.x, r0 = gl_WorkGroupID.y * TR, rn = min(TR, p.rows - r0);
+    uint first = b * p.block_size, last = first + p.block_size;
+    uint s0 = 0u;
+    while (s0 < rn) {
+        // The segment [s0, s1) of the tile's rows reading one view; its last row sees the most positions.
+        uint v, b0, v1, b1;
+        view_of_row(r0 + s0, v, b0);
+        uint s1 = s0 + 1u;
+        while (s1 < rn) {
+            view_of_row(r0 + s1, v1, b1);
+            if (v1 != v) break;
+            ++s1;
+        }
+        uint pos0 = view_hist(v) + b0, live = min(last, pos0 + (s1 - s0));
+        for (uint h0 = 0u; h0 < p.heads; h0 += TH) {
+            float best[4];
+            uint at[4];
+            [[unroll]] for (uint a = 0u; a < 4u; ++a) { best[a] = -1.0 / 0.0; at[a] = NONE; }
+            for (uint c0 = first; c0 < live; c0 += TT) {
+                precise float dot[4][8];
+                [[unroll]] for (uint a = 0u; a < 4u; ++a) [[unroll]] for (uint c = 0u; c < 8u; ++c) dot[a][c] = 0.0;
+                for (uint d0 = 0u; d0 < p.dim; d0 += TD) {
+                    uint dn = min(TD, p.dim - d0);
+                    barrier();
+                    for (uint i = tid; i < TT * TD; i += 256u) {
+                        uint tt = i / TD, d = i % TD, t = c0 + tt;
+                        ks[tt * STRIDE + d] = t < live && d < dn ? aux[view_block(v, t / p.bt) * p.block_floats + (t % p.bt) * p.width + d0 + d] : 0.0;
+                    }
+                    for (uint i = tid; i < TQ * TD; i += 256u) {
+                        uint j = i / TD, d = i % TD, rr = s0 + j / TH, h = h0 + j % TH;
+                        qs[j * STRIDE + d] = rr < s1 && h < p.heads && d < dn ? q[((r0 + rr) * p.heads + h) * p.dim + d0 + d] : 0.0;
+                    }
+                    barrier();
+                    for (uint d = 0u; d < dn; ++d) {
+                        float qv[4], kv[8];
+                        [[unroll]] for (uint a = 0u; a < 4u; ++a) qv[a] = qs[(qg + 16u * a) * STRIDE + d];
+                        [[unroll]] for (uint c = 0u; c < 8u; ++c) kv[c] = ks[(tg + 16u * c) * STRIDE + d];
+                        [[unroll]] for (uint a = 0u; a < 4u; ++a) [[unroll]] for (uint c = 0u; c < 8u; ++c) dot[a][c] = fma(qv[a], kv[c], dot[a][c]);
+                    }
+                }
+                // Each invocation's positions in increasing order, each counted only up to its row's own position.
+                [[unroll]] for (uint a = 0u; a < 4u; ++a) {
+                    uint rr = s0 + (qg + 16u * a) / TH;
+                    [[unroll]] for (uint c = 0u; c < 8u; ++c) {
+                        uint t = c0 + tg + 16u * c;
+                        if (rr < s1 && t < live && t <= pos0 + rr - s0 && (isnan(dot[a][c]) || dot[a][c] > best[a])) {
+                            if (!isnan(best[a])) { best[a] = dot[a][c]; at[a] = t; }
+                        }
+                    }
+                }
+            }
+            barrier();
+            [[unroll]] for (uint a = 0u; a < 4u; ++a) {
+                red_v[(qg + 16u * a) * 16u + tg] = best[a];
+                red_t[(qg + 16u * a) * 16u + tg] = at[a];
+            }
+            barrier();
+            if (tid < TQ) {
+                uint rr = s0 + tid / TH, h = h0 + tid % TH;
+                float bv = -1.0 / 0.0;
+                uint bt_ = NONE;
+                for (uint i = 0u; i < 16u; ++i) {
+                    float x = red_v[tid * 16u + i];
+                    uint t = red_t[tid * 16u + i];
+                    if (t != NONE && before(x, t, bv, bt_)) { bv = x; bt_ = t; }
+                }
+                if (rr < s1 && h < p.heads) outv[((r0 + rr) * p.heads + h) * p.n + b] = bv;
+            }
+        }
+        s0 = s1;
+    }
+}

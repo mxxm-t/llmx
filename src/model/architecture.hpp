@@ -364,6 +364,8 @@ public:
     virtual void embed(const Step& s, const uint32_t* ids) const = 0;
     // Fill Step::indices from the pass's tokens and preceding token snapshots, without backend work, allocation or I/O.
     virtual void lookup_ids(const Step&) const { throw std::runtime_error("inference: this architecture has no weight-row lookup"); }
+    // What every layer on the step's device reads of the pass's rows alone, such as their block lengths, written into its arena slots once as a stage of the pass begins there, ahead of the layers' mixers.
+    virtual void pass_values(const Step&) const {}
     virtual void mixer(const Step& s) const = 0;
     // The ops of a state layer's mixer that update its state, from the rows LayerPlan::saved names in their slots: the mixer runs them, and a retract inside a mark runs them again over the rows it keeps (docs/SPECULATIVE.md, section 1).
     // A layer that keeps no state has none, and a rerun reads the saved rows in place, where a plane holds the rows the mark has room for, given as Step::rows, the views giving the rows it runs.

@@ -133,6 +133,11 @@ never sees devices, placements, stages or caches beyond what a call hands it.
     step is a `HeadStep`: the parts as backend ops. The runtime calls each once per layer per
     pass, or once per group of entries when a routed layer streams, and a
     part issues backend ops and nothing else.
+  - `pass_values(step)`: writes what every layer on the step's device reads
+    of the pass's rows alone, such as their block lengths, into its arena
+    slots, once as each stage of a pass begins on that device (on a tensor
+    group, on each member) and before the stage's mixers, so a layer reads
+    them in place of writing them itself. The default writes nothing.
   - `lookup_ids(step)`: fills `indices` from the current tokens, preceding
     token snapshots and views for a declared lookup, without backend work,
     allocation or I/O. The default refuses the call. Row reading and staging

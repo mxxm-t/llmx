@@ -1060,6 +1060,9 @@ const uint32_t kSpvIndexerScores[] = {
 const uint32_t kSpvIndexerScoresTile[] = {
 #include "vulkan/indexer_scores_tile.inc"
 };
+const uint32_t kSpvRawIndexScores[] = {
+#include "vulkan/raw_index_scores.inc"
+};
 const uint32_t kSpvPoolWrite[] = {
 #include "vulkan/pool_write.inc"
 };
@@ -1407,7 +1410,7 @@ const uint32_t kSpvHold[] = {
     X(K_COMPRESS_POOL, "compress_pool", kSpvCompressPool, sizeof(kSpvCompressPool), 4, nullptr) \
     X(K_INDEXER_SCORES, "indexer_scores", kSpvIndexerScores, sizeof(kSpvIndexerScores), 6, nullptr) \
     X(K_INDEXER_SCORES_TILE, "indexer_scores_tile", kSpvIndexerScoresTile, sizeof(kSpvIndexerScoresTile), 6, nullptr) \
-    X(K_POOL_WRITE, "pool_write", kSpvPoolWrite, sizeof(kSpvPoolWrite), 3, nullptr) \
+    X(K_RAW_INDEX_SCORES, "raw_index_scores", kSpvRawIndexScores, sizeof(kSpvRawIndexScores), 4, nullptr)     X(K_POOL_WRITE, "pool_write", kSpvPoolWrite, sizeof(kSpvPoolWrite), 3, nullptr) \
     X(K_ROUTE_SQRT_SOFTPLUS, "route_sqrt_softplus", kSpvRouteSqrtSoftplus, sizeof(kSpvRouteSqrtSoftplus), 4, nullptr) \
     X(K_NORM_ROPE_PARTIAL_FORM, "norm_rope_partial_form", kSpvNormRopePartialForm, sizeof(kSpvNormRopePartialForm), 7, nullptr) \
     X(K_SILU_MUL_CLAMP, "silu_mul_clamp", kSpvSiluMulClamp, sizeof(kSpvSiluMulClamp), 4, nullptr) \

@@ -320,6 +320,13 @@ gguf::GGUFModel fork(const std::function<void(gguf::GGUFModel&)>& edit = {}) {
     return m;
 }
 
+// The distinct compression ratios of the index sources: a pass holds each row's index length at each (DeepSeek41::pass_values).
+size_t index_lengths() {
+    std::vector<uint64_t> ratios;
+    for (uint64_t l : golden.index_sources) ratios.push_back(golden.compress_ratios.at(size_t(l)));
+    std::sort(ratios.begin(), ratios.end());
+    return size_t(std::unique(ratios.begin(), ratios.end()) - ratios.begin());
+}
 infer::deepseek4::Config config_of(const gguf::GGUFModel& m) { return infer::deepseek4::read_config(m, P, uint32_t(golden["vocab_size"])); }
 
 // The module's plan of a file.
@@ -592,7 +599,7 @@ void plan() {
                                     (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]),
                                     heads * size_t(golden["engram_head_dim"]), hc * d, d, hc * d, hc * d, golden["head_dim"], golden["head_dim"],
                                     golden["head_dim"], golden["index_head_dim"], size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]),
-                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, 1, golden["index_topk"], golden["candidate_topk_blocks"]};
+                                    size_t(golden["index_n_heads"]) * size_t(golden["index_head_dim"]), golden["index_n_heads"], ctx, index_lengths(), golden["index_topk"], golden["candidate_topk_blocks"]};
     require(p.residual == hc * d && p.embed_copies == hc && p.context_length == ctx && p.slots == slots &&
                 p.vocab == golden["vocab_size"] && p.index_width == std::max(size_t(heads), window) && !p.kv_heads && !p.head_dim,
             "the residual of the streams, the context, the hyper-connection, window attention, FFN, Engram, compressor, indexer and candidate slots and the index scratch of the lookup and the window");
@@ -677,7 +684,7 @@ void footprint() {
                        3 * (size_t(golden["n_activated_experts"]) + 1) * size_t(golden["moe_inter_dim"]) +
                        size_t(golden["engram_n_heads"]) * (size_t(golden["engram_max_ngram_size"]) - 1) * size_t(golden["engram_head_dim"]) + 3 * R + size_t(golden["dim"]) +
                        4 * size_t(golden["head_dim"]) + 2 * size_t(golden["index_head_dim"]) + size_t(golden["index_n_heads"]) * (size_t(golden["index_head_dim"]) + 1) +
-                       ctx + 1 + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]);
+                       ctx + index_lengths() + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"]);
     require(fp.tables == (2 * ctx * rd + R + norms + hc + groups + size_t(golden["dim"])) * sizeof(float) && fp.activations_per_row == slots * sizeof(float) &&
                 fp.handoff_per_row == (R + 2 * hc + size_t(golden["head_dim"]) + size_t(golden["index_head_dim"]) + size_t(golden["index_topk"]) + size_t(golden["candidate_topk_blocks"])) * sizeof(float) && fp.host_scratch_per_row == window * sizeof(uint32_t),
             "the tables, the slots, the handoff row with the carried slots and the index scratch");

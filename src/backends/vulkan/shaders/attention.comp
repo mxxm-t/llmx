@@ -12,7 +12,7 @@ layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint rows; uint n_head; uint n_head_kv; uint dim; uint bt; float scale; uint nsplit; uint chunk; uint quant; uint max_parts; uint hg;
 #ifdef LLMX_SPARSE
-    uint selected_stride;
+    uint selected_stride; uint id_shift; uint id_groups;
 #endif
 // The non-causal build: every row attends its view's whole hist + nq, as a vision encoder's rows see their image (docs/VISION.md, section 3).
 #ifdef LLMX_FULL
@@ -49,6 +49,7 @@ layout(set = 0, binding = 5) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
 #ifdef LLMX_SPARSE
 layout(set = 0, binding = 7) readonly buffer I { uint ids[]; };
+#include "sparse_slots.glsl"
 #endif
 shared float qs[HG][256];
 shared float ms[HG][8];
@@ -86,7 +87,8 @@ void main() {
     // The row's parts: chunk tokens each, the chunk doubling until at most max_parts cover the row, so they depend only on the row's length; a split past them is empty.
     #ifdef LLMX_SPARSE
     uint visible = view_hist(v) + b + 1u;
-    uint start = 0u, end = p.selected_stride;
+    uint start = 0u, end = p.selected_stride << p.id_shift;
+    uint sb = slot_base(view_row0(v) + b, kvh);
 #else
 #ifdef LLMX_FULL
     uint len = view_hist(v) + view_nq(v), chunk = p.chunk;
@@ -113,7 +115,7 @@ void main() {
     }
     for (uint t = start + sg; t < end; t += nsg) {
         #ifdef LLMX_SPARSE
-        uint token = ids[(view_row0(v) + b) * p.selected_stride + t];
+        uint token = slot_token(sb, t, visible);
         if (token >= visible) continue;
         uint base = view_block(v, token / p.bt) * bf + (kvh * p.bt + token % p.bt) * p.dim;
 #else

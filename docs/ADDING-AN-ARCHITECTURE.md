@@ -140,6 +140,7 @@ The parts issue backend ops and nothing else:
 - a part does not know which device it runs on or whether its weights were streamed there, since the runtime hands it the weights it should read.
 
 The runtime calls each part once per layer per pass, or once per group of entries when a routed layer streams.
+An optional `pass_values` hook writes what the pass's rows alone decide, such as each row's length at a fixed ratio, once a stage on each member before that stage's first mixer, so the layers read one write in place of their own.
 
 ### New backend ops
 

@@ -327,7 +327,7 @@ void refusals(Backend& g) {
     require(throws([&] { g.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 48, 4, 1); }), "a Q8_0 row ending inside a block is refused");
     // The ops ROCm implements are its `implements`, which the kernel checks below reach one by one; the vision tower's layer norm is one it lacks.
     require(!g.implements(Op::layer_norm), "the backend does not report the layer norm it lacks");
-    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs, Op::pool_write, Op::model_format_qdq})
+    for (Op op : {Op::sqrt_softplus_routing, Op::silu_mul_clamp, Op::rope_forms, Op::hc_coeffs, Op::pool_write, Op::model_format_qdq, Op::glu_quick_gelu})
         require(g.implements(op), std::string("the backend reports the ") + backend::op_name(op) + " it implements");
     require(throws([&] { g.layer_norm_rows({y.get(), 0}, {x.get(), 0}, {x.get(), 0}, {x.get(), 0}, 1, 4, 4, 1e-6f); }), "an op the backend lacks throws");
 }
@@ -810,6 +810,34 @@ void ops(Backend& g, Backend& c) {
         close(norm[0], norm[1], "rms_norm_rows against the CPU");
         close(sm[0], sm[1], "silu_mul against the CPU");
         close(ad[0], ad[1], "add against the CPU");
+    }
+    // quick_gelu with and without the limit, beside the calibration it is read against: the device's silu at quick_gelu's sigmoid arguments, gate 1.702 g and up 1, on the path the form leaves as it was.
+    {
+        const size_t n = 50001;
+        const std::vector<float> gv = row_classes::values(n, 8, 12.0f), uv = row_classes::values(n, 9, 12.0f), one(n, 1.0f);
+        std::vector<float> scaled(n);
+        for (size_t i = 0; i < n; ++i) scaled[i] = 1.702f * gv[i];
+        auto worst = [](const std::vector<float>& a, const std::vector<float>& b) {
+            double m = 0;
+            for (size_t i = 0; i < a.size(); ++i) m = std::max(m, double(std::fabs(a[i] - b[i])) / (1.0 + std::fabs(b[i])));
+            return m;
+        };
+        std::vector<float> cal[2], qg[2][2];
+        Backend* bs[2] = {&g, &c};
+        for (int k = 0; k < 2; ++k) {
+            Backend& b = *bs[k];
+            auto gb = b.adopt(gv.data(), n * 4), ub = b.adopt(uv.data(), n * 4), sb = b.adopt(scaled.data(), n * 4), ob = b.adopt(one.data(), n * 4), out = b.alloc(n * 4);
+            b.silu_mul({out.get(), 0}, {sb.get(), 0}, {ob.get(), 0}, n, 0.0f);
+            cal[k] = read(b, *out, n);
+            for (int l = 0; l < 2; ++l) {
+                b.silu_mul({out.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, l ? 7.0f : 0.0f, {}, backend::GluForm::quick_gelu);
+                qg[l][k] = read(b, *out, n);
+            }
+        }
+        std::printf("  silu at quick_gelu's arguments %.3g, quick_gelu %.3g and at limit 7 %.3g from the CPU, relative to 1 + |CPU|\n", worst(cal[0], cal[1]), worst(qg[0][0], qg[0][1]),
+                    worst(qg[1][0], qg[1][1]));
+        close(qg[0][0], qg[0][1], "silu_mul's quick_gelu against the CPU");
+        close(qg[1][0], qg[1][1], "silu_mul's quick_gelu at limit 7 against the CPU");
     }
     // The rope with and without a norm, positions out of order.
     for (bool weighted : {true, false}) {

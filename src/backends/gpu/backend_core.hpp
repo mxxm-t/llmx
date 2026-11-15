@@ -34,6 +34,7 @@ namespace {
 
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.gpu)
 constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
+constexpr size_t kRawIndexRows = 16, kRawIndexThreads = 256;   // llmx_raw_index_scores' rows a block and its threads (kernels/f32.gpu)
 constexpr size_t kIndexTileRows = 16, kIndexTilePositions = 32, kIndexTileThreads = 128, kIndexTileFixed = 16 * 32 * 4;   // llmx_indexer_scores_tile's tile and its static shared bytes (kernels/f32.gpu)
 constexpr size_t kIndexIntRows = 32, kIndexIntPositions = 128, kIndexIntDim = 128;   // llmx_indexer_scores_int's tile and the one dim it reads (kernels/f32.gpu)
 constexpr size_t kSparseColumnsNarrow = 8, kSparseWideRows = 8, kSparseTileWide = 128;   // columns of the narrow column block (kSparseColumns), the rows from which the tile pair runs, and its tile width (kSparseTileWide)
@@ -382,7 +383,7 @@ public:
                op == Op::inject_streams || op == Op::signed_sqrt_gate || op == Op::dilated_conv_silu_add || op == Op::select_kv || op == Op::sparse_attention || op == Op::argmax_rows || op == Op::embed_ids ||
                op == Op::hc_coeffs || op == Op::hc_collapse_norm || op == Op::hc_expand || op == Op::sparse_attention_sink || op == Op::topk_rows ||
                op == Op::candidate_blocks || op == Op::compress_pool || op == Op::indexer_scores || op == Op::model_format_qdq || op == Op::model_format_pack || op == Op::pool_write ||
-               op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms || op == Op::mix_rows;
+               op == Op::sqrt_softplus_routing || op == Op::silu_mul_clamp || op == Op::rope_forms || op == Op::mix_rows || op == Op::glu_quick_gelu || op == Op::raw_index_scores || op == Op::sparse_attention_blocks;
     }
     // A generated token is a class; a prompt's extent is classed by the tiles it reaches, product, routed and attention (docs/src/backends-gpu.md, batch invariance).
     size_t row_class(size_t extent) const override {
@@ -1253,7 +1254,7 @@ public:
         if (en) floats(entry_ids, en);
         if (overlaps(out, qn, q, qn) || overlaps(out, qn, kv, kvn) || overlaps(out, qn, ids, idn) || overlaps(out, qn, sink, heads) || (en && overlaps(out, qn, entry_ids, en)))
             throw std::runtime_error(Api::prefix + "sparse attention output must be disjoint from its inputs");
-        const PooledTable t = n_views ? pooled_table(layer, views, n_views, rows, ew, "sparse attention") : PooledTable{};
+        const PooledTable t = n_views ? pooled_table(layer, views, n_views, rows, ew, "sparse attention", false) : PooledTable{};
         float* o = f32(out);
         const float *qp = f32(q), *kp = f32(kv), *sk = f32(sink);
         const unsigned* ip = (const unsigned*)f32(ids);
@@ -1291,14 +1292,18 @@ public:
     }
     void indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads, size_t dim, ModelFormat key_format,
                         size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form = IndexForm::weighted_relu) override {
-        if (form != IndexForm::weighted_relu) throw std::runtime_error(Api::prefix + "indexer_scores has no raw form");
+        if (form == IndexForm::raw_blocks) {
+            if (w.buffer || blocks.buffer || block_k || key_format != ModelFormat::f32)
+                throw std::runtime_error(Api::prefix + "raw index scores take no weights, candidate blocks or key format but f32");
+            return raw_index_scores(out, q, layer, views, n_views, heads, dim, n, block_size);
+        }
         if (!heads || heads > 1024 || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
             throw std::runtime_error(Api::prefix + "invalid index score dimensions");
         size_t rows = 0;
         for (size_t vi = 0; vi < n_views && views; ++vi) rows = size_add(rows, views[vi].nq);
         if (!rows || !n) return;
         const size_t key_words = format_words(key_format, dim);
-        const PooledTable t = pooled_table(layer, views, n_views, rows, key_words, "index scores");
+        const PooledTable t = pooled_table(layer, views, n_views, rows, key_words, "index scores", false);
         const size_t on = size_mul(rows, n), qn = size_mul(rows, size_mul(heads, dim)), wn = size_mul(rows, heads), bn = blocks.buffer ? size_mul(rows, block_k) : 0;
         for (const auto& [s, count] : {std::pair<CSlice, size_t>{out, on}, {q, qn}, {w, wn}}) floats(s, count);
         if (bn) floats(blocks, bn);
@@ -1329,6 +1334,26 @@ public:
         unsigned per = std::max(1u, (unsigned)kThreads / h);
         const Args args(o, qp, aux, tab, wp, bp, nn, h, d, w_scale, tokens, bt, bf, rf, width, bk, bs, kf, kws, per);
         launch(kIndexerScores, u32((n + per - 1) / per), (unsigned)rows, args);
+    }
+    // indexer_scores' raw form over the token rows of the layer's auxiliary plane, kRawIndexRows rows by 4 heads and one block a block (kernels/f32.gpu, llmx_raw_index_scores).
+    void raw_index_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, size_t heads, size_t dim, size_t n, size_t block_size) {
+        if (!heads || !dim || !block_size || n >= UINT32_MAX || size_mul(n, block_size) >= UINT32_MAX) throw std::runtime_error(Api::prefix + "invalid index score dimensions");
+        if (!views && n_views) throw std::runtime_error(Api::prefix + "raw index scores without views");
+        size_t rows = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            rows = size_add(rows, views[vi].nq);
+            if (views[vi].nq && (size_add(views[vi].length, views[vi].nq) + block_size - 1) / block_size > n) throw std::runtime_error(Api::prefix + "raw index scores narrower than a row's blocks");
+        }
+        if (!rows) return;
+        const PooledTable t = pooled_table(layer, views, n_views, rows, dim, "raw index scores", true);
+        const size_t on = size_mul(rows, size_mul(heads, n)), qn = size_mul(rows, size_mul(heads, dim));
+        floats(out, on);
+        floats(q, qn);
+        if (overlaps(out, on, q, qn)) throw std::runtime_error(Api::prefix + "index scores output must be disjoint from its inputs");
+        if (!n) return;
+        if ((rows + kRawIndexRows - 1) / kRawIndexRows > 65535) throw std::runtime_error(Api::prefix + "raw index scores of more rows than a launch holds");
+        const Args args(f32(out), f32(q), t.aux, t.rows, u32(rows), u32(heads), u32(dim), u32(n), u32(block_size), (unsigned)kBlockTokens, t.block_floats);
+        launch(kRawIndexScores, u32(n), u32((rows + kRawIndexRows - 1) / kRawIndexRows), args, 1, kRawIndexThreads);
     }
     void pool_write(size_t layer, const KVView* views, size_t n_views, CSlice rows) override {
         if (!n_views) return;
@@ -1361,7 +1386,6 @@ public:
     }
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs, GluForm form) override {
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error(Api::prefix + "a SwiGLU limit that is negative or not finite");
-        if (form != GluForm::silu) throw std::runtime_error(Api::prefix + "silu_mul has no quick_gelu form");
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), gate, up}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
         float* d = f32(dst);
@@ -1374,7 +1398,8 @@ public:
         float* td = t.d;
         TwinMap map = t.map;
         const Kernel k = !t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, build = twin_build(k, map);
-        Args args(d, g, u, nn, limit, q, td);
+        const int fm = form == GluForm::quick_gelu;
+        Args args(d, g, u, nn, limit, fm, q, td);
         if (build != k) args.put(map);
         launch_writing({{d, n}}, build, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
         keep(t, d, n);
@@ -1614,14 +1639,17 @@ public:
         launch(kAttentionMerge, (unsigned)rows, (unsigned)n_head, merge);
     }
 
-    // Attention over each row's selected ids through the dense bodies' sparse builds, per-row for heads 128 and 256 wide and chunked otherwise.
-    // A row's splits follow the id stride alone, never the call.
+    // Attention over each row's selection slots through the dense bodies' sparse builds, per-row for heads 128 and 256 wide and chunked otherwise.
+    // A row's slots are its group's ids, each a power of two of positions (kernels/f32.gpu, slot_token), and its splits follow the slots alone, never the call.
     void sparse_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv,
                           int head_dim, size_t groups, size_t block_size) override {
-        if (groups != 1 || block_size != 1) throw std::runtime_error(Api::prefix + "sparse_attention has no id groups or blocks");
+        if (!block_size || (block_size & (block_size - 1))) throw std::runtime_error(Api::prefix + "sparse attention blocks of a size that is not a power of two");
+        unsigned shift = 0;
+        while ((size_t(1) << shift) < block_size) ++shift;
         if (!n_views) return;
         if (!views) throw std::runtime_error(Api::prefix + "sparse attention without views");
-        if (!id_stride || id_stride > (size_t)INT32_MAX || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || head_dim > (int)kThreads)
+        if (!id_stride || shift > 16 || id_stride > (size_t)INT32_MAX >> shift || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 ||
+            head_dim > (int)kThreads || !groups || size_t(n_head_kv) % groups)
             throw std::runtime_error(Api::prefix + "invalid sparse attention dimensions");
         GpuKVStorage<Api>& s = storage(views[0]);
         if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error(Api::prefix + "sparse attention outside the KV view");
@@ -1638,7 +1666,8 @@ public:
                 ends.push_back((int32_t)(view.length + b + 1));
             }
         }
-        const size_t rows = firsts.size(), floats = size_mul(size_mul(rows, (size_t)n_head), (size_t)head_dim), selected = size_mul(rows, id_stride);
+        const size_t rows = firsts.size(), floats = size_mul(size_mul(rows, (size_t)n_head), (size_t)head_dim), selected = size_mul(size_mul(rows, groups), id_stride);
+        const size_t slots = id_stride << shift;
         if (!Q.buffer || !ids.buffer || !out.buffer) throw std::runtime_error(Api::prefix + "operand without storage");
         span(*Q.buffer, Q.offset * sizeof(float), size_mul(floats, sizeof(float)));
         span(*ids.buffer, ids.offset * sizeof(float), size_mul(selected, sizeof(uint32_t)));
@@ -1657,15 +1686,15 @@ public:
         const int* tp = (const int*)pass_arg(table.data(), table.size() * sizeof(int32_t));
         const int* fp = tp + nt;
         const int* ep = fp + rows;
-        int ratio = n_head / n_head_kv, bt = (int)kBlockTokens, kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16, stride = (int)id_stride;
+        int ratio = n_head / n_head_kv, bt = (int)kBlockTokens, kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16, stride = (int)slots, ng = (int)groups;
         float scale = 1.0f / std::sqrt((float)head_dim);
         if (head_dim == 128 || head_dim == 256) {
-            const size_t ids_per = sparse_split_ids(id_stride);
-            int chunk = (int)ids_per, nsplit = (int)((id_stride + ids_per - 1) / ids_per);
+            const size_t ids_per = sparse_split_ids(slots);
+            int chunk = (int)ids_per, nsplit = (int)((slots + ids_per - 1) / ids_per);
             const size_t need = attention_parts_bytes(rows, (size_t)n_head, (size_t)nsplit, (size_t)head_dim);
             if (nsplit > 1 && (!parts_ || parts_->size() < need)) parts_ = alloc(need, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_gpu<Api>(*parts_).data() : nullptr;
-            const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, vp, idp, stride);
+            const Args args(q, o, kc, vc, tp, fp, ep, n_head, n_head_kv, bt, kh, vh, scale, nsplit, chunk, vp, idp, stride, shift, ng);
             // Four heads of a KV head a block, each head its one-head bits (kernels/f32.gpu, sparse_vec_grouped), where the groups fill the compute units, as the Vulkan backend chooses.
             if (ratio % 4 == 0 && rows * size_t(n_head) / 4 >= size_t(dev_.caps.compute_units)) launch(head_dim == 256 ? kSparseVec256G4 : kSparseVecG4, (unsigned)(rows * (n_head / 4) * nsplit), 1, args);
             else launch(head_dim == 256 ? kSparseVec256 : kSparseVec, (unsigned)(rows * n_head * nsplit), 1, args);
@@ -1678,7 +1707,7 @@ public:
         const size_t need = attention_parts_bytes(rows, (size_t)n_head, kChunks, (size_t)head_dim);
         if (!parts_ || parts_->size() < need) parts_ = alloc(need, Memory::device);
         float* pp = (float*)as_gpu<Api>(*parts_).data();
-        const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale, idp, stride);
+        const Args args(q, pp, kc, vc, tp, fp, ep, n_head, ratio, n_head_kv, head_dim, bt, kh, vh, scale, idp, stride, shift, ng);
         launch(kSparseChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
         const Args margs(pp, o, ep, n_head, head_dim, stride);
         launch(kSparseMerge, (unsigned)rows, (unsigned)n_head, margs);
@@ -1918,7 +1947,7 @@ private:
                   kAttentionVec256, kAttentionVec256Major, kAttentionVecMerge256, kAttentionVecMerge256Major, kArgmaxSlices, kArgmaxMerge, kArgmaxPart, kArgmaxPick,
                   kMoeRoute, kMoeCombine, kMoeGroup, kRoutedExactF32, kRoutedExactQ8, kRoutedExactQ4K, kRoutedExactQ5K, kRoutedExactQ6K, kRoutedExactQ50, kRoutedExactQ40, kRoutedExactQ41, kRoutedExactQ51, kRoutedExactBF16, kRoutedExactF16, kRoutedExactIQ4NL, kRoutedExactMXFP4,
                   kRowsExactF32, kRowsExactQ8, kRowsExactQ4K, kRowsExactQ5K, kRowsExactQ6K, kRowsExactQ50, kRowsExactQ40, kRowsExactQ41, kRowsExactQ51, kRowsExactBF16, kRowsExactF16, kRowsExactIQ4NL, kRowsExactMXFP4, kSparseVecG4, kSparseVec256G4, kColsF32x2, kColsF32x4, kMoeStepRoute,
-                  kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
+                  kHcCoeffsCollapse, kHcExpand, kModelFormatQdq, kTopkRows, kCompressPool, kIndexerScores, kIndexerScoresTile, kIndexerScoresInt, kRawIndexScores, kPoolWrite, kSparseSoftmax, kSparseScoresTile, kSparseColumns, kSparseValuesTile, kRouteSqrtSoftplus, kRouteStepF32, kRouteStepBF16,
 
                   kNormRopeForm, kDeltaStep, kMixRows,
                   kRows16x1, kRows16x2, kRows16x2r4, kRows16x4, kRows16x4r4, kRows16x8, kRows16x8r4, kRows16x16, kTile16,
@@ -1944,7 +1973,7 @@ private:
                                                            "llmx_twin16", "llmx_twin8", "llmx_silu_mul_twin16_major", "llmx_silu_mul_twin8_major",
                                                            "llmx_rms_norm_16_twin16_major", "llmx_rms_norm_16_twin8_major", "llmx_rms_norm_32_twin16_major",
                                                            "llmx_rms_norm_32_twin8_major", "llmx_attention_vec_major", "llmx_attention_vec_merge_major",
-                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
+                                                           "llmx_twin16_major", "llmx_twin8_major", "llmx_group_sum", "llmx_group_two_shots", "llmx_group_chain", "llmx_group_arm", "llmx_group_add_check", "llmx_sigmoid_mul", "llmx_gated_rms_norm", "llmx_norm_rope_streams", "llmx_causal_conv_silu", "llmx_gated_delta_rule", "llmx_gated_delta_rule_short", "llmx_group_rms_norm", "llmx_silu_scaled", "llmx_mix_streams", "llmx_inject_streams", "llmx_signed_sqrt_gate", "llmx_dilated_conv_silu_add", "llmx_kv_index_pool", "llmx_kv_index_scores", "llmx_kv_index_select", "llmx_kv_index_select_wide", "llmx_sparse_attention_chunk", "llmx_sparse_attention_merge", "llmx_sparse_attention_vec", "llmx_sparse_attention_vec256", "llmx_sparse_attention_vec_merge", "llmx_sparse_attention_vec_merge256", "llmx_attention_vec256", "llmx_attention_vec256_major", "llmx_attention_vec_merge256", "llmx_attention_vec_merge256_major", "llmx_argmax_slices", "llmx_argmax_merge", "llmx_argmax_part", "llmx_argmax_pick", "llmx_moe_route", "llmx_moe_combine", "llmx_moe_group", "llmx_routed_f32", "llmx_routed_q8_0", "llmx_routed_q4_k", "llmx_routed_q5_k", "llmx_routed_q6_k", "llmx_routed_q5_0", "llmx_routed_q4_0", "llmx_routed_q4_1", "llmx_routed_q5_1", "llmx_routed_bf16", "llmx_routed_f16", "llmx_routed_iq4_nl", "llmx_routed_mxfp4", "llmx_matmul_rows_f32", "llmx_matmul_rows_q8_0", "llmx_matmul_rows_q4_k", "llmx_matmul_rows_q5_k", "llmx_matmul_rows_q6_k", "llmx_matmul_rows_q5_0", "llmx_matmul_rows_q4_0", "llmx_matmul_rows_q4_1", "llmx_matmul_rows_q5_1", "llmx_matmul_rows_bf16", "llmx_matmul_rows_f16", "llmx_matmul_rows_iq4_nl", "llmx_matmul_rows_mxfp4", "llmx_sparse_attention_vec_g4", "llmx_sparse_attention_vec256_g4", "llmx_matmul_cols2_f32", "llmx_matmul_cols4_f32", "llmx_moe_step_route", "llmx_hc_coeffs_collapse", "llmx_hc_expand", "llmx_model_format_qdq", "llmx_topk_rows", "llmx_compress_pool", "llmx_indexer_scores", "llmx_indexer_scores_tile", "llmx_indexer_scores_int", "llmx_raw_index_scores", "llmx_pool_write", "llmx_sparse_softmax", "llmx_sparse_scores_tile", "llmx_sparse_columns", "llmx_sparse_values_tile", "llmx_route_sqrt_softplus", "llmx_route_step_f32", "llmx_route_step_bf16", "llmx_norm_rope_form", "llmx_delta_step", "llmx_mix_rows", "llmx_q8_0_rows16_1",
 
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_2_r4", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_4_r4",
                                                            "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_8_r4", "llmx_q8_0_rows16_16", "llmx_q8_0_tile16", "llmx_q8_0_rows8_1",
@@ -2216,7 +2245,8 @@ private:
         unsigned tokens = 1, width = 0, rows_floats = 0;
         unsigned long long block_floats = 0;
     };
-    PooledTable pooled_table(size_t layer, const KVView* views, size_t n_views, size_t rows, size_t dim, const char* op) {
+    // With `tokens` the table reads the layer's token rows, which are dim wide, in place of its pooled rows.
+    PooledTable pooled_table(size_t layer, const KVView* views, size_t n_views, size_t rows, size_t dim, const char* op, bool tokens) {
         if (!views) throw std::runtime_error(Api::prefix + op + " without views");
         GpuKVStorage<Api>& s = storage(views[0]);
         std::vector<unsigned> tab(size_mul(rows, 2)), blocks;
@@ -2233,15 +2263,16 @@ private:
             }
         }
         if (r != rows) throw std::runtime_error(Api::prefix + op + " views do not cover its rows");
-        if (!s.auxiliary_pool(layer) || s.auxiliary_pool_width(layer) < dim || !s.auxiliary_buffer(layer))
-            throw std::runtime_error(Api::prefix + op + " reads pooled rows its layer does not keep");
+        if (tokens ? s.auxiliary_width(layer) != dim : !s.auxiliary_pool(layer) || s.auxiliary_pool_width(layer) < dim)
+            throw std::runtime_error(Api::prefix + op + (tokens ? " reads auxiliary rows its layer does not keep at their width" : " reads pooled rows its layer does not keep"));
+        if (!s.auxiliary_buffer(layer)) throw std::runtime_error(Api::prefix + op + " reads an auxiliary plane its layer does not keep");
         tab.insert(tab.end(), blocks.begin(), blocks.end());
         PooledTable t;
         t.aux = f32(CSlice{s.auxiliary_buffer(layer).get(), 0});
         t.rows = (const unsigned*)pass_arg(tab.data(), tab.size() * sizeof(unsigned));
-        t.tokens = u32(s.auxiliary_pool(layer));
-        t.width = u32(s.auxiliary_pool_width(layer));
-        t.rows_floats = u32(s.auxiliary_rows_bytes(layer) / sizeof(float));
+        t.tokens = tokens ? 1u : u32(s.auxiliary_pool(layer));
+        t.width = u32(tokens ? dim : s.auxiliary_pool_width(layer));
+        t.rows_floats = tokens ? 0u : u32(s.auxiliary_rows_bytes(layer) / sizeof(float));
         t.block_floats = s.auxiliary_block_bytes(layer) / sizeof(float);
         return t;
     }
@@ -2273,10 +2304,10 @@ private:
         const size_t chunk = std::max<size_t>(1, p.attention_split_chunk), most = dim == 256 ? p.attention_split_max_wide : p.attention_split_max;
         return std::min(most, std::max<size_t>(1, (longest + chunk - 1) / chunk));
     }
-    // A sparse row's ids a split, doubled from the profile's until the splits fit a block.
-    size_t sparse_split_ids(size_t id_stride) const {
+    // A sparse row's slots a split, doubled from the profile's until the splits fit a block.
+    size_t sparse_split_ids(size_t slots) const {
         size_t ids_per = std::max<size_t>(1, dev_.profile.sparse_split_ids);
-        while ((id_stride + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
+        while ((slots + ids_per - 1) / ids_per > kThreads) ids_per *= 2;
         return ids_per;
     }
     // The sink's scratch for a chunk of rows of at most 32 MiB: p by kept row and head, the denominators, the kept rows and their two counts (kernels/f32.gpu, llmx_sparse_softmax).

@@ -13,6 +13,7 @@
 #include <future>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -1427,6 +1428,7 @@ struct LookupArchitecture : infer::Architecture {
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override { base->pass_values(s); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }
     void head(const infer::HeadStep& s) const override { base->head(s); }
@@ -1618,6 +1620,7 @@ struct TwoLookups : infer::Architecture {
     }
     void fill_tables(std::vector<std::vector<float>>& tables, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(tables, sources); }
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override { base->pass_values(s); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }
     void head(const infer::HeadStep& s) const override { base->head(s); }
@@ -2763,6 +2766,119 @@ void tensor_groups(size_t W, uint64_t heads, uint64_t kv_heads, uint64_t ff, uin
     for (size_t P : {2, 3, 4}) passes_run(weights, 2, P, (uint32_t)(10000 + 100 * W + P), W);
 }
 
+// Qwen3 with each pass_values and mixer call noted by the backend it runs on, 'p' and 'm' in call order.
+struct PassValuesCounting final : infer::Architecture {
+    explicit PassValuesCounting(std::shared_ptr<const infer::Architecture> b) : base(std::move(b)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override { return base->plan(t); }
+    void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void pass_values(const infer::Step& s) const override {
+        note(s, 'p');
+        base->pass_values(s);
+    }
+    void mixer(const infer::Step& s) const override {
+        note(s, 'm');
+        base->mixer(s);
+    }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    void note(const infer::Step& s, char c) const {
+        std::lock_guard<std::mutex> lock(mutex);
+        calls[&s.b].push_back(c);
+    }
+    std::shared_ptr<const infer::Architecture> base;
+    mutable std::mutex mutex;
+    mutable std::map<const backend::Backend*, std::string> calls;
+};
+
+// Every member of every stage takes one pass_values call a pass, before that stage's first mixer, at a layer split of 2 alone and in groups of 2.
+void pass_values_once_a_stage() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    for (size_t W : {size_t(1), size_t(2)}) {
+        infer::ModelWeights w = infer::gguf_weights(weights);
+        const auto arch = std::make_shared<const PassValuesCounting>(w.arch);
+        w.arch = arch;
+        std::vector<backend::BackendPtr> cpus;
+        for (size_t i = 0; i < 2 * W; ++i) {
+            cpus.push_back(std::make_shared<backend::CpuBackend>());
+            cpus.back()->set_threads(1);
+        }
+        infer::PlacementRequest request;
+        request.names.assign(2 * W, "cpu");
+        request.shares = {1, 2};
+        request.ubatch = 3;
+        request.width = W;
+        infer::PlacedModel placed = infer::place_model(std::move(w), std::move(cpus), request, infer::ModelOptions{});
+        require(placed.model->stage_count() == 2, "the counted split did not form two stages");
+        placed.model->prefill(kPrompt);
+        step_row(*placed.model, 7);
+        step_row(*placed.model, 9);
+        // Layer 0 runs on the first stage and layers 1 and 2 on the second, so a member's calls repeat "pm" or "pmm" once a pass.
+        const auto repeats = [](const std::string& calls, const std::string& unit) {
+            if (calls.empty() || calls.size() % unit.size()) return size_t(0);
+            for (size_t i = 0; i < calls.size(); ++i)
+                if (calls[i] != unit[i % unit.size()]) return size_t(0);
+            return calls.size() / unit.size();
+        };
+        const size_t passes = (kPrompt.size() + 2) / 3 + 2;
+        size_t firsts = 0, seconds = 0;
+        for (const auto& member : arch->calls) {
+            firsts += repeats(member.second, "pm") == passes;
+            seconds += repeats(member.second, "pmm") == passes;
+        }
+        require(arch->calls.size() == 2 * W && firsts == W && seconds == W,
+                "pass_values is not called once a pass on every member of a stage before its first mixer");
+        ++checked;
+    }
+}
+
+// Qwen3 with every layer role whole on each member, as an architecture that declares no shards plans its layers.
+struct Unsplit final : infer::Architecture {
+    explicit Unsplit(std::shared_ptr<const infer::Architecture> b) : base(std::move(b)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& t) const override {
+        infer::ModelPlan p = base->plan(t);
+        for (infer::LayerPlan& layer : p.layers)
+            for (infer::Role& role : layer.roles) role.shard = {};
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& t, const std::vector<infer::TensorView>& sources) const override { base->fill_tables(t, sources); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base->mixer(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+    std::shared_ptr<const infer::Architecture> base;
+};
+
+// Layers that split no role run on no tensor group: the fit and the model refuse a width of 2 by its text, and a width of 1 runs.
+void unsplit_layers_refused() {
+    const auto weights = tiny_qwen(3, 2 * 128, true);
+    const auto unsplit = [&] {
+        infer::ModelWeights w = infer::gguf_weights(weights);
+        w.arch = std::make_shared<const Unsplit>(w.arch);
+        return w;
+    };
+    const auto cpus = [](size_t n) {
+        std::vector<backend::BackendPtr> b;
+        for (size_t i = 0; i < n; ++i) {
+            b.push_back(std::make_shared<backend::CpuBackend>());
+            b.back()->set_threads(1);
+        }
+        return b;
+    };
+    const std::string text = "inference: a tensor width of 2 needs layers that split a role over the group, and this model's split none";
+    infer::PlacementRequest request;
+    request.names.assign(2, "cpu");
+    request.width = 2;
+    require(refusal([&] { infer::place_model(unsplit(), cpus(2), request, infer::ModelOptions{}); }) == text, "the fit placed unsplit layers on a tensor group");
+    infer::Placement placement;
+    placement.mixer_device = placement.ffn_device = {0, 0, 0};
+    placement.width = 2;
+    require(refusal([&] { infer::Model model(unsplit(), cpus(2), placement); }) == text, "a model ran unsplit layers on a tensor group");
+    infer::Model alone(unsplit(), cpus(1).front());
+    require(alone.prefill(kPrompt).size() == alone.n_vocab(), "unsplit layers did not run on one device");
+    checked += 3;
+}
+
 // Widths 2, 5, 8 and 16, each on a model whose query heads, KV heads (or their replicas), hidden rows and vocabulary it divides: at 16 each of the 4 KV heads is held by 4 members.
 void tensor_widths() {
     tensor_groups(2, 2, 1, 12, 16);
@@ -3049,6 +3165,8 @@ int main() {
         for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
+        pass_values_once_a_stage();
+        unsplit_layers_refused();
         group_fits();
         context_keeps_logits_pages();
         fitted_rows_counted();

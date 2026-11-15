@@ -26,6 +26,27 @@ messages and branches remain unchanged. Accepted images, partial replies,
 reasoning and tool calls stay in prompt history. Regenerating from the image user
 message still submits its images and requires image admission.
 
+## Tool connections
+
+`GET /api/tools` returns cached `{tools, tool_servers, tools_error}` without
+probing remote endpoints. Initial `/api/config` discovery includes the same fields.
+Each tool has a `connection` string. A server record has `id`, `name`, `kind`
+(`builtin` or `mcp`), `status` (`unchecked`, `checking`, `ready` or `error`),
+`tool_count`, `approval`, `checked_at`, `duration_ms` and `error`. Times are Unix
+seconds and milliseconds. Unmeasured values are null. Workspace has mixed approval
+policy (`approval: null`), with the effective policy on each tool. Counts refer to
+tools exposed by this companion, not an unlimited remote inventory.
+
+`POST /api/tools/test` accepts only `{server: configured_id}` and returns the same
+snapshot after discovery. Unknown IDs return 404, malformed bodies 400, and a
+concurrent discovery check 409. The normal authentication, origin and mutation
+header checks apply. Built-in tools have no remote connection to test. This route
+accepts no URL or credential fields and never invokes `tools/call`.
+A discovered remote failure is a 200 response with that connection's error state.
+Request-level errors do not imply that the remote server itself failed.
+Other connections and the built-in catalogue remain available. Refreshing tool
+metadata does not modify conversation settings, stored messages or running tools.
+
 ## Admission
 
 Login JSON is limited to 16 KiB, checked from Content-Length before reading the

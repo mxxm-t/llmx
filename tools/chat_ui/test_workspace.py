@@ -71,7 +71,7 @@ class FakeRemote:
     def __init__(self):
         self.calls = []
 
-    def list_tools(self):
+    def list_tools(self, discover=True):
         return [{"name": name, "description": "Remote echo",
                  "inputSchema": {"type": "object"}, "server": "remote", "approval": True}
                 for name in ("remote__echo", "workspace__remote_echo")]

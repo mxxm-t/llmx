@@ -144,8 +144,28 @@ The operator can attach MCP servers over HTTP. Create a private JSON file:
 ```
 
 Pass it as `--tools PATH`. Optional `headers` supply server credentials. They
-are never included in the browser's configuration response. The browser lists
-server-prefixed tool names in Settings; select only the tools for that chat.
+are never included in the browser's configuration response. Settings groups tools
+by connection and shows its discovery status, available tool count, last check,
+duration and error. Built-in Workspace tools stay available when an MCP server
+fails. Endpoint URLs, credential headers and protocol session IDs are not exposed.
+
+Test connection repeats initialization when needed and refreshes that connection's
+tool list. It does not call a tool or probe other connections. Only one discovery
+check runs at a time, while cached tools remain readable. The existing HTTP
+request timeout, response-size and pagination limits apply. A failed page refuses
+the connection's entire new catalogue. Automatic retries keep their 30-second
+backoff, and the button permits an explicit retry. Status is the last discovery
+result, not a continuous health guarantee.
+
+Tool selection is saved per conversation. Each tool shows whether approval is
+required. Refreshing connections preserves unsaved chat settings, draft text and
+selected tools that became unavailable. Unavailable selections can be removed.
+Approval policy comes from the operator configuration and is not editable in the
+browser. Workspace reads run directly, while writes and commands need approval.
+Changing configured endpoints or credentials still requires a companion restart.
+The catalogue exposes at most 128 remote tools. A bounded history of 4096 remote
+names keeps aliases stable across refreshes in one process; reaching that limit
+requires restarting the companion before discovering renamed tools.
 
 A model call that requests tools ends before those tools execute. Each call
 has separate arguments, status, duration and results. Approval is required by

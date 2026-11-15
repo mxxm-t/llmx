@@ -18,6 +18,14 @@ execution, replay, conversation branches, cancellation and restart recovery.
 HTTP checks cover authentication, origin checks, attachments and import/export.
 Shared branding checks cover the same asset bytes and MIME types in both servers,
 with the browser checking icon loading, sizing and matching Chat/Monitor favicons.
+
+Tool connection checks cover discovery-only probes, cached snapshots, configured
+IDs, auth/origin/header enforcement, failure/recovery, credential redaction,
+concurrent-test refusal, stable aliases and their bounded history. Failed
+pagination publishes no partial server catalogue, and a failed remote leaves
+Workspace tools available. Browser checks cover grouped policies, connection
+results, removable unavailable selections, draft/settings preservation, keyboard
+focus and narrow layouts.
 Store checks cover schema upgrades, online backup and validated restore, including
 broken branch references, cycles and preservation of the destination on refusal.
 Valid alternative branches need not be stored in parent-first row order. Workspace

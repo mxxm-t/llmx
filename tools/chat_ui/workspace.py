@@ -334,7 +334,7 @@ class WorkspaceTools:
     def last_error(self):
         return self.remote.last_error
 
-    def list_tools(self):
+    def list_tools(self, discover=True):
         definitions = [
             ("workspace_list", "List managed project files and the current revision.", {}, [], False),
             ("workspace_read", "Read lines of a managed file. Offset is zero based.",
@@ -346,8 +346,19 @@ class WorkspaceTools:
             definitions.append(("workspace_run", "Run a command in the isolated project container. Network is disabled. Changes return to managed files.",
                                 {"command": {"type": "string"}}, ["command"], True))
         tools = [dict(name=name, description=description, inputSchema=dict(type="object", properties=properties, required=required, additionalProperties=False),
-                      server="Workspace", approval=approval) for name, description, properties, required, approval in definitions]
-        return tools + self.remote.list_tools()
+                      server="Workspace", connection="builtin:workspace", approval=approval) for name, description, properties, required, approval in definitions]
+        try:
+            return tools + self.remote.list_tools(discover=discover)
+        except RuntimeError:
+            return tools
+
+    def connections(self):
+        return [dict(id="builtin:workspace", name="Workspace", kind="builtin", status="ready",
+                     tool_count=4 if self.workspace.runner else 3, approval=None,
+                     checked_at=None, duration_ms=None, error=None)] + self.remote.connections()
+
+    def test_connection(self, identity):
+        self.remote.test_connection(identity)
 
     def call_tool(self, name, arguments, cancel_event=None):
         if name not in ("workspace_list", "workspace_read", "workspace_write", "workspace_run"):

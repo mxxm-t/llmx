@@ -78,7 +78,10 @@ class FakeTools:
         self.lock = threading.Lock()
         self.approval = approval
 
-    def list_tools(self):
+    def connections(self):
+        return []
+
+    def list_tools(self, discover=True):
         return [{"name": "echo", "description": "Echo text", "inputSchema": {"type": "object"},
                  "server": "fake", "approval": self.approval}]
 

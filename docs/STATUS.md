@@ -30,13 +30,17 @@
 **Left.** Coordinator fast-forward landing. The rejected symbol designs must not land. Local static preview is updated without restarting the service. Production is unchanged.
 
 **Gotchas.** The current preview process does not have the new shared asset routes loaded. Its theme temporarily embeds the exact SVG as a mask data URL. The committed source uses the single shared /logo.svg route. Preserve conversations and in-memory temporary chats.
-## Tool connections in the companion (2026-11-15, In progress)
+## Tool connections in the companion (2026-11-15, Ready)
 
 **Goal.** Make configured MCP connections, discovery status and approval policy visible, with a bounded connection test and clearer per-chat tool selection.
 
 **Done.** Independent branch from main 5d2a394ad. ToolRegistry remains the owner of MCP transport, discovery and status. WorkspaceTools combines local tools with remote tools. Server routes authenticate and dispatch only. Existing Settings and conversation selection remain the UI owners.
 
-**Left.** Per-connection status and probe API, grouped Settings, selection preservation, focused transport/server/browser checks and scoped landing checks.
+**Done.** Registry snapshots and a configured-ID-only discovery probe feed grouped Settings. Healthy cached tools remain readable during a probe. A failing regression first proves remote discovery hid built-in Workspace tools; the wrapper now preserves those tools. Partial failed catalogues are refused, and aliases stay bound to their remote names across refreshes. Credentials stay out of public metadata. The UI preserves drafts and unsaved settings and allows removing unavailable selections.
+
+**Checks.** All 48 focused registry/workspace/server tests pass in 14.915 seconds. The full companion passes 88 tests in 62.291 seconds, including Chrome. Docs reports 0 findings/21 planted checks and dead-code reports 15 expected findings/20 planted faults. A second read-only integration review found no blocker. The final focused Chrome check passes in 30.038 seconds, including screenshot assertions that distinguish request failures from remote discovery failures. The UI worker corrected an initial string-versus-object contract mismatch before qualification.
+
+**Left.** Stack with the ready branding, image-history and readability branches for one scoped hosted workflow and coordinator landing. No live companion restart has occurred.
 
 **Gotchas.** Tests contact configured endpoints only, never execute tools or expose credential headers/URLs. A failed remote must not hide local tools or healthy connections. Probing must not reset a draft, chat settings or an active run. No model/runtime change or dependency on pending branding/image branches.
 

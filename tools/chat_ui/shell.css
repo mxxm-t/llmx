@@ -242,7 +242,7 @@
   padding: 7px 9px;
 }
 .connected-tool {
-  margin: 13px 0;
+  margin: 8px 0;
   font-size: 12px;
 }
 .connected-tool strong {
@@ -254,6 +254,30 @@
   color: var(--muted);
   line-height: 1.6;
 }
+.tool-connection {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.tool-connection-heading,.tool-connection-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tool-connection-heading { overflow-wrap: anywhere; }
+.tool-kind,.tool-connection-meta { color: var(--muted); font-size: 11px; }
+.tool-connection-meta { margin: 5px 0 10px !important; line-height: 1.5 !important; overflow-wrap: anywhere; }
+.tool-connection-error { color: var(--danger); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.tool-connection-actions { flex-wrap: wrap; margin-top: 10px; }
+.tool-connection-actions .secondary-button { margin: 0; }
+.connected-tool-list { max-height: 220px; overflow: auto; }
+.tool-selection-group { margin: 10px 0 16px; }
+.tool-selection-title { display: block; font-size: 12px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.tool-selection-group > p { margin: 0 0 6px; }
+.unavailable-tool { opacity: .75; }
 .code-actions {
   display: flex;
   gap: 15px;

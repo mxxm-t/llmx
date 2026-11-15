@@ -5,6 +5,7 @@ window.ChatShell = (() => {
   const $ = id => document.getElementById(id);
   const labels = {chat: 'Chat', monitor: 'Monitor', workbench: 'Workspace', preferences: 'Settings'};
   let config = null;
+  const toolTestErrors = new Map();
   function fitViewport() {
     const zoom = Number.parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
     const width = window.innerWidth / zoom, height = window.innerHeight / zoom;
@@ -51,11 +52,75 @@ window.ChatShell = (() => {
     $('preferences-models').replaceChildren(...(config.models || []).map(model => node('span', 'model-chip', model.id)));
     const monitor = config.monitor || {};
     $('preferences-monitor').textContent = monitor.url && monitor.enabled !== false ? 'Monitoring the configured inference server.' + (typeof monitor.interval_s === 'number' ? ' Samples refresh every ' + monitor.interval_s + ' seconds.' : '') : monitor.error || 'Monitoring is not available for the configured inference server.';
-    const tools = $('preferences-tools'); tools.replaceChildren();
-    (config.tools || []).forEach(tool => { const row = node('div', 'connected-tool'); row.append(node('strong', '', tool.name), node('span', '', tool.description || tool.server || 'MCP tool')); tools.append(row); });
-    if (!config.tools?.length) tools.append(node('p', 'muted', config.tools_error || 'No MCP tools connected.'));
+    renderToolConnections();
     if ($('app').dataset.view === 'monitor') loadMonitor();
     document.dispatchEvent(new CustomEvent('companion:ready', {detail: config}));
+  }
+  function renderToolConnections() {
+    const out = $('preferences-tools'); out.replaceChildren();
+    const servers = config?.tool_servers || [];
+    if (!servers.length) {
+      if (config?.tools?.length) {
+        const card = node('section', 'tool-connection');
+        card.append(node('strong', '', 'Available tools'), node('p', 'tool-connection-meta', 'Connection status unavailable'));
+        (config.tools || []).forEach(tool => {
+          const row = node('div', 'connected-tool'); row.append(node('strong', '', tool.name));
+          row.append(node('span', '', tool.approval === true ? 'Approval required' : tool.approval === false ? 'Approval not required' : tool.connection === 'builtin:workspace' ? 'Approval varies by tool' : 'Approval policy is managed by the operator'));
+          if (tool.description) row.append(node('span', '', tool.description));
+          card.append(row);
+        });
+        out.append(card);
+      } else out.append(node('p', 'muted', config?.tools_error || 'No external tool connections are configured. Start the companion with --tools PATH to add MCP servers.'));
+      return;
+    }
+    if (!servers.some(server => server.kind === 'mcp')) out.append(node('p', 'muted', 'No external tool connections are configured. Start the companion with --tools PATH to add MCP servers.'));
+    servers.forEach(server => {
+      const card = node('section', 'tool-connection');
+      const heading = node('div', 'tool-connection-heading');
+      heading.append(node('strong', '', server.name || (server.kind === 'builtin' ? 'Workspace' : 'MCP server')));
+      if (server.kind === 'builtin') heading.append(node('span', 'tool-kind', 'Built in'));
+      const state = server.status === 'ready' ? 'Ready' : server.status === 'checking' ? 'Testing connection' : server.status === 'error' ? 'Connection error' : 'Not tested';
+      const meta = node('p', 'tool-connection-meta', state + (Number.isFinite(server.tool_count) ? ' | ' + server.tool_count + ' tools' : ''));
+      if (Number.isFinite(server.checked_at)) meta.append(document.createTextNode(' | Last checked ' + new Date(server.checked_at * 1000).toLocaleString()));
+      if (Number.isFinite(server.duration_ms)) meta.append(document.createTextNode(' | ' + server.duration_ms + ' ms'));
+      const groupTools = (config.tools || []).filter(tool => tool.connection === server.id);
+      const list = node('div', 'connected-tool-list');
+      groupTools.forEach(tool => {
+        const row = node('div', 'connected-tool'); row.append(node('strong', '', tool.name));
+        row.append(node('span', '', tool.approval === true ? 'Approval required' : tool.approval === false ? 'Approval not required' : 'Approval policy is managed by the operator'));
+        if (tool.description) row.append(node('span', '', tool.description));
+        list.append(row);
+      });
+      const error = server.status === 'error' && server.error ? server.error : toolTestErrors.get(server.id);
+      const actions = node('div', 'tool-connection-actions');
+      const policy = server.approval === false ? 'Operator policy: approval not required' : server.approval === true ? 'Operator policy: approval required' : 'Approval policy is managed by the operator';
+      actions.append(node('span', 'muted fine-print', server.kind === 'builtin' && server.id === 'builtin:workspace' ? 'Approval varies by tool' : policy));
+      if (server.kind === 'mcp') {
+        const button = node('button', 'secondary-button', server.status === 'checking' ? 'Testing' : 'Test connection'); button.type = 'button'; button.disabled = server.status === 'checking'; button.dataset.testServer = server.id;
+        button.addEventListener('click', async () => {
+          const restoreFocus = document.activeElement === button;
+          const priorStatus = server.status;
+          toolTestErrors.delete(server.id);
+          button.disabled = true; button.textContent = 'Testing';
+          config = {...config, tool_servers: (config.tool_servers || []).map(item => item.id === server.id ? {...item, status: 'checking'} : item)};
+          renderToolConnections();
+          try {
+            const result = await api('/tools/test', 'POST', {server: server.id});
+            config = {...config, tools: result.tools || [], tool_servers: result.tool_servers || [], tools_error: result.tools_error || null};
+            document.dispatchEvent(new CustomEvent('companion:tools-updated', {detail: config}));
+          } catch (error) {
+            toolTestErrors.set(server.id, error.message);
+            config = {...config, tool_servers: (config.tool_servers || []).map(item => item.id === server.id ? {...item, status: priorStatus} : item)};
+          }
+          renderToolConnections();
+          if (restoreFocus) $('preferences-tools').querySelector('[data-test-server="' + CSS.escape(server.id) + '"]')?.focus();
+        });
+        actions.append(button);
+      }
+      card.append(heading);
+      if (error) card.append(node('p', 'tool-connection-error', error));
+      card.append(meta, list, actions); out.append(card);
+    });
   }
   document.addEventListener('companion:config', event => configure(event.detail));
   document.addEventListener('companion:unauthorized', () => { $('monitor-frame').removeAttribute('src'); if (!$('login-dialog').open) $('login-dialog').showModal(); });

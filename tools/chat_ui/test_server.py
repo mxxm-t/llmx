@@ -267,6 +267,64 @@ class RouteTests(unittest.TestCase):
         self.assertIn("SameSite=Strict", set_cookie)
         return set_cookie.split(";", 1)[0]
 
+    def test_tool_connection_routes_require_auth_and_only_probe_the_named_server(self):
+        from test_tools import FakeMCP
+        from tools import ToolRegistry
+        from workspace import WorkspaceTools
+
+        FakeMCP.mode, FakeMCP.requests = "normal", []
+        remote = ThreadingHTTPServer(("127.0.0.1", 0), FakeMCP)
+        worker = threading.Thread(target=remote.serve_forever, daemon=True)
+        worker.start()
+        try:
+            path = os.path.join(self.temp.name, "tools.json")
+            with open(path, "w", encoding="utf-8") as output:
+                json.dump({"servers": [{"name": "search", "url": "http://127.0.0.1:%d/mcp?key=hidden-query" % remote.server_port,
+                                        "headers": {"Authorization": "Bearer hidden-header"}}]}, output)
+            registry = ToolRegistry(path)
+            self.app.tools = WorkspaceTools(registry, self.app.workspace)
+            self.assertEqual(self.request("GET", "/api/tools")[0], 401)
+            self.assertEqual(self.request("POST", "/api/tools/test", {"server": "mcp:search"})[0], 401)
+            cookie = self.login()
+            snapshot = self.json_body(self.request("GET", "/api/tools", cookie=cookie))
+            self.assertEqual(snapshot["tool_servers"][1]["status"], "unchecked")
+            self.assertEqual(len(snapshot["tools"]), 3)
+            self.assertEqual(FakeMCP.requests, [])
+            self.assertEqual(self.request("POST", "/api/tools/test", {"server": "mcp:search"}, cookie,
+                                          headers={"X-Chat-Request": ""})[0], 403)
+            for body, code in (({"server": "mcp:missing"}, 404), ({"server": "builtin:workspace"}, 404),
+                               ({"server": "mcp:search", "url": "http://other"}, 400), ({"server": False}, 400)):
+                self.assertEqual(self.request("POST", "/api/tools/test", body, cookie)[0], code)
+            self.assertEqual(FakeMCP.requests, [])
+            response = self.request("POST", "/api/tools/test", {"server": "mcp:search"}, cookie)
+            self.assertEqual(response[0], 200)
+            snapshot = self.json_body(response)
+            self.assertEqual(snapshot["tool_servers"][1]["status"], "ready")
+            self.assertEqual(len(snapshot["tools"]), 4)
+            self.assertNotIn(b"hidden-query", response[2])
+            self.assertNotIn(b"hidden-header", response[2])
+            self.assertNotIn("tools/call", [request["method"] for request, _, _ in FakeMCP.requests])
+            self.assertEqual(self.request("GET", "/api/config", cookie=cookie)[0], 200)
+            FakeMCP.mode = "redirect"
+            response = self.request("POST", "/api/tools/test", {"server": "mcp:search"}, cookie)
+            snapshot = self.json_body(response)
+            self.assertEqual(snapshot["tool_servers"][1]["status"], "error")
+            self.assertEqual(len(snapshot["tools"]), 3)
+            cached = self.json_body(self.request("GET", "/api/config", cookie=cookie))
+            self.assertEqual(cached["tools_error"], snapshot["tools_error"])
+            before = len(FakeMCP.requests)
+            with registry._discovery_lock:
+                self.assertEqual(self.request("POST", "/api/tools/test", {"server": "mcp:search"}, cookie)[0], 409)
+            self.assertEqual(len(FakeMCP.requests), before)
+            FakeMCP.mode = "normal"
+            response = self.request("POST", "/api/tools/test", {"server": "mcp:search"}, cookie)
+            self.assertEqual(self.json_body(response)["tool_servers"][1]["status"], "ready")
+        finally:
+            FakeMCP.mode = "normal"
+            remote.shutdown()
+            remote.server_close()
+            worker.join()
+
     def test_login_cookie_authentication_and_logout(self):
         session = self.request("GET", "/api/session")
         self.assertEqual(self.json_body(session), {"authenticated": False, "password_required": True})

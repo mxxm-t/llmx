@@ -172,6 +172,16 @@ class Application:
         with self.monitor.collector.changed:
             self.monitor.collector.changed.notify_all()
 
+    def tool_state(self, discover=True):
+        result = dict(tools=[], tools_error=None)
+        try:
+            result["tools"] = self.tools.list_tools(discover=discover)
+            result["tools_error"] = getattr(self.tools, "last_error", None)
+        except RuntimeError as exc:
+            result["tools_error"] = str(exc)[:500]
+        result["tool_servers"] = self.tools.connections()
+        return result
+
     def config(self):
         with self.config_lock:
             if self.cached_config and time.monotonic() - self.config_time < 10:
@@ -190,11 +200,7 @@ class Application:
                 result["upstream_available"] = True
             except Exception as exc:
                 result["upstream_error"] = f"Unable to reach llmx: {type(exc).__name__}"
-            try:
-                result["tools"] = self.tools.list_tools()
-                result["tools_error"] = getattr(self.tools, "last_error", None)
-            except Exception as exc:
-                result["tools_error"] = str(exc)[:500]
+            result.update(self.tool_state())
             self.cached_config, self.config_time = result, time.monotonic()
             return result
 
@@ -405,6 +411,21 @@ class Handler(BaseHTTPRequestHandler):
         if not authenticated:
             self.close_connection = True
             return self._json({"error": "Sign in to continue"}, 401)
+        if path == "/api/tools" and method == "GET":
+            return self._json(self.app.tool_state(discover=False))
+        if path == "/api/tools/test" and method == "POST":
+            body = self._body(4096)
+            if set(body) != {"server"} or not isinstance(body["server"], str):
+                raise ValueError("Choose a configured tool connection")
+            try:
+                self.app.tools.test_connection(body["server"])
+            except BlockingIOError as exc:
+                return self._json({"error": str(exc)}, 409)
+            result = self.app.tool_state(discover=False)
+            with self.app.config_lock:
+                if self.app.cached_config is not None:
+                    self.app.cached_config = dict(self.app.cached_config, **result)
+            return self._json(result)
         if path == "/api/config" and method == "GET":
             return self._json(self.app.config())
         if path == "/api/backup" and method == "GET":

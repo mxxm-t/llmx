@@ -18,6 +18,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 _PROTOCOL_VERSION = "2025-06-18"
 _MAX_RESPONSE = 8 * 1024 * 1024
 _MAX_TOOLS = 128
+_MAX_ALIASES = 4096
 _MAX_PAGES = 16
 _TIMEOUT = 30
 _RETRY_AFTER = 30
@@ -34,6 +35,8 @@ class ToolRegistry:
 
     def __init__(self, config_path=None):
         self._lock = threading.RLock()
+        self._discovery_lock = threading.Lock()
+        self._aliases = {}
         self._opener = build_opener(_NoRedirect())
         self._servers = self._read_config(config_path) if config_path else []
         self._tools = None
@@ -87,7 +90,8 @@ class ToolRegistry:
             names.add(name)
             servers.append({"name": name, "url": url, "headers": checked_headers,
                             "approval": approval, "session_id": None, "protocol_version": None,
-                            "initialized": False, "init_lock": threading.Lock()})
+                            "initialized": False, "init_lock": threading.Lock(), "tools": [],
+                            "checked_at": None, "duration_ms": None, "error": None, "checking": False})
         return servers
 
     def _redact(self, server, value):
@@ -224,73 +228,120 @@ class ToolRegistry:
             raise RuntimeError("tool server returned an invalid result")
         return response
 
-    def list_tools(self):
+    def _discover(self, server):
+        started = time.monotonic()
         with self._lock:
-            if self._tools is not None and (not self.last_error or time.monotonic() - self._tools_time < _RETRY_AFTER):
-                public = [{key: value for key, value in tool.items() if not key.startswith("_")}
-                          for tool in self._tools]
-                if self.last_error and not public:
-                    raise RuntimeError(self.last_error)
-                return public
-        result_tools = []
-        errors = []
-        for server in self._servers:
-            try:
-                self._initialize(server)
-                cursor = None
-                seen_cursors = set()
-                for _ in range(_MAX_PAGES):
-                    params = {"cursor": cursor} if cursor else {}
-                    request_id = self._request_id()
-                    response = self._post(server, {"jsonrpc": "2.0", "id": request_id,
-                                                   "method": "tools/list", "params": params}, request_id)
-                    result = self._remote_result(response, request_id)
-                    batch = result.get("tools", [])
-                    if not isinstance(batch, list):
-                        raise RuntimeError("tool server returned an invalid tool list")
-                    for item in batch:
-                        if len(result_tools) >= _MAX_TOOLS:
-                            break
-                        if (not isinstance(item, dict) or not isinstance(item.get("name"), str) or
-                                not 1 <= len(item["name"]) <= 128 or
-                                not isinstance(item.get("description", ""), str) or
-                                len(item.get("description", "")) > 16000 or
-                                not isinstance(item.get("inputSchema", {}), dict)):
-                            continue
-                        safe_server = _NAME_PART.sub("_", server["name"]).strip("_-") or "server"
-                        safe_tool = _NAME_PART.sub("_", item["name"]).strip("_-") or "tool"
-                        public_name = safe_server + "__" + safe_tool
-                        used_names = {existing["name"] for existing in result_tools}
-                        suffix = 2
-                        while public_name in used_names:
-                            public_name = safe_server + "__" + safe_tool + "_" + str(suffix)
-                            suffix += 1
-                        result_tools.append({
-                            "name": public_name,
-                            "description": self._redact(server, item.get("description", "")),
-                            "inputSchema": self._redact(server, item.get("inputSchema", {"type": "object"})),
-                            "server": server["name"], "approval": server["approval"],
-                            "_remote_name": item["name"],
-                        })
+            server["checking"] = True
+        result_tools, error = [], "tool discovery did not complete"
+        try:
+            self._initialize(server)
+            cursor, seen_cursors = None, set()
+            for _ in range(_MAX_PAGES):
+                params = {"cursor": cursor} if cursor else {}
+                request_id = self._request_id()
+                response = self._post(server, {"jsonrpc": "2.0", "id": request_id,
+                                               "method": "tools/list", "params": params}, request_id)
+                result = self._remote_result(response, request_id)
+                batch = result.get("tools", [])
+                if not isinstance(batch, list):
+                    raise RuntimeError("tool server returned an invalid tool list")
+                for item in batch:
                     if len(result_tools) >= _MAX_TOOLS:
                         break
-                    cursor = result.get("nextCursor")
-                    if not cursor:
-                        break
-                    if not isinstance(cursor, str) or cursor in seen_cursors:
-                        raise RuntimeError("tool server returned invalid pagination")
-                    seen_cursors.add(cursor)
-                else:
-                    if cursor:
-                        raise RuntimeError("tool server pagination limit exceeded")
-            except RuntimeError as exc:
-                errors.append(str(exc))
+                    if (not isinstance(item, dict) or not isinstance(item.get("name"), str) or
+                            not 1 <= len(item["name"]) <= 128 or
+                            not isinstance(item.get("description", ""), str) or
+                            len(item.get("description", "")) > 16000 or
+                            not isinstance(item.get("inputSchema", {}), dict)):
+                        continue
+                    if any(tool["_remote_name"] == item["name"] for tool in result_tools):
+                        continue
+                    result_tools.append({
+                        "description": self._redact(server, item.get("description", "")),
+                        "inputSchema": self._redact(server, item.get("inputSchema", {"type": "object"})),
+                        "server": server["name"], "connection": "mcp:" + server["name"],
+                        "approval": server["approval"], "_remote_name": item["name"],
+                    })
+                if len(result_tools) >= _MAX_TOOLS:
+                    break
+                cursor = result.get("nextCursor")
+                if not cursor:
+                    break
+                if not isinstance(cursor, str) or cursor in seen_cursors:
+                    raise RuntimeError("tool server returned invalid pagination")
+                seen_cursors.add(cursor)
+            else:
+                if cursor:
+                    raise RuntimeError("tool server pagination limit exceeded")
+            with self._lock:
+                for tool in result_tools:
+                    key = (server["name"], tool["_remote_name"])
+                    if key not in self._aliases:
+                        if len(self._aliases) >= _MAX_ALIASES:
+                            raise RuntimeError("tool name history limit reached. Restart the companion to discover renamed tools")
+                        safe_server = _NAME_PART.sub("_", server["name"]).strip("_-") or "server"
+                        safe_tool = _NAME_PART.sub("_", self._redact(server, tool["_remote_name"])).strip("_-") or "tool"
+                        base = safe_server + "__" + safe_tool
+                        name, suffix = base, 2
+                        while name in self._aliases.values():
+                            name = base + "_" + str(suffix)
+                            suffix += 1
+                        self._aliases[key] = name
+                    tool["name"] = self._aliases[key]
+            error = None
+        except RuntimeError as exc:
+            result_tools, error = [], str(exc)
+            with self._lock:
+                server["initialized"] = False
+                server["session_id"] = server["protocol_version"] = None
+        finally:
+            with self._lock:
+                server.update(tools=result_tools if error is None else [], error=error, checking=False,
+                              checked_at=time.time(), duration_ms=round((time.monotonic() - started) * 1000, 1))
+
+    def _publish(self):
         with self._lock:
-            self._tools = result_tools
+            self._tools = [tool for server in self._servers for tool in server["tools"]][:_MAX_TOOLS]
             self._tools_time = time.monotonic()
-            self.last_error = "; ".join(errors)[:500] or None
+            self.last_error = ". ".join(server["error"] for server in self._servers if server["error"])[:500] or None
+
+    def connections(self):
+        with self._lock:
+            return [dict(id="mcp:" + server["name"], name=server["name"], kind="mcp",
+                         status="checking" if server["checking"] else "unchecked" if server["checked_at"] is None else "error" if server["error"] else "ready",
+                         tool_count=sum(tool["server"] == server["name"] for tool in self._tools or []),
+                         approval=server["approval"], checked_at=server["checked_at"],
+                         duration_ms=server["duration_ms"], error=server["error"])
+                    for server in self._servers]
+
+    def test_connection(self, identity):
+        server = next((item for item in self._servers if "mcp:" + item["name"] == identity), None)
+        if server is None:
+            raise KeyError(identity)
+        if not self._discovery_lock.acquire(blocking=False):
+            raise BlockingIOError("A connection check is already running. Try again shortly.")
+        try:
+            self._discover(server)
+            self._publish()
+        finally:
+            self._discovery_lock.release()
+
+    def list_tools(self, discover=True):
+        with self._lock:
+            initial = self._tools is None
+            refresh = initial or any(server["checked_at"] is None for server in self._servers) or self.last_error and time.monotonic() - self._tools_time >= _RETRY_AFTER
+        if discover and refresh and self._discovery_lock.acquire(blocking=initial):
+            try:
+                with self._lock:
+                    pending = [server for server in self._servers if server["checked_at"] is None or server["error"]]
+                for server in pending:
+                    self._discover(server)
+                self._publish()
+            finally:
+                self._discovery_lock.release()
+        with self._lock:
             public = [{key: value for key, value in tool.items() if not key.startswith("_")}
-                      for tool in self._tools]
+                      for tool in self._tools or []]
             if self.last_error and not public:
                 raise RuntimeError(self.last_error)
             return public

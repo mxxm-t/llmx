@@ -222,7 +222,7 @@
             </section>
             <section class="settings-card">
               <h3>Connected tools</h3>
-              <p>Tool selection and generation parameters are saved per conversation.</p>
+              <p>Test connection checks the server and refreshes its tool list. It does not run tools.</p>
               <div id="preferences-tools"></div>
               <button class="secondary-button" id="preferences-chat-settings">Conversation settings</button>
             </section>
@@ -260,10 +260,10 @@
             <label class="field">Top K<input id="setting-top_k" type="number" min="0" step="1" value="40"></label>
             <label class="field">Max output<input id="setting-max_tokens" type="number" min="1" max="1000000" step="1" value="4096"></label>
           </div>
-          <h3 class="section-label">CONNECTED TOOLS</h3>
+          <h3 class="section-label">TOOLS FOR THIS CONVERSATION</h3>
           <div id="tool-settings"></div>
           <button class="secondary-button full" data-action="save-settings">Save settings</button>
-          <p class="muted fine-print">Tool permissions are requested before execution. Remembered approval lasts for the current run only.</p>
+          <p class="muted fine-print">Operator approval policy is configured outside the browser. Where approval is required, each requested call needs approval. Remembering applies only to this run.</p>
         </div>
         <div class="inspector-bottom"><span class="status-dot"></span>Checking connection</div>
       </aside>

@@ -22,7 +22,7 @@
   function timestamp(value) { return new Date(typeof value === 'number' && value < 100000000000 ? value * 1000 : value); }
   function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4200); }
   function banner(message) { $('banner').textContent = message || ''; $('banner').hidden = !message; }
-  function configurationWarning() { return [S.config.upstream_available === false ? S.config.upstream_error || 'The model server is unavailable. Check the companion connection and reload to reconnect.' : '', S.config.tools_error ? 'Tools unavailable: ' + S.config.tools_error : ''].filter(Boolean).join(' '); }
+  function configurationWarning() { return [S.config.upstream_available === false ? S.config.upstream_error || 'The model server is unavailable. Check the companion connection and reload to reconnect.' : '', S.config.tools_error ? 'Tool connection issue: ' + S.config.tools_error : ''].filter(Boolean).join(' '); }
   function runError(run) {
     const error = run.error || (run.status === 'interrupted' ? 'The response was interrupted.' : 'The response failed.');
     if (!error.includes('chat template refused the messages')) return error;
@@ -66,14 +66,45 @@
     if (value.model) $('model').value = value.model;
     const defaults = {system: '', temperature: 0.7, top_p: 0.95, top_k: 40, max_tokens: 4096};
     Object.keys(defaults).forEach(key => { $('setting-' + key).value = value[key] ?? defaults[key]; });
-    $('tool-settings').replaceChildren();
-    if (S.chat?.temporary) { $('tool-settings').append(node('p', 'muted fine-print', 'Tools are disabled in temporary chats.')); return; }
-    (S.config.tools || []).forEach(tool => {
-      const label = node('label', 'tool-setting'); const input = node('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = (value.tools || []).includes(tool.name);
-      const detail = node('span', '', tool.name); detail.append(node('small', '', tool.description || tool.server || 'Connected tool')); label.append(input, detail); $('tool-settings').append(label);
-    });
-    if (!(S.config.tools || []).length) $('tool-settings').append(node('p', 'muted fine-print', 'No tools connected. Add an MCP server to the companion configuration to make its tools available here.'));
+    renderToolSelections(value.tools || []);
   }
+  function renderToolSelections(selected = []) {
+    const out = $('tool-settings'); out.replaceChildren();
+    if (S.chat?.temporary) { out.append(node('p', 'muted fine-print', 'Tools are disabled in temporary chats.')); return; }
+    const tools = S.config.tools || [], groups = new Map();
+    tools.forEach(tool => {
+      const connectionId = typeof tool.connection === 'string' ? tool.connection : '';
+      const server = (S.config.tool_servers || []).find(item => item.id === connectionId);
+      const key = connectionId || tool.server || 'available';
+      if (!groups.has(key)) groups.set(key, {name: server?.name || tool.server || 'Available tools', tools: []});
+      groups.get(key).tools.push(tool);
+    });
+    groups.forEach(group => {
+      const section = node('section', 'tool-selection-group');
+      section.append(node('strong', 'tool-selection-title', group.name));
+      group.tools.forEach(tool => {
+        const label = node('label', 'tool-setting'); const input = node('input'); input.type = 'checkbox'; input.value = tool.name; input.checked = selected.includes(tool.name);
+        const detail = node('span', '', tool.name);
+        detail.append(node('small', '', tool.approval === true ? 'Approval required' : tool.approval === false ? 'Approval not required' : tool.connection === 'builtin:workspace' ? 'Approval varies by tool' : 'Approval policy is managed by the operator'));
+        if (tool.description) detail.append(node('small', '', tool.description));
+        label.append(input, detail); section.append(label);
+      });
+      out.append(section);
+    });
+    const names = new Set(tools.map(tool => tool.name));
+    selected.filter(name => !names.has(name)).forEach(name => {
+      const label = node('label', 'tool-setting unavailable-tool'); const input = node('input'); input.type = 'checkbox'; input.value = name; input.checked = true;
+      const detail = node('span', '', name); detail.append(node('small', '', 'Unavailable. Selection preserved'));
+      label.append(input, detail); out.append(label);
+    });
+    if (!tools.length && !selected.length) out.append(node('p', 'muted fine-print', S.config.tools_error || 'No tools available. Add MCP servers with --tools PATH when starting the companion.'));
+  }
+  document.addEventListener('companion:tools-updated', event => {
+    const selected = S.chat?.temporary ? [] : Array.from($('tool-settings').querySelectorAll('input:checked')).map(input => input.value);
+    S.config = {...S.config, ...event.detail};
+    renderToolSelections(selected);
+    snapshotBanner();
+  });
   async function refreshChats() { const data = await api('/chats'); S.chats = data.chats || []; renderSidebar(); }
   function renderSidebar() {
     const search = $('search').value.trim().toLowerCase();
@@ -551,7 +582,7 @@
       if (!session.authenticated && session.password_required) { $('login-dialog').showModal(); $('password').focus(); return; }
       S.config = await api('/config'); document.dispatchEvent(new CustomEvent('companion:config', {detail: S.config})); connection(S.config.upstream_available ? 'Connected' : 'Unavailable', !S.config.upstream_available);
       if (!S.config.upstream_available) banner(S.config.upstream_error || 'The model server is unavailable. Check the companion connection and try again.');
-      if (S.config.tools_error) banner([S.config.upstream_error, 'Tools unavailable: ' + S.config.tools_error].filter(Boolean).join(' '));
+      if (S.config.tools_error) banner([S.config.upstream_error, 'Tool connection issue: ' + S.config.tools_error].filter(Boolean).join(' '));
       await refreshChats(); loadSettings();
       $('temporary-button').hidden = !S.config.temporary?.enabled;
       const temporary = sessionStorage.getItem('llmx-temporary-chat');

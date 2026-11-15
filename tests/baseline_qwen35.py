@@ -132,6 +132,7 @@ def file_exact_goldens(spec, directory=None):
         return None
     for doc in docs.values():
         require(doc.get("weights", {}).get("sha256") == spec["sha256"], "the goldens in %s were not made from %s" % (directory or FILE_EXACT[spec["sha256"]], spec["file"]))
+        require("activation_rounding" not in doc, "%s holds an HF control with rounded inputs, not goldens" % (directory or FILE_EXACT[spec["sha256"]]))
     return docs
 
 

@@ -5,7 +5,7 @@ tests/baseline.py only reads the committed JSON, so running the test suite never
 
     python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|tokenizer-deepseek41|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|deepseek41-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
-    python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
+    python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR [--round int8]
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
 
 Defaults use the pinned Qwen3-0.6B reference.
@@ -14,6 +14,7 @@ The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds; for a qwen35 file it also writes the chat golden.
+file-exact --round int8 rounds the input of every matrix product but the routers to 8-bit integers per block of 32 as the GPU activation twin does (tools/calibrate_dtype.py round_int8), with float32 sums, and records it in the goldens: the HF-int8 control of docs/PRECISION.md, never a golden llmx's default path is held to.
 Qwen3 and Qwen3MoE file-exact construction reads only the pinned HF config and tokenizer, with checkpoint equality recorded as null; qwen35 retains its pinned checkpoint checks.
 The independent synthetic f32, moe, mxfp4, q2-k, q3-k, iq4-nl, iq4-xs, iq2-xxs, iq2-xs and iq3-xxs fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
@@ -606,6 +607,8 @@ def reference_metadata(args, torch, transformers):
     metadata.update(getattr(args, "qwen35", None) or {})
     if args.weights_gguf:
         metadata["weights"] = args.weights
+    if getattr(args, "round", None):
+        metadata["activation_rounding"] = {"dtype": args.round, "hooks": args.rounding_hooks, "form": "every matrix product's input but the routers, per block of 32, half away from zero, float32 sums"}
     return metadata
 
 
@@ -1858,9 +1861,12 @@ def parse_args(argv=None):
     parser.add_argument("--gguf-file", help="associated GGUF filename label; required for another model")
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
     parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens; tokenizer-deepseek41: the GGUF shard whose header gives the token types")
+    parser.add_argument("--round", choices=("int8",), help="file-exact: round every matrix product's input but the routers to this dtype, the HF-int8 control")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
     parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal; deepseek41-tiny: the directory of DeepSeek's files at the pinned revision; tokenizer-deepseek41: the directory holding the pinned tokenizer.json")
     args = parser.parse_args(argv)
+    if args.round and args.kind != "file-exact":
+        parser.error("--round applies to file-exact only")
     if args.kind == "deepseek41-tiny":
         if not args.checkpoint or not os.path.isdir(args.checkpoint):
             parser.error("deepseek41-tiny needs --checkpoint, the directory of DeepSeek's files at the pinned revision")
@@ -2059,6 +2065,9 @@ def main(argv=None):
             gen_perplexity_qwen35(args, loaded, context)
     if args.kind == "file-exact":
         loaded = load_reference(args)
+        if args.round:
+            from calibrate_dtype import rounding
+            args.rounding_hooks = len(rounding(loaded[-1], loaded[0], args.round))
         gen_logits(args, loaded)
         if args.family == "qwen35":
             gen_chat_qwen35(args, loaded)

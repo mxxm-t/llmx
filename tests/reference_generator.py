@@ -927,6 +927,12 @@ class ReferenceGenerator(unittest.TestCase):
             with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                 generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", os.path.join(generator.OUT_DIR, "qwen35-0.8b")])
             self.assertEqual(error.exception.code, 2)
+            # --round makes the HF-int8 control of file-exact and no other mode's goldens.
+            self.assertEqual(generator.parse_args(["file-exact", "--weights-gguf", path, "--output-dir", out, "--round", "int8"]).round, "int8")
+            for argv in (["qwen35", "--model", "Qwen3.5-0.8B", "--round", "int8"], ["logits", "--round", "int8"], ["file-exact", "--weights-gguf", path, "--output-dir", out, "--round", "f16"]):
+                with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    generator.parse_args(argv)
+                self.assertEqual(error.exception.code, 2)
 
     def test_qwen35_tensors_undo_the_converter(self):
         import spec_decode
@@ -1110,6 +1116,7 @@ class ReferenceGenerator(unittest.TestCase):
                     self.assertEqual((doc["reference_repo"], doc["reference_revision"]), (model["repo"], model["revision"]))
                     self.assertEqual((doc["weights"]["file"], doc["weights"]["sha256"]), (spec["file"], sha256))
                     self.assertEqual((doc["reference_dtype"], doc["attention"], doc["transformers_version"]), ("float32", "eager", generator.QWEN35_ENV["transformers"]))
+                    self.assertNotIn("activation_rounding", doc)
             self.assertEqual([case["text"] for case in docs["baseline_logits.json"]["cases"]], generator.LOGIT_PROMPTS)
             self.assertEqual(docs[baseline_qwen35.PPL_GOLDENS[512]]["chars"], generator.QWEN35_PPL[512])
         self.assertEqual(pinned | {baseline_qwen35.TOKENIZER_GOLDEN}, set(baseline_qwen35.GOLDEN_SHA256))

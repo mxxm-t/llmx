@@ -926,11 +926,14 @@ A follow-up branch measures Vulkan's `rms_norm_rows` chunk rule, ceil(4 CUs / ro
 - Qwen3.5-0.8B Q8_0 chat-00, last-position logits of tokens 332 and 9175 (HF's 5th and 6th): HF on the checkpoint 17.96 and 17.66, with int8 inputs 18.08 and 17.64; HF on the Q8_0 file's weights 17.84 and 17.80, with int8 inputs 17.65 and 17.82, the swap ROCm int8 shows (17.59 and 17.85); top-1 (760) agrees everywhere.
   Against the file's own goldens, now committed with a chat golden (`tests/data/qwen35-0.8b-q8_0-file-exact`), the two are 0.04 apart, within `common.top5_overlap`'s tie margin, so that swap overlaps 5 of 5; against the checkpoint's goldens, 0.30 apart, it overlaps 4 of 5, and since `check_pinned` runs those after the file-exact ones at the Q8_0 bounds, the int8 run of the file stays a recorded int8 fail (F2DEV, as the 912894ca record decided), with no bound changed.
   The CPU default path passes all 118 checks of `tests/baseline_qwen35.py` on the file, 59 of them file-exact.
+  ROCm int8 on one MI50 (llmx 0.1.0+g929f042c6b2a) passes every file-exact check of it, chat-00 5 of 5 (9175 17.853 over 332 17.586), and fails only the checkpoint's chat-00 at 4 of 5; ROCm auto passes all 118.
+- `tools/gen_baseline.py file-exact --round int8` makes that control reproducibly (it gives hfint8.py's chat-00 bit for bit), recorded in each golden as `activation_rounding`, which both consumers refuse as goldens.
 - The kernels are held to the same rounding by `backend-rocm` `twin_types`, which checks every Q5_1 int8 product, named by its launch, against a double sum over the rounded twin.
 
 **Left.**
 - The control over three wiki excerpts and the Q8_0, Q5_0, Q5_1, F16 and pinned Q4_0 files, beside the Q4_0 and Q4_1 files ROCm was gated on, committed with their pins before llmx runs on the new texts; ROCm int8 with an f32 cache and Vulkan int8 against it.
 - A per-precision int8 record budget, per case kind, as a PROPOSAL to the reviewers and then the owner's decision; nothing is widened before that and the default path's bounds stay as they are.
+- Landing as tests, tools and docs (the goldens, `--round int8` and these records): the docs, dead-code, reference-consumer and reference-generator components on the head, and the hosted run of the landing head, pending for COORD; it lands by fast-forward and leaves the two items above open.
 
 **Gotchas.** Over these 247-token texts the int8 class's NLL cost is a noise term about 0.01 wide whose sign differs between two correct implementations, since a rounding at 127 levels turns a small upstream difference into a whole step; compare int8 against its HF-only control, not against llmx's other classes.
 

@@ -498,6 +498,8 @@ For Qwen3 file-exact references, the GGUF owns output topology: an explicit `out
 `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
 The file-exact consumer checks the reported trained context against the GGUF metadata, including Qwen3's 4096 default when that key is absent. It refuses an invalid metadata value or a differing reported context; the registered baseline fixture keeps its own 40960 expectation. This changes no numerical bound.
 These goldens were generated on Windows with torch 2.5.1+cpu and transformers 4.55.2 and are not committed; each type's branch commits the ones it is gated on.
+`--round int8` makes the same reference with the input of every matrix product but the routers rounded per block of 32 to 8-bit integers as the GPU activation twin rounds them (`round_int8` in `tools/calibrate_dtype.py`), with float32 sums, and records that in each golden as `activation_rounding`: the HF-int8 control that separates the int8 class's own cost from a kernel's (docs/PRECISION.md).
+Both consumers refuse a directory of such goldens, since no path is held to a rounded reference.
 A pinned qwen35 file takes its own checkpoint instead, with the converter's changes undone (The qwen35 real-model references, below).
 
 | File | Reference mean NLL over the excerpt | Windows of 64, two windows of 64, windows of 123 |

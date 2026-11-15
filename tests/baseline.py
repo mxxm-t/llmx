@@ -226,6 +226,7 @@ def run_file_exact(directory, model):
     sha256 = file_sha256(Path(model))
     for doc in docs:
         assert "weights" in doc, "%s holds goldens that are not file-exact" % directory
+        assert "activation_rounding" not in doc, "%s holds an HF control with rounded inputs, not goldens" % directory
         assert doc["weights"]["sha256"] == sha256, ("the goldens in %s were made from %s with SHA-256 %s, not from %s"
                                                     % (directory, doc["weights"]["file"], doc["weights"]["sha256"], model))
     import spec_decode

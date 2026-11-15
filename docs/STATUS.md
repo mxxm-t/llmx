@@ -1,14 +1,14 @@
 # llmx - Development Status
 
-## Companion tools and reading view integration (2026-11-15, In progress)
+## Companion tools and reading view integration (2026-11-15, Ready)
 
 **Goal.** Land the independent image-history, wordmark, tool-connection and readability changes together by fast-forward over main 5d2a394ad.
 
-**Done.** Each feature retains its own commits and regression-first history where applicable. The combined browser and protocol tree is under scoped qualification. No runtime source, model or build configuration changed. An isolated live preview on port 8184 uses the actual local model and separate chat storage. Port 8183 remains running to preserve temporary conversations.
+**Done.** Each feature retains its own commits and regression-first history where applicable. The combined browser and protocol tree is qualified by the checks below. No runtime source, model or build configuration changed. An isolated live preview on port 8184 uses the actual local model and separate chat storage. Port 8183 remains running to preserve temporary conversations.
 
-**Checks.** A second-agent Markdown inventory and source-backed review covered project guidance, README, architecture, roadmap, status, test descriptions and companion/dashboard references. One duplicate status heading introduced by stacking was removed. Feature evidence below remains historical to the stated revisions. Combined local and hosted companion evidence is pending.
+**Checks.** A second-agent Markdown inventory and source-backed review covered project guidance, README, architecture, roadmap, status, test descriptions and companion/dashboard references. One duplicate status heading introduced by stacking was removed. Feature evidence below remains historical to the stated revisions. Combined local qualification at 57e6c0fbb passes 91 companion tests in 80.925 seconds and 24 dashboard tests in 40.409 seconds, including real browser checks. Docs passes with 0 findings and 21 planted checks; dead-code passes with 15 expected findings and 20 planted faults. The hosted candidate 27ab955a1 differs only in this status record. Chat workspace run 43757369732 passes on Windows and Linux at 27ab955a1. The landing head changes only this status document: completed entries now identify the seven earlier main commits and this batch records its measured evidence. Source, tests, fixtures and relevant build inputs match the hosted candidate. Final docs/dead-code checks pass on that documentation delta with the same finding and planted-check counts.
 
-**Left.** Complete focused integration checks and the Windows/Linux Chat workspace workflow, then notify the coordinator for fast-forward landing. No inference, HF or GPU gate is required for this standalone companion scope.
+**Left.** Coordinator fast-forward landing over main 5d2a394ad and removal of the superseded temporary CI branches. No inference, HF or GPU gate applies to this standalone companion scope. The updated static assets are live on port 8183 without a process restart. Port 8184 runs the new Python APIs with separate data, while the original process retains temporary chats.
 
 ## Continue after a rejected image turn (2026-11-15, Ready)
 
@@ -66,7 +66,7 @@
 
 **Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
 
-## Attachment reads stay with their conversation (2026-11-15, Ready)
+## Attachment reads stay with their conversation (2026-11-15, Done)
 
 **Goal.** Keep a file selected for one conversation from appearing in another if its asynchronous browser read finishes after navigation.
 
@@ -76,11 +76,13 @@
 
 **Checks.** Integrated over the qualified companion batch, the Chrome check passes in 29.028 seconds, including a delayed read after same-chat Edit that leaves the new draft intact, normal text/image uploads, delayed Send and responsive layouts. JavaScript syntax and diff checks pass. Docs reports 0 findings and 21 planted checks; dead-code passes with the expected findings and planted checks. Logs are in scratch/attachment-qualification. The integration retains the Send fix's composer revision increment. The affected Markdown and companion references were reviewed against this change, carrying forward the unchanged main-base documentation review. Static browser code only: no collector, API, server or runtime changes, so no additional HF, GPU or hosted inference gate applies.
 
-**Left.** Coordinator fast-forward landing. Local preview serves the updated static asset without a service restart. The first five fixes remain independently qualified at 37a19ae2b.
+**Left.** None.
+
+**Landing.** Landed on main as `346e6ec5a`.
 
 **Gotchas.** Text reads use `Blob.arrayBuffer()` and image reads use `FileReader`; both paths share `attach()`. Preserve ordinary successful uploads and do not tie attachment ownership to draft text.
 
-## Chat backup branch validation (2026-11-15, Ready)
+## Chat backup branch validation (2026-11-15, Done)
 
 **Goal.** Reject broken conversation branches before a restored backup replaces the active database. The existing Store validation owns this check.
 
@@ -92,10 +94,12 @@
 
 **Checks.** All 77 companion tests pass locally, including the real-browser fixture (61.266 seconds). Docs report no findings and 21 planted checks (27.782 seconds); dead-code reports the 15 expected findings and 20 planted checks (39.204 seconds). Focused store tests pass all 13 cases, including nine invalid-graph subcases. A bounded second-agent source review found no blocker. The affected Markdown owners and all companion references were checked against this diff; the preceding full Markdown review carries forward for unchanged files.
 
-**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
+**Left.** None.
+
+**Landing.** Landed on main as `9519cc953`.
 
 **Gotchas.** Standalone Python companion only. No runtime, inference or GPU changes. Preserve valid alternative branches and SQLite row-order independence.
-## Workspace refresh ordering (2026-11-15, Ready)
+## Workspace refresh ordering (2026-11-15, Done)
 
 **Goal.** Keep a pending workspace refresh from hiding a completed save or restoring an older revision in the UI. The browser workspace owner holds snapshot ordering.
 
@@ -107,11 +111,13 @@
 
 **Checks.** The first delayed-refresh fix passed in 25.980 seconds. Review then identified a failed older read cancelling the save's queued refresh; the added failed-read case reproduced that in 27.528 seconds. The final full browser check passes both cases in 23.937 seconds, including a clean error state after recovery. JavaScript syntax passes. Earlier request failures remain reported by their own caller, while queued callers still fetch current state.
 
-**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
+**Left.** None.
+
+**Landing.** Landed on main as `aa98cb84e`.
 
 **Gotchas.** No inference changes. Keep this independent of backup validation and message-action styling.
 
-## Chat message action buttons (2026-11-15, Ready)
+## Chat message action buttons (2026-11-15, Done)
 
 **Goal.** Make message controls easy to recognize without persistent labels, while keeping the toolbar accessible and compact across themes and screen sizes.
 
@@ -123,10 +129,12 @@
 
 **Checks.** Hosted run 43731177435 passes Windows but fails the Linux hover-tooltip assertion. The workspace refresh regression passes. A focused Windows reproduction passes in 26.976 seconds. Hosted run 43732095834 diagnostics show the hover test aimed at y=101.09375 after the button had moved to y=-9.90625..22.09375. Hit-testing found a different article and no pointer events reached the button. The test now waits for send completion and queued layout frames, scrolls the target into view, and verifies its current hit target before moving the pointer. No tooltip product change or timeout increase was needed. The corrected pointer check passes locally in 26.516 seconds.
 
-**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
+**Left.** None.
+
+**Landing.** Landed on main as `6f5a4c3c1`.
 
 **Gotchas.** Presentation only. Preserve existing actions and message behavior; check the late `.message-actions` cascade in `app.css`.
-## Chat image admission (2026-11-15, Ready)
+## Chat image admission (2026-11-15, Done)
 
 **Goal.** Refuse an image-bearing prompt before creating a reply when the upstream cannot process it, preserving the draft and attachments. Engine owns the model request shape and admission.
 
@@ -144,12 +152,14 @@
 
 **Checks.** The legacy-error browser regression now passes (25.521 seconds), including reopening an image-bearing failed branch and retaining a specific unrelated failure. Docs pass with no findings and 21 planted checks (22.4 seconds). The final punctuation-only preview edit also passes JavaScript syntax.
 
-**Left.** Coordinator fast-forward landing of the qualified batch. The final qualification record below applies to this feature.
+**Left.** None.
+
+**Landing.** Landed on main as `f88e6d69e`.
 
 **Gotchas.** Never infer vision support from a model name or silently remove images. Text-only requests keep their existing path.
 
 
-## Companion batch qualification (2026-11-15, Ready)
+## Companion batch qualification (2026-11-15, Done)
 
 **Goal.** Land backup graph validation, workspace refresh ordering, accessible message icons and image admission as independent features in one fast-forward batch.
 
@@ -157,8 +167,11 @@
 
 **Review.** Store, workspace ordering and shared image payload changes received a bounded second-agent source review. Affected Markdown owners and their references were checked. The preceding full Markdown audit carries forward for unchanged files at the same main base. The earlier Linux failures remain recorded with the ordering reproduction and stale-pointer geometry; neither was waived. No runtime, inference, device, numerical or GPU performance paths changed.
 
-**Left.** Main remains 795dc3495. Send the exact qualified head to the coordinator for fast-forward landing, then remove this batch's superseded temporary GitHub branches. The separate pending-send draft-preservation work is not included.
-## Preserve composer changes during send admission (2026-11-15, Ready)
+**Left.** None.
+
+**Landing.** The batch features landed on main as `9519cc953` (backup validation), `aa98cb84e` (workspace refresh), `6f5a4c3c1` (message actions) and `f88e6d69e` (image admission). The later send, attachment-read and chat-creation fixes landed as `37a19ae2b`, `346e6ec5a` and `5d2a394ad`, respectively.
+
+## Preserve composer changes during send admission (2026-11-15, Done)
 
 **Goal.** Keep edits made while a send request is pending in the selected chat, and keep the request completion from changing another chat's composer or stream.
 
@@ -172,7 +185,9 @@
 
 **Review.** The feature remains two commits, the failing regression then the fix. Source review checked request ownership and the single late-error handler. Owner documentation and affected test descriptions match the implementation; unrelated Markdown carries forward the preceding batch audit. The static local preview serves this change without a Python or model restart.
 
-**Left.** Coordinator fast-forward landing after the qualified companion batch. The integration branch extends f88e6d69e without changing those feature commits. No runtime or inference gates apply.
+**Left.** None.
+
+**Landing.** Landed on main as `37a19ae2b`.
 
 **Gotchas.** UI-only state ordering. The submitted request must retain its original text and attachments; switching chats owns the visible composer.
 
@@ -267,11 +282,11 @@ page and its exact rootless configuration is not qualified.
 
 **Qualification.** [Hosted run 43718792136](https://github.com/mxxm-t/llmx/actions/runs/43718792136) passes the analyzer and companion/dashboard workflow on Windows and Linux at cafe656cfad79f02a5484ab19ef7bef26325c660. The final correction uses the standard-library filename matcher and its fixture covers Windows and Linux casing. The landing record is the only change to this feature after that tested head. The independent static dialog feature stacks after it; its JavaScript and browser regression changes do not alter the Python analyzer, its fixtures, imported helpers or hosted workflow. Final docs and dead-code checks cover the combined tree, which lands by fast-forward from 5f49ecb3c. No inference checks apply.
 
-**Left.** None for this change.
+**Left.** None.
 
 **Gotchas.** Static analysis is conservative around instance attributes and dynamic imports. This change must not claim complete runtime reachability or execute the scanned code. No UI, inference or production change.
 
-## Chat creation navigation race (2026-11-15, Ready)
+## Chat creation navigation race (2026-11-15, Done)
 
 **Goal.** A late New conversation response must preserve the selected conversation and its newer draft while keeping the created chat in the sidebar.
 
@@ -280,6 +295,8 @@ page and its exact rootless configuration is not qualified.
 **Checks.** The focused Chrome check pauses the actual successful POST response, switches to another existing conversation, types a newer draft, then resumes the response. On the fix it confirms the selection and draft remain and the created chat appears in the sidebar. `python tools/chat_ui/test_ui.py -v` passes in 26.979 seconds; `node --check` passes for `app.js` and `browser_check.mjs`; `git diff --check` passes.
 
 **Left.** None for this change.
+
+**Landing.** Landed on main as `5d2a394ad`.
 
 **Gotchas.** This protects a changed selection during creation; it does not test draft typing in the same conversation from which New was invoked.
 

@@ -1,103 +1,23 @@
 # llmx - Development Status
 
-## Companion tool navigation and attachment feedback integration (2026-11-15, Ready)
+## Companion features landed (2026-11-15, Done)
 
-**Goal.** Land the independent static UI follow-ups after the qualified companion batch a05e37f51, keeping its separate features and CI evidence intact.
+The six companion features below landed on main at `b2367461cdbc55c4e2bf31df3fa93b81f67162ee`.
 
-**Done.** Activity opens the exact message/call result and preserves the focused summary through streamed updates. The composer checks attachment byte limits before admission and shows measured sizes. Rejected batches preserve draft and existing attachments. No API, collector, runtime, payload or persistence changes.
+| Feature | Result |
+|---|---|
+| Rejected-image follow-up recovery | Text follow-ups skip only the empty rejected-image/refusal pair; explicit image retries and accepted images remain intact. |
+| Shared monochrome wordmark | Chat and Monitor use the same lowercase monochrome wordmark and matching icons. |
+| MCP connections and probes | Settings show connection state and bounded probes while preserving local tools and healthy cached tools. |
+| Readability and model availability | Chat reading hierarchy is clearer; unavailable saved models are visible and block sending until changed. |
+| Activity tool navigation | Activity opens the exact message and tool result while preserving its focused summary during streaming. |
+| Client attachment limits and sizes | Text, image and total byte limits are checked before admission; file and combined sizes are shown. |
 
-**Checks.** The integrated real-browser regression, JavaScript syntax, docs (0 findings/21 planted) and dead-code (15 expected findings/20 planted) checks pass on the prepared landing tree. Browser coverage includes streaming reasoning, status/result updates, repeated call IDs across messages, keyboard/mobile navigation, exact attachment limits, BOM handling and concurrent reads. Project Markdown references to companion tools, Activity and attachment limits were checked against the source. Prior hosted run 43757369732 remains the evidence for unchanged Python APIs and shared routes. The intervening product delta is browser JavaScript/CSS only, with fixture and documentation updates, so unrelated hosted inference jobs, HF and GPU gates do not apply.
+**Evidence.** Hosted Chat workspace run [43757369732](https://github.com/mxxm-t/llmx/actions/runs/43757369732) is green on Windows and Linux at `27ab955a1`. Backend and API inputs were unchanged after that run; later changes were static UI, fixtures and documentation. Local qualification reports 91 companion tests in 80.925 seconds, 24 dashboard tests in 40.409 seconds, and the final combined browser check in 35.629 seconds. Docs reports 0 findings/21 planted checks; dead-code reports 15 expected findings/20 planted checks. No landing remains; the three owned CI branches were deleted and verified.
 
-**Left.** Coordinator fast-forward landing and removal of superseded temporary GitHub branches. The previous batch's a05e37f51 remains a qualified intermediate head. This stack can land over it or over its main base 5d2a394ad without a merge commit.
+**Deployment.** Ports 8183 and 8184 serve the final static assets. Port 8184 uses the new Python API with separate storage; the original Python process on 8183 retains temporary chats. Future live per-chat TPS still needs a request-correlation contract: generation completion IDs are distinct from the health scheduler ID, so per-chat TPS is not shipped.
 
-## Companion tools and reading view integration (2026-11-15, Ready)
-
-**Goal.** Land the independent image-history, wordmark, tool-connection and readability changes together by fast-forward over main 5d2a394ad.
-
-**Done.** Each feature retains its own commits and regression-first history where applicable. The combined browser and protocol tree is qualified by the checks below. No runtime source, model or build configuration changed. An isolated live preview on port 8184 uses the actual local model and separate chat storage. Port 8183 remains running to preserve temporary conversations.
-
-**Checks.** A second-agent Markdown inventory and source-backed review covered project guidance, README, architecture, roadmap, status, test descriptions and companion/dashboard references. One duplicate status heading introduced by stacking was removed. Feature evidence below remains historical to the stated revisions. Combined local qualification at 57e6c0fbb passes 91 companion tests in 80.925 seconds and 24 dashboard tests in 40.409 seconds, including real browser checks. Docs passes with 0 findings and 21 planted checks; dead-code passes with 15 expected findings and 20 planted faults. The hosted candidate 27ab955a1 differs only in this status record. Chat workspace run 43757369732 passes on Windows and Linux at 27ab955a1. The landing head changes only this status document: completed entries now identify the seven earlier main commits and this batch records its measured evidence. Source, tests, fixtures and relevant build inputs match the hosted candidate. Final docs/dead-code checks pass on that documentation delta with the same finding and planted-check counts.
-
-**Left.** Coordinator fast-forward landing over main 5d2a394ad and removal of the superseded temporary CI branches. No inference, HF or GPU gate applies to this standalone companion scope. The updated static assets are live on port 8183 without a process restart. Port 8184 runs the new Python APIs with separate data, while the original process retains temporary chats.
-
-## Continue after a rejected image turn (2026-11-15, Ready)
-
-**Goal.** Let a text follow-up continue after an older persisted image turn was refused by the template, without deleting history or removing images from accepted turns.
-
-**Done.** Live metadata confirms the active branch ends in an image-only user message and an empty failed assistant with the template refusal. Engine history includes that rejected image again, so preflight refuses every follow-up. Engine owns prompt-history selection. This fix builds on published main 5d2a394ad, whose image admission exposes the old persisted failure.
-
-**Done.** The regression fails on the unfixed engine because the text follow-up reaches image preflight. The history owner now excludes only adjacent image-user and empty failed-assistant pairs whose run records the known template refusal. Saved records are unchanged, and a deliberate retry from the image user node still submits the image. The focused regression passes.
-
-**Checks.** All 15 engine tests pass, including preservation of accepted images, partial answers, reasoning, tool calls, unrelated failures and explicit image retries. The full companion discovery passes all 83 tests in 58.621 seconds, including the real browser. Dead-code passes with 15 expected findings and 20 planted faults. A bounded second-agent review found no blocker and noted that alternate refusal wording conservatively remains in context. Affected README, contract and test documentation were reviewed; the final docs-check receipt is scratch/image-recovery/docs-final.log. Standalone companion scope only.
-
-**Checks.** Hosted Chat workspace run 43746068799 passes on Windows and Linux at 7df503dbe. The final delta only updates this status record, so source, tests and build inputs match that evidence. The branch is ready for coordinator fast-forward landing over 5d2a394ad. It reuses Engine._history and adds no helper, thread, allocator or kernel.
-
-**Left.** Coordinator landing. The current conversation was recovered through the existing branch-selection API with all 41 messages and 25 runs preserved. No service restart occurred; engine code is not yet active in the existing process.
-
-**Gotchas.** Do not alter saved messages, accepted image turns, partial replies, tool actions or a deliberate retry of the image. No inference code changes.
-## Shared llmx identity (2026-11-15, Ready)
-
-**Goal.** Give Chat and Monitor one lowercase llmx wordmark and matching favicon/app icons in flat monochrome.
-
-**Done.** The owner selected a wordmark after rejecting two symbol designs. The new vector lettering replaces the icon-plus-text header in both interfaces. The shared theme owns its CSS mask, and each use has an accessible label. The favicon and PNGs use the same lettering without distortion. Dashboard ASSETS and the existing Monitor bridge own fixed serving routes. No inference code changes or new helper/thread/allocator/kernel.
-
-**Checks.** Shared route tests pass (20 companion and 11 dashboard). Hosted run 43747029808 passed on Windows/Linux at 58b788c62. Only artwork, presentation and documentation have changed since then, so routing evidence is retained. Revised wordmark browser and docs/dead-code receipts are in scratch/brand.
-
-**Checks.** Wordmark Chrome run passes in 31.073 seconds, including SVG decoding, theme and responsive checks. Docs passes with 0 findings/21 planted checks and dead-code with 15 expected findings/20 planted faults. Desktop screenshot reviewed.
-
-**Done.** The owner selected the plain monochrome wordmark after previewing color treatments. All preview-only coloring was removed, and live theme/favicon bytes were verified against the selected design. No source changes followed the passing wordmark checks except this status record.
-
-**Left.** Coordinator fast-forward landing. The rejected symbol designs must not land. Local static preview is updated without restarting the service. Production is unchanged.
-
-**Gotchas.** The current preview process does not have the new shared asset routes loaded. Its theme temporarily embeds the exact SVG as a mask data URL. The committed source uses the single shared /logo.svg route. Preserve conversations and in-memory temporary chats.
-## Tool connections in the companion (2026-11-15, Ready)
-
-**Goal.** Make configured MCP connections, discovery status and approval policy visible, with a bounded connection test and clearer per-chat tool selection.
-
-**Done.** Independent branch from main 5d2a394ad. ToolRegistry remains the owner of MCP transport, discovery and status. WorkspaceTools combines local tools with remote tools. Server routes authenticate and dispatch only. Existing Settings and conversation selection remain the UI owners.
-
-**Done.** Registry snapshots and a configured-ID-only discovery probe feed grouped Settings. Healthy cached tools remain readable during a probe. A failing regression first proves remote discovery hid built-in Workspace tools; the wrapper now preserves those tools. Partial failed catalogues are refused, and aliases stay bound to their remote names across refreshes. Credentials stay out of public metadata. The UI preserves drafts and unsaved settings and allows removing unavailable selections.
-
-**Checks.** All 48 focused registry/workspace/server tests pass in 14.915 seconds. The full companion passes 88 tests in 62.291 seconds, including Chrome. Docs reports 0 findings/21 planted checks and dead-code reports 15 expected findings/20 planted faults. A second read-only integration review found no blocker. The final focused Chrome check passes in 30.038 seconds, including screenshot assertions that distinguish request failures from remote discovery failures. The UI worker corrected an initial string-versus-object contract mismatch before qualification.
-
-**Left.** Stack with the ready branding, image-history and readability branches for one scoped hosted workflow and coordinator landing. No live companion restart has occurred.
-
-**Gotchas.** Tests contact configured endpoints only, never execute tools or expose credential headers/URLs. A failed remote must not hide local tools or healthy connections. Probing must not reset a draft, chat settings or an active run. No model/runtime change or dependency on pending branding/image branches.
-## Chat reading hierarchy and model availability (2026-11-15, In Progress)
-## Chat reading hierarchy and model availability (2026-11-15, Ready)
-
-**Goal.** Put Temporary chat in the conversation header, clarify reading hierarchy while retaining tool/reasoning/metrics access, align sidebar action hover with its row, and refuse sending with a saved model absent from upstream configuration.
-
-**Done.** Temporary chat keeps its existing action and ID in the conversation header. Saved model IDs absent from `/api/config` remain visible as disabled unavailable options, the send button is blocked with clear guidance until the user picks an available model, and settings remain intact. Empty or absent catalogs produce one disabled choice. Sidebar action buttons match their title button bounds, and selected/unselected rows share the right hover background. Message text, reasoning and tool disclosures have a clearer reading scale while metrics remain available.
-
-**Checks.** The first browser commit fails against the old UI because Temporary chat remains outside the conversation header. The final Chrome check passes in 31.890 seconds, including empty and absent model catalogs, unavailable-model recovery without settings loss, selected/unselected row bounds and hover, temporary-chat behavior, and responsive desktop/mobile flows. `node --check` passes for `app.js` and `browser_check.mjs`. Docs reports 0 findings and 21 planted checks, and dead-code matches its 15 expected findings and 20 planted checks. The docs helper binary was built before this UI-only follow-up; CLI and build inputs are unchanged. Build output is in `scratch/chat-readability-build.log`. Desktop and mobile screenshots are in `scratch/chat-ui-browser/`; the header and sidebar screenshots were reviewed. No inference gates apply.
-
-**Left.** Coordinator integration and fast-forward landing.
-
-**Gotchas.** Keep the temporary button ID and action. Preserve stored model settings while showing unavailable models as unavailable, and keep multiple advertised model IDs selectable.
-
-## Navigate from Activity to tool details (2026-11-15, Ready)
-
-**Goal.** Let Activity entries reveal the matching tool arguments and result in the selected conversation, including on narrow screens.
-
-**Done.** Activity tool entries are accessible buttons keyed by both assistant message and call ID. They open and focus the existing tool summary, close the inspector on narrow layouts, and leave result rendering in the existing bounded text renderer. A focused summary stays connected as its arguments, result and status update; reasoning disclosure nodes also stay in place during streaming.
-
-**Checks.** The required real-Chrome check passes, covering repeated provider call IDs across assistant messages, distinct calls, Enter activation, matching arguments and results, untrusted result text, mobile drawer closure, and focus/open/status preservation through an approved live tool update. JavaScript syntax checks and `git diff --check` pass. Docs reports 0 findings and 21 planted checks; dead-code reports 15 expected findings and 20 planted checks.
-
-**Left.** Coordinator review and fast-forward integration.
-
-**Gotchas.** Keep result rendering in `toolRow()`; navigate only within the currently selected branch. No API, server, inference or execution semantics changes.
-## Chat attachment size feedback (2026-11-15, Ready)
-
-**Goal.** Match the browser's attachment limits to the companion service and show users the sizes before sending.
-
-**Done.** The browser checks decoded UTF-8 text against 2 MiB, PNG/JPEG bytes against 8 MiB and the combined attachment bytes against 10 MiB. A rejected batch leaves existing attachments and draft text intact. Existing asynchronous ownership checks remain, and concurrent reads recheck the total against the current attachment list at commit. The composer shows each file size and an accessible combined size, with exact byte counts available to assistive technology and tooltips. No payload or persistence fields changed.
-
-**Checks.** Regression commit `17dbc636f` fails on the original client because it accepts a 2 MiB+1 text file. The focused Chrome check passes after the fix (34.184 seconds), covering the 2 MiB text and 8 MiB image boundaries, exact 10 MiB total, BOM-aware UTF-8 byte accounting, early refusal before reading an 8 MiB text file, atomic mixed-batch refusal, two concurrent reads that together exceed the current total, preservation of prior files and draft, ordinary uploads, aggregate refusal and a 390 px mobile layout. `node --check` passes for `app.js` and `browser_check.mjs`. Against the unchanged `../chat-readability-20261115/llmx.exe`, docs reports 0 findings and 21 planted checks; dead-code reports 15 expected findings (1 unused, 14 test-only) and 20 planted checks. No C++ build or inference check applies.
-
-**Left.** Coordinator review and fast-forward integration.
-
-**Gotchas.** Text checks use the encoded bytes of decoded text, matching the JSON value the service receives. The 3-byte raw-file allowance is only for a UTF-8 BOM that `TextDecoder` strips.
+**Review.** Earlier Done records retain their historical evidence; runtime status sections below are unchanged. No model or runtime gates apply to this docs-only update.
 
 ## Attachment reads stay with their conversation (2026-11-15, Done)
 

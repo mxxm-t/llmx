@@ -37,7 +37,7 @@ window.ChatShell = (() => {
     $('app').dataset.view = view;
     document.querySelectorAll('.global-nav [data-view]').forEach(button => { if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
     for (const name of ['monitor', 'workbench', 'preferences']) $('view-' + name).hidden = view !== name;
-    $('shell-title').textContent = labels[view]; $('shell-eyebrow').textContent = view === 'monitor' ? 'RUNTIME' : view === 'workbench' ? 'WORKSPACE' : 'STUDIO';
+    $('shell-title').textContent = labels[view]; $('shell-eyebrow').textContent = view === 'monitor' ? 'RUNTIME' : view === 'workbench' ? 'WORKSPACE' : 'LLMX';
     document.querySelector('.shell-heading').hidden = view === 'chat';
     $('app').classList.remove('sidebar-open'); $('drawer-shade').hidden = true;
     document.title = 'llmx / ' + labels[view];

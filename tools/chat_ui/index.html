@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="dark light">
-    <meta name="description" content="A private workspace for conversations with your local models.">
-    <title>llmx / Chat</title>
+    <meta name="description" content="Conversations, runtime monitoring and project files in one llmx interface.">
+    <title>llmx</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23bce8b1'/%3E%3Cpath d='M12 11v18h6M23 11v18h6' stroke='%23192318' stroke-width='3' fill='none'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/app.css">
     <link rel="stylesheet" href="/theme.css">
@@ -22,10 +22,10 @@
       <aside class="sidebar" id="sidebar" aria-label="Conversations">
         <div class="brand">
           <span class="brand-mark">ll</span>
-          <strong>llmx<span class="brand-slash"> / </span><span class="brand-sub">studio</span></strong>
+          <strong>llmx</strong>
           <button class="icon mobile-only" data-action="close-drawers" aria-label="Close navigation">x</button>
         </div>
-        <nav class="global-nav" aria-label="Studio">
+        <nav class="global-nav" aria-label="Main navigation">
           <button data-view="chat" aria-current="page">
             <svg viewBox="0 0 24 24">
               <path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z"/>
@@ -71,14 +71,14 @@
         </button>
         <label class="search-box"><span aria-hidden="true">&#8981;</span><input id="search" type="search" placeholder="Search conversations" aria-label="Search conversations"></label>
         <div class="library-heading">
-          <span>WORKSPACE</span>
+          <span>HISTORY</span>
           <button id="archive-toggle" class="text-button" data-action="archive-view">Show archive</button>
         </div>
         <nav id="chat-list" class="chat-list" aria-label="Chat history"></nav>
         <div class="sidebar-footer">
           <div class="local-label">
             <span class="status-dot"></span>
-            <span>Local workspace<small>Your conversations, your machine.</small></span>
+            <span>Owner session<small>Chat, monitor and files.</small></span>
           </div>
           <div class="footer-actions">
             <button data-action="import" class="text-button">Import</button>
@@ -99,7 +99,7 @@
             <button id="chat-title" data-action="rename" class="title-button">New conversation</button>
           </div>
           <div class="shell-heading" hidden>
-            <span class="eyebrow" id="shell-eyebrow">STUDIO</span>
+            <span class="eyebrow" id="shell-eyebrow">LLMX</span>
             <h1 id="shell-title">Monitor</h1>
           </div>
           <div class="topbar-actions">
@@ -193,7 +193,7 @@
           <iframe id="monitor-frame" title="llmx runtime monitor" class="monitor-frame" hidden></iframe>
         </section>
         <section id="view-workbench" class="studio-view workbench-view" aria-label="Workspace" hidden></section>
-        <section id="view-preferences" class="studio-view preferences-view" aria-label="Studio settings" hidden>
+        <section id="view-preferences" class="studio-view preferences-view" aria-label="Settings" hidden>
           <div class="view-introduction">
             <span class="eyebrow">CONFIGURATION</span>
             <h2>Make this space yours.</h2>
@@ -275,11 +275,11 @@
     <dialog id="login-dialog">
       <form id="login-form" class="dialog-content">
         <span class="brand-mark">ll</span>
-        <h2>Your private workspace</h2>
+        <h2>Unlock llmx</h2>
         <p>Enter your companion password to continue.</p>
         <label class="field">Password<input id="password" type="password" autocomplete="current-password" required></label>
         <p id="login-error" role="alert" class="error-text"></p>
-        <button class="primary-button" type="submit">Unlock workspace</button>
+        <button class="primary-button" type="submit">Unlock llmx</button>
       </form>
     </dialog>
     <div id="action-menu" class="conversation-menu" popover="manual" role="menu" aria-labelledby="action-menu-title">

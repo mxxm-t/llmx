@@ -67,10 +67,6 @@
   max-height: var(--studio-height, 100dvh);
   max-width: min(94vw, var(--studio-width, 100vw));
 }
-.brand-sub {
-  letter-spacing: .1px;
-  font-size: 15px;
-}
 .global-nav {
   display: flex;
   flex-direction: column;

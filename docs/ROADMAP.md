@@ -344,7 +344,6 @@ Prioritized follow-ups:
 - Document the host privileges required by a local Docker daemon and prefer a
   dedicated or rootless remote daemon where appropriate; the workspace
   container's existing isolation flags remain in force.
-- Settle consistent user-facing names for Studio and Workspace.
 - When server authentication lands, let the standalone dashboard send its
   API key from a protected file.
 

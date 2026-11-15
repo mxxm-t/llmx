@@ -1,8 +1,9 @@
-# llmx chat
+# llmx companion
 
-A unified owner workspace for an llmx server, with Chat, Monitor, Workspace
-and Settings under one address, session and shared dashboard theme. Conversations, branches, tool
-results and request metrics live in a local SQLite database. The companion uses
+The llmx companion brings Chat, Monitor, Workspace and Settings under one
+address, session and shared dashboard theme. Workspace means project files,
+checkpoints and command execution; conversations are listed under History.
+Conversations, branches, tool results and request metrics live in a local SQLite database. The companion uses
 Python's standard library and buildless HTML, CSS and JavaScript. It changes no
 inference code and needs no package installation or external assets.
 

@@ -88,16 +88,6 @@ input,textarea,select {
   letter-spacing:-3px;
   padding-right:3px
 }
-.brand-sub {
-  font-size:17px;
-  font-weight:400;
-  color:var(--muted);
-  letter-spacing:-.5px
-}
-.brand-slash {
-  font-weight:300;
-  color:var(--faint)
-}
 .new-chat {
   display:flex;
   align-items:center;

@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Companion naming (2026-11-15, Done)
+
+**Goal.** Use llmx for the application and reserve Workspace for project files and commands; keep Chat, Monitor and Settings as navigation labels.
+
+**Done.** The shell and login use llmx, the conversation list is History, and Workspace names project files and commands. Accessible navigation/settings labels match the interface. Unused secondary-brand styles were removed; internal view identifiers and stored preferences remain compatible.
+
+**Checks.** The existing Chrome flow passes in 25.476 seconds, including seven responsive sizes and 200 percent zoom; JavaScript syntax passes. Desktop and mobile screenshots were reviewed. The Markdown inventory was checked for affected naming claims and the README/roadmap were updated. Final docs and dead-code checks run on the combined naming and deployment-documentation tree before fast-forward landing from main 98869de0d. No inference or hosted runtime checks apply.
+
+**Left.** None for this change.
+
+**Gotchas.** Presentation only. Internal view identifiers, routes, preferences and stored conversation data stay compatible.
+
 ## Nested Python tool analysis (2026-11-15, Done)
 
 **Goal.** Extend the existing Python dead-code owner to nested tools, including chat and dashboard, without conflating same-named modules.

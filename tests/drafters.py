@@ -88,6 +88,14 @@ def check_served(directory):
     split, side = os.path.join(directory, "serve-split.gguf"), os.path.join(directory, "serve-mtp-blocks.gguf")
     pack("split", model, split, side)
     common.check_drafts("drafters sidecar at 1024", split, "abcabcabcabcabcabc xyz abcabcabcabc", 60, chat=True, drafter=side)
+    # generate takes --kv-tokens as serve does: one block (a budget of 1 rounds up to it) beside the drafter gives the ids of the context-sized budget, and the cache it backs is smaller.
+    runs = []
+    for budget in ([], ["--kv-tokens", "1"]):
+        p = common.run_process(["generate", split, "abcabc xyz", "-n", "20", "--ignore-eos", "--temp", "0", "--verbose", "--drafter", side] + budget)
+        out = p.stdout.decode("utf-8", "replace")
+        assert p.returncode == 0, "generate --drafter %s failed: %s" % (budget, p.stderr.decode("utf-8", "replace"))
+        runs.append((re.search(r"^ids:.*$", out, re.M)[0], int(re.search(r"^kv: allocated (\d+) bytes", out, re.M)[1])))
+    assert runs[1][0] == runs[0][0] and runs[1][1] < runs[0][1], "generate --drafter with --kv-tokens 1 gave %r, without it %r" % (runs[1], runs[0])
     texts = ["abcabcabcabcabcabc xyz abcabc", "hello hello hello hello", "0123456789"]
     bodies = [{"prompt": text, "temperature": temp, "seed": 5, "max_tokens": 40, "ignore_eos": True} for text in texts for temp in (0, 0.8)]
     plain = server.Server(split, "--max-seqs", "4")

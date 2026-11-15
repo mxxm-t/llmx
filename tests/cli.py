@@ -220,6 +220,9 @@ def check_usage_errors():
                        (["generate", model, "a", "--ubatch", "1KiB"], "generate"), (["logits", model, "a", "--last", "1b"], "logits"),
                        (["bench", "--depth", "1gb"], "bench"), (["bench", "--p", "2097152k"], "bench")):
         usage_error(args, page)
+    # --kv-tokens is an execution flag of every model command, read by one rule, so generate and chat refuse a bad count by the flag's own reason.
+    for args in (["generate", model, "a", "--kv-tokens", "0.1k"], ["chat", model, "--kv-tokens", "0.1k"]):
+        usage_error(args, args[0], "--kv-tokens: '0.1k' is not a whole number")
     for args, page in ((["serve", model, "--port", "65536"], "serve"), (["serve", model, "--port", "-1"], "serve"),
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
                        (["serve", model, "--passes", "0"], "serve"),

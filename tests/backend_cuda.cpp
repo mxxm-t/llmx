@@ -636,7 +636,10 @@ int main(int argc, char** argv) {
         groups();
         return failures ? 1 : 0;
     }
-    if (!only_types) basics(d, *g, *cpu);
+    if (!only_types) {
+        basics(d, *g, *cpu);
+        guarded("kernel_times", [&] { twin_checks::kernel_times(*make_backend("cuda:0", true), *g, cuda_take_launches, require); });
+    }
     types(d, *g, *cpu);
     if (!only_types) qwen35(d, *g);
     if (!only_types) moe(d, *g, *cpu);

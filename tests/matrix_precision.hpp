@@ -201,7 +201,7 @@ inline size_t check_k23_wide_repair(backend::Backend& b, uint32_t type, const st
             std::vector<float> result(most * rows + 2, guard);
             b.write(*ry, 0, result.data(), result.size() * sizeof(float));
             take_matrix_paths(b);
-            backend::vulkan_kernel_times(b);
+            b.kernel_times();
             const backend::RowRun run{cols, 1};
             b.matmul({type, {rw.get(), 0}}, {rx.get(), col0 * nin}, {ry.get(), 1}, nin, rows, cols, {&run, 1}, backend::Dtype::f16);
             b.read(*ry, 0, result.data(), result.size() * sizeof(float));
@@ -240,7 +240,7 @@ inline size_t check_k23_wide_repair(backend::Backend& b, uint32_t type, const st
                 const std::string name = kernel + std::to_string(*n) + "col";
                 if (std::find(expected.begin(), expected.end(), name) == expected.end()) expected.push_back(name);
             }
-            const auto times = backend::vulkan_kernel_times(b);
+            const auto times = b.kernel_times().kernels;
             for (const auto& entry : times) if (entry.first.rfind(kernel, 0) == 0) {
                 const auto found = std::find(expected.begin(), expected.end(), entry.first);
                 if (found == expected.end()) throw std::runtime_error("K23 wide repair dispatched an unexpected column build");

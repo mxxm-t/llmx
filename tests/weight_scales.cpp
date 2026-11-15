@@ -420,7 +420,8 @@ void fp8_vulkan(backend::Backend& dev) {
     bool timed = false;
     const auto ran = [&]() {
         std::vector<std::string> names;
-        for (const auto& entry : backend::vulkan_kernel_times(dev)) {
+        const backend::Backend::KernelTimes reading = dev.kernel_times();
+        for (const auto& entry : reading.kernels) {
             std::string n = entry.first;
             for (size_t at = n.find('_'); at != std::string::npos; at = n.find('_', at + 1))
                 if (at + 1 < n.size() && std::isdigit((unsigned char)n[at + 1])) { n.resize(at); break; }
@@ -428,7 +429,7 @@ void fp8_vulkan(backend::Backend& dev) {
                 if (n.size() > std::strlen(suffix) && n.compare(n.size() - std::strlen(suffix), std::string::npos, suffix) == 0) n.resize(n.size() - std::strlen(suffix));
             names.push_back(n);
         }
-        timed |= backend::vulkan_timed_dispatches(dev) != 0;
+        timed |= reading.dispatches != 0;
         seen.insert(seen.end(), names.begin(), names.end());
         return names;
     };

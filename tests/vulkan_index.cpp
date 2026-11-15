@@ -238,11 +238,12 @@ int scoring_build() {
         for (int i = 0; i < 5; ++i) backend::VulkanIndexTest::score(t, q, k, 1, groups, uint32_t(groups * 4 - 1), 4, 128, 4);
         double ms = 0;
         bool tiled = false;
-        for (const auto& kt : t.kernel_times()) {
+        const backend::Backend::KernelTimes read = t.kernel_times();
+        for (const auto& kt : read.kernels) {
             tiled = tiled || kt.first == "kv_index_scores_tile";
             if (kt.first.rfind("kv_index_scores", 0) == 0) ms += kt.second;
         }
-        if (!t.timed_dispatches()) {
+        if (!read.dispatches) {
             std::cout << "vulkan-index: this device times no dispatches, so the scoring's kernel and time are not checked\n";
             return 0;
         }
@@ -290,9 +291,10 @@ int timing() {
             t.kernel_times();
             for (int i = 0; i < 5; ++i) backend::VulkanIndexTest::select(t, scores, rows, count, hist, 4, 2048, wide);
             double ms = 0;
-            for (const auto& k : t.kernel_times())
+            const backend::Backend::KernelTimes read = t.kernel_times();
+            for (const auto& k : read.kernels)
                 if (k.first.rfind("kv_index_select", 0) == 0) ms += k.second;
-            const size_t dispatches = t.timed_dispatches() / 5;
+            const size_t dispatches = read.dispatches / 5;
             if (!dispatches) {
                 std::cout << "vulkan-index: this device times no dispatches, so the selections' dispatches and times are not checked\n";
                 return failures;

@@ -531,14 +531,11 @@ void id_blocks(Backend& device, size_t dim, backend::KVType k_type, backend::KVT
     std::cout << label << " matches the plain call per group\n";
 }
 
-// The kernels a device timed since it was last asked, by name; empty where it times none.
-std::vector<std::string> timed_kernels(Backend& device) {
+// The kernels a Vulkan device timed since it was last asked, by name; empty on other devices, whose GPU core groups heads only at a multiple of four query heads a KV head.
+std::vector<std::string> timed_kernels(Backend& device, const std::string& name) {
     std::vector<std::string> names;
-#if LLMX_HAS_BACKEND_VULKAN
-    for (const auto& k : backend::vulkan_kernel_times(device)) names.push_back(k.first);
-#else
-    (void)device;
-#endif
+    if (name.rfind("vulkan", 0) != 0) return names;
+    for (const auto& k : device.kernel_times().kernels) names.push_back(k.first);
     return names;
 }
 
@@ -582,10 +579,10 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
                 const size_t width = heads * dim;
                 BufferPtr out = device.alloc(rows * width * sizeof(float), backend::Memory::device);
                 KVView view{storage.get(), map.data(), map.size(), length, rows};
-                timed_kernels(device);
+                timed_kernels(device, name);
                 device.sparse_attention({q.get(), 0}, 0, &view, 1, {idbuf.get(), 0}, stride, {out.get(), 0}, int(heads), int(kv_heads), int(dim));
                 device.sync();
-                const auto batch_kernels = timed_kernels(device);
+                const auto batch_kernels = timed_kernels(device, name);
                 const bool grouped = std::any_of(batch_kernels.begin(), batch_kernels.end(), [&](const std::string& k) { return k.find("_g" + std::to_string(per_kv)) != std::string::npos; });
                 timed = timed || !batch_kernels.empty();
                 if (!batch_kernels.empty() && !grouped && rows < 8192) continue;
@@ -598,7 +595,7 @@ void grouped_heads(Backend& device, const std::string& name, backend::KVType k_t
                     device.sparse_attention({q.get(), r * width}, 0, &one, 1, {idbuf.get(), r * stride}, stride, {alone.get(), 0}, int(heads), int(kv_heads), int(dim));
                     device.sync();
                     if (r == 0) {
-                        const auto one_kernels = timed_kernels(device);
+                        const auto one_kernels = timed_kernels(device, name);
                         alone_grouped = alone_grouped || std::any_of(one_kernels.begin(), one_kernels.end(), [&](const std::string& k) { return k.find("_g" + std::to_string(per_kv)) != std::string::npos; });
                     }
                     const auto got = read<float>(device, *alone, 0, width);

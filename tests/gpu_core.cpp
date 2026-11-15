@@ -15,7 +15,7 @@ namespace {
 // What the fake has handed out and not yet taken back, each kind counted, and calls a test makes fail.
 struct FakeState {
     std::atomic<long> memory{0}, host{0}, streams{0}, events{0}, modules{0}, launches{0};
-    std::atomic<bool> refuse_malloc{false};
+    std::atomic<bool> refuse_malloc{false}, refuse_elapsed{false};
 };
 FakeState fake;
 
@@ -141,7 +141,7 @@ struct FakeApi {
     static Error event_sync(Event) { return kSuccess; }
     static Error event_elapsed(float* ms, Event, Event) {
         *ms = 0.0f;
-        return kSuccess;
+        return fake.refuse_elapsed ? kRefused : kSuccess;
     }
     static Error module_load(Module* m, const void* image) {
         if (!image) return kRefused;
@@ -194,7 +194,7 @@ int main() {
         if (!ok) ++failures;
     };
     {
-        GpuBackend<FakeApi> core(0);
+        GpuBackend<FakeApi> core(0, false);
         Backend& b = core;
         require(b.identity() == "fake fake; fake 1", "identity names the backend, the device and its driver: " + b.identity());
         require(fake.modules == 2, "the f32 and int16 modules load and a missing dot module is refused, not fatal");
@@ -227,12 +227,33 @@ int main() {
         }
         fake.refuse_malloc = false;
         require(named, "a refused allocation throws with the backend's prefix and the driver's reason");
+        b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+        require(b.kernel_times().kernels.empty(), "a backend made without diagnostics times nothing");
+    }
+    {
+        // A diagnostics backend times each kernel, copy and fill it issues, read once.
+        GpuBackend<FakeApi> timed(0, true);
+        Backend& b = timed;
+        BufferPtr buf = b.alloc(4096 * sizeof(float), Memory::device);
+        std::vector<float> in(4096, 1.0f);
+        b.write(*buf, 0, in.data(), in.size() * sizeof(float));
+        b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+        const Backend::KernelTimes t = b.kernel_times();
+        std::string names;
+        for (const auto& k : t.kernels) names += " " + k.first;
+        require(names == " copy fill llmx_add" && t.dispatches == 1 && t.gaps.size() == 2 && t.unresolved == 0, "a diagnostics backend times its fill, copy and kernel:" + names);
+        require(b.kernel_times().kernels.empty(), "a reading starts the next interval empty");
+        b.add({buf.get(), 0}, {buf.get(), 0}, 1024);
+        fake.refuse_elapsed = true;
+        const Backend::KernelTimes lost = b.kernel_times();
+        fake.refuse_elapsed = false;
+        require(lost.kernels.empty() && lost.dispatches == 0 && lost.unresolved == 1, "an op whose events give no time is counted as unresolved, not timed");
     }
     require(fake.memory == 0 && fake.host == 0, "every device and host allocation is freed with the backend");
     require(fake.streams == 0 && fake.events == 0 && fake.modules == 0, "every stream, event and module is released with the backend");
     {
         // A card of the same device and driver at another index and PCI address computes the same bits, so a kept disk cache is adopted whichever card a member lands on.
-        GpuBackend<FakeApi> first(0), second(1);
+        GpuBackend<FakeApi> first(0, false), second(1, false);
         require(second.identity() == first.identity(), "another index of the same device gives the same identity: " + second.identity());
     }
     return failures ? 1 : 0;

@@ -647,6 +647,15 @@ public:
         double ticket_ms = 0, slot_ms = 0, staging_ms = 0, write_ms = 0;
     };
     virtual HostTimes host_times() const { return {}; }
+    // Device time per kernel since the last reading, on a backend made to time its work, which waits for its queue to read it; empty where the backend keeps none.
+    // `kernels` names the output head's (matmul_logits) with " head" after the kernel's, `dispatches` counts the kernels timed, and `gaps` holds the device time between each timed op's end and the next one's start, 0 where they overlap.
+    struct KernelTimes {
+        std::vector<std::pair<std::string, double>> kernels;
+        size_t dispatches = 0;
+        std::vector<double> gaps;
+        size_t unresolved = 0;  // timed ops whose events gave no time, left out of kernels so a short reading is not taken for a short interval
+    };
+    virtual KernelTimes kernel_times() { return {}; }
     // The device time of the work recorded since the last call, in milliseconds, by timestamps on a backend made to time its work, which waits for its queue to read them; negative where the backend keeps none.
     virtual double device_ms() { return -1.0; }
     // The time the device was held by submissions a+1 through b, in milliseconds: each from its first operation after its waits on other devices to its last, asked after b retired without waiting; negative once the backend no longer keeps them.

@@ -1229,5 +1229,40 @@ struct Bits {
         require(wave != 64 || quad_runs > 0, "MXFP4 decode takes the quad rows on a 64-lane wave");
     }
 };
+// A diagnostics backend's kernel_times after an F32 product and an output head's names every kernel its launches name, the head's with " head" after it, each with positive time, and counts them all.
+// A backend made without diagnostics times nothing.
+inline void kernel_times(Backend& timed, Backend& plain, const Launches& launches, const Require& require) {
+    const size_t nin = 1024, nout = 256, rows = 4;
+    std::vector<float> w(nin * nout), x(nin * rows);
+    for (size_t i = 0; i < w.size(); ++i) w[i] = float(int(i % 13) - 6) / 8.0f;
+    for (size_t i = 0; i < x.size(); ++i) x[i] = float(int(i % 7) - 3) / 4.0f;
+    for (Backend* b : {&timed, &plain}) {
+        const BufferPtr wb = b->adopt(w.data(), w.size() * sizeof(float)), xb = b->adopt(x.data(), x.size() * sizeof(float));
+        const BufferPtr yb = b->alloc(nout * rows * sizeof(float), backend::Memory::device);
+        b->sync();
+        (void)b->kernel_times();
+        (void)launches(*b);
+        std::map<std::string, size_t> ran;
+        for (const bool head : {false, true}) {
+            if (head) b->matmul_logits({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f32);
+            else b->matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, {}, Dtype::f32);
+            for (const auto& [name, count] : launches(*b)) ran[name + (head ? " head" : "")] += count;
+        }
+        const Backend::KernelTimes t = b->kernel_times();
+        if (b == &plain) {
+            require(t.kernels.empty() && t.dispatches == 0 && t.gaps.empty(), "a backend made without diagnostics times no kernels");
+            continue;
+        }
+        size_t launched = 0;
+        std::string named;
+        for (const auto& [name, count] : ran) {
+            launched += count;
+            const auto it = std::find_if(t.kernels.begin(), t.kernels.end(), [&](const auto& k) { return k.first == name; });
+            require(it != t.kernels.end() && it->second > 0.0, "kernel_times names " + name + " with positive time");
+            named += " " + name;
+        }
+        require(!ran.empty() && t.dispatches == launched, "kernel_times counts the " + std::to_string(launched) + " launches of" + named + ": " + std::to_string(t.dispatches));
+    }
+}
 
 } // namespace twin_checks

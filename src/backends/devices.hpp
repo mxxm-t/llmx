@@ -58,15 +58,14 @@ inline BackendPtr make_backend(const std::string& spec, bool diagnostics = false
     const int index = std::atoi(device.c_str() + device.find(':') + 1);
     if (device.compare(0, 5, "rocm:") == 0) {
 #if LLMX_HAS_BACKEND_ROCM
-        // --profile times Vulkan devices only, which the CLI checks before any device is made.
-        return make_rocm_backend(index);
+        return make_rocm_backend(index, diagnostics);
 #else
         throw std::runtime_error("--device rocm: this build has no ROCm backend (LLMX_HAS_BACKEND_ROCM)");
 #endif
     }
     if (device.compare(0, 5, "cuda:") == 0) {
 #if LLMX_HAS_BACKEND_CUDA
-        return make_cuda_backend(index);
+        return make_cuda_backend(index, diagnostics);
 #else
         throw std::runtime_error("--device cuda: this build has no CUDA backend (LLMX_HAS_BACKEND_CUDA)");
 #endif

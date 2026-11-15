@@ -13,7 +13,8 @@
 namespace backend {
 
 // The backend over HIP device `device`, as the runtime numbers them; it throws RocmUnavailable (rocm_runtime.hpp) when there is nothing usable to open.
-BackendPtr make_rocm_backend(int device);
+// With `diagnostics`, its kernels, copies and fills are timed for `Backend::kernel_times`.
+BackendPtr make_rocm_backend(int device, bool diagnostics = false);
 
 // The kernels a ROCm backend launched since the last reading, by name, and how often: the witness of which build, tile or exact kernel ran.
 std::map<std::string, size_t> rocm_take_launches(Backend& backend);

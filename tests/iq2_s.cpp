@@ -486,13 +486,14 @@ int main(int argc, char** argv) {
             checks(*b);
             const auto profile = backend::vulkan_device_profile(*b);
             bool row = false, tile = false, tall = false;
-            for (const auto& entry : backend::vulkan_kernel_times(*b)) {
+            const backend::Backend::KernelTimes reading = b->kernel_times();
+            for (const auto& entry : reading.kernels) {
                 std::cout << "IQ2_S dispatch: " << entry.first << '\n';
                 row |= entry.first.find("matmul_row_iq2_s_dot") != std::string::npos;
                 tile |= entry.first.find("matmul_tile_iq2_s_dot") != std::string::npos;
                 tall |= entry.first.find("matmul_tile_iq2_s_dot_tall") != std::string::npos;
             }
-            if (backend::vulkan_timed_dispatches(*b)) {
+            if (reading.dispatches) {
                 require(row == profile.lookup_integer_dot, "integer-row dispatch differs from profile");
                 require(tile == profile.prefer_integer_dot, "integer-tile dispatch differs from profile");
                 require(tall == profile.prefer_integer_dot, "tall integer-tile dispatch was not witnessed");

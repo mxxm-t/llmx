@@ -1323,27 +1323,27 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                    at.c_str(), ms, 100.0 * ms / all, quantile(extra, 0.25), quantile(extra, 0.75), quantile(recorded[kept], 0.5));
         }
     }
-#if LLMX_HAS_BACKEND_VULKAN
     // Device time per kernel since the last reading, each device's on its own under `what`, the output head's products on lines of their own.
     // A reading waits for its device's queue and follows completed work, the timed call having returned, so it never waits on another device's unfinished work.
     const std::vector<std::string> names = backend::device_specs(exec.device);
     auto clear_times = [&] {
-        for (backend::Backend* b : devices) backend::vulkan_kernel_times(*b);
+        for (backend::Backend* b : devices) b->kernel_times();
     };
     auto print_times = [&](const std::string& what) {
         for (size_t i = 0; i < devices.size(); ++i) {
-            auto times = backend::vulkan_kernel_times(*devices[i]);
+            const backend::Backend::KernelTimes read = devices[i]->kernel_times();
+            auto times = read.kernels;
             std::sort(times.begin(), times.end(), [](const auto& x, const auto& y) { return x.second > y.second; });
             double total = 0.0;
             for (const auto& t : times) total += t.second;
             std::cout << "profile " << what << (devices.size() > 1 ? ", device " + names[i] : std::string()) << ": " << total << " ms of device time over "
-                      << backend::vulkan_timed_dispatches(*devices[i]) << " dispatches sampled\n";
+                      << read.dispatches << " dispatches sampled" << (read.unresolved ? ", " + std::to_string(read.unresolved) + " ops unresolved" : std::string()) << "\n";
             for (const auto& t : times)
                 std::cout << "profile:   " << t.first << " " << t.second << " ms (" << (total > 0.0 ? 100.0 * t.second / total : 0.0) << "%)\n";
             // The device's idle time between its timed ops, and of it the gaps of a millisecond or more, where it waited for work.
             double idle = 0, long_idle = 0;
             size_t longs = 0;
-            for (double g : backend::vulkan_timed_gaps(*devices[i])) {
+            for (double g : read.gaps) {
                 idle += g;
                 if (g >= 1.0) long_idle += g, ++longs;
             }
@@ -1351,11 +1351,6 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
                       << " ms of it in " << longs << " gaps of 1 ms or more\n";
         }
     };
-#else
-    // main refuses --profile unless every device is a Vulkan one, which this build cannot open.
-    auto clear_times = [] {};
-    auto print_times = [](const std::string&) {};
-#endif
     // With the drafter, a draft's two phases at each draft count up to `--draft-max` (docs/SPECULATIVE.md, section 7), as completed work: the chain of that many drafts, then the verify of the last pick and that many tokens to its logits.
     // Each repeat takes every count in turn after the same history, a count of 0 being the plain step, and the medians are over the repeats after one uncounted round; a profile reads each phase's kernels in one more round.
     if (drafter && seqs <= 1 && draft_reach > (size_t)model.context_length())
@@ -1877,7 +1872,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --seqs N                Sequences decoding together, a pass one token of each (default: " << bench.seqs << ")\n"
             << "  --depth N               History of N tokens, filled untimed, that each test runs after (default: " << bench.depth << ")\n"
             << "                          It counts toward --moe-stream-from's prompt length.\n"
-            << "  --profile               Real-model kernel timing and statistics on Vulkan devices\n"
+            << "  --profile               Real-model kernel timing on Vulkan, ROCm and CUDA devices, and statistics on Vulkan\n"
             << "  --drafter D             off, embedded (the MTP block the file carries) or a file\n"
             << "                          of MTP blocks beside it, never with lookup: load it, run its rows in every\n"
             << "                          pass, drafting nothing, then time a round's rollback at\n"
@@ -2218,8 +2213,7 @@ int main(int argc, char** argv) {
             if (n.depth > 0 && n.seqs > 1) throw UsageError("--depth takes one sequence");
             if (profile) {
                 const auto specs = backend::device_specs(exec.device);
-                if (!std::all_of(specs.begin(), specs.end(), [](const std::string& spec) { return spec.rfind("vulkan:", 0) == 0; }))
-                    throw UsageError("--profile times the kernels of Vulkan devices");
+                if (std::find(specs.begin(), specs.end(), "cpu") != specs.end()) throw UsageError("--profile times the kernels of Vulkan, ROCm and CUDA devices, not the CPU");
             }
             const BenchDrafter drafts = bench_drafter(drafter, draft_max);
             if (!model_path.empty()) return cmd_bench_model(model_path, exec, n.prompt, n.decode, n.repeats, profile, n.seqs, n.depth, drafts);

@@ -91,7 +91,7 @@ namespace backend {
 
 using RocmBackend = GpuBackend<HipApi>;
 
-BackendPtr make_rocm_backend(int device) { return std::make_shared<RocmBackend>(device); }
+BackendPtr make_rocm_backend(int device, bool diagnostics) { return std::make_shared<RocmBackend>(device, diagnostics); }
 
 std::map<std::string, size_t> rocm_take_launches(Backend& backend) { return dynamic_cast<RocmBackend&>(backend).take_launches(); }
 void rocm_route_only(Backend& backend, std::string build) { dynamic_cast<RocmBackend&>(backend).route_only(std::move(build)); }

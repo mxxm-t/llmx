@@ -560,7 +560,7 @@ size_t check_int8_twin_width() {
     std::vector<float> actual(reused.n), expected(fresh.n);
     vk.read(*reused.v, 0, actual.data(), actual.size() * sizeof(float));
     vk.read(*fresh.v, 0, expected.data(), expected.size() * sizeof(float));
-    const auto kernels = backend::vulkan_kernel_times(vk);
+    const auto kernels = vk.kernel_times().kernels;
     require(std::any_of(kernels.begin(), kernels.end(), [](const auto& k) {
         return k.first.find("matmul_tile_q8i8") == 0;
     }), "int8 twin width check did not execute an int8 tile");
@@ -617,9 +617,9 @@ size_t check_twin_table() {
             };
             // The matmuls `run` records quantize nothing, where the device times its dispatches.
             auto quantizes_nothing = [&](const char* after, const std::function<void()>& run) {
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 run();
-                const auto times = backend::vulkan_kernel_times(vk);
+                const auto times = vk.kernel_times().kernels;
                 if (times.empty()) {
                     timed = false;
                     return;
@@ -2425,10 +2425,10 @@ size_t check_q8_one_column_builds(backend::Backend& vk) {
             const auto a = vk.adopt(wa.data(), wa.size()), b = vk.adopt(wb.data(), wb.size());
             const auto ya = vk.alloc(c.a * sizeof(float)), yb = vk.alloc((c.b ? c.b : 1) * sizeof(float));
             const backend::RowRun decode{1, 1};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             if (c.b) vk.matmul_group({{{q8, {a.get(), 0}}, {ya.get(), 0}, c.a}, {{q8, {b.get(), 0}}, {yb.get(), 0}, c.b}}, {xb.get(), 0}, c.nin, 1, {&decode, 1}, dtype);
             else vk.matmul({q8, {a.get(), 0}}, {xb.get(), 0}, {ya.get(), 0}, c.nin, c.a, 1, {&decode, 1}, dtype);
-            const auto times = backend::vulkan_kernel_times(vk);
+            const auto times = vk.kernel_times().kernels;
             if (times.empty() && !checks) {
                 vk.sync();
                 std::cout << "backend-vulkan: one-column Q8_0 builds unwitnessed without device timestamps\n";
@@ -2470,9 +2470,9 @@ size_t check_q8_filling_builds(backend::Backend& vk) {
                 const auto w = vk.adopt(wb.data(), wb.size());
                 const auto y = vk.alloc(n * rows * sizeof(float));
                 const backend::RowRun decode{n, 1};
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 vk.matmul({q8, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1}, dtype);
-                const auto times = backend::vulkan_kernel_times(vk);
+                const auto times = vk.kernel_times().kernels;
                 if (times.empty() && !checks) {
                     vk.sync();
                     std::cout << "backend-vulkan: Q8_0 builds of fewer rows unwitnessed without device timestamps\n";
@@ -2526,9 +2526,9 @@ size_t check_f32_filling_builds(backend::Backend& vk) {
             const auto y = vk.alloc(n * rows * sizeof(float));
             const auto y1 = vk.alloc(rows * sizeof(float));
             const backend::RowRun decode{n, 1};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             vk.matmul({f32, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1});
-            const auto times = backend::vulkan_kernel_times(vk);
+            const auto times = vk.kernel_times().kernels;
             if (times.empty() && !checks) {
                 vk.sync();
                 std::cout << "backend-vulkan: F32 decode chunks unwitnessed without device timestamps\n";
@@ -2571,16 +2571,17 @@ size_t check_whole_chunks(backend::Backend& vk) {
         const auto w = vk.adopt(wb.data(), wb.size());
         for (size_t n : {size_t(64), size_t(65), size_t(256)}) {
             const backend::RowRun decode{n, 1};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, rows, n, {&decode, 1});
-            const auto times = backend::vulkan_kernel_times(vk);
+            const backend::Backend::KernelTimes reading = vk.kernel_times();
+            const auto& times = reading.kernels;
             if (times.empty()) {
                 vk.sync();
                 std::cout << "backend-vulkan: whole decode chunks unwitnessed without device timestamps\n";
                 return 0;
             }
             // Dispatches of one build share a name, so products are the dispatches timed less the other kernels', each run once.
-            size_t products = backend::vulkan_timed_dispatches(vk);
+            size_t products = reading.dispatches;
             for (const auto& entry : times) products -= entry.first.rfind("matmul_", 0) != 0;
             require(products == (n == 65 ? 2u : 1u), "a decode call of whole chunks took another count of dispatches");
             ++checks;
@@ -2602,7 +2603,7 @@ size_t check_cluster_row_builds(backend::Backend& vk) {
     const size_t nin = 1536;
     // The row dispatch of the last call: its kernel and its build's suffix.
     auto ran = [&](std::string& kernel, std::string& build) {
-        const auto times = backend::vulkan_kernel_times(vk);
+        const auto times = vk.kernel_times().kernels;
         size_t products = 0;
         for (const auto& entry : times) {
             if (entry.first.rfind("matmul_row_", 0) != 0) continue;
@@ -2639,7 +2640,7 @@ size_t check_cluster_row_builds(backend::Backend& vk) {
                 const auto wb = matrix(type, nin, 64, 562);
                 const auto w = vk.adopt(wb.data(), wb.size());
                 const auto y = vk.alloc(64 * sizeof(float));
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, 64, 1, {&one, 1}, dtype);
                 named = ran(kernel, build);
             }
@@ -2666,7 +2667,7 @@ size_t check_cluster_row_builds(backend::Backend& vk) {
                 for (uint32_t r = 2; r <= cap; r *= 2)
                     if (!waves || rows >= edge(r, waves, lanes)) want = r;
                 const std::string expect = want == 4 ? "_1col_4row" : want == 2 ? "_1col_2row" : "_1col";
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, rows, 1, {&one, 1}, dtype);
                 std::string k, b;
                 const std::string what = kernel + " at " + std::to_string(rows) + " rows, " + backend::dtype_name(dtype);
@@ -2694,7 +2695,7 @@ size_t check_cluster_row_builds(backend::Backend& vk) {
         const auto ib = vk.adopt(picks.data(), picks.size() * sizeof(uint32_t)), tb = vk.adopt(weights.data(), weights.size() * sizeof(float));
         const auto yr = vk.alloc(k * nout * sizeof(float)), y1 = vk.alloc(nout * sizeof(float));
         const backend::RowRun one{1, 1};
-        (void)backend::vulkan_kernel_times(vk);
+        vk.kernel_times();
         vk.matmul_experts({{{type, {w.get(), 0}}, {yr.get(), 0}, nout}}, {xb.get(), 0}, nin, 1, backend::Backend::Routing{{ib.get(), 0}, {tb.get(), 0}, k, n_expert},
                           {&one, 1}, backend::Dtype::f16);
         std::string kr, br;
@@ -2703,7 +2704,7 @@ size_t check_cluster_row_builds(backend::Backend& vk) {
         vk.read(*yr, 0, routed.data(), routed.size() * sizeof(float));
         for (size_t j = 0; j < k; ++j) {
             const auto e = vk.adopt(wb.data() + picks[j] * nout * row_bytes, nout * row_bytes);
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             vk.matmul({type, {e.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::f16);
             std::string ka, ba;
             require(ran(ka, ba) == 1 && ba == "_1col_2row", ("a Q4_0 call of " + std::to_string(nout) + " rows expected _1col_2row, ran " + ka + ba).c_str());
@@ -2926,7 +2927,7 @@ void report_decode_rates(const std::vector<uint32_t>& types) {
             vk.matmul({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, 4096, 4096, 64);
             vk.sync();
         }
-        (void)backend::vulkan_kernel_times(vk);
+        vk.kernel_times();
     }
     std::cout << "backend-vulkan: decode rates, " << backend::vulkan_device_name(vk) << "; type, dtype, shape (in x out), columns: products us, TMAC/s, all kernels us, builds\n";
     for (const Shape& s : shapes) {
@@ -2950,12 +2951,12 @@ void report_decode_rates(const std::vector<uint32_t>& types) {
                         else vk.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, s.nin, s.nout, n, {&decode, 1}, dtype);
                     };
                     call();
-                    (void)backend::vulkan_kernel_times(vk);
+                    vk.kernel_times();
                     const int iters = n >= 256 ? 3 : 10;
                     for (int i = 0; i < iters; ++i) call();
                     double products = 0, all = 0;
                     std::string builds;
-                    for (const auto& t : backend::vulkan_kernel_times(vk)) {
+                    for (const auto& t : vk.kernel_times().kernels) {
                         all += t.second;
                         if (t.first.rfind("matmul_", 0) != 0) continue;
                         products += t.second;
@@ -3061,15 +3062,16 @@ size_t check_timing_coverage() {
     const std::vector<float> x = uniform(n, 7);
     const auto xb = tb->adopt(x.data(), n * sizeof(float));
     const auto yb = tb->alloc(n * sizeof(float), backend::Memory::device);
-    tb->device_ms();
+    tb->kernel_times();
     tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
-    tb->device_ms();
-    const size_t per = backend::vulkan_timed_dispatches(*tb);
+    const size_t per = tb->kernel_times().dispatches;
     require(per >= 1, "a timed dispatch was not timed");
     const size_t calls = 6000;
     for (size_t i = 0; i < calls; ++i) tb->silu_mul({yb.get(), 0}, {xb.get(), 0}, {xb.get(), 0}, n, 0.0f);
-    const double ms = tb->device_ms();
-    require(backend::vulkan_timed_dispatches(*tb) == calls * per, "device timing missed the dispatches past one query pool");
+    const backend::Backend::KernelTimes reading = tb->kernel_times();
+    double ms = 0;
+    for (const auto& k : reading.kernels) ms += k.second;
+    require(reading.dispatches == calls * per, "device timing missed the dispatches past one query pool");
     require(ms > 0.0, "device timing read no time");
     return calls * per;
 }
@@ -3093,7 +3095,7 @@ void print_argmax_after_head() {
         for (bool head : {false, true}) {
             tb->matmul_logits({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {logits.get(), 0}, width, vocab, 1, {&decode, 1});
             tb->sync();
-            backend::vulkan_kernel_times(*tb);
+            tb->kernel_times();
             const auto t0 = std::chrono::steady_clock::now();
             for (size_t i = 0; i < calls; ++i) {
                 if (head) tb->matmul_logits({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {logits.get(), 0}, width, vocab, 1, {&decode, 1});
@@ -3104,7 +3106,7 @@ void print_argmax_after_head() {
             tb->sync();
             const double wall = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / double(calls);
             double argmax = 0, product = 0;
-            for (const auto& t : backend::vulkan_kernel_times(*tb)) (t.first == "argmax_rows" ? argmax : product) += t.second;
+            for (const auto& t : tb->kernel_times().kernels) (t.first == "argmax_rows" ? argmax : product) += t.second;
             std::cout << "backend-vulkan: timed argmax_rows over " << vocab << (host ? " host-visible" : " device") << " logits, " << (whole ? "one workgroup a row, " : "in slices, ") << (head ? "after the head's product" : "alone") << ": "
                       << argmax / double(calls) << " ms a row" << (head ? ", the head's product " + std::to_string(product / double(calls)) + " ms" : std::string()) << ", wall " << wall << " ms a call" << std::endl;
         }
@@ -3584,7 +3586,7 @@ size_t check_weight_dispatch() {
                             else if ((tq && p.lookup_integer_dot) || (e.type == 39 && p.lookup_integer_dot) ||
                                      (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39 && !tq)) expected += "_dot";
                         }
-                        (void)backend::vulkan_kernel_times(vk);
+                        vk.kernel_times();
                         const backend::RowRun run{1, extent};
                         if (routed) {
                             const backend::Backend::Routing routing{{ids.get(), 0}, {}, 1, 1};
@@ -3592,7 +3594,7 @@ size_t check_weight_dispatch() {
                         } else {
                             vk.matmul({e.type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, nin, nout, 1, {&run, 1}, dtype);
                         }
-                        const auto times = backend::vulkan_kernel_times(vk);
+                        const auto times = vk.kernel_times().kernels;
                         if (times.empty() && !checks) {
                             vk.sync();
                             std::cout << "backend-vulkan: dispatch names unavailable without device timestamps\n";
@@ -3641,12 +3643,12 @@ size_t check_weight_dispatch() {
         for (auto dtype : {backend::Dtype::f16, backend::Dtype::int8}) for (bool routed : {false, true}) {
             vk.write(*y, 0, output.data(), output.size() * sizeof(float));
             const backend::RowRun run{1, routed ? p.moe_tile_from_q4 : p.tile_from_other_narrow};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             if (routed) {
                 const backend::Backend::Routing routing{{ids.get(), 0}, {}, 1, 1};
                 vk.matmul_experts({{{type, {w.get(), 0}}, {y.get(), 1}, nout}}, {x.get(), 0}, nin, 1, routing, {&run, 1}, dtype);
             } else vk.matmul({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, nin, nout, 1, {&run, 1}, dtype);
-            const auto times = backend::vulkan_kernel_times(vk);
+            const auto times = vk.kernel_times().kernels;
             const std::string expected = std::string(symmetric ? "matmul_tile_q50" : "matmul_tile_q5") + (dtype == backend::Dtype::int8 ? "i8" : "");
             size_t products = 0;
             for (const auto& entry : times) {
@@ -3815,11 +3817,11 @@ size_t check_half_weights(backend::Backend& vk) {
                             else vk.matmul_experts_add({t, ws}, xs, ys, nin, nout, batch, route, rows, dtype);
                         };
                         const bool witness = nin == 1024 && batch == 3 && dtype == backend::Dtype::f32 && op == 0;
-                        if (witness) (void)backend::vulkan_kernel_times(vk);
+                        if (witness) vk.kernel_times();
                         (void)testq::take_matrix_paths(vk);
                         run(type, hw, a);
                         if (witness) {
-                            const auto times = backend::vulkan_kernel_times(vk);
+                            const auto times = vk.kernel_times().kernels;
                             const std::string family = type == 1 ? "matmul_row_wf16" : "matmul_row_wbf16";
                             const std::string narrow = profile.row_decode_cols >= 4 ? family + "_4col" : profile.row_decode_cols >= 2 ? family + "_2col" : "";
                             require(times.empty() || narrow.empty() || std::any_of(times.begin(), times.end(), [&](const auto& t) { return t.first == narrow; }),
@@ -4728,10 +4730,10 @@ size_t check_collective(const backend::BackendPtr& first) {
             std::vector<backend::Backend*> raw;
             for (const auto& g : group) raw.push_back(g.get());
             std::unique_ptr<backend::Collective> c = raw[0]->join(raw, 96, wide);
-            for (backend::Backend* m : raw) (void)backend::vulkan_kernel_times(*m);
+            for (backend::Backend* m : raw) m->kernel_times();
             sums(raw, *c, wide, counts);
             for (backend::Backend* m : raw) {
-                const auto times = backend::vulkan_kernel_times(*m);
+                const auto times = m->kernel_times().kernels;
                 if (times.empty()) return false;
                 bool summed = false;
                 for (const auto& t : times) {
@@ -4812,10 +4814,10 @@ size_t check_routed_narrow() {
                 const auto y = vk.alloc(rows * k * nout * sizeof(float));
                 const backend::RowRun run{rows, rows};
                 const backend::Backend::Routing routing{{ib.get(), 0}, {}, k, experts};
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 vk.matmul_experts({{{type, {w.get(), 0}}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {&run, 1}, dtype);
                 std::string build;
-                for (const auto& t : backend::vulkan_kernel_times(vk))
+                for (const auto& t : vk.kernel_times().kernels)
                     if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
                 // A build named for 8-bit activations reads them, and the cut of the activations it reads decides.
                 const size_t cut = build.find("i8") != std::string::npos ? per8 : per16, per = (rows * k + experts - 1) / experts;
@@ -4863,7 +4865,7 @@ size_t check_routed_quads() {
     std::string took;
     const auto build_of = [&] {
         std::string build;
-        for (const auto& t : backend::vulkan_kernel_times(vk))
+        for (const auto& t : vk.kernel_times().kernels)
             if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
         return build;
     };
@@ -4873,7 +4875,7 @@ size_t check_routed_quads() {
         for (const auto dtype : dtypes) {
             const auto y = vk.alloc(rows * nout * sizeof(float)), y1 = vk.alloc(nout * sizeof(float));
             const backend::RowRun run{rows, rows}, one{1, rows};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             vk.matmul_experts({{{type, {wb.get(), 0}}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, {{ib.get(), 0}, {}, 1, experts}, {&run, 1}, dtype);
             if (build_of().find("_narrow") == std::string::npos) continue;
             std::vector<float> out(rows * nout), alone(nout);
@@ -4990,10 +4992,10 @@ size_t check_routed_mxfp4_narrow_at(backend::Backend& vk, size_t nout, bool tall
         for (const size_t n : calls) {
             const auto y = vk.alloc(n * nout * sizeof(float));
             const backend::RowRun run{n, n};
-            (void)backend::vulkan_kernel_times(vk);
+            vk.kernel_times();
             vk.matmul_experts({{{quant::GGML_TYPE_MXFP4, {wb.get(), 0}}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, n, {{ib.get(), 0}, {}, 1, experts}, {&run, 1}, dtype);
             std::string build;
-            for (const auto& t : backend::vulkan_kernel_times(vk))
+            for (const auto& t : vk.kernel_times().kernels)
                 if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
             // The build is checked by name where the device has timestamps, and the tall experts' narrow calls must take the 128-row height.
             const bool narrow = build.find("_narrow") != std::string::npos;
@@ -5055,10 +5057,10 @@ size_t check_tile_heights() {
                 for (const size_t n : {many, few}) {
                     const auto y = vk.alloc(n * nout * sizeof(float));
                     const backend::RowRun run{n, many};
-                    (void)backend::vulkan_kernel_times(vk);
+                    vk.kernel_times();
                     vk.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, nout, n, {&run, 1}, dtype);
                     std::string build;
-                    for (const auto& t : backend::vulkan_kernel_times(vk))
+                    for (const auto& t : vk.kernel_times().kernels)
                         if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
                     builds.push_back(build);
                     out.emplace_back(few * nout);
@@ -5126,10 +5128,10 @@ void report_routed_occupancy() {
                     else vk.matmul_experts({gate}, {xb.get(), 0}, sh.nin, rows, routing, {&run, 1}, dtype);
                 };
                 call();
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 for (int i = 0; i < 5; ++i) call();
                 double ms = 0;
-                for (const auto& t : backend::vulkan_kernel_times(vk))
+                for (const auto& t : vk.kernel_times().kernels)
                     if (t.first.rfind("matmul_tile", 0) == 0) ms += t.second;
                 if (ms == 0) {
                     std::cout << "backend-vulkan: the routed occupancy needs device timestamps\n";
@@ -5279,12 +5281,12 @@ size_t check_route_shapes() {
                 Pair::In si = p.in(scores);
                 Pair::Out ids = p.out(rows * k), wts = p.out(rows * k);
                 p.cpu.route_experts(si.cs(), rows, n, k, backend::RouteRule::softmax(normalize), ids.cs(), wts.cs());
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 p.dev.route_experts(si.vs(), rows, n, k, backend::RouteRule::softmax(normalize), ids.vs(), wts.vs());
                 const auto ri = p.results(ids), rw = p.results(wts);
                 const std::string label = std::to_string(n) + " experts (" + sh.build + "), k " + std::to_string(k) + (normalize ? ", normalized" : "");
                 // Where the device times its dispatches, the call took the build the shape names.
-                const auto times = backend::vulkan_kernel_times(vk);
+                const auto times = vk.kernel_times().kernels;
                 require(times.empty() || std::any_of(times.begin(), times.end(), [&](const auto& kt) { return kt.first == sh.build; }),
                         ("routing did not take its build at " + label).c_str());
                 witnessed += !times.empty();
@@ -5388,11 +5390,12 @@ size_t check_moe_step_dispatches(backend::Backend& vk) {
             const auto h = moe::inputs(2, s.E, 32), y0 = moe::residual(2, s.E, 33);
             auto kernels = [&](const std::vector<backend::RowRun>& runs, size_t rows) {
                 vk.sync();
-                (void)backend::vulkan_kernel_times(vk);
+                vk.kernel_times();
                 moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::op);
                 std::vector<std::string> names;
-                for (const auto& t : backend::vulkan_kernel_times(vk)) names.push_back(t.first);
-                return std::make_pair(names, backend::vulkan_timed_dispatches(vk));
+                const backend::Backend::KernelTimes reading = vk.kernel_times();
+                for (const auto& t : reading.kernels) names.push_back(t.first);
+                return std::make_pair(names, reading.dispatches);
             };
             auto has = [](const std::vector<std::string>& names, const char* prefix) {
                 for (const std::string& n : names) if (n.rfind(prefix, 0) == 0) return true;

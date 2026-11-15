@@ -323,7 +323,8 @@ inline void VulkanBackend::wide_attention(CSlice Q, size_t layer, const std::vec
 }
 
 inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
-                                            CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim) {
+                                            CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim, size_t groups, size_t block_size) {
+    if (groups != 1 || block_size != 1) throw std::runtime_error("vulkan: sparse_attention has no id groups or blocks");
     if (n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || !id_stride ||
         id_stride > UINT32_MAX / 2 || !attention_head_fits(size_t(head_dim), dev_->caps.subgroup_size))
         throw std::runtime_error("vulkan: invalid sparse attention dimensions");

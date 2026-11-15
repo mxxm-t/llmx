@@ -1617,7 +1617,8 @@ public:
     // Attention over each row's selected ids through the dense bodies' sparse builds, per-row for heads 128 and 256 wide and chunked otherwise.
     // A row's splits follow the id stride alone, never the call.
     void sparse_attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv,
-                          int head_dim) override {
+                          int head_dim, size_t groups, size_t block_size) override {
+        if (groups != 1 || block_size != 1) throw std::runtime_error(Api::prefix + "sparse_attention has no id groups or blocks");
         if (!n_views) return;
         if (!views) throw std::runtime_error(Api::prefix + "sparse attention without views");
         if (!id_stride || id_stride > (size_t)INT32_MAX || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || head_dim > (int)kThreads)

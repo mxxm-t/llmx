@@ -1085,10 +1085,10 @@ public:
     // Attend over the selected original KV rows, retaining the usual GQA mapping and cache storage types.
     void sparse_attention(CSlice Q_s, size_t layer, const KVView* views, size_t n_views,
                           CSlice ids_s, size_t id_stride, Slice out_s,
-                          int n_head, int n_head_kv, int head_dim) override {
+                          int n_head, int n_head_kv, int head_dim, size_t groups, size_t block_size) override {
         if (!n_views) return;
         if (!views) throw std::runtime_error("backend: sparse attention without views");
-        if (!id_stride || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0)
+        if (!id_stride || n_head <= 0 || n_head_kv <= 0 || n_head % n_head_kv || head_dim <= 0 || !groups || (size_t)n_head_kv % groups || !block_size)
             throw std::runtime_error("backend: invalid sparse attention dimensions");
         const size_t hd = (size_t)head_dim;
         const size_t q_stride = size_mul((size_t)n_head, hd);
@@ -1113,7 +1113,8 @@ public:
         }
 
         const size_t q_count = size_mul(rows, q_stride);
-        const size_t ids_count = size_mul(rows, id_stride);
+        const size_t row_ids = size_mul(groups, id_stride), slots = size_mul(id_stride, block_size), heads_a_group = (size_t)n_head_kv / groups;
+        const size_t ids_count = size_mul(rows, row_ids);
         const size_t output_count = q_count;
         validate_float_slice(Q_s, q_count);
         validate_float_slice(ids_s, ids_count);
@@ -1131,7 +1132,7 @@ public:
         const float* query = at(Q_s);
         const float* ids = at(ids_s);
         float* output = at(out_s);
-        attention_scores_.resize(size_mul((size_t)n_head, id_stride));
+        attention_scores_.resize(size_mul((size_t)n_head, slots));
         const float scale = 1.0f / std::sqrt((float)hd);
         for (const ViewPlan& plan : plans) {
             const KVView& view = *plan.view;
@@ -1140,20 +1141,26 @@ public:
             parallel_for(n_head, [&](int h) {
                 const size_t head = (size_t)h;
                 const size_t kv_head = head / (size_t)ratio;
-                float* scores = attention_scores_.data() + head * id_stride;
+                float* scores = attention_scores_.data() + head * slots;
                 for (size_t b = 0; b < view.nq; ++b) {
                     const size_t row = plan.row0 + b;
                     const size_t causal_end = size_add(view.length, b + 1);
                     const float* q = query + row * q_stride + head * hd;
-                    float maximum = -std::numeric_limits<float>::infinity();
-                    for (size_t j = 0; j < id_stride; ++j) {
+                    const float* row_id = ids + row * row_ids + kv_head / heads_a_group * id_stride;
+                    // Slot j = e * block_size + o is position o of the block id e names, or none at the causal end.
+                    const auto id_at = [&](size_t e) {
                         uint32_t token_id;
-                        std::memcpy(&token_id, ids + row * id_stride + j, sizeof(token_id));
-                        if (token_id == UINT32_MAX || (size_t)token_id >= causal_end) {
+                        std::memcpy(&token_id, row_id + e, sizeof(token_id));
+                        return token_id;
+                    };
+                    float maximum = -std::numeric_limits<float>::infinity();
+                    for (size_t e = 0, j = 0; e < id_stride; ++e)
+                    for (size_t o = 0, first = id_at(e) == UINT32_MAX ? causal_end : (size_t)id_at(e) * block_size; o < block_size; ++o, ++j) {
+                        const size_t token = first + o;
+                        if (token >= causal_end) {
                             scores[j] = -std::numeric_limits<float>::infinity();
                             continue;
                         }
-                        const size_t token = (size_t)token_id;
                         const int32_t block = view.blocks[token / bt];
                         const size_t in_block = token % bt;
                         float score;
@@ -1174,13 +1181,12 @@ public:
                     float* dst = output + row * q_stride + head * hd;
                     std::fill_n(dst, hd, 0.0f);
                     if (maximum == -std::numeric_limits<float>::infinity()) continue;
-                    for (size_t j = 0; j < id_stride; ++j) {
-                        uint32_t token_id;
-                        std::memcpy(&token_id, ids + row * id_stride + j, sizeof(token_id));
-                        if (token_id == UINT32_MAX || (size_t)token_id >= causal_end) continue;
+                    for (size_t e = 0, j = 0; e < id_stride; ++e)
+                    for (size_t o = 0, first = id_at(e) == UINT32_MAX ? causal_end : (size_t)id_at(e) * block_size; o < block_size; ++o, ++j) {
+                        const size_t token = first + o;
+                        if (token >= causal_end) continue;
                         const float weight = std::exp(scores[j] - maximum);
                         denominator += weight;
-                        const size_t token = (size_t)token_id;
                         const int32_t block = view.blocks[token / bt];
                         const size_t in_block = token % bt;
                         if (storage.v_type() == KVType::f16) {

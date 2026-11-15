@@ -166,6 +166,8 @@ public:
             layer.ops.push_back({Part::mixer, backend::Op::indexer_scores});
             layer.ops.push_back({Part::mixer, backend::Op::raw_index_scores});
             layer.ops.push_back({Part::mixer, backend::Op::candidate_blocks});
+            layer.ops.push_back({Part::mixer, backend::Op::sparse_attention});
+            layer.ops.push_back({Part::mixer, backend::Op::sparse_attention_blocks});
             layer.ops.push_back({Part::ffn, backend::Op::silu_mul_clamp});
             layer.ops.push_back({Part::ffn, backend::Op::glu_quick_gelu});
             if (layer.routed) {

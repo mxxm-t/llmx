@@ -273,7 +273,7 @@ void block_selection() {
     std::vector<float> q(rows * heads * dim);
     for (float& x : q) x = float(int(draw() % 4001) - 2000) / 1024.0f;
     BufferPtr qb = upload(cpu, q);
-    for (const std::pair<size_t, size_t> shape : {std::make_pair(size_t(128), size_t(16)), std::make_pair(size_t(4), size_t(3))}) {
+    for (const std::pair<size_t, size_t>& shape : {std::make_pair(size_t(128), size_t(16)), std::make_pair(size_t(4), size_t(3))}) {
         const size_t block = shape.first, k = shape.second, n = (total + block - 1) / block + 1;
         const std::string name = "block selection at B " + std::to_string(block) + " and K " + std::to_string(k);
         BufferPtr sb = cpu.alloc(rows * heads * n * 4, backend::Memory::device), pb = cpu.alloc(rows * heads * k * 4, backend::Memory::device);
@@ -308,6 +308,100 @@ void block_selection() {
     }
 }
 
+// sparse_attention's id groups and blocks against docs/MINIMAX.md (The forward pass) in double, the query heads of KV group h attending the positions of group h's blocks up to their own.
+// A blocked call has the bits of the call naming each position alone, and a grouped call each group's heads' bits of a call of that group's ids alone, since the chain over slots is today's.
+void blocked_attention() {
+    const size_t heads = 8, kv_heads = 4, dim = 16, bt = 128, total = 300;
+    CpuBackend cpu;
+    std::unique_ptr<backend::KVStorage> owner = cpu.kv_alloc(1, kv_heads, dim, 4 * bt, backend::KVType::f32, backend::KVType::f32);
+    const int32_t ids_table[] = {3, 0, 2};
+    const backend::KVView fill{owner.get(), ids_table, 3, 0, total};
+    std::vector<float> k(total * kv_heads * dim), v(total * kv_heads * dim);
+    for (float& x : k) x = float(int(draw() % 4001) - 2000) / 1024.0f;
+    for (float& x : v) x = float(int(draw() % 4001) - 2000) / 1024.0f;
+    BufferPtr kb = upload(cpu, k), vb = upload(cpu, v);
+    cpu.kv_write(0, &fill, 1, {kb.get(), 0}, {vb.get(), 0});
+    const size_t nq = 3, first_row = total - nq;
+    const backend::KVView view{owner.get(), ids_table, 3, first_row, nq};
+    std::vector<float> q(nq * heads * dim);
+    for (float& x : q) x = float(int(draw() % 4001) - 2000) / 512.0f;
+    BufferPtr qb = upload(cpu, q);
+    const uint32_t none = UINT32_MAX;
+    for (size_t block : {size_t(4), size_t(128)}) {
+        const size_t stride = 3, groups = kv_heads, own = (total - 1) / block;
+        // Group g of row r keeps earlier blocks, one in groups above 0 and two in group 0, then the row's own block, causal inside it, and padding.
+        std::vector<uint32_t> ids(nq * groups * stride);
+        for (size_t r = 0; r < nq; ++r)
+            for (size_t g = 0; g < groups; ++g) {
+                uint32_t* e = &ids[(r * groups + g) * stride];
+                e[0] = uint32_t((g * 7 + r) % (own - 1));
+                e[1] = g == 0 ? e[0] + 1 : uint32_t(own);
+                e[2] = g == 0 ? uint32_t(own) : none;
+            }
+        const std::string name = "sparse attention at block " + std::to_string(block);
+        std::vector<float> idf(ids.size());
+        std::memcpy(idf.data(), ids.data(), ids.size() * 4);
+        BufferPtr ib = upload(cpu, idf), ob = cpu.alloc(nq * heads * dim * 4, backend::Memory::device);
+        cpu.set_threads(1);
+        cpu.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, stride, {ob.get(), 0}, int(heads), int(kv_heads), int(dim), groups, block);
+        const std::vector<float> got = download(cpu, *ob, nq * heads * dim);
+        for (int t : kThreads) {
+            cpu.set_threads(t);
+            cpu.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, stride, {ob.get(), 0}, int(heads), int(kv_heads), int(dim), groups, block);
+            require(!std::memcmp(download(cpu, *ob, got.size()).data(), got.data(), got.size() * 4), name + " at " + std::to_string(t) + " threads");
+        }
+        cpu.set_threads(1);
+        for (size_t g = 0; g < groups; ++g) {
+            // Group g's ids alone, each block spelled out a position a slot, through today's call.
+            std::vector<float> spelled(nq * stride * block);
+            for (size_t r = 0; r < nq; ++r)
+                for (size_t e = 0; e < stride; ++e)
+                    for (size_t o = 0; o < block; ++o) {
+                        const uint32_t id = ids[(r * groups + g) * stride + e], pos = id == none ? none : uint32_t(id * block + o);
+                        std::memcpy(&spelled[(r * stride + e) * block + o], &pos, 4);
+                    }
+            BufferPtr sb = upload(cpu, spelled), alone = cpu.alloc(nq * heads * dim * 4, backend::Memory::device);
+            static_cast<backend::Backend&>(cpu).sparse_attention({qb.get(), 0}, 0, &view, 1, {sb.get(), 0}, stride * block, {alone.get(), 0}, int(heads), int(kv_heads), int(dim));
+            const std::vector<float> ref = download(cpu, *alone, nq * heads * dim);
+            for (size_t r = 0; r < nq; ++r)
+                for (size_t h = g * heads / groups; h < (g + 1) * heads / groups; ++h) {
+                    require(!std::memcmp(&got[(r * heads + h) * dim], &ref[(r * heads + h) * dim], dim * 4), name + ": group " + std::to_string(g) + " head " + std::to_string(h) + " has the spelled call's bits");
+                    // The double reference: softmax of q . k / sqrt(dim) over the group's visible positions, in any order.
+                    const size_t p = first_row + r, kvh = h / (heads / kv_heads);
+                    std::vector<size_t> seen;
+                    for (size_t e = 0; e < stride; ++e) {
+                        const uint32_t id = ids[(r * groups + g) * stride + e];
+                        for (size_t o = 0; id != none && o < block; ++o)
+                            if (id * block + o <= p) seen.push_back(id * block + o);
+                    }
+                    std::vector<double> sc;
+                    double top = -1e300;
+                    for (size_t t : seen) {
+                        double d = 0.0;
+                        for (size_t i = 0; i < dim; ++i) d += double(q[(r * heads + h) * dim + i]) * k[(t * kv_heads + kvh) * dim + i];
+                        sc.push_back(d / std::sqrt(double(dim)));
+                        top = std::max(top, sc.back());
+                    }
+                    double den = 0.0;
+                    for (double x : sc) den += std::exp(x - top);
+                    for (size_t i = 0; i < dim; ++i) {
+                        double want = 0.0, mag = 0.0;
+                        for (size_t m = 0; m < seen.size(); ++m) {
+                            want += std::exp(sc[m] - top) / den * v[(seen[m] * kv_heads + kvh) * dim + i];
+                            mag += std::exp(sc[m] - top) / den * std::fabs(v[(seen[m] * kv_heads + kvh) * dim + i]);
+                        }
+                        require(std::fabs(got[(r * heads + h) * dim + i] - want) <= 1e-4 * (mag + 1e-3), name + ": group " + std::to_string(g) + " head " + std::to_string(h) + " against double");
+                    }
+                }
+        }
+    }
+    BufferPtr ib = upload(cpu, std::vector<float>(nq * 3 * 3)), ob = cpu.alloc(nq * heads * dim * 4, backend::Memory::device);
+    refused([&] { cpu.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, 3, {ob.get(), 0}, int(heads), int(kv_heads), int(dim), 3, 1); },
+            "id groups not dividing the KV heads", "backend: invalid sparse attention dimensions");
+    refused([&] { cpu.sparse_attention({qb.get(), 0}, 0, &view, 1, {ib.get(), 0}, 3, {ob.get(), 0}, int(heads), int(kv_heads), int(dim), 1, 0); },
+            "a block of no positions", "backend: invalid sparse attention dimensions");
+}
+
 } // namespace
 
 int main() {
@@ -316,6 +410,7 @@ int main() {
         quick_gelu();
         raw_index_scores();
         block_selection();
+        blocked_attention();
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << std::endl;
         return 1;

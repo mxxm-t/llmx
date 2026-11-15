@@ -674,7 +674,7 @@ public:
     }
 
     // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::glu_quick_gelu && op != Op::raw_index_scores && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
+    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::glu_quick_gelu && op != Op::raw_index_scores && op != Op::sparse_attention_blocks && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1922,7 +1922,7 @@ public:
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
                    int n_head, int n_head_kv, int head_dim) override;
     void sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
-                          CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim) override;
+                          CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim, size_t groups, size_t block_size) override;
     // An auxiliary plane's blocks as the indexer's kernels address them (views.glsl, pooled_row): their tokens, their floats and the floats of their tokens' rows before the pooled rows.
     struct PlaneShape {
         uint32_t bt, block_floats, rows_floats;

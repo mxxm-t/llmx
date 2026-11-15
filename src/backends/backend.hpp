@@ -418,12 +418,12 @@ enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-// The last six are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms, route_experts's sigmoid scores, silu_mul's quick_gelu form and indexer_scores's raw form.
+// The last seven are modes of other calls, each named in docs/src/backends-backend.md beside the call it changes.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
-                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores };
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores, sparse_attention_blocks };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -466,6 +466,7 @@ inline const char* op_name(Op op) {
         case Op::sigmoid_routing: return "sigmoid_routing";
         case Op::glu_quick_gelu: return "glu_quick_gelu";
         case Op::raw_index_scores: return "raw_index_scores";
+        case Op::sparse_attention_blocks: return "sparse_attention_blocks";
     }
     return "an unknown op";
 }
@@ -802,8 +803,9 @@ public:
         lacks(Op::select_kv);
     }
 
-    // Causal GQA over chronological unique U32 IDs, id_stride slots per query in view order; padding and IDs outside the causal prefix are ignored, and an empty selection yields zeros.
-    virtual void sparse_attention(CSlice, size_t, const KVView*, size_t, CSlice, size_t, Slice, int, int, int) {
+    // Causal GQA over chronological unique U32 IDs, id_stride slots per query and id group in view order; padding and IDs outside the causal prefix are ignored, and an empty selection yields zeros.
+    // A row's groups of ids are group-major, KV head h reading group h / (n_head_kv / groups), and an id names block_size positions in order (Op::sparse_attention_blocks where either is above 1).
+    virtual void sparse_attention(CSlice, size_t, const KVView*, size_t, CSlice, size_t, Slice, int, int, int, size_t /*groups*/ = 1, size_t /*block_size*/ = 1) {
         lacks(Op::sparse_attention);
     }
 

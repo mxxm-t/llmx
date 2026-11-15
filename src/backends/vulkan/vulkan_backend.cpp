@@ -549,6 +549,7 @@ public:
     const std::string& name() const { return dev_->caps.device; }
     std::string identity() const override { return dev_->identity; }
     const DeviceProfile& profile() const { return dev_->profile; }
+    const DeviceCaps& caps() const { return dev_->caps; }
     bool preserves_float32() const { return dev_->preserve_float32; }
     bool row_reads_float(uint32_t type, Dtype dtype) const;
     bool prefer_integer_dot() {
@@ -2243,6 +2244,11 @@ std::string vulkan_device_name(const Backend& backend) {
 DeviceProfile vulkan_device_profile(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->profile() : DeviceProfile{};
+}
+
+DeviceCaps vulkan_device_caps(const Backend& backend) {
+    const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
+    return v ? v->caps() : DeviceCaps{};
 }
 
 bool vulkan_may_flush_float32(const Backend& backend) {

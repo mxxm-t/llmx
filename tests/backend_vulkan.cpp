@@ -2536,45 +2536,128 @@ size_t check_whole_chunks(backend::Backend& vk) {
     return checks;
 }
 
-// One-column calls of 16-bit Q4_0, Q4_1, IQ4_NL and IQ4_XS rows take the four-row build where the transposed reduction holds their cluster (one_column_variant), and the one-row build below that cluster.
-// Rows 300 and 301 tall reach whole clusters and the four-row build's partial last group; every row must equal column 0 of a two-column call.
-size_t check_four_row_builds(backend::Backend& vk) {
-    const bool tree = backend::vulkan_device_profile(vk).row_decode_tree;
-    size_t checks = 0;
-    for (uint32_t type : {uint32_t(quant::GGML_TYPE_Q4_0), uint32_t(quant::GGML_TYPE_Q4_1), uint32_t(quant::GGML_TYPE_IQ4_NL), uint32_t(quant::GGML_TYPE_IQ4_XS)}) {
-        if (!vk.supports_type(type) || backend::vulkan_row_reads_float(vk, type, backend::Dtype::f16)) continue;
-        // 256 values a row give a cluster of 8 lanes, below any subgroup; 1280 give 40 units, a cluster of the whole subgroup, which the transposed reduction holds.
-        for (size_t nin : {size_t(256), size_t(1280)})
-            for (size_t rows : {size_t(300), size_t(301)}) {
-                const auto x = uniform(2 * nin, 551 + uint32_t(nin));
-                const auto wb = matrix(type, nin, rows, 552 + uint32_t(rows));
-                const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), w = vk.adopt(wb.data(), wb.size());
-                const auto y1 = vk.alloc(rows * sizeof(float)), y2 = vk.alloc(2 * rows * sizeof(float));
-                const backend::RowRun one{1, 1}, two{2, 1};
+// One-column calls take the rows a cluster their kernel's cap and class give at the call's rows (cluster_rows, rows_a_cluster), one row either side of each edge in both dtypes, as the dispatch's build name shows.
+// Every row must equal column 0 of a two-column call, and a routed call counts its rows times its entries, which crosses an edge its rows alone do not.
+size_t check_cluster_row_builds(backend::Backend& vk) {
+    const backend::DeviceProfile profile = backend::vulkan_device_profile(vk);
+    const backend::DeviceCaps caps = backend::vulkan_device_caps(vk);
+    // Each kernel's cap and its waves a compute unit in row_four_waves_per_cu, as docs/VULKAN.md gives them; a kernel not listed takes one row.
+    struct Class { const char* kernel; uint32_t cap, waves; };
+    const Class classes[] = {{"matmul_row_q4_dot", 4, 1}, {"matmul_row_iq4_dot", 4, 1}, {"matmul_row_iq4_xs_dot", 4, 1}, {"matmul_row_q4_i8", 4, 2},
+                             {"matmul_row_q5_dot", 4, 2}, {"matmul_row_k4_dot", 4, 2}, {"matmul_row_k5_dot", 4, 2}, {"matmul_row_k4_i8", 2, 2},
+                             {"matmul_row_k5_i8", 2, 2}, {"matmul_row_q50_dot", 4, 4}, {"matmul_row_q50_i8", 4, 4}, {"matmul_row_q5_i8", 4, 4}};
+    const size_t nin = 1536;
+    // The row dispatch of the last call: its kernel and its build's suffix.
+    auto ran = [&](std::string& kernel, std::string& build) {
+        const auto times = backend::vulkan_kernel_times(vk);
+        size_t products = 0;
+        for (const auto& entry : times) {
+            if (entry.first.rfind("matmul_row_", 0) != 0) continue;
+            const size_t at = entry.first.find("_1col");
+            require(at != std::string::npos, ("a one-column call ran " + entry.first).c_str());
+            kernel = entry.first.substr(0, at);
+            build = entry.first.substr(at);
+            ++products;
+        }
+        return products;
+    };
+    // The fewest rows that take r rows a cluster of `lanes`: r times the clusters that give each compute unit the class's waves.
+    auto edge = [&](uint32_t r, uint32_t waves, uint32_t lanes) {
+        const size_t need = size_t(profile.row_four_waves_per_cu) * waves * caps.compute_units * caps.subgroup_size;
+        return r * ((need + lanes - 1) / lanes);
+    };
+    std::vector<backend::Dtype> dtypes = {backend::Dtype::f16};
+    const auto native = vk.native_dtypes();
+    if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end()) dtypes.push_back(backend::Dtype::int8);
+    size_t checks = 0, reached[5] = {};
+    const auto x = uniform(2 * nin, 561);
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+    for (uint32_t type : {uint32_t(quant::GGML_TYPE_Q4_0), uint32_t(quant::GGML_TYPE_Q4_1), uint32_t(quant::GGML_TYPE_IQ4_NL), uint32_t(quant::GGML_TYPE_IQ4_XS),
+                          uint32_t(quant::GGML_TYPE_Q5_0), uint32_t(quant::GGML_TYPE_Q5_1), uint32_t(quant::GGML_TYPE_Q4_K), uint32_t(quant::GGML_TYPE_Q5_K),
+                          uint32_t(quant::GGML_TYPE_Q6_K)}) {
+        if (!vk.supports_type(type)) continue;
+        for (backend::Dtype dtype : dtypes) {
+            if (backend::vulkan_row_reads_float(vk, type, dtype)) continue;
+            const backend::RowRun one{1, 1}, two{2, 1};
+            // A small call names the kernel, whose class then gives the edges; its buffers outlive the reading, which waits for the queue.
+            std::string kernel, build;
+            size_t named = 0;
+            {
+                const auto wb = matrix(type, nin, 64, 562);
+                const auto w = vk.adopt(wb.data(), wb.size());
+                const auto y = vk.alloc(64 * sizeof(float));
                 (void)backend::vulkan_kernel_times(vk);
-                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, rows, 1, {&one, 1}, backend::Dtype::f16);
-                const auto times = backend::vulkan_kernel_times(vk);
-                if (times.empty()) {
-                    vk.sync();
-                    std::cout << "backend-vulkan: four-row builds unwitnessed without device timestamps\n";
-                    return 0;
-                }
-                const std::string want = tree && nin == 1280 ? "_1col_4row" : "_1col";
-                size_t products = 0;
-                for (const auto& entry : times) {
-                    if (entry.first.rfind("matmul_row_", 0) != 0) continue;
-                    require(entry.first.size() > want.size() && entry.first.compare(entry.first.size() - want.size(), want.size(), want) == 0,
-                            ("a one-column Q4 or IQ4 call expected a build ending " + want + ", got " + entry.first).c_str());
-                    ++products;
-                }
-                require(products == 1, "a one-column Q4 or IQ4 call did not witness exactly one row dispatch");
-                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y2.get(), 0}, nin, rows, 2, {&two, 1}, backend::Dtype::f16);
-                std::vector<float> a(rows), b(2 * rows);
+                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, 64, 1, {&one, 1}, dtype);
+                named = ran(kernel, build);
+            }
+            if (!named) {
+                vk.sync();
+                std::cout << "backend-vulkan: rows a cluster unwitnessed without device timestamps\n";
+                return 0;
+            }
+            uint32_t cap = 1, waves = 0;
+            for (const Class& c : classes)
+                if (kernel == c.kernel) cap = c.cap, waves = c.waves;
+            const bool k45 = kernel.find("_k4_") != std::string::npos || kernel.find("_k5_") != std::string::npos;
+            const uint32_t lanes = k45 ? std::min(caps.subgroup_size, std::max(8u, profile.k45_row_lanes)) : caps.subgroup_size;
+            if (!profile.row_decode_tree) cap = 1;
+            std::vector<size_t> sizes = {300};
+            if (cap > 1 && waves)
+                for (uint32_t r = 2; r <= cap; r *= 2) sizes.insert(sizes.end(), {edge(r, waves, lanes) - 1, edge(r, waves, lanes)});
+            const size_t most = *std::max_element(sizes.begin(), sizes.end());
+            const auto wb = matrix(type, nin, most, 563 + type);
+            const auto w = vk.adopt(wb.data(), wb.size());
+            const auto y1 = vk.alloc(most * sizeof(float)), y2 = vk.alloc(2 * most * sizeof(float));
+            for (size_t rows : sizes) {
+                uint32_t want = 1;
+                for (uint32_t r = 2; r <= cap; r *= 2)
+                    if (!waves || rows >= edge(r, waves, lanes)) want = r;
+                const std::string expect = want == 4 ? "_1col_4row" : want == 2 ? "_1col_2row" : "_1col";
+                (void)backend::vulkan_kernel_times(vk);
+                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, rows, 1, {&one, 1}, dtype);
+                std::string k, b;
+                const std::string what = kernel + " at " + std::to_string(rows) + " rows, " + backend::dtype_name(dtype);
+                require(ran(k, b) == 1 && k == kernel && b == expect, (what + " expected the build " + expect + ", ran " + k + b).c_str());
+                vk.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y2.get(), 0}, nin, rows, 2, {&two, 1}, dtype);
+                std::vector<float> a(rows), c(2 * rows);
                 vk.read(*y1, 0, a.data(), rows * sizeof(float));
-                vk.read(*y2, 0, b.data(), 2 * rows * sizeof(float));
-                require(std::memcmp(a.data(), b.data(), rows * sizeof(float)) == 0, "a one-column Q4 or IQ4 row differs from column 0 of a two-column call");
+                vk.read(*y2, 0, c.data(), 2 * rows * sizeof(float));
+                require(std::memcmp(a.data(), c.data(), rows * sizeof(float)) == 0, (what + ": a row differs from column 0 of a two-column call").c_str());
+                ++reached[want];
                 ++checks;
             }
+        }
+    }
+    if (!profile.row_decode_tree) return checks;
+    require(reached[2] && reached[4], "no call reached the two- and four-row one-column builds under the transposed reduction");
+    // A routed Q4_0 call of one token and two entries over the two-row edge's rows: its rows alone take two rows a cluster, its rows times its entries four.
+    if (vk.supports_type(quant::GGML_TYPE_Q4_0) && !backend::vulkan_row_reads_float(vk, quant::GGML_TYPE_Q4_0, backend::Dtype::f16)) {
+        const uint32_t type = quant::GGML_TYPE_Q4_0;
+        const size_t nout = edge(2, 1, caps.subgroup_size), n_expert = 4, k = 2, row_bytes = quant::row_bytes(type, nin);
+        const auto wb = matrix(type, nin, n_expert * nout, 571);
+        const auto w = vk.adopt(wb.data(), wb.size());
+        const std::vector<uint32_t> picks = {1, 3};
+        const std::vector<float> weights(k, 1.0f);
+        const auto ib = vk.adopt(picks.data(), picks.size() * sizeof(uint32_t)), tb = vk.adopt(weights.data(), weights.size() * sizeof(float));
+        const auto yr = vk.alloc(k * nout * sizeof(float)), y1 = vk.alloc(nout * sizeof(float));
+        const backend::RowRun one{1, 1};
+        (void)backend::vulkan_kernel_times(vk);
+        vk.matmul_experts({{{type, {w.get(), 0}}, {yr.get(), 0}, nout}}, {xb.get(), 0}, nin, 1, backend::Backend::Routing{{ib.get(), 0}, {tb.get(), 0}, k, n_expert},
+                          {&one, 1}, backend::Dtype::f16);
+        std::string kr, br;
+        require(ran(kr, br) == 1 && br == "_1col_4row", ("a routed Q4_0 call of " + std::to_string(nout) + " rows and 2 entries expected _1col_4row, ran " + kr + br).c_str());
+        std::vector<float> routed(k * nout), alone(nout);
+        vk.read(*yr, 0, routed.data(), routed.size() * sizeof(float));
+        for (size_t j = 0; j < k; ++j) {
+            const auto e = vk.adopt(wb.data() + picks[j] * nout * row_bytes, nout * row_bytes);
+            (void)backend::vulkan_kernel_times(vk);
+            vk.matmul({type, {e.get(), 0}}, {xb.get(), 0}, {y1.get(), 0}, nin, nout, 1, {&one, 1}, backend::Dtype::f16);
+            std::string ka, ba;
+            require(ran(ka, ba) == 1 && ba == "_1col_2row", ("a Q4_0 call of " + std::to_string(nout) + " rows expected _1col_2row, ran " + ka + ba).c_str());
+            vk.read(*y1, 0, alone.data(), nout * sizeof(float));
+            require(std::memcmp(alone.data(), routed.data() + j * nout, nout * sizeof(float)) == 0, "a routed one-column entry differs from its expert's rows alone");
+            ++checks;
+        }
     }
     return checks;
 }
@@ -5816,7 +5899,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << columns << " decode columns equal to the same columns alone\n";
         std::cout << "backend-vulkan: " << check_f32_filling_builds(*backend::make_vulkan_backend(0, true)) << " F32 decode calls of 2 to 8 columns in one dispatch of the chunks their workgroups give\n";
         std::cout << "backend-vulkan: " << check_whole_chunks(*backend::make_vulkan_backend(0, true)) << " Q8_0 and Q4_K decode calls of whole chunks in one dispatch\n";
-        std::cout << "backend-vulkan: " << check_four_row_builds(*backend::make_vulkan_backend(0, true)) << " one-column Q4 and IQ4 calls in the build their cluster gives, equal to a two-column call's first column\n";
+        std::cout << "backend-vulkan: " << check_cluster_row_builds(*backend::make_vulkan_backend(0, true)) << " one-column calls in the rows a cluster their kernel and rows give, equal to a two-column call's first column\n";
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8, cells) << " int8 decode columns equal to the same columns alone\n";

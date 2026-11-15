@@ -1078,6 +1078,65 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - The block-score slot is an index head's over the context's blocks a row (32768 floats at 1M positions), as deepseek41's index slot is a context's groups.
 - F2DEV's 4e note 1 (a shape at groups 2 over 4 KV heads) is not taken: MiniMax has as many index heads as KV heads, so only the ends of that mapping run.
 - The file's index keys are F32 per position (0.5 KiB a layer); a 16-bit form is a contract change of its own, measured first.
+## Vulkan one-column rows a cluster by the call's rows (2026-11-15, VKDEV5 to VKDEV8, branch perf/vulkan-row-sizes on perf/vulkan-q4-row-decode 77fd4c6b5; F2DEV's approval of 2026-11-15 05:21; lands by fast-forward)
+
+**Goal.** Every Vulkan row kernel whose one-column calls gain from sharing a block's activation loads over more rows a cluster takes them where a call has the rows to fill the device, by one rule shared with ROCm, with every row's bits unchanged.
+
+**Done.**
+- `rows_a_cluster` (`backends/device_profile.hpp`): the most of 4, 2 and 1 rows a cluster up to a cap whose clusters give each compute unit a number of subgroups, counted rows / r, then times lanes over the subgroup; ROCm's `row_build` asks it at a whole subgroup and cap 4, which is its previous test exactly, and `q8_columns_bits` in `backend-rocm` holds the edge pair 4 * `row_four_waves_per_cu` * CUs - 1 and that edge.
+- `cluster_rows` (`vulkan_kernels.hpp`): each row kernel's cap and class, a multiplier of the profile's one number `row_four_waves_per_cu` (8), and `column_builds` takes the one-column build of the rows the helper gives at the call's rows and cluster; MXFP4 keeps two rows at any call, the kernels not listed one row.
+- The sweep behind the classes (VKDEV5, one MI50, renderD130): `/opt/claude-work/vkdev5/sweep2.sh`, raw `sw2`, per-shape `sw2.loss`, family sums `sw2.prop`, and over uncontended cells only `/opt/claude-work/vkdev6/sw2.unc.prop`; the table is in docs/VULKAN.md (Kernels).
+- `check_cluster_row_builds` in `backend-vulkan` replaces the four-row check: Q4_0, Q4_1, IQ4_NL, IQ4_XS, Q5_0, Q5_1, Q4_K, Q5_K and Q6_K at both dtypes, one row either side of each edge with the build named, and a routed Q4_0 call whose rows times entries crosses the four-row edge its rows alone do not.
+
+- READY checks (VKDEV6 to VKDEV8, binaries main c0d13585c, step 1 ac2370583, candidate 2bcbf4ec5, hashes in `/opt/claude-work/vkdev6/bin/ids.txt`; main's later commits to 929f042c6 touch ROCm, CUDA and tests only):
+  - `backend-vulkan` on an MI50: PASS, 80 cluster-edge checks with the routed call. `docs` and `dead-code`: PASS.
+  - Greedy ids: candidate equals main in all 17 cells of the timing round (`/opt/claude-work/vkdev7/tg1.table`).
+  - HF on vulkan:0, auto: baseline, q5-0 (max logit error 0.00039, bound 0.0117) and q5-1 (0.00031, bound 0.0121) PASS; int8: q5-0 0.0850 (bound 0.2525) and q5-1 0.0864 (bound 0.2587) PASS.
+  - int8 baseline on 0.6B Q4_0 ("The capital of France is", top-5 overlap 3/5 under the bound of 4) fails with main's binary too (`/opt/claude-work/vkdev7/j4/suite-main.log`), so that failure is on main and is not this change's.
+  - Radeon VII: CTest 103/104; `cache-scenario` failed once in the full run and passed 2/2 alone (main's known flake). Suite moe, int8, mxfp4, q5-0, q5-1, low-bits and baseline PASS.
+- tg256 on one MI50, Vulkan, three ABAB rounds, median tok/s for main / step 1 / candidate; every cell was hostwait-contended (ZFS read threads), so the ratios carry that noise:
+
+| Model, dtype | main | step 1 | candidate |
+|---|---|---|---|
+| Qwen3-14B Q4_K_M auto | 46.6 | 48.2 | 54.0 |
+| Qwen3-14B Q5_K_M auto | 39.9 | 38.9 | 41.3 |
+| Qwen3-14B Q4_1 auto | 35.7 | 55.2 | 54.9 |
+| Qwen3-14B IQ4_NL auto | 18.9 | 46.8 | 46.4 |
+| Qwen3.6-27B Q5_1 auto | 17.9 | 18.1 | 25.2 |
+| Qwen3.6-35B-A3B Q4_K_M auto | 104.6 | 109.1 | 109.8 |
+| int8 cells of the same files | level: candidate over main 0.99 to 1.06 | | |
+
+- The claim rests on the 14B and 27B cells: they are tight across three rounds and far outside the layout band, at Q4_K_M +16, Q4_1 +54, IQ4_NL +146 and 27B Q5_1 +41 percent over main.
+  Q5_K_M (+3.5 percent), 35B-A3B Q4_K_M (+5 percent) and the int8 cells sit inside the noise band and are level.
+- Qwen3-0.6B, five rotated rounds of `--r 3` each (`/opt/claude-work/vkdev8/j2a`), median tok/s main / step 1 / candidate: Q4_0 auto 256.4 / 293.3 / 252.9, int8 283.3 / 253.0 / 322.5; Q5_0 auto 268.4 / 277.9 / 253.7, int8 298.7 / 297.1 / 300.8; Q5_1 auto 325.5 / 324.7 / 324.4, int8 349.1 / 346.6 / 346.3.
+  These cells cannot resolve a change: the Q4_0 and Q5_0 cells spread 25 to 40 percent inside each arm, and 70 of 90 cells were contended.
+  What shows 0.6B level is the device-timed sweep (`/opt/claude-work/vkdev5/sw2.prop`). There the rule's summed time against step 1 is +0.0 percent for Q4_0 f16; its worst shape, 0.6B's 1024x3072, is 10 percent slower at two rows.
+- The reference's Vulkan faults under direct I/O and runs clean in its default load mode.
+  - Build `/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build`, command `llama-bench -m FILE -p 512 -n 256 -r 3 -t 4 -ngl 99 -b 4096 -ub 512 -ctk f16 -ctv f16 -fa 1 -o json`, with -fa 0 for IQ4_NL and Q5_0, where -fa 1 faulted on 2026-11-14.
+  - With `-lm dio` its first cell (14B Q4_K_M) page-faulted at -fa 1 on renderD128 (0000:c3:00.0, 14:55:48) and at -fa 0 on renderD131 (0000:cc:00.0, 14:59:20). Each was a no-retry page fault, VM_L2_PROTECTION_FAULT_STATUS 0x00501031, client TCP, process llama-bench, and ring comp_1.1.0 timed out and soft-recovered twice. The watcher stopped each run at its first fault, and the cards needed no reset (`/opt/claude-work/vkdev8/j2b`, `/opt/claude-work/vkdev8/j5`).
+  - In the default load mode (`/opt/claude-work/vkdev8/j6`, renderD128, one model at a time behind the same watcher) every cell ran with no fault line. The reference's `llama-bench` refuses Qwen3.6-27B (GGML_ASSERT vocab == 151936), so that file has no reference figure.
+  - Candidate against the reference: tg256 and pp512 in tok/s, two runs of `--r 3` each, candidate auto and int8 in the ABBA order around the two reference runs; the 14B cells were hostwait-contended in every arm.
+
+| File | tg cand auto | tg cand int8 | tg ref | pp cand auto | pp cand int8 | pp ref |
+|---|---|---|---|---|---|---|
+| Qwen3-14B Q4_K_M | 52.7 / 54.1 | 56.0 / 57.1 | 49.9 / 50.5 | 441 | 672 | 401 |
+| Qwen3-14B Q5_K_M | 47.3 / 47.0 | 50.8 / 48.5 | 46.2 / 45.9 | 430 | 649 | 296 |
+| Qwen3-14B Q4_1 | 58.7 / 56.4 | 63.4 / 64.1 | 58.3 / 51.5 | 456 | 680 | 518 |
+| Qwen3-14B IQ4_NL (ref -fa 0) | 49.7 / 50.3 | 50.4 / 50.5 | 43.8 / 42.6 | 260 | 262 | 205 |
+| Qwen3-0.6B Q4_0 | 330.8 / 332.1 | 367.3 / 358.6 | 316.2 / 305.7 | 8338 | 12139 | 6230 |
+| Qwen3-0.6B Q5_0 (ref -fa 0) | 286.7 / 288.5 | 304.3 / 298.8 | 243.9 / 243.0 | 8167 | 11360 | 4723 |
+| Qwen3-0.6B Q5_1 | 311.7 / 320.0 | 357.9 / 354.1 | 271.2 / 281.8 | 8298 | 11681 | 5363 |
+| Qwen3.6-27B Q5_1 | 28.6 / 29.1 | 30.5 / 30.6 | refused | 218 | 321 | refused |
+
+  - The candidate's decode is above the reference in every cell. Q5_K_M auto is within 3 percent of it and Q4_1 auto's first pair is level.
+  - The prompt at 14B Q4_1 auto (456 against 518) stays below the reference. This change does not touch prompts, so it remains an open gate, which int8 (680) passes.
+
+**Left.**
+- The hosted run of the head that lands; it lands after step 1 (perf/vulkan-q4-row-decode 77fd4c6b5), by fast-forward.
+
+**Gotchas.**
+- The rule engages only where `row_decode_tree` holds the cluster; the Radeon VII and RTX 3060 profiles keep one row.
+
 ## Vulkan Q4 and IQ4 one-column rows: four rows a cluster and the IQ4 pair table (2026-11-14, VKDEV2 to VKDEV4, branch perf/vulkan-q4-row-decode rebased on main 929f042c6; VKDEV1's findings of 2026-11-14; lands by fast-forward)
 
 **Goal.** Faster one-column (decode) rows on Vulkan for the 16-bit Q4_0, Q4_1, IQ4_NL and IQ4_XS row kernels, with every row's bits unchanged, toward the owner's gate of every Vulkan quant beating the reference's Vulkan on the same file and card.
@@ -1146,7 +1205,7 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 
 **Left.**
 - Q1_0 (Boole-1.7B): decode device time is 60 percent `matmul_row_q1_0_dot_1col_2row`, 2.57 ms a token at about 80 GB/s, and 11 percent `rms_norm_rows`; four and eight rows a cluster measured slower (79.0, 87.1 and 125.5 us at the 1.7B shapes), so the row kernel needs another layout; not changed here.
-- Step 2, rows a cluster for the other row kernels: a sweep on one MI50 (27 shapes, one, two and four rows, 13 kernel and dtype pairs, hashes equal across arms; `/opt/claude-work/vkdev4/sweep1.sum`) puts the best per shape within 0.2 to 3 percent of a rule of rows a cluster by rows a compute unit, with the knee near 8 clusters a CU for the Q4 and IQ4 rows and 16 to 24 for Q5_0, Q5_1 and the K-quants; F2DEV's review (2026-11-15 00:41) asks for one helper shared with the GPU backends' row_four_waves_per_cu, a number per build class and a per-shape loss table before code, on its own branch.
+- Step 2, rows a cluster for the other row kernels by the call's rows: its own block above (branch perf/vulkan-row-sizes).
 - Measured, not taken here: four rows at one column for Q4_K and Q5_K f16 (14B 337 to 278 and 401 to 355 us, slower than two rows at the 1.7B and 0.6B shapes), two rows for the 8-bit Q4 rows (14B 289 to 261 us, slower at 0.6B's 1024x2048), Q5_0 and Q5_1 f16 four rows (14B 841 to 684 and 570 to 366 us); Q6_K is slower with more rows (691 to 1030 us at four).
 
 **Gotchas.**

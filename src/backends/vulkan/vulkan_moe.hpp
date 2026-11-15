@@ -66,8 +66,8 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
 }
 
 inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs, Dtype dtype) {
-    // The fused step has the softmax rule and no clamp; another rule or a clamp runs the base's ops.
-    if (m.rule.score != RouteRule::Score::softmax || m.limit != 0.0f || (m.shared && m.shared->limit != 0.0f)) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
+    // The fused step has the softmax rule, no clamp and the silu GLU; another rule, a clamp or another GLU runs the base's ops.
+    if (m.rule.score != RouteRule::Score::softmax || m.limit != 0.0f || m.form != GluForm::silu || (m.shared && (m.shared->limit != 0.0f || m.shared->form != GluForm::silu))) return Backend::moe_step(m, h, y, nin, rows, runs, dtype);
     const bool normalize = m.rule.softmax_only("vulkan");
     const OpSteps steps(*this);
     const MoeBuild* build = moe_build(m, nin, rows, runs, dtype);

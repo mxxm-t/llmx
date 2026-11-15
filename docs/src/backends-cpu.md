@@ -118,7 +118,7 @@ A compile without them stops at one `#error` at the top of the header.
   Private helpers decide dispatch.
   `spread` keeps a stage on the calling thread below two rows per worker; `chunk` keeps elementwise spans under 32K elements there; `split_rows` hands the row dots of a decode matmul, `matvec_q8x`, `matmul_group` and the routed decode entries to the pool in one contiguous range per worker, and keeps them on the caller below eight rows per worker, except an F32/F16/BF16 weight decode matmul, which splits as the batched float path does, from `DOT_ROWS` rows per worker in whole `DOT_ROWS` chunks.
   The thresholds are properties of a host thread pool - waking it costs more than the work - and a device backend must not inherit them.
-  `silu_mul` keeps `std::exp` per element: a vectorized approximation would shift logits and needs its own correctness gate.
+  `silu_mul` and the decode step's GLU take `swiglu`, the clamps then the form's GLU, and keep `std::exp` per element: a vectorized approximation would shift logits and needs its own correctness gate.
   With a limit it clamps the up value on both sides and the gate value from above, in the reference's order, a NaN passing through.
 - `parallel_for` stays public here but is deliberately off the `Backend`
   interface; the batched ops above are how the model gets parallelism.

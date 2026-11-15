@@ -165,6 +165,9 @@ struct RouteRule {
     }
 };
 
+// The GLU silu_mul applies after its clamps: silu(g) * u, or quick_gelu, MiniMax-M3.1's g * sigmoid(1.702 g) * (u + 1) (docs/MINIMAX.md, The forward pass).
+enum class GluForm : uint8_t { silu, quick_gelu };
+
 // A routed feed-forward step's operands (Backend::moe_step): the shared expert's, beside the routed experts' below.
 // Its gate and up project one row a token into `out`, its row gate, an F32 vector, gives one value a row and has no data on an ungated expert.
 struct MoeShared {
@@ -173,9 +176,10 @@ struct MoeShared {
     Slice act;
     Projection row_gate;
     float limit = 0.0f;  // silu_mul's clamp, 0 for none
+    GluForm form = GluForm::silu;
 };
 // The F32 router's n_expert scores into router.out, a row's k picks and weights, each stack's n_expert matrices of gate.rows rows writing k rows a token, and the slot the SiLU writes.
-// `rule` picks and weighs the experts, `limit` clamps their SiLU (0 for none), `zero` clears y first and `scratch` holds the SiLU's entry runs.
+// `rule` picks and weighs the experts, `limit` clamps their GLU (0 for none) and `form` is the GLU's, `zero` clears y first and `scratch` holds the GLU's entry runs.
 struct MoeStep {
     Projection router;
     size_t k;
@@ -188,6 +192,7 @@ struct MoeStep {
     const Buffer* zero;
     std::vector<RowRun>* scratch;
     float limit = 0.0f;
+    GluForm form = GluForm::silu;
 };
 
 // A linear-attention layer's step up to its output product (Backend::delta_step): the qkv, gate, alpha and beta products of the mixed rows, the conv into `conv`, the delta rule into `out`, then out's sigmoid-gated norm by `norm`.
@@ -409,12 +414,12 @@ enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-// The last four are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms and route_experts's sigmoid scores.
+// The last five are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms, route_experts's sigmoid scores and silu_mul's quick_gelu form.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
-                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing };
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -455,6 +460,7 @@ inline const char* op_name(Op op) {
         case Op::silu_mul_clamp: return "silu_mul_clamp";
         case Op::rope_forms: return "rope_forms";
         case Op::sigmoid_routing: return "sigmoid_routing";
+        case Op::glu_quick_gelu: return "glu_quick_gelu";
     }
     return "an unknown op";
 }
@@ -857,9 +863,9 @@ public:
         lacks(Op::mix_rows);
     }
 
-    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2); a limit of 0 clamps nothing.
+    // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage, or with a limit L > 0 silu(min(gate[i], L)) * clamp(up[i], -L, L) (docs/DEEPSEEK4.md, section 4.2), 0 clamping nothing, then `form`'s GLU.
     // `runs`, when given, group dst's rows of n / rows floats, `rows` being the last run's end, by prompt as matmul's runs do, for the matmul that reads dst next, as for rms_norm_rows.
-    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) = 0;
+    virtual void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}, GluForm form = GluForm::silu) = 0;
 
     // dst[i] += src[i], the residual add.
     virtual void add(Slice dst, CSlice src, size_t n) = 0;
@@ -928,14 +934,14 @@ public:
         std::vector<RowRun>& entry_runs = *m.scratch;
         entry_runs.clear();
         for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
-        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, m.limit, {entry_runs.data(), entry_runs.size()});
+        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, m.limit, {entry_runs.data(), entry_runs.size()}, m.form);
         matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
         if (!m.shared) return;
         const MoeShared& s = *m.shared;
         const bool gated = s.row_gate.weight.data.buffer != nullptr;
         if (gated) matmul(s.row_gate.weight, h, s.row_gate.out, nin, 1, rows, runs, dtype);
         matmul_group({s.gate, s.up}, h, nin, rows, runs, dtype);
-        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, s.limit, runs);
+        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, s.limit, runs, s.form);
         if (gated) sigmoid_mul(s.act, s.act, s.row_gate.out, rows, s.gate.rows, 1, 1, 0, runs);
         matmul_add(s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
     }

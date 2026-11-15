@@ -1625,7 +1625,7 @@ public:
         });
     }
 
-    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, float limit, RowRuns = {}) override {
+    void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, float limit, RowRuns = {}, GluForm form = GluForm::silu) override {
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("backend: a SwiGLU limit that is negative or not finite");
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
@@ -1633,12 +1633,12 @@ public:
         if (limit > 0.0f) {
             for (const CSlice& s : {CSlice(dst_s), gate_s, up_s}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
             chunk(n, [&](size_t begin, size_t end) {
-                for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], limit);
+                for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], limit, form);
             });
             return;
         }
         chunk(n, [&](size_t begin, size_t end) {
-            for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], 0.0f);
+            for (size_t i = begin; i < end; i++) dst[i] = swiglu(gate[i], up[i], 0.0f, form);
         });
     }
 
@@ -2845,14 +2845,14 @@ public:
                     const size_t at_o = i * ff + o;
                     gout[at_o] = q8::dot(gate.type, gate.data + e * gate.stride + o * gate.row_bytes, xq8_, i / k);
                     uout[at_o] = q8::dot(up.type, up.data + e * up.stride + o * up.row_bytes, xq8_, i / k);
-                    act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit);
+                    act[at_o] = swiglu(gout[at_o], uout[at_o], m.limit, m.form);
                 }
                 return;
             }
             const size_t c = t - gate_tasks;
             for (size_t o = 0; o < sff; ++o) {
                 const size_t at_o = c * sff + o;
-                sact[at_o] = swiglu(sg[at_o], su[at_o], s->limit);
+                sact[at_o] = swiglu(sg[at_o], su[at_o], s->limit, s->form);
                 if (gated) sact[at_o] = sact[at_o] * sigmoid_of(rg[c]);
             }
         });
@@ -2914,12 +2914,13 @@ private:
         return s->up.rows == s->gate.rows && dots(s->gate.weight, nin) && dots(s->up.weight, nin) && dots(s->down, s->gate.rows);
     }
 
-    // SwiGLU of one element, the clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both; silu_mul and moe_step take it.
-    static float swiglu(float g, float u, float limit) {
+    // The GLU of one element, the clamps in the reference's order (model.py:847-850 at e5decd76), a NaN passing through both; quick_gelu in docs/MINIMAX.md's order; silu_mul and moe_step take it.
+    static float swiglu(float g, float u, float limit, GluForm form) {
         if (limit > 0.0f) {
             u = u < -limit ? -limit : u > limit ? limit : u;
             g = g > limit ? limit : g;
         }
+        if (form == GluForm::quick_gelu) return (u + 1.0f) * (g * sigmoid_of(1.702f * g));
         return silu_of(g) * u;
     }
 

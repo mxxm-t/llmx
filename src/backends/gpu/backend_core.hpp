@@ -1358,8 +1358,9 @@ public:
         const Args args(aux, src, ap, wd, nn);
         launch(kPoolWrite, u32((n + kThreads - 1) / kThreads), 1, args);
     }
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs) override {
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs, GluForm form) override {
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error(Api::prefix + "a SwiGLU limit that is negative or not finite");
+        if (form != GluForm::silu) throw std::runtime_error(Api::prefix + "silu_mul has no quick_gelu form");
         if (!n) return;
         for (const CSlice& s : {CSlice(dst), gate, up}) span(*s.buffer, s.offset * sizeof(float), size_mul(n, sizeof(float)));
         float* d = f32(dst);
@@ -1874,7 +1875,7 @@ public:
         const MoeShared& s = *m.shared;
         const size_t ff = m.gate.rows;
         const uint32_t gt = m.gate.weight.type, dt = m.down.type;
-        if (m.rule.score != RouteRule::Score::softmax || m.rule.bias.buffer || m.rule.scale != 1.0f || m.limit != 0.0f) return false;
+        if (m.rule.score != RouteRule::Score::softmax || m.rule.bias.buffer || m.rule.scale != 1.0f || m.limit != 0.0f || m.form != GluForm::silu || s.form != GluForm::silu) return false;
         const size_t ne = m.router.rows;
         if (!ne || ne % 64 || ne > kStepExperts || !m.k || m.k > kStepPicks || !nin || nin % 256 || nin > kStepIn) return false;
         // An even block count, since the shared Q8_0 down takes the half-block order at any width where the base's quarter layout holds an odd one.

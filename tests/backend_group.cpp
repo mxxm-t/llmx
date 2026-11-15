@@ -515,6 +515,7 @@ static size_t check_moe_decode_step(const moe::Matrix& matrix) {
         {{256, 16, 4, 256, {q6k, q4k, q4k, mx}, true, 7.0f}, true, "mixed types under a SwiGLU limit"},
         {{256, 16, 4, 256, {q4k, q6k, q6k, q4k}, false, 0.0f, f32, f32, false}, true, "a shared expert without a row gate"},
         {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, true}, true, "DeepSeek's step: MXFP4, an ungated shared expert, a limit and sqrt_softplus routing with a bias"},
+        {{256, 16, 4, 64, {mx, mx, mx, mx}, false, 7.0f, f32, f32, false, true, backend::GluForm::quick_gelu}, true, "MiniMax's GLU: quick_gelu under a limit, an ungated shared expert"},
         {{256, 16, 4, 64, {mx, mx, 0, 0}, false, 0.0f, q8}, false, "a quantized router"},
         {{256, 16, 4, 256, {q4k, q6k, q4k, q6k}, false, 0.0f, f32, q8}, false, "a quantized row gate"},
         {{256, 16, 4, 64, {f32, f32, f32, f32}, false}, false, "F32 experts"},

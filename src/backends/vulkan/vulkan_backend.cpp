@@ -674,7 +674,7 @@ public:
     }
 
     // Every op but mixed routed products, since grouped expert projections must share one storage type, and the model formats where the device cannot keep subnormals, which their kernel needs.
-    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
+    bool implements(Op op) const override { return op != Op::mixed_experts && op != Op::sigmoid_routing && op != Op::glu_quick_gelu && ((op != Op::model_format_qdq && op != Op::model_format_pack) || dev_->preserve_float32); }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -1199,8 +1199,9 @@ public:
 
     void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
 
-    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}) override {
+    void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, float limit, RowRuns runs = {}, GluForm form = GluForm::silu) override {
         if (!(limit >= 0.0f) || !std::isfinite(limit)) throw std::runtime_error("vulkan: a SwiGLU limit that is negative or not finite");
+        if (form != GluForm::silu) throw std::runtime_error("vulkan: silu_mul has no quick_gelu form");
         if (!n) return;
         const bool quant = n % 32 == 0;
         // Where the integer-dot tile reads dst next, the twin written four values a lane (shaders/silu_mul.comp).

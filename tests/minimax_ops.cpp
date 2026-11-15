@@ -61,7 +61,7 @@ std::vector<float> download(CpuBackend& cpu, const backend::Buffer& b, size_t n)
     return v;
 }
 
-// route_experts' sigmoid rule against docs/MINIMAX.md (Feed-forward) in double: scores sigmoid(x), picks by score + bias with ties to the lower id, weights the unbiased scores over their sum times the scale.
+// route_experts' sigmoid rule against docs/MINIMAX.md (The forward pass) in double: scores sigmoid(x), picks by score + bias with ties to the lower id, weights the unbiased scores over their sum times the scale.
 void sigmoid_routing() {
     const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
     const float level[] = {-inf, -20.0f, -30.0f, -2.5f, -0.0f, 0.0f, 0.75f, 3.0f, 12.0f, 31.0f, inf};
@@ -129,11 +129,55 @@ void sigmoid_routing() {
             "device: route_experts has no sigmoid scores");
 }
 
+// silu_mul's quick_gelu form against docs/MINIMAX.md (The forward pass) in double: g' = min(g, L), u' = clamp(u, -L, L), (u' + 1) * g' * sigmoid(1.702 g'), a limit of 0 clamping nothing and 1 to 8 threads bit for bit.
+void quick_gelu() {
+    const float inf = std::numeric_limits<float>::infinity(), nan = std::numeric_limits<float>::quiet_NaN();
+    const float special[] = {-inf, -200.0f, -7.5f, -7.0f, -1.0f, -0.0f, 0.0f, 1e-30f, 0.5f, 6.999f, 7.0f, 7.25f, 90.0f, inf, nan};
+    const size_t n = 4099;
+    std::vector<float> g(n), u(n);
+    for (size_t i = 0; i < n; ++i) {
+        g[i] = float(int(draw() % 24001) - 12000) / 1000.0f;
+        u[i] = float(int(draw() % 24001) - 12000) / 1000.0f;
+    }
+    for (size_t i = 0; i < 15; ++i)
+        for (size_t j = 0; j < 15; ++j) {
+            g[i * 15 + j] = special[i];
+            u[i * 15 + j] = special[j];
+        }
+    CpuBackend cpu;
+    BufferPtr gb = upload(cpu, g), ub = upload(cpu, u), ob = cpu.alloc(n * 4, backend::Memory::device);
+    for (float limit : {7.0f, 0.0f}) {
+        const std::string name = "silu_mul quick_gelu at limit " + std::to_string(limit);
+        cpu.set_threads(1);
+        cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit, {}, backend::GluForm::quick_gelu);
+        const std::vector<float> got = download(cpu, *ob, n);
+        for (size_t i = 0; i < n; ++i) {
+            double gd = g[i], ud = u[i];
+            if (limit > 0.0f) {
+                ud = ud < -limit ? -limit : ud > limit ? limit : ud;
+                gd = gd > limit ? limit : gd;
+            }
+            // The GLU half is rounded to float as the op computes it, so an underflow to zero meets an infinite up as the op's does.
+            const double want = (ud + 1.0) * double(float(gd / (1.0 + std::exp(-1.702 * gd))));
+            const std::string at = name + " at " + std::to_string(g[i]) + ", " + std::to_string(u[i]);
+            if (std::isnan(want)) require(std::isnan(got[i]), at + " is NaN");
+            else if (std::isinf(want)) require(got[i] == float(want), at + " is " + std::to_string(want));
+            else require(std::fabs(got[i] - want) <= (8 + 2 * std::fabs(1.702 * gd)) * U * std::fabs(want) + 1e-37, at + ": " + std::to_string(got[i]) + " against " + std::to_string(want));
+        }
+        for (int t : kThreads) {
+            cpu.set_threads(t);
+            cpu.silu_mul({ob.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, n, limit, {}, backend::GluForm::quick_gelu);
+            require(!std::memcmp(download(cpu, *ob, n).data(), got.data(), n * 4), name + " at " + std::to_string(t) + " threads");
+        }
+    }
+}
+
 } // namespace
 
 int main() {
     try {
         sigmoid_routing();
+        quick_gelu();
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << std::endl;
         return 1;

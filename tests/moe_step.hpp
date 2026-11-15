@@ -57,7 +57,7 @@ const Types k35b{quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_
 const Types k30b{quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q8_0, 0, 0};
 
 // A step's widths: the residual E, experts, picks a token, an expert's hidden rows (the shared expert's too), and whether y starts from a zero row.
-// Then its SwiGLU limit, the router's type, the shared expert's row gate type, whether it has one, and whether the routing is DeepSeek's (sqrt_softplus with a bias).
+// Then its SwiGLU limit, the router's type, the shared expert's row gate type, whether it has one, whether the routing is DeepSeek's (sqrt_softplus with a bias), and the GLU's form.
 struct Shape {
     size_t E, n_expert, k, ff;
     Types t;
@@ -65,6 +65,7 @@ struct Shape {
     float limit = 0.0f;
     uint32_t router = quant::GGML_TYPE_F32, row_gate = quant::GGML_TYPE_F32;
     bool gated = true, sqrt_softplus = false;
+    backend::GluForm form = backend::GluForm::silu;
 };
 
 using Matrix = std::function<std::vector<uint8_t>(uint32_t type, size_t nin, size_t rows, uint32_t seed)>;
@@ -152,12 +153,12 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
     const backend::MoeShared sh{{{s.t.sh_gate, {w.sh_gate.get(), 0}}, {g.get(), routed}, s.ff},
                                 {{s.t.sh_gate, {w.sh_up.get(), 0}}, {u.get(), routed}, s.ff},
                                 {s.t.sh_down, {w.sh_down.get(), 0}}, {act.get(), routed},
-                                {{s.row_gate, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}, s.limit};
+                                {{s.row_gate, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}, s.limit, s.form};
     const backend::RouteRule rule = s.sqrt_softplus ? backend::RouteRule::sqrt_softplus({w.bias.get(), 0}, 1.5f, true) : backend::RouteRule::softmax(true);
     const backend::MoeStep m{{{s.router, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, rule,
                              {ids.get(), 0}, {wts.get(), 0}, {{s.t.gate, {w.gate.get(), 0}}, {g.get(), 0}, s.ff},
                              {{s.t.gate, {w.up.get(), 0}}, {u.get(), 0}, s.ff}, {s.t.down, {w.down.get(), 0}},
-                             {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch, s.limit};
+                             {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch, s.limit, s.form};
     const backend::RowRuns rr{runs.data(), runs.size()};
     if (how == How::base) b.Backend::moe_step(m, {hb.get(), 0}, {yb.get(), 0}, s.E, rows, rr, dtype);
     else if (how == How::op) b.moe_step(m, {hb.get(), 0}, {yb.get(), 0}, s.E, rows, rr, dtype);
@@ -179,12 +180,12 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
         b.matmul_experts({m.gate, m.up}, h0, s.E, rows, routing, rr, dtype);
         std::vector<backend::RowRun> entry_runs;
         for (const backend::RowRun& r : runs) entry_runs.push_back({r.end * s.k, r.extent});
-        b.silu_mul(m.act, m.gate.out, m.up.out, routed, s.limit, {entry_runs.data(), entry_runs.size()});
+        b.silu_mul(m.act, m.gate.out, m.up.out, routed, s.limit, {entry_runs.data(), entry_runs.size()}, s.form);
         b.matmul_experts_add(m.down, m.act, y, s.ff, s.E, rows, routing, rr, dtype);
         if (shared) {
             if (w.row_gate) b.matmul(sh.row_gate.weight, h0, sh.row_gate.out, s.E, 1, rows, rr, dtype);
             b.matmul_group({sh.gate, sh.up}, h0, s.E, rows, rr, dtype);
-            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, s.limit, rr);
+            b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, s.limit, rr, s.form);
             if (w.row_gate) b.sigmoid_mul(sh.act, sh.act, sh.row_gate.out, rows, s.ff, 1, 1, 0, rr);
             b.matmul_add(sh.down, sh.act, y, s.ff, s.E, rows, rr, dtype);
         }

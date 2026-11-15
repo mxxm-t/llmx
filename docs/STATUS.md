@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Chat light theme (2026-11-15, in progress)
+
+**Goal.** Light mode renders readable Chat, Monitor and Workspace surfaces through the shared dashboard theme.
+
+**Done.** Found fixed dark dashboard colors behind the light theme attribute. Existing browser checks assert the attribute but not rendered panel colors.
+
+**Left.** Add a failing rendered-color regression, replace fixed presentation colors at the shared theme owner, and check both themes and responsive layout.
+
+**Gotchas.** Presentation only. No collector, inference or production changes.
+
 ## Chat workspace (2026-11-15, Done)
 
 | Feature | State | Evidence |

@@ -236,6 +236,30 @@ try {
   await wait("document.querySelector('#monitor-frame').contentDocument?.querySelector('main')!==null", 'embedded monitor');
   assert.equal(await evaluate("document.querySelector('#monitor-frame').contentDocument.documentElement.dataset.theme"), 'light', 'monitor theme mismatch');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('#monitor-frame').contentDocument.querySelector('body>header')).display"), 'none', 'duplicate monitor header');
+  const lightPanels = await evaluate(`(() => {
+    const doc = document.querySelector('#monitor-frame').contentDocument;
+    const root = doc.createElement('div'); doc.body.append(root);
+    const samples = [['card', 'card-label'], ['lookup-item', ''], ['topology-stages', ''], ['topology-stage-body', ''], ['tooltip', ''], ['search', '']];
+    const result = samples.map(([panel, text]) => {
+      const box = doc.createElement('div'); box.className = panel;
+      const label = doc.createElement('strong'); label.className = text; label.textContent = 'Theme check'; box.append(label); root.append(box);
+      const style = getComputedStyle(box);
+      return {panel, background: style.backgroundImage === 'none' ? style.backgroundColor : style.backgroundImage, text: getComputedStyle(label).color};
+    }); root.remove(); return result;
+  })()`);
+  const luminance = color => {
+    const channels = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => { const s = value / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  for (const panel of lightPanels) {
+    const backgrounds = panel.background.match(/rgba?\([^)]+\)/g) || [];
+    assert(backgrounds.length, 'No rendered panel color: ' + JSON.stringify(panel));
+    for (const background of backgrounds) {
+      const surface = luminance(background), foreground = luminance(panel.text);
+      assert(surface > 0.5, 'Dark surface remains in light mode: ' + JSON.stringify(panel));
+      assert((surface + 0.05) / (foreground + 0.05) >= 4.5, 'Light panel text contrast below 4.5: ' + JSON.stringify(panel));
+    }
+  }
   await screenshot('studio-monitor-desktop.png');
   assert.equal(await evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()===getComputedStyle(document.querySelector('#monitor-frame').contentDocument.documentElement).getPropertyValue('--bg').trim()"), true, 'shell does not reuse dashboard theme');
   await click('.global-nav [data-view="preferences"]');

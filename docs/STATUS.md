@@ -662,6 +662,24 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 **Left.** Nothing; F2DEV approved the change (devlog 09:37) and it lands by fast-forward.
 
 **Gotchas.** Rounding that a device does not state, and a budget given by number that the fit kept whole, are not measured: the first is cut only once a build shows it, and the second keeps its number.
+## Tokenizer NFC for qwen2 and qwen35 (2026-11-15, VLLM1, branch fix/tokenizer-nfc on main 9724cd436; F2DEV's review of 01:28, Q3, of the vLLM formats step-1 proposal; lands by fast-forward as two commits, the failing test and then the fix)
+
+- **Goal:** llmx's ids equal HF's on text NFC changes, the first step of the vLLM formats stream, since the safetensors directories' `tokenizer.json` names the NFC normalizer (owner decision of 2026-09-26: NFC for GGUF too).
+- **Fixed:** `encode` split and merged the text as given, so a decomposed accent, Hangul jamo, a singleton such as U+212B or marks out of order gave other ids than HF, which composes first.
+  `core/unicode_nfc.hpp` puts the text between special tokens in NFC for `qwen2` and `qwen35`, one call in `encode`'s flush, from Unicode 16.0.0 tables that `tools/gen_unicode_table.py` writes to `core/unicode_nfc_table.inc` from two more pinned UCD files; `joyai-llm`, whose `tokenizer.json` names no normalizer, is unchanged.
+  An all-ASCII or NFC-clean text costs one pass with the quick check.
+- **Done:** on the rig (Linux, g++ 13, CPU build): the `tokenizer` component fails on main at A followed by U+0300 and passes on the branch, 42 of 42 qwen35 golden texts, the NFC of about 20000 texts against `unicodedata`, deepseek41's 103 of 103 unchanged; `baseline` on Qwen3-0.6B Q8_0 fails on main at the decomposed texts and passes on the branch.
+  Qwen3-0.6B Q8_0 greedy text, prompt logits and a chat reply are byte identical to main with the timing lines left out.
+  The `server` component's `/v1/detokenize` check now expects the text in NFC, since the decomposed golden texts come back composed, as from HF.
+  Rebased on main 929f042c6, with the numerics list, the layered goldens and the reference consumer's counts the first hosted run (43663022044) found: build, CTest 83 of 83, and `dead-code`, `docs`, `version`, `reference-generator`, `reference-consumer`, `tokenizer` and `baseline` pass on the rig; the full CPU suite before those fixes failed only `version` and the two reference components.
+  Timing (F2DEV's condition), on the rig in one container, both arms g++ 13 -O3 from one command: a harness times `bpe::Tokenizer::encode`, which `llmx tokenize` calls, six times a cell with the first dropped, main and branch interlaced over five rounds with hostwait, since `llmx tokenize` takes its text as one argument and Linux caps one at 128 KiB.
+  1 MiB of English (wikitext-2 test): median of the cell medians 104.1 ms on main and 100.7 ms on the branch, fastest 87.3 and 89.0 ms, no cell contended.
+  1 MiB of CJK, kana, Hangul and Thai built from the Qwen3 vocabulary's tokens: 18241 and 18071 ms, fastest 16035 and 15968 ms, 9 of 10 cells contended (run-queue wait 144 to 1342 ms); both arms give the same ids in every cell.
+  The 17 s a MiB of text without spaces takes is main's merge loop, which sec/tokenizer-linear owns; NFC adds no measurable time.
+- **Left:** F2DEV's review, the hosted run and the fast-forward; then `formats/safetensors` (the vLLM formats stream, step 1).
+- **Gotchas:** Python 3.12's `unicodedata` is at 15.0.0; the test leaves out the code points it does not assign, which normalization stability makes sufficient.
+  `tests/baseline_qwen35.py` pins the qwen35 golden's SHA-256, now `795c8c9fd839a542d17ed8826a1322dbbd78e107fb12ab969587c252dcde8d67`.
+  The goldens were regenerated with `tokenizers` 0.23.2 under Python 3.12.3 (the rig's `/opt/claude-work/convenv` packages); every earlier text kept its ids.
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

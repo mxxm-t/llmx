@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "core/unicode_class.hpp"
+#include "core/unicode_nfc.hpp"
 #include "core/utf8.hpp"
 #include "format/gguf.hpp"
 
@@ -338,7 +339,9 @@ public:
         std::unordered_map<std::string, std::vector<uint32_t>> merged;
         auto flush = [&](size_t from, size_t to) {
             if (from == to) return;
-            for (const auto& tok : (joyai ? pretokenize_joyai : pretokenize)(text.substr(from, to - from))) {
+            // qwen2 and qwen35 files name HF's NFC normalizer, which runs on the text between special tokens before the split; joyai-llm names none.
+            const std::string piece = joyai ? text.substr(from, to - from) : unicode_nfc::normalize(text.substr(from, to - from));
+            for (const auto& tok : (joyai ? pretokenize_joyai : pretokenize)(piece)) {
                 auto known = merged.find(tok);
                 if (known == merged.end()) {
                     std::vector<uint32_t> word;

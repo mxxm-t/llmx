@@ -132,7 +132,7 @@ missing fixtures fatal, preventing a green numerical job made entirely of
 skips. Test execution does not install torch, transformers or HF packages.
 The ordinary CPU jobs can skip real-model checks because their fixtures are
 absent; the separate HF job supplies that coverage.
-The qwen35 pretokenizer is held to HF in every job all the same, with no model: the `tokenizer` component writes a file from `tests/data/baseline_tokenizer_qwen35.json` and requires HF's ids for its 37 texts and one id for each of the 7 control tokens only the GGUF files add.
+The qwen35 pretokenizer is held to HF in every job all the same, with no model: the `tokenizer` component writes a file from `tests/data/baseline_tokenizer_qwen35.json` and requires HF's ids for its 42 texts and one id for each of the 7 control tokens only the GGUF files add.
 
 For device coverage, `run_tests.py --require-device-types Q8_0,Q4_K` makes a selected backend's refusal of any named weight type fail its component instead of being skipped.
 Names are the case-sensitive storage names in `tests/spec_decode.py`, comma separated; empty or unknown names are usage errors.

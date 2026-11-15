@@ -32,9 +32,11 @@ The byte encoding and merge algorithm are GPT-2's; the pretokenizer is not.
 In `pretokenize`, character classes are approximated for UTF-8 without a Unicode table: any byte at or above 0x80 counts as a letter.
 This matches Qwen's classes on the scripts the fixtures cover; it is not a general `\p{L}` implementation.
 
+Before the split, `encode` puts the text between special tokens in NFC (`unicode_nfc::normalize`, [core-unicode_nfc.md](core-unicode_nfc.md)) for `qwen2` and `qwen35`, whose `tokenizer.json` names the NFC normalizer, as HF does; `joyai-llm`, whose `tokenizer.json` names an empty normalizer sequence, keeps the text as it is.
+Special tokens are matched before it, as HF matches its added tokens, which are not normalized.
+
 Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files unless noted:
 
-- No NFC normalization: a decomposed accent (`e` followed by U+0301) encodes differently from HF, which composes it first.
 - Non-ASCII characters that are not letters or marks read as letters, so llmx cuts the text differently around them, and the ids differ where a merge joins across a cut only one side makes:
   - a run of non-ASCII spaces, such as two U+3000 before a word, stays one run, where HF splits off all but the last space;
   - a non-ASCII number such as U+00BD (one half) joins the space before it, where HF emits it alone;
@@ -47,7 +49,7 @@ Known differences from HF's `tokenizer.json`, shared by Qwen3 and Qwen3.5 files 
 
 `tests/baseline.py` compares encoded ids against the HF tokenizer for pinned real Qwen3 models.
 `tests/tokenizer_encode.cpp` (CTest `tokenizer-encode`) holds `encode` to the encode it replaced, written out in the test, on a small vocabulary with merges and special tokens.
-`tests/tokenizer.py` does the same for the qwen35 pretokenizer on every build, from `tests/data/baseline_tokenizer_qwen35.json`: HF's ids for 37 texts (the 20 of the Qwen3 fixture, Thai, Devanagari, CJK punctuation and every added token) and the part of the pinned HF vocabulary those texts reach.
+`tests/tokenizer.py` does the same for the qwen35 pretokenizer on every build, from `tests/data/baseline_tokenizer_qwen35.json`: HF's ids for 42 texts (the 25 of the Qwen3 fixture, five of them texts NFC changes, Thai, Devanagari, CJK punctuation and every added token) and the part of the pinned HF vocabulary those texts reach.
 It also requires one id for each of the 7 control tokens above, which the golden keeps apart with the types the GGUF files give them.
 It holds the joyai-llm pretokenizer to HF's ids from `tests/data/baseline_tokenizer_deepseek41.json` the same way: 103 texts (scripts, digits of several kinds, punctuation and symbols, emoji, Unicode-version and whitespace probes, every added token in groups and a 6000-character excerpt with a multilingual tail), with the token types of DeepSeek-V4.1's GGUF file.
 These are the external gates for this file.

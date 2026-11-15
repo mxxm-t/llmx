@@ -685,15 +685,18 @@ Every added token has type 3 (1278 of them) or 4 (5) there and every other token
 
 #### The Unicode class table
 
-`src/core/unicode_class.hpp` is written by `python tools/gen_unicode_table.py --ucd DIR` from two files of the Unicode 16.0.0 character database, fetched on 2026-11-04 with the coordinator's leave and refused by the generator unless each has its SHA-256:
+`src/core/unicode_class.hpp` and `src/core/unicode_nfc_table.inc` are written by `python tools/gen_unicode_table.py --ucd DIR` from four files of the Unicode 16.0.0 character database, the first two fetched on 2026-11-04 with the coordinator's leave and the NFC pair on 2026-11-15, and refused by the generator unless each has its SHA-256:
 
 | File | URL | SHA-256 | Bytes |
 |---|---|---|---:|
 | `DerivedGeneralCategory.txt` | `https://www.unicode.org/Public/16.0.0/ucd/extracted/DerivedGeneralCategory.txt` | `7676ab755a41ef82108460238569e60ad65c191ddafe61b36c6765ec1353f293` | 274423 |
 | `PropList.txt` | `https://www.unicode.org/Public/16.0.0/ucd/PropList.txt` | `53d614508e2a0b2305a8aa21cd60d993de9326cdf65993660dfcce4503548583` | 144253 |
+| `UnicodeData.txt` | `https://www.unicode.org/Public/16.0.0/ucd/UnicodeData.txt` | `ff58e5823bd095166564a006e47d111130813dcf8bf234ef79fa51a870edb48f` | 2175362 |
+| `DerivedNormalizationProps.txt` | `https://www.unicode.org/Public/16.0.0/ucd/DerivedNormalizationProps.txt` | `4d4c03892dea9146d674b686e495df2d55a28d071ac474041d73518f887abddc` | 1372269 |
 
-The files are not committed; on the test machine they are kept in `/opt/claude-work/llmx-dsdev5-20261104/ucd16`.
-The header they give has SHA-256 `34d53bf75316d3d440881b39a410236be5f61804e600d13e506c8c77fef8e6b8` and 1586 runs.
+The files are not committed; on the test machine the first two are kept in `/opt/claude-work/llmx-dsdev5-20261104/ucd16` and all four in `/opt/claude-work/vllm1/ucd16`.
+The header they give has SHA-256 `34d53bf75316d3d440881b39a410236be5f61804e600d13e506c8c77fef8e6b8` and 1586 runs, and the NFC tables `7e7be3e2626523394f3b694066f342eac22cf387e5ff9e3f1e2d18b568bdb851`, with 393 combining-class runs, 2081 decompositions, 961 compositions and 119 quick-check runs.
+Canonical normalization of an assigned code point never changes between versions (the Unicode normalization stability policy), so `tests/tokenizer.py` holds NFC to `unicodedata` over the code points the running Python assigns.
 Unicode 16.0 is the version the reference's regex engine reads (The deepseek41 tokenizer reference, above), while Python 3.12's `unicodedata` is at 15.0.0 and 3.13's at 15.1.0; between those and 16.0 no assigned code point changes its category group, so `tests/tokenizer.py` holds the table to `unicodedata` with no exception listed.
 
 #### The image decoding references

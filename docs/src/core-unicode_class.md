@@ -7,5 +7,5 @@ The `joyai-llm` pretokenizer of `tokenizer/tokenizer.hpp` ([tokenizer-tokenizer.
 - `kRanges`: 1586 sorted, disjoint runs of code points with the same bits; a code point in none has no class, which is every unassigned code point and every other category (controls but the White_Space ones, format characters, separators other than spaces, surrogates and private use).
 - `of(cp)`: the bits of a code point, by binary search over the runs.
 
-The file is written whole by `python tools/gen_unicode_table.py --ucd DIR` from `DerivedGeneralCategory.txt` and `PropList.txt`, each refused unless it has the pinned SHA-256 ([ASSETS.md](../ASSETS.md#the-unicode-class-table)), and is not edited by hand.
+The file is written whole by `python tools/gen_unicode_table.py --ucd DIR`, which also writes `core/unicode_nfc_table.inc` ([core-unicode_nfc_table.md](core-unicode_nfc_table.md)), from `DerivedGeneralCategory.txt` and `PropList.txt`, each refused unless it has the pinned SHA-256 ([ASSETS.md](../ASSETS.md#the-unicode-class-table)), and is not edited by hand.
 `tests/tokenizer.py` holds it to the running Python's `unicodedata`: every code point that version assigns must have its category group's bit, and White_Space must be the property's 25 code points.

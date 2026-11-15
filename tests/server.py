@@ -8,6 +8,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import threading
 import time
 import urllib.error
@@ -270,8 +271,9 @@ def check_tokenize(srv, model, texts, replies, vocab, chat):
         for extra in ({}, {"add_special": False}, {"add_special": True}, {"add_special": 1}):
             status, reply = srv.post("/v1/tokenize", dict({"text": text}, **extra))
             assert status == 200 and reply == {"tokens": want, "count": len(want)}, (text, extra, status, reply, want)
+        # The ids decode to the text in NFC, which qwen2 and qwen35 files put it in before splitting.
         status, reply = srv.post("/v1/detokenize", {"tokens": want})
-        assert status == 200 and reply == {"text": text}, (text, status, reply)
+        assert status == 200 and reply == {"text": unicodedata.normalize("NFC", text)}, (text, status, reply)
         if any(ord(ch) > 127 for ch in text):
             for ids in [[i] for i in dict.fromkeys(want)] + [want, want[::-1]]:
                 status, reply = srv.post("/v1/detokenize", {"tokens": ids})

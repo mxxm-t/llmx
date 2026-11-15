@@ -20,6 +20,8 @@ out src/inference/generate.hpp | the loop around the passes
 out src/inference/perplexity.hpp | scores logits already computed
 out src/core/json.hpp | parses text
 out src/core/utf8.hpp | text
+out src/core/unicode_nfc.hpp | puts text in NFC before the tokenizer gives it ids, as src/tokenizer is out
+out src/core/unicode_nfc_table.inc | the tables unicode_nfc.hpp composes by
 out src/core/list.hpp | parses comma-separated lists
 out src/core/sha.hpp | hashes
 out src/core/crc32c.hpp | checksums

@@ -87,7 +87,7 @@ Each op change goes under its existing owner (F2DEV's reviews of 2026-11-14 22:4
 
 - Done in step 4a: `RouteRule::Score::sigmoid` beside softmax and sqrt_softplus, the mode `sigmoid_routing`.
 - Done in step 4b: the GLU form with alpha and the +1 on the up half, `GluForm::quick_gelu` beside the clamp limit on `silu_mul`, `MoeStep` and `MoeShared`, the mode `glu_quick_gelu`, so existing clamped-GLU callers keep their code path.
-- `indexer_scores` gains a raw per-head form over the per-position index keys `kv_write` stores, a loop body of its own beside deepseek41's, writing block maxima, rows x heads x blocks, so no rows x positions score matrix is stored; blocks past a row's length score -inf.
+- Done in step 4c: `indexer_scores` gains a raw per-head form, `IndexForm::raw_blocks` and the mode `raw_index_scores`, over the per-position index keys `kv_write` stores, a loop body of its own beside deepseek41's, writing block maxima, rows x heads x blocks, so no rows x positions score matrix is stored; blocks past a row's length score -inf.
 - `candidate_blocks` runs over those maxima unchanged, block size 1, lengths in blocks.
 - `sparse_attention` is extended in place with a group stride, so each KV head reads its own ids, and a block size, so an id names B positions; groups 1 and block 1 are today's chain, held by qwen4exp's byte identity.
 

@@ -7,6 +7,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -157,7 +158,7 @@ void quick_gelu() {
                 ud = ud < -limit ? -limit : ud > limit ? limit : ud;
                 gd = gd > limit ? limit : gd;
             }
-            // The GLU half is rounded to float as the op computes it, so an underflow to zero meets an infinite up as the op's does.
+            // The GLU half is an F32 value in the op, so the reference rounds it to that class, and an underflow to zero meets an infinite up as F32 arithmetic does.
             const double want = (ud + 1.0) * double(float(gd / (1.0 + std::exp(-1.702 * gd))));
             const std::string at = name + " at " + std::to_string(g[i]) + ", " + std::to_string(u[i]);
             if (std::isnan(want)) require(std::isnan(got[i]), at + " is NaN");
@@ -172,12 +173,93 @@ void quick_gelu() {
     }
 }
 
+// indexer_scores's raw form against docs/MINIMAX.md (The forward pass) in double: per head the largest dot of q and a key over a block's positions up to the row's own, -inf past them.
+// Each score is within the dot's F32 bound of the exact maximum, a NaN key makes its block NaN, and 1 to 8 threads agree bit for bit.
+void raw_index_scores() {
+    const size_t layers = 2, heads = 3, dim = 16, bt = 128;
+    const float inf = std::numeric_limits<float>::infinity();
+    CpuBackend cpu;
+    std::unique_ptr<backend::KVStorage> owner = cpu.kv_alloc(layers, 1, 2, 4 * bt, backend::KVType::f32, backend::KVType::f32, {0, dim});
+    const int32_t a_ids[] = {2, 0}, b_ids[] = {1};
+    const size_t a_len = 150, a_nq = 4, b_nq = 5;
+    // The histories, every position's key written once, then the rows that score: view a's last a_nq positions, crossing storage blocks, and all of b's.
+    const backend::KVView fill[] = {{owner.get(), a_ids, 2, 0, a_len + a_nq}, {owner.get(), b_ids, 1, 0, b_nq}};
+    const size_t positions = a_len + a_nq + b_nq;
+    std::vector<float> keys(positions * dim), kv(positions * 2, 0.0f);
+    for (float& x : keys) x = float(int(draw() % 4001) - 2000) / 512.0f;
+    for (size_t d = 0; d < dim; ++d) keys[(a_len + 1) * dim + d] = keys[(a_len - 2) * dim + d];   // a tie inside one block of 4
+    BufferPtr kb = upload(cpu, kv), keyb = upload(cpu, keys);
+    cpu.kv_write(1, fill, 2, {kb.get(), 0}, {kb.get(), 0}, {keyb.get(), 0});
+    const backend::KVView views[] = {{owner.get(), a_ids, 2, a_len, a_nq}, {owner.get(), b_ids, 1, 0, b_nq}};
+    const size_t rows = a_nq + b_nq;
+    std::vector<float> q(rows * heads * dim);
+    for (float& x : q) x = float(int(draw() % 4001) - 2000) / 1024.0f;
+    BufferPtr qb = upload(cpu, q);
+    for (size_t block : {size_t(1), size_t(4), size_t(48), size_t(128)}) {
+        const size_t n = (a_len + a_nq + block - 1) / block + 2;
+        const std::string name = "raw index scores at block " + std::to_string(block);
+        BufferPtr ob = cpu.alloc(rows * heads * n * 4, backend::Memory::device);
+        cpu.set_threads(1);
+        cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 1, views, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, n, {}, 0, block, backend::IndexForm::raw_blocks);
+        const std::vector<float> got = download(cpu, *ob, rows * heads * n);
+        for (size_t r = 0; r < rows; ++r) {
+            const size_t pos = r < a_nq ? a_len + r : r - a_nq, base = r < a_nq ? 0 : a_len + a_nq;
+            for (size_t h = 0; h < heads; ++h)
+                for (size_t b = 0; b < n; ++b) {
+                    const float v = got[(r * heads + h) * n + b];
+                    if (b * block > pos) {
+                        require(v == -inf, name + ": a block past the row is -inf");
+                        continue;
+                    }
+                    double best = -double(inf), bound = 0.0;
+                    for (size_t t = b * block; t < std::min((b + 1) * block, pos + 1); ++t) {
+                        double dot = 0.0, mag = 0.0;
+                        for (size_t d = 0; d < dim; ++d) {
+                            const double x = double(q[(r * heads + h) * dim + d]) * keys[(base + t) * dim + d];
+                            dot += x;
+                            mag += std::fabs(x);
+                        }
+                        best = std::max(best, dot);
+                        bound = std::max(bound, double(dim) * U * mag);
+                    }
+                    require(std::fabs(double(v) - best) <= bound, name + ": row " + std::to_string(r) + " head " + std::to_string(h) + " block " + std::to_string(b));
+                }
+        }
+        for (int t : kThreads) {
+            cpu.set_threads(t);
+            cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 1, views, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, n, {}, 0, block, backend::IndexForm::raw_blocks);
+            require(!std::memcmp(download(cpu, *ob, rows * heads * n).data(), got.data(), got.size() * 4), name + " at " + std::to_string(t) + " threads");
+        }
+        refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 1, views, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, (a_len + a_nq - 1) / block, {}, 0, block,
+                                         backend::IndexForm::raw_blocks); },
+                name + " narrower than its blocks", "backend: raw index scores narrower than a row's blocks");
+    }
+    BufferPtr ob = cpu.alloc(rows * heads * 200 * 4, backend::Memory::device);
+    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 0, views, 2, {}, 1.0f, heads, dim, backend::ModelFormat::f32, 200, {}, 0, 1, backend::IndexForm::raw_blocks); },
+            "raw index scores over a layer without index keys", "backend: raw index scores read auxiliary rows its layer does not keep at their width");
+    refused([&] { cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 1, views, 2, {qb.get(), 0}, 1.0f, heads, dim, backend::ModelFormat::f32, 200, {}, 0, 1, backend::IndexForm::raw_blocks); },
+            "raw index scores with weights", "backend: raw index scores take no weights, candidate blocks or key format but f32");
+    // A NaN key component makes its block's score NaN for every head, whichever position of the block it is.
+    std::unique_ptr<backend::KVStorage> poisoned = cpu.kv_alloc(layers, 1, 2, 4 * bt, backend::KVType::f32, backend::KVType::f32, {0, dim});
+    keys[9 * dim + 5] = std::numeric_limits<float>::quiet_NaN();
+    BufferPtr nb = upload(cpu, keys);
+    const backend::KVView poison_fill{poisoned.get(), a_ids, 2, 0, a_len + a_nq}, poison{poisoned.get(), a_ids, 2, a_len, a_nq};
+    cpu.kv_write(1, &poison_fill, 1, {kb.get(), 0}, {kb.get(), 0}, {nb.get(), 0});
+    cpu.set_threads(1);
+    cpu.indexer_scores({ob.get(), 0}, {qb.get(), 0}, 1, &poison, 1, {}, 1.0f, heads, dim, backend::ModelFormat::f32, 200, {}, 0, 4, backend::IndexForm::raw_blocks);
+    const std::vector<float> got = download(cpu, *ob, a_nq * heads * 200);
+    for (size_t r = 0; r < a_nq; ++r)
+        for (size_t h = 0; h < heads; ++h)
+            for (size_t b = 0; b < 40; ++b) require(std::isnan(got[(r * heads + h) * 200 + b]) == (b == 2), "a NaN key makes only its block NaN");
+}
+
 } // namespace
 
 int main() {
     try {
         sigmoid_routing();
         quick_gelu();
+        raw_index_scores();
     } catch (const std::exception& e) {
         std::cerr << "FAIL: " << e.what() << std::endl;
         return 1;

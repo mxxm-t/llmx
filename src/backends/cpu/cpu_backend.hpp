@@ -72,6 +72,12 @@ public:
     const float* v(size_t layer, int32_t id) const { return (const float*)vraw(layer, id); }
     uint16_t* kh(size_t layer, int32_t id) { return (uint16_t*)kraw(layer, id); }
     uint16_t* vh(size_t layer, int32_t id) { return (uint16_t*)vraw(layer, id); }
+    // The address of `token`'s auxiliary row of `layer` for `view`, the row kv_write stores, at the token's place among its block's token rows.
+    float* auxiliary_row(size_t layer, const KVView& view, size_t token) const {
+        const size_t bt = block_tokens();
+        uint8_t* plane = (uint8_t*)static_cast<const CpuBuffer&>(*auxiliary_buffer(layer)).host_address();
+        return (float*)(plane + (size_t)view.blocks[token / bt] * auxiliary_block_bytes(layer) + (token % bt) * auxiliary_width(layer) * sizeof(float));
+    }
     // The one address of `group`'s pooled row of `layer` for `view` (BlockKVStorage::auxiliary_pool): in the block of the group's first token, after that block's token rows.
     // The owner allocates every block buffer, so the auxiliary plane is a CpuBuffer as the K and V planes after_growth checks are.
     float* pooled_row(size_t layer, const KVView& view, size_t group) const {
@@ -1199,16 +1205,14 @@ public:
     // The complete groups `view`'s rows complete, pooled into their rows of the auxiliary blocks (BlockKVStorage::auxiliary_pool), each turning at the positions `pos` gives where given (GroupPositions).
     void pool_view(CpuKVStorage& storage, size_t layer, const KVView& view, const IndexArgs& args, const float* gamma, const float* cosine, const float* sine,
                    const uint32_t* pos = nullptr, RopeStreams streams = {}) {
-        const size_t aux_width = storage.auxiliary_width(layer), block_bytes = storage.auxiliary_block_bytes(layer);
-        const size_t bt = storage.block_tokens(), half = args.rope_dim / 2;
-        uint8_t* plane = (uint8_t*)at(Slice{storage.auxiliary_buffer(layer).get(), 0});
+        const size_t half = args.rope_dim / 2;
         const size_t groups = size_add(view.length, view.nq) / args.compression;
         for (size_t group = view.length / args.compression; group < groups; ++group) {
             const size_t first_token = size_mul(group, args.compression);
             float* pooled = storage.pooled_row(layer, view, group);
             std::fill(pooled, pooled + args.dim, 0.0f);
             for (size_t token = first_token; token < first_token + args.compression; ++token) {
-                const float* raw = (const float*)(plane + (size_t)view.blocks[token / bt] * block_bytes + (token % bt) * aux_width * sizeof(float));
+                const float* raw = storage.auxiliary_row(layer, view, token);
                 for (size_t d = 0; d < args.dim; ++d) pooled[d] += raw[d];
             }
             const float inv_group = 1.0f / (float)args.compression;
@@ -2169,7 +2173,12 @@ public:
     }
 
     void indexer_scores(Slice out_s, CSlice q_s, size_t layer, const KVView* views, size_t n_views, CSlice w_s, float w_scale, size_t heads, size_t dim,
-                        ModelFormat key_format, size_t n, CSlice blocks_s, size_t block_k, size_t block_size) override {
+                        ModelFormat key_format, size_t n, CSlice blocks_s, size_t block_k, size_t block_size, IndexForm form) override {
+        if (form == IndexForm::raw_blocks) {
+            if (w_s.buffer || blocks_s.buffer || block_k || key_format != ModelFormat::f32) throw std::runtime_error("backend: raw index scores take no weights, candidate blocks or key format but f32");
+            raw_index_scores(out_s, q_s, layer, views, n_views, heads, dim, n, block_size);
+            return;
+        }
         if (!heads || !dim || n >= UINT32_MAX || (blocks_s.buffer && !block_size) || !std::isfinite(w_scale))
             throw std::runtime_error("backend: invalid index score dimensions");
         size_t rows = 0;
@@ -2221,6 +2230,54 @@ public:
                 }
                 o[t] = sum;
             }
+        });
+    }
+
+    // IndexForm::raw_blocks, a task a row and block: each key row is read once for every head, and a NaN dot makes its block's score NaN, as candidate_blocks then refuses.
+    void raw_index_scores(Slice out_s, CSlice q_s, size_t layer, const KVView* views, size_t n_views, size_t heads, size_t dim, size_t n, size_t block_size) {
+        if (!heads || !dim || !block_size || n >= UINT32_MAX) throw std::runtime_error("backend: invalid index score dimensions");
+        if (!views && n_views) throw std::runtime_error("backend: raw index scores without views");
+        std::vector<const KVView*> view;
+        std::vector<size_t> position;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            CpuKVStorage& storage = storage_of(views[vi]);
+            storage.check_view(views[vi], layer, false);
+            if (storage.auxiliary_width(layer) != dim) throw std::runtime_error("backend: raw index scores read auxiliary rows its layer does not keep at their width");
+            if (views[vi].nq && (size_add(views[vi].length, views[vi].nq) + block_size - 1) / block_size > n)
+                throw std::runtime_error("backend: raw index scores narrower than a row's blocks");
+            for (size_t i = 0; i < views[vi].nq; ++i) {
+                view.push_back(&views[vi]);
+                position.push_back(views[vi].length + i);
+            }
+        }
+        const size_t rows = view.size();
+        if (!rows) return;
+        const size_t on = size_mul(rows, size_mul(heads, n)), qn = size_mul(rows, size_mul(heads, dim));
+        validate_float_slice(out_s, on);
+        validate_float_slice(q_s, qn);
+        if (overlaps(CSlice(out_s), on, q_s, qn)) throw std::runtime_error("backend: index scores output must be disjoint from its inputs");
+        float* out = at(out_s);
+        const float* q = at(q_s);
+        spread(size_mul(rows, n), [&](size_t i) {
+            const size_t r = i / n, b = i % n, first = b * block_size, len = position[r] + 1;
+            float* o = out + r * heads * n + b;
+            if (first >= len) {
+                for (size_t h = 0; h < heads; ++h) o[h * n] = -std::numeric_limits<float>::infinity();
+                return;
+            }
+            const CpuKVStorage& storage = *static_cast<const CpuKVStorage*>(view[r]->storage);
+            thread_local std::vector<float> best;
+            best.assign(heads, -std::numeric_limits<float>::infinity());
+            for (size_t t = first; t < std::min(first + block_size, len); ++t) {
+                const float* kt = storage.auxiliary_row(layer, *view[r], t);
+                for (size_t h = 0; h < heads; ++h) {
+                    const float* qh = q + (r * heads + h) * dim;
+                    float dot = 0.0f;
+                    for (size_t d = 0; d < dim; ++d) dot = std::fma(qh[d], kt[d], dot);
+                    if (std::isnan(dot) || dot > best[h]) best[h] = std::isnan(best[h]) ? best[h] : dot;
+                }
+            }
+            for (size_t h = 0; h < heads; ++h) o[h * n] = best[h];
         });
     }
 

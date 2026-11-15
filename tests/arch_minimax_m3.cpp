@@ -212,9 +212,11 @@ void plan() {
             require(infer::role_fits(role, index.view(index.at(role.name)).shape, index.view(index.at(role.name)).type), role.name + " fits its role");
         roles += layer.roles.size();
         const bool rope = std::any_of(layer.ops.begin(), layer.ops.end(), [](const infer::OpUse& u) { return u.op == backend::Op::norm_rope_partial; });
+        const auto mixer = [&](backend::Op op) { return std::any_of(layer.ops.begin(), layer.ops.end(), [&](const infer::OpUse& u) { return u.op == op && u.part == infer::Part::mixer; }); };
         const auto declares = [&](backend::Op op) { return std::any_of(layer.ops.begin(), layer.ops.end(), [&](const infer::OpUse& u) { return u.op == op && u.part == infer::Part::ffn; }); };
         require(rope && declares(backend::Op::routed_experts) == routed && declares(backend::Op::sigmoid_routing) == routed &&
-                declares(backend::Op::silu_mul_clamp) && declares(backend::Op::glu_quick_gelu), "layer " + std::to_string(l) + "'s ops");
+                declares(backend::Op::silu_mul_clamp) && declares(backend::Op::glu_quick_gelu) && mixer(backend::Op::indexer_scores) &&
+                mixer(backend::Op::raw_index_scores), "layer " + std::to_string(l) + "'s ops");
     }
     require(roles == w.tensors.size(), "the plan reads every tensor of the file");
     require(p.slots.size() == 14 && p.slots[8] == std::max(F, (K + 1) * FE) && p.slots[12] == HKV * DI && p.slots[13] == DI, "arena slots");

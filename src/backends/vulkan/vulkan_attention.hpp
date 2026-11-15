@@ -496,7 +496,8 @@ inline void VulkanBackend::sparse_attention_sink(Slice out, CSlice q, CSlice kv,
 }
 
 inline void VulkanBackend::indexer_scores(Slice out, CSlice q, size_t layer, const KVView* views, size_t n_views, CSlice w, float w_scale, size_t heads,
-                                          size_t dim, ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size) {
+                                          size_t dim, ModelFormat key_format, size_t n, CSlice blocks, size_t block_k, size_t block_size, IndexForm form) {
+    if (form != IndexForm::weighted_relu) throw std::runtime_error("vulkan: indexer_scores has no raw form");
     if (!heads || heads > 1024 || !dim || n >= UINT32_MAX || (blocks.buffer && !block_size) || !std::isfinite(w_scale))
         throw std::runtime_error("vulkan: invalid index score dimensions");
     size_t rows = 0;

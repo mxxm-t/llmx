@@ -1009,6 +1009,7 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 - **Gotchas:** a range stream's bits rest on each entry taking the tile's terms in block order, which `routed_builds_witness` checks build by build; a change to the stream's entry loop must keep that order.
 ## MiniMax-M3.1 (2026-11-15, MMX1 then MMX2, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
 ## MiniMax-M3.1 (2026-11-15, MMX1 to MMX4, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
+## MiniMax-M3.1 (2026-11-15, MMX1 to MMX5, branch arch/minimax on main 929f042c6; MMX1's proposal of 00:37 with F2DEV's review of 22:45, MMX2's step plan of 02:36)
 
 **Goal.** MiniMax-M3.1-Flash (`minimax-m3`, unsloth UD-Q8_K_XL, NVFP4 experts) runs on the CPU, Vulkan and ROCm, held to HF and at or above the reference's speed on ten MI50s ([MINIMAX](MINIMAX.md)).
 
@@ -1024,11 +1025,13 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
   `minimax-ops` holds the rule to its math in double.
 - Step 4b: `GluForm` beside the limit on `silu_mul`, `MoeStep` and `MoeShared`, `silu` the default so every caller keeps its bits; `quick_gelu` is (clamp(u) + 1) * g' * sigmoid(1.702 g') on the CPU (`swiglu`, `silu_mul` and the decode step), the mode `glu_quick_gelu` every layer names with `silu_mul_clamp`; Vulkan and the GPU core refuse it by name and leave a step in it to the base's ops.
   `minimax-ops` holds the form to its math in double and `backend-group` the CPU decode step in it to the base step's bits.
+- Step 4c: `indexer_scores` takes `IndexForm::raw_blocks`, per head the maximum F32 dot of each block of positions over the `kv_aux` rows `kv_write` stores, -inf past a row, a loop body of its own on the CPU (`raw_index_scores`) beside deepseek41's unchanged one; the mode `raw_index_scores` every layer's mixer names with `indexer_scores`, which Vulkan and the GPU core refuse at load and by name in the call.
+  `minimax-ops` holds it to the block maxima in double; `kv-selection` passes with `pool_view` now reading token rows through `CpuKVStorage::auxiliary_row`.
 
 **Left** (one numbering for this block, the proposal of 02:36 and [MINIMAX](MINIMAX.md); each step reviewed before the next):
 2. Text: pretokenizer `minimax-m2` and NFC, ids against HF; chat render with tool calls against transformers.
    Waits for fix/tokenizer-nfc to land on main and slides after steps 3 to 5, which need no ids.
-4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: 4a sigmoid routing and 4b the GLU form (done); the raw per-head index scores over the `kv_aux` rows `kv_write` stores, written as block maxima, a loop body of its own beside deepseek41's (4c); 4d `candidate_blocks` as it is; 4e `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
+4. CPU ops, each an `Op` mode entry a backend lacking it refuses at load by name, every existing caller on its unchanged path: 4a sigmoid routing, 4b the GLU form and 4c the raw index scores (done); 4d `candidate_blocks` as it is; 4e `sparse_attention` extended in place with a group stride and a block size, groups 1 and block 1 being today's chain (qwen4exp byte identity on the CPU and an MI50 is a gate).
    An op landing before its caller takes a `known_findings` line naming this step.
 5. CPU math against tiny fixtures (block 4, top 3, F2DEV's conditions (a) to (d)), one of them at the real head widths (D 128, Di 128) so the device sparse builds get an HF-held check.
 6. Real file against a file-exact layered HF reference: the CPU covers the 512-token windows and one prompt past 2048 for device identity; the raw and chat 16k sequences and decode after them run on the devices, with block-pick agreement per layer.

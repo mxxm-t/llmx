@@ -163,6 +163,8 @@ public:
                            {index_k_norm, Part::mixer, RoleKind::norm, pre + "indexer.k_norm.weight", "", I},
                            {ffn_norm, Part::ffn, RoleKind::norm, pre + "ffn_norm.weight", "", E, 1, 0, copy}};
             layer.ops.push_back({Part::mixer, backend::Op::norm_rope_partial});
+            layer.ops.push_back({Part::mixer, backend::Op::indexer_scores});
+            layer.ops.push_back({Part::mixer, backend::Op::raw_index_scores});
             layer.ops.push_back({Part::ffn, backend::Op::silu_mul_clamp});
             layer.ops.push_back({Part::ffn, backend::Op::glu_quick_gelu});
             if (layer.routed) {

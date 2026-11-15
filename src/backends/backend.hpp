@@ -168,6 +168,10 @@ struct RouteRule {
 // The GLU silu_mul applies after its clamps: silu(g) * u, or quick_gelu, MiniMax-M3.1's g * sigmoid(1.702 g) * (u + 1) (docs/MINIMAX.md, The forward pass).
 enum class GluForm : uint8_t { silu, quick_gelu };
 
+// The scores indexer_scores writes: deepseek41's weighted ReLU sum over heads per pooled row, or MiniMax-M3.1's raw per-head block maxima (docs/MINIMAX.md, The forward pass).
+// raw_blocks writes out[r][h][b] for b below n, the largest F32 dot of q[r][h] with key t, t's auxiliary row, over block b's positions up to the row's own, -inf past them, and takes no w, blocks or key format but f32.
+enum class IndexForm : uint8_t { weighted_relu, raw_blocks };
+
 // A routed feed-forward step's operands (Backend::moe_step): the shared expert's, beside the routed experts' below.
 // Its gate and up project one row a token into `out`, its row gate, an F32 vector, gives one value a row and has no data on an ungated expert.
 struct MoeShared {
@@ -414,12 +418,12 @@ enum class NormGate : uint8_t { silu, sigmoid };
 // The sign signed_sqrt_gate gives a dot of zero: none, the three-way sign (0 at +0 and -0, a gate of 0.5), or kept, the zero's own sign bit as copysign takes it.
 enum class ZeroSign : uint8_t { none, kept };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-// The last five are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms, route_experts's sigmoid scores and silu_mul's quick_gelu form.
+// The last six are modes of other calls: route_experts's sqrt_softplus scores, silu_mul's clamp, norm_rope_partial's adjacent, offset and inverse forms, route_experts's sigmoid scores, silu_mul's quick_gelu form and indexer_scores's raw form.
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full, hc_coeffs, hc_collapse_norm, hc_expand,
                           sparse_attention_sink, topk_rows, candidate_blocks, compress_pool, indexer_scores, model_format_qdq, model_format_pack, pool_write,
-                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu };
+                          sqrt_softplus_routing, silu_mul_clamp, rope_forms, sigmoid_routing, glu_quick_gelu, raw_index_scores };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -461,6 +465,7 @@ inline const char* op_name(Op op) {
         case Op::rope_forms: return "rope_forms";
         case Op::sigmoid_routing: return "sigmoid_routing";
         case Op::glu_quick_gelu: return "glu_quick_gelu";
+        case Op::raw_index_scores: return "raw_index_scores";
     }
     return "an unknown op";
 }
@@ -1137,10 +1142,10 @@ public:
     }
 
     // Index scores out[r][t] = sum over heads of w[r][h] w_scale ReLU(q[r][h] dot key[t]), key t the last dim values, in key_format, of the view's pooled row t of `layer`.
-    // A position at or past (p + 1) / tokens, or outside the row's candidate blocks where they are given, is -inf.
+    // A position at or past (p + 1) / tokens, or outside the row's candidate blocks where they are given, is -inf; IndexForm::raw_blocks writes MiniMax-M3.1's scores instead.
     virtual void indexer_scores(Slice /*out*/, CSlice /*q*/, size_t /*layer*/, const KVView* /*views*/, size_t /*n_views*/, CSlice /*w*/, float /*w_scale*/,
                                 size_t /*heads*/, size_t /*dim*/, ModelFormat /*key_format*/, size_t /*n*/, CSlice /*blocks*/ = {}, size_t /*block_k*/ = 0,
-                                size_t /*block_size*/ = 0) {
+                                size_t /*block_size*/ = 0, IndexForm /*form*/ = IndexForm::weighted_relu) {
         lacks(Op::indexer_scores);
     }
 

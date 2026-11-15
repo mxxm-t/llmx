@@ -1581,6 +1581,52 @@ No slowdown on a path main has; the gain is on the 27B tensor group.
 
 **Gotchas.** The rebase conflicts were only the two `docs/TENSOR-SPLIT.md` lines that main's CUDA landing and this step both edit; both edits are kept.
 
+## CUDA int8 tiles of every type on the tensor cores (2026-11-15, CUDA30 to CUDA33, branch cuda/step2 on cuda/step5; F2DEV's review of 14:56; lands as one commit on cuda/step5)
+
+**Goal.** The int8 prompt tiles of the K-quants and of Q4_0, Q4_1, Q5_0, Q5_1, IQ4_NL and MXFP4 take their sub-block sums on the 8-bit integer tensor cores under CUDA, as the Q8_0 tile does, with the bits of the dot build.
+
+**Done.**
+- `k_tile` takes the Q8_0 tile's `mma_s8` path for every int8 tile `LLMX_KTYPE` builds that is not routed (`constexpr bool MMA`, the gate `q8_0_tile` uses): one m16n8k32 a 32-value sub-block, one m16n8k16 (`mma_s8_k16`, port.h) a Q6_K half, on the Q8_0 tile's fragments, warp grid and padding (`mma_out`, `mma_row`).
+  A row's twin sum is its quad's dots by ones, taken by the lanes holding its fragments; the integer sums are exact and the fold, acc = fmaf(dx, term, acc) over blocks then halves, is unchanged, so every output keeps the dot build's bits.
+- `LLMX_TILE8_BOUNDS` (port.h) compiles the dense int8 tiles for two blocks an SM under CUDA, which holds them to 128 registers: the fragment helpers had taken `llmx_q8_0_tile8_tall` from 123-126 to 134 registers, one block an SM, and its 27B gate_up product from 45 to 39 TOPS.
+  Q6_K keeps one block (`tile8_blocks`), since 128 registers spill it on sm_90; under HIP the bounds are the block size alone, so gfx906's code objects are unchanged.
+- `imma_tile` (`tests/backend_cuda.cpp`) holds all ten int8 tile types to the host's fold, and `cuda-sass` wants IMMA in each of their tiles.
+
+**Gates.** One RTX 3090 (sm_86, 82 SMs), session S of 2026-11-15 (`/opt/claude-work/cuda33/s1/results/20261115-1719-S`); C = step 5 with `bench --profile` (834154aa8), D = C with the tensor-core K tiles, F = the tensor-core K tiles and the launch bounds on step 5 618ed9f28 without `bench --profile` (98f2c7255).
+D and F are level on the 27B's pp512 (468 and 467 tok/s), which prices the `bench --profile` delta at zero; the landing commit differs from F by two comment lines (port.h, backend_cuda.cpp) and its docs, so F's figures stand for it.
+These are hand checks: `cuda-sass` and the five card-free CTests run in the test machine's CUDA 12.9.1 container, `backend-cuda types` and the model cells on a rented RTX 3090, since no hosted job has the CUDA toolkit or a card; the toolkit-only hosted job of docs/CUDA.md, Order of work, is the step that gives one.
+
+| Check | Result |
+| --- | --- |
+| CUDA build of F, `gpu-port`, `gpu-core`, `cuda-driver`, `cuda-sass` | rc 0, 5 of 5, no new spill; tall tile 126-128 registers, Q6_K 159-168 |
+| `backend-cuda types` on F | 9984 PASS, 0 FAIL; every type's unsplit `imma_tile` shape bit for bit |
+| Qwen3.6-27B Q4_K_M int8, 64 greedy tokens | C, D and F byte identical |
+| ROCm code objects of F | identical to the step 5 base's, so the MI50 runs unchanged code |
+
+| 27B shapes, int8, 512 rows, TOPS (two rounds) | C | D | F |
+| --- | --- | --- | --- |
+| Q8_0 gate_up (tall) | 46.15 / 46.54 | 43.27 / 42.67 | 47.51 / 47.98 |
+| Q4_K qkv | 27.04 / 26.82 | 32.93 / 32.77 | 33.29 / 33.25 |
+| Q4_K gate_up | 30.27 / 30.25 | 36.07 / 35.50 | 35.84 / 35.56 |
+| Q4_K down | 29.57 / 29.30 | 35.84 / 35.29 | 35.28 / 35.27 |
+| Q6_K qkv | - | 21.52 / 21.20 | 20.90 / 20.89 |
+| Q6_K gate_up | - | 23.13 / 22.92 | 22.54 / 22.43 |
+
+| Qwen3.6-27B Q4_K_M pp512 int8, tok/s | C | D | F | reference |
+| --- | --- | --- | --- | --- |
+| ABAB | 432.63 / 431.56 | 468.36 / 467.34 | 467.47 / 466.72 | 1358.29 +- 50.23 |
+
+- The profile of a 27B pp512 (device ms): `llmx_q4_k_tile8` 632.7 on C and 543.0 on D, `llmx_q6_k_tile8` 179.2 and 179.9, attention 130, `llmx_silu_mul_twin8_major` 99.
+- HF: nothing new to measure, since the outputs keep the dot build's bits; the int8 budget evidence of step 4 carries forward.
+- Lands as one commit on cuda/step5.
+
+**Left.**
+- The K tiles reach 33 to 36 TOPS against the Q8_0 tile's 47, and 27B pp512 is at 34% of the reference: the staging (step 2b: scale staging, cp.async, a wider tile) owns that gap, and Q6_K at one block an SM, with no gain from the tensor cores in the model, is its largest single item after Q4_K.
+- Routed int8 tiles keep the four-way dot (`MMA` is false for `ROUTED`), so a MoE model's CUDA prompt gains nothing here; owner: step 2b, which takes the routed tiles onto the tensor cores beside the staging (CUDA34).
+- Vulkan on NVIDIA could take the same lever through cooperative matrices; no owner yet.
+
+**Gotchas.** A Q6_K tile held to 128 registers spills on sm_90; two blocks an SM is right for the others, measured on sm_86 only.
+
 ## CUDA backend step 5: the qwen35 operations on cuda:N (2026-11-14 and 15, CUDA23 to CUDA28, branch cuda/step5 on cuda/step4, rebased on main 929f042c6; step 4 lands first)
 
 **Goal.** Step 5 of docs/CUDA.md, Order of work: the qwen35 layers' operations on `cuda:N` for Qwen3.5-27B Q4_K_M, with Qwen3.5-0.8B against HF, held by the qwen35 baseline on 0.8B, 27B at 16k depth and drafts on and off.

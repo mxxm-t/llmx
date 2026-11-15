@@ -21,6 +21,8 @@
 #endif
 // 1 where the int8 class runs in one module on the four-way dot and the 8-bit integer tensor cores: never under HIP, whose plain module keeps the scalar loop and whose dot module (LLMX_DOT16) takes dot4_i8.
 #define GPU_IMMA8 0
+// The launch bounds of the dense int8 tiles, which HIP leaves at the block size so gfx9 keeps its code.
+#define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads)
 
 // The value of lane (this lane xor m), or of lane (this lane + d), within groups of width lanes, the whole wave where no width is given.
 template <typename T> __device__ __forceinline__ auto shuffle_xor(T v, int m) { return __shfl_xor(v, m); }
@@ -195,12 +197,20 @@ __device__ __forceinline__ float dot2_f16(unsigned a, unsigned b, float s) {
 }
 // Every CUDA target has the four-way dot (GPU_DOT4, above) and the 8-bit integer tensor cores, so the int8 class takes both in its one module.
 #define GPU_IMMA8 1
+// The dense int8 tiles' blocks an SM: two hold a tile to 128 registers, which the tensor-core fragments pass otherwise (docs/STATUS.md, CUDA int8 tiles of every type on the tensor cores).
+#define LLMX_TILE8_BOUNDS(blocks) __launch_bounds__(kThreads, blocks)
 // d += the 16 by 8 product of a (16 rows by 32 signed bytes) and b (32 signed bytes by 8 columns), exact in wrapping int32 (mma m16n8k32 s8).
 // Lane l holds a's rows l / 4 and l / 4 + 8 at words l % 4 and l % 4 + 4, b's column l / 4 at the same words, and d's rows l / 4 and l / 4 + 8 at columns 2 * (l % 4) and the next.
 __device__ __forceinline__ void mma_s8(int (&d)[4], const int (&a)[4], const int (&b)[2]) {
     asm("mma.sync.aligned.m16n8k32.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};"
                  : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b[0]), "r"(b[1]));
+}
+// d += the 16 by 8 product over 16 signed bytes (mma m16n8k16 s8): a0 holds a's row l / 4 and a1 its row l / 4 + 8 at word l % 4, b b's column l / 4 at that word, d as above.
+__device__ __forceinline__ void mma_s8_k16(int (&d)[4], int a0, int a1, int b) {
+    asm("mma.sync.aligned.m16n8k16.row.col.s32.s8.s8.s32 {%0, %1, %2, %3}, {%4, %5}, {%6}, {%0, %1, %2, %3};"
+                 : "+r"(d[0]), "+r"(d[1]), "+r"(d[2]), "+r"(d[3])
+                 : "r"(a0), "r"(a1), "r"(b));
 }
 
 __device__ __forceinline__ void schedule_barrier() {}

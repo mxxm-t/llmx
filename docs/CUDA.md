@@ -113,7 +113,7 @@ Steps 1 to 5 may share a branch; steps 6 and 8 are branches of their own.
 | 1 | Build option, fatbin embedding, driver call table, device facts, `cuda:N`, buffers, tickets, errors, the F32 kernels and F32 matmul | port-mapping test, driver table test, backend CTest, F32 matmul against the CPU | Ampere or newer, 12 GB or more |
 | 2 | Dense qwen3 at F32: attention, f32 and f16 caches, norms, rope, sampling, server passes | tiny HF fixtures, suite synthetic components on `cuda:0` at `--dtype f32` | same |
 | 3 | F16 class: Q8_0, Q4_K, Q5_K, Q6_K rows and integer tiles | per-type product witnesses, row-class identity, Qwen3-0.6B Q8_0 HF short and 16k raw and chat depth | same |
-| 4 | int8 class: four-way dot rows and the integer tensor-core prompt tile; first tuning on real shapes | product microbenchmarks at Qwen3-0.6B and 27B shapes, the int8 budget, a short screen against the reference runtime | same |
+| 4 | int8 class: four-way dot rows and the integer tensor-core prompt tiles of every int8 tile type; first tuning on real shapes | product microbenchmarks at Qwen3-0.6B and 27B shapes, the int8 budget, a short screen against the reference runtime | same |
 | 5 | qwen35 operations for Qwen3.5-27B Q4_K_M; Qwen3.5-0.8B HF | the qwen35 baseline on 0.8B, 27B at 16k depth, drafts on and off | 24 GB or more |
 | 6 | Layer split and tensor groups: the three transports, handoffs, member order | split check, tensor-split suite components, group identity across forms and widths | a pair; NVLink in a later session |
 | 7 | First landing's final gates on one card | below | the card each model needs |

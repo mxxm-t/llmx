@@ -36,9 +36,9 @@ SPILL_ALLOWED = {
 }
 
 
-# The int8 class's witnesses: the tensor-core prompt tiles, and a Q8_0 row build and a K-quant tile on the 8-bit twin.
-IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall")
-DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1", "llmx_q4_k_tile8")
+# The int8 class's witnesses: the tensor-core prompt tiles of every int8 tile type, and a Q8_0 and a K-quant row build on the 8-bit twin.
+IMMA_KERNELS = ("llmx_q8_0_tile8", "llmx_q8_0_tile8_tall") + tuple(f"llmx_{t}_tile8" for t in ("q4_0", "q4_1", "q5_0", "q5_1", "iq4_nl", "mxfp4", "q4_k", "q5_k", "q6_k"))
+DP4A_KERNELS = ("llmx_q8_0_half8_1", "llmx_q4_k_rows8_1")
 
 def family(fn):
     return next((f for f in SPILL_ALLOWED if fn.startswith(f)), None)
@@ -118,7 +118,7 @@ def main():
         # The int8 class (docs/CUDA.md, step 4): the Q8_0 prompt tiles sum on the integer tensor cores and the 8-bit rows on the four-way dot.
         funcs = sass_by_function(cuobjdump, os.path.join(gen, "int16.fatbin"), arch)
         no_imma = [fn for fn in IMMA_KERNELS if not any("IMMA" in l for l in funcs.get(fn, []))]
-        require(not no_imma, f"{arch}: the int8 Q8_0 prompt tiles sum with IMMA" + (" (not " + ", ".join(no_imma) + ")" if no_imma else ""))
+        require(not no_imma, f"{arch}: the int8 prompt tiles sum with IMMA" + (" (not " + ", ".join(no_imma) + ")" if no_imma else ""))
         no_dp4a = [fn for fn in DP4A_KERNELS if not any("IDP.4A" in l for l in funcs.get(fn, []))]
         require(not no_dp4a, f"{arch}: the int8 rows sum with IDP.4A" + (" (not " + ", ".join(no_dp4a) + ")" if no_dp4a else ""))
     for kernel in ("f32", "int16"):

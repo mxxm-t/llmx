@@ -23,7 +23,11 @@
 
 **Checks.** A browser regression holds a real pre-save workspace response, sends Ctrl+S, verifies the server reached Revision 2, then delivers the old response. The unfixed UI remains at Revision 1 and fails after 29.648 seconds. This reproduces the ordering defect independently of CI timing.
 
-**Left.** Fix refresh ordering and run focused browser and documentation checks.
+**Done.** The existing workspace load owner now keeps the pending request promise. A caller waits for that request, then performs its own refresh, so a save or other mutation no longer silently loses its refresh behind an older one.
+
+**Checks.** The first delayed-refresh fix passed in 25.980 seconds. Review then identified a failed older read cancelling the save's queued refresh; the added failed-read case reproduced that in 27.528 seconds. The final full browser check passes both cases in 23.937 seconds, including a clean error state after recovery. JavaScript syntax passes. Earlier request failures remain reported by their own caller, while queued callers still fetch current state.
+
+**Left.** Final source review, documentation checks and stacked hosted qualification with the backup fix before READY to the coordinator.
 
 **Gotchas.** No inference changes. Keep this independent of backup validation and message-action styling.
 

@@ -104,3 +104,8 @@ database. JSON and stored parent references must agree, parents and active leave
 must belong to the same conversation, and every message branch must be acyclic.
 Valid branches may be stored in any row order. A refused backup leaves the current
 conversations and event journal unchanged.
+
+Workspace refresh callers wait for an older refresh to finish before starting
+their own. A completed mutation therefore receives a subsequent snapshot rather
+than silently reusing a response requested before that mutation. Failure of the
+older request does not cancel a queued refresh; its own caller reports the error.

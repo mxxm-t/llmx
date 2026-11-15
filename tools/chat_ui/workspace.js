@@ -4,7 +4,7 @@
   const {node, number} = window.ChatRender;
   const {api} = window.ChatShell;
   const view = document.getElementById('view-workbench');
-  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: false, isNew: false};
+  const state = {snapshot: null, path: '', original: '', revision: 0, activeJob: null, timer: null, loading: null, isNew: false};
   const terminal = job => ['completed', 'failed', 'cancelled'].includes(job.status);
   function control(label, cls, listener) { const button = node('button', cls || 'secondary-button', label); button.type = 'button'; if (listener) button.addEventListener('click', () => Promise.resolve().then(listener).catch(showError)); return button; }
   const toolbar = node('div', 'view-toolbar'); const heading = node('div'); heading.append(node('h2', '', 'Managed workspace'), node('p', '', 'Files, checkpoints and isolated command execution.'));
@@ -75,9 +75,12 @@
     renderFiles(); renderCheckpoints(); renderJobs(); scheduleJobs();
   }
   async function load() {
-    if (state.loading) return; state.loading = true;
-    try { clearError(); applySnapshot(await api('/workspace')); if (!state.path) state.revision = state.snapshot.revision; }
-    finally { state.loading = false; }
+    while (state.loading) {
+      try { await state.loading; } catch { /* The older caller reports its failure; this caller still needs a refresh. */ }
+    }
+    const loading = api('/workspace'); state.loading = loading;
+    try { const snapshot = await loading; clearError(); applySnapshot(snapshot); if (!state.path) state.revision = state.snapshot.revision; }
+    finally { state.loading = null; }
   }
   async function openFile(path) {
     if (!await canReplace()) return; clearError();

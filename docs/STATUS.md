@@ -46,6 +46,16 @@
 **Gotchas.** No inference code, production restart, firewall changes or other developer's server/auth edits. Forwarded client headers are ignored, so users behind a proxy or NAT share its limit. Password policy and resource limits remain service-owned rather than new tuning flags. SSE connections occupy slots. This bounds resources, not all denial-of-service attacks: slow clients can retain slots, and password hashing still serializes on the application's existing lock.
 
 
+## Chat companion dialogs (2026-11-15, In progress)
+
+**Goal.** Replace remaining native prompt and confirm flows in the owner chat companion with the existing accessible action dialog, preserving cancellation, focus, busy and stale-revision behavior. Keep the browser beforeunload guard.
+
+**Done.** Status opened before implementation. Isolated worktree `worktrees/chat-dialogs-20261115` on `feat/chat-dialogs`, based on published main `f0d444c6d`.
+
+**Left.** Add failing browser regressions first, then convert each caller to the shared dialog, qualify desktop/mobile/keyboard flows and screenshots, and update companion usage notes.
+
+**Gotchas.** Static browser UI only. Do not import pending HTTP branch changes to `browser_check.mjs`; root will integrate them separately.
+
 ## Chat controls and streaming reasoning (2026-11-15, Done)
 
 **Goal.** Compact anchored grouped conversation actions, accessible rename/folder/delete dialogs, duplicate and Open Workspace tool links. Reasoning disclosures stay interactive while text streams.

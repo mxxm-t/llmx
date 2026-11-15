@@ -21,6 +21,7 @@ const pending = new Map();
 const errors = [];
 const runStreams = [];
 let heldMonitorLoad = null;
+const nativeDialogs = [];
 async function cdp(method, params = {}) {
   const id = ++nextId;
   return new Promise((resolve, reject) => {
@@ -106,7 +107,7 @@ try {
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     if (data.method === 'Network.requestWillBeSent' && /\/api\/runs\/[^/]+\/events(?:\?|$)/.test(data.params.request.url)) runStreams.push(data.params.request.url);
     if (data.method === 'Fetch.requestPaused') heldMonitorLoad = data.params.requestId;
-    if (data.method === 'Page.javascriptDialogOpening') cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {});
+    if (data.method === 'Page.javascriptDialogOpening') { nativeDialogs.push(data.params.type); cdp('Page.handleJavaScriptDialog', {accept: true, promptText: 'Research'}).catch(() => {}); }
   };
   await cdp('Page.enable'); await cdp('Runtime.enable'); await cdp('DOM.enable'); await cdp('Network.enable');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false});
@@ -447,6 +448,10 @@ try {
   await wait("document.querySelector('#app').dataset.view==='chat' && window.ChatShell && window.ChatShell.config!==null", 'backup restore reload');
   await click('.global-nav [data-view="workbench"]');
   await wait("document.querySelector('.workspace-revision').textContent==='Revision 0'", 'workspace load');
+  await click('.workbench-view .primary-button');
+  await wait("document.querySelector('#action-dialog').open", 'accessible new-file dialog', 700);
+  assert.equal(await evaluate("document.querySelector('#action-dialog-title').textContent"), 'New workspace file');
+  await click('#conversation-cancel');
   await click('.workbench-view .primary-button');
   await fill('#workspace-editor', 'first version\n'); await click('#workspace-save');
   await wait("document.querySelector('.workspace-file-name')?.textContent==='Research' && document.querySelector('#workspace-save').disabled", 'workspace file save');

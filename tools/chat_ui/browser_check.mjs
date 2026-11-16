@@ -1194,6 +1194,33 @@ try {
   assert.equal(apiMutations.filter(item => item.url.endsWith('/api/workspace/delete')).length, deletesBeforeCancel, 'cancelled workspace delete sent a request');
   assert.equal(await evaluate("document.querySelector('.workspace-file-list').textContent.includes('Research')"), true, 'cancelled workspace delete removed the file');
   await screenshot('studio-workspace-desktop.png');
+  await click('.workspace-file[title="external.txt"]');
+  await wait("document.querySelector('#workspace-editor').value==='Concurrent change'", 'open distinct file after command');
+  await click('.workspace-file[title="Research"]');
+  await wait("document.querySelector('#workspace-editor').value==='first version\\n'", 'reload editor base after command');
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.releaseWorkspaceSave = null;
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (args[0] !== '/api/workspace/file' || args[1]?.method !== 'POST') return response;
+      window.fetch = original;
+      window.workspaceSaveResult = await response.clone().json();
+      return new Promise(resolve => { window.releaseWorkspaceSave = () => resolve(response); });
+    };
+  })()`);
+  await fill('#workspace-editor', 'Submitted workspace text');
+  await click('#workspace-save');
+  await wait("typeof window.releaseWorkspaceSave==='function'", 'actual workspace save response held');
+  await fill('#workspace-editor', 'Newer unsaved workspace text');
+  await evaluate('window.releaseWorkspaceSave()');
+  await wait("document.querySelector('.workspace-revision').textContent==='Revision '+window.workspaceSaveResult.revision", 'save metadata refresh');
+  assert.equal(await evaluate("document.querySelector('#workspace-editor').value"), 'Newer unsaved workspace text');
+  assert.equal(await evaluate("document.querySelector('.unsaved-indicator').hidden"), false, 'save completion marked newer unsaved text as saved');
+  assert.equal(await evaluate("fetch('/api/workspace/file?path=Research').then(r=>r.json()).then(f=>f.content)"), 'Submitted workspace text');
+  await click('#workspace-save');
+  await wait("document.querySelector('.unsaved-indicator').hidden", 'save newer workspace text');
+  assert.equal(await evaluate("fetch('/api/workspace/file?path=Research').then(r=>r.json()).then(f=>f.content)"), 'Newer unsaved workspace text');
   const previewSource = '<!doctype html><html><body><h1>Isolated preview</h1><script>console.log("preview-ready");try{parent.document.body.dataset.previewTouched="yes"}catch(e){console.log("parent-blocked")}fetch("/api/session").then(()=>console.error("network-allowed")).catch(()=>console.log("network-blocked"));setTimeout(()=>{throw new Error("preview-error")},20)</script></body></html>';
   await evaluate(`window.ChatArtifacts.open({name:'preview.html',language:'html',source:${JSON.stringify(previewSource)}})`);
   await click('#artifact-preview-tab');

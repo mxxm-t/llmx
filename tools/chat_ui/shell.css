@@ -1028,6 +1028,14 @@
   font-size: 11px;
   white-space: nowrap;
 }
+#app[data-temporary="true"] .topbar-actions .temporary-button {
+  border-style: solid;
+}
+.topbar-actions .temporary-button .chat-create-label {
+  flex: 0 0 84px;
+  width: 84px;
+  white-space: nowrap;
+}
 .workspace:not([data-view=chat]) .topbar-actions .temporary-button {
   display: none;
 }

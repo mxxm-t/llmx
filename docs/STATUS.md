@@ -1,18 +1,20 @@
 # llmx - Development Status
 
-## Temporary chat toggle stability (2026-11-16, In progress)
+## Temporary chat toggle stability (2026-11-16, Done)
 
 **Goal.** Keep the normal and temporary header toggle visually stable and avoid saving an empty conversation when leaving temporary mode.
 
-**Done.** Added browser coverage for the Normal chat button's solid border, fixed geometry in both modes at desktop/mobile widths and both themes, unchanged saved-chat count, and first-message persistence.
+**Done.** The toggle uses `leaveTemporary()` under the existing creation guard to return to the blank normal view. `send()` alone saves that view on its first message. The Normal chat action is solid, the Temporary chat action remains dashed, and both reserve the same label width. Existing saved chats, discard confirmation and active-run guards are preserved.
 
-**Left.** The regression is reproduced on main: the Normal chat button remains dashed (38.112 s, `scratch/temp-toggle-fix/red-corrected.log`). Fix the existing toggle owner, update docs and run focused checks.
+**Checks.** The amended browser regression failed on main at the Normal chat border (38.112 s), then passed on the fixed source (42.777 s). It covers both themes at 1440/320 pixels, fixed button/adjacent-control geometry, repeated empty toggles without saved records, first-message persistence, cancellation, active-run protection and temporary expiry. Root reviewed source, the changed assertions and rendered mobile layout. JavaScript syntax and diff whitespace checks pass. Logs are in `scratch/temp-toggle-fix/`.
 
-**Gotchas.** Reuse `leaveTemporary()` for confirmation and run guards; return to the blank normal view so `send()` remains the owner that creates a saved chat.
+**Review and landing.** Static companion scope only; no collector or runtime changes. README and TESTS describe the new behavior. Markdown reference review found temporary-mode claims in the companion README, CONTRACT and STATUS; the API contract is unchanged and the original toggle record below is historical. Root README needs no change because this changes no advertised runtime capability. The docs component passes with 0 findings and 21 planted checks; dead-code passes with 15 expected findings and 20 planted checks. The change lands by fast-forward to GitHub main without unrelated inference gates.
 
-## Temporary chat header toggle (2026-11-16, Done)
+**Gotchas.** The border follows the destination label, not the current mode. Do not duplicate creation/discard logic or delete old saved conversations when toggling.
 
-**Goal.** Let the conversation-header action switch from temporary mode back to a regular conversation.
+## Temporary chat header toggle (2026-11-16, original landing)
+
+**Goal.** Let the conversation-header action switch from temporary mode back to a regular conversation. This initial implementation was superseded by the toggle-stability fix above; the checks below describe its original landing.
 
 **Done.** Existing `newChat()` and `leaveTemporary()` own normal chat creation, temporary exit confirmation, and current-run protection.
 

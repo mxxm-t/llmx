@@ -121,7 +121,7 @@ It does not lock the upstream model or control later server restarts.
 
 ## Temporary chats
 
-Temporary chat in the conversation header opens a conversation held only in companion memory. In temporary mode, the same button is labeled Normal chat and starts a regular saved conversation.
+Temporary chat in the conversation header opens a conversation held only in companion memory. In temporary mode, the same button is labeled Normal chat and returns to a blank normal conversation, saved only when you send a message. Both labels keep the same width; the Temporary chat action is dashed and the Normal chat action is solid.
 It is absent from saved history and SQLite backups. Messages, attachments, settings
 and replay events share the normal conversation engine in a separate in-memory
 store. Reloading the page recovers the current temporary chat through an identifier

@@ -201,8 +201,13 @@
     await end(); return true;
   }
   async function temporaryChat() {
-    if (S.chat?.temporary) return newChat();
     if (creatingChat || S.busy) return;
+    if (S.chat?.temporary) {
+      chatCreating(true);
+      try { await leaveTemporary(); }
+      finally { chatCreating(false); }
+      return;
+    }
     if (!S.config.temporary?.enabled) throw new Error('Temporary chats are unavailable on this server.');
     chatCreating(true);
     try {

@@ -54,7 +54,7 @@ cancellation and restart cleanup. Browser checks cover anchored grouped
 conversation actions on unselected rows, rename/folder/delete dialogs, duplicate
 and Open Workspace tool links; reasoning disclosure pointer clicks during
 streamed updates and reload replay of the same run; temporary reply reload,
-explicit discard and a missing temporary ID. The browser check also covers shared
+explicit discard and a missing temporary ID. Mode toggles preserve button geometry in both themes on desktop and mobile, use solid/dashed destination styles and leave saved history unchanged until a normal message is sent. The browser check also covers shared
 dialogs for workspace files, checkpoints, generated-file editing, unsaved edits,
 temporary-chat exit and backup restore; cancel-without-request behavior, keyboard
 shortcuts while a dialog is open, focus return, async busy/error handling, and

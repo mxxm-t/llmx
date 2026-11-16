@@ -17,19 +17,28 @@ from server import Application, Server
 
 
 class FakeUpstream(BaseHTTPRequestHandler):
+    models = ["test-model"]
+    model_error = False
+    posts = []
+
     def log_message(self, format, *args):
         pass
 
     def do_GET(self):
-        payload = json.dumps({"data": [{"id": "test-model"}]}).encode("utf-8")
-        self.send_response(200)
+        if self.path.endswith("/models") and type(self).model_error:
+            payload = json.dumps({"error": "model server unavailable"}).encode("utf-8")
+            self.send_response(503)
+        else:
+            payload = json.dumps({"data": [{"id": model} for model in type(self).models]}).encode("utf-8")
+            self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
 
     def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        type(self).posts.append((self.path, json.loads(raw) if raw else {}))
         payload = (b'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'
                    b"data: [DONE]\n\n")
         self.send_response(200)
@@ -219,6 +228,9 @@ class RouteTests(unittest.TestCase):
         cls.upstream.server_close()
 
     def setUp(self):
+        FakeUpstream.models = ["test-model"]
+        FakeUpstream.model_error = False
+        FakeUpstream.posts = []
         self.temp = tempfile.TemporaryDirectory()
         upstream_url = "http://127.0.0.1:%d/v1" % self.upstream.server_address[1]
         self.app = Application(os.path.join(self.temp.name, "routes.sqlite"),
@@ -464,6 +476,69 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(self.request("POST", f"/api/chats/{fresh}/runs", {"content": "  "}, cookie)[0], 400)
         self.assertEqual(self.request("POST", f"/api/chats/{fresh}/runs",
                                       {"content": "x", "settings": {"top_p": 2}}, cookie)[0], 400)
+
+    def test_run_rejects_model_removed_since_cached_config_before_mutation(self):
+        cookie = self.login()
+        chat = self.json_body(self.request("POST", "/api/chats", {}, cookie))
+        self.assertEqual(self.json_body(self.request("GET", "/api/config", cookie=cookie))["models"],
+                         [{"id": "test-model"}])
+        FakeUpstream.models = ["replacement-model"]
+        before = self.app.store.snapshot(chat["id"])
+        settings = {"model": "test-model", "system": "", "temperature": 0.7,
+                    "top_p": 0.95, "top_k": 40, "max_tokens": 4096, "tools": []}
+        response = self.request("POST", f"/api/chats/{chat['id']}/runs",
+                                 {"content": "question", "settings": settings}, cookie)
+        self.assertEqual(response[0], 409, self.json_body(response))
+        self.assertEqual(self.json_body(response), {
+            "code": "model_unavailable",
+            "error": "This model is not available on the connected server. Choose another model before sending.",
+            "models": [{"id": "replacement-model"}],
+            "upstream_available": True,
+            "upstream_error": None,
+        })
+        after = self.app.store.snapshot(chat["id"])
+        self.assertEqual(after["messages"], before["messages"])
+        self.assertEqual(after["runs"], before["runs"])
+        self.assertNotIn("/chat/completions", [path for path, _ in FakeUpstream.posts])
+
+    def test_run_rejects_explicit_model_when_fresh_catalog_is_unavailable(self):
+        cookie = self.login()
+        chat = self.json_body(self.request("POST", "/api/chats", {}, cookie))
+        self.json_body(self.request("GET", "/api/config", cookie=cookie))
+        FakeUpstream.model_error = True
+        settings = {"model": "test-model", "system": "", "temperature": 0.7,
+                    "top_p": 0.95, "top_k": 40, "max_tokens": 4096, "tools": []}
+        response = self.request("POST", f"/api/chats/{chat['id']}/runs",
+                                 {"content": "question", "settings": settings}, cookie)
+        self.assertEqual(response[0], 503, self.json_body(response))
+        body = self.json_body(response)
+        self.assertEqual(body["code"], "model_unavailable")
+        self.assertEqual(body["models"], [])
+        self.assertFalse(body["upstream_available"])
+        self.assertTrue(body["upstream_error"])
+        snapshot = self.app.store.snapshot(chat["id"])
+        self.assertEqual(snapshot["messages"], [])
+        self.assertEqual(snapshot["runs"], [])
+        self.assertNotIn("/chat/completions", [path for path, _ in FakeUpstream.posts])
+
+    def test_run_accepts_available_explicit_model_and_empty_default(self):
+        cookie = self.login()
+        explicit = {"model": "test-model", "system": "", "temperature": 0.7,
+                    "top_p": 0.95, "top_k": 40, "max_tokens": 4096, "tools": []}
+        default = dict(explicit, model="")
+        for settings in (explicit, default):
+            chat = self.json_body(self.request("POST", "/api/chats", {}, cookie))
+            response = self.request("POST", f"/api/chats/{chat['id']}/runs",
+                                    {"content": "question", "settings": settings}, cookie)
+            self.assertEqual(response[0], 201, self.json_body(response))
+            run = self.json_body(response)["run"]
+            deadline = time.monotonic() + 3
+            while self.app.store.run(run["id"])["status"] not in ("completed", "failed"):
+                self.assertGreater(deadline - time.monotonic(), 0, "fake upstream did not finish the reply")
+                time.sleep(0.01)
+            self.assertEqual(self.app.store.run(run["id"])["status"], "completed")
+        self.assertEqual([payload["model"] for path, payload in FakeUpstream.posts
+                          if path.endswith("/chat/completions")], ["test-model", ""])
 
     def test_attachments_are_validated_and_names_are_sanitized(self):
         cookie = self.login()

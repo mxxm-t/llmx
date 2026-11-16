@@ -11,6 +11,15 @@
 **Checks and landing.** Docs passes with zero findings and 21 planted checks; dead-code passes with 15 expected findings and 20 planted checks. Root checked the bounded worker's diff against the deployed companion and preserved the historical qualification records. The docs-only change lands as one fast-forward commit; unrelated hosted inference jobs do not apply. Final Markdown evidence is checked again before landing.
 
 **Gotchas.** The local runtime on port 8091 was not restarted for this documentation review. No claim is made that it provides request correlation or measured correlated TPS; deployment state must be checked when needed.
+## Chat list structure (2026-11-16)
+
+**Goal.** Preserve nested Markdown lists and their starting numbers so model replies keep their intended reading hierarchy.
+
+**Done.** Source inspection finds that the renderer discards indentation and creates each ordered list at one. The shared `render.js` owner will handle list structure for messages, reasoning and previews without a second renderer or dependency.
+
+**Left.** Add the failing browser cases, retain nested items and indented content, then check responsive presentation and source gates before landing the static change.
+
+**Gotchas.** This remains a bounded basic Markdown renderer. Model text must remain text nodes, and partial streamed lists must not lose content or become executable markup.
 
 ## Streamed tool-call preparation (2026-11-16, Done)
 

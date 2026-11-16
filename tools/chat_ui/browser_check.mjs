@@ -269,6 +269,58 @@ try {
   assert.equal(await evaluate("document.querySelector('.brand-wordmark').getBoundingClientRect().height"), 30, 'sidebar wordmark height');
   assert.equal(await evaluate("(async()=>{const img=new Image();img.src='/logo.svg';await img.decode();return img.naturalWidth>0})()"), true, 'wordmark asset decoded');
   await screenshot('desktop-empty.png');
+  const nestedListSource = '3. First\n   - Child\n     7. Leaf\n        Wrapped line\n\n        ```js\n        const value = 1;\n        ```\n4. Second\n\nAfter\n\n- Root\n  - Nested **text**\n- Next';
+  const nestedListShape = await evaluate(`(() => {
+    const rendered = ChatRender.markdown(${JSON.stringify(nestedListSource)});
+    const first = rendered.firstElementChild;
+    const nested = first.querySelector(':scope > li > ul > li > ol');
+    return {start: first.start, items: first.querySelectorAll(':scope > li').length,
+      leafStart: nested?.start, wrapped: nested?.textContent.includes('Wrapped line'),
+      code: nested?.querySelector('code')?.textContent,
+      following: first.nextElementSibling?.textContent,
+      lastItems: rendered.lastElementChild.querySelectorAll(':scope > li').length,
+      bold: rendered.lastElementChild.querySelector('li > ul strong')?.textContent};
+  })()`);
+  assert.deepEqual(nestedListShape, {start: 3, items: 2, leafStart: 7, wrapped: true,
+    code: 'const value = 1;', following: 'After', lastItems: 2, bold: 'text'}, 'nested lists lost structure, numbering or item content');
+  assert.equal(await evaluate(`ChatRender.markdown(${JSON.stringify('- Root\n  - <img src=x onerror=alert(1)>')}).querySelector('img')===null`), true, 'nested list parsed model HTML');
+  assert.deepEqual(await evaluate(`(() => {
+    const rendered=ChatRender.markdown(${JSON.stringify('5) Root\n\t- Tabbed\n6) Next')});
+    return {start:rendered.firstElementChild.start, items:rendered.firstElementChild.children.length,
+      nested:rendered.querySelector('ol > li > ul > li')?.textContent};
+  })()`), {start:5,items:2,nested:'Tabbed'}, 'tabs or parenthesis numbering changed list ownership');
+  assert.equal(await evaluate(`(() => {
+    const source=Array.from({length:24},(_,i)=>'  '.repeat(i)+'- level:'+i+':').join(String.fromCharCode(10));
+    const rendered=ChatRender.markdown(source);
+    return rendered.querySelectorAll('ul').length<=8 && Array.from({length:24},(_,i)=>'level:'+i+':').every(text=>rendered.textContent.includes(text));
+  })()`), true, 'deep list fallback lost content or exceeded nesting bound');
+  assert.equal(await evaluate(`(() => {
+    const source=${JSON.stringify('- Parent\n  - Child **text**\n- Next')};
+    for(let end=1;end<=source.length;end++) {
+      const text=ChatRender.markdown(source.slice(0,end)).textContent;
+      if(end>=8&&!text.includes('Parent')) return false;
+      if(end>=18&&!text.includes('Child')) return false;
+    }
+    return ChatRender.markdown(source).querySelector('ul > li > ul > li strong')?.textContent==='text';
+  })()`), true, 'partial streamed list dropped visible content');
+  await evaluate(`(() => {
+    const fixture=document.createElement('article'); fixture.id='markdown-list-fixture'; fixture.className='message assistant';
+    fixture.style.cssText='position:fixed;inset:20px;z-index:1000;overflow:auto;padding:20px;background:var(--panel);border:1px solid var(--border);margin:0;max-width:700px';
+    fixture.append(ChatRender.markdown(${JSON.stringify(nestedListSource)})); document.body.append(fixture);
+  })()`);
+  for(const width of [1440,320]) for(const theme of ['dark','light']) {
+    await cdp('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<500});
+    await evaluate('document.documentElement.dataset.theme='+JSON.stringify(theme));
+    assert.equal(await evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('#markdown-list-fixture').scrollWidth<=document.querySelector('#markdown-list-fixture').clientWidth"), true, 'nested list horizontal overflow');
+    assert.equal(await evaluate(`Array.from(document.querySelectorAll('#markdown-list-fixture .code-actions button')).every(button=>{
+      const range=document.createRange(); range.selectNodeContents(button);
+      const bounds=button.getBoundingClientRect(), header=button.closest('.code-heading').getBoundingClientRect();
+      return range.getClientRects().length===1 && bounds.left>=header.left && bounds.right<=header.right;
+    })`), true, 'nested code actions split labels or leave their header');
+    await screenshot('nested-list-'+width+'-'+theme+'.png');
+  }
+  await evaluate("document.querySelector('#markdown-list-fixture').remove();document.documentElement.dataset.theme='dark'");
+  await cdp('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await evaluate("for (let i=0;i<12;i++) document.querySelector('[data-action=\"new\"]').click()");
   await wait("document.querySelector('.chat-item.active')!==null", 'new empty conversation');
   await evaluate("new Promise(resolve => setTimeout(resolve, 200))");

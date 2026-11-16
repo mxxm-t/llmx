@@ -532,6 +532,7 @@ try {
   }
   await cdp('Emulation.setDeviceMetricsOverride', {width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await evaluate(`document.documentElement.dataset.theme=${JSON.stringify(replyTheme)};document.querySelector('#app').classList.toggle('inspector-closed',${replyInspectorClosed})`);
+  assert.equal(await evaluate("document.querySelector('.tool-call .approval')===null"), true, 'completed tool retained its obsolete approval panel');
   const chatBeforeSlowAttachment = await evaluate("localStorage.getItem('llmx-chat')");
   await evaluate("window.__originalArrayBuffer=Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer=function(){return new Promise(resolve=>{window.__releaseFileRead=()=>resolve(window.__originalArrayBuffer.call(this));});}");
   await upload('#file-input', fixture);

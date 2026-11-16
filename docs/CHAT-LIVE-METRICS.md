@@ -1,11 +1,14 @@
 # Chat live request metrics
 
-Status: implementation and local qualification are complete. CPU byte identity,
+Status: implementation and qualification are complete. CPU byte identity,
 companion/dashboard checks, real runtime-to-companion correlation, the MI50 server
-component and hosted Chat on both operating systems pass. Runtime CI remains
-pending. The optional MI50 real-model section skipped because no model fixture
-was mounted. The feature is available on the isolated local preview at port 8185;
-it is not merged or production-deployed. Owner: CHATUI. Base: `431dae029`.
+component and hosted Chat on both operating systems passed. The runtime and Chat workflows passed all
+ten jobs on `2ed3d9c2c`; the optional MI50 real-model section skipped because no
+model fixture was mounted. The feature landed on main in `09da32700` and
+`222388611`. Port 8185 is the current local preview with the updated runtime and
+companion; the older Python processes on 8183 and 8184 do not include live request
+correlation. No production deployment status is asserted here. Owner: CHATUI.
+Development base: `431dae029`.
 
 ## Contract
 
@@ -68,10 +71,10 @@ Browser and shared-rate checks cover normal, stale, missing, reset and completed
 states, subscription lifetime, mobile layout and both themes. The isolated local
 preview also passed correlation against a real runtime reply.
 
-Landing requires CTest, the CPU suite, Qwen3-0.6B byte identity, hosted checks and
-the MI50 server component. The hosted HF job runs the full CPU/server suite with
-pinned model fixtures. The redundant local full server run was stopped and is
-not counted as a pass. Final qualification results are in STATUS.
+Landing gates passed: CTest, the CPU suite, Qwen3-0.6B byte identity, hosted
+checks and the MI50 server component. The hosted HF job ran the full CPU/server
+suite with pinned model fixtures. The redundant local full server run was stopped
+and is not counted as a pass. Qualification details are in STATUS.
 
 The runtime identity and companion consumer ship together. Existing upstreams
 without the shared identity remain usable, with live rates unavailable. Do not

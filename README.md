@@ -186,4 +186,5 @@ Finished conversations are kept for prefix reuse in device memory, then host mem
 - [BUILD](docs/BUILD.md): building on each platform, and running the tests.
 - [ROADMAP](docs/ROADMAP.md): what is planned.
 - [ARCHITECTURE](docs/ARCHITECTURE.md), [SERVER](docs/SERVER.md), [VULKAN](docs/VULKAN.md), [ROCM](docs/ROCM.md) and [MULTI-DEVICE](docs/MULTI-DEVICE.md): how the runtime, the server, the Vulkan and ROCm backends and the multi-device modes work.
+- [CHAT-LIVE-METRICS](docs/CHAT-LIVE-METRICS.md): the chat companion's live request metrics.
 - [AGENTS](AGENTS.md): for contributors, and [TESTS](docs/TESTS.md): what each test checks.

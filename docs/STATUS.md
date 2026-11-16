@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## Landing stack land-20261116 (2026-11-16, Done)
+
+**What lands.** The stack on main 929f042c6: flake/stack, fix/rocm-exit, fix/kv-tokens-shared, fix/fit-prompt-scratch, server/auth with fix/tokenizer-nfc, sec/docker-user, formats/quant-awq (three commits, with the numerics-sources allow for hf_tokenizer.hpp and the GGUF tensor names carried by the qwen3 HF table), qwen27/norm-split and held-rows, rocm/q51-int8, ds4/route-fusion (with the cuda-sass allowance for llmx_route_step_ in place of llmx_hc_), dspp5/streams-land, arch/minimax-devices steps 1 to 7, CUDA steps 4, 5 and 2, perf/vulkan-row-sizes and perf/vulkan-q1-rows, docs/readme-sweep, tests/readme-check, rel/0.2.0, the README rows the stack adds, and the readme check's python-command exemption.
+fix/cuda-sass-q4-sparse and fix/cuda-sass-spills are left out, since CUDA step 4 already lists their families.
+
+**Gates.** Builds R, V and C (ROCm 7.2.1, Vulkan, CPU) and the CUDA 12.9.1 compile give 0 errors at the landing head, and every check below passed; "carried" rows ran on the head before the AWQ fix and the cuda-sass allowance, whose delta is the AWQ loader's 7 files and tests/cuda_sass.py.
+The first timing round found Qwen3-0.6B Q8_0 int8 decode 2 percent below main; the cause was the held norms reading `gridDim.y`, which gave them hidden kernel arguments, and the norm commit now passes its part count as an argument (Held norm rows in parts, below).
+The rows below that name the argument ran on the head with it; the others ran before it.
+A timing round on the head with the argument under a host load of 35 to 57 spread up to 50 percent a cell and was set aside for the rerun below, taken once the load fell under 20.
+
+| Check | Result | Tree |
+|---|---|---|
+| Suite dead-code, docs, arch-boundary, version, safetensors (CPU build) | PASS: docs 0 findings, arch-boundary 0, safetensors max error 6.7e-7 | landing head |
+| CTest CPU / ROCm (one MI50) / Vulkan (one MI50) | 90/90, 94/94, 110/110, backend-rocm and backend-vulkan included | landing head |
+| CUDA compile and CTest cuda-sass, gpu-core, gpu-port, cuda-driver | 0 errors, 4/4 | landing head, with the argument |
+| CTest backend-rocm, backend-rocm-sixteen and backend-rocm-scratch on one MI50 | 3/3 | landing head, with the argument |
+| Generate and prompt logits against main 929f042c6 on ROCm: Qwen3-0.6B Q8_0, BF16, Q4_0 and Q4_1 at f16 and int8, Qwen3-0.6B Q5_1 at int8, Qwen3.5-0.8B Q4_K_M at f16 and int8, Qwen3-14B Q8_0 at int8 | byte identical, 27 of 27 cells; Qwen3-0.6B IQ4_XS is refused on ROCm by both arms, which have no ROCm IQ4_XS rows, and the change does not reach Vulkan | landing head, with the argument |
+| Qwen3-0.6B Q8_0 generate, prompt logits and per-token logits against main 929f042c6, CPU, ROCm and Vulkan at f16 and int8 | byte identical, 15 of 15 cells | landing head |
+| Qwen3-0.6B Q4_0, Q4_1 and IQ4_XS generate and prompt logits against main on Vulkan at auto and int8 (the one-column rows), and Qwen3-0.6B Q5_1 at int8 on ROCm | byte identical, 14 of 14 cells | landing head |
+| HF error | every type the kernel commits reach gives main's bits above, Q5_1 int8 included, so main's recorded HF errors and their headroom hold unchanged | landing head |
+| Qwen3-4B-AWQ directory, the directory mapped and its Q5_0 twin on the CPU, the AWQ fix's own check | same last-256 prompt logits (9fff631d, the hash before the fix) and the same 64 greedy ids (4a7f263b), so the AWQ block's HF file-exact rows carry | AWQ fix ef6e30077, whose loader sources the head holds unchanged |
+| tg128 against main, one MI50, ABAB, `bench --p 512 --n 128 --r 3`, host wait 0 ms in every cell | Qwen3-14B Q8_0 ROCm int8 47.11, 47.04 against 42.62, 44.54 tok/s (+6 to +10%); Qwen3-0.6B Q4_0 Vulkan 356.5, 354.1 against 346.4, 346.9 (+2.5%); Qwen3-0.6B Q8_0 ROCm int8 397.3, 397.5, 401.1, 400.7 against 407.3, 406.2, 411.6, 406.6 (-2.0%), at f16 381.5 against 381.6, 381.9; pp512 level in every pair; the 0.6B int8 drop was the held norms' hidden arguments | landing head, before the argument |
+| tg128 against main, one MI50, ABAB, `bench --p 512 --n 128 --r 3`, int8, host wait 0 to 4 ms and load 14 to 18 on 16 CPUs in every cell | Qwen3-0.6B Q8_0 min/median/max over five rounds 413.1/417.9/432.3 against 406.5/412.2/416.5 tok/s (+1.4% median); Qwen3-14B Q8_0 over three rounds 47.24/47.25/47.29 against 44.36/44.40/44.50 (+6.4%); pp512 within 0.6 percent in every pair | landing head, with the argument |
+| CUDA on one RTX 3090: backend-cuda, the suite's moe at f16 and int8, Qwen3-0.6B Q8_0 greedy ids against the CPU build's | PASS on 2026-11-16 session S1 (results /opt/claude-work/land66/s1/results): ids equal the CPU build's at f16 and int8 (64 tokens), backend-cuda no failure line, the suite's moe at f16 and int8 rc 0; nvcc 12.9.86, driver 580.178.04 | landing head 3c89a3b43, with the argument |
+| CPU and ROCm suites | PASS but for docs, arch-boundary and version, which the AWQ fix and the readme fix close (rows above) | carried |
+| Vulkan suite on an MI50 | PASS but for docs, arch-boundary and version, which the rows above close; minimax and baseline skip | carried |
+| Qwen3.6-27B-MTP Q8_0 1x4 generate and logits at f16 and int8 against main | byte identical; pp512 788/788 tok/s main/branch | carried |
+| DeepSeek-V4.1-Flash MXFP4 ten MI50s, tensor width 1 and 2, generate and logits against main | byte identical (main's width-2 logits output ends at row 15011 of 15032; identical up to there) | carried |
+| DeepSeek-V4.1-Flash pp16384 / tg16, ten MI50s | width 1: 1957/1704 pp, 28.0/25.5 tg (best of two, branch/main); width 2: 1595/1533 pp, 37.9/34.3 tg | carried |
+
+The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
+
 ## Companion deployment documentation refresh (2026-11-16, Done)
 
 **Goal.** Keep the durable live-metrics contract free of changing local port and process claims, while preserving deployment evidence as dated history.
@@ -855,6 +887,7 @@ Every cell, both arms alike, recorded 1.4 to 66.5 s of host run-queue wait (`hos
 The Radeon VII check is not reached: the Windows build compiles no `gpu/` kernel.
 
 **Gotchas.** The CUDA build shares `kernels/int16.gpu` and `row_build`; on a 32-lane wave a span is 16 blocks, so the held rows there are rows of 17 to 80 blocks, compiled and not run on a device.
+Qwen3-0.6B's 1024-wide rows are 32 blocks, inside that range, so CUDA runs them held; that is untimed.
 The rule stops at five spans for a kernel register property, not a device number: each span holds its twin and weight words a lane, about 11 VGPRs a span, so five spans take 60 to 61 VGPRs on gfx906 (`kb35`'s assembly), within the 64 that keep four waves a SIMD, and a sixth would take 72 and drop to three; six spans and more were not timed and keep the stepped builds.
 Qwen3.8-27B's down projection (17408 x 5120 in the file) is 4352 x 5120 a member at 1x4 (136 blocks), held as `half8_1h5` in the table above, and 8704 x 5120 at 2x2 (272 blocks), which stays on the stepped builds; so the gains cover every 1x4 product, and at 2x2 all but the down projections.
 

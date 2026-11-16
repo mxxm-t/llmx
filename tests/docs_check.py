@@ -890,7 +890,7 @@ def readme_findings(tree):
     taken = set().union(*tree.commands.values()) | {"--help"}
     for n, line, _, fence in doc_lines(README, text):
         if not fence:
-            for f in re.findall(r"(?<![\w-])(--[A-Za-z][\w-]*)", line):
+            for f in re.findall(r"(?<![\w-])(--[A-Za-z][\w-]*)", re.sub(r"python3?\s[^`]*", "", line)):
                 if f not in taken:
                     add(f, n, "no command's help page lists %s; name a flag print_usage gives, or add it there" % f)
 
@@ -1119,6 +1119,11 @@ def self_test(tree, found, listed):
             if wrong:
                 print("  self-test: a correct pinned line reference was reported: %s" % "; ".join(" | ".join(k) for k in wrong))
                 ok = False
+    count += 1
+    other = ("readme", README, "--other-flag")
+    if other in readme_findings(planted(tree, [(README, "\n## Documentation", "\nRun `python tools/x.py --other-flag`.\n\n## Documentation")])):
+        print("  self-test: a flag of a python script was reported as an llmx flag")
+        ok = False
     key = ("comment", "src/core/utf8.hpp", "wall")
     count += 3
     if len(comment_findings(walls).get(key, [])) != len(comment_findings(tree).get(key, [])) + 3:

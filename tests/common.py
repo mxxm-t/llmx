@@ -20,7 +20,7 @@ EXE = os.path.join(ROOT, "llmx.exe" if os.name == "nt" else "llmx")
 CPU_DTYPE_PATHS = {
     "f32": "f32",
     "bf16": "bf16 (matrix inputs), f32 (routers)",
-    "f16": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)",
+    "f16": "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f16 (F8_E4M3), f32 (other products, routers)",
 }
 
 

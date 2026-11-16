@@ -258,7 +258,7 @@ int main(int argc, char** argv) {
         rejected(path, "Q2_K partial row with an overflowing element count", one({maximum, 2}, 10, 0, 0), "whole");
         rejected(path, "F16 byte count overflow", one({uint64_t(1) << 63}, 1, 0, 0), "overflow");
         rejected(path, "Q8_K byte count overflow across rows", one({256, maximum / 256}, 15, 0, 0), "overflow");
-        for (uint32_t id : {4u, 5u, 31u, 32u, 33u, 36u, 37u, 38u, 43u}) {
+        for (uint32_t id : {4u, 5u, 31u, 32u, 33u, 36u, 37u, 38u, 44u}) {
             rejected(path, "removed or unknown storage " + std::to_string(id), one({32}, id, 0, 128), "tensor type");
             rejected(path, "removed or unknown empty storage " + std::to_string(id), one({maximum, 2, 0}, id, 0, 0), "tensor type");
         }

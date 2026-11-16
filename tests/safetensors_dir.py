@@ -193,6 +193,131 @@ def ct_quantization(bits, sym, packed, group):
             "ignore": ["lm_head"], "kv_cache_scheme": None, "global_compression_ratio": None, "sparsity_config": {}}
 
 
+# A 128-wide model for FP8 linears, whose scales cover 128 inputs: q and the feed-forward rows fill whole 128-row blocks, and k and v fill half of one.
+FP8_CONFIG = {"block_count": 2, "embedding_length": 128, "feed_forward_length": 256, "attention.head_count": 2,
+              "attention.head_count_kv": 1, "attention.key_length": 64, "context_length": 16}
+# Dialect (fp8: quant_method fp8 with weight_scale_inv; ct: compressed-tensors float-quantized with weight_scale), scale form and scale dtype.
+FP8_FORMS = (("fp8", "tensor", "F32"), ("fp8", "block", "BF16"), ("ct", "tensor", "F32"), ("ct", "channel", "F16"), ("ct", "block", "BF16"))
+
+
+def fp8_fixture(dialect, form, dtype, seed=17):
+    """An FP8 directory's safetensors entries, its F32 twin's weights (code times scale, exact in F32), and, for one scale a tensor, the GGUF twin's F8_E4M3 tensors with their F32 scalar scales.
+    Codes are every non-NaN byte at random, scales of up to eight significant bits in [2^-13, 2^-6], exact in F16 and BF16; static input scales and, in ct's tensor form, KV cache scales ride along unapplied."""
+    rng = random.Random(seed + 3 * FP8_FORMS.index((dialect, form, dtype)))
+    pack = {"F32": lambda xs: struct.pack("<%df" % len(xs), *xs), "F16": lambda xs: struct.pack("<%de" % len(xs), *xs),
+            "BF16": lambda xs: b"".join(struct.pack("<f", x)[2:] for x in xs)}[dtype]
+    scale_name = "weight_scale_inv" if dialect == "fp8" else "weight_scale"
+    static = form == "tensor"
+    entries, weights, quantized = [], [], []
+    for name, hf, shape, values in f32.tensors(True, config=FP8_CONFIG):
+        layer, _, rest = name[4:].partition(".") if name.startswith("blk.") else ("", "", "")
+        if rest.split(".")[0] not in LINEARS:
+            entries.append((hf, "F32", shape, struct.pack("<%df" % len(values), *values)))
+            weights.append((name, hf, shape, values))
+            if dialect == "ct" and static and rest == "attn_k_norm.weight":
+                for kv in ("k_scale", "v_scale"):
+                    entries.append(("model.layers.%s.self_attn.%s" % (layer, kv), "F32", [1], struct.pack("<f", 0.25)))
+            continue
+        cols, rows = shape
+        codes = [[rng.choice([c for c in range(256) if c & 0x7F != 0x7F]) for _ in range(cols)] for _ in range(rows)]
+        scale = lambda: rng.choice((-1, 1)) * rng.randint(1, 255) * 2.0 ** -rng.randint(13, 20)
+        if form == "tensor":
+            scales, flat, scale_shape = scale(), None, [] if dialect == "fp8" else [1]
+            flat = [scales]
+        elif form == "channel":
+            scales = [scale() for _ in range(rows)]
+            flat, scale_shape = scales, [1, rows]
+        else:
+            scales = [[scale() for _ in range(cols // 128)] for _ in range((rows + 127) // 128)]
+            flat, scale_shape = [x for line in scales for x in line], [cols // 128, (rows + 127) // 128]
+        base = hf[:-len(".weight")]
+        entries += [(hf, "F8_E4M3", shape, bytes(c for line in codes for c in line)), (base + "." + scale_name, dtype, scale_shape, pack(flat))]
+        if static:
+            entries.append((base + ".input_scale", "F32", [1] if dialect == "ct" else [], struct.pack("<f", 0.5)))
+        weights.append((name, hf, shape, [x for line in sd.fp8_dequantize(codes, scales) for x in line]))
+        if form == "tensor":
+            quantized += [(name, shape, sd.F8_E4M3, bytes(c for line in codes for c in line)), (name[:-len(".weight")] + ".scale", [1], sd.F32, struct.pack("<f", scales))]
+    return entries, weights, quantized
+
+
+def fp8_quantization(dialect, form):
+    """The quantization_config of fp8_fixture's dialect and form."""
+    if dialect == "fp8":
+        return {"quant_method": "fp8", "fmt": "e4m3", "activation_scheme": "static" if form == "tensor" else "dynamic",
+                "weight_block_size": None if form == "tensor" else [128, 128], "modules_to_not_convert": ["lm_head"]}
+    weights = {"num_bits": 8, "type": "float", "symmetric": True, "strategy": form, "group_size": None, "dynamic": False, "actorder": None,
+               "block_structure": [128, 128] if form == "block" else None, "observer": "minmax", "observer_kwargs": {}}
+    activations = {"num_bits": 8, "type": "float", "symmetric": True, "strategy": "tensor" if form == "tensor" else "token", "dynamic": form != "tensor",
+                   "group_size": None, "actorder": None, "block_structure": None, "observer": None, "observer_kwargs": {}}
+    kv = {"num_bits": 8, "type": "float", "symmetric": True, "strategy": "tensor", "dynamic": False, "group_size": None, "actorder": None,
+          "block_structure": None, "observer": "minmax", "observer_kwargs": {}} if form == "tensor" else None
+    return {"quant_method": "compressed-tensors", "format": "float-quantized", "quantization_status": "compressed",
+            "config_groups": {"group_0": {"targets": ["Linear"], "weights": weights, "input_activations": activations, "output_activations": None}},
+            "ignore": ["lm_head", "re:.*mlp.gate$"], "kv_cache_scheme": kv, "global_compression_ratio": None, "sparsity_config": {}}
+
+
+def logits_of(out):
+    """`llmx logits --top N` output as {id: logit}."""
+    return {int(line.split()[0]): float(line.split()[1]) for line in out.strip().splitlines()[1:]}
+
+
+def fp8_checks(directory, dialect, form, dtype):
+    """An FP8 directory: info lists each linear as F8_E4M3 beside its F32 grid and the schemes as not applied, and one scale a tensor reads as its GGUF twin byte for byte.
+    Its logits stay within the F32 bound of its F32 twin at f32 and within the frozen F16 budget at f16."""
+    entries, weights, quantized = fp8_fixture(dialect, form, dtype)
+    label = "fp8-%s-%s" % (dialect, form)
+    model = write_directory(os.path.join(directory, label), entries, True, c=FP8_CONFIG, extra={"torch_dtype": "bfloat16", "quantization_config": fp8_quantization(dialect, form)})
+    twin = f32.write_model(os.path.join(directory, label + "-f32.gguf"), weights, config=FP8_CONFIG)
+    rc, out = cli(["info", model])
+    listed = [line for line in out.splitlines() if any(".%s.weight " % name in line for name in LINEARS)]
+    grids = [line for line in out.splitlines() if any(".%s.scale " % name in line for name in LINEARS)]
+    assert rc == 0 and len(listed) == 14 and all("F8_E4M3" in line for line in listed) and len(grids) == 14 and all("F32" in line for line in grids), \
+        "info on the %s directory: %s" % (label, out)
+    shown = [line.strip().split(" = ")[0] for line in out.splitlines() if "not applied" in line]
+    want = ["quantization.input_activations"] + (["quantization.kv_cache_scheme"] if dialect == "ct" and form == "tensor" else [])
+    assert shown == want, "info on the %s directory lists the schemes %r" % (label, shown)
+    text = f32.TEXTS[-1]
+    reference = common.run_process(["logits", twin, text, "--top", str(f32.VOCAB), "--dtype", "f32"], cache="f32")
+    assert reference.returncode == 0, reference.stderr
+    worst = {}
+    for dt, bound in (("f32", common.F32_HF_LOGIT_BOUND), ("f16", common.hf_bounds("f16", [["f16"]])["logit"])):
+        got = common.run_process(["logits", model, text, "--top", str(f32.VOCAB), "--dtype", dt], cache="f32")
+        assert got.returncode == 0, "logits on the %s directory: %s" % (label, got.stderr)
+        a, b = logits_of(got.stdout.decode()), logits_of(reference.stdout.decode())
+        assert set(a) == set(b) == set(range(f32.VOCAB)), "missing %s logits" % label
+        worst[dt] = max(abs(a[i] - b[i]) for i in a)
+        assert worst[dt] < bound, "%s at %s against its F32 twin: %.8f, bound %.8f" % (label, dt, worst[dt], bound)
+    if quantized:
+        gguf = f32.write_model(os.path.join(directory, label + "-twin.gguf"), [w for w in weights if w[0].split(".")[2 if w[0].startswith("blk.") else 0] not in LINEARS],
+                               config=FP8_CONFIG, quantized=quantized)
+        for args in (["tokenize", "{}", text], ["logits", "{}", text, "--top", str(f32.VOCAB)], ["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos"]):
+            outs = [common.run_process([a.replace("{}", m) for a in args], cache="f32") for m in (model, gguf)]
+            text_of = common.generate_text if args[0] == "generate" else common.cli_stdout
+            assert outs[0].returncode == 0 == outs[1].returncode and text_of(outs[0].stdout) == text_of(outs[1].stdout), \
+                "%s on the %s directory differs from its F8_E4M3 GGUF twin: %r" % (args[0], label, [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
+    return worst
+
+
+def fp8_refusals(directory):
+    """What would change an FP8 file's values is refused by name: E5M2 and FNUZ codes, another fmt, blocks other than 128 x 128, another scale dtype and float weights other than 8-bit."""
+    entries, _, _ = fp8_fixture("fp8", "block", "BF16")
+    cases = [("e5m2", [(n, "F8_E5M2" if d == "F8_E4M3" else d, sh, b) for n, d, sh, b in entries], {}, "F8_E5M2; llmx reads the 8-bit float F8_E4M3 only"),
+             ("fnuz", [(n, "F8_E4M3FNUZ" if d == "F8_E4M3" else d, sh, b) for n, d, sh, b in entries], {}, "F8_E4M3FNUZ; llmx reads the 8-bit float F8_E4M3 only"),
+             ("fmt", entries, {"fmt": "e5m2"}, "llmx reads E4M3 FP8 only"),
+             ("blocks", entries, {"weight_block_size": [64, 64]}, "llmx reads FP8 blocks of 128 x 128 only"),
+             ("i32", [(n, "I32", sh, b * 2) if n.endswith("_scale_inv") else (n, d, sh, b) for n, d, sh, b in entries], {}, "llmx reads BF16, F16 and F32 FP8 scales")]
+    for label, files, change, message in cases:
+        quantization = dict(fp8_quantization("fp8", "block"), **change)
+        model = write_directory(os.path.join(directory, "fp8-refused-" + label), files, True, c=FP8_CONFIG, extra={"quantization_config": quantization})
+        rc, out = cli(["info", model])
+        assert rc != 0 and message in out, "the %s FP8 directory was not refused by name: %s" % (label, out)
+    ct = fp8_quantization("ct", "block")
+    ct["config_groups"]["group_0"]["weights"]["num_bits"] = 4
+    model = write_directory(os.path.join(directory, "fp8-refused-bits"), fp8_fixture("ct", "block", "BF16")[0], True, c=FP8_CONFIG, extra={"quantization_config": ct})
+    rc, out = cli(["info", model])
+    assert rc != 0 and "llmx reads 8-bit symmetric float weights only" in out, "4-bit float weights were not refused: " + out
+
+
 def twin_checks(directory, label, fixture, quantization, type_name):
     """The quantized directory reads as its twin: info lists each linear as `type_name`, and ids, text and logits match the twin's byte for byte."""
     entries, weights, quantized = fixture
@@ -250,7 +375,12 @@ def run():
         for bits, sym, packed, group in CT_FORMS:
             twin_checks(directory, "ct%d%s%s" % (bits, "" if sym else "a", "p" if packed else "i"), ct_fixture(bits, sym, packed, group),
                         ct_quantization(bits, sym, packed, group), "Q8_0" if bits == 8 else "Q4_0" if sym else "Q5_0")
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f  [ok]" % worst)
+        fp8_worst = {"f32": 0.0, "f16": 0.0}
+        for dialect, form, dtype in FP8_FORMS:
+            for dt, error in fp8_checks(directory, dialect, form, dtype).items():
+                fp8_worst[dt] = max(fp8_worst[dt], error)
+        fp8_refusals(directory)
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f; FP8 directories in both dialects by tensor, channel and block against their F32 twins, worst %.8f at f32 and %.8f at f16, by tensor as their F8_E4M3 GGUF twins byte for byte, and the refusals  [ok]" % (worst, fp8_worst["f32"], fp8_worst["f16"]))
     return True
 
 

@@ -749,13 +749,13 @@ void compressed_checks(const std::string& path) {
     write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":3,"type":"int","symmetric":true,"strategy":"group","group_size":32})"));
     refused(dir, "num_bits: llmx reads 4- and 8-bit compressed-tensors only", "3-bit compressed-tensors was taken");
     write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":8,"type":"float","symmetric":true,"strategy":"channel"})"));
-    refused(dir, "type: llmx reads compressed-tensors int weights only", "compressed-tensors float weights were taken");
+    refused(dir, "quantization_config format pack-quantized does not hold float weights", "compressed-tensors float weights under pack-quantized were taken");
     write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":4,"type":"int","symmetric":true,"strategy":"tensor"})"));
     refused(dir, "strategy: llmx reads compressed-tensors group and channel scales only", "a compressed-tensors tensor-wide scale was taken");
     write_dir(4, true, true, 32, R"("quant_method":"compressed-tensors","format":"marlin-24","quantization_status":"compressed","config_groups":{})");
-    refused(dir, "quantization_config format: llmx reads compressed-tensors pack-quantized and int-quantized only", "compressed-tensors marlin-24 was taken");
+    refused(dir, "quantization_config format: llmx reads compressed-tensors pack-quantized, int-quantized and float-quantized only", "compressed-tensors marlin-24 was taken");
     write_dir(4, true, true, 32, config(4, true, true, 32, R"(,"kv_cache_scheme":{"num_bits":8})"));
-    refused(dir, "quantization_config kv_cache_scheme: llmx reads compressed-tensors with an unquantized KV cache only", "a quantized KV cache scheme was taken");
+    refused(dir, "quantization_config kv_cache_scheme: llmx reads compressed-tensors int weights with an unquantized KV cache only", "a quantized KV cache scheme was taken");
     write_dir(4, true, true, 32, config(4, true, true, 32, R"(,"transform_config":{"x":1})"));
     refused(dir, "quantization_config transform_config is not one llmx reads for compressed-tensors", "an unknown compressed-tensors key was taken");
     // Targets that leave a linear out and an ignore list naming more than the head are refused; the int8 directory above took input_activations of strategy token.

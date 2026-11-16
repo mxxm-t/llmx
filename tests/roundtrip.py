@@ -239,7 +239,7 @@ def check_output_failures(d):
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
 TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q2_k": sd.Q2_K, "q3_k": sd.Q3_K, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4, "nvfp4": sd.NVFP4, "tq1_0": sd.TQ1_0, "tq2_0": sd.TQ2_0}
-TYPES.update(q1_0=sd.Q1_0, q2_0=sd.Q2_0)
+TYPES.update(q1_0=sd.Q1_0, q2_0=sd.Q2_0, f8_e4m3=sd.F8_E4M3)
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -409,7 +409,7 @@ def check_raw_decode(d):
     xs = b"".join(iq4_xs_block(*case) for case in iq4_xs_cases(random.Random(731)))
     low_bits = b"".join(struct.pack("<H", scale) + bytes((shift + 73 * j) % 256 for j in range(16))
                         for scale in HALVES + (0, 0x8000) for shift in range(256))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("nvfp4", nvfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64)), ("q1_0", low_bits), ("q2_0", low_bits)):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("nvfp4", nvfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64)), ("q1_0", low_bits), ("q2_0", low_bits), ("f8_e4m3", bytes(range(256)) * 16)):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block
@@ -467,6 +467,31 @@ def check_nvfp4_companions(directory):
     restored = json.loads(Path(metadata).read_text(encoding="utf-8"))
     assert restored["tensors"] == [{"name": name, "shape": shape} for name, shape, _, _ in tensors], "NVFP4 raw inventory changed"
     print("roundtrip: NVFP4 scalar/expert companions, signed zeros, identity fallback and raw inventory  [ok]")
+
+
+def check_fp8_companions(directory):
+    """F8_E4M3 weights under an F32 scale a tensor and one an expert decode as code times scale, rounded once to f32, NaN codes and zero signs kept; a weight without its scale is refused."""
+    dense = bytes((7 * i + 3) % 256 for i in range(256))
+    experts = bytes((11 * i + 5) % 256 for i in range(3 * 256))
+    scalar, gains = -0.0001, (0.5, -0.0, 3.0)
+
+    def expected(payload, factors, per):
+        return sd.pack_f32([sd.to_f32(sd.e4m3(code) * sd.to_f32(factors[i // per])) for i, code in enumerate(payload)])
+
+    tensors = [("dense.weight", [128, 2], sd.F8_E4M3, dense), ("dense.scale", [1], sd.F32, struct.pack("<f", scalar)),
+               ("expert.weight", [128, 2, 3], sd.F8_E4M3, experts), ("expert.scale", [3], sd.F32, struct.pack("<3f", *gains))]
+    want = b"".join((expected(dense, [scalar], 256), tensors[1][3], expected(experts, gains, 256), tensors[3][3]))
+    source, metadata, output = (os.path.join(directory, "fp8_companions." + ext) for ext in ("gguf", "json", "bin"))
+    sd.write_gguf(source, {}, tensors)
+    rc, diagnostic = cli(["dequantize", source, metadata, output])
+    assert rc == 0, "F8_E4M3 companion dequantization failed: " + diagnostic
+    got = Path(output).read_bytes()
+    differing = [i for i in range(0, len(want), 4) if got[i:i + 4] != want[i:i + 4]]
+    assert len(got) == len(want) and not differing, "F8_E4M3 companion values differ at %d of %d" % (len(differing), len(want) // 4)
+    sd.write_gguf(source, {}, tensors[:1])
+    rc, diagnostic = cli(["dequantize", source, metadata, output])
+    assert rc != 0 and "has no .scale" in diagnostic, "an F8_E4M3 weight without its scale was read: " + diagnostic
+    print("roundtrip: F8_E4M3 scalar and per-expert companions, NaN codes and signed zeros, and a missing scale refused  [ok]")
 
 
 # Paths reach the converter as UTF-8, and Windows reads a narrow path in the system code page, so a directory named outside it is where a narrow open fails.
@@ -593,6 +618,7 @@ def run():
         check_independent_decode(d)
         check_raw_decode(d)
         check_nvfp4_companions(d)
+        check_fp8_companions(d)
         check_non_ascii_directory(d)
         check_type_names(d)
         check_tensor_extents(d)

@@ -26,6 +26,7 @@ IQ1_S, IQ1_M = 19, 29
 TQ1_0, TQ2_0 = 34, 35
 NVFP4 = 40
 Q1_0, Q2_0 = 41, 42
+F8_E4M3 = 43
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -57,6 +58,7 @@ TYPES = {
     NVFP4: ("NVFP4", 64, 36),
     Q1_0: ("Q1_0", 128, 18),
     Q2_0: ("Q2_0", 64, 18),
+    F8_E4M3: ("F8_E4M3", 1, 1),
 }
 
 # IQ2_XXS fixed dictionary bytes from ggml-common.h at 2fe50c3b322c54cfb984d68a6bdb64b8abf9e3ea; SHA256 05826b5d3e472a3a78f196be62ac78acf81df0f909626e12ab9fa2a5d490dd54.
@@ -447,13 +449,13 @@ def mxfp4(block):
     return [MXFP4_VALUES[q & 15] * scale for q in qs] + [MXFP4_VALUES[q >> 4] * scale for q in qs]
 
 
-# The element formats of DeepSeek-V4.1's caches and tables, from the OCP Microscaling Formats (MX) v1.0 specification.
-# E4M3: sign, four exponent bits of bias 7, three mantissa bits; exponent 0 is subnormal, m / 8 * 2^-6, and 0x7F and 0xFF are NaN, with no infinity.
+# The element formats of DeepSeek-V4.1's caches and tables and of F8_E4M3 weights, from the OCP Microscaling Formats (MX) v1.0 and OCP 8-bit Floating Point (OFP8) specifications.
+# E4M3: sign, four exponent bits of bias 7, three mantissa bits; exponent 0 is subnormal, m / 8 * 2^-6, and 0x7F and 0xFF are NaN, keeping the sign bit, with no infinity.
 def e4m3(byte):
     sign = -1.0 if byte & 0x80 else 1.0
     e, m = (byte >> 3) & 15, byte & 7
     if e == 15 and m == 7:
-        return math.nan
+        return math.copysign(math.nan, sign)
     return sign * (math.ldexp(m, -9) if e == 0 else math.ldexp(8 + m, e - 10))
 
 
@@ -764,6 +766,7 @@ def iq1_m(block):
 
 PURE = {
     NVFP4: nvfp4,
+    F8_E4M3: lambda block: [e4m3(block[0])],
     Q1_0: q1_0, Q2_0: q2_0,
     F32: lambda block: [struct.unpack("<f", bytes(block))[0]],
     F16: lambda block: [f16(block, 0)],
@@ -1065,8 +1068,16 @@ def _np_iq1_m(a):
     return np.repeat(d * scales, 16, axis=1) * (values + np.repeat(shifts, 8, axis=1))
 
 
+# Each code's value from the pure decoder, its NaNs' sign kept as the quiet NaN of that sign.
+def _np_f8_e4m3(a):
+    table = np.array([e4m3(c) for c in range(256)], dtype=np.float32)
+    table.view(np.uint32)[[0x7F, 0xFF]] = (0x7FC00000, 0xFFC00000)
+    return table[a]
+
+
 NUMPY = {
     NVFP4: _np_nvfp4,
+    F8_E4M3: _np_f8_e4m3,
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
     IQ1_S: _np_iq1_s, IQ1_M: _np_iq1_m,
     TQ1_0: _np_tq1_0, TQ2_0: _np_tq2_0,
@@ -1364,6 +1375,22 @@ def ct_dequantize_numpy(weight, zeros, scales, bits, packed):
     if zeros is not None:
         q = q - np.repeat(unpack(zeros.T).T, group, axis=1)
     return (q.astype(np.float32) * np.repeat(s, group, axis=1)).copy()
+
+
+# An FP8 linear of `rows` outputs and `cols` inputs stores F8_E4M3 codes [rows, cols] and scales of one of three forms: one for the tensor, one a row, or one per 128 x 128 block [ceil(rows / 128), cols / 128].
+# The weight at output n and input k is e4m3(code) * scale, which `weight_scale_inv` holds too, a multiplier despite its name; a BF16 or F16 scale times a code has at most 12 significant bits, exact in f32.
+def fp8_scale_of(scales, n, k):
+    """The scale of output n and input k: `scales` a number, a list of one a row, or rows of blocks."""
+    if isinstance(scales, (int, float)):
+        return scales
+    if not isinstance(scales[0], list):
+        return scales[n]
+    return scales[n // 128][k // 128]
+
+
+def fp8_dequantize(codes, scales):
+    """The F32 weight [rows][cols] of code bytes [rows][cols] under `scales` (fp8_scale_of)."""
+    return [[to_f32(e4m3(codes[n][k]) * fp8_scale_of(scales, n, k)) for k in range(len(codes[0]))] for n in range(len(codes))]
 
 
 # GGUF files: the magic, a version (2 or 3), the tensor and metadata counts, the metadata, the tensor descriptions, then the data at the next multiple of general.alignment (32 when absent).

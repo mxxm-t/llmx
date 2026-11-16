@@ -650,6 +650,31 @@ def check_nvfp4():
     print("raw-blocks: NVFP4 all scale bytes, codes, groups and positions, %d values and signed zeros  [ok]" % len(expected))
 
 
+def check_f8_e4m3():
+    """Every E4M3 code from its fields as an exact fraction: +0 and -0, the subnormals m / 512, 448 the largest, and 0x7F and 0xFF NaN with their sign bits."""
+    payload = bytes(range(256)) * 3
+    expected_bits = []
+    for code in range(256):
+        e, m = (code >> 3) & 15, code & 7
+        if e == 15 and m == 7:
+            expected_bits.append(0xFFC00000 if code & 0x80 else 0x7FC00000)
+            continue
+        value = Fraction(m, 512) if e == 0 else Fraction(8 + m) * Fraction(2) ** (e - 10)
+        bits = struct.unpack("<I", struct.pack("<f", float(value)))[0]
+        expected_bits.append(bits | (0x80000000 if code & 0x80 else 0))
+    want = struct.pack("<256I", *expected_bits) * 3
+    unaligned = memoryview(b"x" + payload + b"y")[1:-1]
+    got = sd.pack_f32(sd.decode(sd.F8_E4M3, unaligned, len(payload)))
+    assert got == want, "F8_E4M3 pure form differs from the fields' values, NaN and zero signs included"
+    if sd.np is not None:
+        assert sd.decode_numpy(sd.F8_E4M3, unaligned, len(payload)).tobytes() == want, "F8_E4M3 numpy form differs from the fields' values"
+    value = lambda code: struct.unpack("<f", want[4 * code:4 * code + 4])[0]
+    assert value(0x7E) == 448.0 and value(0x01) == 2.0 ** -9 and value(0x08) == 2.0 ** -6 and expected_bits[0x80] == 0x80000000
+    weight = sd.fp8_dequantize([[0x38, 0xB8, 0x01], [0x7E, 0x00, 0x80]], [0.5, -2.0])
+    assert sd.pack_f32(weight[0] + weight[1]) == sd.pack_f32([0.5, -0.5, 2.0 ** -10, -896.0, -0.0, 0.0])
+    print("raw-blocks: F8_E4M3 all 256 codes, both zeros, subnormals, 448 and both NaN codes bit for bit, and scaled rows  [ok]")
+
+
 def q3_k_block(d, scales, q):
     """A Q3_K block of 6-bit stored scales and 256 codes from -4 to 3."""
     hmask, qs = bytearray(32), bytearray(64)
@@ -1117,6 +1142,7 @@ def run(require=False):
     check_tq()
     check_mxfp4(rng)
     check_nvfp4()
+    check_f8_e4m3()
     check_q3_k(rng)
     check_q2_k(rng)
     check_q4_0_q8_0(rng)

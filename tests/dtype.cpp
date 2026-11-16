@@ -185,7 +185,7 @@ void resolution() {
     const auto actual = cpu();
     const auto native = actual->native_dtypes();
     require(actual->dtype_path(D::f32) == "f32", "F32 catalog claims a narrower path");
-    const std::string half_paths = "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)";
+    const std::string half_paths = "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f16 (F8_E4M3), f32 (other products, routers)";
     const std::string brain_paths = "bf16 (matrix inputs), f32 (routers)";
     require(actual->dtype_path(D::f16) == half_paths, "CPU catalog hides packed or wider matrix families");
     require(actual->dtype_path(D::bf16) == brain_paths, "BF16 catalog hides retained F32 routers");

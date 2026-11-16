@@ -262,9 +262,9 @@ The six companion features below landed on main at `b2367461cdbc55c4e2bf31df3fa9
 
 **Checks.** The Chrome flow passed at naming head `a620a022f` in 25.476 seconds, including seven responsive sizes and 200 percent zoom; JavaScript syntax passed. Desktop and mobile screenshots were reviewed. Docs and dead-code passed on the combined naming and deployment-documentation tree at `2f1b94557` with 0 findings and 21 planted checks in 24.6 seconds, and 15 expected findings and 20 planted checks in 29.4 seconds. No inference or hosted runtime checks apply.
 
-**Checks.** The integrated Chrome fixture passes in 29.036 seconds, including the earlier delayed Send and attachment-read regressions. Dead-code passes with the expected 15 findings and 20 planted faults. Syntax and diff checks pass. Final docs validation is recorded in scratch/create-navigation-qualification/docs-final.log. The companion README and affected Markdown references were reviewed against this change. Unchanged documentation carries forward the prior main-base review. Static browser-only scope does not require additional runtime, HF, GPU or hosted inference checks.
+**Integrated checks.** The integrated Chrome fixture passes in 29.036 seconds, including the earlier delayed Send and attachment-read regressions. Dead-code passes with the expected 15 findings and 20 planted faults. Syntax and diff checks pass. Final docs validation is recorded in scratch/create-navigation-qualification/docs-final.log. The companion README and affected Markdown references were reviewed against this change. Unchanged documentation carries forward the prior main-base review. Static browser-only scope does not require additional runtime, HF, GPU or hosted inference checks.
 
-**Left.** Coordinator fast-forward landing. The preceding six fixes remain independently qualified at 346e6ec5a.
+**Landing.** Naming landed on main as `a620a022f`; the adjacent deployment-documentation change landed as `2f1b94557`. Both are ancestors of the current main. No naming work remains. The 2026-11-16 record correction changes only Markdown and is checked by the docs and dead-code components; no inference gates apply.
 
 **Gotchas.** Presentation only. Internal view identifiers, routes, preferences and stored conversation data stay compatible.
 ## Chat deployment Docker trust boundary (2026-11-15, Done)

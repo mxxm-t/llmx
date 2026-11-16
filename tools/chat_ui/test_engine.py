@@ -343,6 +343,22 @@ class EngineTests(unittest.TestCase):
                     gate.set()
                     self.wait_run(run["id"], {"cancelled", "failed"})
 
+    def test_cancel_after_tool_preparation_before_dispatch(self):
+        original = self.engine._model
+
+        def cancelled_model(rid, message, settings, available, control):
+            reply = original(rid, message, settings, available, control)
+            control.cancel.set()
+            return reply
+
+        self.engine._model = cancelled_model
+        self.reply(tool_event())
+        run = self.start(settings=self.settings(["echo"]))
+        self.wait_run(run["id"], {"cancelled"})
+        call = self.store.message(run["message_id"])["tool_calls"][0]
+        self.assertEqual(call["status"], "cancelled")
+        self.assertEqual(self.tools.calls, [])
+
     def test_approved_tool_runs_once_then_model_finishes(self):
         self.reply(dict(text_event(), id="r-first-1"), tool_event())
         self.reply(dict(text_event(), id="r-first-2"), text_event("Finished"))

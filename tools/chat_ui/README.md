@@ -7,6 +7,12 @@ Conversations, branches, tool results and request metrics live in a local SQLite
 Python's standard library and buildless HTML, CSS and JavaScript. It changes no
 inference code and needs no package installation or external assets.
 
+Tool names and arguments appear while the model prepares a call. Open the call
+to inspect its incoming arguments, or refresh to resume from its saved state.
+Preparing a call does not run it: approval and execution begin only after the
+model stream completes. An interrupted call keeps its partial arguments and is
+not retried automatically.
+
 ## Run
 
 Start llmx's server first, then run from the repository root:

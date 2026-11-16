@@ -675,7 +675,18 @@
           S.chat.active_leaf = data.id;
         } else if (update.kind === 'delta') {
           const message = S.messages.find(m => m.id === data.message_id);
-          if (message) { if (data.content) message.content = (message.content || '') + data.content; if (data.reasoning) message.reasoning = (message.reasoning || '') + data.reasoning; }
+          if (message) {
+            if (data.content) message.content = (message.content || '') + data.content;
+            if (data.reasoning) message.reasoning = (message.reasoning || '') + data.reasoning;
+            for (const fragment of data.tool_calls || []) {
+              message.tool_calls ||= [];
+              const index = message.tool_calls.findIndex(call => call.id === fragment.id);
+              const old = index < 0 ? {id: fragment.id, index: fragment.index, name: '', arguments: '', status: 'preparing'} : message.tool_calls[index];
+              const call = {...old, name: old.name + fragment.name, arguments: old.arguments + fragment.arguments};
+              if (index < 0) message.tool_calls.push(call); else message.tool_calls[index] = call;
+            }
+            message.tool_calls?.sort((a, b) => (a.index || 0) - (b.index || 0));
+          }
         } else if (update.kind === 'metrics') {
           const message = S.messages.find(m => m.id === data.message_id); if (message) for (const key of ['usage', 'timings', 'context', 'request']) if (data[key]) message[key] = {...message[key], ...data[key]};
         } else if (update.kind === 'tool') {

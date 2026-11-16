@@ -49,7 +49,9 @@ class Store:
                     message = self.message(run["message_id"])
                     message["status"] = "interrupted"
                     for call in message.get("tool_calls", []):
-                        if call["status"] in ("pending", "approval", "running"):
+                        if call["status"] == "preparing":
+                            call.update(status="interrupted", error="The service restarted before this tool call finished preparing.")
+                        elif call["status"] in ("pending", "approval", "running"):
                             call.update(status="interrupted", error="Outcome unknown after service restart.")
                     self.publish(run["id"], "message", message)
                 self.publish(run["id"], "state", run)
@@ -402,6 +404,14 @@ class Store:
             if kind == "delta":
                 for key in ("content", "reasoning"):
                     m[key] += data.get(key, "")
+                for fragment in data.get("tool_calls", []):
+                    call = next((c for c in m["tool_calls"] if c["id"] == fragment["id"]), None)
+                    if call is None:
+                        call = dict(id=fragment["id"], index=fragment["index"], name="", arguments="", status="preparing")
+                        m["tool_calls"].append(call)
+                    for key in ("name", "arguments"):
+                        call[key] += fragment[key]
+                m["tool_calls"].sort(key=lambda c: c.get("index", 0))
             elif kind == "metrics":
                 for key in ("usage", "timings", "context", "request"):
                     if key in data:

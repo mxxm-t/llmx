@@ -1,12 +1,16 @@
 # llmx - Development Status
 
-## Streamed tool-call preparation (2026-11-16)
+## Streamed tool-call preparation (2026-11-16, Done)
 
 **Goal.** Show names and arguments while a tool call is being generated, including after refresh, without executing incomplete calls.
 
-**Done.** The prior gated diagnostic proves no tool-call progress reaches the browser before stream completion. The existing engine delta flush, store snapshot/cursor transaction and browser tool rows own this change. Work is isolated from live 8183 on `feat/chat-tool-stream-20261116`.
+**Done.** The prior gated diagnostic proves no tool-call progress reaches the browser before stream completion. Incremental tool fragments now use the existing delta flush, store snapshot/cursor transaction and browser tool rows. The store owns accumulated arguments; the engine retains only stable identities and size counters. Complete calls enter the existing approval/execution flow. Cancelled, truncated and restarted preparation becomes terminal without dispatch. Development used the isolated `feat/chat-tool-stream-20261116` worktree.
 
-**Left.** Add failing preparation/replay/cancellation tests, coalesce incremental fragments through the existing delta event, preserve preparing calls on refresh, and mark incomplete calls terminal after cancellation, failure or restart. Then run focused browser/Python checks and the applicable companion hosted jobs before landing.
+**Checks.** The test-first commit fails on the old behavior: four assertions across three tests find no persisted partial calls. Engine/store checks pass 35 tests in 2.539 s, including a deterministic cancellation between completed preparation and dispatch. The focused browser passes in 49.282 s: tool-only deltas, inspection before completion, refresh/cursor resume, stable call identity and disclosure focus, then normal approval/execution. The later engine cleanup makes the store authoritative without changing delta payloads; hosted coverage reran the complete fixture on the landing code. Root inspected the tool-preparation screenshot and checked each bounded review finding against source. Final source checks pass: docs has zero findings with 21 planted checks, and dead-code has 15 expected findings with 20 planted checks.
+
+**Review and landing.** Hosted Chat workspace run 43833951585 passes on `a227fa04aaa5fc17e3e86b520cac7d8a6f0bca90`: 106 companion and 24 dashboard tests on each of Linux and Windows. The final delta is this Markdown evidence and commit metadata only; source, tests, fixtures and workflow inputs are unchanged. The change lands by fast-forward and its temporary CI branch is deleted. No runtime or inference files changed, so numerical and GPU gates do not apply. The docs review updates the companion README, CONTRACT and TESTS; root README, runtime docs and other unchanged pages retain the prior review because no runtime flag, model or backend capability changed.
+
+**Deployment.** Local 8183 now serves the tested feature after an idle check and SQLite backup. Its current four saved chats, 89 messages, 32 runs and 3034 events keep their exact record hash across restart and the successful uncapped temporary smoke reply. Live browser assets match source; the model runtime was not restarted. The first smoke completed but its receipt writer used the previous feature's scratch path; the corrected runner passed and saved-data identity was rechecked. Logs, hosted job hashes, backup and deployment receipts are in `scratch/tool-stream/`.
 
 **Gotchas.** Argument fragments are display data only. Tool approval and execution still require completion of the model stream. Persist only new fragments in the journal, not repeated growing argument strings; the current message snapshot continues using its existing storage owner.
 

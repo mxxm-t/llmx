@@ -166,16 +166,20 @@ class Engine:
         if control.cancel.is_set():
             conn.cancel()
             raise Cancelled()
-        calls, chunks, thought = {}, [], []
+        calls, fragments, chunks, thought = {}, {}, [], []
         last, chars, first = time.monotonic(), 0, True
         opening = True
 
         def flush():
             nonlocal last
-            if chunks or thought:
-                self.store.publish(rid, "delta", dict(message_id=message["id"], content="".join(chunks), reasoning="".join(thought)))
+            if chunks or thought or fragments:
+                data = dict(message_id=message["id"], content="".join(chunks), reasoning="".join(thought))
+                if fragments:
+                    data["tool_calls"] = [fragments[k] for k in sorted(fragments)]
+                self.store.publish(rid, "delta", data)
                 chunks.clear()
                 thought.clear()
+                fragments.clear()
                 last = time.monotonic()
 
         try:
@@ -204,17 +208,23 @@ class Engine:
                         raise ValueError("The reply exceeded the 16 MiB safety limit")
                     for part in delta.get("tool_calls", []):
                         index = part.get("index", 0)
-                        if not isinstance(index, int) or not 0 <= index < 16:
+                        if type(index) is not int or not 0 <= index < 16:
                             raise ValueError("Too many tool calls in one model reply")
-                        call = calls.setdefault(index, dict(id=identity(), name="", arguments="", status="pending"))
                         function = part.get("function", {})
-                        call["name"] += function.get("name", "")
-                        call["arguments"] += function.get("arguments", "")
-                        if len(call["arguments"]) > 1024 * 1024 or len(call["name"]) > 256:
+                        name, arguments = function.get("name", ""), function.get("arguments", "")
+                        if not isinstance(name, str) or not isinstance(arguments, str):
+                            raise ValueError("Invalid streamed tool arguments")
+                        call = calls.setdefault(index, dict(id=identity(), name_chars=0, argument_chars=0))
+                        if call["argument_chars"] + len(arguments) > 1024 * 1024 or call["name_chars"] + len(name) > 256:
                             raise ValueError("Tool arguments are too large")
+                        call["name_chars"] += len(name)
+                        call["argument_chars"] += len(arguments)
+                        fragment = fragments.setdefault(index, dict(id=call["id"], index=index, name="", arguments=""))
+                        fragment["name"] += name
+                        fragment["arguments"] += arguments
                     if choice.get("finish_reason"):
                         message["finish_reason"] = choice["finish_reason"]
-                if (chunks or thought) and (first or time.monotonic() - last >= 0.05):
+                if (chunks or thought or fragments) and (first or time.monotonic() - last >= 0.05):
                     flush()
                     first = False
         finally:
@@ -222,7 +232,9 @@ class Engine:
             with control.changed:
                 control.connection = None
         latest = self.store.message(message["id"])
-        latest.update(status="completed", tool_calls=[calls[k] for k in sorted(calls)])
+        latest["status"] = "completed"
+        for call in latest["tool_calls"]:
+            call["status"] = "pending"
         if "finish_reason" in message:
             latest["finish_reason"] = message["finish_reason"]
         self.store.publish(rid, "message", latest)
@@ -325,6 +337,9 @@ class Engine:
             status = "cancelled" if cancelled else "failed"
             message = self.store.message(message_id)
             message["status"] = status
+            for call in message.get("tool_calls", []):
+                if call["status"] in ("preparing", "pending"):
+                    call["status"] = status
             self.store.publish(rid, "message", message)
             self._state(rid, status, error=None if cancelled else str(exc)[:1000])
         finally:

@@ -129,9 +129,14 @@ class BrowserTests(unittest.TestCase):
                  text_event(reasoning=" Compare the options."), "WAIT",
                  text_event(reasoning=" Choose a clear plan."), "WAIT",
                  text_event("A practical plan.\n\n```python\nprint('hello')\n```\n\n| Step | State |\n| --- | --- |\n| One | Ready |\n\n<script>window.injected=true</script>"), metrics]
+        tool_first = tool_event(name="ec", arguments='{"text":"hel')
+        tool_first["choices"][0]["finish_reason"] = None
+        tool_second = tool_event(name="ho", arguments="lo")
+        tool_second["choices"][0]["finish_reason"] = None
         with BrowserUpstream.lock:
             BrowserUpstream.replies = [first, [text_event(reasoning="Consider another approach."), "WAIT", text_event("An alternative approach."), metrics],
-                [text_event("An edited branch."), metrics], [tool_event(name="echo"), metrics],
+                [text_event("An edited branch."), metrics],
+                [tool_first, "WAIT", tool_second, "WAIT", tool_event(name="", arguments='"}'), metrics],
                 [text_event("The tool returned hello."), metrics], [text_event("The attached file is readable."), metrics],
                 [text_event("Incomplete response"), "TRUNCATE"],
                 [text_event(reasoning="Cancellation test"), "WAIT", text_event("Should be cancelled")],

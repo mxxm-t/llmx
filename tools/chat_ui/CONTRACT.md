@@ -20,6 +20,18 @@ The Python standard-library service owns persisted conversations, branches, runs
 - `POST /api/runs/{id}/approve` with `{call_id,allow,remember:false}` resolves a pending tool call. Remember applies only to this run and tool.
 - `POST /api/tokenize` with `{text}` returns the upstream response, for optional draft estimates only.
 
+An SSE `delta` carries `message_id` and appended `content`/`reasoning` text. It may
+also carry `tool_calls`: fragments with stable internal `id`, upstream `index`,
+and appended `name`/`arguments` strings. The store applies each fragment to the
+message and advances the run cursor in the same transaction, so a snapshot plus
+events after its cursor restores preparation without duplicated text. The browser
+shows these calls as `preparing`; they cannot be approved or executed yet.
+The final assistant `message` replaces them with complete calls before the normal
+approval/execution flow. Cancellation, broken streams and service restart retain
+the received arguments with a terminal status. Fragments share the existing text
+coalescer and journal only newly received bytes; saved message snapshots still
+use the existing whole-message persistence path.
+
 The prompt-history owner omits an older image user turn and its adjacent empty
 failed assistant only when the run records a chat-template refusal. The saved
 messages and branches remain unchanged. Accepted images, partial replies,

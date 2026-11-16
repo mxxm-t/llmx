@@ -5,9 +5,8 @@ companion/dashboard checks, real runtime-to-companion correlation, the MI50 serv
 component and hosted Chat on both operating systems passed. The runtime and Chat workflows passed all
 ten jobs on `2ed3d9c2c`; the optional MI50 real-model section skipped because no
 model fixture was mounted. The feature landed on main in `09da32700` and
-`222388611`. Port 8185 is the current local preview with the updated runtime and
-companion; the older Python processes on 8183 and 8184 do not include live request
-correlation. No production deployment status is asserted here. Owner: CHATUI.
+`222388611`. No local preview or production deployment status is asserted here.
+Owner: CHATUI.
 Development base: `431dae029`.
 
 ## Contract
@@ -68,8 +67,10 @@ component as well as the tensor-group runner.
 The companion owns per-call storage and presentation. Engine/store tests cover
 bounded first-event IDs, tool rounds, persistence, replay and import removal.
 Browser and shared-rate checks cover normal, stale, missing, reset and completed
-states, subscription lifetime, mobile layout and both themes. The isolated local
-preview also passed correlation against a real runtime reply.
+states, subscription lifetime, mobile layout and both themes. The isolated
+qualification deployment also passed request correlation against a real runtime
+reply. This is historical qualification evidence, not current process status or a
+measured TPS result.
 
 Landing gates passed: CTest, the CPU suite, Qwen3-0.6B byte identity, hosted
 checks and the MI50 server component. The hosted HF job ran the full CPU/server

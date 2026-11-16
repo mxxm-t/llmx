@@ -357,6 +357,19 @@ The host was active: final-round total CPU ranged from 31 to 64 percent, with ed
 **Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
 
 **Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
+## Companion upstream key-file guidance (2026-11-16)
+
+**Goal.** Clarify how the companion's `--api-key-file` is read and how it differs from browser authentication and an upstream server's key database.
+
+**Done.** The companion README now specifies one raw upstream bearer key, startup-time reading and restart after rotation. It directs operators to use a separate single-key file when the upstream accepts a key list, and states that this key does not authenticate browser users.
+
+**Checks.** `python tests/run_tests.py --exe ../chat-request-key-landing-20261116/llmx.exe --only docs,dead-code` passes: docs has zero findings and 21 planted checks; dead-code has 15 expected findings and 20 planted checks. The companion source confirms one whole stripped file value is sent in upstream bearer headers. No authenticated runtime was tested.
+
+**Left.** Ready for coordinated landing with LAND61; not yet on public main. This is docs-only and has no inference gates.
+
+**Landing integration.** This documentation commit is stacked after the four-fix UI checkpoint `dee243911`. It changes only this status record and the companion README. All application and browser-test bytes are unchanged from that checkpoint's passing 55.360 s browser run and source review; its dead-code evidence carries forward. A final docs check runs on the stacked head before the combined bundle is handed over. The earlier seven-commit stack record below remains its qualification history.
+
+**Gotchas.** Do not document runtime authentication flags or key-length constraints that are not present on this branch.
 
 ## Companion deployment documentation refresh (2026-11-16, Done)
 

@@ -48,8 +48,13 @@ the browser's Host header and disable buffering for `/api/runs/*/events` and
 `/api/monitor/stream`.
 The password must contain 12 to 1024 characters. The owner session cookie is
 HttpOnly and SameSite=Strict; an HTTPS public origin also sets Secure. An optional
-`--api-key-file PATH` supplies an upstream bearer key without placing it in the
-command line or browser. The files and data directory belong to the operator.
+`--api-key-file PATH` supplies one raw upstream bearer key without placing it in
+the command line or browser. Use a separate file containing only one key, not an
+upstream key database with multiple keys or comment lines. The file is read once
+at startup; restart the companion after rotating the key. This key is sent only
+to the configured upstream and does not authenticate browser users;
+the companion's owner password controls browser access. The files and data
+directory belong to the operator.
 
 Login bodies are limited to 16 KiB before they are read. Ten failed logins in
 one minute block further attempts from that socket's source address until the

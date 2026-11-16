@@ -137,7 +137,21 @@ int main() {
             require(std::string(e.what()).find("model_type made_up_model") != std::string::npos, "refusal names the type");
         }
 
-        refused(config("", "\"pad_token_id\":0"), tensors(), "key pad_token_id is not one");
+        {
+            // llm-compressor's configs give pad_token_id, which pads batches in HF and changes no logit.
+            ++cases;
+            gguf::GGUFModel m = tensors();
+            read_config(config("", "\"pad_token_id\":0"), m);
+            require(m.kv.size() == 11, "pad_token_id stored");
+        }
+        {
+            // Unsloth's uploads mark their configs with unsloth_fixed, which transformers keeps as an attribute no Qwen3 module reads.
+            ++cases;
+            gguf::GGUFModel m = tensors();
+            read_config(config("", "\"unsloth_fixed\":true"), m);
+            require(m.kv.size() == 11, "unsloth_fixed not stored");
+        }
+        refused(config("", "\"made_up_key\":0"), tensors(), "key made_up_key is not one");
         refused(config("[\"Qwen3ForCausalLM\"]", "[\"Qwen3ForCausalLM\",\"X\"]"), tensors(), "architectures must be exactly");
         refused(config("[\"Qwen3ForCausalLM\"]", "[\"Qwen3MoeForCausalLM\"]"), tensors(), "architectures must be exactly");
         refused(config("\"model_type\":\"qwen3\"", "\"model_type\":\"qwen2\""), tensors(), "model_type must be qwen3");

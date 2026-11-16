@@ -211,6 +211,53 @@ def check_gptq():
     print("raw-blocks: GPTQ %d values, both packings, every code at every position and every zero under v1 and v2, and the exact Q4_0, Q5_0 and Q8_0 repacks  [ok]" % total)
 
 
+# compressed-tensors int linears: the shifted packings from literal words, every code at every word position and every zero point, group and channel scales, and the exact repacks.
+def check_compressed():
+    assert sd.ct_pack([list(range(-8, 0))], 4) == [[0x76543210]] and sd.ct_unpack([[0x76543210]], 4) == [list(range(-8, 0))]
+    assert sd.ct_pack([[-128, -1, 0, 127]], 8) == [[0xFF807F00 - (1 << 32)]]
+    assert sd.ct_unpack([[-1]], 4) == [[7] * 8] and sd.ct_pack_zeros([[z] for z in range(-8, 0)], 4) == [[0x76543210]]
+    assert sd.ct_unpack_zeros([[0x76543210]], 4) == [[z] for z in range(-8, 0)]
+    rows, total = 16, 0
+    for bits, sym, group in ((4, True, 32), (4, True, 0), (4, False, 64), (4, False, 0), (8, True, 128), (8, True, 0)):
+        per, levels, cols = 32 // bits, 1 << bits, 256
+        groups = cols // group if group else 1
+        # Each position i of a word holds every code over the outputs, shifted by 5i so the positions differ.
+        codes = [[(k // per * rows + n + 5 * (k % per)) % levels - levels // 2 for k in range(cols)] for n in range(rows)]
+        zeros = None if sym else [[(g * 7 + n) % 16 - 8 for g in range(groups)] for n in range(rows)]
+        halves = [[HALVES[(g * rows + n) % len(HALVES)] for g in range(groups)] for n in range(rows)]
+        scales = [[half_float(h) for h in line] for line in halves]
+        name = "compressed-tensors %d-bit %s %s" % (bits, "sym" if sym else "asym", "group %d" % group if group else "channel")
+        packed = sd.ct_pack(codes, bits)
+        assert sd.ct_unpack(packed, bits) == codes, name
+        if zeros:
+            assert sd.ct_unpack_zeros(sd.ct_pack_zeros(zeros, bits), bits) == zeros, name
+        got = [v for line in sd.ct_dequantize(codes, zeros, scales) for v in line]
+        width = cols // groups
+        expected = [cell(lambda h, d=halves[n][k // width], c=codes[n][k] - (zeros[n][k // width] if zeros else 0): h(d) * c) for n in range(rows) for k in range(cols)]
+        assert_values(name, expected, got)
+        kind, repacked = sd.ct_repack(codes, zeros, scales, None, bits)
+        assert kind == (sd.Q8_0 if bits == 8 else sd.Q4_0 if sym else sd.Q5_0), name
+        assert sd.pack_f32(sd.decode(kind, repacked, rows * cols)) == sd.pack_f32(got), name
+        if sd.np is not None:
+            z = sd.np.array(sd.ct_pack_zeros(zeros, bits), dtype=sd.np.int32) if zeros else None
+            for weight, is_packed in ((sd.np.array(packed, dtype=sd.np.int32), True), (sd.np.array(codes, dtype=sd.np.int8), False)):
+                if bits == 8 or is_packed:
+                    have = sd.ct_dequantize_numpy(weight, z, sd.np.array(scales, dtype=sd.np.float16), bits, is_packed)
+                    assert have.tobytes() == sd.pack_f32(got), name
+        total += rows * cols
+    # Act-order groups, 8-bit asymmetric zero points, a group off a multiple of 32 and a scale F16 cannot hold have no exact repack.
+    codes = [[0] * 64 for _ in range(8)]
+    for args, words in (((codes, None, [[1.0, 1.0]] * 8, [0] * 63 + [1], 4), "g_idx"), ((codes, [[0, 0]] * 8, [[1.0, 1.0]] * 8, None, 8), "8-bit asymmetric"),
+                        ((codes, None, [[1.0] * 4] * 8, None, 4), "multiple of 32"), ((codes, None, [[65536.0] * 2] * 8, None, 4), "not exact in F16")):
+        try:
+            sd.ct_repack(*args)
+        except ValueError as error:
+            assert words in str(error), str(error)
+        else:
+            raise AssertionError("compressed-tensors repack took a case with %s" % words)
+    print("raw-blocks: compressed-tensors %d values, both packings and shifts, every code at every position and every zero point, group and channel scales, and the exact Q4_0, Q5_0 and Q8_0 repacks  [ok]" % total)
+
+
 def check_q5_1(rng):
     payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
     for d, m in itertools.product(HALVES, HALVES):
@@ -1058,6 +1105,7 @@ def run(require=False):
     check_q5_0(random.Random(20261020))
     check_awq(random.Random(20261115))
     check_gptq()
+    check_compressed()
     check_q5_1(rng)
     check_iq4(rng)
     check_iq3_s()

@@ -629,6 +629,147 @@ void gptq_checks(const std::string& path) {
     fs::remove_all(dir);
 }
 
+// One compressed-tensors int linear [in, out] of layer `layer` at `bits`: signed codes, zero points when asymmetric, BF16 scales [out, in / group] (group 0 is one a row) and the twin's rows from the block layouts.
+// pack-quantized stores each code plus 2^(bits - 1), 32 / bits a word along the inputs, and the zero points the same way along the outputs; int-quantized stores the codes as int8.
+struct CtLinear {
+    std::vector<uint32_t> packed, zeros;
+    std::vector<int8_t> codes;
+    std::vector<uint16_t> scales;
+    std::vector<int64_t> shape;
+    std::vector<int32_t> g_idx;
+    uint32_t type = 0;
+    std::vector<uint8_t> twin;
+};
+
+CtLinear ct_linear(size_t in, size_t out, size_t layer, unsigned bits, bool sym, size_t group) {
+    static const float powers[5] = {1.0f / 64, -1.0f / 128, 1.0f / 256, -1.0f / 32, 1.0f / 1048576};
+    const size_t per = 32 / bits, width = group ? group : in, groups = in / width;
+    const int half = 1 << (bits - 1);
+    const auto code = [&](size_t k, size_t n) { return int((n * 7 + k * 3 + layer) % (2 * size_t(half))) - half; };
+    const auto zero = [&](size_t g, size_t n) { return sym ? 0 : int((n + g + layer) % 16) - 8; };
+    CtLinear a;
+    a.shape = {int64_t(out), int64_t(in)};
+    a.packed.assign(out * in / per, 0);
+    a.zeros.assign(sym ? 0 : out / per * groups, 0);
+    for (size_t n = 0; n < out; ++n)
+        for (size_t k = 0; k < in; ++k) {
+            a.codes.push_back(int8_t(code(k, n)));
+            a.packed[n * (in / per) + k / per] |= uint32_t(code(k, n) + half) << (bits * (k % per));
+        }
+    for (size_t n = 0; n < out; ++n)
+        for (size_t g = 0; g < groups; ++g) {
+            uint32_t f;
+            std::memcpy(&f, &powers[(n + g + layer) % 5], 4);
+            a.scales.push_back(uint16_t(f >> 16));
+            if (!sym) a.zeros[(n / per) * groups + g] |= uint32_t(zero(g, n) + half) << (bits * (n % per));
+        }
+    a.type = bits == 8 ? quant::GGML_TYPE_Q8_0 : sym ? quant::GGML_TYPE_Q4_0 : quant::GGML_TYPE_Q5_0;
+    const size_t block = bits == 8 ? 34 : sym ? 18 : 22, blocks = in / 32;
+    a.twin.assign(out * blocks * block, 0);
+    for (size_t n = 0; n < out; ++n)
+        for (size_t b = 0; b < blocks; ++b) {
+            uint8_t* p = a.twin.data() + (n * blocks + b) * block;
+            const size_t g = 32 * b / width;
+            const uint16_t d = f32_to_f16(powers[(n + g + layer) % 5]);
+            p[0] = uint8_t(d);
+            p[1] = uint8_t(d >> 8);
+            for (size_t j = 0; j < 32; ++j) {
+                const int q = code(32 * b + j, n);
+                if (bits == 8) {
+                    // Q8_0: d, then the 32 signed codes q.
+                    p[2 + j] = uint8_t(int8_t(q));
+                } else if (sym) {
+                    // Q4_0: d, then codes j and j + 16 in the low and high nibbles of byte j, each q + 8, whose value is q.
+                    p[2 + j % 16] |= uint8_t((q + 8) << (j < 16 ? 0 : 4));
+                } else {
+                    const int c = q - zero(g, n) + 16;
+                    if (c & 16) p[2 + j / 8] |= uint8_t(1u << (j % 8));
+                    p[6 + j % 16] |= uint8_t((c & 15) << (j < 16 ? 0 : 4));
+                }
+            }
+        }
+    return a;
+}
+
+// compressed-tensors directories of the 32-wide model, 4-bit symmetric and asymmetric pack-quantized in groups of 32 and 8-bit pack-quantized and int-quantized by channel, each load as its Q4_0, Q5_0 or Q8_0 twin (twin_checks).
+// Act-order groups, a weight_shape that is not the linear's, 8-bit asymmetric zero points and quantization_config values llmx does not read are refused by name.
+void compressed_checks(const std::string& path) {
+    namespace fs = std::filesystem;
+    const gguf::GGUFModel base = with_tokens(tiny_qwen_shaped(2, 2 * 128, true, 8, 2, 32, 16, 32));
+    const fs::path dir = fs::u8path(path + ".compressed");
+    fs::create_directories(dir);
+    write_tokenizer(dir);
+    gguf::GGUFModel twin;
+    // `edit` changes the parts of layer 1's down projection before they are written.
+    const auto write_dir = [&](unsigned bits, bool sym, bool packed, size_t group, const std::string& quantization, const std::function<void(CtLinear&)>& edit = {}, std::vector<StEntry> extra = {}) {
+        return write_quant_dir(dir, base, quantization, twin, std::move(extra), [&](const gguf::TensorInfo& t, size_t layer, const std::string& hf, std::vector<StEntry>& entries) {
+            CtLinear a = ct_linear(size_t(t.ne[0]), size_t(t.ne[1]), layer, bits, sym, group);
+            if (edit && t.name == "blk.1.ffn_down.weight") edit(a);
+            const uint64_t per = 32 / bits, groups = group ? t.ne[0] / group : 1;
+            if (packed) {
+                entries.push_back({hf + ".weight_packed", "I32", {t.ne[0] / per, t.ne[1]}, bytes_of(a.packed)});
+                entries.push_back({hf + ".weight_shape", "I64", {2}, bytes_of(a.shape)});
+                if (!sym) entries.push_back({hf + ".weight_zero_point", "I32", {groups, t.ne[1] / per}, bytes_of(a.zeros)});
+            } else {
+                entries.push_back({hf + ".weight", "I8", {t.ne[0], t.ne[1]}, bytes_of(a.codes)});
+            }
+            entries.push_back({hf + ".weight_scale", "BF16", {groups, t.ne[1]}, bytes_of(a.scales)});
+            if (!a.g_idx.empty()) entries.push_back({hf + ".weight_g_idx", "I32", {t.ne[0]}, bytes_of(a.g_idx)});
+            return std::make_pair(a.type, a.twin);
+        });
+    };
+    // quantization_config as llm-compressor writes it for one weight scheme, with `weights` replacing the scheme's text when given and `extra` keys after it.
+    const auto config = [](unsigned bits, bool sym, bool packed, size_t group, const std::string& extra = "", const std::string& weights = "") {
+        const std::string scheme = std::string(R"({"num_bits":)") + std::to_string(bits) + R"(,"type":"int","symmetric":)" + (sym ? "true" : "false") + R"(,"strategy":")" +
+                                   (group ? "group" : "channel") + R"(","group_size":)" + (group ? std::to_string(group) : "null") + R"(,"dynamic":false,"actorder":)" +
+                                   (group ? R"("weight")" : "null") + R"(,"block_structure":null,"observer":"minmax","observer_kwargs":{}})";
+        const std::string activations = packed ? "null" : R"({"num_bits":8,"type":"int","symmetric":true,"strategy":"token","dynamic":true,"group_size":null,"actorder":null,"block_structure":null,"observer":null,"observer_kwargs":{}})";
+        return std::string(R"("quant_method":"compressed-tensors","format":")") + (packed ? "pack-quantized" : "int-quantized") +
+               R"(","quantization_status":"compressed","config_groups":{"group_0":{"targets":["Linear"],"weights":)" + (weights.empty() ? scheme : weights) +
+               R"(,"input_activations":)" + activations + R"(,"output_activations":null}},"ignore":["lm_head"],"global_compression_ratio":null,"sparsity_config":{})" + extra;
+    };
+    for (const auto& [bits, sym, packed, group, label] :
+         {std::make_tuple(4u, true, true, size_t(32), "a 4-bit symmetric compressed-tensors directory"), std::make_tuple(4u, false, true, size_t(32), "a 4-bit asymmetric compressed-tensors directory"),
+          std::make_tuple(8u, true, true, size_t(0), "an 8-bit pack-quantized compressed-tensors directory"), std::make_tuple(8u, true, false, size_t(0), "an int8 compressed-tensors directory")}) {
+        const size_t linears = write_dir(bits, sym, packed, group, config(bits, sym, packed, group, R"(,"kv_cache_scheme":null)"));
+        twin_checks(dir, path, twin, linears, label);
+    }
+    // weight_g_idx that follows the inputs is taken; one that does not is refused, as GPTQ's is.
+    const size_t linears = write_dir(4, true, true, 32, config(4, true, true, 32), [](CtLinear& a) { a.g_idx.assign(32, 0); });
+    twin_checks(dir, path, twin, linears, "a compressed-tensors directory with weight_g_idx");
+    write_dir(4, true, true, 32, config(4, true, true, 32), [](CtLinear& a) { a.g_idx.assign(32, 0); a.g_idx[0] = 1; });
+    refused(dir, "tensor blk.1.ffn_down.weight: g_idx of input 0 is 1, not its group 0", "compressed-tensors act-order groups were taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32), [](CtLinear& a) { a.shape = {32, 64}; });
+    refused(dir, "tensor blk.1.ffn_down.weight: weight_shape is [32, 64], not [32, 32]", "a weight_shape other than the linear's was taken");
+    // An int-quantized weight_scale beside a 16-bit weight is no linear's scale and is refused by name.
+    write_dir(8, true, false, 0, config(8, true, false, 0), {}, {{"model.layers.1.input_layernorm.weight_scale", "BF16", {2}, std::vector<uint8_t>(4)}});
+    refused(dir, "tensor model.layers.1.input_layernorm.weight_scale has no integer weight beside it", "a weight_scale beside a 16-bit weight was taken");
+    write_dir(8, true, true, 0, config(8, false, true, 0));
+    refused(dir, "symmetric: llmx reads 8-bit compressed-tensors with symmetric zero points only", "8-bit asymmetric compressed-tensors was taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":3,"type":"int","symmetric":true,"strategy":"group","group_size":32})"));
+    refused(dir, "num_bits: llmx reads 4- and 8-bit compressed-tensors only", "3-bit compressed-tensors was taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":8,"type":"float","symmetric":true,"strategy":"channel"})"));
+    refused(dir, "type: llmx reads compressed-tensors int weights only", "compressed-tensors float weights were taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32, "", R"({"num_bits":4,"type":"int","symmetric":true,"strategy":"tensor"})"));
+    refused(dir, "strategy: llmx reads compressed-tensors group and channel scales only", "a compressed-tensors tensor-wide scale was taken");
+    write_dir(4, true, true, 32, R"("quant_method":"compressed-tensors","format":"marlin-24","quantization_status":"compressed","config_groups":{})");
+    refused(dir, "quantization_config format: llmx reads compressed-tensors pack-quantized and int-quantized only", "compressed-tensors marlin-24 was taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32, R"(,"kv_cache_scheme":{"num_bits":8})"));
+    refused(dir, "quantization_config kv_cache_scheme: llmx reads compressed-tensors with an unquantized KV cache only", "a quantized KV cache scheme was taken");
+    write_dir(4, true, true, 32, config(4, true, true, 32, R"(,"transform_config":{"x":1})"));
+    refused(dir, "quantization_config transform_config is not one llmx reads for compressed-tensors", "an unknown compressed-tensors key was taken");
+    // Targets that leave a linear out and an ignore list naming more than the head are refused; the int8 directory above took input_activations of strategy token.
+    std::string some = config(4, true, true, 32);
+    some.replace(some.find(R"(["Linear"])"), 10, R"(["re:.*q_proj"])");
+    write_dir(4, true, true, 32, some);
+    refused(dir, "targets: llmx reads config groups that target every Linear", "config groups targeting some linears were taken");
+    std::string ignored = config(4, true, true, 32);
+    ignored.replace(ignored.find(R"(["lm_head"])"), 11, R"(["lm_head","model.layers.0.mlp.down_proj"])");
+    write_dir(4, true, true, 32, ignored);
+    refused(dir, "quantization_config ignore: llmx reads compressed-tensors that leave out the head alone", "an ignore list naming a linear was taken");
+    fs::remove_all(dir);
+}
+
 // A model file's weights have no bytes until its payload is mapped.
 // Loaded through infer::load_model it keeps its payload on the CPU and releases it on a backend that copies every weight, and both give the logits of the same model built in memory.
 void loader_checks(const std::string& path) {
@@ -1367,6 +1508,7 @@ int main(int argc, char** argv) {
         directory_checks(path);
         awq_checks(path);
         gptq_checks(path);
+        compressed_checks(path);
         stream_checks(path);
         ring_checks();
         experts_checks(path);

@@ -92,7 +92,7 @@ int main() {
         refused_file(bad, "{" + a + "}", 12, "do not end where the file does");
         refused_file(bad, "{" + a + R"(,"b":{"dtype":"F32","shape":[1],"data_offsets":[4,8]}})", 8, "overlaps");
         refused_file(bad, "{" + a + R"(,"b":{"dtype":"F32","shape":[1],"data_offsets":[12,16]}})", 16, "leaves a gap");
-        refused_file(bad, R"({"a":{"dtype":"I8","shape":[2],"data_offsets":[0,2]}})", 2, "dtype I8");
+        refused_file(bad, R"({"a":{"dtype":"F64","shape":[2],"data_offsets":[0,2]}})", 2, "dtype F64");
         refused_file(bad, "{" + a + "," + a + "}", 8, "repeats key a");
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[2],"data_offsets":[0,8],"x":1}})", 8, "exactly dtype");
         refused_file(bad, R"({"a":{"dtype":"F32","shape":[2.0],"data_offsets":[0,8]}})", 8, "non-negative integer");

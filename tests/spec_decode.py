@@ -1275,6 +1275,97 @@ def gptq_dequantize_numpy(qweight, qzeros, scales, g_idx, bits, v1):
     return ((q - z[g]).astype(np.float32) * scales.astype(np.float32)[g]).T.copy()
 
 
+# A compressed-tensors int linear [rows, cols] holds signed codes q of `bits` bits, zero points of the same range when asymmetric and 16-bit scales [rows, cols / group], one column by channel.
+# int-quantized stores q as int8, pack-quantized q + 2^(bits-1) from the low bits of words along the inputs and zero points so along the outputs; the weight is (q - z) * s of its group.
+def ct_pack(codes, bits):
+    """pack-quantized's int32 word lines [rows][cols / per], signed as torch stores them, from lines of signed codes [rows][cols]."""
+    per, offset = 32 // bits, 1 << (bits - 1)
+    out = []
+    for line in codes:
+        words = []
+        for j in range(len(line) // per):
+            word = sum((line[per * j + i] + offset) << (bits * i) for i in range(per))
+            words.append(word - (1 << 32) if word >= 1 << 31 else word)
+        out.append(words)
+    return out
+
+
+def ct_unpack(words, bits):
+    """The signed codes [rows][cols] of pack-quantized word lines; the inverse of ct_pack."""
+    per, mask, offset = 32 // bits, (1 << bits) - 1, 1 << (bits - 1)
+    return [[((w >> (bits * i)) & mask) - offset for w in line for i in range(per)] for line in words]
+
+
+def ct_pack_zeros(zeros, bits):
+    """weight_zero_point's int32 word lines [rows / per][groups] from signed zero points [rows][groups], packed along the outputs."""
+    columns = [list(c) for c in zip(*zeros)]
+    return [list(line) for line in zip(*ct_pack(columns, bits))]
+
+
+def ct_unpack_zeros(words, bits):
+    """The signed zero points [rows][groups] of weight_zero_point's word lines; the inverse of ct_pack_zeros."""
+    columns = [list(c) for c in zip(*words)]
+    return [list(line) for line in zip(*ct_unpack(columns, bits))]
+
+
+def ct_dequantize(codes, zeros, scales, g_idx=None):
+    """The F32 weight [rows][cols] of signed codes [rows][cols], zero points [rows][groups] or None and scales [rows][groups]; each value is (q - z) * s, exact in f32."""
+    rows, cols, groups = len(codes), len(codes[0]), len(scales[0])
+    group = cols // groups
+    g = g_idx if g_idx is not None else [k // group for k in range(cols)]
+    return [[to_f32((codes[n][k] - (zeros[n][g[k]] if zeros else 0)) * scales[n][g[k]]) for k in range(cols)] for n in range(rows)]
+
+
+def ct_repack(codes, zeros, scales, g_idx, bits):
+    """A compressed-tensors int linear as (type, rows of blocks of 32 inputs): Q4_0 for 4-bit symmetric codes (q + 8), Q5_0 for 4-bit asymmetric ones (q - z + 16) and Q8_0 for 8-bit symmetric ones (q), d the group's scale in F16, exactly.
+    A g_idx other than k // group, a group that is not a multiple of 32, 8-bit asymmetric zero points and a scale F16 cannot hold raise ValueError."""
+    rows, cols, groups = len(codes), len(codes[0]), len(scales[0])
+    group = cols // groups
+    if group * groups != cols or group % 32:
+        raise ValueError("a group of %s inputs is not a multiple of 32" % (cols / groups))
+    if bits == 8 and zeros is not None:
+        raise ValueError("8-bit asymmetric compressed-tensors has no exact target")
+    if g_idx is not None and any(g != k // group for k, g in enumerate(g_idx)):
+        raise ValueError("g_idx does not follow the inputs")
+    kind = Q8_0 if bits == 8 else Q4_0 if zeros is None else Q5_0
+    out = bytearray()
+    for n in range(rows):
+        for b in range(cols // 32):
+            g = 32 * b // group
+            d = f16_bits_exact(scales[n][g])
+            if d is None:
+                raise ValueError("scale %r is not exact in F16" % scales[n][g])
+            q = codes[n][32 * b:32 * b + 32]
+            if kind == Q8_0:
+                out += struct.pack("<H32b", d, *q)
+            elif kind == Q4_0:
+                out += struct.pack("<H", d) + bytes((q[j] + 8) | (q[j + 16] + 8) << 4 for j in range(16))
+            else:
+                c = [x - zeros[n][g] + 16 for x in q]
+                high = sum(((x >> 4) & 1) << i for i, x in enumerate(c))
+                out += struct.pack("<HI", d, high) + bytes((c[j] & 15) | (c[j + 16] & 15) << 4 for j in range(16))
+    return kind, bytes(out)
+
+
+def ct_dequantize_numpy(weight, zeros, scales, bits, packed):
+    """ct_dequantize on arrays: weight int8 [rows, cols] or, when `packed`, int32 [rows, cols / per]; zeros None or int32 [rows / per, groups] packed; scales float [rows, groups]; the float32 weight [rows, cols]."""
+    per, mask, offset = 32 // bits, np.uint32((1 << bits) - 1), 1 << (bits - 1)
+
+    def unpack(w):
+        w = w.astype(np.uint32)
+        q = np.empty((w.shape[0], w.shape[1] * per), dtype=np.int32)
+        for i in range(per):
+            q[:, i::per] = ((w >> np.uint32(bits * i)) & mask).astype(np.int32) - offset
+        return q
+
+    q = unpack(weight) if packed else weight.astype(np.int32)
+    s = scales.astype(np.float32)
+    group = q.shape[1] // s.shape[1]
+    if zeros is not None:
+        q = q - np.repeat(unpack(zeros.T).T, group, axis=1)
+    return (q.astype(np.float32) * np.repeat(s, group, axis=1)).copy()
+
+
 # GGUF files: the magic, a version (2 or 3), the tensor and metadata counts, the metadata, the tensor descriptions, then the data at the next multiple of general.alignment (32 when absent).
 # Strings are a u64 byte count and UTF-8 bytes; each tensor has a name, a rank, its dimensions (the first varies fastest), a type and an offset into the data.
 

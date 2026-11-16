@@ -147,6 +147,21 @@ int main() {
             m.kv = read(directory({}, {"", "\"extra_special_tokens\":[\"<think>\",\"<|im_end|>\"]"}));
             require(key(m, "tokenizer.ggml.eos_token_id").u == 13, "extra_special_tokens list");
         }
+        {
+            // llm-compressor saves tokenizer.json with the truncation and padding of its calibration; transformers clears both on every encode it is not asked to cut or pad, so they change no id.
+            ++cases;
+            gguf::GGUFModel m;
+            m.kv = read(directory({"\"truncation\":null,\"padding\":null", "\"truncation\":{\"direction\":\"Right\",\"max_length\":4,\"strategy\":\"LongestFirst\",\"stride\":0},"
+                                   "\"padding\":{\"strategy\":{\"Fixed\":4},\"direction\":\"Right\",\"pad_to_multiple_of\":null,\"pad_id\":0,\"pad_type_id\":0,\"pad_token\":\"a\"}"}, {}));
+            require(key(m, "tokenizer.ggml.eos_token_id").u == 13, "truncation and padding");
+        }
+        {
+            // transformers saves the same settings in tokenizer_config.json and keeps them as init kwargs that no encode reads unless asked to cut or pad.
+            ++cases;
+            gguf::GGUFModel m;
+            m.kv = read(directory({}, {"", "\"max_length\":2048,\"stride\":0,\"truncation_side\":\"right\",\"truncation_strategy\":\"longest_first\",\"padding_side\":\"left\""}));
+            require(key(m, "tokenizer.ggml.eos_token_id").u == 13, "tokenizer_config.json truncation and padding");
+        }
         refused({}, {"", "\"extra_special_tokens\":{\"x\":\"<nope>\"}"}, "extra_special_tokens <nope> is not an added token");
         refused({}, {"", "\"extra_special_tokens\":[\"<think>\",\"<nope>\"]"}, "extra_special_tokens <nope> is not an added token");
         refused({}, {"", "\"extra_special_tokens\":\"<think>\""}, "extra_special_tokens is not a map or a list");
@@ -158,7 +173,6 @@ int main() {
         refused({"{\"type\":\"ByteLevel\",\"add_prefix_space\":false", "{\"type\":\"ByteLevel\",\"add_prefix_space\":true"}, {}, "add_prefix_space");
         refused({"\"post_processor\":{\"type\":\"ByteLevel\"", "\"post_processor\":{\"type\":\"TemplateProcessing\""}, {}, "post_processor type");
         refused({"\"byte_fallback\":false", "\"byte_fallback\":true"}, {}, "byte_fallback");
-        refused({"\"truncation\":null", "\"truncation\":{}"}, {}, "truncation");
         refused({"", "\"extra\":1"}, {}, "key extra is not one");
         refused({"", "\"model\":1"}, {}, "repeats key model");
         refused({"\"hell\":10", "\"hell\":16"}, {}, "below the embedding's 16 rows");
@@ -174,7 +188,7 @@ int main() {
         refused({}, {"\"add_bos_token\":false", "\"add_bos_token\":true"}, "add_bos_token");
         refused({}, {"\"clean_up_tokenization_spaces\":false", "\"clean_up_tokenization_spaces\":true"}, "clean_up_tokenization_spaces");
         refused({}, {"\"split_special_tokens\":false", "\"split_special_tokens\":true"}, "split_special_tokens");
-        refused({}, {"", "\"padding_side\":\"left\""}, "key padding_side is not one");
+        refused({}, {"", "\"made_up_key\":\"left\""}, "key made_up_key is not one");
         refused({}, {"\"eos_token\":\"<|im_end|>\"", "\"eos_token\":\"<|end|>\""}, "is not an added token");
         refused({}, {"\"chat_template\":\"{{ messages }}\"", "\"chat_template\":[{\"name\":\"default\",\"template\":\"x\"}]"}, "not one template");
         refused({}, {"\"special\":true}}", "\"special\":false}}"}, "added_tokens_decoder 12 differs");

@@ -147,6 +147,52 @@ def gptq_fixture(bits, sym, v1, seed=11):
     return entries, weights, quantized
 
 
+CT_FORMS = ((4, True, True, 32), (4, False, True, 32), (8, True, False, 0), (8, True, True, 0))  # bits, symmetric, pack-quantized, group (0: channel)
+
+
+def ct_fixture(bits, sym, packed, group, seed=13):
+    """A compressed-tensors directory's safetensors entries, and its GGUF twin's F32 weights and Q4_0, Q5_0 or Q8_0 tensors (spec_decode.ct_repack).
+    Codes and asymmetric zero points are random and BF16 scales F16-exact, one a group of inputs or one a row under the channel strategy."""
+    rng = random.Random(seed + bits + 2 * sym + 4 * packed)
+    entries, weights, quantized = [], [], []
+    for name, hf, shape, values in f32.tensors(True, config=AWQ_CONFIG):
+        layer, _, rest = name[4:].partition(".") if name.startswith("blk.") else ("", "", "")
+        if rest.split(".")[0] not in LINEARS:
+            entries.append((hf, "F32", shape, struct.pack("<%df" % len(values), *values)))
+            weights.append((name, hf, shape, values))
+            continue
+        cols, rows = shape
+        groups = cols // group if group else 1
+        half = 1 << (bits - 1)
+        scales = [[rng.choice((-1, 1)) * rng.randint(1, 255) * 2.0 ** -rng.randint(14, 22) for _ in range(groups)] for _ in range(rows)]
+        codes = [[rng.randrange(-half, half) for _ in range(cols)] for _ in range(rows)]
+        zeros = None if sym else [[rng.randrange(-8, 8) for _ in range(groups)] for _ in range(rows)]
+        flat = [x for line in scales for x in line]
+        base = hf[:-len(".weight")]
+        scale = (base + ".weight_scale", "BF16", [groups, rows], b"".join(struct.pack("<f", x)[2:] for x in flat))
+        if packed:
+            entries += [(base + ".weight_packed", "I32", [cols * bits // 32, rows], words_of(sd.ct_pack(codes, bits))), scale,
+                        (base + ".weight_shape", "I64", [2], struct.pack("<2q", rows, cols))]
+            if zeros:
+                entries.append((base + ".weight_zero_point", "I32", [groups, rows * bits // 32], words_of(sd.ct_pack_zeros(zeros, bits))))
+        else:
+            entries += [(base + ".weight", "I8", [cols, rows], struct.pack("<%db" % (rows * cols), *(q for line in codes for q in line))), scale]
+        kind, data = sd.ct_repack(codes, zeros, scales, None, bits)
+        quantized.append((name, shape, kind, data))
+    return entries, weights, quantized
+
+
+def ct_quantization(bits, sym, packed, group):
+    """The quantization_config llm-compressor writes for one weight scheme of ct_fixture's."""
+    weights = {"num_bits": bits, "type": "int", "symmetric": sym, "strategy": "group" if group else "channel", "group_size": group or None,
+               "dynamic": False, "actorder": "weight" if group else None, "block_structure": None, "observer": "minmax", "observer_kwargs": {}}
+    activations = None if packed else {"num_bits": 8, "type": "int", "symmetric": True, "strategy": "token", "dynamic": True, "group_size": None,
+                                       "actorder": None, "block_structure": None, "observer": None, "observer_kwargs": {}}
+    return {"quant_method": "compressed-tensors", "format": "pack-quantized" if packed else "int-quantized", "quantization_status": "compressed",
+            "config_groups": {"group_0": {"targets": ["Linear"], "weights": weights, "input_activations": activations, "output_activations": None}},
+            "ignore": ["lm_head"], "kv_cache_scheme": None, "global_compression_ratio": None, "sparsity_config": {}}
+
+
 def twin_checks(directory, label, fixture, quantization, type_name):
     """The quantized directory reads as its twin: info lists each linear as `type_name`, and ids, text and logits match the twin's byte for byte."""
     entries, weights, quantized = fixture
@@ -196,7 +242,10 @@ def run():
                             "checkpoint_format": "gptq" if v1 else "gptq_v2", "lm_head": False, "pack_dtype": "int32"}
             twin_checks(directory, "gptq%d%s" % (bits, "" if sym else "a"), gptq_fixture(bits, sym, v1), quantization,
                         "Q8_0" if bits == 8 else "Q4_0" if sym else "Q5_0")
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f  [ok]" % worst)
+        for bits, sym, packed, group in CT_FORMS:
+            twin_checks(directory, "ct%d%s%s" % (bits, "" if sym else "a", "p" if packed else "i"), ct_fixture(bits, sym, packed, group),
+                        ct_quantization(bits, sym, packed, group), "Q8_0" if bits == 8 else "Q4_0" if sym else "Q5_0")
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories and compressed-tensors 4-bit symmetric and asymmetric packed and 8-bit packed and int8 directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f  [ok]" % worst)
     return True
 
 

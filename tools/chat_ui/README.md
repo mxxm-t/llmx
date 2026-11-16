@@ -98,6 +98,8 @@ It does not lock the upstream model or control later server restarts.
   preserve messages and their branches. Imported chats do not restart runs.
 - Settings are per conversation. System instructions and generation settings
   apply to subsequent calls, including subsequent calls after a tool result.
+- Consecutive model calls in one tool-assisted reply share a visual header and
+  closer spacing. Each call keeps its own actions, details and statistics.
 - Reasoning is displayed only when the upstream supplies `reasoning_content`.
   You can open or close it while the reply is being generated. Reloading
   reconnects to the same reply without cancelling or restarting generation.

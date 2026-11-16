@@ -22,6 +22,9 @@ cover an unavailable upstream, explicit valid choices and default-model calls.
 Admission also completes while unrelated configuration discovery holds its lock.
 Browser checks preserve the prompt, attachments and settings through catalogue
 refusals and recover the connection after a successful retry.
+They also check shared visual headers and spacing for one tool-assisted reply
+in both themes at desktop and mobile widths, while imported messages without
+run identities retain their own headers.
 Shared branding checks cover the same asset bytes and MIME types in both servers,
 with the browser checking icon loading, sizing and matching Chat/Monitor favicons.
 

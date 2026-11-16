@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Chat reply flow (2026-11-16, Done)
+
+**Goal.** Make a tool-assisted reply read as one response, with less repeated chrome and clearer spacing between user turns.
+
+**Done.** The renderer marks adjacent assistant messages with the same nonempty run identity as continuations on every render. CSS shows one visual header for that reply and tightens spacing within it and after a user prompt. Each model call keeps its own article label, actions, reasoning, tool details and statistics. Separate runs and imported messages without run identities retain separate headers. No stored messages or inference behavior changes.
+
+**Checks.** The browser regression fails on the old renderer in 14.835 seconds. The updated full browser fixture passes in 41.214 seconds, including grouped tool follow-ups, open details, separate replies, imports without identities, both themes at desktop/mobile widths and the existing branch, streaming, keyboard and 200-percent zoom checks. An initial run failed the existing sidebar pixel check during its drawer transition; a later screenshot showed the correct fill. The sampler now waits for the actual transition and a paint before measuring, and the final run recorded one such wait while keeping the same pixel assertion. Screenshots and logs are under scratch/chat-ui-browser and scratch/model-catalog-review.
+
+**Review and landing.** Root inspected the desktop and mobile screenshots. A bounded second-agent review confirmed grouping is recomputed outside the content fingerprint check, so branch changes cannot retain stale continuation classes. Companion README, contract and test descriptions are updated; root README is unchanged because this alters no advertised model, backend, quant, flag or companion capability. Remaining Markdown claims were checked against the presentation-only scope. Docs and dead-code checks cover the final tree. The change lands by fast-forward after the test commit, with no runtime or inference gates required.
+
+**Gotchas.** Local8183 serves the static updates without restarting Python or changing stored conversations. The independently discovered stale tool-approval panel is a separate fix.
+
 ## Chat model catalogue freshness (2026-11-16, Done)
 
 **Goal.** Reject a model selection that became unavailable after the page loaded, refresh the displayed choices from that check and preserve the unsent composer.

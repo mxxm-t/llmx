@@ -376,6 +376,10 @@
         } else { container.append(replacement); old = replacement; }
         S.fingerprint.set(message.id, fingerprint);
       }
+      const previous = selected[index - 1];
+      const continuation = message.role === 'assistant' && previous?.role === 'assistant' && Boolean(message.run_id) && message.run_id === previous.run_id;
+      old.classList.toggle('continuation', continuation);
+      if (continuation) old.setAttribute('aria-label', 'Assistant continuation'); else old.removeAttribute('aria-label');
       if (container.children[index] !== old) container.insertBefore(old, container.children[index] || null);
     });
     if (tooltipTarget && !tooltipTarget.isConnected) hideActionTooltip();

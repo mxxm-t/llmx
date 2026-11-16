@@ -124,6 +124,13 @@ async function upload(selector, filename) { const root = await cdp('DOM.getDocum
 async function uploadMany(selector, files) { const root = await cdp('DOM.getDocument'); const target = await cdp('DOM.querySelector', {nodeId: root.root.nodeId, selector}); await cdp('DOM.setFileInputFiles', {nodeId: target.nodeId, files}); }
 async function screenshot(name) { await delay(240); const result = await cdp('Page.captureScreenshot', {format: 'png', captureBeyondViewport: false}); await writeFile(path.join(artifacts, name), Buffer.from(result.data, 'base64')); }
 async function sidebarFocusSamples(selector) {
+  const transitions = await evaluate(`(async () => {
+    const animations = document.querySelector('.sidebar').getAnimations();
+    await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return animations.length;
+  })()`);
+  if (transitions) console.log('Sidebar screenshot waited for ' + transitions + ' transition(s)');
   const box = await evaluate(`(()=>{const row=document.querySelector(${JSON.stringify(selector)}).parentElement,r=row.getBoundingClientRect(),probe=document.createElement('div');probe.style.background='var(--hover)';document.body.append(probe);const expected=getComputedStyle(probe).backgroundColor;probe.remove();return {x:r.x,y:r.y,width:r.width,height:r.height,expected}})()`);
   const left = Math.floor(box.x), top = Math.floor(box.y);
   const width = Math.ceil(box.width + box.x - left), height = Math.ceil(box.height + box.y - top);

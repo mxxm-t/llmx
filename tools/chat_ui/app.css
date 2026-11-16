@@ -691,12 +691,25 @@ kbd {
   position:relative;
   overflow-wrap:anywhere
 }
+.message.assistant:has(+ .message.assistant.continuation) {
+  padding-bottom:12px
+}
+.message.assistant.continuation {
+  padding-top:0
+}
+.message.assistant.continuation>.message-header {
+  display:none
+}
 .message.user {
   padding-left:50px;
   display:flex;
   flex-direction:column;
   align-items:flex-end;
   margin-bottom:10px
+}
+.message.user:has(+ .message.assistant) {
+  padding-bottom:12px;
+  margin-bottom:0
 }
 .message-header {
   display:flex;

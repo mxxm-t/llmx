@@ -14,6 +14,7 @@
 #include "core/fp16.hpp"
 #include "core/json.hpp"
 #include "format/gguf.hpp"
+#include "format/weight_scales.hpp"
 #include "quant/quant.hpp"
 
 // Quantized Hugging Face checkpoints: config.json's quantization_config read strictly, and each quantized linear's companion tensors made one tensor of an existing type whose values are the checkpoint's exactly (docs/src/format-hf_quant.md).
@@ -24,7 +25,7 @@ namespace hf_quant {
 // What a repack writes; the disk tier's identity carries it, so a change to any kind's bytes moves it.
 constexpr uint32_t kRepackVersion = 3;
 
-enum Kind : uint32_t { awq_q5_0 = 1, gptq_q4_0 = 2, gptq_q5_0 = 3, gptq_q8_0 = 4, ct_q4_0 = 5, ct_q5_0 = 6, ct_q8_0 = 7 };
+enum Kind : uint32_t { awq_q5_0 = 1, gptq_q4_0 = 2, gptq_q5_0 = 3, gptq_q8_0 = 4, ct_q4_0 = 5, ct_q5_0 = 6, ct_q8_0 = 7, fp8_grid = gguf::kFp8GridComposite };
 
 namespace detail {
 
@@ -114,40 +115,49 @@ inline Gptq gptq_config(const jmini::Value& qc) {
     return q;
 }
 
-// Each `X.<main>` of `m` that holds integers and its companions `X.<suffix>`, the first `required` of them required, made one composite `X.weight` at the main's place, the companions leaving the table.
-// `make` checks the parts and sets the composite's kind and the tensor's type and shape.
-template <class Make> void linears(gguf::GGUFModel& m, const std::string& main, const std::vector<std::string>& companions, size_t required, Make make) {
+// Each `X.<main>` of `m` that holds integers, or F8_E4M3 codes under `fp8`, and its companions `X.<suffix>`, the first `required` of them required: made one composite `X.weight` at the main's place, the companions leaving the table.
+// Under `fp8` the main stays as it is and the composite is its scale grid `X.scale` at the first companion's place, made from that companion alone; `make` checks the parts and sets the composite's kind and the tensor's type and shape.
+template <class Make> void linears(gguf::GGUFModel& m, const std::string& main, const std::vector<std::string>& companions, size_t required, Make make, bool fp8 = false) {
     std::map<std::string, size_t> index;
     for (size_t i = 0; i < m.tensors.size(); ++i) index[m.tensors[i].name] = i;
     std::vector<size_t> drop;
-    std::vector<bool> integer(m.tensors.size());
-    for (size_t i = 0; i < m.tensors.size(); ++i) integer[i] = m.tensors[i].type == quant::GGML_TYPE_I32 || m.tensors[i].type == quant::GGML_TYPE_I8;
+    std::vector<bool> coded(m.tensors.size());
+    for (size_t i = 0; i < m.tensors.size(); ++i)
+        coded[i] = fp8 ? m.tensors[i].type == quant::GGML_TYPE_F8_E4M3 : m.tensors[i].type == quant::GGML_TYPE_I32 || m.tensors[i].type == quant::GGML_TYPE_I8;
     for (size_t i = 0; i < m.tensors.size(); ++i) {
         gguf::TensorInfo& t = m.tensors[i];
         const auto companion = std::find_if(companions.begin(), companions.end(), [&](const std::string& s) { return ends_with(t.name, "." + s); });
         if (companion != companions.end()) {
             const auto beside = index.find(t.name.substr(0, t.name.size() - companion->size()) + main);
             if (beside == index.end()) throw std::runtime_error("tensor " + t.name + " has no " + main + " beside it");
-            if (!integer[beside->second])
-                throw std::runtime_error("tensor " + t.name + " has no integer " + main + " beside it");
+            if (!coded[beside->second])
+                throw std::runtime_error("tensor " + t.name + " has no " + (fp8 ? "F8_E4M3 " : "integer ") + main + " beside it");
             continue;
         }
-        if (!ends_with(t.name, "." + main) || !integer[i]) continue;
+        if (!ends_with(t.name, "." + main) || !coded[i]) continue;
         const std::string base = t.name.substr(0, t.name.size() - main.size() - 1);
         gguf::GGUFModel::Composite c;
-        c.parts = {{t, m.offsets[i]}};
+        if (!fp8) c.parts = {{t, m.offsets[i]}};
+        size_t at = i;
         for (size_t j = 0; j < companions.size(); ++j) {
             const auto found = index.find(base + "." + companions[j]);
             if (found == index.end()) {
                 if (j < required) throw std::runtime_error("tensor " + t.name + " lacks its " + companions[j]);
                 continue;
             }
-            c.parts.push_back({m.tensors[found->second], m.offsets[found->second]});
+            if (fp8 && j == 0) {
+                at = found->second;
+                c.parts.push_back({m.tensors[at], m.offsets[at]});
+                continue;
+            }
+            if (!fp8) c.parts.push_back({m.tensors[found->second], m.offsets[found->second]});
             drop.push_back(found->second);
         }
-        make(base, c, t);
-        t.name = base + ".weight";
-        m.composites[i] = std::move(c);
+        gguf::TensorInfo& made = m.tensors[at];
+        if (fp8) made = t;
+        make(base, c, made);
+        made.name = base + (fp8 ? ".scale" : ".weight");
+        m.composites[at] = std::move(c);
     }
     std::sort(drop.begin(), drop.end());
     m.erase_tensors(drop);
@@ -195,10 +205,16 @@ inline void gptq(const Gptq& q, gguf::GGUFModel& m) {
     });
 }
 
+// How an FP8 checkpoint's weight scales cover a linear: one scale, one a row, or one a 128 x 128 block.
+enum class Fp8Scales { tensor, channel, block };
+
 struct Compressed {
     uint32_t bits = 0, group = 0;  // group 0: one scale a row (the channel strategy)
     bool sym = true, packed = true;
+    bool fp8 = false;              // float-quantized: E4M3 codes under scales of `scales`' form
+    Fp8Scales scales = Fp8Scales::channel;
     std::string activations;  // the input activations' scheme in words, empty when none; read and not applied
+    std::string kv;           // a KV cache scheme in words, empty when none; its k_scale and v_scale are read and not applied
 };
 
 // A config group's input_activations in words, for `llmx info`; llmx runs every file's activations by --dtype, not by this scheme.
@@ -213,42 +229,63 @@ inline std::string activation_scheme(const jmini::Value& a) {
     return s + "; not applied, activations follow --dtype";
 }
 
+// Whether `v` is the block shape [128, 128], the one FP8 block llmx reads.
+inline bool square_blocks(const jmini::Value& v) {
+    return v.isArray() && v.arr.size() == 2 &&
+           std::all_of(v.arr.begin(), v.arr.end(), [](const jmini::Value& x) { return x.isNumber() && x.num == double(gguf::kFp8ScaleInputs); });
+}
+
 // One config group's weights scheme of compressed-tensors; actorder is taken as it is, since weight_g_idx itself decides whether a linear's groups follow its inputs.
 inline Compressed compressed_scheme(const jmini::Value& w, const std::string& where) {
     if (!w.isObject()) throw std::runtime_error(where + " is not an object");
     static const char* const taken[] = {"actorder", "observer", "observer_kwargs"};
     Compressed q;
     std::string strategy;
-    const jmini::Value* group = nullptr;
+    const jmini::Value *group = nullptr, *block = nullptr;
     for (const auto& [key, v] : w.obj) {
         const std::string what = where + " " + key;
         if (key == "num_bits") {
             if (!v.isNumber() || (v.num != 4 && v.num != 8)) throw std::runtime_error(what + ": llmx reads 4- and 8-bit compressed-tensors only");
             q.bits = uint32_t(v.num);
         } else if (key == "type") {
-            if (!v.isString() || v.str != "int") throw std::runtime_error(what + ": llmx reads compressed-tensors int weights only");
+            if (!v.isString() || (v.str != "int" && v.str != "float")) throw std::runtime_error(what + ": llmx reads compressed-tensors int and float weights only");
+            q.fp8 = v.str == "float";
         } else if (key == "symmetric") {
             if (v.t != jmini::Value::T::Bool) throw std::runtime_error(what + " is not true or false");
             q.sym = v.b;
         } else if (key == "strategy") {
-            if (!v.isString() || (v.str != "group" && v.str != "channel")) throw std::runtime_error(what + ": llmx reads compressed-tensors group and channel scales only");
+            if (!v.isString()) throw std::runtime_error(what + " is not a string");
             strategy = v.str;
         } else if (key == "group_size") {
             group = &v;
         } else if (key == "dynamic") {
             if (v.t != jmini::Value::T::Bool || v.b) throw std::runtime_error(what + ": llmx reads compressed-tensors with stored weight scales only");
         } else if (key == "block_structure") {
-            if (v.t != jmini::Value::T::Null) throw std::runtime_error(what + ": llmx reads compressed-tensors without weight blocks only");
+            block = &v;
         } else if (std::find_if(std::begin(taken), std::end(taken), [&](const char* k) { return key == k; }) == std::end(taken)) {
             throw std::runtime_error(what + " is not one llmx reads for compressed-tensors");
         }
     }
     if (!q.bits) throw std::runtime_error(where + " gives no num_bits");
     if (strategy.empty()) throw std::runtime_error(where + " gives no strategy");
+    const bool blocks = block && block->t != jmini::Value::T::Null;
+    const bool groups = group && group->t != jmini::Value::T::Null && !(group->isNumber() && group->num == -1);
+    if (q.fp8) {
+        if (q.bits != 8 || !q.sym) throw std::runtime_error(where + ": llmx reads 8-bit symmetric float weights only");
+        if (strategy != "tensor" && strategy != "channel" && strategy != "block")
+            throw std::runtime_error(where + " strategy: llmx reads compressed-tensors float weights by tensor, channel or 128 x 128 block only");
+        q.scales = strategy == "tensor" ? Fp8Scales::tensor : strategy == "channel" ? Fp8Scales::channel : Fp8Scales::block;
+        if (blocks != (q.scales == Fp8Scales::block) || (blocks && !square_blocks(*block)))
+            throw std::runtime_error(where + " block_structure: llmx reads float weight blocks of 128 x 128 under the block strategy only");
+        if (groups) throw std::runtime_error(where + " group_size: llmx reads float weights without groups");
+        return q;
+    }
+    if (blocks) throw std::runtime_error(where + " block_structure: llmx reads compressed-tensors int weights without weight blocks only");
+    if (strategy != "group" && strategy != "channel") throw std::runtime_error(where + " strategy: llmx reads compressed-tensors group and channel scales only");
     if (strategy == "group") {
         if (!group) throw std::runtime_error(where + " gives no group_size");
         q.group = group_of(*group, where + " group_size", "compressed-tensors");
-    } else if (group && group->t != jmini::Value::T::Null && !(group->isNumber() && group->num == -1)) {
+    } else if (groups) {
         throw std::runtime_error(where + " group_size: a channel scheme has no groups");
     }
     if (q.bits == 8 && !q.sym) throw std::runtime_error(where + " symmetric: llmx reads 8-bit compressed-tensors with symmetric zero points only");
@@ -256,28 +293,28 @@ inline Compressed compressed_scheme(const jmini::Value& w, const std::string& wh
 }
 
 // compressed-tensors' quantization_config, read as AWQ's is: one weights scheme over config groups that each target every linear, activation schemes taken and not applied.
-// The keys taken are those llm-compressor's files carry, and `ignore` may name only the head (docs/src/format-hf_quant.md).
+// The keys taken are those llm-compressor's files carry; `ignore` may name only the head, or under float weights any modules, names and `re:` patterns alike, since a linear is FP8 exactly where its weight is (docs/src/format-hf_quant.md).
 inline Compressed compressed_config(const jmini::Value& qc) {
     static const char* const taken[] = {"global_compression_ratio", "version"};
     Compressed q;
     bool schemes = false;
     std::string format, activations;
+    const jmini::Value *kv = nullptr, *ignore = nullptr;
     for (const auto& [key, v] : qc.obj) {
         const std::string what = "quantization_config " + key;
         if (key == "quant_method") continue;
         if (key == "format") {
-            if (!v.isString() || (v.str != "pack-quantized" && v.str != "int-quantized"))
-                throw std::runtime_error(what + ": llmx reads compressed-tensors pack-quantized and int-quantized only");
+            if (!v.isString() || (v.str != "pack-quantized" && v.str != "int-quantized" && v.str != "float-quantized"))
+                throw std::runtime_error(what + ": llmx reads compressed-tensors pack-quantized, int-quantized and float-quantized only");
             format = v.str;
         } else if (key == "quantization_status") {
             if (!v.isString() || v.str != "compressed") throw std::runtime_error(what + ": llmx reads compressed checkpoints only");
         } else if (key == "kv_cache_scheme") {
-            if (v.t != jmini::Value::T::Null) throw std::runtime_error(what + ": llmx reads compressed-tensors with an unquantized KV cache only");
+            kv = &v;
         } else if (key == "sparsity_config") {
             if (v.t != jmini::Value::T::Null && !(v.isObject() && v.obj.empty())) throw std::runtime_error(what + ": llmx reads dense compressed-tensors only");
         } else if (key == "ignore") {
-            if (v.t != jmini::Value::T::Null && !(v.isArray() && std::all_of(v.arr.begin(), v.arr.end(), [](const jmini::Value& x) { return x.isString() && x.str == "lm_head"; })))
-                throw std::runtime_error(what + ": llmx reads compressed-tensors that leave out the head alone");
+            ignore = &v;
         } else if (key == "config_groups") {
             if (!v.isObject()) throw std::runtime_error(what + " is not an object");
             for (const auto& [name, g] : v.obj) {
@@ -287,7 +324,7 @@ inline Compressed compressed_config(const jmini::Value& qc) {
                 for (const auto& [part, x] : g.obj) {
                     if (part == "weights") {
                         const Compressed one = compressed_scheme(x, where + " weights");
-                        if (schemes && (one.bits != q.bits || one.group != q.group || one.sym != q.sym))
+                        if (schemes && (one.bits != q.bits || one.group != q.group || one.sym != q.sym || one.fp8 != q.fp8 || one.scales != q.scales))
                             throw std::runtime_error(where + " weights differ from another group's; llmx reads one weights scheme");
                         q = one;
                         schemes = true;
@@ -309,10 +346,88 @@ inline Compressed compressed_config(const jmini::Value& qc) {
     }
     if (format.empty()) throw std::runtime_error("quantization_config gives no format");
     if (!schemes) throw std::runtime_error("quantization_config config_groups give no weights scheme");
+    if (q.fp8 != (format == "float-quantized")) throw std::runtime_error("quantization_config format " + format + " does not hold " + (q.fp8 ? "float" : "int") + " weights");
+    const bool null_kv = !kv || kv->t == jmini::Value::T::Null;
+    if (!null_kv && (!q.fp8 || !kv->isObject()))
+        throw std::runtime_error("quantization_config kv_cache_scheme: llmx reads compressed-tensors int weights with an unquantized KV cache only");
+    if (!null_kv) q.kv = activation_scheme(*kv).substr(0, activation_scheme(*kv).find(';')) + "; not applied, the KV cache follows --cache-type-k and --cache-type-v";
+    if (ignore && ignore->t != jmini::Value::T::Null &&
+        !(ignore->isArray() && std::all_of(ignore->arr.begin(), ignore->arr.end(), [&](const jmini::Value& x) { return x.isString() && (q.fp8 || x.str == "lm_head"); })))
+        throw std::runtime_error(std::string("quantization_config ignore: llmx reads compressed-tensors ") + (q.fp8 ? "that leave out a list of modules" : "that leave out the head alone"));
     q.packed = format == "pack-quantized";
     q.activations = activations;
     if (!q.packed && !q.sym) throw std::runtime_error("quantization_config format: llmx reads int-quantized compressed-tensors with symmetric codes only");
     return q;
+}
+
+// The activation and KV cache schemes a file gives, in words, kept in its metadata as `quantization.input_activations` and `quantization.kv_cache_scheme` for `llmx info`; neither is applied.
+inline void schemes(const std::string& activations, const std::string& kv, gguf::GGUFModel& m) {
+    for (const auto& [key, text] : {std::pair<const char*, const std::string&>{"quantization.input_activations", activations}, {"quantization.kv_cache_scheme", kv}}) {
+        if (text.empty()) continue;
+        gguf::MetaValue v;
+        v.vtype = gguf::V_STRING;
+        v.s = text;
+        m.kv.emplace_back(key, v);
+    }
+}
+
+// An FP8 checkpoint's linears: the companion holding the weight scales, their form, and the activation and KV cache schemes in words (schemes).
+struct Fp8 {
+    std::string scale;
+    Fp8Scales scales = Fp8Scales::block;
+    std::string activations, kv;
+};
+
+// quant_method fp8's quantization_config: E4M3 codes with `weight_scale_inv` scales (a multiplier despite its name) per 128 x 128 block, or one a tensor without weight_block_size.
+inline Fp8 fp8_config(const jmini::Value& qc) {
+    Fp8 q{"weight_scale_inv", Fp8Scales::block, "", ""};
+    for (const auto& [key, v] : qc.obj) {
+        const std::string what = "quantization_config " + key;
+        if (key == "quant_method" || key == "dequantize") continue;
+        if (key == "fmt") {
+            if (!v.isString() || v.str != "e4m3") throw std::runtime_error(what + ": llmx reads E4M3 FP8 only");
+        } else if (key == "weight_block_size") {
+            if (v.t == jmini::Value::T::Null) q.scales = Fp8Scales::tensor;
+            else if (!square_blocks(v)) throw std::runtime_error(what + ": llmx reads FP8 blocks of 128 x 128 only");
+        } else if (key == "activation_scheme") {
+            if (!v.isString() || (v.str != "dynamic" && v.str != "static")) throw std::runtime_error(what + " is neither dynamic nor static");
+            q.activations = "8-bit float by tensor, " + v.str + "; not applied, activations follow --dtype";
+        } else if (key == "modules_to_not_convert") {
+            if (v.t != jmini::Value::T::Null && !(v.isArray() && std::all_of(v.arr.begin(), v.arr.end(), [](const jmini::Value& x) { return x.isString(); })))
+                throw std::runtime_error(what + " is not a list of module names");
+        } else {
+            throw std::runtime_error(what + " is not one llmx reads for fp8");
+        }
+    }
+    return q;
+}
+
+// FP8 linears: an F8_E4M3 weight [in, out] and its scales of BF16, F16 or F32, one a tensor, [1, out] by channel or [in / 128, ceil(out / 128)] by block, made the F32 grid `X.scale` (gguf::fp8_grid).
+// A static `input_scale` and a KV cache's `k_scale` and `v_scale` leave the table unapplied; the modules listed to leave out need no match, since a linear is FP8 exactly where its weight is.
+inline void fp8(const Fp8& q, gguf::GGUFModel& m) {
+    const char* form = q.scales == Fp8Scales::tensor ? "tensor" : q.scales == Fp8Scales::channel ? "channel" : "block";
+    linears(m, "weight", {q.scale, "input_scale"}, 1, [&](const std::string& base, gguf::GGUFModel::Composite& c, gguf::TensorInfo& t) {
+        const gguf::TensorInfo& s = c.parts[0].first;
+        if (s.type != quant::GGML_TYPE_F32 && s.type != quant::GGML_TYPE_F16 && s.type != quant::GGML_TYPE_BF16)
+            throw std::runtime_error("tensor " + s.name + " holds " + quant::storage_type(s.type)->name + " scales; llmx reads BF16, F16 and F32 FP8 scales");
+        if (t.ne.size() != 2 || !t.ne[0] || !t.ne[1] || t.ne[0] % gguf::kFp8ScaleInputs) throw std::runtime_error("FP8 linear " + base + " is not a matrix of whole 128-input blocks");
+        const uint64_t in = t.ne[0], out = t.ne[1];
+        const bool fits = q.scales == Fp8Scales::tensor    ? s.n_elements() == 1 && s.ne.size() <= 1
+                          : q.scales == Fp8Scales::channel ? s.ne == std::vector<uint64_t>{1, out}
+                                                           : s.ne == gguf::fp8_grid_shape(t.ne, 7);
+        if (!fits) throw std::runtime_error("FP8 linear " + base + " has scales that do not match one " + (q.scales == Fp8Scales::tensor ? "scale" : std::string("scale a ") + form) +
+                                            " over " + std::to_string(in) + " inputs and " + std::to_string(out) + " outputs");
+        c.kind = fp8_grid;
+        t.type = quant::GGML_TYPE_F32;
+        t.ne = gguf::fp8_grid_shape(t.ne, q.scales == Fp8Scales::channel ? 0 : 7);
+    }, true);
+    if (!q.kv.empty()) {
+        std::vector<size_t> drop;
+        for (size_t i = 0; i < m.tensors.size(); ++i)
+            if (ends_with(m.tensors[i].name, ".k_scale") || ends_with(m.tensors[i].name, ".v_scale")) drop.push_back(i);
+        m.erase_tensors(drop);
+    }
+    schemes(q.activations, q.kv, m);
 }
 
 // The part of composite `c` whose name ends in `.suffix`, or -1.
@@ -325,6 +440,10 @@ inline int part_of(const gguf::GGUFModel::Composite& c, const std::string& suffi
 // compressed-tensors linears: weight_packed or int-quantized's I8 weight, weight_scale, weight_zero_point when asymmetric, weight_shape and weight_g_idx make one tensor [in, out] (shapes in docs/src/format-hf_quant.md).
 // It is Q4_0 for 4-bit symmetric codes, Q5_0 for 4-bit asymmetric ones and Q8_0 for 8-bit ones.
 inline void compressed(const Compressed& q, gguf::GGUFModel& m) {
+    if (q.fp8) {
+        fp8(Fp8{"weight_scale", q.scales, q.activations, q.kv}, m);
+        return;
+    }
     const uint64_t per = 32 / q.bits;
     linears(m, q.packed ? "weight_packed" : "weight", {"weight_scale", "weight_zero_point", "weight_shape", "weight_g_idx"}, 1,
             [&](const std::string& base, gguf::GGUFModel::Composite& c, gguf::TensorInfo& t) {
@@ -349,12 +468,7 @@ inline void compressed(const Compressed& q, gguf::GGUFModel& m) {
         t.type = q.bits == 8 ? quant::GGML_TYPE_Q8_0 : q.sym ? quant::GGML_TYPE_Q4_0 : quant::GGML_TYPE_Q5_0;
         t.ne = {in, out};
     });
-    if (!q.activations.empty()) {
-        gguf::MetaValue v;
-        v.vtype = gguf::V_STRING;
-        v.s = q.activations;
-        m.kv.emplace_back("quantization.input_activations", v);
-    }
+    schemes(q.activations, {}, m);
 }
 
 inline uint32_t word(const uint8_t* p, size_t at) {
@@ -387,6 +501,12 @@ inline void follows(const uint8_t* p, size_t k, size_t group, const std::string&
 
 } // namespace detail
 
+// The weight beside an FP8 scale grid `X.scale` that linears made: `X.weight`.
+inline std::string fp8_weight_of(const std::string& grid) { return grid.substr(0, grid.size() - 6) + ".weight"; }
+
+// The scale grid beside an FP8 weight `X.weight`: `X.scale`.
+inline std::string fp8_grid_of(const std::string& weight) { return weight.substr(0, weight.size() - 7) + ".scale"; }
+
 // Reads `qc`, config.json's quantization_config or null, and makes `m`'s quantized linears composites; integer tensors no rule consumed are refused by name.
 inline void apply(const jmini::Value* qc, gguf::GGUFModel& m) {
     if (qc) {
@@ -396,16 +516,29 @@ inline void apply(const jmini::Value* qc, gguf::GGUFModel& m) {
         if (method->str == "awq") detail::awq(detail::awq_group(*qc), m);
         else if (method->str == "gptq") detail::gptq(detail::gptq_config(*qc), m);
         else if (method->str == "compressed-tensors") detail::compressed(detail::compressed_config(*qc), m);
+        else if (method->str == "fp8") detail::fp8(detail::fp8_config(*qc), m);
         else throw std::runtime_error("quantization_config quant_method " + method->str + " is not one llmx reads");
     }
-    for (const auto& t : m.tensors)
+    std::map<std::string, size_t> names;
+    for (size_t i = 0; i < m.tensors.size(); ++i) names[m.tensors[i].name] = i;
+    for (const auto& t : m.tensors) {
         if (t.type == quant::GGML_TYPE_I8 || t.type == quant::GGML_TYPE_I32 || t.type == quant::GGML_TYPE_I64)
             throw std::runtime_error("tensor " + t.name + " holds integers that no quantization rule of the directory reads");
+        if (t.type != quant::GGML_TYPE_F8_E4M3) continue;
+        const auto grid = detail::ends_with(t.name, ".weight") ? names.find(fp8_grid_of(t.name)) : names.end();
+        if (grid == names.end() || !m.composites.count(grid->second))
+            throw std::runtime_error("tensor " + t.name + " holds F8_E4M3 codes that no quantization rule of the directory reads");
+    }
 }
 
 // Writes composite `c`'s bytes, tensor `t`, at `out` from its parts' bytes read whole, in the order of c.parts, a block of 32 inputs of every output at a time.
 // Each weight is (q - z) * s, held as d = s in F16 and an integer code; what no code holds exactly is refused by tensor (docs/src/format-hf_quant.md).
 inline void repack(const gguf::GGUFModel::Composite& c, const gguf::TensorInfo& t, const std::vector<const uint8_t*>& parts, uint8_t* out) {
+    if (c.kind == fp8_grid) {
+        if (parts.size() != 1 || c.parts.size() != 1) throw std::logic_error("hf_quant: unknown repack of " + t.name);
+        gguf::fp8_grid(parts[0], c.parts[0].first.type, size_t(c.parts[0].first.n_elements()), out, size_t(t.n_elements()));
+        return;
+    }
     const bool awq = c.kind == awq_q5_0, gptq = c.kind == gptq_q4_0 || c.kind == gptq_q5_0 || c.kind == gptq_q8_0, ct = c.kind == ct_q4_0 || c.kind == ct_q5_0 || c.kind == ct_q8_0;
     if (!(awq && parts.size() == 3) && !(gptq && (parts.size() == 3 || parts.size() == 4)) && !(ct && parts.size() == c.parts.size() && parts.size() >= 2))
         throw std::logic_error("hf_quant: unknown repack of " + t.name);

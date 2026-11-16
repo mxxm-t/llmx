@@ -120,12 +120,13 @@ inline const char* dtype_name(Dtype dtype) {
     return "unknown";
 }
 
-// A matrix or embedding operand, with optional F32 scalar/per-expert weight scales.
+// A matrix or embedding operand, with optional F32 weight scales: NVFP4's one per matrix or per expert, or F8_E4M3's grid, one per 128 inputs of every 2^scale_shift rows of each expert, read at (row >> scale_shift) * (nin / 128) + k / 128.
 struct WeightView {
     uint32_t type;
     CSlice data;
     CSlice scales = {};
     size_t scale_count = 0;
+    unsigned scale_shift = 0;
 };
 
 struct Projection {

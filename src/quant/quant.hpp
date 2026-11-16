@@ -18,12 +18,18 @@
 #include "quant/mxfp4.hpp"
 #include "quant/nvfp4.hpp"
 #include "quant/low_bits.hpp"
+#include "quant/model_formats.hpp"
 #include "quant/tq.hpp"
 #include "quant/types.hpp"
 
 // Block quantizers, decoders and their registry; types.hpp owns storage metadata.
 
 namespace quant {
+
+// F8_E4M3 codes as their unscaled values, NaN codes as NaN; the weight's scales are applied by its reader.
+inline void dequantize_row_f8_e4m3(const uint8_t* src, float* dst, size_t n) {
+    for (size_t i = 0; i < n; ++i) dst[i] = model_formats::e4m3_value(src[i]);
+}
 
 inline void dequantize_row_f16(const uint8_t* src, float* dst, size_t n) {
     for (size_t i = 0; i < n; ++i)
@@ -272,6 +278,8 @@ private:
           { *storage_type(GGML_TYPE_Q1_0), nullptr, dequantize_row_q1_0 } },
         { GGML_TYPE_Q2_0,
           { *storage_type(GGML_TYPE_Q2_0), nullptr, dequantize_row_q2_0 } },
+        { GGML_TYPE_F8_E4M3,
+          { *storage_type(GGML_TYPE_F8_E4M3), nullptr, dequantize_row_f8_e4m3 } },
         { GGML_TYPE_TQ1_0,
           { *storage_type(GGML_TYPE_TQ1_0), nullptr, dequantize_row_tq1_0 } },
         { GGML_TYPE_TQ2_0,

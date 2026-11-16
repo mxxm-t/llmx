@@ -10,6 +10,7 @@
 
 #include "core/json.hpp"
 #include "format/gguf.hpp"
+#include "format/hf_quant.hpp"
 
 // A Hugging Face directory's config.json and tensor names turned into the metadata and names an architecture's GGUF reader takes, by one table per architecture module.
 // Strict: a config key or a tensor the table does not name is refused, so a checkpoint the module does not run is never read as one it does.
@@ -157,14 +158,18 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
     for (size_t i = 0; i < m.tensors.size(); ++i) {
         auto& t = m.tensors[i];
         const std::string hf_name = t.name;
+        // An FP8 linear's scale grid, which hf_quant made `X.scale` beside `X.weight`, takes its weight's name with `.scale` for `.weight`.
+        const bool grid = m.composites.count(i) && hf_name.size() > 6 && hf_name.compare(hf_name.size() - 6, 6, ".scale") == 0;
+        const std::string looked = grid ? hf_quant::fp8_weight_of(hf_name) : hf_name;
         bool renamed = false;
         for (const Name& n : table.names) {
             uint64_t layer = 0;
-            if (!detail::match(n.hf, t.name, layer)) continue;
+            if (!detail::match(n.hf, looked, layer)) continue;
             if (layer >= layers->u) throw std::runtime_error("tensor " + t.name + " is past the layer count");
             std::string out = n.gguf;
             const size_t at = out.find("{N}");
             if (at != std::string::npos) out.replace(at, 3, std::to_string(layer));
+            if (grid) out = hf_quant::fp8_grid_of(out);
             t.name = out;
             renamed = true;
             break;

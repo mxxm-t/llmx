@@ -74,6 +74,12 @@ struct MetaValue {
 };
 
 
+// The file offset alignment a tensor of `type` is read at: a float's, or a narrower value's own size, so 16-bit and 8-bit tensors of a directory may follow one of odd length.
+inline size_t value_alignment(uint32_t type) {
+    const quant::StorageType* t = quant::storage_type(type);
+    return t && t->block_size == 1 && t->type_size < alignof(float) ? t->type_size : alignof(float);
+}
+
 struct TensorInfo {
     std::string name;
     std::vector<uint64_t> ne; // dims; ne[0] is fastest

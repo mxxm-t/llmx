@@ -9,6 +9,7 @@ check their own type support; unknown and retired storage IDs are refused.
   tensor's `type` holds and their block sizes are the quant layer's
   (`quant/types.hpp`, [quant-types](quant-types.md)).
 - `MetaValue`: typed metadata value (all GGUF value types incl. arrays).
+- `value_alignment(type)`: the offset alignment a tensor's values are read at, a float's or a narrower one-value type's own size; the directory reader and `infer::gguf_weights` check offsets by it.
 - `TensorInfo`: name, dims (`ne[0]` fastest), type, offset; `n_elements()` and
   `data_size()` use checked arithmetic. `data_size()` sizes the tensor's rows
   of `ne[0]` values through `quant::row_bytes`, so a known storage layout

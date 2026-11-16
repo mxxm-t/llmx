@@ -740,7 +740,7 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     auto loaded = std::make_unique<LoadedModel>();
     if (report) report({"metadata"});
     const bool directory = is_model_directory(path);
-    loaded->file = directory ? read_directory(path) : gguf::read_gguf(path);
+    loaded->file = read_model(path);
     if (!options.chat_template.empty()) loaded->replaced_template = chat::replace_template(loaded->file, options.chat_template);
     PlacementRequest placing = request;
     if (!drafter_file.empty()) {

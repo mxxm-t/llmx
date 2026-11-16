@@ -1657,11 +1657,14 @@ private:
                 return weight;
             }
             weight.scale_count = weight_scale_count(weights, i);
+            weight.scale_shift = weight_scale_shift(weights, i);
             if (weight.scale_count) weight.scales = take(*t.scale, device + member);
             if (t.row_source) return weight;
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
             if (role.tensor_rows || (width_ > 1 && role.shard.axis != Axis::none)) {
+                // A shard's rows would read its grid from the shard's first row, which the grid does not offset by.
+                if (t.type == quant::GGML_TYPE_F8_E4M3) throw std::runtime_error("inference: a tensor group does not split F8_E4M3 tensor " + t.name);
                 const shard::Held held = shard::held(role, t, width_, member);
                 backend::BufferPtr buffer;
                 if (adopt) {

@@ -5,14 +5,14 @@ backend can execute. This is the lowest header of the quant layer.
 
 - Type ids, the numbers GGUF files and the backends' kernels name the types
   by: `GGML_TYPE_F32=0`, `F16=1`, `GGML_TYPE_Q4_0=2`, `Q4_1=3`, `Q5_0=6`, `Q5_1=7`, `Q8_0=8`, `Q8_1=9` (auxiliary metadata), `Q2_K=10`, `Q3_K=11`, `Q4_K=12`,
-  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ2_XXS=16`, `IQ2_XS=17`, `IQ3_XXS=18`, `IQ1_S=19`, `IQ4_NL=20`, `IQ3_S=21`, `IQ2_S=22`, `IQ4_XS=23`, `IQ1_M=29`, `BF16=30`, `I8=24`, `I32=26` and `I64=27` (integers a quantized checkpoint's companions hold, which `format/hf_quant.hpp` consumes), `TQ1_0=34`, `TQ2_0=35`, `MXFP4=39`, `NVFP4=40`, `Q1_0=41`, `Q2_0=42`.
+  `Q5_K=13`, `Q6_K=14`, `Q8_K=15` (auxiliary metadata), `IQ2_XXS=16`, `IQ2_XS=17`, `IQ3_XXS=18`, `IQ1_S=19`, `IQ4_NL=20`, `IQ3_S=21`, `IQ2_S=22`, `IQ4_XS=23`, `IQ1_M=29`, `BF16=30`, `I8=24`, `I32=26` and `I64=27` (integers a quantized checkpoint's companions hold, which `format/hf_quant.hpp` consumes), `TQ1_0=34`, `TQ2_0=35`, `MXFP4=39`, `NVFP4=40`, `Q1_0=41`, `Q2_0=42`, `F8_E4M3=43`.
 - The block constants of each implemented quantized type, values per block and bytes per block
   (`*_BLOCK`, `*_TYPESIZE`): 32/18 (Q4_0), 32/20 (Q4_1), 32/22 (Q5_0), 32/24 (Q5_1), 32/34 (Q8_0),
-  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 256/66 (IQ2_XXS), 256/74 (IQ2_XS), 256/98 (IQ3_XXS), 256/50 (IQ1_S), 32/18 (IQ4_NL), 256/110 (IQ3_S), 256/82 (IQ2_S), 256/136 (IQ4_XS), 256/56 (IQ1_M), 256/54 (TQ1_0), 256/66 (TQ2_0), 32/17 (MXFP4), 64/36 (NVFP4), 128/18 (Q1_0), 64/18 (Q2_0).
+  256/84 (Q2_K), 256/110 (Q3_K), 256/144 (Q4_K), 256/176 (Q5_K), 256/210 (Q6_K), 256/66 (IQ2_XXS), 256/74 (IQ2_XS), 256/98 (IQ3_XXS), 256/50 (IQ1_S), 32/18 (IQ4_NL), 256/110 (IQ3_S), 256/82 (IQ2_S), 256/136 (IQ4_XS), 256/56 (IQ1_M), 256/54 (TQ1_0), 256/66 (TQ2_0), 32/17 (MXFP4), 64/36 (NVFP4), 128/18 (Q1_0), 64/18 (Q2_0), 1/1 (F8_E4M3, OCP E4M3 codes with no scale of their own; `F8_E4M3_SCALE_INPUTS`, 128, is the inputs each scale of a weight's grid covers, [weight_scales](format-weight_scales.md)).
 - `StorageType` holds a name, values per block and bytes per block.
-  `storage_type(id)` returns that metadata for 35 active GGML layouts through
-  ID 42, including F16, BF16, the K-quants, IQ and ternary formats, integer
-  types, F64, NVFP4, Q1_0 and Q2_0. It returns null for an unknown ID or a
+  `storage_type(id)` returns that metadata for 36 active GGML layouts through
+  ID 43, including F16, BF16, the K-quants, IQ and ternary formats, integer
+  types, F64, NVFP4, Q1_0, Q2_0 and F8_E4M3. It returns null for an unknown ID or a
   removed layout: 4, 5, 31-33 and 36-38. A name and byte layout do not imply
   a decoder or backend support.
   Q8_1 and Q8_K are auxiliary layouts with no decoder; IQ3_S has a read-only decoder and CPU/Vulkan inference support. The [README support

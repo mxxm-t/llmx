@@ -3,10 +3,11 @@
 `hf_quant` reads a directory's `config.json` `quantization_config` and makes each quantized linear's companion tensors one tensor of a type llmx already runs, whose values are the checkpoint's exactly (vLLM formats, quant step 1, `docs/STATUS.md`).
 It owns the key: `infer::read_directory` ([directory](inference-directory.md)) hands it `quantization_config` and erases it before the architecture's table reads the rest of `config.json`, so the table never sees it.
 
-- `apply(qc, m)`: `qc` is the key's value or null. A null `qc` reads nothing; otherwise `quant_method` must name a method llmx reads, `awq`, `gptq` or `compressed-tensors`, and every key of the object is read, checked or refused by name.
-  Afterwards any tensor still I8, I32 or I64, which only a quantization rule consumes, is refused by name ("holds integers that no quantization rule of the directory reads").
+- `apply(qc, m)`: `qc` is the key's value or null. A null `qc` reads nothing; otherwise `quant_method` must name a method llmx reads, `awq`, `gptq`, `compressed-tensors` or `fp8`, and every key of the object is read, checked or refused by name.
+  Afterwards any tensor still I8, I32 or I64, which only a quantization rule consumes, is refused by name ("holds integers that no quantization rule of the directory reads"), and so is an F8_E4M3 tensor that no rule gave a scale grid ("holds F8_E4M3 codes that no quantization rule of the directory reads").
 - `repack(c, t, parts, out)`: writes composite `c`'s bytes for tensor `t` at `out` from its parts' bytes, read whole, in the order of `c.parts`; the loader calls it ([load](inference-load.md)).
-- `linears(m, main, companions, required, make)`: the one table edit of every method: each `X.<main>` holding integers (`qweight`, `weight_packed`, or int-quantized's `weight`) with its companions `X.<suffix>` becomes one composite `X.weight` at the main's place, a companion without its main or a main without a required companion is refused, and `make` checks the parts and sets the kind, type and shape.
+- `linears(m, main, companions, required, make, fp8)`: the one table edit of every method: each `X.<main>` holding integers (`qweight`, `weight_packed`, or int-quantized's `weight`) with its companions `X.<suffix>` becomes one composite `X.weight` at the main's place; under `fp8` the main is an F8_E4M3 `weight`, which stays in the table as it is, and the composite is its scale grid `X.scale` at the first companion's place, made from that companion alone (FP8, below); a companion without its main or a main without a required companion is refused, and `make` checks the parts and sets the kind, type and shape.
+- `fp8_weight_of(grid)` and `fp8_grid_of(weight)`: the HF name of the weight beside an FP8 scale grid `X.scale`, `X.weight`, which `hf_config` matches the grid by, and its inverse, which `apply` finds a weight's grid by and `hf_config` names a renamed grid by.
 - `kRepackVersion`: what the repacks write, carried in the disk tier's identity (`server::disk_identity`, [server](server.md)) as `repack: N`, so cached histories of a directory change with any change to a repack's bytes; it moves with every such change.
 
 ## AWQ
@@ -51,11 +52,11 @@ Q4_0 holds 18 bytes for 32 values where GPTQ holds 16 plus its share of zero poi
 
 ## compressed-tensors
 
-Integer weights of the `pack-quantized` and `int-quantized` formats, as llm-compressor writes them; `float-quantized` (FP8) is a later step of the plan.
+Integer weights of the `pack-quantized` and `int-quantized` formats, as llm-compressor writes them, and FP8 weights of `float-quantized` (FP8, below).
 `quantization_config` keys:
-- `quant_method` `compressed-tensors`; `format` `pack-quantized` or `int-quantized`, required; `quantization_status` `compressed`; `kv_cache_scheme` null; `sparsity_config` null or empty; `ignore` null or naming only `lm_head`, which no rule here quantizes; `global_compression_ratio` and `version` taken as they are; the keys taken are those llm-compressor's files carry.
+- `quant_method` `compressed-tensors`; `format` `pack-quantized` or `int-quantized` for int weights and `float-quantized` for float ones, required; `quantization_status` `compressed`; `kv_cache_scheme` null under int weights; `sparsity_config` null or empty; `ignore` null or naming only `lm_head`, which no rule here quantizes, under int weights; `global_compression_ratio` and `version` taken as they are; the keys taken are those llm-compressor's files carry.
 - `config_groups`: each group's `weights` is one scheme, and every group must give the same one; `targets` must include `Linear`, so no linear is left unquantized by a narrower target, `input_activations` is taken and not applied (the run's `--dtype` decides activations, `docs/PRECISION.md`) and, when not null, written in words as `quantization.input_activations` for `llmx info`, `output_activations` must be null.
-- A weights scheme: `num_bits` 4 or 8; `type` `int`; `symmetric` true or false; `strategy` `group`, with `group_size` a multiple of 32 from 32 to 65536, or `channel`, one scale a row; `dynamic` false; `block_structure` null; `actorder`, `observer` and `observer_kwargs` taken as they are, `actorder` because `weight_g_idx` itself shows whether a linear's groups follow its inputs.
+- A weights scheme: `num_bits` 4 or 8; `type` `int` (or `float`, FP8 below); `symmetric` true or false; `strategy` `group`, with `group_size` a multiple of 32 from 32 to 65536, or `channel`, one scale a row; `dynamic` false; `block_structure` null; `actorder`, `observer` and `observer_kwargs` taken as they are, `actorder` because `weight_g_idx` itself shows whether a linear's groups follow its inputs.
 - 8-bit asymmetric schemes, and asymmetric `int-quantized` ones, are refused: no existing code holds their values.
 - The strategy and group rules hold the weights only: an activation scheme of strategy `token`, as int8 `int-quantized` files carry, is taken.
 - Any other key, or another value of a checked one, is refused with the key and its group named.
@@ -69,3 +70,15 @@ A `weight_shape` other than the tensor's, a `weight_g_idx` entry other than k / 
 Q4_0 holds 18 bytes for 32 values where 4-bit codes take 16 plus their share of scales, Q5_0 22 where an asymmetric group of 64 takes 16 plus a zero point and a scale per 64, and Q8_0 34 where 8-bit codes take 32, so the repacked tensors are about 6 to 29 percent larger than their sources.
 
 `tests/spec_decode.py` decodes compressed-tensors linears and their repacks from the packing description, `raw-blocks` holds both to it, and `load-progress` and the suite's `safetensors` component load synthetic directories of each kind to their twins' logits ([TESTS](../TESTS.md)).
+
+## FP8
+
+E4M3 codes (the safetensors dtype `F8_E4M3`, [safetensors](format-safetensors.md)) under scales the checkpoint keeps beside them, in two dialects:
+- `quant_method` `fp8` (the fine-grained FP8 of transformers): `fmt` `e4m3`, another format refused; `weight_block_size` [128, 128], or null for one scale a tensor, other blocks refused; `activation_scheme` `dynamic` or `static`, written in words as `quantization.input_activations` and not applied; `modules_to_not_convert` null or a list of names; `dequantize` taken as it is, since it names what a loader may do. Scales are `X.weight_scale_inv`, a multiplier despite its name, as the F32 twin of Qwen/Qwen3-0.6B-FP8 shows ([STATUS](../STATUS.md)).
+- compressed-tensors `float-quantized`: a weights scheme of `type` `float`, `num_bits` 8, `symmetric` true, `dynamic` false and no groups, by `strategy` `tensor`, `channel` or `block` with `block_structure` [128, 128], which only the block strategy gives. `ignore` may list any modules, names and `re:` patterns alike, which need no match, since a linear is FP8 exactly where its weight is F8_E4M3. A `kv_cache_scheme` is written in words as `quantization.kv_cache_scheme` and not applied: the KV cache follows `--cache-type-k` and `--cache-type-v`. Scales are `X.weight_scale`.
+
+A linear `X` is `X.weight` F8_E4M3 [out, in], `in` a multiple of 128, its scales BF16, F16 or F32, one value ([] or [1]), [out, 1] by channel or [ceil(out / 128), in / 128] by block (Hugging Face order), and optionally a static `X.input_scale`, which leaves the table unapplied; so do a KV cache scheme's `k_scale` and `v_scale`.
+Another scale type is refused naming the tensor, and so is a scale shape the declared form does not give.
+`fp8` makes the scales the F32 grid `X.scale` of [format/weight_scales.hpp](format-weight_scales.md) (composite kind `fp8_grid`): `repack` widens them exactly, by `gguf::fp8_grid`, at row shift 0 by channel and 7 by block or tensor, and the codes stay the file's bytes, read in place like any weight.
+Every code times a BF16 or F16 scale is exact in F32, 4 and at most 11 significant bits; with an F32 scale the product rounds once to F32.
+A NaN code (0x7F, 0xFF) decodes to NaN as the checkpoints' own decoders give it; no load-time scan looks for one.

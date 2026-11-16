@@ -125,7 +125,7 @@ public:
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
         if (dtype == Dtype::f16)
-            return "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)";
+            return "block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f16 (F8_E4M3), f32 (other products, routers)";
         return "f32";
     }
 
@@ -231,7 +231,7 @@ public:
 
     void embed(Slice dst_s, WeightView weight, size_t nin,
                size_t nrows, const uint32_t* ids, size_t count) override {
-        const float* scales = weight_scales(weight);
+        const float* scales = weight.type == quant::GGML_TYPE_F8_E4M3 ? fp8_scales(weight, nin, nrows) : weight_scales(weight);
         const uint32_t type = weight.type;
         float* dst = at(dst_s);
         const uint8_t* rows = (const uint8_t*)bytes_at(weight.data);
@@ -248,8 +248,10 @@ public:
             const uint8_t* row = rows + (size_t)ids[i] * stride;
             if (qt) qt->dequantize(row, dst + i * nin, nin / qt->block_size);
             else std::memcpy(dst + i * nin, row, nin * sizeof(float));
+            // An F8_E4M3 row takes its grid row's scale for each 128 inputs, NVFP4 its one scale.
+            const float* g = type == quant::GGML_TYPE_F8_E4M3 ? scales + (size_t(ids[i]) >> weight.scale_shift) * (nin / quant::F8_E4M3_SCALE_INPUTS) : scales;
             if (scales)
-                for (size_t j = 0; j < nin; ++j) dst[i * nin + j] *= scales[0];
+                for (size_t j = 0; j < nin; ++j) dst[i * nin + j] *= g[type == quant::GGML_TYPE_F8_E4M3 ? j / quant::F8_E4M3_SCALE_INPUTS : 0];
         }
     }
 
@@ -431,8 +433,9 @@ public:
         const uint8_t* data = (const uint8_t*)bytes_at(weight.data);
         const float* X = dtype_input(X_s, size_mul(nbatch, nin), dtype);
         float* Y = at(Y_s);
+        if (type == quant::GGML_TYPE_F8_E4M3) fp8_scales(weight, nin, nout);
         each_run(nbatch, runs, [&](size_t first, size_t count, bool decode) {
-            matmul_raw(type, data, X + first * nin, Y + first * nout, nin, nout, count, decode, dtype, scales);
+            matmul_raw(type, data, X + first * nin, Y + first * nout, nin, nout, count, decode, dtype, scales, weight.scale_shift);
         });
     }
 
@@ -493,7 +496,24 @@ public:
 
     // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs; `decode` picks the decode dots, and otherwise a type with quantized dots takes the prompt dots and the rest the batched float path.
     void matmul_raw(uint32_t type, const uint8_t* data, const float* X, float* Y,
-                    size_t nin, size_t nout, size_t nbatch, bool decode, Dtype dtype, const float* scales = nullptr) {
+                    size_t nin, size_t nout, size_t nbatch, bool decode, Dtype dtype, const float* scales = nullptr, unsigned shift = 0) {
+        if (type == quant::GGML_TYPE_F8_E4M3) {
+            // Every row count takes the same row dots, so a row computes the same however it is batched.
+            if (nbatch && nout) record_matrix_path(dtype == Dtype::f32 ? MatrixPath::f32 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f16);
+            const float* xs = fp8_input(X, nbatch * nin, dtype);
+            const int nt = threads_;
+            const size_t chunk = (nout + (size_t)std::max(nt, 1) - 1) / (size_t)std::max(nt, 1);
+            const auto rows = [&](int w, size_t o0, size_t o1) {
+                fp8_rows(w, data, nin, o0, o1, scales, shift, nbatch, [&](size_t c) { return xs + c * nin; }, [&](size_t c) { return Y + c * nout; });
+            };
+            held();
+            if (nt <= 1 || nout < (size_t)nt * 4) { rows(0, 0, nout); return; }
+            run_parallel([&](int w) {
+                const size_t o0 = std::min(nout, (size_t)w * chunk), o1 = std::min(nout, o0 + chunk);
+                if (o0 < o1) rows(w, o0, o1);
+            });
+            return;
+        }
         if (decode && quantized_dots(type, nin, dtype)) {
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
             return;
@@ -2997,21 +3017,112 @@ private:
         });
     }
 
-    // Validate the companion span and shape before any output is written.
+    // Validate the companion span and shape before any output is written; an F8_E4M3 grid's count against its matrices is checked where nin and nout are known (fp8_scales).
     static const float* weight_scales(WeightView weight, size_t experts = 1) {
+        const bool fp8 = weight.type == quant::GGML_TYPE_F8_E4M3;
         if (!weight.scales.buffer) {
             if (weight.scale_count || weight.scales.offset)
                 throw std::runtime_error("backend: weight scale count without storage");
+            if (fp8) throw std::runtime_error("backend: F8_E4M3 weights need their scale grid");
             return nullptr;
         }
-        if (weight.type != quant::GGML_TYPE_NVFP4)
-            throw std::runtime_error("backend: weight scales require NVFP4 storage");
-        if (weight.scale_count != 1 && weight.scale_count != experts)
+        if (weight.type != quant::GGML_TYPE_NVFP4 && !fp8)
+            throw std::runtime_error("backend: weight scales require NVFP4 or F8_E4M3 storage");
+        if (fp8 ? (weight.scale_shift != 0 && weight.scale_shift != 7) || weight.scale_count % experts : weight.scale_count != 1 && weight.scale_count != experts)
             throw std::runtime_error("backend: weight scale count differs from its matrices");
         if (!weight.scale_count)
             throw std::runtime_error("backend: weight scales have no values");
         span(*weight.scales.buffer, size_mul(weight.scales.offset, sizeof(float)), size_mul(weight.scale_count, sizeof(float)));
         return at(weight.scales);
+    }
+
+    // An F8_E4M3 weight's grid, checked to hold one scale per 128 inputs of every 2^shift rows of `experts` matrices of `nout` rows of `nin` inputs.
+    static const float* fp8_scales(WeightView weight, size_t nin, size_t nout, size_t experts = 1) {
+        const float* grid = weight_scales(weight, experts);
+        if (!nin || nin % quant::F8_E4M3_SCALE_INPUTS || !nout ||
+            weight.scale_count != size_mul(experts, size_mul(((nout - 1) >> weight.scale_shift) + 1, nin / quant::F8_E4M3_SCALE_INPUTS)))
+            throw std::runtime_error("backend: F8_E4M3 scale grid does not match its matrices");
+        return grid;
+    }
+
+    // An F8_E4M3 row's codes widened exactly to F32 through the one decoder (quant::Registry's, e4m3_value), eight lanes a gather from its table.
+    static void fp8_widen(const uint8_t* codes, float* out, size_t n) {
+        static const std::array<float, 256> table = [] {
+            std::array<float, 256> t{};
+            for (unsigned c = 0; c < 256; ++c) quant::Registry::instance().get(quant::GGML_TYPE_F8_E4M3)->dequantize((const uint8_t*)&c, &t[c], 1);
+            return t;
+        }();
+        size_t i = 0;
+        for (; i + 8 <= n; i += 8)
+            _mm256_storeu_ps(out + i, _mm256_i32gather_ps(table.data(), _mm256_cvtepu8_epi32(_mm_loadl_epi64((const __m128i*)(codes + i))), 4));
+        for (; i < n; ++i) out[i] = table[codes[i]];
+    }
+
+    // An F8_E4M3 product's activations: rounded once to binary16 under f16, the 16-bit inputs whose products with the exact codes are summed in F32; bf16 arrives rounded already (dtype_input).
+    const float* fp8_input(const float* x, size_t n, Dtype dtype) {
+        if (dtype != Dtype::f16) return x;
+        fp8_x_.resize(n);
+        for (size_t i = 0; i < n; ++i) fp8_x_[i] = f16_to_f32(f32_to_f16(x[i]));
+        return fp8_x_.data();
+    }
+    std::vector<float> fp8_x_;
+
+    // One widened F8_E4M3 row's 128-input partial against `x`, in the arithmetic of the four-row dots' columns (one accumulator a lane, the lanes summed in order), so a row rounds alike alone and among others.
+    static float fp8_partial(const float* w, const float* x) {
+        __m256 acc = _mm256_setzero_ps();
+        for (size_t i = 0; i < quant::F8_E4M3_SCALE_INPUTS; i += 8) acc = _mm256_fmadd_ps(_mm256_loadu_ps(w + i), _mm256_loadu_ps(x + i), acc);
+        alignas(32) float t[8];
+        _mm256_store_ps(t, acc);
+        return t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + t[6] + t[7];
+    }
+
+    // One widened F8_E4M3 row `w` against `x`: each 128-input partial times its grid scale `g[b]`, accumulated in input order by explicit FMAs, as fp8_rows does.
+    static float fp8_dot(const float* w, const float* x, size_t nin, const float* g) {
+        float sum = 0.0f;
+        for (size_t b = 0; b * quant::F8_E4M3_SCALE_INPUTS < nin; ++b)
+            sum = std::fma(fp8_partial(w + b * quant::F8_E4M3_SCALE_INPUTS, x + b * quant::F8_E4M3_SCALE_INPUTS), g[b], sum);
+        return sum;
+    }
+
+    // Rows o0..o1 of an F8_E4M3 matrix against columns x(c), written at y(c) + o: four rows widened at a time into worker w's buffer, then each block's partials.
+    // The four-row dots take three, two or one columns at once, and every column gets fp8_dot's bits.
+    template <class XF, class YF>
+    void fp8_rows(int w, const uint8_t* data, size_t nin, size_t o0, size_t o1, const float* grid, unsigned shift, size_t ncols, const XF& x, const YF& y) {
+        constexpr size_t K = quant::F8_E4M3_SCALE_INPUTS, RB = (size_t)DOT_ROWS;
+        std::vector<float>& buf = rowbuf_[(size_t)w];
+        if (buf.size() < RB * nin) buf.assign(RB * nin, 0.0f);
+        const size_t cols = nin / K;
+        std::vector<float> sums(ncols * RB);
+        float part[3][RB];
+        for (size_t o = o0; o < o1; o += RB) {
+            const size_t nr = std::min(RB, o1 - o);
+            for (size_t k = 0; k < RB; ++k) {
+                if (k < nr) fp8_widen(data + (o + k) * nin, buf.data() + k * nin, nin);
+                else std::fill_n(buf.data() + k * nin, nin, 0.0f);
+            }
+            std::fill(sums.begin(), sums.end(), 0.0f);
+            for (size_t b = 0; b < cols; ++b) {
+                const float* r = buf.data() + b * K;
+                const auto add = [&](size_t c, size_t j) {
+                    for (size_t k = 0; k < nr; ++k) sums[c * RB + k] = std::fma(part[j][k], grid[((o + k) >> shift) * cols + b], sums[c * RB + k]);
+                };
+                size_t c = 0;
+                for (; c + 3 <= ncols; c += 3) {
+                    dot_f32_x4x3(r, nin, x(c) + b * K, x(c + 1) + b * K, x(c + 2) + b * K, K, part[0], part[1], part[2]);
+                    add(c, 0), add(c + 1, 1), add(c + 2, 2);
+                }
+                for (; c + 2 <= ncols; c += 2) {
+                    dot_f32_x4x2(r, nin, x(c) + b * K, x(c + 1) + b * K, K, part[0], part[1]);
+                    add(c, 0), add(c + 1, 1);
+                }
+                for (; c < ncols; ++c) {
+                    dot_f32_x4(r, nin, x(c) + b * K, K, part[0]);
+                    add(c, 0);
+                }
+            }
+            for (size_t c = 0; c < ncols; ++c)
+                for (size_t k = 0; k < nr; ++k) y(c)[o + k] = sums[c * RB + k];
+        }
     }
 
     static void validate_float_slice(CSlice slice, size_t count) {
@@ -3096,10 +3207,14 @@ private:
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype) {
         const uint32_t type = weight.type;
         const CSlice data_s = weight.data;
-        const float* scales = weight_scales(weight, n_expert);
+        const bool fp8 = type == quant::GGML_TYPE_F8_E4M3;
+        const float* scales = fp8 ? fp8_scales(weight, nin, nout, n_expert) : weight_scales(weight, n_expert);
+        // Each expert's scales: its NVFP4 one, or its F8_E4M3 grid.
+        const size_t scale_stride = fp8 ? weight.scale_count / n_expert : weight.scale_count == 1 ? 0 : 1;
         const size_t row_bytes = quant::row_bytes(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
+        if (fp8) X = fp8_input(X, size_mul(xrows, nin), dtype);
         const bool q8 = quantized_dots(type, nin, dtype);
         // MXFP4 prompts retain original activations, as the plain prompt product does.
         const bool prompt_q8 = q8 && type != quant::GGML_TYPE_MXFP4;
@@ -3128,10 +3243,17 @@ private:
         if (!single.empty()) {
             if (nout) record_matrix_path(q8 ? MatrixPath::block_int16 : dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
             split_rows(single.size() * nout, [&](size_t r0, size_t r1) {
+                std::vector<float> wide(fp8 ? nin : 0);
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
                     const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
-                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin, scales ? scales + (weight.scale_count == 1 ? 0 : expert_of[s]) : nullptr);
+                    if (fp8) {
+                        fp8_widen(w, wide.data(), nin);
+                        const float* g = scales + expert_of[s] * scale_stride + (o >> weight.scale_shift) * (nin / quant::F8_E4M3_SCALE_INPUTS);
+                        out[i * nout + o] = fp8_dot(wide.data(), X + (i / per) * nin, nin, g);
+                        continue;
+                    }
+                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin, scales ? scales + expert_of[s] * scale_stride : nullptr);
                 }
             });
         }
@@ -3177,8 +3299,10 @@ private:
             for (size_t t = next.fetch_add(1); t < tasks; t = next.fetch_add(1)) {
                 const size_t e = busy[t / per_expert], o0 = (t % per_expert) * R, o1 = std::min(nout, o0 + R);
                 const uint32_t* b = batch.data() + first[e];
-                float_rows(w, type, qt, data + e * stride, row_bytes, nin, o0, o1, scales ? scales + (weight.scale_count == 1 ? 0 : e) : nullptr, first[e + 1] - first[e],
-                           [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
+                if (fp8) fp8_rows(w, data + e * stride, nin, o0, o1, scales + e * scale_stride, weight.scale_shift, first[e + 1] - first[e],
+                                  [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
+                else float_rows(w, type, qt, data + e * stride, row_bytes, nin, o0, o1, scales ? scales + e * scale_stride : nullptr, first[e + 1] - first[e],
+                                [&](size_t c) { return X + (b[c] / per) * nin; }, [&](size_t c) { return out + (size_t)b[c] * nout; });
             }
         };
         // No small-work cutoff as prompt_q8 has: one entry still widens its expert's whole matrix, which outweighs waking the pool (docs/src/backends-cpu.md).

@@ -42,6 +42,7 @@ constexpr uint32_t GGML_TYPE_MXFP4 = 39;
 constexpr uint32_t GGML_TYPE_NVFP4 = 40;
 constexpr uint32_t GGML_TYPE_Q1_0 = 41;
 constexpr uint32_t GGML_TYPE_Q2_0 = 42;
+constexpr uint32_t GGML_TYPE_F8_E4M3 = 43;
 constexpr size_t   TQ1_0_BLOCK = 256;
 constexpr size_t   TQ1_0_TYPESIZE = 54;
 constexpr size_t   TQ2_0_BLOCK = 256;
@@ -98,6 +99,10 @@ constexpr size_t   Q1_0_BLOCK = 128;
 constexpr size_t   Q1_0_TYPESIZE = 18;    // f16 scale + 128 sign bits
 constexpr size_t   Q2_0_BLOCK = 64;
 constexpr size_t   Q2_0_TYPESIZE = 18;    // f16 scale + 64 two-bit codes
+// OCP E4M3 codes, one a byte with no scale of their own; a weight's F32 scales are a companion tensor (format/weight_scales.hpp).
+constexpr size_t   F8_E4M3_BLOCK = 1;
+constexpr size_t   F8_E4M3_TYPESIZE = 1;
+constexpr size_t   F8_E4M3_SCALE_INPUTS = 128;  // the inputs each F32 scale of an F8_E4M3 weight's grid covers
 
 struct StorageType {
     const char* name;
@@ -125,6 +130,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {}, {}, {},
         {"MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE}, {"NVFP4", NVFP4_BLOCK, NVFP4_TYPESIZE},
         {"Q1_0", Q1_0_BLOCK, Q1_0_TYPESIZE}, {"Q2_0", Q2_0_BLOCK, Q2_0_TYPESIZE},
+        {"F8_E4M3", F8_E4M3_BLOCK, F8_E4M3_TYPESIZE},
     };
     return id < sizeof(types) / sizeof(types[0]) && types[id].block_size ? &types[id] : nullptr;
 }

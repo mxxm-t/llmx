@@ -217,8 +217,9 @@ def run_directory(model):
     return check_exact(docs, model, os.path.basename(os.path.normpath(model)), model_context)
 
 
-def run_file_exact(directory, model):
-    """`model` against the logit and perplexity goldens in `directory`, which must have been made from this very file."""
+def run_file_exact(directory, model, checkpoint=None):
+    """`model` against the logit and perplexity goldens in `directory`, which must have been made from this very file.
+    With `checkpoint`, that directory runs in its place, its values being the file's exactly (an FP8 directory and its F32 twin)."""
     docs = []
     for name in ("baseline_logits.json", "baseline_perplexity.json"):
         with io.open(os.path.join(directory, name), encoding="utf-8") as f:
@@ -235,7 +236,8 @@ def run_file_exact(directory, model):
     # Qwen3's reader defaults an omitted trained context to 4096; pinned baseline files use MODEL_CONTEXT.
     model_context = file.value(str(architecture) + ".context_length", 4096 if architecture in ("qwen3", "qwen3moe") else None)
     assert type(model_context) is int and model_context > 0, "file-exact GGUF needs a positive integer context_length"
-    return check_exact(docs, model, os.path.basename(model), model_context)
+    run = checkpoint or model
+    return check_exact(docs, run, os.path.basename(os.path.normpath(run)), model_context)
 
 
 def check_exact(docs, model, label, model_context):
@@ -337,10 +339,13 @@ def main(argv=None):
     parser.add_argument("--device", help="run the commands that take --device on this device, e.g. vulkan:0")
     parser.add_argument("--file-exact", metavar="DIR", help="the goldens tools/gen_baseline.py file-exact wrote for --model")
     parser.add_argument("--model", help="with --file-exact, the GGUF file those goldens were made from")
+    parser.add_argument("--checkpoint", help="with --file-exact, a Hugging Face directory whose weights are --model's values exactly, run in its place")
     parser.add_argument("--directory", help="the Hugging Face directory of Qwen/Qwen3-0.6B at the goldens' revision, held to the pinned goldens")
     args = parser.parse_args(argv)
     if bool(args.file_exact) != bool(args.model):
         parser.error("--file-exact and --model go together")
+    if args.checkpoint and not args.file_exact:
+        parser.error("--checkpoint goes with --file-exact")
     if args.directory and args.file_exact:
         parser.error("--directory runs alone")
     common.EXE = os.path.abspath(args.exe)
@@ -349,7 +354,7 @@ def main(argv=None):
         os.environ["LLMX_DEVICE"] = args.device
     if args.directory:
         return 0 if run_directory(args.directory) else 1
-    return 0 if (run_file_exact(args.file_exact, args.model) if args.file_exact else run()) else 1
+    return 0 if (run_file_exact(args.file_exact, args.model, args.checkpoint) if args.file_exact else run()) else 1
 
 
 if __name__ == "__main__":

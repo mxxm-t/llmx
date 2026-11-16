@@ -55,6 +55,10 @@ inline uint32_t storage_type(const std::string& dtype, const std::string& name) 
     if (dtype == "I8") return quant::GGML_TYPE_I8;
     if (dtype == "I32") return quant::GGML_TYPE_I32;
     if (dtype == "I64") return quant::GGML_TYPE_I64;
+    // F8_E4M3 is OCP's E4M3 (bias 7, no infinities, 0x7F and 0xFF NaN); E5M2 and the FNUZ variants decode the same bytes to other values.
+    if (dtype == "F8_E4M3") return quant::GGML_TYPE_F8_E4M3;
+    if (dtype.compare(0, 3, "F8_") == 0)
+        throw std::runtime_error("safetensors tensor " + name + " has dtype " + dtype + "; llmx reads the 8-bit float F8_E4M3 only");
     throw std::runtime_error("safetensors tensor " + name + " has dtype " + dtype + ", which llmx does not read");
 }
 
@@ -80,7 +84,7 @@ inline Entry entry(const std::string& name, const jmini::Value& v, const std::st
     return e;
 }
 
-// One file's header, checked: tensors cover the data section from its start to the file's end in order, with no gap or overlap, each at a file offset a float may be read at.
+// One file's header, checked: tensors cover the data section from its start to the file's end in order, with no gap or overlap, each at a file offset its values may be read at (gguf::value_alignment).
 inline File read_file(const std::string& path) {
     File f;
     f.path = path;
@@ -117,7 +121,9 @@ inline File read_file(const std::string& path) {
     uint64_t next = 0;
     for (const auto& e : f.entries) {
         if (e.begin != next) throw std::runtime_error("safetensors tensor " + e.tensor.name + (e.begin < next ? " overlaps another" : " leaves a gap before it") + " in " + path);
-        if ((f.data_start + e.begin) % alignof(float)) throw std::runtime_error("safetensors tensor " + e.tensor.name + " is not at a float-aligned file offset in " + path);
+        const size_t align = gguf::value_alignment(e.tensor.type);
+        if ((f.data_start + e.begin) % align)
+            throw std::runtime_error("safetensors tensor " + e.tensor.name + " is not at a " + (align == alignof(float) ? "float" : std::to_string(align) + "-byte") + "-aligned file offset in " + path);
         next = e.end;
     }
     if (next != f.size - f.data_start) throw std::runtime_error("safetensors tensors do not end where the file does: " + path);

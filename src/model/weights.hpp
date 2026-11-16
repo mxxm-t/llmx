@@ -12,6 +12,7 @@
 #include "quant/types.hpp"
 #include "backends/backend.hpp"
 #include "model/weight_rows.hpp"
+#include "format/weight_scales.hpp"
 
 // What a model is built from, whatever file it came from, and the weights it resolves: the part of the architecture contract (model/architecture.hpp) that the loader and a file's reader also use.
 
@@ -39,12 +40,13 @@ struct ModelWeights {
     backend::Dtype declared_dtype = backend::Dtype::f32;
 };
 
-// A companion holds one F32 scale for the weight or one per expert, with the whole vector retained on every tensor shard.
+// A companion holds one F32 scale for an NVFP4 weight or one per expert, or an F8_E4M3 weight's grid (gguf::fp8_scale_shift), with the whole vector retained on every tensor shard.
 inline size_t weight_scale_count(const ModelWeights& weights, size_t tensor) {
     const TensorView& weight = weights.tensors.at(tensor);
     if (!weight.scale) return 0;
     const auto refuse = [&]() { return std::runtime_error("inference: incompatible weight scale " + weight.name); };
-    if (weight.type != quant::GGML_TYPE_NVFP4 || *weight.scale >= weights.tensors.size()) throw refuse();
+    const bool fp8 = weight.type == quant::GGML_TYPE_F8_E4M3;
+    if ((weight.type != quant::GGML_TYPE_NVFP4 && !fp8) || *weight.scale >= weights.tensors.size()) throw refuse();
     const TensorView& scale = weights.tensors[*weight.scale];
     if (scale.type != quant::GGML_TYPE_F32 || scale.shape.empty() || scale.shape.size() > 4 || scale.row_source || scale.scale) throw refuse();
     size_t count = 1;
@@ -53,8 +55,16 @@ inline size_t weight_scale_count(const ModelWeights& weights, size_t tensor) {
         count *= size_t(n);
     }
     const uint64_t experts = weight.shape.size() == 3 ? weight.shape[2] : 1;
-    if ((count != 1 && count != experts) || count > SIZE_MAX / sizeof(float) || scale.bytes != count * sizeof(float)) throw refuse();
+    if (fp8 ? !gguf::fp8_scale_shift(weight.shape, scale.shape) : (count != 1 && count != experts)) throw refuse();
+    if (count > SIZE_MAX / sizeof(float) || scale.bytes != count * sizeof(float)) throw refuse();
     return count;
+}
+
+// The row shift of an F8_E4M3 weight's grid, 0 for any other weight.
+inline unsigned weight_scale_shift(const ModelWeights& weights, size_t tensor) {
+    const TensorView& weight = weights.tensors.at(tensor);
+    if (!weight_scale_count(weights, tensor) || weight.type != quant::GGML_TYPE_F8_E4M3) return 0;
+    return *gguf::fp8_scale_shift(weight.shape, weights.tensors[*weight.scale].shape);
 }
 
 // The tensors a model is built from, by name, which plan_model builds once over the views for the architecture's plan and for setting each role's tensor.
@@ -103,7 +113,8 @@ struct Weight {
     std::shared_ptr<const WeightRows> row_source = {};
     backend::BufferPtr scales = {};
     size_t scale_count = 0;
-    backend::WeightView operand() const { return {type, slice(), {scales.get(), 0}, scale_count}; }
+    unsigned scale_shift = 0;
+    backend::WeightView operand() const { return {type, slice(), {scales.get(), 0}, scale_count, scale_shift}; }
 };
 
 } // namespace infer

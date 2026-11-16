@@ -13,7 +13,7 @@ Refused, each with the file and tensor named:
 - a header length over 100 MiB (the parsed JSON takes many times its size) or past the end of the file;
 - a header that is not an object, repeats a key, or whose `__metadata__` is not an object of strings;
 - a tensor entry with keys other than exactly `dtype`, `shape` and `data_offsets`, a shape of rank over 4, or a shape or offset that is not a non-negative integer up to 2^53;
-- a dtype other than `F32`, `F16`, `BF16`, `I8`, `I32` and `I64`, by name; what an integer tensor means is the quantization rule's, and one no rule consumes is refused there ([hf_quant](format-hf_quant.md));
+- a dtype other than `F32`, `F16`, `BF16`, `I8`, `I32`, `I64` and `F8_E4M3`, by name; what an integer or F8_E4M3 tensor means is the quantization rule's, and one no rule consumes is refused there ([hf_quant](format-hf_quant.md)). `F8_E4M3` is OCP's E4M3 (bias 7, no infinities, 0x7F and 0xFF NaN) and becomes `GGML_TYPE_F8_E4M3`; `F8_E5M2` and the FNUZ variants, whose bytes decode to other values, are refused as 8-bit floats llmx does not read;
 - offsets that end before they begin or do not span the shape's bytes, tensors that overlap, leave a gap or do not end where the file does;
-- a tensor at a file offset that is not a multiple of 4, which the loader's alignment rule needs and which is refused rather than copied;
+- a tensor at a file offset that is not a multiple of its values' alignment (`gguf::value_alignment`: 4 for F32 and the integers, 2 for F16 and BF16, 1 for I8 and F8_E4M3, so an FP8 checkpoint's odd-length 16-bit scales may precede any tensor), which the loader's alignment rule needs and which is refused rather than copied;
 - an index that repeats a tensor, names a file by a path rather than a name beside it, or does not name exactly the tensors a file holds.

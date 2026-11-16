@@ -10,6 +10,7 @@
 #include "format/gguf.hpp"
 #include "format/hf_quant.hpp"
 #include "format/safetensors.hpp"
+#include "format/weight_scales.hpp"
 #include "model/arch/registry.hpp"
 #include "tokenizer/hf_tokenizer.hpp"
 
@@ -45,9 +46,12 @@ inline gguf::GGUFModel read_directory(const std::string& dir) {
     return m;
 }
 
-// The model at `path`: a GGUF file, the first of a shard set, or a Hugging Face directory.
+// The model at `path`: a GGUF file, the first of a shard set, or a Hugging Face directory, each F8_E4M3 weight with its scale grid (format/weight_scales.hpp).
 inline gguf::GGUFModel read_model(const std::string& path) {
-    return is_model_directory(path) ? read_directory(path) : gguf::read_gguf(path);
+    if (is_model_directory(path)) return read_directory(path);
+    gguf::GGUFModel m = gguf::read_gguf(path);
+    gguf::fp8_grids(m);
+    return m;
 }
 
 // The files of a directory its metadata is read from, in a fixed order, those present.

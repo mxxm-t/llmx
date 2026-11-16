@@ -158,6 +158,8 @@ Pick a device with `--device cpu` (the default), `--device vulkan:N`, `--device 
 | Replicas | Several copies of a model behind one scheduler | | Planned |
 | Multi-node | One model over several machines | | Planned |
 
+A split prices a long prompt's slices from its own measured stage times, and from the third prefill after a load on, however cold the first one ran.
+
 [USAGE](docs/USAGE.md#several-devices---device-ab---layer-shares) covers the flags, [MULTI-DEVICE](docs/MULTI-DEVICE.md) the design and [TENSOR-SPLIT](docs/TENSOR-SPLIT.md) the tensor split.
 
 ## Server and API

@@ -272,7 +272,7 @@ public:
     // A prefill's slices, each stage's busy time on each (negative where unmeasured), and its wall time against `finish`, its cut's prediction, which calibrates the fixed costs the busy times leave out.
     // Each band adds the mean of its last kCalibrationWindow samples, each the residual over the finish's change for one more ms of every fixed cost, bounded by kCalibrationShare of the least (docs/src/model-slicing.md).
     void observe(const std::vector<std::pair<size_t, size_t>>& slices, const std::vector<std::vector<double>>& busy, double wall_ms, const std::vector<double>& finish) {
-        const size_t n = std::min(slices.size(), busy.size());
+        const size_t n = std::min(slices.size(), busy.size()), prefill = prefills_++;
         std::vector<size_t> seen;
         for (size_t c = 0; c < n; ++c) {
             const size_t band = depth_band(slices[c].first);
@@ -282,10 +282,13 @@ public:
             for (size_t s = 0; s < stages.size(); ++s) {
                 if (!(busy[c][s] > 0)) continue;
                 if (stages[s].size() == kBandPoints) stages[s].erase(stages[s].begin());
-                stages[s].push_back({(double)slices[c].second, busy[c][s], 1.0, 1.0});
+                stages[s].push_back({{(double)slices[c].second, busy[c][s], 1.0, 1.0}, prefill});
             }
         }
-        if (finish.empty() || !n) return;
+        if (!n) return;
+        std::sort(seen.begin(), seen.end());
+        seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
+        if (shed(busy.front().size(), seen, prefill) || finish.empty()) return;
         std::vector<double> at(finish.size(), 0.0), more = at;
         std::vector<std::vector<StageLine>> l(n), plus(n);
         for (size_t c = 0; c < n; ++c) {
@@ -298,8 +301,6 @@ public:
         predict(more, plus, first);
         const double cells = more.back() - at.back();
         if (!(cells > 0)) return;
-        std::sort(seen.begin(), seen.end());
-        seen.erase(std::unique(seen.begin(), seen.end()), seen.end());
         for (size_t b : seen) {
             auto& [mean, samples] = extra_[b];
             samples.push_back(mean + (wall_ms - finish.back()) / cells);
@@ -323,7 +324,11 @@ public:
     }
 
 private:
-    std::map<size_t, std::vector<std::vector<LinePoint>>> points_;   // each band's points, a list a stage
+    struct Point {
+        LinePoint at;
+        size_t prefill = 0;   // the prefill that measured it, by observe's count
+    };
+    std::map<size_t, std::vector<std::vector<Point>>> points_;   // each band's points, a list a stage
     std::vector<size_t> device_;   // each stage's device where a device runs several, else empty
     bool rounds_ = false;
 
@@ -339,20 +344,70 @@ private:
         pipeline_rounds(finish, device_, at, rows);
     }
     std::map<size_t, std::pair<double, std::vector<double>>> extra_;   // a band's fixed-cost calibration: its bounded mean and its last samples
+    size_t prefills_ = 0;
 
-    std::vector<StageLine> fit(size_t band, size_t stages) const {
+    // Each stage's line in `band`, else in the nearest band below where every stage has one, through the points of prefills `since` to before `until`.
+    std::vector<StageLine> fit(size_t band, size_t stages, size_t since = 0, size_t until = std::numeric_limits<size_t>::max()) const {
         for (size_t b = band + 1; b-- > 0;) {
-            const auto it = points_.find(b);
-            if (it == points_.end() || it->second.size() != stages) continue;
-            std::vector<StageLine> l;
-            for (const auto& points : it->second) {
-                const auto line = fit_line(points);
-                if (!line) break;
-                l.push_back(*line);
-            }
-            if (l.size() == stages) return l;
+            auto l = band_fit(b, stages, since, until);
+            if (!l.empty()) return l;
         }
         return {};
+    }
+    // Each stage's line through `band`'s own points of prefills `since` to before `until`; none unless every stage has one.
+    std::vector<StageLine> band_fit(size_t band, size_t stages, size_t since, size_t until) const {
+        const auto it = points_.find(band);
+        if (it == points_.end() || it->second.size() != stages) return {};
+        std::vector<StageLine> l;
+        std::vector<LinePoint> kept;
+        for (const auto& points : it->second) {
+            kept.clear();
+            for (const Point& p : points)
+                if (p.prefill >= since && p.prefill < until) kept.push_back(p.at);
+            const auto line = fit_line(kept);
+            if (!line) return {};
+            l.push_back(*line);
+        }
+        return l;
+    }
+
+    // Drops the points of the oldest prefills in the `seen` bands while they keep a band from a fit, or their own lines miss `prefill`'s points, as a cold first prefill's do.
+    // A stage misses when its mean time on `prefill`'s slices is off by more than kCalibrationShare of the band's least fixed cost, more than the calibration absorbs; dropping restarts the bands' calibration (docs/src/model-slicing.md).
+    bool shed(size_t stages, const std::vector<size_t>& seen, size_t prefill) {
+        std::vector<size_t> ids;
+        for (const size_t b : seen)
+            for (const auto& points : points_[b])
+                for (const Point& p : points) ids.push_back(p.prefill);
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+        const auto fits = [&](size_t since) {
+            return std::all_of(seen.begin(), seen.end(), [&](size_t b) { return !fit(b, stages, since).empty(); });
+        };
+        const auto meets = [&](size_t since) {
+            for (const size_t b : seen) {
+                const auto l = band_fit(b, stages, since, prefill);
+                if (l.empty()) continue;
+                double least = std::numeric_limits<double>::infinity();
+                for (const StageLine& x : l) least = std::min(least, x.fixed_ms);
+                for (size_t s = 0; s < stages; ++s) {
+                    double off = 0, count = 0;
+                    for (const Point& p : points_[b][s])
+                        if (p.prefill == prefill) off += p.at.ms - l[s].fixed_ms * p.at.slices - l[s].row_ms * p.at.rows, count += p.at.slices;
+                    if (count > 0 && std::fabs(off / count) > kCalibrationShare * least) return false;
+                }
+            }
+            return true;
+        };
+        for (const size_t since : ids) {
+            if (!fits(since) || (since < prefill && !meets(since))) continue;
+            if (since == ids.front()) return false;
+            for (const size_t b : seen) {
+                for (auto& points : points_[b]) points.erase(std::remove_if(points.begin(), points.end(), [&](const Point& p) { return p.prefill < since; }), points.end());
+                extra_.erase(b);
+            }
+            return true;
+        }
+        return false;
     }
 };
 

@@ -220,6 +220,15 @@ class EngineTests(unittest.TestCase):
     def settings(self, tools=None):
         return {"model": "fake-model", "max_tokens": 32, "tools": tools or []}
 
+    def test_payload_omits_server_default_reply_limit_and_preserves_explicit_cap(self):
+        messages = [{"role": "user", "content": "hello"}]
+        for settings in ({"model": "fake-model", "max_tokens": None}, {"model": "fake-model"}):
+            with self.subTest(settings=settings):
+                payload = Engine._payload(messages, settings, [])
+                self.assertNotIn("max_tokens", payload)
+        payload = Engine._payload(messages, {"model": "fake-model", "max_tokens": 2048}, [])
+        self.assertEqual(payload["max_tokens"], 2048)
+
     def reply(self, *events):
         with FakeUpstream.lock:
             FakeUpstream.replies.append(list(events))

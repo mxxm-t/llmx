@@ -271,6 +271,42 @@ class RouteTests(unittest.TestCase):
     def json_body(result):
         return json.loads(result[2].decode("utf-8"))
 
+    def test_settings_defaults_are_published_and_missing_reply_limit_is_server_default(self):
+        cookie = self.login()
+        response = self.json_body(self.request("GET", "/api/config", cookie=cookie))
+        self.assertEqual(response["settings_defaults"], chat_server.DEFAULTS)
+        self.assertIsNone(response["settings_defaults"]["max_tokens"])
+        missing = chat_server.settings_of({"model": "test-model"})
+        self.assertIsNone(missing["max_tokens"])
+        explicit = chat_server.settings_of({"model": "test-model", "max_tokens": 2048})
+        self.assertEqual(explicit["max_tokens"], 2048)
+
+    def test_settings_allow_only_null_or_valid_integer_reply_limit(self):
+        for value in (True, False, 0, -1, 1.5, float("nan"), float("inf"), "1024"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                chat_server.settings_of({"max_tokens": value})
+        self.assertIsNone(chat_server.settings_of({"max_tokens": None})["max_tokens"])
+        self.assertEqual(chat_server.settings_of({"max_tokens": 1})["max_tokens"], 1)
+        self.assertEqual(chat_server.settings_of({"max_tokens": 1_000_000})["max_tokens"], 1_000_000)
+
+    def test_model_state_preserves_only_positive_integer_context_lengths(self):
+        data = {"data": [
+            {"id": "valid", "context_length": 32768},
+            {"id": "missing"},
+            {"id": "zero", "context_length": 0},
+            {"id": "negative", "context_length": -1},
+            {"id": "bool", "context_length": True},
+            {"id": "float", "context_length": 4096.0},
+            {"id": "string", "context_length": "8192"},
+        ]}
+        with mock.patch.object(chat_server.Connection, "json", return_value=data):
+            result = self.app.model_state()
+        self.assertEqual(result["models"], [
+            {"id": "valid", "context_length": 32768}, {"id": "missing"},
+            {"id": "zero"}, {"id": "negative"}, {"id": "bool"},
+            {"id": "float"}, {"id": "string"},
+        ])
+
     def login(self):
         result = self.request("POST", "/api/login", {"password": "correct horse"})
         self.assertEqual(result[0], 200)

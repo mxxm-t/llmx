@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common
 import cli
 
-CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section", "comment")
+CHECKS = ("link", "path", "line-pin", "name", "command", "usage", "test-name", "src-page", "section", "comment", "readme")
 
 
 def doc_files(texts):
@@ -779,9 +779,142 @@ def src_page_findings(tree):
     return found
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# README: its support tables, flags and documentation list against the code and docs that hold the same facts.
+
+README = "README.md"
+GPU_CORE = ("src/backends/gpu/backend_core.hpp", "TypeKernels kTypes[] =")
+# The table each backend's supports_type reads: CPU the decoder registry, Vulkan its weight formats, ROCm and CUDA the shared GPU core's types.
+TYPE_TABLES = {"cpu": ("src/quant/quant.hpp", "Registry() : types_"), "vulkan": ("src/backends/vulkan/vulkan_kernels.hpp", "WeightKernels weight_formats[] ="),
+               "rocm": GPU_CORE, "cuda": GPU_CORE}
+STATUS_RECORD = re.compile(r"docs/STATUS-\d{4}-\d\d\.md")
+
+
+def braced(tree, path, anchor):
+    """The code inside the braces that follow `anchor` in `path`, comments blanked, or None when the anchor or its braces are gone."""
+    code = common.cpp_code(tree.texts.get(path, ""), keep_strings=True)
+    at = code.find(anchor)
+    i = code.find("{", at) if at >= 0 else -1
+    if i < 0:
+        return None
+    depth = 0
+    for j in range(i, len(code)):
+        depth += (code[j] == "{") - (code[j] == "}")
+        if not depth:
+            return code[i + 1:j]
+    return None
+
+
+def readme_tables(text):
+    """(line number, cells, header) of each row of README's tables outside code fences, by the header's first cell."""
+    tables = collections.defaultdict(list)
+    lines = [(n, line) for n, line, _, fence in doc_lines(README, text) if not fence]
+    for n, _, cells, header in table_rows(lines):
+        tables[header[0]].append((n, cells, header))
+    return tables
+
+
+def cell_status(cell, names):
+    """name -> 'supported', 'planned' or None for the types `names` of one cell: `X` supported, `Y` planned per type, else the cell's first word for all."""
+    per = {n: s.lower() for n, s in re.findall(r"`(\w+)` (supported|planned)\b", cell, re.I)}
+    if per:
+        return {n: per.get(n) for n in names}
+    word = cell.split()[0].lower().rstrip(",;:") if cell.split() else ""
+    return {n: word if word in ("supported", "planned") else None for n in names}
+
+
+def readme_findings(tree):
+    """`readme`: the models table names the registered architectures, the weight formats table each backend's types, the --dtype table the GPU core's 16-bit integer types; README's flags are the help pages', and every docs/ page is reached from its Documentation section."""
+    found = Findings()
+    text = tree.texts[README]
+    tables = readme_tables(text)
+
+    def add(name, n, why):
+        found.add("readme", README, name, n, why)
+
+    anchors = {}
+
+    def anchored(where):
+        if where not in anchors:
+            anchors[where] = braced(tree, *where)
+            if anchors[where] is None:
+                add("anchor " + where[1], 1, "%s no longer holds `%s`; update the readme check's anchor (TYPE_TABLES, GPU_CORE or the registry's)" % where)
+        return anchors[where] or ""
+
+    registered = set(re.findall(r'\{\s*"(\w+)"', anchored(("src/model/arch/registry.hpp", "ArchEntry kArchitectures[] ="))))
+    rows = {}
+    for n, cells, _ in tables.get("architecture", ()):
+        m = re.match(r"`(\w+)`", cells[0])
+        if m:
+            rows[m.group(1)] = n
+            if m.group(1) not in registered:
+                add("architecture " + m.group(1), n, "src/model/arch/registry.hpp registers no `%s`; remove the row, or name a planned one without backticks" % m.group(1))
+    first = min(rows.values(), default=1)
+    for a in sorted(registered - set(rows)):
+        add("architecture " + a, first, "src/model/arch/registry.hpp registers `%s` and the models table has no row for it; add one" % a)
+
+    reads = {b: set(re.findall(r"\bGGML_TYPE_(\w+)", anchored(where))) for b, where in TYPE_TABLES.items()}
+    named = set()
+    weights = tables.get("weight format", ())
+    for n, cells, header in weights:
+        types = re.findall(r"`(\w+)`", cells[0])
+        named |= set(types)
+        for i, h in enumerate(header[1:len(cells)], 1):
+            backend = h.split()[0]
+            if backend not in reads:
+                continue
+            table = "%s %s" % TYPE_TABLES[backend]
+            for t, status in cell_status(cells[i], types).items():
+                if status == "supported" and t not in reads[backend]:
+                    add("%s %s" % (backend, t), n, "marked Supported, but %s has no %s row; mark it Planned" % (table, t))
+                elif status == "planned" and t in reads[backend]:
+                    add("%s %s" % (backend, t), n, "marked Planned, but %s reads it; mark it Supported" % table)
+    for t in sorted(set().union(*reads.values()) - named):
+        add("weight format " + t, weights[0][0] if weights else 1, "a backend reads %s and no row of the weight formats table names it; add it to a row" % t)
+
+    # The GPU core's types with twin kernels are those with 16-bit integer blocks.
+    twins = set(re.findall(r'\{\s*quant::GGML_TYPE_(\w+),\s*"\w+"(?:,\s*\w+){4},\s*&', anchored(GPU_CORE)))
+    for n, cells, header in tables.get("`--dtype`", ()):
+        if cells[0] != "`f16`":
+            continue
+        for i, h in enumerate(header[1:len(cells)], 1):
+            if TYPE_TABLES.get(h.split()[0]) != GPU_CORE:
+                continue
+            for clause in re.split(r",\s+(?!`)", cells[i]):
+                if "16-bit integer blocks for" in clause:
+                    listed = set(re.findall(r"`(\w+)`", clause))
+                    if listed != twins:
+                        add("f16 %s integer blocks" % h.split()[0], n, "lists %s; %s gives %s twin kernels, so list exactly those" % (
+                            ", ".join(sorted(listed)), GPU_CORE[0], ", ".join(sorted(twins))))
+
+    taken = set().union(*tree.commands.values()) | {"--help"}
+    for n, line, _, fence in doc_lines(README, text):
+        if not fence:
+            for f in re.findall(r"(?<![\w-])(--[A-Za-z][\w-]*)", line):
+                if f not in taken:
+                    add(f, n, "no command's help page lists %s; name a flag print_usage gives, or add it there" % f)
+
+    lines = text.split("\n")
+    start = next((i for i, l in enumerate(lines) if l.strip() == "## Documentation"), None)
+    if start is None:
+        add("Documentation", 1, "README has no `## Documentation` section; add one linking the docs")
+        return found
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    section = {os.path.normpath(m.group(2).split("#")[0]).replace(os.sep, "/") for m in MD_LINK.finditer("\n".join(lines[start:end]))}
+    reached = set(section)
+    for doc in section:
+        t = tree.texts.get(doc, "")
+        reached |= {os.path.normpath(os.path.join(os.path.dirname(doc), m.group(2).split("#")[0])).replace(os.sep, "/") for m in MD_LINK.finditer(t)}
+        reached |= set(DOC_PATH.findall(t))
+    for doc in sorted(p for p in tree.paths if re.fullmatch(r"docs/[^/]+\.md", p) and not STATUS_RECORD.fullmatch(p)):
+        if doc not in reached:
+            add(doc, start + 1, "neither the Documentation section nor a doc it links links %s; link it from one of them" % doc)
+    return found
+
+
 def all_findings(tree, digests):
     found = {}
-    for check in (reference_findings, usage_findings, test_name_findings, src_page_findings):
+    for check in (reference_findings, usage_findings, test_name_findings, src_page_findings, readme_findings):
         found.update(check(tree))
     found.update(comment_findings(tree, digests))
     return found
@@ -913,7 +1046,7 @@ def planted(tree, plants):
 
 
 def self_test(tree, found, listed):
-    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while docs/TESTS.md describes them, and a stale list entry.
+    """The planted faults: a dangling path, a broken link, an unpinned line number, a command line with a flag it does not take, a script given a flag of a module it imports without handing it its arguments, a heading reference without backticks in a record, a missing heading of the same doc, a comment naming a doc that does not exist, a qualified name whose member only a string holds, a wrong flag and a wrong default in USAGE.md, a page for a file that does not exist, two CTests removed while docs/TESTS.md describes them, README rows, a flag and a doc the README check must report, and a stale list entry.
     A correct pinned line reference must give no finding.
     The faults one check reports share a copy of the tree, so each check runs once."""
     page = "docs/src/core-utf8.md"
@@ -959,6 +1092,19 @@ def self_test(tree, found, listed):
         (test_name_findings, removed, [
             ("a removed CTest docs/TESTS.md opens a line with", ("test-name", TESTS_DOC, "sampler")),
             ("a removed CTest docs/TESTS.md names after CTest", ("test-name", TESTS_DOC, "kv-cache"))]),
+        (readme_findings, planted(tree, [(README, "| Llama, Mistral", "| `planted` | | Planned | Planned | Planned | Planned |\n"),
+                                         (README, "| `TQ1_0`, `TQ2_0`", "| `Q8_0` | Supported | Supported | Planned | No |\n| `IQ3_S` | Supported | Supported | Supported | No |\n"),
+                                         (README, "| `bf16` |", "| `f16` | | | | Native: 16-bit integer blocks for `Q8_0`, F32 products elsewhere |\n"),
+                                         (README, "\n## Documentation", "\nRun it with `--planted-flag`.\n"),
+                                         ("docs/PLANTED.md", None, "# Planted\n")]), [
+            ("a models table row for an architecture the registry lacks", ("readme", README, "architecture planted")),
+            ("a type a backend reads marked Planned", ("readme", README, "rocm Q8_0")),
+            ("a type a backend does not read marked Supported", ("readme", README, "rocm IQ3_S")),
+            ("a 16-bit integer list that is not the GPU core's", ("readme", README, "f16 cuda integer blocks")),
+            ("a flag no help page lists", ("readme", README, "--planted-flag")),
+            ("a doc the Documentation section does not reach", ("readme", README, "docs/PLANTED.md"))]),
+        (readme_findings, planted(tree, [(GPU_CORE[0], GPU_CORE[1].split()[1], "x")]), [
+            ("a renamed anchor in the GPU core", ("readme", README, "anchor " + GPU_CORE[1]))]),
     ]
     ok, count = True, 2
     for check, planted_tree, faults in cases:

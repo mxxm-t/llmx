@@ -1240,6 +1240,18 @@ Gotchas: a kernel without `__launch_bounds__` is compiled for 1024 lanes and cap
 
 **Gotchas.**
 - More rows raise VGPRs and cut waves; the four-row IQ4 build runs at two waves a SIMD and is still the fastest at these shapes.
+## README held to the code by the docs component (2026-11-16, DOCS1 then DOCS2, branch tests/readme-check on docs/readme-sweep; tests only, lands by fast-forward)
+
+**Goal.** README's support tables, flags and documentation list cannot fall behind what lands.
+
+**Done.**
+- The `readme` check of `tests/docs_check.py` holds the models table to the registry, each weight formats column to its backend's type table, the `--dtype` f16 list to the GPU core's twin kernels, every prose flag to a help page and every docs page to the Documentation section.
+- A moved anchor in the code reports a `readme` finding naming the anchor, and seven planted faults show each rule reporting.
+- On main's README at 929f042c6 the docs component fails on the ROCm f16 list; on the README of docs/readme-sweep it passes.
+
+**Left.** Nothing; the README redesign keeps the literal `## Documentation` heading or the check reports it.
+
+**Gotchas.** A `--flag` of another tool in README prose fails the check, so such flags go in a code fence (docs/TESTS.md, Suite components).
 
 ## ROCm F16, Q4_0 and Q4_1 weights (2026-11-14, ROCMGAP1 to ROCMGAP7, branch rocmgap/types, rebased onto main 9724cd436)
 

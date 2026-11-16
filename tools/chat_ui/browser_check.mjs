@@ -1413,6 +1413,30 @@ try {
   await delay(300);
   assert.equal(runStreams.filter(stream => new URL(stream).pathname === '/api/runs/' + otherRun + '/events').length, retryStreamsBefore, 'old retry subscribed to the selected chat response again');
   assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep the destination draft');
+  await click('[data-chat="'+submittedChat+'"]');
+  await wait("document.querySelector('.message.assistant')?.innerText.includes('The delayed retry completed.')", 'retry source remains completed');
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.releaseRetrySnapshot = null;
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (args[0] !== '/api/chats/'+${JSON.stringify(submittedChat)} || (args[1]?.method || 'GET') !== 'GET') return response;
+      window.fetch = original;
+      return new Promise(resolve => { window.releaseRetrySnapshot = () => resolve(response); });
+    };
+  })()`);
+  await click('.message.assistant [data-action="retry"]');
+  await wait("typeof window.releaseRetrySnapshot==='function'", 'hold retry snapshot');
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'leave during retry snapshot');
+  await evaluate(`fetch('/api/chats/'+${JSON.stringify(submittedChat)},{method:'PATCH',headers:{'Content-Type':'application/json','X-Chat-Request':'1'},body:JSON.stringify({title:'Fresh reopened conversation'})}).then(r=>{if(!r.ok)throw Error('Fixture rename failed');})`);
+  await click('[data-chat="'+submittedChat+'"]');
+  await wait("document.querySelector('#chat-title').textContent==='Fresh reopened conversation'", 'reopen current source snapshot');
+  await evaluate('window.releaseRetrySnapshot()');
+  await delay(300);
+  assert.equal(await evaluate("document.querySelector('#chat-title').textContent"), 'Fresh reopened conversation', 'old retry snapshot replaced the reopened conversation');
+  await click('[data-chat="'+otherChat+'"]');
+  await wait("document.querySelector('.chat-item.active')?.dataset.chat==="+JSON.stringify(otherChat), 'return to waiting destination');
   const browserStep = await fetch(upstreamFixture + '/browser-step');
   assert.equal(browserStep.status, 204, 'could not release the other conversation response');
   await wait("document.querySelector('#stop').hidden && document.querySelector('#messages').innerText.includes('The other chat completed.')", 'other conversation response completes');

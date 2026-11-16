@@ -699,7 +699,7 @@
       } catch (error) { banner('Could not apply a stream update: ' + error.message); }
     });
   }
-  async function syncSnapshot(chatId) { const data = await api('/chats/' + encodeURIComponent(chatId)); if (S.chat?.id !== chatId) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
+  async function syncSnapshot(chatId) { const generation = S.generation, data = await api('/chats/' + encodeURIComponent(chatId)); if (S.chat?.id !== chatId || S.generation !== generation) return; S.chat = data.chat; S.messages = data.messages || []; S.runs = data.runs || []; snapshotBanner(); scheduleRender(); }
   function tick() {
     renderLiveMetrics(); renderContextLimits();
     const run = currentRun(); if (!run) { $('run-caption').textContent = 'Enter to send / Shift + Enter for a new line'; return; }
@@ -750,9 +750,13 @@
     let message = S.messages.find(m => m.id === id); const seen = new Set();
     while (message && message.role !== 'user' && !seen.has(message.id)) { seen.add(message.id); message = S.messages.find(m => m.id === message.parent_id); }
     if (!message) throw new Error('The original user message could not be found.');
-    const chatId = S.chat.id;
+    const chatId = S.chat.id, generation = S.generation;
+    const isCurrentView = () => S.chat?.id === chatId && S.generation === generation;
     await api('/chats/' + encodeURIComponent(chatId) + '/runs', 'POST', {regenerate: true, parent_id: message.id, settings: settings()});
-    await syncSnapshot(chatId); const run = currentRun(); if (run) subscribe(run); bottom();
+    if (!isCurrentView()) return;
+    await syncSnapshot(chatId);
+    if (!isCurrentView()) return;
+    const run = currentRun(); if (run) subscribe(run); bottom();
   }
   async function patchChat(changes, chatId = S.chat?.id) {
     if (!chatId) return;

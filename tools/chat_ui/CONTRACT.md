@@ -223,3 +223,12 @@ Changing conversations prevents the old completion from clearing that view,
 replacing its snapshot or subscribing to its stream again. A failure arriving
 after navigation uses a toast rather than replacing the new conversation's banner.
 This does not provide persistent drafts when leaving a conversation.
+
+## Pending Retry requests
+
+Retry keeps its original conversation and view generation across admission and
+snapshot refresh. Navigating away, including leaving and reopening the same
+conversation, prevents that completion from replacing the current snapshot,
+restarting its event stream or scrolling its view. The admitted retry continues
+in its original conversation. Snapshot refreshes also discard responses from an
+older view generation. Errors use the existing action notification.

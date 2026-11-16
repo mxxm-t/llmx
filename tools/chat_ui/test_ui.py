@@ -146,7 +146,8 @@ class BrowserTests(unittest.TestCase):
                 [text_event("Editable seed response."), metrics],
                 [text_event("The submitted edit completed."), metrics],
                 [text_event("The second submission completed."), metrics],
-                [text_event("The delayed retry completed."), metrics]]
+                [text_event("The delayed retry completed."), metrics],
+                [text_event("The snapshot retry completed."), metrics]]
             BrowserUpstream.requests = []
         BrowserUpstream.gate = StepGate()
         BrowserUpstream.stream_opened = threading.Event()

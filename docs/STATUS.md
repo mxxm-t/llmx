@@ -258,6 +258,20 @@ A timing round on the head with the argument under a host load of 35 to 57 sprea
 | DeepSeek-V4.1-Flash pp16384 / tg16, ten MI50s | width 1: 1957/1704 pp, 28.0/25.5 tg (best of two, branch/main); width 2: 1595/1533 pp, 37.9/34.3 tg | carried |
 
 The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
+## Chat retry navigation (2026-11-16, ready for landing)
+
+**Goal.** Keep an admitted retry attached to its original conversation when the user navigates before the response arrives. The browser action owner is `tools/chat_ui/app.js`; model execution and persistence are unchanged.
+
+**Done.** The real-browser regression fails on the previous code in 51.805 s: releasing the admitted retry response opens a fourth destination stream where only three should exist. Retry now checks the conversation and view generation before and after snapshot refresh. Snapshot refresh itself refuses a response from a view left and reopened.
+
+**Checks.** The candidate browser fixture passes in 52.304 s, including held Retry admission while another conversation is active, held snapshot response across leaving and reopening the same conversation, existing chat flows, both themes, responsive geometry and 200 percent zoom. The Linux-only Chrome launch diagnostic is skipped on Windows. JavaScript syntax checks pass. Dead-code reports 15 expected findings and 20 planted checks in 27.4 s; docs reports zero findings and 21 planted checks in 20.1 s. A bounded source review found no remaining defect. Evidence is in `scratch/retry/`.
+
+**Docs review.** The Markdown inventory checks pass across the tree. README, companion CONTRACT and TESTS describe the changed action and snapshot behavior; runtime, build and model claims are unchanged. No new flag, dependency, storage path or model arithmetic is introduced.
+
+**Left.** The tested two-commit branch is ready for the landing coordinator. No direct main push while LAND61 holds the stack. Static browser scope requires no inference or unrelated hosted gates. The change is intended to land by fast-forward after the coordinator incorporates it; this is not a claim that it is already on main.
+
+**Gotchas.** Navigation does not cancel an admitted retry. Errors retain the existing action notification path.
+
 
 ## Companion deployment documentation refresh (2026-11-16, Done)
 

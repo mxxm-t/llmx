@@ -96,7 +96,10 @@ It does not lock the upstream model or control later server restarts.
 - Stop cancels the current model request. A running external tool may already
   have performed an action, so Stop cannot promise to undo it.
 - Edit a user message or retry an answer to create an alternative branch. The
-  original branch stays available through the message's branch controls.
+  original branch stays available through the message's branch controls. A retry
+  continues in its original conversation if you navigate away while admission
+  or snapshot refresh is pending; its completion does not reconnect or scroll
+  the newly selected view.
 - Each sidebar row has a compact anchored actions menu for rename, pin/unpin,
   move to folder, duplicate, archive/restore, export and delete. Actions target
   that row without opening it. Rename, folder and delete use accessible dialogs.

@@ -402,6 +402,20 @@ def check_dtype(model):
                 common.hf_execution(p.stderr)
 
 
+def check_generate_budget(directory):
+    """generate budgets its prompt and -n tokens in whole blocks rather than the model's context: on a context of eight CPU blocks of 128, one block for a reply of 1 and two for 200."""
+    model = f32.write_model(os.path.join(directory, "context-1024.gguf"), f32.tensors(False), config=dict(f32.CONFIG, context_length=1024))
+    allocated = []
+    for n in ("1", "200"):
+        # The reply of random weights is bytes that need not be UTF-8, so the output is read as bytes.
+        p = common.run_process(["generate", model, "a", "-n", n, "--ignore-eos", "--verbose", "--device", "cpu", "--threads", "1"])
+        found = re.search(rb"^kv: allocated (\d+) bytes", p.stdout, re.M)
+        assert p.returncode == 0 and found, (p.returncode, p.stdout, p.stderr)
+        allocated.append(int(found.group(1)))
+    assert allocated[0] > 0 and allocated[1] == 2 * allocated[0], ("generate's KV budget is not its prompt and reply in whole blocks", allocated)
+    return allocated
+
+
 def run():
     with tempfile.TemporaryDirectory(prefix="llmx_cli_") as directory:
         model = f32.write_model(os.path.join(directory, "tiny-f32.gguf"), f32.tensors(False))
@@ -411,13 +425,15 @@ def run():
         devices = check_expert_flags(model)
         check_info(directory)
         check_known_storage(directory)
+        budget = check_generate_budget(directory)
     check_usage_errors()
     taken, switches, refused, twice = check_help()
     print("cli: a Vulkan and a ROCm device refused without the backend or without the device, experts on the CPU refused on a model without routed layers "
           "on %d device(s) by the flag's name, info's architecture, layers and tensors, known unsupported storage metadata and execution refusals, "
+          "generate's KV budget of its prompt and reply (%d and %d bytes for -n 1 and 200), "
           "usage errors exiting 2 with the command's page, and every help page shown without a model, "
           "with %d lines of the flags it lists taken, %d of them giving a switch twice, %d of the flags it does not list refused and %d giving a listed flag a second value refused  [ok]"
-          % (devices, taken, switches, refused, twice))
+          % (devices, budget[0], budget[1], taken, switches, refused, twice))
     return True
 
 

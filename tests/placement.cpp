@@ -1683,8 +1683,8 @@ void host_budget_shared() {
 }
 
 // A model placed on one SizedDevice of `room` bytes free with a KV budget of `budget` tokens, as fitted_kv fits it.
-// Beside experts on the CPU the device is not charged for those layers' feed-forward weights.
-std::unique_ptr<infer::Model> place_sized(size_t room, size_t budget, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0) {
+// Beside experts on the CPU the device is not charged for those layers' feed-forward weights, and `history`, where given, is the tokens of the one history the request holds.
+std::unique_ptr<infer::Model> place_sized(size_t room, size_t budget, const gguf::GGUFModel& m, int cpu_moe = 0, bool copying = false, int rise_after = 0, size_t history = 0) {
         auto device = std::make_shared<SizedDevice>();
         device->room = room;
         device->copying = copying;
@@ -1693,6 +1693,8 @@ std::unique_ptr<infer::Model> place_sized(size_t room, size_t budget, const gguf
         infer::PlacementRequest request;
         request.names = {"device"};
         request.cpu_moe = cpu_moe;
+        request.histories = history ? 1 : 0;
+        request.history_tokens = history;
         infer::ModelOptions options;
         options.kv_tokens = budget;
         return infer::place_model(infer::gguf_weights(m), {device}, request, options).model;
@@ -1753,9 +1755,9 @@ void kv_fitted() {
 void kv_refused() {
     const auto weights = fixture();
     // A budget the device holds is taken at once, while one it cuts waits for its free memory to settle, so a load meant to succeed asks only for what it holds.
-    const auto refusal_of = [&](size_t room, size_t budget = 0) {
+    const auto refusal_of = [&](size_t room, size_t budget = 0, size_t history = 0) {
         try {
-            place_sized(room, budget, weights);
+            place_sized(room, budget, weights, 0, false, 0, history);
         } catch (const std::runtime_error& e) {
             return std::string(e.what());
         }
@@ -1784,12 +1786,17 @@ void kv_refused() {
     }
     require(refusal_of(hi, 128).empty(), "the least room that holds a block of KV beside the model did not load");
     require(refusal_of(lo).find("no room for one KV block") != std::string::npos, "a device with no room for one KV block was not refused as such");
+    // A history of 200 tokens takes the context's two blocks, so the device that holds one is refused with both counts rather than given a budget the history outgrows; one of 100 tokens loads there.
+    const std::string short_history = refusal_of(hi, 0, 200);
+    require(short_history.find("hold 128 KV tokens beside the model, fewer than the 256 the request needs") != std::string::npos,
+            ("a fit below the request's history was not refused with both counts: " + short_history).c_str());
+    require(refusal_of(hi, 0, 100).empty(), "a history the device holds was refused");
     // Beside experts on the CPU a copying device holds every layer's attention and not the routed feed-forward blocks, which take more than a block, so it fits more KV than it does holding them.
     const auto moe = tiny_qwen_moe(2, 2 * 128, true);
     const size_t with_experts = place_sized(8 << 20, size_t(1) << 20, moe, 0, true)->kv_tokens_total();
     const size_t without = place_sized(8 << 20, size_t(1) << 20, moe, -1, true)->kv_tokens_total();
     require(without > with_experts, "a device beside experts on the CPU was charged for their weights");
-    checked += 3;
+    checked += 4;
 }
 
 void kv_auto_fitted() {
@@ -1912,6 +1919,39 @@ void kv_auto_overstated() {
                  std::to_string(left) + " bytes, not cut to the stated room beside its kernels' reserve and by no more than the overstatement").c_str());
     }
     checked += 2;
+    // A cut that leaves fewer tokens than the request's histories take is refused rather than built: one block more than the cut leaves is asked for.
+    size_t left_after = 0;
+    for (const size_t need : {size_t(0), size_t(1)}) {
+        auto device = std::make_shared<Overstating>();
+        device->room = 16 << 20;
+        device->drop = 3 << 20;
+        device->copying = true;
+        device->set_threads(1);
+        infer::PlacementRequest request;
+        request.names = {"device"};
+        request.kv_auto = true;
+        request.ubatch = 8;
+        if (need) {
+            request.histories = left_after / 128 + 1;
+            request.history_tokens = 128;
+        }
+        std::vector<backend::BufferPtr> uploads;
+        const infer::ModelWeights model = infer::gguf_weights(heavy);
+        const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b, const infer::shard::Held*) {
+            return uploads.emplace_back(b.alloc(model.tensors[tensor].bytes));
+        };
+        std::string why;
+        try {
+            infer::PlacedModel placed = infer::place_model(model, {device}, request, infer::ModelOptions{}, adopt, [&] { uploads.clear(); });
+            left_after = placed.model->kv_tokens_total();
+            if (need)
+                why = "built with " + std::to_string(left_after) + " tokens";
+        } catch (const std::runtime_error& e) { why = e.what(); }
+        if (need)
+            require(why.find("fewer than the " + std::to_string(request.histories * 128) + " the request needs") != std::string::npos,
+                    ("a KV budget cut below the request's histories was not refused: " + why).c_str());
+    }
+    ++checked;
 }
 
 // A device that takes each allocation in whole units of `unit` bytes, as hipMalloc takes pages, and `hidden` bytes more at its first of a mebibyte or more, as a runtime maps a heap, and fails one past its room.
@@ -3107,6 +3147,69 @@ void replies_arena_fitted() {
     ++checked;
 }
 
+// A device that takes each buffer in whole units of 256 KiB, as a GPU allocator takes whole pages.
+// The fit must price every buffer as the device takes it, the caches' and a pass's arena among them, or a fit to the room runs the device short.
+void rounded_buffers_fit() {
+    struct PagedDevice : SizedDevice {
+        std::shared_ptr<size_t> live = std::make_shared<size_t>(0);
+        static size_t taken(size_t bytes) { return (bytes + (size_t(1) << 18) - 1) >> 18 << 18; }
+        std::optional<size_t> memory_available() const override { return room > *live ? room - *live : 0; }
+        // The CPU's own product scratch, which a pass takes, is under one unit here.
+        size_t memory_kept(size_t) const override { return size_t(1) << 18; }
+        size_t allocation_bytes(size_t bytes) const override { return taken(bytes); }
+        size_t resident_bytes(uint32_t, size_t, size_t, size_t bytes, bool) const override { return taken(bytes); }
+        backend::BufferPtr charge(backend::BufferPtr b, size_t bytes) {
+            const size_t t = taken(bytes);
+            if (*live + t > room) throw std::bad_alloc();
+            *live += t;
+            auto held = live;
+            return backend::BufferPtr(b.get(), [b, held, t](backend::Buffer*) mutable { *held -= t; b.reset(); });
+        }
+        backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
+            backend::BufferPtr b = SizedDevice::alloc(bytes, where);
+            return where == backend::Memory::device ? charge(std::move(b), bytes) : b;
+        }
+        backend::BufferPtr adopt(const void* src, size_t bytes) override { return charge(SizedDevice::adopt(src, bytes), bytes); }
+    };
+    // 16 KV heads of 4 make a whole context's KV 16 MiB, most of the device, beside weights of a few units.
+    const auto weights = tiny_qwen_shaped(2, 32768, true, 16, 16, 64, 16);
+    const std::vector<uint32_t> prompt{2, 7, 1, 8};
+    // Rooms from one that holds the whole context down, in steps out of phase with the unit; each fit short of its request waits for free memory to settle, so the rooms run at once.
+    // A room holding no block beside the rest is refused, and counts for nothing; the check is that no fitted room runs short.
+    std::vector<std::future<std::string>> runs;
+    for (size_t room = size_t(24) << 20; room > (size_t(2) << 20); room -= (size_t(3) << 18) + (size_t(1) << 12))
+        runs.push_back(std::async(std::launch::async, [&weights, &prompt, room]() -> std::string {
+            auto device = std::make_shared<PagedDevice>();
+            device->room = room;
+            device->copying = true;
+            device->set_threads(1);
+            infer::PlacementRequest request;
+            request.names = {"device"};
+            infer::PlacedModel placed;
+            try {
+                placed = infer::place_model(infer::gguf_weights(weights), {device}, request, infer::ModelOptions{});
+            } catch (const std::runtime_error&) {
+                return "refused";
+            } catch (const std::bad_alloc&) {
+                return "a fit to a device of " + std::to_string(room) + " bytes that takes whole units ran it short while building";
+            }
+            try {
+                (void)placed.model->prefill(prompt);
+            } catch (const std::exception& e) {
+                return "a fit to a device of " + std::to_string(room) + " bytes that takes whole units left a prompt's pass no room: " + e.what();
+            }
+            return placed.model->kv_tokens_total() < 32768 ? "cut" : "whole";
+        }));
+    size_t fitted = 0;
+    for (auto& run : runs) {
+        const std::string r = run.get();
+        require(r == "refused" || r == "cut" || r == "whole", r.c_str());
+        fitted += r == "cut";
+    }
+    require(fitted > 8, "too few rooms cut the KV budget for the rounding check to mean anything");
+    ++checked;
+}
+
 // Experts on the CPU beside a layer split: the first N routed layers' feed-forward blocks run on a CPU added before the devices, with the logits of the model on one CPU, and the fit leaves their bytes off the devices.
 void experts_beside_split() {
     const auto moe = tiny_qwen_moe(4, 2 * 128, true);
@@ -3219,7 +3322,7 @@ int main() {
     try {
         // A fit short of its devices' free memory waits five seconds for it to settle (model/place.hpp, settle), so the cases that make such fits run on threads of their own beside the rest.
         std::vector<std::future<void>> waiting;
-        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits})
+        for (void (*settling)() : {kv_fitted, kv_refused, kv_auto_fitted, kv_auto_overstated, fit_cut_first_pass, experts_beside_split, replies_arena_fitted, lookup_storage_planned, layer_split_fits, rounded_buffers_fit})
             waiting.push_back(std::async(std::launch::async, settling));
         tensor_widths();
         pass_values_once_a_stage();

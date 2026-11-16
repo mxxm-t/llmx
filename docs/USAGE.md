@@ -820,9 +820,10 @@ The server fits the budget as it loads: where the devices cannot hold a given
 `--kv-tokens` beside all that, it takes the most whole blocks they hold, and
 it backs the whole budget at load, so no request grows the cache; a model that
 leaves no room for one block is refused before the server serves.
-Every other model command takes `--kv-tokens` with the same meaning and fits its budget the same way, by default the model's context or the sequences `bench --model` holds, and backs it whole at load, so no pass grows the cache past what the devices hold.
-A drafter fits beside the budget and never changes it (docs/SPECULATIVE.md), so where the devices hold a model's whole context and no drafter beside it, `generate --drafter` runs with a smaller `--kv-tokens`.
-A `generate`, `chat`, `logits` or `perplexity` run given a budget below its prompt plus `-n` ends at the pass that runs out, with `KV cache: block budget exhausted; the run needs more tokens than --kv-tokens gives`.
+Every other model command takes `--kv-tokens` with the same meaning and fits its budget the same way, by default the model's context, the sequences `bench --model` holds or the prompt and `-n` tokens of `generate` without an image, and backs it whole at load, so no pass grows the cache past what the devices hold.
+A budget given below those sequences or that prompt and reply grows to hold them, and where the devices hold fewer tokens than they take, the command is refused with both counts rather than run on a smaller cache.
+A drafter fits beside the budget and never changes it (docs/SPECULATIVE.md), so where the devices hold a model's whole context and no drafter beside it, a command with a drafter runs with a smaller `--kv-tokens`.
+A `generate` with an image, `chat`, `logits` or `perplexity` run given a budget below its prompt plus `-n` ends at the pass that runs out, with `KV cache: block budget exhausted; the run needs more tokens than --kv-tokens gives`.
 A budget the devices hold is taken at once; one the fit cuts first waits for their free memory to settle, about 5 s on a device and up to 30 s on the CPU, whose free memory moves between reads.
 On the CPU the backed cache is the operating system's zero pages, so it takes memory only as passes fill it.
 A request holds at most the smallest of `--ctx-size`, the model's context and

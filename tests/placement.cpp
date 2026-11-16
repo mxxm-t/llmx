@@ -3057,7 +3057,7 @@ void group_fits() {
     require(group.size() == 1 && group[0].collective_per_row == 2 * plan.residual * 7, "a group's budget does not take its members' largest collective rows");
     const infer::LayerSplit roomy = infer::split_layers(member, group, rows, {}, std::nullopt, 1, logits);
     const infer::LayerSplit::Stage& st = roomy.stages.at(0);
-    const size_t without = rows * member.activations_per_row + member.tables + group[0].scratch;
+    const size_t without = rows * member.activations_per_row + 64 * member.activation_slots + member.tables + group[0].scratch;
     require(st.other == without + rows * group[0].collective_per_row, "a member's collective rows are not counted beside its activations");
     const size_t need = st.weights + st.cache + st.other + logits * member.head_slice_per_row;
     auto fits = [&](size_t bytes) {

@@ -604,12 +604,13 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
 size_t prompt_logit_rows(const ExecOptions& exec) { return (size_t)(exec.ubatch > 0 ? exec.ubatch : infer::kDefaultUbatch); }
 
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed for its ubatch plus `decode_rows` generated tokens a pass and `logit_rows` logits rows.
-// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes) are described in docs/src/cli-main.md, open_model.
+// The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared, argmax_passes, history) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t logit_rows, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {},
-                                               std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}, bool argmax_passes = false) {
+                                               std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}, bool argmax_passes = false,
+                                               const std::function<size_t(const infer::LoadedModel&)>& history = {}) {
     const auto specs = exec_specs(exec);
     if (watch) watch({"devices"});
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
@@ -670,7 +671,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         if (shown) shown(step);
         watch(step);
     };
-    auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file);
+    auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file, history);
     std::cerr << loaded->dtype.describe() << loaded->model->rope_policy().describe();
     if (loaded->replaced_template) std::cerr << "chat template: " << exec.chat_template_file << " replaces the template the model carries\n";
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
@@ -854,8 +855,16 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
                  Drafts& drafts, const Images& images = {}) {
     const std::vector<std::string> image_bytes = images.read("generate");
     const bool progress = show_progress(exec);
+    // A text prompt's history is its tokens and -n more, which the fit budgets in place of the context; an image's tokens are known only once its encoder reads it.
+    std::vector<uint32_t> text_ids;
+    std::function<size_t(const infer::LoadedModel&)> history;
+    if (image_bytes.empty())
+        history = [&](const infer::LoadedModel& l) {
+            text_ids = l.tok->encode(as_chat ? chat_prompt(l.chat, prompt) : prompt);
+            return text_ids.size() + (size_t)gp.max_tokens;
+        };
     const auto loaded = open_model(model_path, exec, progress, exec.threads, drafts.logit_rows(), 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file, {},
-                                   std::nullopt, {}, true);
+                                   std::nullopt, {}, true, history);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, progress);
@@ -866,7 +875,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     infer::ImagePrompt turn;
     loaded->chat.refuse_image_text(prompt);
     if (!image_bytes.empty()) turn = image_turn(*loaded, images, image_bytes, prompt);
-    else turn.ids = tok.encode(as_chat ? chat_prompt(loaded->chat, prompt) : prompt);
+    else turn.ids = std::move(text_ids);
     const std::vector<uint32_t>& ids = turn.ids;
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 

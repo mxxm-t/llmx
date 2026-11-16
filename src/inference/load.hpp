@@ -734,10 +734,11 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
 } // namespace detail
 
 // Read a GGUF file or a Hugging Face directory (inference/directory.hpp) and its optional paired drafter, then load its weights through the shared placement and I/O path.
+// `history`, where given, is the tokens of the one history the caller holds, read through the tokenizer before the fit, which budgets it (PlacementRequest::histories).
 inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vector<backend::BackendPtr> backends,
                                                const PlacementRequest& request, const ModelOptions& options = {},
                                                const LoadReport& report = {}, LoadMode mode = LoadMode{},
-                                               const std::string& drafter_file = {}) {
+                                               const std::string& drafter_file = {}, const std::function<size_t(const LoadedModel&)>& history = {}) {
     auto loaded = std::make_unique<LoadedModel>();
     if (report) report({"metadata"});
     const bool directory = is_model_directory(path);
@@ -754,6 +755,10 @@ inline std::unique_ptr<LoadedModel> load_model(const std::string& path, std::vec
     }
     loaded->tok.emplace(loaded->file);
     loaded->chat = chat::chat_format(loaded->file, *loaded->tok);
+    if (history) {
+        placing.histories = 1;
+        placing.history_tokens = history(*loaded);
+    }
     ModelWeights weights = gguf_weights(loaded->file, request.rope);
     return detail::load_weights(std::move(loaded), std::move(weights), std::move(backends), placing, options, report, mode, directory);
 }

@@ -1447,6 +1447,8 @@ __device__ void k_rows(const RowCall& rc, const QT* q, const float* dx, unsigned
 
 // The K-quants' prompt tile: q8_0_tile's 64 outputs by 64 rows and its staging, each weight row's twin block staged by four threads with the scale and min of its halves.
 // Each output sums its blocks, and a block its halves, in order, acc = fma(dx, term, acc), so a row gives the same bits wherever the tile falls.
+template <typename KT, int NB> struct StreamWords;
+template <typename KT> struct StreamDecode;
 template <typename KT, typename QT, bool ROUTED = false, int ROWS = kTileRows>
 __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const TileGroups& tg = TileGroups{}) {
     constexpr int STEP = TileStep<QT, 4>::n, WORDS = 32 * (int)sizeof(QT) / 4, OUTS = 64, NW = KWords<QT>::n, H = KRaw<KT>::halves;
@@ -1500,6 +1502,11 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
     const unsigned char* wrow = c.w[pi] + (ROUTED ? tg.tab[4 * gi] * tg.stride[pi] : 0) + (o < nout ? o : 0) * row_bytes;
     KRaw<KT> raw[STEP];
     bool wok[STEP], xok[STEP];
+    // The 8-bit MXFP4 step: thread t stages block t % 4 of row t / 4 whole, from one 16-byte and one 4-byte load (StreamWords) rather than sixteen scattered words, into the same slots.
+    constexpr bool WHOLE = sizeof(QT) == 1 && __is_same(KT, rq::MXFP4);
+    static_assert(!WHOLE || STEP == 4, "a whole block a thread needs four blocks a step");
+    StreamWords<KT, 1> whole;
+    bool wok1 = false;
     int xv[STEP][WORDS / 4];
     float xs_[STEP];
     const QT* qt = q + b0 * c.xrow * 32;
@@ -1511,7 +1518,12 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
             xok[s] = k < kend && b < nrows;
             wok[s] = k < kend && o < nout;
             const unsigned long long kk = wok[s] ? k : 0;
-            raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+            if constexpr (!WHOLE) raw[s].load(wrow + (kk / (KT::values / 32)) * KT::bytes, (unsigned)(kk % (KT::values / 32)), ws);
+            else if (s == 0) {
+                const unsigned long long kw = k0 + ws;
+                wok1 = kw < kend && o < nout;
+                whole.load(wrow + (wok1 ? kw : 0) * KT::bytes);
+            }
             const unsigned xb = xok[s] ? xr * c.xrow + (unsigned)k * c.xblock : 0u;
             if constexpr (sizeof(QT) == 2) {
                 const int4 v = at<int4>(qt, xb * 64u + seg * 16u);
@@ -1524,16 +1536,27 @@ __device__ void k_tile(const TileCall& c, const QT* q, const float* dx, const Ti
         }
     };
     const auto store = [&](unsigned long long k0) {
+        if constexpr (WHOLE) {
+            int v[8];
+            float ds[H], dm[H];
+            StreamDecode<KT>::get(whole, 0, 0u, v, ds, dm);
+#pragma unroll
+            for (int i = 0; i < 8; ++i) wq[ws * WORDS + i][wr] = wok1 ? v[i] : 0;
+#pragma unroll
+            for (int h = 0; h < H; ++h) wd[ws][h][wr] = wok1 ? ds[h] : 0.0f, wm[ws][h][wr] = wok1 ? dm[h] : 0.0f;
+        }
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
-            unsigned v[2];
-            float ds, dm;
-            raw[s].decode((unsigned)((k0 + s) % (KT::values / 32)), ws, v, ds, dm);
-            int w[NW];
-            widen<QT, KT>(v, w);
+            if constexpr (!WHOLE) {
+                unsigned v[2];
+                float ds, dm;
+                raw[s].decode((unsigned)((k0 + s) % (KT::values / 32)), ws, v, ds, dm);
+                int w[NW];
+                widen<QT, KT>(v, w);
 #pragma unroll
-            for (int i = 0; i < NW; ++i) wq[s * WORDS + ws * NW + i][wr] = wok[s] ? w[i] : 0;
-            if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;
+                for (int i = 0; i < NW; ++i) wq[s * WORDS + ws * NW + i][wr] = wok[s] ? w[i] : 0;
+                if (ws % (4 / H) == 0) wd[s][ws / (4 / H)][wr] = wok[s] ? ds : 0.0f, wm[s][ws / (4 / H)][wr] = wok[s] ? dm : 0.0f;
+            }
 #pragma unroll
             for (int w2 = 0; w2 < WORDS / 4; ++w2)
                 if (r < ROWS) xw[s * WORDS + seg * (WORDS / 4) + w2][r] = xok[s] ? xv[s][w2] : 0;

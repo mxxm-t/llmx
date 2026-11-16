@@ -1,5 +1,70 @@
 # llmx - Development Status
 
+## Landing stack land-20261117 (2026-11-17, LAND68 then LAND69, Done)
+
+**What lands.** The stack on main 3b88cfb3a, in this order: formats/quant-gptq (tests, then the change), formats/quant-compressed (tests, then the change), formats/quant-fp8 step 1 (tests, then the change) and its Vulkan step, perf/stage-rounds, feat/deepseek41-vision's image input, perf/ds4-decode-attn (DSDEV229's rebase), and the DeepSeek-V4.1-Flash prompt stack: dspp26/rope-form, dspp26/q8-tall, perf/sparse-pair-staging and perf/mxfp4-tile-staging.
+VLLM23's land68-fix moves five C++ tests to FP8 step 1's ids and refusal texts, folded into the FP8 commits.
+At the head the stack adds, folded into the commits they belong to: the suite's f16 path string for the CPU's F8_E4M3 products (`tests/common.py`, which the cli and server components compare) and `docs/src/backends-cpu.md`; `hf_quant::fp8_weight_of`, so `hf_config.hpp` names no tensor and arch-boundary has no finding; `docs/ROCM.md`'s count of 36 active GGML layouts; backend-vulkan's and nvfp4-vulkan's expectations of the Vulkan catalog strings FP8's Vulkan step changed, with int8's F8_E4M3 form keyed on f16's prefix; `hf_quant::fp8_grid_of` beside `fp8_weight_of`, used in apply and `hf_config.hpp`; backend-vulkan's `device_types` leaving out F8_E4M3, which runs only beside its scale grid and which weight-scales-vulkan holds, with `docs/TESTS.md` saying so; DSVL7's thin-grid delta of feat/deepseek41-vision (ad8d7bc65) folded into the image commit; and the stage-rounds verdict below.
+The CUDA chain (step 8, changes 1, 2 and 4, 12b and the held Q8_0 fix) is left for the next stack: its step 8 moves `sparse_tile_pair` into the shared DeepSeek checks while the decode and prompt stacks rewrote it, which is a port, not a merge.
+
+**Stage rounds.** `kRunLayers` stays 4: LAND68's timing round, two interleaved rounds on four MI50s under ROCm against main 3b88cfb3a, gave Qwen3.6-27B Q8_0 int8 at R = 4 pp2048 1054.07 and 1055.04 tok/s against 821.12 and 767.86 (+28%), pp512 1125.78 and 1144.84 against 700.49 and 768.88, tg128 24.25 and 23.84 against 23.41 and 23.93, and Qwen3.8-Flash-Next UD-Q4_K_XL int8 at R = 3 pp512 1738.74 and 1753.88 against 1274.94 and 1281.14 (+37%), with generate and logits identical to main on both.
+
+**Gates.** "1cd17c3b" rows are LAND68's cells on land68-stack, whose source equals the head's but for the fixups above (tests, docs and `fp8_weight_of`); "c91a203e" rows ran on the head before the fixups; the others on the landing head or the tree it equals; dd71f1c2 differs from the landing head in `docs/TESTS.md` and this record alone, and 5aa5b89b from dd71f1c2 in the int8 prefix key, `fp8_grid_of`, the `device_types` change and the thin-grid fold above, whose source changes (`fp8_grid_of` and the image encoder's thin-grid fold) a Qwen3 text model does not reach.
+
+| Check | Result | Tree |
+|---|---|---|
+| Builds R, V and C (ROCm 7.2.1, Vulkan, CPU) | 0 errors | c91a203e, and C and V at dd71f1c2 |
+| CUDA 12.9.1 compile and CTest cuda-sass, gpu-core, gpu-port, cuda-driver | 0 errors, 4/4 | head but `fp8_weight_of` (no GPU source differs) |
+| CTest CPU | 90/90 | dd71f1c2 |
+| CTest ROCm, one MI50 | 94/94, backend-rocm with deepseek4 and sparse_tile_pair included | c91a203e |
+| CTest Vulkan, one MI50 | 109/111 at c91a203e; backend-vulkan and nvfp4-vulkan failed on FP8's catalog strings and are fixed at the head; rerun at 5aa5b89b: nvfp4-vulkan passed and backend-vulkan threw on bare F8_E4M3 weights in check_routed_quads, fixed by the `device_types` change above; at dd71f1c2 backend-vulkan and nvfp4-vulkan 2/2 | dd71f1c2 |
+| Suite dead-code, docs, arch-boundary, version, cli, server, reference-generator, raw-blocks, roundtrip, safetensors (CPU) | PASS, docs and arch-boundary 0 findings | head |
+| Suite deepseek4 on rocm:0 | PASS | c91a203e |
+| Suite deepseek4, vision, safetensors, arch-boundary (CPU) | PASS; vision's file-exact mmproj-BF16 cell skips, not on disk | dd71f1c2 |
+| Suite deepseek4 and vision on vulkan:0, one MI50 | PASS, the thin 2x3 grid among vision's cells; vision's file-exact mmproj-BF16 cell skips, not on disk | dd71f1c2 |
+| Vulkan suite on an MI50 | PASS but for cli and server (the f16 path string, fixed) and arch-boundary (fixed), rows above; reference-generator and raw-blocks failed on the container's numpy and pass on the CPU run above | 1cd17c3b |
+| Generate and prompt logits against main 3b88cfb3a: CPU Qwen3-0.6B Q8_0 and BF16, Qwen3.5-0.8B Q4_K_M; ROCm Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M at f16 and int8; Vulkan Qwen3-0.6B Q8_0, Q4_0, IQ4_XS and BF16 and Qwen3.5-0.8B Q4_K_M at auto and int8; Qwen3-0.6B Q8_0 int8 over two MI50s; Qwen3.6-27B Q8_0 and Qwen3.8-Flash-Next UD-Q4_K_XL int8 over four MI50s | byte identical, 21 generate and 21 logits cells | 1cd17c3b |
+| DeepSeek-V4.1-Flash MXFP4 ten MI50s, layer split, int8, generate 48 tokens on 12k and logits at the last 512 of 16k, against main's cells | byte identical (1a26115b, 49364d35), at 1cd17c3b and again at c91a203e with the decode and prompt stacks | 1cd17c3b, c91a203e |
+| DeepSeek-V4.1-Flash ten MI50s `bench --p 128 --n 64 --r 3`, ABAB | tg64 28.47 and 28.15 against 28.46 and 28.35, pp128 level | 1cd17c3b |
+| CPU Qwen3-0.6B Q8_0 `bench --p 512 --n 128 --r 3`, 4 threads, three ABAB rounds, host load average 26 on 16 CPUs | head pp512 135.1, 129.5, 96.5 against 58.4, 57.4, 66.4 tok/s, tg128 21.2, 13.9, 9.9 against 11.9, 9.3, 9.9; LAND68's two rounds read the other way (tg128 6.9, 6.8 against 9.8, 8.4) under the same load, so the CPU spread bounds nothing and shows no regression | c91a203e |
+| Vulkan Qwen3-0.6B Q8_0 auto, one MI50, `bench --p 512 --n 128 --r 3` | pp512 level in every pair; tg128 at 5aa5b89b, six rounds in alternating order, main 353.7, 335.5, 348.0, 345.6, 359.9, 347.5 against head 351.7, 337.7, 356.1, 358.6, 351.6, 352.6 tok/s, means 348.4 and 351.4, level | c91a203e, 5aa5b89b |
+| FP8 E4M3 speed (RedHatAI Qwen3-0.6B-FP8-dynamic 068a904, `bench --p 512 --n 128 --r 3`) | one MI50 Vulkan: pp512 4042 and 4079, tg128 240.5 and 239.7 tok/s, against Qwen3-0.6B Q8_0's 8738 and 8661 pp512 on the same binary; CPU, 4 threads, contended: pp512 34.2 and 19.9, tg128 1.43 and 1.54 | 1cd17c3b |
+| HF error | every changed path either gives main's bits above or holds its branch's recorded HF rows (FP8 table above, DeepSeek blocks below), unchanged by the fixups | head |
+
+The hosted run of the landing head and the Radeon VII check are COORD's, and the head lands by fast-forward of gitea main and GitHub main.
+
+## MXFP4 tile staging (2026-11-16, DSPP29, DSPP31 then DSPP32, branch perf/mxfp4-tile-staging on main 3b88cfb3a; lands by fast-forward with the stack)
+
+- **Goal:** the 8-bit MXFP4 prompt tile, which DeepSeek-V4.1-Flash's routed groups past 32 entries run, reads its weights at the rate its arithmetic allows, with every output's bits.
+- **Done:** in the block-int8 class an MXFP4 `k_tile` thread stages block t % 4 of weight row t / 4 whole from one 16-byte and one 4-byte load (`StreamWords`, `StreamDecode`), where it took a quarter of each of the step's four blocks as four scattered words each; the words land in the same shared-memory slots, so every output keeps its bits.
+  Every 8-bit MXFP4 tile build takes it, routed and dense; the other types and the block-int16 class keep the quarter staging.
+- **Why:** rocprofv3 counters on one MI50 at DeepSeek-V4.1-Flash's expert shapes (5120 x 2304, 384 experts, top 6, int8, 64 entries an expert) put the 64-row tile at 80% memory-unit busy against 47% VALU busy, with FETCH_SIZE equal to the weight bytes: the scattered quarter loads, not the bytes, bound it (/opt/claude-work/dspp29/out/pmc-m).
+- **Measured, one MI50, on the stack base a56dcebef** (scratch bench `dspp29/rb.cpp`, ROCm int8, DeepSeek-V4.1-Flash's expert shapes, rounds s1 sb1 sb2 s2 interleaved, every output hash equal to the base's; /opt/claude-work/dspp29/out, `cmp.py s sb`): the 64-row tile's gate and up run 0.74x at 64 entries an expert and 0.78x at 48, and the down 0.85x and 0.87x.
+  On the stack, groups of up to 32 entries run as streams, so the staging reaches only the groups past 32: whole 512-token routed calls run gate and up 0.99x, 0.97x and 0.96x at the bench's three routing skews (z0, z60, z100) and the down 0.96x to 0.99x.
+  On main 929f042c6, before the streams, it took the narrow and mid tiles 0.88x and 0.86x to 0.90x as well.
+- **Gates:** the CUDA build on a56dcebef compiles, and its `cuda-sass` lists the same spilling kernels as the base's (dspp29/cub-land against cub-main), so the staging adds no spill; at the stack's head 01a7d382 (llmx 0.1.0+g01a7d3822a47 numerics 73fa56432d7e9684, whose tree differs from the landing head only in docs/STATUS.md) builds with rc 0, passes `dead-code` and `docs`, ROCm CTest 94 of 94 on one MI50, and the CUDA build with `gpu-port`, `gpu-core` and `cuda-sass` 3 of 3, as the stack gates below give. Rebased onto ds4-attn-rb 89db7bf67, it is gated at the stacked head 3f17b629 on ds4-attn-rb 89db7bf67 (llmx 0.1.0+g3f17b62948cb numerics ec9863004c2b4dd9, whose tree differs from the landing head only in docs/STATUS.md and one test comment) as the sparse pair staging block below gives.
+  The 64-row tile is reached by `backend-rocm`'s `routed_builds_witness` as a launch witness only, and no CTest compares its output: its bits are held by the bench's output hashes against the base's and the ten-card ids.
+- **Left:** the hosted run at the landing head; README unchanged (kernel speed only).
+
+**Stack gates, ten MI50s, DeepSeek-V4.1-Flash MXFP4, ROCm int8** (`bench --p 16384 --n 16 --r 2`, rounds m1 s1 m2 s2 interleaved on each split; main 2d915745 against the stack on it, before the rebase onto 3b88cfb3a, whose delta touches only `.github/workflows/ci.yml`, `docs/CI.md` and `docs/STATUS.md`; /opt/claude-work/dspp31/out/ten).
+Main ran `llmx 0.1.0+g2d91574557c3 numerics e03cf4ecadc2301f` and the stack `llmx 0.1.0+gdc15a9b656ea numerics 73fa56432d7e9684`, the same numerics as the gated build.
+hostwait marked no cell contended (8 to 39 ms of run-queue wait).
+
+| pp16384 (tok/s) | main run 1 | main run 2 | stack run 1 | stack run 2 | change of the means |
+|---|---|---|---|---|---|
+| layer split | 1810.98 | 1650.15 | 2067.71 | 2042.32 | +18.7% |
+| 5x2 | 1363.96 | 1621.66 | 1813.01 | 1885.23 | +23.9% |
+
+| tg16 (tok/s) | main run 1 | main run 2 | stack run 1 | stack run 2 |
+|---|---|---|---|---|
+| layer split | 21.01 | 18.22 | 20.03 | 10.78 |
+| 5x2 | 29.90 | 32.69 | 24.15 | 37.93 |
+
+The layer split's stack run 2 tg16 cell (10.78) is the environment, not the code: its weight upload took 80 s against 34.7 s in run 1, under host memory pressure (host staging down from 6.9 to 2.3-3.5 GiB, kcompactd0 in the hostwait top list), its pp16384 of 2042 was unaffected, and the same binary gave 20.03 in run 1.
+Greedy ids of 48 tokens after a 2649-token prompt are equal for main and the stack on the layer split and 5x2 (md5 of the ids line 4b91cd6a in all four).
+README unchanged: it has no DeepSeek speed row.
+- **Gotchas:** dropping the twin sums from the stream as well (C) ran the stream 1.04x to 1.17x slower at 4 to 8 entries an expert, so the stream keeps them; it is recorded here as a null.
+  An H2D copy between two kernels costs 11 to 19 us at 4 KB and 58 to 80 us at 64 KB untraced (dspp29/sw.log), so DeepSeek-V4.1's per-layer index arrays stay on the later list.
 ## Sparse pair staging (2026-11-16, DSPP30, DSPP31 then DSPP32, branch perf/sparse-pair-staging on main 3b88cfb3a; lands by fast-forward with the stack)
 
 - **Goal:** DeepSeek-V4.1-Flash's prompt sparse attention pair (`llmx_sparse_scores_tile`, `llmx_sparse_values_tile`, 18.7% of the layer split's and 26% of 5x2's prefill kernel time at pp16384 on ten MI50s) stages its kept rows at the rate its arithmetic allows, with every output's bits.

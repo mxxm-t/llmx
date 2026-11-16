@@ -2061,6 +2061,35 @@ void service_by_hand() {
         const auto [high, high_stall, high_after] = calibrated(30, 0);
         require(std::fabs(high - bound) < 1e-9 && std::fabs(high_after - bound) < 1e-9, "the calibration moved a fixed cost past kCalibrationShare of the least");
         (void)high_stall;
+        // A first prefill measured cold, at a cost a row that grows with its rows as a model's first prefill after a load pays, or one at a uniform excess, is shed by the next prefill: each stage's line is the clean prefills' from the second on.
+        // Kept, a cold prefill's points refuse a stage's line for up to 32 prefills and bias it after, as DeepSeek-V4.1-Flash's layer split on ten MI50s showed, and a uniform excess sets the lines its share too high.
+        for (const size_t S : {2, 5, 10})
+            for (const double fx : {1.0, 0.25})
+                for (const bool cold : {true, false}) {
+                    std::vector<infer::StageLine> clean(S);
+                    for (size_t s = 0; s < S; ++s) clean[s] = {fx * (20 + 7.0 * double(s % 3)), 0.3 + 0.02 * double(s % 4)};
+                    infer::SlicePeriods q;
+                    for (int k = 0; k < 4; ++k) {
+                        std::vector<double> f;
+                        const auto parts = q.cut(0, 4096, S, 512, 0, f);
+                        std::vector<std::pair<size_t, size_t>> s;
+                        std::vector<std::vector<double>> b;
+                        std::vector<double> wall(S, 0.0), ms(S);
+                        for (const auto& [at, rows] : parts) {
+                            const double excess = k ? 1.0 : cold ? 0.45 + 2.42 * double(rows) / 512 : 1.6;
+                            for (size_t t = 0; t < S; ++t) ms[t] = excess * clean[t].at(rows);
+                            infer::pipeline_run(wall, ms, 0);
+                            s.push_back({at, rows});
+                            b.push_back(b.empty() ? std::vector<double>(S, -1.0) : ms);
+                        }
+                        q.observe(s, b, wall.back(), f);
+                        if (!k) continue;
+                        const auto l = q.lines(0, S);
+                        bool on_line = l.size() == S;
+                        for (size_t t = 0; on_line && t < S; ++t) on_line = std::fabs(l[t].fixed_ms - clean[t].fixed_ms) <= 0.2 * clean[t].fixed_ms;
+                        require(on_line, "a stale first prefill kept a stage's line from its clean prefills' (" + std::to_string(S) + " stages, fixed x" + std::to_string(fx) + (cold ? ", cold" : ", uniform") + ", prefill " + std::to_string(k) + ")");
+                    }
+                }
     }
     // A round keeps a pass a stage in flight, and the one more only while prompt rows and replies overlap.
     require(server::passes_in_flight(3, 2, false, 1) == 2 && server::passes_in_flight(3, 2, true, 1) == 3 && server::passes_in_flight(1, 1, false, 0) == 1 && server::passes_in_flight(5, 4, false, 0) == 4 &&

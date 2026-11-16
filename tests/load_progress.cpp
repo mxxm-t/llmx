@@ -4,10 +4,12 @@
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <numeric>
 #include <optional>
 #include <thread>
+#include <tuple>
 #include "format/gguf.hpp"
 #include "inference/load.hpp"
 #include "loading_backend.hpp"
@@ -378,66 +380,14 @@ template <class T> std::vector<uint8_t> bytes_of(const std::vector<T>& v) {
     return b;
 }
 
-// An AWQ directory of a 32-wide model, whose linears are AwqLinear and whose other tensors are BF16, loads in each mode on the CPU and on copying backends to its Q5_0 twin's logits.
-// The CPU keeps each repacked tensor in the loader's buffer as the twin's bytes, a copying backend keeps none, and a BF16 scale F16 cannot hold and quantization_config values llmx does not read are refused by name.
-void awq_checks(const std::string& path) {
-    namespace fs = std::filesystem;
-    const gguf::GGUFModel base = with_tokens(tiny_qwen_shaped(2, 2 * 128, true, 8, 2, 32, 16, 32));
-    const fs::path dir = fs::u8path(path + ".awq");
-    fs::create_directories(dir);
-    gguf::GGUFModel twin;
-    size_t linears = 0;
-    const auto write_dir = [&](std::optional<uint16_t> last, const std::string& quantization, bool head = false) {
-        std::vector<StEntry> entries;
-        twin = gguf::GGUFModel{};
-        twin.kv = base.kv;
-        linears = 0;
-        for (size_t i = 0; i < base.tensors.size(); ++i) {
-            gguf::TensorInfo t = base.tensors[i];
-            const uint8_t* values = base.tensor_data(i);
-            const size_t n = size_t(t.n_elements());
-            const std::string hf = hf_name(t.name);
-            if (t.ne.size() == 2 && t.name != "token_embd.weight") {
-                const size_t layer = size_t(t.name[4] - '0');
-                const AwqLinear a = awq_linear(size_t(t.ne[0]), size_t(t.ne[1]), layer, t.name == "blk.1.ffn_down.weight" ? last : std::nullopt);
-                entries.push_back({hf + ".qweight", "I32", {t.ne[1] / 8, t.ne[0]}, bytes_of(a.qweight)});
-                entries.push_back({hf + ".qzeros", "I32", {t.ne[1] / 8, t.ne[0] / 32}, bytes_of(a.qzeros)});
-                entries.push_back({hf + ".scales", layer ? "BF16" : "F16", {t.ne[1], t.ne[0] / 32}, bytes_of(a.scales)});
-                t.type = quant::GGML_TYPE_Q5_0;
-                twin.tensors.push_back(t);
-                twin.add_tensor_data(a.q5_0);
-                ++linears;
-                continue;
-            }
-            // tiny_qwen's values are multiples of 1/64, exact in BF16: each keeps the high half of its F32 bits.
-            std::vector<uint8_t> high(n * 2);
-            for (size_t k = 0; k < n; ++k) std::memcpy(high.data() + 2 * k, values + 4 * k + 2, 2);
-            entries.push_back({hf + ".weight", "BF16", t.ne, high});
-            if (t.ne.size() == 2) t.type = quant::GGML_TYPE_BF16;
-            twin.tensors.push_back(t);
-            twin.add_tensor_data(t.ne.size() == 2 ? high : std::vector<uint8_t>(values, values + n * 4));
-        }
-        if (head) {
-            // A quantized lm_head beside the tied embedding, [32, 16] as the embedding is.
-            const AwqLinear a = awq_linear(32, 16, 0, std::nullopt);
-            entries.push_back({"lm_head.qweight", "I32", {2, 32}, bytes_of(a.qweight)});
-            entries.push_back({"lm_head.qzeros", "I32", {2, 1}, bytes_of(a.qzeros)});
-            entries.push_back({"lm_head.scales", "F16", {16, 1}, bytes_of(a.scales)});
-        }
-        write_safetensors(dir / "model.safetensors", entries);
-        std::ofstream(dir / "config.json", std::ios::binary) << R"({"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","num_hidden_layers":2,)"
-            R"("hidden_size":32,"intermediate_size":32,"num_attention_heads":8,"num_key_value_heads":2,"head_dim":4,)"
-            R"("max_position_embeddings":256,"vocab_size":16,"tie_word_embeddings":true,"eos_token_id":15,"torch_dtype":"float16","quantization_config":{)"
-            << quantization << "}}";
-    };
-    const std::string awq = R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"gemm","modules_to_not_convert":null)";
-    write_dir(std::nullopt, awq);
-    write_tokenizer(dir);
+// Quantized directory `dir` loads in each mode on the CPU and on copying backends to the logits of `twin`, written at `path`, whose `linears` repacked tensors it holds in their target type.
+// The CPU keeps each repacked tensor in the loader's buffer as the twin's bytes, and a copying backend keeps none.
+void twin_checks(const std::filesystem::path& dir, const std::string& path, const gguf::GGUFModel& twin, size_t linears, const std::string& label) {
     const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
     const std::vector<float> expected = infer::Model(infer::gguf_weights(twin), backend::make_cpu_backend()).prefill(ids);
     const gguf::GGUFModel read = infer::read_model(dir.u8string());
     require(read.tensors.size() == twin.tensors.size() && read.composites.size() == linears && linears == 14,
-            "an AWQ directory did not read as its twin's tensors, each linear one made of its parts");
+            (label + " did not read as its twin's tensors, each linear one made of its parts").c_str());
     gguf::write_gguf(twin, path);
     for (const infer::LoadMode mode : load_modes(path)) {
         for (const int arm : {0, 1, 2}) {
@@ -454,38 +404,109 @@ void awq_checks(const std::string& path) {
                     const auto t = size_t(std::find_if(twin.tensors.begin(), twin.tensors.end(), [&](const gguf::TensorInfo& x) { return x.name == name; }) - twin.tensors.begin());
                     same = same && t < twin.tensors.size() && bytes.size() == twin.tensor_bytes(t) && std::memcmp(bytes.data(), twin.tensor_data(t), bytes.size()) == 0;
                 }
-                require(same, "an AWQ directory on the CPU did not keep its twin's Q5_0 bytes in the loader's buffer");
+                require(same, (label + " on the CPU did not keep its twin's bytes in the loader's buffer").c_str());
             } else {
                 // A streamed load makes each linear on the stream's readers into the weights it allocated; a mapped one copies what it made at adoption.
                 require(loaded->made.empty() && (mode == infer::LoadMode::mapped ? copier->weights.empty() : holds_tensors(copier->weights, twin)),
-                        "an AWQ directory on a copying backend kept made bytes, or its weights are not its twin's");
+                        (label + " on a copying backend kept made bytes, or its weights are not its twin's").c_str());
             }
             const std::vector<float> logits = loaded->model->prefill(ids);
             require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
-                    "an AWQ directory's logits differ from its Q5_0 twin's");
+                    (label + "'s logits differ from its twin's").c_str());
         }
     }
-    const auto refused = [&](const std::string& expected_error, const char* message) {
-        std::string error;
-        try {
-            infer::PlacementRequest request;
-            request.names = {"cpu"};
-            infer::load_model(dir.u8string(), {backend::make_cpu_backend()}, request);
-        } catch (const std::runtime_error& e) { error = e.what(); }
-        if (error.find(expected_error) == std::string::npos) throw std::runtime_error(std::string(message) + ": " + error);
+}
+
+// Writes `base` as directory `dir` with `quantization` as its quantization_config: each linear's parts by `linear`, which returns its twin's type and bytes, every other tensor in BF16, and `entries` beside them.
+// `twin` gets the same model as a GGUF file's tensors, and the count of linears is returned.
+template <class Linear>
+size_t write_quant_dir(const std::filesystem::path& dir, const gguf::GGUFModel& base, const std::string& quantization, gguf::GGUFModel& twin, std::vector<StEntry> entries, Linear linear) {
+    twin = gguf::GGUFModel{};
+    twin.kv = base.kv;
+    size_t linears = 0;
+    for (size_t i = 0; i < base.tensors.size(); ++i) {
+        gguf::TensorInfo t = base.tensors[i];
+        const uint8_t* values = base.tensor_data(i);
+        const size_t n = size_t(t.n_elements());
+        const std::string hf = hf_name(t.name);
+        if (t.ne.size() == 2 && t.name != "token_embd.weight") {
+            auto [type, bytes] = linear(t, size_t(t.name[4] - '0'), hf, entries);
+            t.type = type;
+            twin.tensors.push_back(t);
+            twin.add_tensor_data(bytes);
+            ++linears;
+            continue;
+        }
+        // tiny_qwen's values are multiples of 1/64, exact in BF16: each keeps the high half of its F32 bits.
+        std::vector<uint8_t> high(n * 2);
+        for (size_t k = 0; k < n; ++k) std::memcpy(high.data() + 2 * k, values + 4 * k + 2, 2);
+        entries.push_back({hf + ".weight", "BF16", t.ne, high});
+        if (t.ne.size() == 2) t.type = quant::GGML_TYPE_BF16;
+        twin.tensors.push_back(t);
+        twin.add_tensor_data(t.ne.size() == 2 ? high : std::vector<uint8_t>(values, values + n * 4));
+    }
+    write_safetensors(dir / "model.safetensors", entries);
+    std::ofstream(dir / "config.json", std::ios::binary) << R"({"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","num_hidden_layers":2,)"
+        R"("hidden_size":32,"intermediate_size":32,"num_attention_heads":8,"num_key_value_heads":2,"head_dim":4,)"
+        R"("max_position_embeddings":256,"vocab_size":16,"tie_word_embeddings":true,"eos_token_id":15,"torch_dtype":"float16","quantization_config":{)"
+        << quantization << "}}";
+    return linears;
+}
+
+// A CPU load of directory `dir` fails with an error holding `expected`, else the check fails with `message`.
+void refused(const std::filesystem::path& dir, const std::string& expected, const char* message) {
+    std::string error;
+    try {
+        infer::PlacementRequest request;
+        request.names = {"cpu"};
+        infer::load_model(dir.u8string(), {backend::make_cpu_backend()}, request);
+    } catch (const std::runtime_error& e) { error = e.what(); }
+    if (error.find(expected) == std::string::npos) throw std::runtime_error(std::string(message) + ": " + error);
+}
+
+// An AWQ directory of a 32-wide model, whose linears are AwqLinear and whose other tensors are BF16, loads as its Q5_0 twin (twin_checks).
+// A BF16 scale F16 cannot hold, a quantized tied head and quantization_config values llmx does not read are refused by name.
+void awq_checks(const std::string& path) {
+    namespace fs = std::filesystem;
+    const gguf::GGUFModel base = with_tokens(tiny_qwen_shaped(2, 2 * 128, true, 8, 2, 32, 16, 32));
+    const fs::path dir = fs::u8path(path + ".awq");
+    fs::create_directories(dir);
+    gguf::GGUFModel twin;
+    const auto write_dir = [&](std::optional<uint16_t> last, const std::string& quantization, bool head = false) {
+        std::vector<StEntry> extra;
+        if (head) {
+            // A quantized lm_head beside the tied embedding, [32, 16] as the embedding is.
+            const AwqLinear a = awq_linear(32, 16, 0, std::nullopt);
+            extra.push_back({"lm_head.qweight", "I32", {2, 32}, bytes_of(a.qweight)});
+            extra.push_back({"lm_head.qzeros", "I32", {2, 1}, bytes_of(a.qzeros)});
+            extra.push_back({"lm_head.scales", "F16", {16, 1}, bytes_of(a.scales)});
+        }
+        return write_quant_dir(dir, base, quantization, twin, extra, [&](const gguf::TensorInfo& t, size_t layer, const std::string& hf, std::vector<StEntry>& entries) {
+            const AwqLinear a = awq_linear(size_t(t.ne[0]), size_t(t.ne[1]), layer, t.name == "blk.1.ffn_down.weight" ? last : std::nullopt);
+            entries.push_back({hf + ".qweight", "I32", {t.ne[1] / 8, t.ne[0]}, bytes_of(a.qweight)});
+            entries.push_back({hf + ".qzeros", "I32", {t.ne[1] / 8, t.ne[0] / 32}, bytes_of(a.qzeros)});
+            entries.push_back({hf + ".scales", layer ? "BF16" : "F16", {t.ne[1], t.ne[0] / 32}, bytes_of(a.scales)});
+            return std::make_pair(uint32_t(quant::GGML_TYPE_Q5_0), a.q5_0);
+        });
     };
+    const std::string awq = R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"gemm","modules_to_not_convert":null)";
+    const size_t linears = write_dir(std::nullopt, awq);
+    write_tokenizer(dir);
+    twin_checks(dir, path, twin, linears, "an AWQ directory");
     // As the last scale of layer 1's down projection: 2^-26, below F16's smallest subnormal; 1.1000001b * 2^-20, an F16 subnormal with 4 fraction bits there, which rounds; and 65536, which overflows.
     write_dir(uint16_t(0x3280), awq);
-    refused("tensor blk.1.ffn_down.weight: BF16 scale 1.49011612e-08 of output 31, group 0 is not exact in F16", "an inexact BF16 scale was taken");
+    refused(dir, "tensor blk.1.ffn_down.weight: BF16 scale 1.49011612e-08 of output 31, group 0 is not exact in F16", "an inexact BF16 scale was taken");
     write_dir(uint16_t(0x35C1), awq);
-    refused("tensor blk.1.ffn_down.weight: BF16 scale 1.43796206e-06 of output 31, group 0 is not exact in F16", "a BF16 scale F16 rounds was taken");
+    refused(dir, "tensor blk.1.ffn_down.weight: BF16 scale 1.43796206e-06 of output 31, group 0 is not exact in F16", "a BF16 scale F16 rounds was taken");
     write_dir(uint16_t(0x4780), awq);
-    refused("tensor blk.1.ffn_down.weight: BF16 scale 65536 of output 31, group 0 is not exact in F16", "a BF16 scale past F16's range was taken");
+    refused(dir, "tensor blk.1.ffn_down.weight: BF16 scale 65536 of output 31, group 0 is not exact in F16", "a BF16 scale past F16's range was taken");
     write_dir(std::nullopt, awq, true);
-    refused("tensor lm_head.weight is quantized, and config.json ties the head to the embedding", "a quantized tied head was taken");
+    refused(dir, "tensor lm_head.weight is quantized, and config.json ties the head to the embedding", "a quantized tied head was taken");
     // AutoAWQ's own files write the packing in capitals.
     write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"GEMM")");
     {
+        const std::vector<uint32_t> ids = {0, 1, 2, 3, 4};
+        const std::vector<float> expected = infer::Model(infer::gguf_weights(twin), backend::make_cpu_backend()).prefill(ids);
         infer::PlacementRequest request;
         request.names = {"cpu"};
         const auto loaded = infer::load_model(dir.u8string(), {backend::make_cpu_backend()}, request);
@@ -494,13 +515,117 @@ void awq_checks(const std::string& path) {
                 "an AWQ directory whose version is GEMM did not load as its twin");
     }
     write_dir(std::nullopt, awq + R"(,"exllama":1)");
-    refused("quantization_config exllama is not one llmx reads for awq", "an unknown quantization_config key was taken");
+    refused(dir, "quantization_config exllama is not one llmx reads for awq", "an unknown quantization_config key was taken");
     write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":true,"version":"gemv")");
-    refused("quantization_config version: llmx reads AWQ's gemm packing only", "AWQ's gemv packing was taken");
+    refused(dir, "quantization_config version: llmx reads AWQ's gemm packing only", "AWQ's gemv packing was taken");
     write_dir(std::nullopt, R"("quant_method":"awq","bits":4,"group_size":32,"zero_point":false,"version":"gemm")");
-    refused("quantization_config zero_point: llmx reads AWQ with zero points only", "AWQ without zero points was taken");
-    write_dir(std::nullopt, R"("quant_method":"gptq","bits":4,"group_size":32)");
-    refused("quantization_config quant_method gptq is not one llmx reads", "a GPTQ directory was taken as AWQ");
+    refused(dir, "quantization_config zero_point: llmx reads AWQ with zero points only", "AWQ without zero points was taken");
+    write_dir(std::nullopt, R"("quant_method":"exl2","bits":4,"group_size":32)");
+    refused(dir, "quantization_config quant_method exl2 is not one llmx reads", "an unknown quant_method was taken");
+    fs::remove_all(dir);
+}
+
+// One GPTQ linear [in, out] of layer `layer` in groups of 32 at `bits`: qweight packed along the inputs, qzeros along the outputs (each less one under v1), F16 scales and g_idx k / 32.
+// The twin's rows are written here from the block layouts: Q4_0 for 4-bit symmetric zero points, Q5_0 for other 4-bit ones and Q8_0 for 8-bit symmetric ones.
+struct GptqLinear {
+    std::vector<uint32_t> qweight, qzeros, g_idx;
+    std::vector<uint16_t> scales;
+    uint32_t type = 0;
+    std::vector<uint8_t> twin;
+};
+
+GptqLinear gptq_linear(size_t in, size_t out, size_t layer, unsigned bits, bool sym, bool v1) {
+    static const float powers[5] = {1.0f / 64, -1.0f / 128, 1.0f / 256, -1.0f / 32, 1.0f / 1048576};
+    const size_t per = 32 / bits, groups = in / 32, levels = size_t(1) << bits;
+    const auto code = [&](size_t k, size_t n) { return uint32_t((n * 7 + k * 3 + layer) % levels); };
+    // A v1 zero point is 1 to 16 and a v2 one 0 to 15, so each stores as 0 to 15.
+    const auto zero = [&](size_t g, size_t n) { return sym ? uint32_t(levels / 2) : uint32_t((n + g + layer) % 16 + (v1 ? 1 : 0)); };
+    GptqLinear a;
+    a.qweight.assign(in / per * out, 0);
+    a.qzeros.assign(groups * out / per, 0);
+    a.scales.resize(groups * out);
+    for (size_t g = 0; g < groups; ++g)
+        for (size_t n = 0; n < out; ++n) {
+            a.scales[g * out + n] = f32_to_f16(powers[(n + g + layer) % 5]);
+            a.qzeros[g * (out / per) + n / per] |= ((zero(g, n) - (v1 ? 1 : 0)) & uint32_t(levels - 1)) << (bits * (n % per));
+        }
+    for (size_t k = 0; k < in; ++k) {
+        a.g_idx.push_back(uint32_t(k / 32));
+        for (size_t n = 0; n < out; ++n) a.qweight[(k / per) * out + n] |= code(k, n) << (bits * (k % per));
+    }
+    a.type = bits == 8 ? quant::GGML_TYPE_Q8_0 : sym ? quant::GGML_TYPE_Q4_0 : quant::GGML_TYPE_Q5_0;
+    const size_t block = bits == 8 ? 34 : sym ? 18 : 22;
+    a.twin.assign(out * groups * block, 0);
+    for (size_t n = 0; n < out; ++n)
+        for (size_t g = 0; g < groups; ++g) {
+            uint8_t* b = a.twin.data() + (n * groups + g) * block;
+            b[0] = uint8_t(a.scales[g * out + n]);
+            b[1] = uint8_t(a.scales[g * out + n] >> 8);
+            for (size_t j = 0; j < 32; ++j) {
+                const uint32_t q = code(32 * g + j, n);
+                if (bits == 8) {
+                    // Q8_0: d, then the 32 signed codes q - 128.
+                    b[2 + j] = uint8_t(int8_t(int(q) - 128));
+                } else if (sym) {
+                    // Q4_0: d, then codes j and j + 16 in the low and high nibbles of byte j, each q, whose value is q - 8.
+                    b[2 + j % 16] |= uint8_t(q << (j < 16 ? 0 : 4));
+                } else {
+                    const uint32_t c = q + 16 - zero(g, n);
+                    if (c & 16) b[2 + j / 8] |= uint8_t(1u << (j % 8));
+                    b[6 + j % 16] |= uint8_t((c & 15) << (j < 16 ? 0 : 4));
+                }
+            }
+        }
+    return a;
+}
+
+// GPTQ directories of the 32-wide model, 4-bit symmetric under v1, 4-bit asymmetric under v2 and 8-bit symmetric under v1, each load as its Q4_0, Q5_0 or Q8_0 twin (twin_checks).
+// A symmetric zero point off the middle code, act-order groups, 8-bit asymmetric zero points and quantization_config values llmx does not read are refused by name.
+void gptq_checks(const std::string& path) {
+    namespace fs = std::filesystem;
+    const gguf::GGUFModel base = with_tokens(tiny_qwen_shaped(2, 2 * 128, true, 8, 2, 32, 16, 32));
+    const fs::path dir = fs::u8path(path + ".gptq");
+    fs::create_directories(dir);
+    write_tokenizer(dir);
+    gguf::GGUFModel twin;
+    // `edit` changes the parts of layer 1's down projection before they are written.
+    const auto write_dir = [&](unsigned bits, bool sym, bool v1, const std::string& quantization, const std::function<void(GptqLinear&)>& edit = {}) {
+        return write_quant_dir(dir, base, quantization, twin, {}, [&](const gguf::TensorInfo& t, size_t layer, const std::string& hf, std::vector<StEntry>& entries) {
+            GptqLinear a = gptq_linear(size_t(t.ne[0]), size_t(t.ne[1]), layer, bits, sym, v1);
+            if (edit && t.name == "blk.1.ffn_down.weight") edit(a);
+            const uint64_t per = 32 / bits;
+            entries.push_back({hf + ".qweight", "I32", {t.ne[1], t.ne[0] / per}, bytes_of(a.qweight)});
+            entries.push_back({hf + ".qzeros", "I32", {t.ne[1] / per, t.ne[0] / 32}, bytes_of(a.qzeros)});
+            entries.push_back({hf + ".scales", "F16", {t.ne[1], t.ne[0] / 32}, bytes_of(a.scales)});
+            entries.push_back({hf + ".g_idx", "I32", {t.ne[0]}, bytes_of(a.g_idx)});
+            return std::make_pair(a.type, a.twin);
+        });
+    };
+    const auto config = [](unsigned bits, bool sym, bool v1) {
+        return std::string(R"("quant_method":"gptq","bits":)") + std::to_string(bits) + R"(,"group_size":32,"desc_act":false,"sym":)" + (sym ? "true" : "false") +
+               R"(,"checkpoint_format":")" + (v1 ? "gptq" : "gptq_v2") + R"(","lm_head":false,"pack_dtype":"int32","meta":{"quantizer":["gptqmodel:4.0.0"]})";
+    };
+    for (const auto& [bits, sym, v1, label] : {std::make_tuple(4u, true, true, "a 4-bit symmetric GPTQ directory"), std::make_tuple(4u, false, false, "a 4-bit GPTQ v2 directory"),
+                                               std::make_tuple(8u, true, true, "an 8-bit GPTQ directory")}) {
+        const size_t linears = write_dir(bits, sym, v1, config(bits, sym, v1));
+        twin_checks(dir, path, twin, linears, label);
+    }
+    write_dir(4, true, true, config(4, true, true), [](GptqLinear& a) { a.qzeros[0] ^= 1; });
+    refused(dir, "tensor blk.1.ffn_down.weight: zero point 7 of output 0, group 0 is not 8, as a symmetric GPTQ's is", "a symmetric zero point off the middle was taken");
+    write_dir(4, true, true, config(4, true, true), [](GptqLinear& a) { a.g_idx[0] = 1; });
+    refused(dir, "tensor blk.1.ffn_down.weight: g_idx of input 0 is 1, not its group 0", "act-order groups were taken");
+    write_dir(8, true, true, config(8, false, true));
+    refused(dir, "quantization_config sym: llmx reads 8-bit GPTQ with symmetric zero points only", "8-bit asymmetric GPTQ was taken");
+    write_dir(4, true, true, R"("quant_method":"gptq","bits":3,"group_size":32)");
+    refused(dir, "quantization_config bits: llmx reads 4- and 8-bit GPTQ only", "3-bit GPTQ was taken");
+    write_dir(4, true, true, R"("quant_method":"gptq","bits":4,"group_size":-1)");
+    refused(dir, "quantization_config group_size: llmx reads GPTQ groups of a positive multiple of 32 inputs", "GPTQ with one group a row was taken");
+    write_dir(4, true, true, R"("quant_method":"gptq","bits":4,"group_size":32,"checkpoint_format":"marlin")");
+    refused(dir, "quantization_config checkpoint_format: llmx reads GPTQ's gptq and gptq_v2 formats only", "GPTQ's marlin format was taken");
+    write_dir(4, true, true, R"("quant_method":"gptq","bits":4,"group_size":32,"lm_head":true)");
+    refused(dir, "quantization_config lm_head: llmx reads GPTQ with an unquantized lm_head only", "a quantized GPTQ head was taken");
+    write_dir(4, true, true, config(4, true, true) + R"(,"zero_point":true)");
+    refused(dir, "quantization_config zero_point is not one llmx reads for gptq", "an unknown GPTQ key was taken");
     fs::remove_all(dir);
 }
 
@@ -1241,6 +1366,7 @@ int main(int argc, char** argv) {
         loader_checks(path);
         directory_checks(path);
         awq_checks(path);
+        gptq_checks(path);
         stream_checks(path);
         ring_checks();
         experts_checks(path);
@@ -1250,7 +1376,7 @@ int main(int argc, char** argv) {
         plan_checks();
         choice_checks(path);
         std::filesystem::remove(path);
-        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, a Hugging Face directory, an AWQ directory, experts on the CPU, a table's source, splits, shards, the planned reads, the read choice and the stream\n";
+        std::cout << "load progress: payload bytes, chunks, spans, truncation before and after reading, consumer failures, the loader in each mode, a Hugging Face directory, an AWQ directory, GPTQ directories, experts on the CPU, a table's source, splits, shards, the planned reads, the read choice and the stream\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << "\n";

@@ -117,6 +117,7 @@ inline const hf::Table& hf_table() {
          {"hidden_act", nullptr, Rule::check, "\"silu\""},
          {"rope_scaling", nullptr, Rule::check, "null"},
          {"use_sliding_window", nullptr, Rule::check, "false"},
+         {"layer_types", nullptr, Rule::each, "\"full_attention\""},
          {"tie_word_embeddings", nullptr, Rule::check, "true|false"},
          {"torch_dtype", nullptr, Rule::check, "\"bfloat16\"|\"float16\"|\"float32\""},
          {"dtype", nullptr, Rule::check, "\"bfloat16\"|\"float16\"|\"float32\""},

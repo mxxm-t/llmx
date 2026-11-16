@@ -170,6 +170,47 @@ def check_awq(rng):
     print("raw-blocks: AWQ %d values, the interleave, every code and zero, scale edges and the exact Q5_0 repack  [ok]" % total)
 
 
+# GPTQ linears: the packing along inputs and outputs from literal words, every code at every position of a word, every stored zero under v1 and v2, F16 scales from HALVES, and the exact Q4_0, Q5_0 and Q8_0 repacks decoding to the same bits.
+def check_gptq():
+    assert sd.gptq_pack_inputs([[i] for i in range(8)], 4) == [[0x76543210]] and sd.gptq_unpack_inputs([[0x76543210]], 4) == [[i] for i in range(8)]
+    assert sd.gptq_pack_inputs([[i] for i in range(4)], 8) == [[0x03020100]] and sd.gptq_pack_outputs([[0, 1, 2, 3]], 8) == [[0x03020100]]
+    assert sd.gptq_pack_outputs([list(range(8))], 4) == [[0x76543210]] and sd.gptq_unpack_outputs([[-1]], 8, 4) == [[15] * 8]
+    rows, total = 16, 0
+    for bits, sym, v1, group in ((4, True, True, 32), (4, True, False, 128), (4, False, True, 32), (4, False, False, 128), (8, True, True, 128), (8, True, False, 32)):
+        per, levels, cols = 32 // bits, 1 << bits, 2 * group
+        # Each position i of a word holds every code over the outputs, shifted by 5i so the positions differ.
+        codes = [[(k // per * rows + n + 5 * (k % per)) % levels for n in range(rows)] for k in range(cols)]
+        zeros = [[1 << (bits - 1) if sym else (g * 7 + n) % 16 + (1 if v1 else 0) for n in range(rows)] for g in range(cols // group)]
+        stored = [[z - (1 if v1 else 0) for z in line] for line in zeros]
+        halves = [[HALVES[(g * rows + n) % len(HALVES)] for n in range(rows)] for g in range(cols // group)]
+        scales = [[half_float(h) for h in line] for line in halves]
+        g_idx = [k // group for k in range(cols)]
+        qweight, qzeros = sd.gptq_pack_inputs(codes, bits), sd.gptq_pack_outputs(stored, bits)
+        assert sd.gptq_unpack_inputs(qweight, bits) == codes and sd.gptq_zeros(qzeros, rows, bits, v1) == zeros
+        got = [v for line in sd.gptq_dequantize(qweight, qzeros, scales, g_idx, bits, v1) for v in line]
+        expected = [cell(lambda h, d=halves[k // group][n], c=codes[k][n] - zeros[k // group][n]: h(d) * c) for n in range(rows) for k in range(cols)]
+        name = "GPTQ %d-bit %s %s group %d" % (bits, "sym" if sym else "asym", "v1" if v1 else "v2", group)
+        assert_values(name, expected, got)
+        kind, repacked = sd.gptq_repack(qweight, qzeros, scales, g_idx, group, bits, sym, v1)
+        assert kind == (sd.Q8_0 if bits == 8 else sd.Q4_0 if sym else sd.Q5_0), name
+        assert sd.pack_f32(sd.decode(kind, repacked, rows * cols)) == sd.pack_f32(got), name
+        if sd.np is not None:
+            arrays = [sd.np.array(qweight, dtype=sd.np.int32), sd.np.array(qzeros, dtype=sd.np.int32), sd.np.array(scales, dtype=sd.np.float16)]
+            assert sd.gptq_dequantize_numpy(*arrays, g_idx, bits, v1).tobytes() == sd.pack_f32(got), name
+        total += rows * cols
+    # Act-order groups, a symmetric zero point off the middle, 8-bit asymmetric zero points and a scale F16 cannot hold have no exact repack.
+    qweight, qzeros = sd.gptq_pack_inputs([[0] * 8] * 32, 4), sd.gptq_pack_outputs([[7] * 8], 4)
+    for args, words in ((([[1.0] * 8], [0] * 31 + [1], 32, 4, True, True), "g_idx"), (([[1.0] * 8], [0] * 32, 32, 4, True, False), "symmetric zero point"),
+                        (([[1.0] * 8], [0] * 32, 32, 8, False, True), "8-bit asymmetric"), (([[65536.0] * 8], [0] * 32, 32, 4, True, True), "not exact in F16")):
+        try:
+            sd.gptq_repack(qweight, qzeros, *args)
+        except ValueError as error:
+            assert words in str(error), str(error)
+        else:
+            raise AssertionError("GPTQ repack took a case with %s" % words)
+    print("raw-blocks: GPTQ %d values, both packings, every code at every position and every zero under v1 and v2, and the exact Q4_0, Q5_0 and Q8_0 repacks  [ok]" % total)
+
+
 def check_q5_1(rng):
     payload, expected, runs = bytearray(), [], code_runs(rng, 32, 5)
     for d, m in itertools.product(HALVES, HALVES):
@@ -1016,6 +1057,7 @@ def run(require=False):
     check_low_bits()
     check_q5_0(random.Random(20261020))
     check_awq(random.Random(20261115))
+    check_gptq()
     check_q5_1(rng)
     check_iq4(rng)
     check_iq3_s()

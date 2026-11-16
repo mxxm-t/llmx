@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <cmath>
+#include <cstring>
 #include <unordered_map>
 
 #include "core/bf16.hpp"
@@ -70,6 +71,13 @@ inline void dequantize_row_q8_0(const uint8_t* src, float* dst, size_t nblocks) 
     }
 }
 
+// One Q8_0 block from its F16 scale bits and 32 signed codes, the layout dequantize_row_q8_0 reads; a repack of exact values writes these (format/hf_quant.hpp).
+inline void write_block_q8_0(uint16_t d, const uint8_t* codes, uint8_t* out) {
+    out[0] = uint8_t(d & 255);
+    out[1] = uint8_t(d >> 8);
+    std::memcpy(out + 2, codes, Q8_0_BLOCK);
+}
+
 // Q4_0 block quantization: 32 floats in a 2-byte f16 scale and 16 bytes of nibbles (Q4_0_TYPESIZE = 18), the low nibble element j and the high element j+16, stored unsigned 0..15 where the true value is nibble - 8.
 // The scale is d = amax/7, so codes run -7 to 7 (-8 too for a tiny scale rounded in F32), and decoding as d*(nibble - 8) gives the format's -0 at nibble 8 under a negative scale, exactly in f32.
 inline void quantize_row_q4_0(const float* src, uint8_t* dst, size_t nblocks) {
@@ -117,6 +125,13 @@ inline void dequantize_row_q4_0(const uint8_t* src, float* dst, size_t nblocks) 
             x[j + Q4_0_BLOCK / 2] = (float)((int)(byte >> 4) - 8) * d;
         }
     }
+}
+
+// One Q4_0 block from its F16 scale bits and 32 codes in 0..15, the layout dequantize_row_q4_0 reads; a repack of exact values writes these (format/hf_quant.hpp).
+inline void write_block_q4_0(uint16_t d, const uint8_t* codes, uint8_t* out) {
+    out[0] = uint8_t(d & 255);
+    out[1] = uint8_t(d >> 8);
+    for (size_t j = 0; j < Q4_0_BLOCK / 2; ++j) out[2 + j] = uint8_t((codes[j] & 15) | (codes[j + Q4_0_BLOCK / 2] & 15) << 4);
 }
 
 // Q4_1 block: 2-byte f16 scale d, 2-byte f16 min m, then 16 bytes of nibbles (Q4_1_TYPESIZE = 20).

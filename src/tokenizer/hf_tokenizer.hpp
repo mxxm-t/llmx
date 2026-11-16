@@ -207,10 +207,13 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
     check(&tc, "tokenizer_config.json", {{"add_bos_token", "false"}, {"add_eos_token", "false"}, {"add_prefix_space", "false|null"},
         {"added_tokens_decoder", nullptr}, {"additional_special_tokens", nullptr}, {"bos_token", nullptr}, {"chat_template", nullptr},
         {"clean_up_tokenization_spaces", "false"}, {"eos_token", nullptr}, {"errors", "\"replace\""}, {"model_max_length", nullptr},
-        {"pad_token", nullptr}, {"split_special_tokens", "false"}, {"tokenizer_class", nullptr}, {"unk_token", nullptr}});
+        {"pad_token", nullptr}, {"split_special_tokens", "false"}, {"tokenizer_class", nullptr}, {"unk_token", nullptr},
+        {"extra_special_tokens", nullptr}, {"_commit_hash", nullptr}});
     // Special ids: tokenizer_config.json's text first, then config.json's id, each kept only below n_vocab, as the converter takes them.
-    struct Special { const char* hf; const char* gguf; };
-    static const Special specials[] = {{"bos", "bos_token_id"}, {"eos", "eos_token_id"}, {"unk", "unknown_token_id"}, {"pad", "padding_token_id"}};
+    // A pad text naming no token gives no id from the text, as HF's tokenizer gives none; the other texts must name an added token.
+    struct Special { const char* hf; const char* gguf; bool must_name; };
+    static const Special specials[] = {{"bos", "bos_token_id", true}, {"eos", "eos_token_id", true}, {"unk", "unknown_token_id", true},
+        {"pad", "padding_token_id", false}};
     for (const Special& s : specials) {
         const std::string name = std::string(s.hf) + "_token";
         int64_t id = -1;
@@ -219,7 +222,7 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
             if (!content || !content->isString()) throw std::runtime_error("tokenizer_config.json " + name + " is not a token's text");
             for (const jmini::Value& a : added->arr)
                 if (a.get("content")->str == content->str) id = int64_t(a.get("id")->num);
-            if (id < 0) throw std::runtime_error("tokenizer_config.json " + name + " " + content->str + " is not an added token");
+            if (id < 0 && s.must_name) throw std::runtime_error("tokenizer_config.json " + name + " " + content->str + " is not an added token");
         }
         if (const jmini::Value* v = config.get(std::string(s.hf) + "_token_id"); id < 0 && v && v->isNumber() && v->whole && v->num >= 0 && v->num < double(n_vocab))
             id = int64_t(v->num);
@@ -236,6 +239,21 @@ inline KeyValues read_keys(const std::string& dir, const jmini::Value& config, u
             value.b = add->b;
             kv.emplace_back(std::string("tokenizer.ggml.add_") + which + "_token", value);
         }
+    // extra_special_tokens, a map of names to texts or a list of texts, may name only added tokens; HF keeps a listed text whole, which a text outside tokenizer.json's added tokens would not be here.
+    if (const jmini::Value* extra = tc.get("extra_special_tokens"); extra && extra->t != jmini::Value::T::Null) {
+        if (!extra->isObject() && !extra->isArray()) throw std::runtime_error("tokenizer_config.json extra_special_tokens is not a map or a list");
+        std::vector<const jmini::Value*> texts;
+        if (extra->isObject()) for (const auto& entry : extra->obj) texts.push_back(&entry.second);
+        else for (const jmini::Value& v : extra->arr) texts.push_back(&v);
+        for (const jmini::Value* v : texts) {
+            bool named = v->isString();
+            if (named) {
+                named = false;
+                for (const jmini::Value& a : added->arr) named = named || a.get("content")->str == v->str;
+            }
+            if (!named) throw std::runtime_error("tokenizer_config.json extra_special_tokens " + (v->isString() ? v->str : std::string("entry")) + " is not an added token");
+        }
+    }
     // added_tokens_decoder, which HF reads over tokenizer.json's list, must agree with it.
     if (const jmini::Value* decoder = tc.get("added_tokens_decoder")) {
         if (!decoder->isObject()) throw std::runtime_error("tokenizer_config.json added_tokens_decoder is not an object");

@@ -19,6 +19,7 @@ enum class Rule {
     integer,   // a whole number from 1 up to 2^32 - 1, stored as UINT32
     real,      // a finite positive number, stored as FLOAT32
     check,     // checked against `allowed` and not stored
+    each,      // an array whose every entry is checked as `check` checks a value, not stored
 };
 
 struct Key {
@@ -63,6 +64,11 @@ inline bool allowed(const std::string& list, const std::string& value) {
         if (bar == std::string::npos) return false;
         start = bar + 1;
     }
+}
+
+inline void check(const Key& k, const std::string& key, const jmini::Value& v) {
+    if (k.allowed && !allowed(k.allowed, text(v)))
+        throw std::runtime_error("config.json " + key + " = " + text(v) + " is not supported (" + k.allowed + ")");
 }
 
 inline gguf::MetaValue meta(const jmini::Value& v, Rule rule, const std::string& key) {
@@ -125,8 +131,10 @@ inline void apply(const Table& table, const std::string& arch, const jmini::Valu
             if (key != k.hf) continue;
             known = true;
             if (k.rule == Rule::check) {
-                if (k.allowed && !detail::allowed(k.allowed, detail::text(value)))
-                    throw std::runtime_error("config.json " + key + " = " + detail::text(value) + " is not supported (" + k.allowed + ")");
+                detail::check(k, key, value);
+            } else if (k.rule == Rule::each) {
+                if (!value.isArray()) throw std::runtime_error("config.json " + key + " is not an array");
+                for (const jmini::Value& entry : value.arr) detail::check(k, key, entry);
             } else {
                 kv.emplace_back(arch + "." + k.gguf, detail::meta(value, k.rule, key));
             }

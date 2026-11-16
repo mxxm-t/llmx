@@ -116,22 +116,53 @@ def words_of(lines):
     return struct.pack("<%di" % len(flat), *flat)
 
 
-def awq_checks(directory):
-    """The AWQ directory reads as its Q5_0 twin: info lists each linear as Q5_0, and ids, text and logits match the twin's byte for byte."""
-    entries, weights, quantized = awq_fixture()
-    extra = {"torch_dtype": "float16", "quantization_config": AWQ_QUANTIZATION}
-    model = write_directory(os.path.join(directory, "awq"), entries, True, c=AWQ_CONFIG, extra=extra)
-    twin = f32.write_model(os.path.join(directory, "awq-twin.gguf"), weights, config=AWQ_CONFIG, quantized=quantized)
+GPTQ_FORMS = ((4, True, True), (4, False, False), (8, True, True))  # bits, symmetric, v1
+
+
+def gptq_fixture(bits, sym, v1, seed=11):
+    """A GPTQ directory's safetensors entries, and its GGUF twin's F32 weights and Q4_0, Q5_0 or Q8_0 tensors (spec_decode.gptq_repack).
+    Codes and asymmetric zero points are random and F16 scales as AWQ's; g_idx is each input's group of 32."""
+    rng = random.Random(seed + bits + 2 * sym)
+    per = 32 // bits
+    entries, weights, quantized = [], [], []
+    for name, hf, shape, values in f32.tensors(True, config=AWQ_CONFIG):
+        layer, _, rest = name[4:].partition(".") if name.startswith("blk.") else ("", "", "")
+        if rest.split(".")[0] not in LINEARS:
+            entries.append((hf, "F32", shape, struct.pack("<%df" % len(values), *values)))
+            weights.append((name, hf, shape, values))
+            continue
+        cols, rows = shape
+        scales = [[rng.choice((-1, 1)) * rng.randint(1, 255) * 2.0 ** -rng.randint(14, 22) for _ in range(rows)] for _ in range(cols // 32)]
+        codes = [[rng.randrange(1 << bits) for _ in range(rows)] for _ in range(cols)]
+        stored = [[(1 << (bits - 1)) - (1 if v1 else 0) if sym else rng.randrange(16) for _ in range(rows)] for _ in range(cols // 32)]
+        qweight, qzeros, g_idx = sd.gptq_pack_inputs(codes, bits), sd.gptq_pack_outputs(stored, bits), [k // 32 for k in range(cols)]
+        flat = [x for line in scales for x in line]
+        base = hf[:-len(".weight")]
+        entries += [(base + ".qweight", "I32", [rows, cols // per], words_of(qweight)),
+                    (base + ".qzeros", "I32", [rows // per, cols // 32], words_of(qzeros)),
+                    (base + ".scales", "F16", [rows, cols // 32], struct.pack("<%de" % len(flat), *flat)),
+                    (base + ".g_idx", "I32", [cols], struct.pack("<%di" % cols, *g_idx))]
+        kind, data = sd.gptq_repack(qweight, qzeros, scales, g_idx, 32, bits, sym, v1)
+        quantized.append((name, shape, kind, data))
+    return entries, weights, quantized
+
+
+def twin_checks(directory, label, fixture, quantization, type_name):
+    """The quantized directory reads as its twin: info lists each linear as `type_name`, and ids, text and logits match the twin's byte for byte."""
+    entries, weights, quantized = fixture
+    extra = {"torch_dtype": "float16", "quantization_config": quantization}
+    model = write_directory(os.path.join(directory, label), entries, True, c=AWQ_CONFIG, extra=extra)
+    twin = f32.write_model(os.path.join(directory, label + "-twin.gguf"), weights, config=AWQ_CONFIG, quantized=quantized)
     rc, out = cli(["info", model])
     listed = [line for line in out.splitlines() if any(".%s.weight " % name in line for name in LINEARS)]
-    assert rc == 0 and len(listed) == 14 and all("Q5_0" in line for line in listed), "info on the AWQ directory: " + out
+    assert rc == 0 and len(listed) == 14 and all(type_name in line for line in listed), "info on the %s directory: %s" % (label, out)
     text = f32.TEXTS[-1]
     for args in (["tokenize", "{}", text], ["logits", "{}", text, "--top", str(f32.VOCAB)],
                  ["generate", "{}", text[:4], "-n", "8", "--temp", "0", "--ignore-eos"]):
         outs = [common.run_process([a.replace("{}", m) for a in args], cache="f32") for m in (model, twin)]
         text_of = common.generate_text if args[0] == "generate" else common.cli_stdout
         same = outs[0].returncode == 0 == outs[1].returncode and text_of(outs[0].stdout) == text_of(outs[1].stdout)
-        assert same, "%s on the AWQ directory differs from its Q5_0 twin: %r" % (args[0], [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
+        assert same, "%s on the %s directory differs from its twin: %r" % (args[0], label, [(p.stdout[-400:], p.stderr[-400:]) for p in outs])
 
 
 def run():
@@ -159,8 +190,13 @@ def run():
             assert rc == 0 and out.strip() == text, "detokenize on the directory: " + out
             rc, out = cli(["info", model])
             assert rc == 0 and "qwen3.rope.freq_base" in out and (" output.weight " in out) != tied, "info on the directory: " + out
-        awq_checks(directory)
-    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales as its Q5_0 twin's ids, text and logits; max error %.8f  [ok]" % worst)
+        twin_checks(directory, "awq", awq_fixture(), AWQ_QUANTIZATION, "Q5_0")
+        for bits, sym, v1 in GPTQ_FORMS:
+            quantization = {"quant_method": "gptq", "bits": bits, "group_size": 32, "desc_act": False, "sym": sym,
+                            "checkpoint_format": "gptq" if v1 else "gptq_v2", "lm_head": False, "pack_dtype": "int32"}
+            twin_checks(directory, "gptq%d%s" % (bits, "" if sym else "a"), gptq_fixture(bits, sym, v1), quantization,
+                        "Q8_0" if bits == 8 else "Q4_0" if sym else "Q5_0")
+    print("safetensors: tiny F32 directories, tied in one file and untied in two under an index, all 257 logits vs HF, PPL, --last/--then-ids/--per-token rows, and the GGUF twin's ids, text and logits; an AWQ directory with F16 and BF16 scales and GPTQ 4-bit symmetric, 4-bit v2 and 8-bit directories as their Q5_0, Q4_0 and Q8_0 twins' ids, text and logits; max error %.8f  [ok]" % worst)
     return True
 
 

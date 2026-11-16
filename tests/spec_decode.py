@@ -1175,6 +1175,106 @@ def awq_dequantize_numpy(qweight, qzeros, scales, group):
     return ((q - z[groups]).astype(np.float32) * s[groups]).T.copy()
 
 
+# A GPTQ linear of `rows` outputs and `cols` inputs stores qweight int32 [cols / per, rows], qzeros int32 [cols / group, rows / per], scales 16-bit [cols / group, rows] and g_idx int32 [cols], per = 32 / bits codes a word.
+# qweight packs along the inputs and qzeros along the outputs, and the weight at output n and input k is (q - z) * s of group g_idx[k], v1 (checkpoint_format gptq) storing each zero point less one.
+def gptq_pack_inputs(codes, bits):
+    """qweight's int32 word lines, signed as torch stores them, from lines of codes [cols][rows]."""
+    per = 32 // bits
+    out = []
+    for r in range(len(codes) // per):
+        line = []
+        for n in range(len(codes[0])):
+            word = sum(codes[per * r + i][n] << (bits * i) for i in range(per))
+            line.append(word - (1 << 32) if word >= 1 << 31 else word)
+        out.append(line)
+    return out
+
+
+def gptq_unpack_inputs(words, bits):
+    """The codes [cols][rows] of qweight's word lines; the inverse of gptq_pack_inputs."""
+    per, mask = 32 // bits, (1 << bits) - 1
+    return [[(line[n] >> (bits * i)) & mask for n in range(len(line))] for line in words for i in range(per)]
+
+
+def gptq_pack_outputs(codes, bits):
+    """qzeros' int32 word lines from lines of codes [groups][rows], each already stored as the format stores it."""
+    per = 32 // bits
+    out = []
+    for line in codes:
+        words = []
+        for j in range(len(line) // per):
+            word = sum(line[per * j + i] << (bits * i) for i in range(per))
+            words.append(word - (1 << 32) if word >= 1 << 31 else word)
+        out.append(words)
+    return out
+
+
+def gptq_unpack_outputs(words, rows, bits):
+    """The stored codes [groups][rows] of qzeros' word lines; the inverse of gptq_pack_outputs."""
+    per, mask = 32 // bits, (1 << bits) - 1
+    return [[(line[n // per] >> (bits * (n % per))) & mask for n in range(rows)] for line in words]
+
+
+def gptq_zeros(qzeros, rows, bits, v1):
+    """The zero points [groups][rows] of qzeros: v1 adds one to each stored code."""
+    return [[z + (1 if v1 else 0) for z in line] for line in gptq_unpack_outputs(qzeros, rows, bits)]
+
+
+def gptq_dequantize(qweight, qzeros, scales, g_idx, bits, v1):
+    """The F32 weight [rows][cols] of a GPTQ linear; each value is (q - z) * s of group g_idx[k], exact in f32."""
+    rows = len(scales[0])
+    q, z = gptq_unpack_inputs(qweight, bits), gptq_zeros(qzeros, rows, bits, v1)
+    return [[to_f32((q[k][n] - z[g_idx[k]][n]) * scales[g_idx[k]][n]) for k in range(len(q))] for n in range(rows)]
+
+
+def gptq_repack(qweight, qzeros, scales, g_idx, group, bits, sym, v1):
+    """A GPTQ linear as (type, rows of blocks of 32 inputs): Q4_0 for 4-bit symmetric zero points (8), Q5_0 for other 4-bit ones and Q8_0 for 8-bit symmetric ones (128), d the group's scale in F16, exactly.
+    A g_idx other than k // group, a symmetric zero point other than the middle code, 8-bit asymmetric zero points and a scale F16 cannot hold raise ValueError."""
+    if bits == 8 and not sym:
+        raise ValueError("8-bit asymmetric GPTQ has no exact target")
+    rows = len(scales[0])
+    q, z = gptq_unpack_inputs(qweight, bits), gptq_zeros(qzeros, rows, bits, v1)
+    cols = len(q)
+    if any(g != k // group for k, g in enumerate(g_idx)):
+        raise ValueError("g_idx does not follow the inputs")
+    if sym and any(x != 1 << (bits - 1) for line in z for x in line):
+        raise ValueError("a symmetric zero point is not %d" % (1 << (bits - 1)))
+    kind = Q8_0 if bits == 8 else Q4_0 if sym else Q5_0
+    out = bytearray()
+    for n in range(rows):
+        for b in range(cols // 32):
+            g = 32 * b // group
+            d = f16_bits_exact(scales[g][n])
+            if d is None:
+                raise ValueError("scale %r is not exact in F16" % scales[g][n])
+            if kind == Q8_0:
+                out += struct.pack("<H32b", d, *(q[32 * b + i][n] - 128 for i in range(32)))
+            elif kind == Q4_0:
+                codes = [q[32 * b + i][n] for i in range(32)]
+                out += struct.pack("<H", d) + bytes(codes[j] | codes[j + 16] << 4 for j in range(16))
+            else:
+                codes = [q[32 * b + i][n] - z[g][n] + 16 for i in range(32)]
+                high = sum(((c >> 4) & 1) << i for i, c in enumerate(codes))
+                out += struct.pack("<HI", d, high) + bytes((codes[j] & 15) | (codes[j + 16] & 15) << 4 for j in range(16))
+    return kind, bytes(out)
+
+
+def gptq_dequantize_numpy(qweight, qzeros, scales, g_idx, bits, v1):
+    """gptq_dequantize on arrays: qweight int32 [cols / per, rows], qzeros int32 [cols / group, rows / per], scales float [cols / group, rows], g_idx int [cols]; the float32 weight [rows, cols]."""
+    per, mask = 32 // bits, np.uint32((1 << bits) - 1)
+    w = qweight.astype(np.uint32)
+    q = np.empty((w.shape[0] * per, w.shape[1]), dtype=np.int32)
+    for i in range(per):
+        q[i::per] = (w >> np.uint32(bits * i)) & mask
+    zw = qzeros.astype(np.uint32)
+    z = np.empty((zw.shape[0], zw.shape[1] * per), dtype=np.int32)
+    for i in range(per):
+        z[:, i::per] = (zw >> np.uint32(bits * i)) & mask
+    z += 1 if v1 else 0
+    g = np.asarray(g_idx)
+    return ((q - z[g]).astype(np.float32) * scales.astype(np.float32)[g]).T.copy()
+
+
 # GGUF files: the magic, a version (2 or 3), the tensor and metadata counts, the metadata, the tensor descriptions, then the data at the next multiple of general.alignment (32 when absent).
 # Strings are a u64 byte count and UTF-8 bytes; each tensor has a name, a rank, its dimensions (the first varies fastest), a type and an offset into the data.
 

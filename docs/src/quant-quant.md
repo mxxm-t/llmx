@@ -7,6 +7,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
 - `quantize_row_q8_0(src, dst, nblocks)`: compress 32 floats into a 2-byte f16
   scale + 32 int8 values per block (clamped to [-127, 127]).
 - `dequantize_row_q8_0(src, dst, nblocks)`: reverse.
+- `write_block_q8_0(d, codes, out)` and `write_block_q4_0(d, codes, out)`: one Q8_0 block from its F16 scale bits and 32 signed codes, and one Q4_0 block from its scale bits and 32 codes in 0..15, the layouts their decoders read; a repack of exact values writes them ([hf_quant](format-hf_quant.md)).
 - `write_block_q5_0(d, codes, out)`: one Q5_0 block from its F16 scale bits and 32 codes in 0..31, the layout `dequantize_row_q5_0` reads; a repack of exact values writes it ([hf_quant](format-hf_quant.md)).
 - `quantize_row_q4_0` / `dequantize_row_q4_0`: Q4_0 block = 2-byte f16 scale (`d = amax/7`) + 16 bytes of nibbles; each byte holds value `j` in the low nibble and `j+16` in the high nibble, stored unsigned 0..15 where the true value is `nibble - 8`.
   The decode computes `d*(nibble - 8)`, so under a negative scale, which `quantize` never writes but other files carry, nibble 8 gives -0 as the format does.

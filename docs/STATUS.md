@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Streamed tool-call preparation (2026-11-16)
+
+**Goal.** Show names and arguments while a tool call is being generated, including after refresh, without executing incomplete calls.
+
+**Done.** The prior gated diagnostic proves no tool-call progress reaches the browser before stream completion. The existing engine delta flush, store snapshot/cursor transaction and browser tool rows own this change. Work is isolated from live 8183 on `feat/chat-tool-stream-20261116`.
+
+**Left.** Add failing preparation/replay/cancellation tests, coalesce incremental fragments through the existing delta event, preserve preparing calls on refresh, and mark incomplete calls terminal after cancellation, failure or restart. Then run focused browser/Python checks and the applicable companion hosted jobs before landing.
+
+**Gotchas.** Argument fragments are display data only. Tool approval and execution still require completion of the model stream. Persist only new fragments in the journal, not repeated growing argument strings; the current message snapshot continues using its existing storage owner.
+
 ## Companion x identity and wordmark sizing (2026-11-16, Done)
 
 **Goal.** Replace the rejected paired-l icon with the x from mxxm, the naming origin of llmx, and keep the approved wordmark at a compact sidebar size.

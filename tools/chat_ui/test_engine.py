@@ -280,6 +280,69 @@ class EngineTests(unittest.TestCase):
         self.assertNotIn("request", answer)
         self.assertEqual(len(FakeUpstream.requests), 1)
 
+    def test_tool_fragments_visible_before_completion_and_replay(self):
+        gate = threading.Event()
+        FakeUpstream.gate = gate
+        first = text_event("Preparing")
+        first["choices"][0]["delta"]["tool_calls"] = [
+            {"index": 1, "function": {"name": "ec", "arguments": '{"text":"hel'}}]
+        second = tool_event(name="echo", arguments='{"text":"other"}')
+        second["choices"][0]["delta"]["tool_calls"].append(
+            {"index": 1, "function": {"name": "ho", "arguments": 'lo"}'}})
+        self.reply(first, "WAIT", second)
+        run = self.start(settings=self.settings(["echo"]))
+        try:
+            partial = self.wait_content(run["message_id"], "Preparing")
+            self.assertEqual(len(partial["tool_calls"]), 1)
+            call = partial["tool_calls"][0]
+            self.assertEqual((call["name"], call["arguments"], call["status"]),
+                             ("ec", '{"text":"hel', "preparing"))
+            self.assertEqual(self.tools.calls, [])
+            snapshot = self.snapshot()
+            self.assertEqual(snapshot["messages"][-1]["tool_calls"], partial["tool_calls"])
+            cursor = snapshot["runs"][-1]["last_seq"]
+            self.assertEqual(self.store.events(run["id"], cursor), [])
+            gate.set()
+            self.wait_approval(run["id"])
+            final = self.store.message(run["message_id"])["tool_calls"]
+            self.assertEqual([c["arguments"] for c in final], ['{"text":"other"}', '{"text":"hello"}'])
+            self.assertEqual(final[1]["id"], call["id"])
+            self.assertEqual(final[1]["name"], "echo")
+            events = self.store.events(run["id"], cursor)
+            fragments = [c for e in events if e["kind"] == "delta" for c in e["data"].get("tool_calls", [])]
+            tail = [c for c in fragments if c["id"] == call["id"]]
+            self.assertEqual("".join(c["arguments"] for c in tail), 'lo"}')
+            self.assertEqual("".join(c["name"] for c in tail), "ho")
+            self.assertEqual(self.tools.calls, [])
+        finally:
+            gate.set()
+
+    def test_cancelled_and_truncated_partial_tools_never_execute(self):
+        for cancel in (True, False):
+            with self.subTest(cancel=cancel):
+                gate = threading.Event()
+                FakeUpstream.gate = gate
+                first = text_event("Preparing")
+                first["choices"][0]["delta"]["tool_calls"] = [
+                    {"index": 0, "function": {"name": "echo", "arguments": '{"text":'}}]
+                self.reply(first, "WAIT", "TRUNCATE")
+                run = self.start(settings=self.settings(["echo"]))
+                try:
+                    partial = self.wait_content(run["message_id"], "Preparing")
+                    self.assertEqual(len(partial["tool_calls"]), 1)
+                    if cancel:
+                        self.engine.cancel(run["id"])
+                    gate.set()
+                    status = "cancelled" if cancel else "failed"
+                    self.assertEqual(self.wait_run(run["id"], {"cancelled", "failed"})["status"], status)
+                    call = self.store.message(run["message_id"])["tool_calls"][0]
+                    self.assertEqual(call["status"], status)
+                    self.assertEqual(call["arguments"], '{"text":')
+                    self.assertEqual(self.tools.calls, [])
+                finally:
+                    gate.set()
+                    self.wait_run(run["id"], {"cancelled", "failed"})
+
     def test_approved_tool_runs_once_then_model_finishes(self):
         self.reply(dict(text_event(), id="r-first-1"), tool_event())
         self.reply(dict(text_event(), id="r-first-2"), text_event("Finished"))

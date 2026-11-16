@@ -8,6 +8,25 @@ from store import SCHEMA_VERSION, Store
 
 
 class StorePersistenceTests(unittest.TestCase):
+    def test_preparing_tool_snapshot_recovers_as_interrupted(self):
+        path = self.path("tool-stream")
+        store = Store(path)
+        chat = store.create_chat({})
+        run = store.start(chat["id"], {"content": "question"}, self.settings())
+        fragment = dict(id="call", index=0, name="echo", arguments='{"text":')
+        store.publish(run["id"], "delta", dict(message_id=run["message_id"], tool_calls=[fragment]))
+        before = store.snapshot(chat["id"])
+        store.close()
+        recovered = Store(path)
+        try:
+            after = recovered.snapshot(chat["id"])
+            self.assertEqual(len(before["messages"][-1]["tool_calls"]), 1)
+            call = after["messages"][-1]["tool_calls"][0]
+            self.assertEqual(call["arguments"], fragment["arguments"])
+            self.assertEqual(call["status"], "interrupted")
+        finally:
+            recovered.close()
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.directory = self.temp.name

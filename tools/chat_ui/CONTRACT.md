@@ -49,6 +49,21 @@ metadata does not modify conversation settings, stored messages or running tools
 
 ## Admission
 
+For a run with a nonempty `settings.model`, Application checks the current
+upstream `/models` catalogue before starting the engine or storing a message.
+Model catalogues are fetched fresh for both configuration and admission. The
+ten-second cache covers the other configuration fields. Admission neither waits
+for that cache nor rediscovers tools. A missing choice returns 409, and a failed
+catalogue fetch returns 503. Both replies include `code: "model_unavailable"`, `error`,
+`models`, `upstream_available` and `upstream_error`. A successful checked run
+returns those three catalogue fields alongside `run`, without an error code.
+Empty default-model calls retain the ordinary `{run}` response.
+
+The browser consumes these snapshots without resetting the composer. A fresh
+catalogue marks a missing selection unavailable. On a catalogue failure it
+retains the last known choices for retry. This is a check at admission, not an
+atomic model-routing guarantee across an upstream restart.
+
 Login JSON is limited to 16 KiB, checked from Content-Length before reading the
 body. Other JSON routes retain their 16 MiB limit. Failed-login records use the
 socket peer address, never forwarded headers, with ten failures per minute and

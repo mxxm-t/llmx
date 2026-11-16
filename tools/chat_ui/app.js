@@ -2,7 +2,16 @@
 (() => {
   'use strict';
   const {node, markdown, number, json} = window.ChatRender;
-  const api = window.ChatShell.api;
+  async function api(...args) {
+    try {
+      const result = await window.ChatShell.api(...args);
+      if (result?.run && Array.isArray(result.models)) updateModelState(result);
+      return result;
+    } catch (error) {
+      if (error.details?.code === 'model_unavailable') updateModelState(error.details);
+      throw error;
+    }
+  }
   const $ = id => document.getElementById(id);
   const systemTheme = window.matchMedia('(prefers-color-scheme: light)');
   const storedTheme = localStorage.getItem('llmx-theme');
@@ -58,14 +67,25 @@
     value.tools = S.chat?.temporary ? [] : Array.from($('tool-settings').querySelectorAll('input:checked')).map(el => el.value);
     return value;
   }
-  function loadSettings() {
-    const value = S.chat?.settings || {};
+  function modelChoices(selected) {
     $('model').replaceChildren();
     const models = S.config.models || [];
     models.forEach(model => { const option = node('option', '', model.id); option.value = model.id; $('model').append(option); });
-    if (!models.length) { const option = node('option', '', value.model ? value.model + ' (unavailable)' : 'No model available'); option.value = value.model || ''; option.disabled = true; $('model').append(option); }
-    else if (value.model && !models.some(m => m.id === value.model)) { const option = node('option', '', value.model + ' (unavailable)'); option.value = value.model; option.disabled = true; $('model').append(option); }
-    if (value.model) $('model').value = value.model;
+    if (!models.length) { const option = node('option', '', selected ? selected + ' (unavailable)' : 'No model available'); option.value = selected || ''; option.disabled = true; $('model').append(option); }
+    else if (selected && !models.some(m => m.id === selected)) { const option = node('option', '', selected + ' (unavailable)'); option.value = selected; option.disabled = true; $('model').append(option); }
+    if (selected) $('model').value = selected;
+  }
+  function updateModelState(value) {
+    if (!Array.isArray(value.models) || typeof value.upstream_available !== 'boolean') return;
+    S.config = {...S.config, upstream_available: value.upstream_available, upstream_error: value.upstream_error};
+    if (value.upstream_available) { S.config.models = value.models; modelChoices($('model').value); }
+    document.dispatchEvent(new CustomEvent('companion:config', {detail: S.config}));
+    connection(value.upstream_available ? 'Connected' : 'Unavailable', !value.upstream_available);
+    scheduleRender();
+  }
+  function loadSettings() {
+    const value = S.chat?.settings || {};
+    modelChoices(value.model);
     const defaults = {system: '', temperature: 0.7, top_p: 0.95, top_k: 40, max_tokens: 4096};
     Object.keys(defaults).forEach(key => { $('setting-' + key).value = value[key] ?? defaults[key]; });
     renderToolSelections(value.tools || []);
@@ -369,7 +389,7 @@
     const lifetime = S.config.temporary?.ttl_seconds;
     $('temporary-description').textContent = 'Not saved to history or backups. Tools are off.' + (Number.isFinite(lifetime) ? ' Expires after ' + number(lifetime / 60) + ' minutes of inactivity.' : '') + ' The model server may retain logs or caches.';
     const modelUnavailable = !(S.config.models || []).some(model => model.id === $('model').value);
-    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || !S.config.upstream_available || modelUnavailable;
+    $('send').hidden = Boolean(run); $('stop').hidden = !run; $('send').disabled = S.busy || modelUnavailable;
     if (!run && modelUnavailable && S.config.upstream_available) banner('This model is not available on the connected server. Choose another model before sending.');
     if ($('app').dataset.view === 'chat') document.title = (S.chat?.title ? S.chat.title + ' / ' : '') + 'llmx Chat';
     syncLiveMetrics(); renderInspector(); tick(); if (nearBottom) requestAnimationFrame(bottom);

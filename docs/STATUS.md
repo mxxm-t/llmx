@@ -1,5 +1,17 @@
 # llmx - Development Status
 
+## Chat model catalogue freshness (2026-11-16, Done)
+
+**Goal.** Reject a model selection that became unavailable after the page loaded, refresh the displayed choices from that check and preserve the unsent composer.
+
+**Done.** Application owns one catalogue fetch used by configuration and explicit-model admission. The guard returns 409 or 503 before starting the engine or storing messages. Configuration fetches models outside its separate cache for tools and other fields, so admission does not wait for tool discovery. The browser consumes refusal and success snapshots, preserves unsent content, attachments and settings, disables missing selections and permits retry after an upstream outage. Empty default-model calls keep their existing behavior.
+
+**Checks.** Test-only commit `59e025afb` fails on the unfixed server in both refusal cases. Browser recovery, stale configuration and admission-lock regressions also failed before their fixes. The last local affected server run passes 25 tests in 16.224 seconds. Final [Chat workflow 43782031800](https://github.com/mxxm-t/llmx/actions/runs/43782031800) passes on source `7e51017016f9e53c7d3e0b7da56c31eda5da70f7`: Linux 98 companion tests in 84.329 seconds and 24 dashboard tests in 19.639 seconds; Windows 98 companion tests in 90.908 seconds and 24 dashboard tests in 47.553 seconds, with one Linux-only browser diagnostic skipped. Both hosted analyzer checks pass. Earlier run 43781019986 is preserved but does not qualify the final lock correction. Logs and hashes are under scratch/model-catalog-review.
+
+**Review and landing.** Root and a bounded second agent reviewed the catalogue owner and final cache separation without concrete remaining findings. The Markdown inventory was checked for affected model-selection and configuration claims; README, contract and test descriptions match the implemented path. Unchanged documentation retains the preceding review. Local docs and dead-code checks pass with 0/15 expected findings and 21/20 planted checks. The change lands by fast-forward as the failing-test commit plus the implementation and documentation. Only this status record and commit metadata differ from the final hosted source. No runtime, numerical or device code changed, so no inference gates apply.
+
+**Gotchas.** This is freshness at admission, not atomic model routing or model loading. The live preview on 8183 remains unchanged pending disposition of its memory-only temporary chats.
+
 ## Chat model selection explanation (2026-11-16, Done)
 
 **Goal.** Explain what the companion's model selector controls when connected to llmx serve.

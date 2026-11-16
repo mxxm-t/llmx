@@ -182,27 +182,33 @@ class Application:
         result["tool_servers"] = self.tools.connections()
         return result
 
+    def model_state(self):
+        result = dict(models=[], upstream_available=False, upstream_error=None)
+        try:
+            models = Connection(self.upstream, timeout=8, key=self.api_key).json("/models")
+            result["models"] = [{"id": model["id"]} for model in models.get("data", [])
+                                if isinstance(model, dict) and isinstance(model.get("id"), str)]
+            result["upstream_available"] = True
+        except Exception as exc:
+            result["upstream_error"] = f"Unable to reach llmx: {type(exc).__name__}"
+        return result
+
     def config(self):
         with self.config_lock:
-            if self.cached_config and time.monotonic() - self.config_time < 10:
-                return self.cached_config
-            result = dict(models=[], tools=[], upstream_available=False, upstream_error=None, tools_error=None)
-            result["monitor"] = dict(url="/monitor/view", interval_s=self.monitor.collector.interval_s)
-            result["authentication"] = "owner-password" if self.password else "local-only"
-            result["upstream"] = self.upstream
-            result["backup_max_bytes"] = MAX_BACKUP
-            result["temporary"] = dict(enabled=True, ttl_seconds=self.temporary.TTL_SECONDS,
-                                       tools=False, max_chats=self.temporary.MAX_CHATS)
-            result["workspace"] = self.workspace.snapshot()["execution"]
-            try:
-                models = Connection(self.upstream, timeout=8, key=self.api_key).json("/models")
-                result["models"] = [{"id": m["id"]} for m in models.get("data", []) if isinstance(m, dict) and isinstance(m.get("id"), str)]
-                result["upstream_available"] = True
-            except Exception as exc:
-                result["upstream_error"] = f"Unable to reach llmx: {type(exc).__name__}"
-            result.update(self.tool_state())
-            self.cached_config, self.config_time = result, time.monotonic()
-            return result
+            if not self.cached_config or time.monotonic() - self.config_time >= 10:
+                result = dict(tools=[], tools_error=None)
+                result["monitor"] = dict(url="/monitor/view", interval_s=self.monitor.collector.interval_s)
+                result["authentication"] = "owner-password" if self.password else "local-only"
+                result["upstream"] = self.upstream
+                result["backup_max_bytes"] = MAX_BACKUP
+                result["temporary"] = dict(enabled=True, ttl_seconds=self.temporary.TTL_SECONDS,
+                                           tools=False, max_chats=self.temporary.MAX_CHATS)
+                result["workspace"] = self.workspace.snapshot()["execution"]
+                result.update(self.tool_state())
+                self.cached_config, self.config_time = result, time.monotonic()
+            result = dict(self.cached_config)
+        result.update(self.model_state())
+        return result
 
 
 class Server(ThreadingHTTPServer):
@@ -541,7 +547,21 @@ class Handler(BaseHTTPRequestHandler):
                 settings = settings_of(body.get("settings", chat["settings"]))
                 if temporary:
                     self.app.temporary.check_settings(settings)
-                return self._json({"run": engine.start(cid, body, settings)}, 201)
+                catalog = None
+                if settings["model"]:
+                    catalog = self.app.model_state()
+                    if not catalog["upstream_available"]:
+                        return self._json({"code": "model_unavailable",
+                                           "error": "The model server is unavailable. Try again when it is available.",
+                                           **catalog}, 503)
+                    if not any(model["id"] == settings["model"] for model in catalog["models"]):
+                        return self._json({"code": "model_unavailable",
+                                           "error": "This model is not available on the connected server. Choose another model before sending.",
+                                           **catalog}, 409)
+                result = {"run": engine.start(cid, body, settings)}
+                if catalog is not None:
+                    result.update(catalog)
+                return self._json(result, 201)
         if len(bits) == 4 and bits[:2] == ["api", "runs"]:
             rid, action = bits[2:]
             store, engine = self.app.temporary.access(rid, run=True) if rid.startswith("tmp_") else (self.app.store, self.app.engine)

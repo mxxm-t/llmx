@@ -1149,6 +1149,57 @@ try {
   await cdp('Page.removeScriptToEvaluateOnNewDocument', {identifier: catalogOverride.identifier});
   await evaluate(`localStorage.setItem('llmx-chat',${JSON.stringify(submittedChat)})`); await reloadDocument();
   await wait(`document.querySelector('.chat-item.active')?.dataset.chat===${JSON.stringify(submittedChat)}`, 'restore prior chat after unavailable-model check');
+  await fill('#draft', 'Keep this draft while the model catalogue changes');
+  await fill('#setting-temperature', '0.3');
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'catalogue refusal attachment');
+  await evaluate(`(() => {
+    const original = window.fetch.bind(window);
+    window.restoreCatalogueFetch = () => { window.fetch = original; };
+    window.catalogueStatus = 503;
+    window.catalogueModels = [];
+    window.catalogueCalls = [];
+    window.fetch = async (...args) => {
+      const url = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href);
+      if (!url.pathname.startsWith('/api/chats/') || !url.pathname.endsWith('/runs') || args[1]?.method !== 'POST') return original(...args);
+      window.catalogueCalls.push(JSON.parse(args[1].body));
+      const available = window.catalogueStatus !== 503;
+      const result = {models: window.catalogueModels.map(id => ({id})), upstream_available: available,
+        upstream_error: available ? null : 'The model server is unavailable.'};
+      if (window.catalogueStatus === 201) result.run = {id: 'catalogue-browser-fixture'};
+      else Object.assign(result, {code: 'model_unavailable', error: available ? 'Choose an available model.' : 'The model server is unavailable. Try again.'});
+      return new Response(JSON.stringify(result), {status: window.catalogueStatus, headers: {'Content-Type': 'application/json'}});
+    };
+  })()`);
+  await click('#send');
+  await wait("document.querySelector('#connection').textContent==='Unavailable' && !document.querySelector('#send').disabled", 'failed catalogue check allows retry');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep this draft while the model catalogue changes');
+  assert.equal(await evaluate("document.querySelector('#setting-temperature').value"), '0.3');
+  assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
+  await evaluate(`window.catalogueStatus=201;window.catalogueModels=[${JSON.stringify(availableModel)}]`);
+  await click('#send');
+  await wait("window.catalogueCalls.length===2 && document.querySelector('#connection').textContent==='Connected' && !document.querySelector('#send').disabled", 'successful admission restores model connection');
+  await fill('#draft', 'Keep the draft after the upstream switches model');
+  await fill('#setting-temperature', '0.4');
+  await upload('#file-input', fixture);
+  await wait("document.querySelector('#attachments').innerText.includes('notes.txt')", 'changed catalogue attachment');
+  await evaluate("window.catalogueStatus=409;window.catalogueModels=['replacement-model']");
+  await click('#send');
+  await wait("document.querySelector('#model').textContent.includes('replacement-model') && document.querySelector('#model option:checked').disabled", 'changed upstream catalogue replaces stale choices');
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep the draft after the upstream switches model');
+  assert.equal(await evaluate("document.querySelector('#setting-temperature').value"), '0.4');
+  assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
+  assert.equal(await evaluate("window.catalogueCalls[2].settings.model"), availableModel);
+  await evaluate("document.querySelector('#model').value='replacement-model';document.querySelector('#model').dispatchEvent(new Event('change',{bubbles:true}))");
+  assert.equal(await evaluate("document.querySelector('#send').disabled"), false);
+  await evaluate(`window.catalogueModels=[${JSON.stringify(availableModel)}]`);
+  await click('.message.assistant [data-action="retry"]');
+  await wait("window.catalogueCalls.at(-1)?.regenerate && document.querySelector('#model option:checked').disabled", 'retry refreshes a changed catalogue');
+  assert.equal(await evaluate("document.querySelector('#draft').value"), 'Keep the draft after the upstream switches model');
+  assert.equal(await evaluate("document.querySelector('#setting-temperature').value"), '0.4');
+  assert((await evaluate("document.querySelector('#attachments').innerText")).includes('notes.txt'));
+  await evaluate("window.restoreCatalogueFetch();delete window.restoreCatalogueFetch");
   if(originalDashboard){await navigateDocument(originalDashboard);await wait("document.querySelector('main')!==null",'original dashboard');await screenshot('original-dashboard-1440x1000.png');}
   assert.deepEqual(errors, [], 'uncaught browser exceptions');
   assert.deepEqual(nativeDialogs, [], 'native JavaScript dialog was used instead of the shared accessible dialog');

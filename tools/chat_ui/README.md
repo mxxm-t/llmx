@@ -70,6 +70,14 @@ upstream serving that model. If a saved conversation refers to a model ID the
 connected upstream does not report, that choice is marked unavailable and
 sending stays disabled until you select an available model.
 
+Before starting a run with an explicit model choice, the companion fetches the
+upstream catalogue again. A missing choice is refused before any message or run
+is stored. The browser updates its choices and keeps the unsent prompt,
+attachments and generation settings. If the upstream is unavailable, the last
+known choices remain so you can try sending again without reloading. This check
+adds one upstream `/models` request per explicit-model run, including retries.
+It does not lock the upstream model or control later server restarts.
+
 ## Conversations
 
 - New conversation reuses the current empty conversation and keeps its unsent

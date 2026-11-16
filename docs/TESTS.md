@@ -16,6 +16,12 @@ The standalone [chat companion](../tools/chat_ui/README.md) is checked with
 fixtures exercise stream accumulation and usage, approval and denial, tool
 execution, replay, conversation branches, cancellation and restart recovery.
 HTTP checks cover authentication, origin checks, attachments and import/export.
+Model-selection checks replace the upstream catalogue after configuration was
+cached, refuse stale sends and retries without storing messages or runs, and
+cover an unavailable upstream, explicit valid choices and default-model calls.
+Admission also completes while unrelated configuration discovery holds its lock.
+Browser checks preserve the prompt, attachments and settings through catalogue
+refusals and recover the connection after a successful retry.
 Shared branding checks cover the same asset bytes and MIME types in both servers,
 with the browser checking icon loading, sizing and matching Chat/Monitor favicons.
 

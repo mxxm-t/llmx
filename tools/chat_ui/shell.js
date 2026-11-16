@@ -20,7 +20,7 @@ window.ChatShell = (() => {
       if (response.status === 401) {
         document.dispatchEvent(new CustomEvent('companion:unauthorized'));
       }
-      const error = new Error(data?.error || 'Request failed (' + response.status + ')'); error.status = response.status; throw error;
+      const error = new Error(data?.error || 'Request failed (' + response.status + ')'); error.status = response.status; error.details = data; throw error;
     }
     return data;
   }

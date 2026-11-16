@@ -499,7 +499,28 @@ class RouteTests(unittest.TestCase):
         after = self.app.store.snapshot(chat["id"])
         self.assertEqual(after["messages"], before["messages"])
         self.assertEqual(after["runs"], before["runs"])
-        self.assertNotIn("/chat/completions", [path for path, _ in FakeUpstream.posts])
+        self.assertFalse(any(path.endswith("/chat/completions") for path, _ in FakeUpstream.posts))
+        self.assertEqual(self.json_body(self.request("GET", "/api/config", cookie=cookie))["models"],
+                         [{"id": "replacement-model"}])
+
+    def test_run_admission_does_not_wait_for_configuration_discovery(self):
+        cookie = self.login()
+        chat = self.json_body(self.request("POST", "/api/chats", {}, cookie))
+        responses = queue.Queue()
+        worker = threading.Thread(target=lambda: responses.put(self.request(
+            "POST", f"/api/chats/{chat['id']}/runs",
+            {"content": "question", "settings": {"model": "test-model"}}, cookie)))
+        response = None
+        with self.app.config_lock:
+            worker.start()
+            try:
+                response = responses.get(timeout=2)
+            except queue.Empty:
+                pass
+        worker.join(timeout=3)
+        self.assertFalse(worker.is_alive())
+        self.assertIsNotNone(response, "run admission waited for unrelated configuration discovery")
+        self.assertEqual(response[0], 201, self.json_body(response))
 
     def test_run_rejects_explicit_model_when_fresh_catalog_is_unavailable(self):
         cookie = self.login()
@@ -519,7 +540,7 @@ class RouteTests(unittest.TestCase):
         snapshot = self.app.store.snapshot(chat["id"])
         self.assertEqual(snapshot["messages"], [])
         self.assertEqual(snapshot["runs"], [])
-        self.assertNotIn("/chat/completions", [path for path, _ in FakeUpstream.posts])
+        self.assertFalse(any(path.endswith("/chat/completions") for path, _ in FakeUpstream.posts))
 
     def test_run_accepts_available_explicit_model_and_empty_default(self):
         cookie = self.login()
@@ -531,12 +552,32 @@ class RouteTests(unittest.TestCase):
             response = self.request("POST", f"/api/chats/{chat['id']}/runs",
                                     {"content": "question", "settings": settings}, cookie)
             self.assertEqual(response[0], 201, self.json_body(response))
-            run = self.json_body(response)["run"]
+            response_body = self.json_body(response)
+            run = response_body["run"]
+            if settings["model"]:
+                self.assertEqual({key: response_body[key] for key in
+                                  ("models", "upstream_available", "upstream_error")}, {
+                    "models": [{"id": "test-model"}], "upstream_available": True,
+                    "upstream_error": None,
+                })
+            else:
+                self.assertEqual(set(response_body), {"run"})
             deadline = time.monotonic() + 3
             while self.app.store.run(run["id"])["status"] not in ("completed", "failed"):
                 self.assertGreater(deadline - time.monotonic(), 0, "fake upstream did not finish the reply")
                 time.sleep(0.01)
             self.assertEqual(self.app.store.run(run["id"])["status"], "completed")
+            if settings["model"]:
+                before = self.app.store.snapshot(chat["id"])
+                parent = next(message["id"] for message in before["messages"] if message["role"] == "user")
+                FakeUpstream.models = ["replacement-model"]
+                retry = self.request("POST", f"/api/chats/{chat['id']}/runs",
+                                     {"regenerate": True, "parent_id": parent, "settings": settings}, cookie)
+                self.assertEqual(retry[0], 409, self.json_body(retry))
+                after = self.app.store.snapshot(chat["id"])
+                self.assertEqual(after["messages"], before["messages"])
+                self.assertEqual(after["runs"], before["runs"])
+                FakeUpstream.models = ["test-model"]
         self.assertEqual([payload["model"] for path, payload in FakeUpstream.posts
                           if path.endswith("/chat/completions")], ["test-model", ""])
 
